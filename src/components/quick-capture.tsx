@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { Sparkles, Loader2, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Sparkles, Loader2, X } from "lucide-react";
 import { parseRawCapture } from "@/app/capture/actions";
 import { createTask } from "@/app/task/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
+import { polishActionItem } from "@/lib/smart-parse";
 
 const STATUSES = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
 const PRIORITIES = ["Critical","High","Medium","Low"];
@@ -170,12 +171,22 @@ export function QuickCapture({ companies }: Props) {
             {/* Action Item */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-fg-muted">Action Item *</label>
-              <input
-                type="text"
-                value={actionItem}
-                onChange={e => setActionItem(e.target.value)}
-                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={actionItem}
+                  onChange={e => setActionItem(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setActionItem(polishActionItem(actionItem))}
+                  title="Polish action item"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-fg-muted hover:text-accent transition-colors"
+                >
+                  <Sparkles size={14} />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
 import { Card, PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { PolishedInput } from "@/components/polished-input";
 import { ArrowLeft, Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +39,8 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
           </div>
 
           <div>
-            <FieldLabel>Action Item *</FieldLabel>
-            <Input name="actionItem" required placeholder="What needs to happen?" />
+            <FieldLabel>Action Item * <span className="text-fg-subtle normal-case font-normal">— click ✦ to polish</span></FieldLabel>
+            <PolishedInput name="actionItem" required placeholder="What needs to happen?" />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

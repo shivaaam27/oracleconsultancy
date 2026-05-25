@@ -1,3 +1,66 @@
+// ── Polish / paraphrase ──────────────────────────────────────────────────────
+
+const LEADING_FILLERS = [
+  /^(please\s+|kindly\s+)/i,
+  /^(we\s+need\s+to\s+|need\s+to\s+|i\s+need\s+to\s+|you\s+need\s+to\s+)/i,
+  /^(they\s+need\s+to\s+|he\s+needs\s+to\s+|she\s+needs\s+to\s+)/i,
+  /^(have\s+to\s+|has\s+to\s+|must\s+)/i,
+  /^(should\s+|shall\s+|will\s+|can\s+you\s+|could\s+you\s+)/i,
+  /^(make\s+sure\s+to\s+|make\s+sure\s+|ensure\s+that\s+|ensure\s+)/i,
+  /^(remember\s+to\s+|don'?t\s+forget\s+to\s+)/i,
+  /^to\s+(?=[a-z])/i,
+];
+
+const TRAILING_FILLERS = [
+  /[.!?]+$/,
+  /\s+(asap|a\.s\.a\.p\.?|urgently|immediately|right\s+away|as\s+soon\s+as\s+possible)$/i,
+  /\s+(please|kindly|thanks|thank\s+you|cheers)$/i,
+];
+
+const REPLACEMENTS: [RegExp, string][] = [
+  [/\bfollow[\s-]?up\b/gi, "Follow up on"],
+  [/\bfollowup\b/gi, "Follow up on"],
+  [/\basap\b/gi, ""],
+  [/\bpls\b/gi, ""],
+  [/\bplz\b/gi, ""],
+  [/\bu\b/g, "you"],
+  [/\bw\/\b/g, "with"],
+  [/\br\/\b/g, "regarding"],
+  [/\bre:\s*/i, "Regarding "],
+  [/\bfyi:?\s*/i, ""],
+  [/\s{2,}/g, " "],
+];
+
+export function polishActionItem(raw: string): string {
+  if (!raw.trim()) return raw;
+  let text = raw.trim();
+
+  // Apply word replacements first
+  for (const [re, rep] of REPLACEMENTS) text = text.replace(re, rep);
+
+  // Strip leading filler phrases (run multiple passes — e.g. "please make sure to")
+  let prev = "";
+  while (prev !== text) {
+    prev = text;
+    for (const re of LEADING_FILLERS) text = text.replace(re, "");
+    text = text.trimStart();
+  }
+
+  // Strip trailing filler
+  for (const re of TRAILING_FILLERS) text = text.replace(re, "");
+  text = text.trim();
+
+  // Capitalise first letter, lowercase the rest if it was ALL CAPS
+  if (!text) return raw.trim();
+  const wasAllCaps = text === text.toUpperCase() && text.length > 3;
+  if (wasAllCaps) text = text.toLowerCase();
+  text = text[0].toUpperCase() + text.slice(1);
+
+  return text;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type ParsedCapture = {
   companyId: number | null;
   companyName: string | null;

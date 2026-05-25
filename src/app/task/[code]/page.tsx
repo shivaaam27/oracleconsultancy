@@ -4,6 +4,7 @@ import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { UpdateBox } from "@/components/update-box";
+import { PolishedInput } from "@/components/polished-input";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
@@ -127,8 +128,8 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
           <Card className="p-5">
             <form action={update} className="space-y-4">
               <div>
-                <FieldLabel>Action Item</FieldLabel>
-                <Input name="actionItem" defaultValue={r.actionItem} required />
+                <FieldLabel>Action Item <span className="text-fg-subtle normal-case font-normal">— click ✦ to polish</span></FieldLabel>
+                <PolishedInput name="actionItem" defaultValue={r.actionItem} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
