@@ -180,8 +180,20 @@ export function QuickCapture({ companies }: Props) {
                 />
                 <button
                   type="button"
-                  onClick={() => setActionItem(polishActionItem(actionItem))}
-                  title="Polish action item"
+                  onClick={async () => {
+                    const rulebased = polishActionItem(actionItem);
+                    setActionItem(rulebased);
+                    try {
+                      const res = await fetch("/api/polish", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: actionItem }),
+                      });
+                      const { result } = await res.json();
+                      if (result?.trim()) setActionItem(result);
+                    } catch {}
+                  }}
+                  title="Polish with AI"
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-fg-muted hover:text-accent transition-colors"
                 >
                   <Sparkles size={14} />

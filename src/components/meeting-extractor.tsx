@@ -190,7 +190,15 @@ export function MeetingExtractor({ companies }: Props) {
                         type="text"
                         value={task.actionItem}
                         onChange={e => updateTask(task.id, { actionItem: e.target.value })}
-                        onBlur={e => updateTask(task.id, { actionItem: polishActionItem(e.target.value) })}
+                        onBlur={async e => {
+                        const rulebased = polishActionItem(e.target.value);
+                        updateTask(task.id, { actionItem: rulebased });
+                        try {
+                          const res = await fetch("/api/polish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: e.target.value }) });
+                          const { result } = await res.json();
+                          if (result?.trim()) updateTask(task.id, { actionItem: result });
+                        } catch {}
+                      }}
                         placeholder="Action item…"
                         className="w-full bg-transparent text-sm focus:outline-none placeholder:text-fg-muted"
                       />
