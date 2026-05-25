@@ -2,22 +2,27 @@ import { db, schema } from "@/db";
 import { eq, desc } from "drizzle-orm";
 import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
-import { Card, TableShell, Th, Td, Badge, Button, FieldLabel, Input, Select, Textarea, EmptyState } from "@/components/ui";
+import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { UpdateBox } from "@/components/update-box";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
-import { ArrowLeft, Save, Trash2, History } from "lucide-react";
+import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-function fmt(d: Date | null) {
-  return d ? d.toISOString().slice(0, 16).replace("T", " ") : "—";
+function fmt(d: Date | null | undefined) {
+  if (!d) return "—";
+  return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
-function dateInput(d: Date | null) {
-  return d ? d.toISOString().slice(0, 10) : "";
+function fmtDate(d: Date | null | undefined) {
+  if (!d) return "—";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
-
+function dateInput(d: Date | null | undefined) {
+  return d ? new Date(d).toISOString().slice(0, 10) : "";
+}
 function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "info" {
   if (f === "closed") return "default";
   if (["escalated", "escalate-now", "overdue", "stalled"].includes(f)) return "danger";
@@ -26,39 +31,62 @@ function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "
   return "default";
 }
 
+type TimelineItem =
+  | { kind: "update"; id: number; body: string; createdAt: Date; createdBy: string | null }
+  | { kind: "audit"; id: number; field: string | null; oldValue: string | null; newValue: string | null; changeReason: string | null; entryType: string | null; createdAt: Date; createdBy: string | null };
+
 export default async function TaskPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const all = await getAllTasks();
   const r = all.find((t) => t.code === code);
   if (!r) return notFound();
-  const audit = await db.select().from(schema.auditLog).where(eq(schema.auditLog.taskCode, code)).orderBy(desc(schema.auditLog.createdAt));
+
+  const [auditRows, updateRows] = await Promise.all([
+    db.select().from(schema.auditLog).where(eq(schema.auditLog.taskCode, code)).orderBy(desc(schema.auditLog.createdAt)),
+    db.select().from(schema.taskUpdates).where(eq(schema.taskUpdates.taskId, r.id)).orderBy(desc(schema.taskUpdates.createdAt)),
+  ]);
+
+  // Merge into unified timeline sorted newest first
+  const timeline: TimelineItem[] = [
+    ...updateRows.map(u => ({ kind: "update" as const, id: u.id, body: u.body, createdAt: u.createdAt, createdBy: u.createdBy })),
+    ...auditRows.map(a => ({ kind: "audit" as const, id: a.id, field: a.field, oldValue: a.oldValue, newValue: a.newValue, changeReason: a.changeReason, entryType: a.entryType, createdAt: a.createdAt, createdBy: a.createdBy })),
+  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   const update = updateTask.bind(null, code);
   const remove = deleteTask.bind(null, code);
 
+  const priorityColor: Record<string, string> = {
+    Critical: "text-danger", High: "text-warn", Medium: "text-info", Low: "text-fg-muted",
+  };
+
   return (
     <div className="space-y-6 max-w-5xl">
+      {/* Back */}
       <div>
-        <Link href="/registry" className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg">
+        <Link href="/registry" className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition-colors">
           <ArrowLeft size={12} /> Registry
         </Link>
       </div>
 
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="font-mono text-xs text-fg-muted">{r.code}</span>
-            <span className="text-fg-subtle">·</span>
-            <Link href={`/companies/${r.companyId}`} className="text-xs text-fg-muted hover:text-accent">{r.companyName}</Link>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="font-mono text-xs text-fg-muted bg-bg-subtle px-2 py-0.5 rounded">{r.code}</span>
+            <Link href={`/companies/${r.companyId}`} className="text-xs text-fg-muted hover:text-accent transition-colors">{r.companyName}</Link>
             <span className="text-fg-subtle">·</span>
             <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
+            {r.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{r.actionItem}</h1>
-          <div className="text-xs text-fg-muted mt-2">
-            Created {fmt(r.createdDate)} · Last updated {fmt(r.lastUpdatedAt)}
-            {r.closedDate ? ` · Closed ${fmt(r.closedDate)}` : ""}
-            {" · Days open: "}<span className="tabular">{r.daysOpen ?? "—"}</span>
-            {" · DTD: "}<span className="tabular">{r.daysToDeadline === "done" ? "✓" : r.daysToDeadline ?? "—"}</span>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted mt-2">
+            <span>Created <strong>{fmtDate(r.createdDate)}</strong></span>
+            {r.deadline && <span>Deadline <strong className={r.flag === "overdue" ? "text-danger" : ""}>{fmtDate(r.deadline)}</strong></span>}
+            <span>Days open <strong className="tabular">{r.daysOpen ?? "—"}</strong></span>
+            {r.daysToDeadline !== null && r.daysToDeadline !== "done" && (
+              <span>DTD <strong className={`tabular ${Number(r.daysToDeadline) < 0 ? "text-danger" : Number(r.daysToDeadline) <= 7 ? "text-warn" : ""}`}>{r.daysToDeadline}d</strong></span>
+            )}
+            {r.assignees.length > 0 && <span>Assigned to <strong>{r.assignees.join(", ")}</strong></span>}
           </div>
         </div>
         <form action={remove}>
@@ -66,120 +94,158 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
         </form>
       </div>
 
-      <Card className="p-6">
-        <form action={update} className="space-y-5">
-          <div>
-            <FieldLabel>Action Item</FieldLabel>
-            <Input name="actionItem" defaultValue={r.actionItem} required />
+      {/* Quick stats row */}
+      <div className="flex gap-3 flex-wrap">
+        {[
+          { label: "Status", value: r.status },
+          { label: "Priority", value: r.priority, className: priorityColor[r.priority] },
+          { label: "Category", value: r.category || "—" },
+          { label: "Department", value: r.department || "—" },
+          { label: "Risk", value: r.risk || "—" },
+        ].map(item => (
+          <div key={item.label} className="bg-bg-subtle rounded-lg px-3 py-2 min-w-[100px]">
+            <div className="text-xs text-fg-muted">{item.label}</div>
+            <div className={`text-sm font-medium mt-0.5 ${(item as any).className || ""}`}>{item.value}</div>
           </div>
+        ))}
+      </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <FieldLabel>Department</FieldLabel>
-              <Input name="department" defaultValue={r.department || ""} />
-            </div>
-            <div>
-              <FieldLabel>Status</FieldLabel>
-              <Select name="status" defaultValue={r.status}>
-                {STATUSES.map((s) => <option key={s}>{s}</option>)}
-              </Select>
-            </div>
-            <div>
-              <FieldLabel>Priority</FieldLabel>
-              <Select name="priority" defaultValue={r.priority}>
-                {PRIORITIES.map((s) => <option key={s}>{s}</option>)}
-              </Select>
-            </div>
-            <div>
-              <FieldLabel>Risk</FieldLabel>
-              <Select name="risk" defaultValue={r.risk || ""}>
-                <option value="">—</option>
-                {RISKS.map((s) => <option key={s}>{s}</option>)}
-              </Select>
-            </div>
-            <div>
-              <FieldLabel>Escalation</FieldLabel>
-              <Select name="escalation" defaultValue={r.escalation || "No"}>
-                <option>No</option>
-                <option>Yes</option>
-              </Select>
-            </div>
-            <div>
-              <FieldLabel>Category</FieldLabel>
-              <Input name="category" defaultValue={r.category || ""} />
-            </div>
-            <div>
-              <FieldLabel>Meeting Date</FieldLabel>
-              <Input name="meetingDate" type="date" defaultValue={dateInput(r.meetingDate)} />
-            </div>
-            <div>
-              <FieldLabel>Deadline</FieldLabel>
-              <Input name="deadline" type="date" defaultValue={dateInput(r.deadline)} />
-            </div>
-            <div>
-              <FieldLabel>Accountable (comma-separated)</FieldLabel>
-              <Input name="accountable" defaultValue={r.assignees.join(", ")} />
-            </div>
-          </div>
-
-          <div>
-            <FieldLabel>Latest Update</FieldLabel>
-            <Input name="latestUpdate" defaultValue={r.latestUpdate || ""} />
-          </div>
-
-          <div>
-            <FieldLabel>Comments</FieldLabel>
-            <Textarea name="comments" defaultValue={r.comments || ""} rows={3} />
-          </div>
-
-          <div>
-            <FieldLabel>Change Reason <span className="text-fg-subtle normal-case font-normal">(optional, recorded in audit)</span></FieldLabel>
-            <Input name="changeReason" placeholder="Why are you making this change?" />
-          </div>
-
-          <div className="flex items-center justify-end pt-2 border-t border-border">
-            <Button type="submit"><Save size={13} /> Save changes</Button>
-          </div>
-        </form>
-      </Card>
-
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted flex items-center gap-1.5">
-            <History size={12} /> Audit Timeline · {audit.length} entries
-          </h2>
+      {/* Latest update callout */}
+      {r.latestUpdate && (
+        <div className="border-l-2 border-accent pl-4 py-1">
+          <div className="text-xs text-fg-muted mb-0.5">Latest update · {fmt(r.lastUpdatedAt)}</div>
+          <p className="text-sm">{r.latestUpdate}</p>
         </div>
-        <TableShell>
-          {audit.length === 0 ? (
-            <EmptyState title="No audit entries yet." hint="Changes you save will appear here." />
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <Th>When</Th>
-                  <Th>Field</Th>
-                  <Th>Old</Th>
-                  <Th>New</Th>
-                  <Th>Reason</Th>
-                  <Th>By</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {audit.map((a) => (
-                  <tr key={a.id}>
-                    <Td className="font-mono text-xs text-fg-muted whitespace-nowrap">{fmt(a.createdAt)}</Td>
-                    <Td>{a.field}</Td>
-                    <Td className="text-fg-muted max-w-xs truncate">{a.oldValue}</Td>
-                    <Td className="max-w-xs truncate">{a.newValue}</Td>
-                    <Td className="text-fg-muted">{a.changeReason}</Td>
-                    <Td className="text-xs text-fg-muted">{a.createdBy}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </TableShell>
-      </section>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Left: Edit form */}
+        <div className="lg:col-span-3 space-y-4">
+          <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
+            <Pencil size={12} /> Edit Task
+          </h2>
+          <Card className="p-5">
+            <form action={update} className="space-y-4">
+              <div>
+                <FieldLabel>Action Item</FieldLabel>
+                <Input name="actionItem" defaultValue={r.actionItem} required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>Status</FieldLabel>
+                  <Select name="status" defaultValue={r.status}>
+                    {STATUSES.map((s) => <option key={s}>{s}</option>)}
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Priority</FieldLabel>
+                  <Select name="priority" defaultValue={r.priority}>
+                    {PRIORITIES.map((s) => <option key={s}>{s}</option>)}
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Department</FieldLabel>
+                  <Input name="department" defaultValue={r.department || ""} />
+                </div>
+                <div>
+                  <FieldLabel>Category</FieldLabel>
+                  <Input name="category" defaultValue={r.category || ""} />
+                </div>
+                <div>
+                  <FieldLabel>Risk</FieldLabel>
+                  <Select name="risk" defaultValue={r.risk || ""}>
+                    <option value="">—</option>
+                    {RISKS.map((s) => <option key={s}>{s}</option>)}
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Escalation</FieldLabel>
+                  <Select name="escalation" defaultValue={r.escalation || "No"}>
+                    <option>No</option><option>Yes</option>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Meeting Date</FieldLabel>
+                  <Input name="meetingDate" type="date" defaultValue={dateInput(r.meetingDate)} />
+                </div>
+                <div>
+                  <FieldLabel>Deadline</FieldLabel>
+                  <Input name="deadline" type="date" defaultValue={dateInput(r.deadline)} />
+                </div>
+              </div>
+              <div>
+                <FieldLabel>Accountable (comma-separated)</FieldLabel>
+                <Input name="accountable" defaultValue={r.assignees.join(", ")} />
+              </div>
+              <div>
+                <FieldLabel>Comments</FieldLabel>
+                <Textarea name="comments" defaultValue={r.comments || ""} rows={2} />
+              </div>
+              <div>
+                <FieldLabel>Change Reason <span className="text-fg-subtle normal-case font-normal">(recorded in history)</span></FieldLabel>
+                <Input name="changeReason" placeholder="Why are you making this change?" />
+              </div>
+              <div className="flex items-center justify-end pt-2 border-t border-border">
+                <Button type="submit"><Save size={13} /> Save Changes</Button>
+              </div>
+            </form>
+          </Card>
+        </div>
+
+        {/* Right: Updates + Timeline */}
+        <div className="lg:col-span-2 space-y-4">
+          <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
+            <MessageSquarePlus size={12} /> Updates & History
+          </h2>
+
+          <UpdateBox taskId={r.id} taskCode={r.code} currentStatus={r.status} />
+
+          {/* Timeline */}
+          <div className="space-y-0">
+            {timeline.length === 0 ? (
+              <p className="text-xs text-fg-muted py-4 text-center">No updates yet. Post the first one above.</p>
+            ) : (
+              <div className="relative pl-5">
+                {/* vertical line */}
+                <div className="absolute left-1.5 top-2 bottom-2 w-px bg-border" />
+
+                <div className="space-y-3">
+                  {timeline.map((item) => (
+                    <div key={`${item.kind}-${item.id}`} className="relative">
+                      {/* dot */}
+                      <div className={`absolute -left-3.5 top-1.5 w-2 h-2 rounded-full border-2 border-bg ${item.kind === "update" ? "bg-accent" : "bg-border"}`} />
+
+                      {item.kind === "update" ? (
+                        <div className="bg-accent/5 border border-accent/20 rounded-lg p-3">
+                          <p className="text-sm leading-relaxed">{item.body}</p>
+                          <p className="text-xs text-fg-muted mt-1.5">{fmt(item.createdAt)}</p>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg px-3 py-2 bg-bg-subtle">
+                          {item.entryType === "CREATE" ? (
+                            <p className="text-xs text-fg-muted">Task created</p>
+                          ) : (
+                            <div className="text-xs space-y-0.5">
+                              <span className="font-medium text-fg">{item.field}</span>
+                              <div className="flex items-center gap-1.5 text-fg-muted flex-wrap">
+                                {item.oldValue && <span className="line-through">{item.oldValue}</span>}
+                                {item.oldValue && item.newValue && <GitCommitHorizontal size={10} />}
+                                {item.newValue && <span className="text-fg">{item.newValue}</span>}
+                              </div>
+                              {item.changeReason && <p className="italic text-fg-muted">{item.changeReason}</p>}
+                            </div>
+                          )}
+                          <p className="text-xs text-fg-subtle mt-1">{fmt(item.createdAt)}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

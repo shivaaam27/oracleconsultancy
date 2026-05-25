@@ -226,3 +226,48 @@ export async function deleteTask(code: string) {
   revalidatePath("/");
   redirect("/registry");
 }
+
+export async function addTaskUpdate(taskId: number, taskCode: string, body: string, newStatus?: string) {
+  const trimmed = body.trim();
+  if (!trimmed) return;
+
+  await db.insert(schema.taskUpdates).values({
+    taskId,
+    body: trimmed,
+    createdAt: new Date(),
+    createdBy: "web-ui",
+  });
+
+  const updatePayload: Partial<typeof schema.tasks.$inferInsert> = {
+    latestUpdate: trimmed,
+    lastUpdatedAt: new Date(),
+  };
+
+  if (newStatus) {
+    const task = await db.select().from(schema.tasks).where(eq(schema.tasks.id, taskId)).limit(1);
+    if (task.length) {
+      const t = task[0];
+      const closingNow = (newStatus === "Completed" || newStatus === "Closed") && !(t.status === "Completed" || t.status === "Closed");
+      updatePayload.status = newStatus;
+      if (closingNow) updatePayload.closedDate = new Date();
+
+      await db.insert(schema.auditLog).values({
+        taskId,
+        taskCode,
+        companyId: t.companyId,
+        entryType: "CHANGE",
+        field: "Status",
+        oldValue: t.status,
+        newValue: newStatus,
+        changeReason: trimmed,
+        createdAt: new Date(),
+        createdBy: "web-ui",
+      });
+    }
+  }
+
+  await db.update(schema.tasks).set(updatePayload).where(eq(schema.tasks.id, taskId));
+  revalidatePath(`/task/${taskCode}`);
+  revalidatePath("/registry");
+  revalidatePath("/");
+}
