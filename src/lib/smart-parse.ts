@@ -1,60 +1,280 @@
-// ── Polish / paraphrase ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// Smart Paraphraser — rule-based NLG (no AI/API required)
+// Techniques: passive→active inversion, gerund→imperative, phrase compression,
+// subject stripping, existential flattening, question→imperative, jargon→plain
+// ══════════════════════════════════════════════════════════════════════════════
 
-const LEADING_FILLERS = [
-  /^(please\s+|kindly\s+)/i,
-  /^(we\s+need\s+to\s+|need\s+to\s+|i\s+need\s+to\s+|you\s+need\s+to\s+)/i,
-  /^(they\s+need\s+to\s+|he\s+needs\s+to\s+|she\s+needs\s+to\s+)/i,
-  /^(have\s+to\s+|has\s+to\s+|must\s+)/i,
-  /^(should\s+|shall\s+|will\s+|can\s+you\s+|could\s+you\s+)/i,
-  /^(make\s+sure\s+to\s+|make\s+sure\s+|ensure\s+that\s+|ensure\s+)/i,
-  /^(remember\s+to\s+|don'?t\s+forget\s+to\s+)/i,
-  /^to\s+(?=[a-z])/i,
-];
-
-const TRAILING_FILLERS = [
-  /[.!?]+$/,
-  /\s+(asap|a\.s\.a\.p\.?|urgently|immediately|right\s+away|as\s+soon\s+as\s+possible)$/i,
-  /\s+(please|kindly|thanks|thank\s+you|cheers)$/i,
-];
-
-const REPLACEMENTS: [RegExp, string][] = [
-  [/\bfollow[\s-]?up\b/gi, "Follow up on"],
-  [/\bfollowup\b/gi, "Follow up on"],
+// ── 1. Phrase compression dictionary ─────────────────────────────────────────
+// Longer phrases first so they match before sub-phrases
+const PHRASE_MAP: [RegExp, string][] = [
+  // Relationship / contact
+  [/\bget in touch with\b/gi,               "contact"],
+  [/\breach out to\b/gi,                    "contact"],
+  [/\btouch base with\b/gi,                 "meet with"],
+  [/\bcircle back (on|with|about)\b/gi,     "follow up on"],
+  [/\bloop in\b/gi,                         "include"],
+  [/\bcheck in (with|on)\b/gi,              "follow up with"],
+  [/\bspeak (with|to)\b/gi,                 "call"],
+  [/\btalk (with|to)\b/gi,                  "call"],
+  [/\bhave a (call|chat|conversation|discussion|talk) (with|about|on|regarding)\b/gi, "discuss"],
+  [/\bset up a (call|meeting|session) (with|about|on|regarding)\b/gi, "schedule meeting"],
+  [/\bhave a meeting (with|about|on|regarding)\b/gi, "meet"],
+  // Review / analysis
+  [/\btake a (look|glance|peek) at\b/gi,    "review"],
+  [/\bhave a (look|glance) at\b/gi,         "review"],
+  [/\bgo (over|through)\b/gi,               "review"],
+  [/\blook (over|through|into)\b/gi,        "review"],
+  [/\bcheck (up )?on\b/gi,                  "follow up on"],
+  // Resolution
+  [/\bsort out\b/gi,                        "resolve"],
+  [/\bwork out\b/gi,                        "resolve"],
+  [/\bdeal with\b/gi,                       "handle"],
+  [/\btake care of\b/gi,                    "handle"],
+  [/\bfigure out\b/gi,                      "determine"],
+  [/\bwork on\b/gi,                         "progress"],
+  [/\bcome up with\b/gi,                    "prepare"],
+  [/\bput together\b/gi,                    "prepare"],
+  [/\bkeep an eye on\b/gi,                  "monitor"],
+  [/\bkeep track of\b/gi,                   "track"],
+  // Filler connectives
+  [/\bin order to\b/gi,                     "to"],
+  [/\bdue to the fact that\b/gi,            "because"],
+  [/\bwith (regard|reference|respect) to\b/gi, "regarding"],
+  [/\bin terms of\b/gi,                     "regarding"],
+  [/\bfor the purpose of\b/gi,              "to"],
+  [/\bon behalf of\b/gi,                    "for"],
+  [/\bby means of\b/gi,                     "using"],
+  [/\bin the event that\b/gi,               "if"],
+  [/\bprior to\b/gi,                        "before"],
+  [/\bsubsequent to\b/gi,                   "after"],
+  [/\bat this point in time\b/gi,           "now"],
+  [/\bon a (daily|weekly|monthly) basis\b/gi, "$1"],
+  // Weak openers
+  [/\bmake sure (that\s+)?(to\s+)?/gi,      ""],
+  [/\bmake certain (that\s+)?/gi,           ""],
+  [/\bensure (that\s+)?/gi,                 ""],
+  [/\bit is (important|necessary|critical|essential) to\b/gi, ""],
+  [/\bit would be (good|great|helpful|ideal|best) to\b/gi,    ""],
+  [/\bwe (should|need to|must|have to|ought to)\b/gi,         ""],
+  [/\bsomeone (should|needs to|must|has to)\b/gi,             ""],
+  [/\bplease\s+/gi,                         ""],
+  [/\bkindly\s+/gi,                         ""],
+  // Verbal phrase gerunds
+  [/\bgoing (over|through)\b/gi, "review"],
+  [/\bsetting up\b/gi,           "set up"],
+  [/\blooking (over|through|into)\b/gi, "review"],
+  // Abbreviations — avoid \b after / (not a word char)
+  [/\bw\//g,     "with "],
+  [/\br\//g,     "regarding "],
+  [/\bb\/w\b/gi, "between"],
   [/\basap\b/gi, ""],
-  [/\bpls\b/gi, ""],
-  [/\bplz\b/gi, ""],
-  [/\bu\b/g, "you"],
-  [/\bw\/\b/g, "with"],
-  [/\br\/\b/g, "regarding"],
-  [/\bre:\s*/i, "Regarding "],
-  [/\bfyi:?\s*/i, ""],
-  [/\s{2,}/g, " "],
+  [/\bpls\b/gi,  ""],
+  [/\bplz\b/gi,  ""],
+  [/\bfyi:?\s*/gi, ""],
+  [/\bbtw:?\s*/gi, ""],
+  [/\bre:\s*/gi,  "regarding "],
+  [/\bu\b/g,     "you"],
+  // Follow-up normalisation
+  [/\bfollow[\s-]?up\b/gi, "follow up"],
+  [/\bfollowup\b/gi,       "follow up"],
 ];
+
+// ── 2. Past participle → imperative (for passive voice inversion) ─────────────
+const PP_TO_IMPERATIVE: Record<string, string> = {
+  reviewed:"Review", sent:"Send", processed:"Process", submitted:"Submit",
+  completed:"Complete", approved:"Approve", signed:"Sign", updated:"Update",
+  checked:"Check", confirmed:"Confirm", prepared:"Prepare", scheduled:"Schedule",
+  arranged:"Arrange", finalized:"Finalize", finalised:"Finalise", shared:"Share",
+  delivered:"Deliver", resolved:"Resolve", fixed:"Fix", handled:"Handle",
+  done:"Complete", drafted:"Draft", written:"Write", created:"Create",
+  collected:"Collect", gathered:"Gather", verified:"Verify", tested:"Test",
+  launched:"Launch", closed:"Close", escalated:"Escalate", investigated:"Investigate",
+  reported:"Report", notified:"Notify", informed:"Inform", booked:"Book",
+  hired:"Hire", paid:"Pay", invoiced:"Invoice", reminded:"Remind",
+  requested:"Request", obtained:"Obtain", procured:"Procure", negotiated:"Negotiate",
+  visited:"Visit", inspected:"Inspect", audited:"Audit", trained:"Train",
+  assigned:"Assign", delegated:"Delegate", implemented:"Implement", deployed:"Deploy",
+  tracked:"Track", monitored:"Monitor", contacted:"Contact", called:"Call",
+  emailed:"Email", addressed:"Address", discussed:"Discuss", presented:"Present",
+  coordinated:"Coordinate", raised:"Raise", actioned:"Action", followed:"Follow up",
+  analyzed:"Analyze", analysed:"Analyse", assessed:"Assess", evaluated:"Evaluate",
+  established:"Establish", executed:"Execute", facilitated:"Facilitate",
+  initiated:"Initiate", maintained:"Maintain",
+};
+
+// ── 3. Gerund → imperative ────────────────────────────────────────────────────
+const GERUND_TO_IMPERATIVE: Record<string, string> = {
+  reviewing:"Review", sending:"Send", calling:"Call", following:"Follow up",
+  updating:"Update", checking:"Check", preparing:"Prepare", scheduling:"Schedule",
+  arranging:"Arrange", confirming:"Confirm", completing:"Complete",
+  finalizing:"Finalize", finalising:"Finalise", sharing:"Share",
+  presenting:"Present", delivering:"Deliver", discussing:"Discuss",
+  resolving:"Resolve", fixing:"Fix", handling:"Handle", processing:"Process",
+  approving:"Approve", signing:"Sign", drafting:"Draft", writing:"Write",
+  creating:"Create", meeting:"Meet with", coordinating:"Coordinate",
+  collecting:"Collect", gathering:"Gather", verifying:"Verify", testing:"Test",
+  launching:"Launch", closing:"Close", escalating:"Escalate",
+  investigating:"Investigate", reporting:"Report", notifying:"Notify",
+  informing:"Inform", booking:"Book", hiring:"Hire", paying:"Pay",
+  chasing:"Chase", reminding:"Remind", requesting:"Request", obtaining:"Obtain",
+  procuring:"Procure", negotiating:"Negotiate", visiting:"Visit",
+  inspecting:"Inspect", auditing:"Audit", training:"Train", assigning:"Assign",
+  delegating:"Delegate", implementing:"Implement", deploying:"Deploy",
+  tracking:"Track", monitoring:"Monitor", contacting:"Contact", emailing:"Email",
+  addressing:"Address", submitting:"Submit", getting:"Get", making:"Make",
+  raising:"Raise", analysing:"Analyse", analyzing:"Analyze", assessing:"Assess",
+  evaluating:"Evaluate", establishing:"Establish", executing:"Execute",
+  facilitating:"Facilitate", initiating:"Initiate", maintaining:"Maintain",
+};
+
+// ── 4. Structural transformers ────────────────────────────────────────────────
+
+function stripTrailing(text: string): string {
+  return text
+    .replace(/[.!?]+$/, "")
+    .replace(/\s+(asap|a\.s\.a\.p\.?|urgently|immediately|right\s+away|as\s+soon\s+as\s+possible)$/i, "")
+    .replace(/\s+(please|kindly|thanks|thank\s+you|cheers)$/i, "")
+    .trim();
+}
+
+function stripLeadingSubject(text: string): string {
+  // Remove leading pronouns / subject phrases before a verb
+  // "I will review..." → "review...", "John needs to send..." → "send..."
+  let t = text;
+  t = t.replace(/^(i|we|he|she|they|you|the team|our team|someone)\s+(will|should|shall|must|need to|needs to|have to|has to|would|can|could|ought to)\s+/i, "");
+  t = t.replace(/^\w+\s+(will|should|shall|must|need to|needs to|have to|has to)\s+/i, "");
+  t = t.replace(/^(i|we|he|she|they|you)\s+/i, "");
+  return t;
+}
+
+function invertPassive(text: string): string {
+  // "[Subject] needs to be [pp]" → "[Imperative] [subject]"
+  // "[Subject] should be/must be/is to be [pp]" → "[Imperative] [subject]"
+  const passiveRe = /^(.+?)\s+(needs? to be|should be|must be|has to be|is to be|is being|are being|was|were|will be|would be)\s+(\w+)(.*?)$/i;
+  const m = text.match(passiveRe);
+  if (m) {
+    const subject = m[1].trim();
+    const pp = m[3].toLowerCase();
+    const rest = m[4].trim();
+    const imperative = PP_TO_IMPERATIVE[pp];
+    if (imperative) {
+      // Clean up subject — remove leading articles
+      const cleanSubject = subject.replace(/^(the|a|an)\s+/i, "");
+      return `${imperative} ${cleanSubject}${rest ? " " + rest : ""}`.trim();
+    }
+  }
+
+  // "is/are [pp] by..." — "the contract is reviewed by John" → "Review contract"
+  const passiveBy = /^(?:the\s+|a\s+|an\s+)?(.+?)\s+(?:is|are|was|were)\s+(\w+ed|\w+t)\b(.*?)$/i;
+  const m2 = text.match(passiveBy);
+  if (m2) {
+    const pp = m2[2].toLowerCase();
+    const imperative = PP_TO_IMPERATIVE[pp];
+    if (imperative) {
+      const subject = m2[1].replace(/^(the|a|an)\s+/i, "");
+      const rest = m2[3].replace(/\s+by\s+\w+/i, "").trim();
+      return `${imperative} ${subject}${rest ? " " + rest : ""}`.trim();
+    }
+  }
+  return text;
+}
+
+function handleQuestion(text: string): string {
+  // "Can we/you/someone...?" → strip modal + subject
+  const qRe = /^(can|could|would|should|shall|will|may|might)\s+(we|you|someone|i|he|she|they|the team)?\s*/i;
+  return text.replace(qRe, "").trim();
+}
+
+function handleExistential(text: string): string {
+  const existRe = /^there\s+(is|are|was|were)\s+(?:a\s+|an\s+|some\s+)?(?:\w+\s+)?(?:with|regarding|about|on|for)\s+(.+?)(?:\s+that\s+(.+))?$/i;
+  const m = text.match(existRe);
+  if (m) {
+    const topic = m[2].replace(/^(the|a|an)\s+/i, "").trim();
+    const action = m[3];
+    if (action) {
+      // "needs resolving" / "needs to be fixed" → extract the verb
+      const cleaned = action
+        .replace(/^needs?\s+(to\s+be\s+)?/i, "")
+        .replace(/^requires?\s+/i, "")
+        .trim();
+      const imp = GERUND_TO_IMPERATIVE[cleaned.split(" ")[0].toLowerCase()];
+      const verb = imp || PP_TO_IMPERATIVE[cleaned.split(" ")[0].toLowerCase()] || capitalise(cleaned);
+      return `${verb} ${topic}`.trim();
+    }
+    return `Resolve ${topic} issue`.trim();
+  }
+  return text;
+}
+
+function convertGerund(text: string): string {
+  // "[Verb-ing] [object]..." → "[Imperative] [object]..."
+  const words = text.split(/\s+/);
+  if (words.length > 1) {
+    const first = words[0].toLowerCase();
+    const imp = GERUND_TO_IMPERATIVE[first];
+    if (imp) return [imp, ...words.slice(1)].join(" ");
+  }
+  return text;
+}
+
+function stripLeadingArticlesAndAdjectives(text: string): string {
+  // Don't strip — keep nouns intact for readability
+  return text;
+}
+
+function capitalise(text: string): string {
+  if (!text) return text;
+  // If ALL CAPS, convert to title-case-ish
+  if (text === text.toUpperCase() && /[A-Z]{3,}/.test(text)) {
+    text = text.toLowerCase();
+  }
+  return text[0].toUpperCase() + text.slice(1);
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export function polishActionItem(raw: string): string {
   if (!raw.trim()) return raw;
   let text = raw.trim();
 
-  // Apply word replacements first
-  for (const [re, rep] of REPLACEMENTS) text = text.replace(re, rep);
+  // Step 1 — phrase compression (run before structural transforms)
+  for (const [re, rep] of PHRASE_MAP) text = text.replace(re, rep);
+  text = text.replace(/\s{2,}/g, " ").trim();
 
-  // Strip leading filler phrases (run multiple passes — e.g. "please make sure to")
-  let prev = "";
-  while (prev !== text) {
-    prev = text;
-    for (const re of LEADING_FILLERS) text = text.replace(re, "");
-    text = text.trimStart();
+  // Step 2 — handle questions ("Can we...?")
+  if (/^(can|could|would|should|shall|will|may|might)\s/i.test(text)) {
+    text = handleQuestion(text);
   }
 
-  // Strip trailing filler
-  for (const re of TRAILING_FILLERS) text = text.replace(re, "");
-  text = text.trim();
+  // Step 3 — handle existential ("There is an issue with...")
+  if (/^there\s+(is|are|was|were)\s/i.test(text)) {
+    text = handleExistential(text);
+  }
 
-  // Capitalise first letter, lowercase the rest if it was ALL CAPS
+  // Step 4 — strip leading subject ("We will / John needs to")
+  text = stripLeadingSubject(text);
+
+  // Step 5 — strip bare leading modal/necessity ("need to", "must", "should"…)
+  text = text.replace(/^(need to|needs to|have to|has to|must|should|shall|will|would|can|could)\s+/i, "");
+  // Strip leading infinitive marker ("to review..." → "review...")
+  text = text.replace(/^to\s+(?=[a-z])/i, "");
+
+  // Step 6 — try passive→active inversion
+  const inverted = invertPassive(text);
+  if (inverted !== text) { text = inverted; }
+
+  // Step 7 — convert leading gerund ("Reviewing..." → "Review...")
+  text = convertGerund(text);
+
+  // Step 8 — strip trailing noise
+  text = stripTrailing(text);
+
+  // Step 9 — clean double spaces
+  text = text.replace(/\s{2,}/g, " ").trim();
+
+  // Step 10 — capitalise
   if (!text) return raw.trim();
-  const wasAllCaps = text === text.toUpperCase() && text.length > 3;
-  if (wasAllCaps) text = text.toLowerCase();
-  text = text[0].toUpperCase() + text.slice(1);
+  text = capitalise(text);
 
   return text;
 }
