@@ -12,12 +12,16 @@ import {
   Settings,
   Plus,
   Sparkles,
+  AlertOctagon,
+  FileText,
 } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/registry", label: "Registry", icon: ListChecks },
   { href: "/companies", label: "Companies", icon: Building2 },
+  { href: "/escalations", label: "Escalations", icon: AlertOctagon },
+  { href: "/digest", label: "Weekly Digest", icon: FileText },
   { href: "/people", label: "People", icon: Users },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/audit", label: "Audit Log", icon: History },
@@ -71,7 +75,7 @@ export function Sidebar() {
       </nav>
 
       <div className="p-3 text-[10px] text-fg-subtle border-t border-border">
-        v0.3 · Phase 3
+        v0.7 · Phase 7
       </div>
     </aside>
   );

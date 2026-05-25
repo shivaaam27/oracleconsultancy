@@ -4,7 +4,7 @@ import { Card, PageHeader, SectionHeading, Stat, TableShell, Th, Td, Badge, Empt
 import { QuickCapture } from "@/components/quick-capture";
 import { db, schema } from "@/db";
 import Link from "next/link";
-import { AlertTriangle, AlertOctagon, Clock, Flame, Ban, ArrowUpRight, CheckCircle2, Archive } from "lucide-react";
+import { AlertTriangle, AlertOctagon, Clock, Flame, Ban, ArrowUpRight, CheckCircle2, Archive, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +47,42 @@ export default async function DashboardPage() {
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const companiesList = await db.select({ id: schema.companies.id, name: schema.companies.name }).from(schema.companies);
 
-  const escalations = rows.filter((r) => r.flag === "escalate-now" || r.flag === "escalated" || r.flag === "overdue");
+  const needsAttention = rows
+    .filter((r) => r.flag === "escalate-now" || r.flag === "overdue" || r.status === "Escalated" || r.escalation === "Yes" || (r.priority === "Critical" && r.flag !== "on-track" && r.status !== "Completed" && r.status !== "Closed"))
+    .sort((a, b) => {
+      const order = ["escalate-now", "overdue", "escalated", "due-soon"];
+      return order.indexOf(a.flag) - order.indexOf(b.flag);
+    })
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
       <PageHeader title="Dashboard" sub={today} />
+
+      {/* Needs Attention strip */}
+      {needsAttention.length > 0 && (
+        <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-danger text-sm font-medium">
+              <AlertOctagon size={14} /> Needs Attention
+            </div>
+            <Link href="/escalations" className="text-xs text-fg-muted hover:text-accent transition-colors inline-flex items-center gap-1">
+              View all <ExternalLink size={10} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+            {needsAttention.map(r => (
+              <Link key={r.id} href={`/task/${r.code}`} className="group flex items-start gap-2.5 bg-bg rounded-lg px-3 py-2 border border-border hover:border-danger/40 transition-colors">
+                <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${r.flag === "overdue" || r.flag === "escalate-now" ? "bg-danger" : "bg-warn"}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium line-clamp-1 group-hover:text-accent transition-colors">{r.actionItem}</p>
+                  <p className="text-xs text-fg-muted mt-0.5">{r.code} · {r.companyName} · <span className={r.flag === "overdue" || r.flag === "escalate-now" ? "text-danger" : "text-warn"}>{r.status}</span></p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <QuickCapture companies={companiesList} />
 
@@ -137,45 +168,6 @@ export default async function DashboardPage() {
         </section>
       </div>
 
-      <section>
-        <SectionHeading>Escalation & Critical Alerts</SectionHeading>
-        <TableShell>
-          {escalations.length === 0 ? (
-            <EmptyState
-              icon={<CheckCircle2 size={32} />}
-              title="No items need escalation right now."
-              hint="Everything that's open is on track."
-            />
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <Th>ID</Th>
-                  <Th>Company</Th>
-                  <Th>Action Item</Th>
-                  <Th>Owner</Th>
-                  <Th>Deadline</Th>
-                  <Th>Flag</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {escalations.map((r) => (
-                  <tr key={r.id} className="hover:bg-bg-subtle transition-colors">
-                    <Td className="font-mono text-xs text-fg-muted"><Link href={`/task/${r.code}`} className="hover:text-accent">{r.code}</Link></Td>
-                    <Td>{r.companyName}</Td>
-                    <Td>
-                      <Link href={`/task/${r.code}`} className="hover:text-accent">{r.actionItem}</Link>
-                    </Td>
-                    <Td>{r.assignees.join(", ") || r.owner || <span className="text-fg-subtle">—</span>}</Td>
-                    <Td>{r.deadline ? r.deadline.toISOString().slice(0, 10) : <span className="text-fg-subtle">—</span>}</Td>
-                    <Td><Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge></Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </TableShell>
-      </section>
     </div>
   );
 }
