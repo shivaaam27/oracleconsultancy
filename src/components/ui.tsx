@@ -1,0 +1,158 @@
+import { cn } from "@/lib/cn";
+import Link from "next/link";
+import type { ComponentProps, ReactNode } from "react";
+
+export function Card({ className, ...p }: ComponentProps<"div">) {
+  return <div className={cn("bg-bg-elev border border-border rounded-lg shadow-sm", className)} {...p} />;
+}
+
+export function PageHeader({ title, sub, action }: { title: string; sub?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="flex items-end justify-between mb-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        {sub && <div className="text-sm text-fg-muted mt-1">{sub}</div>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+export function SectionHeading({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">{children}</h2>
+      {action}
+    </div>
+  );
+}
+
+const buttonStyles = {
+  primary: "bg-accent text-accent-fg hover:opacity-90",
+  secondary: "bg-bg-elev border border-border text-fg hover:bg-bg-muted",
+  ghost: "text-fg-muted hover:text-fg hover:bg-bg-muted",
+  danger: "bg-danger-soft text-danger hover:bg-danger hover:text-white border border-transparent hover:border-danger",
+};
+
+type BtnProps = { variant?: keyof typeof buttonStyles; size?: "sm" | "md" } & ComponentProps<"button">;
+export function Button({ variant = "primary", size = "md", className, ...p }: BtnProps) {
+  return (
+    <button
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-all duration-150",
+        size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm",
+        buttonStyles[variant],
+        className
+      )}
+      {...p}
+    />
+  );
+}
+
+type LinkBtnProps = { variant?: keyof typeof buttonStyles; size?: "sm" | "md" } & ComponentProps<typeof Link>;
+export function LinkButton({ variant = "primary", size = "md", className, ...p }: LinkBtnProps) {
+  return (
+    <Link
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-all duration-150",
+        size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm",
+        buttonStyles[variant],
+        className
+      )}
+      {...p}
+    />
+  );
+}
+
+const badgeTones = {
+  default: "bg-bg-muted text-fg-muted",
+  accent: "bg-accent-soft text-accent",
+  success: "bg-success-soft text-success",
+  warn: "bg-warn-soft text-warn",
+  danger: "bg-danger-soft text-danger",
+  info: "bg-info-soft text-info",
+};
+export function Badge({ tone = "default", className, children }: { tone?: keyof typeof badgeTones; className?: string; children: ReactNode }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap", badgeTones[tone], className)}>
+      {children}
+    </span>
+  );
+}
+
+export function Stat({ label, value, tone = "default", icon }: { label: string; value: ReactNode; tone?: "default" | "warn" | "danger" | "success"; icon?: ReactNode }) {
+  const ring = {
+    default: "",
+    warn: "ring-1 ring-warn/30 bg-gradient-to-br from-warn-soft/40 to-transparent",
+    danger: "ring-1 ring-danger/30 bg-gradient-to-br from-danger-soft/40 to-transparent",
+    success: "ring-1 ring-success/30 bg-gradient-to-br from-success-soft/40 to-transparent",
+  }[tone];
+  return (
+    <div className={cn("relative bg-bg-elev border border-border rounded-lg p-4 transition-shadow hover:shadow-md", ring)}>
+      <div className="flex items-center justify-between">
+        <div className="text-xs uppercase tracking-wider text-fg-muted">{label}</div>
+        {icon && <div className="text-fg-subtle">{icon}</div>}
+      </div>
+      <div className="text-3xl font-semibold mt-2 tabular">{value}</div>
+    </div>
+  );
+}
+
+export function TableShell({ children }: { children: ReactNode }) {
+  return <div className="bg-bg-elev border border-border rounded-lg overflow-hidden">{children}</div>;
+}
+
+export function Th({ children, className, align = "left" }: { children?: ReactNode; className?: string; align?: "left" | "right" | "center" }) {
+  return (
+    <th
+      className={cn(
+        "px-3 py-2.5 text-xs font-medium uppercase tracking-wider text-fg-muted bg-bg-subtle",
+        align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
+        className
+      )}
+    >
+      {children}
+    </th>
+  );
+}
+
+export function Td({ children, className, align = "left" }: { children?: ReactNode; className?: string; align?: "left" | "right" | "center" }) {
+  return (
+    <td
+      className={cn(
+        "px-3 py-2 text-sm border-t border-border",
+        align === "right" ? "text-right tabular" : align === "center" ? "text-center" : "",
+        className
+      )}
+    >
+      {children}
+    </td>
+  );
+}
+
+export function EmptyState({ icon, title, hint, action }: { icon?: ReactNode; title: string; hint?: string; action?: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+      {icon && <div className="text-fg-subtle mb-3">{icon}</div>}
+      <div className="text-sm font-medium">{title}</div>
+      {hint && <div className="text-xs text-fg-muted mt-1">{hint}</div>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+export function FieldLabel({ children }: { children: ReactNode }) {
+  return <label className="block text-xs font-medium uppercase tracking-wider text-fg-muted mb-1.5">{children}</label>;
+}
+
+export function Input(p: ComponentProps<"input">) {
+  return <input {...p} className={cn("w-full px-3 py-1.5 text-sm rounded-md", p.className)} />;
+}
+
+export function Select(p: ComponentProps<"select">) {
+  return <select {...p} className={cn("w-full px-3 py-1.5 text-sm rounded-md", p.className)} />;
+}
+
+export function Textarea(p: ComponentProps<"textarea">) {
+  return <textarea {...p} className={cn("w-full px-3 py-1.5 text-sm rounded-md", p.className)} />;
+}
