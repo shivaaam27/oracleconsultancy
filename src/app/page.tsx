@@ -1,6 +1,8 @@
 import { getAllTasks, computeCompanyKpis, computeGlobalKpis, statusBreakdown, priorityBreakdown } from "@/lib/queries";
 import { flagLabel, flagColor } from "@/lib/derive";
 import { Card, PageHeader, SectionHeading, Stat, TableShell, Th, Td, Badge, EmptyState } from "@/components/ui";
+import { QuickCapture } from "@/components/quick-capture";
+import { db, schema } from "@/db";
 import Link from "next/link";
 import { AlertTriangle, AlertOctagon, Clock, Flame, Ban, ArrowUpRight, CheckCircle2, Archive } from "lucide-react";
 
@@ -43,12 +45,15 @@ export default async function DashboardPage() {
   const maxStatus = Math.max(...statuses.map((s) => s.count), 1);
   const maxPrio = Math.max(...priorities.map((p) => p.count), 1);
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const companiesList = await db.select({ id: schema.companies.id, name: schema.companies.name }).from(schema.companies);
 
   const escalations = rows.filter((r) => r.flag === "escalate-now" || r.flag === "escalated" || r.flag === "overdue");
 
   return (
     <div className="space-y-8">
       <PageHeader title="Dashboard" sub={today} />
+
+      <QuickCapture companies={companiesList} />
 
       <section>
         <SectionHeading>Operational KPIs · All Companies</SectionHeading>
