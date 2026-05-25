@@ -14,12 +14,14 @@ import {
   Sparkles,
   AlertOctagon,
   FileText,
+  NotebookPen,
 } from "lucide-react";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/registry", label: "Registry", icon: ListChecks },
   { href: "/companies", label: "Companies", icon: Building2 },
+  { href: "/meeting", label: "Meeting Mode", icon: NotebookPen },
   { href: "/escalations", label: "Escalations", icon: AlertOctagon },
   { href: "/digest", label: "Weekly Digest", icon: FileText },
   { href: "/people", label: "People", icon: Users },
@@ -75,7 +77,7 @@ export function Sidebar() {
       </nav>
 
       <div className="p-3 text-[10px] text-fg-subtle border-t border-border">
-        v0.7 · Phase 7
+        v0.10 · Phase 10
       </div>
     </aside>
   );
