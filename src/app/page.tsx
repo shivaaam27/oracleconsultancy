@@ -2,6 +2,7 @@ import { getAllTasks, computeCompanyKpis, computeGlobalKpis, statusBreakdown, pr
 import { flagLabel, flagColor } from "@/lib/derive";
 import { Card, PageHeader, SectionHeading, Stat, TableShell, Th, Td, Badge, EmptyState } from "@/components/ui";
 import { QuickCapture } from "@/components/quick-capture";
+import { AskCOS } from "@/components/ask-cos";
 import { db, schema } from "@/db";
 import Link from "next/link";
 import { AlertTriangle, AlertOctagon, Clock, Flame, Ban, ArrowUpRight, CheckCircle2, Archive, ExternalLink } from "lucide-react";
@@ -86,7 +87,10 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <QuickCapture companies={companiesList} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <QuickCapture companies={companiesList} />
+        <AskCOS />
+      </div>
 
       <section>
         <SectionHeading>Operational KPIs · All Companies</SectionHeading>

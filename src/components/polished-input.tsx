@@ -9,10 +9,15 @@ type Props = {
   defaultValue?: string;
   required?: boolean;
   placeholder?: string;
+  onValueChange?: (v: string) => void;
 };
 
-export function PolishedInput({ name, defaultValue = "", required, placeholder }: Props) {
-  const [value, setValue] = useState(defaultValue);
+export function PolishedInput({ name, defaultValue = "", required, placeholder, onValueChange }: Props) {
+  const [value, setValueState] = useState(defaultValue);
+  const setValue = (v: string) => {
+    setValueState(v);
+    onValueChange?.(v);
+  };
   const [state, setState] = useState<"idle" | "loading" | "done">("idle");
   const [source, setSource] = useState<"ai" | "rules" | null>(null);
   const abortRef = useRef<AbortController | null>(null);

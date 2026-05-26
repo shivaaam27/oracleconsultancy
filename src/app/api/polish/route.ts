@@ -1,43 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { polishActionItem } from "@/lib/smart-parse";
-import { db, schema } from "@/db";
+import { loadContext } from "@/lib/ai-context";
 
-// Cache the context for 5 minutes so we don't hit DB on every keystroke.
-let contextCache: { companies: string[]; people: string[]; ts: number } | null = null;
-const CACHE_MS = 5 * 60 * 1000;
-
-async function getContext() {
-  if (contextCache && Date.now() - contextCache.ts < CACHE_MS) return contextCache;
-  const [companies, people] = await Promise.all([
-    db.select({ name: schema.companies.name }).from(schema.companies),
-    db.select({ name: schema.people.name }).from(schema.people),
-  ]);
-  contextCache = {
-    companies: companies.map(c => c.name),
-    people: people.map(p => p.name),
-    ts: Date.now(),
-  };
-  return contextCache;
-}
-
-function buildSystemPrompt(companies: string[], people: string[]): string {
+function buildSystemPrompt(companies: string[], people: string[], recent: string[]): string {
   const companyList = companies.length ? companies.join(", ") : "(none yet)";
   const peopleList = people.length ? people.slice(0, 30).join(", ") : "(none yet)";
+  const recentBlock = recent.length
+    ? `\n\nYOUR RECENT TASK STYLE (mimic the tone and structure):\n${recent.slice(0, 12).map(r => `- ${r}`).join("\n")}`
+    : "";
 
   return `You are the Chief of Staff for a multi-company business portfolio. You rewrite messy action-item notes into crisp, executive-style tasks for a task registry.
 
 KNOWN COMPANIES: ${companyList}
-KNOWN PEOPLE: ${peopleList}
+KNOWN PEOPLE: ${peopleList}${recentBlock}
 
 REWRITE RULES:
 1. Start with a strong imperative verb (Follow up, Review, Resolve, Send, Schedule, Confirm, Approve, Escalate, etc.)
 2. Maximum 14 words. Be concise but keep the why/what clear.
-3. Capitalise names (e.g. "shivam" → "Shivam") and company names exactly as listed above.
-4. Remove fillers: please, kindly, make sure, just, basically, asap, urgent, end of day (keep these as separate fields, not in the text).
+3. Capitalise names (e.g. "shivam" → "Shivam") and company names exactly as listed.
+4. Remove fillers: please, kindly, make sure, just, basically, asap, urgent, eod (these go in separate priority/deadline fields, not in the text).
 5. Keep numbers, dates, and concrete details intact.
-6. Use active voice. Prefer "Review contract" over "Contract needs to be reviewed".
-7. Strip vague subjects ("we", "I", "someone") — go straight to the verb.
-8. Return ONLY the rewritten action item. No quotes, no explanations, no trailing period.
+6. Active voice. Prefer "Review contract" over "Contract needs to be reviewed".
+7. Strip vague subjects (we / I / someone) — go straight to the verb.
+8. Match the style of the recent tasks above when possible.
+9. Return ONLY the rewritten action item. No quotes, no explanation, no trailing period.
 
 EXAMPLES:
 Input: need to make sure we follow up with shivam regarding the contract delay urgent
@@ -53,10 +39,7 @@ Input: there is an issue with the warehouse invoice that needs resolving
 Output: Resolve warehouse invoice issue
 
 Input: can we schedule a quality inspection next week
-Output: Schedule quality inspection next week
-
-Input: review the q4 financials with the cfo
-Output: Review Q4 financials with CFO`;
+Output: Schedule quality inspection next week`;
 }
 
 export async function POST(req: NextRequest) {
@@ -72,13 +55,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ result: fallback, source: "rules", debug: "no-key" });
     }
 
-    // Load business context (cached)
     let systemPrompt: string;
     try {
-      const ctx = await getContext();
-      systemPrompt = buildSystemPrompt(ctx.companies, ctx.people);
+      const ctx = await loadContext();
+      systemPrompt = buildSystemPrompt(
+        ctx.companies.map(c => c.name),
+        ctx.people.map(p => p.name),
+        ctx.recentActionItems,
+      );
     } catch {
-      systemPrompt = buildSystemPrompt([], []);
+      systemPrompt = buildSystemPrompt([], [], []);
     }
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {

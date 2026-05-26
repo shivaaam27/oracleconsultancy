@@ -1,6 +1,7 @@
 import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { PageHeader, TableShell, Th, Td, Badge, LinkButton } from "@/components/ui";
+import { CompanySummary } from "@/components/company-summary";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, ArrowLeft } from "lucide-react";
@@ -41,6 +42,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
           </LinkButton>
         }
       />
+      <CompanySummary companyId={companyId} />
       <TableShell>
         <table className="w-full">
           <thead>

@@ -6,6 +6,7 @@ import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } 
 import { UpdateBox } from "@/components/update-box";
 import { PolishedInput } from "@/components/polished-input";
 import { DraftEmailButton } from "@/components/draft-email-button";
+import { SimilarTasks } from "@/components/similar-tasks";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
@@ -127,6 +128,8 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
           <p className="text-sm">{r.latestUpdate}</p>
         </div>
       )}
+
+      <SimilarTasks query={r.actionItem} excludeId={r.id} />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Left: Edit form */}
