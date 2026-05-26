@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { Sparkles, Loader2, X } from "lucide-react";
+import { Sparkles, Loader2, X, CheckCircle2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { parseRawCapture } from "@/app/capture/actions";
 import { createTask } from "@/app/task/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
@@ -14,11 +15,13 @@ const CATEGORIES = ["Finance","Operations","Marketing","HR","Legal","Technology"
 type Props = { companies: { id: number; name: string }[] };
 
 export function QuickCapture({ companies }: Props) {
+  const router = useRouter();
   const [raw, setRaw] = useState("");
   const [parsed, setParsed] = useState<ParsedCapture | null>(null);
   const [isParsing, startParse] = useTransition();
   const [isSaving, startSave] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Editable fields after parse
@@ -35,16 +38,35 @@ export function QuickCapture({ companies }: Props) {
     if (!raw.trim()) return;
     setError(null);
     startParse(async () => {
-      const result = await parseRawCapture(raw);
-      setParsed(result);
-      setCompanyId(result.companyId ? String(result.companyId) : "");
-      setActionItem(result.actionItem);
-      setPriority(result.priority);
-      setStatus(result.status);
-      setDeadline(result.deadline ? result.deadline.toISOString().slice(0, 10) : "");
-      setAssignees(result.assigneeNames.join(", "));
-      setCategory(result.category || "");
-      setEscalation(result.escalation);
+      try {
+        const result = await parseRawCapture(raw);
+        setParsed(result);
+        setCompanyId(result.companyId ? String(result.companyId) : "");
+        setActionItem(result.actionItem || raw.trim());
+        setPriority(result.priority);
+        setStatus(result.status);
+        setDeadline(result.deadline ? result.deadline.toISOString().slice(0, 10) : "");
+        setAssignees(result.assigneeNames.join(", "));
+        setCategory(result.category || "");
+        setEscalation(result.escalation);
+      } catch (err) {
+        console.error("Parse error:", err);
+        const fallback = {
+          companyId: null, companyName: null,
+          actionItem: raw.trim(), priority: "Low", status: "Not Started",
+          deadline: null, deadlineLabel: null, assigneeNames: [],
+          category: null, escalation: "No", risk: null, rawInput: raw,
+        };
+        setParsed(fallback);
+        setActionItem(raw.trim());
+        setPriority("Low");
+        setStatus("Not Started");
+        setDeadline("");
+        setAssignees("");
+        setCategory("");
+        setEscalation("No");
+        setError("Auto-detection failed — fill in the details below manually.");
+      }
     });
   }
 
@@ -61,16 +83,26 @@ export function QuickCapture({ companies }: Props) {
     }
     setError(null);
     startSave(async () => {
-      const fd = new FormData();
-      fd.set("companyId", companyId);
-      fd.set("actionItem", actionItem);
-      fd.set("priority", priority);
-      fd.set("status", status);
-      fd.set("deadline", deadline);
-      fd.set("accountable", assignees);
-      fd.set("category", category);
-      fd.set("escalation", escalation);
-      await createTask(fd);
+      try {
+        const fd = new FormData();
+        fd.set("companyId", companyId);
+        fd.set("actionItem", actionItem);
+        fd.set("priority", priority);
+        fd.set("status", status);
+        fd.set("deadline", deadline);
+        fd.set("accountable", assignees);
+        fd.set("category", category);
+        fd.set("escalation", escalation);
+        await createTask(fd);
+        setSaved(true);
+        setRaw("");
+        setParsed(null);
+        router.refresh();
+        setTimeout(() => setSaved(false), 3000);
+      } catch (err) {
+        console.error("Save error:", err);
+        setError("Failed to create task. Please try again.");
+      }
     });
   }
 
@@ -85,6 +117,11 @@ export function QuickCapture({ companies }: Props) {
 
   return (
     <div className="card p-5 space-y-4">
+      {saved && (
+        <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-success text-sm font-medium">
+          <CheckCircle2 size={14} /> Task created successfully!
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Sparkles size={16} className="text-accent" />
         <span className="font-semibold text-sm">Quick Capture</span>
