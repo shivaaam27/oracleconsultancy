@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
@@ -14,13 +14,28 @@ export const useCommandPalette = () => useContext(CommandCtx);
 
 type SearchItem = { code: string; label: string; sub: string; href: string };
 
+type AIMode = null | "asking" | "answer" | "actionPreview" | "actionRunning" | "actionDone" | "actionError";
+
 export function CommandPaletteProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SearchItem[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
+  const [aiMode, setAiMode] = useState<AIMode>(null);
+  const [aiAnswer, setAiAnswer] = useState<string>("");
+  const [aiTaskCount, setAiTaskCount] = useState<number | null>(null);
+  const [actionIntent, setActionIntent] = useState<any>(null);
+  const [actionMessage, setActionMessage] = useState<string>("");
   const { pins, toggle } = usePins();
   const router = useRouter();
+
+  function resetAI() {
+    setAiMode(null);
+    setAiAnswer("");
+    setAiTaskCount(null);
+    setActionIntent(null);
+    setActionMessage("");
+  }
 
   // ⌘K / Ctrl+K hotkey
   useEffect(() => {
@@ -69,10 +84,64 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
     };
   }, [query, isOpen]);
 
-  // Reset query on close
+  // Reset query + AI state on close
   useEffect(() => {
-    if (!isOpen) setQuery("");
+    if (!isOpen) { setQuery(""); resetAI(); }
   }, [isOpen]);
+
+  // Reset AI panel as soon as the user types again
+  useEffect(() => { resetAI(); }, [query]);
+
+  // Detect intent type from query
+  const trimmed = query.trim();
+  const isQuestion = /^(what|who|when|where|why|how|which|whose|do|does|did|is|are|was|were|can|could|should|would|tell me|show me|list|find|any)\b|\?$/i.test(trimmed);
+  const isAction = /^(mark|complete|escalate|create|add|update|set|change|open|go to|show me task|navigate)/i.test(trimmed);
+
+  async function runAsk() {
+    if (!trimmed) return;
+    setAiMode("asking");
+    setAiAnswer("");
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: trimmed }),
+      });
+      const data = await res.json();
+      if (data.error) { setAiMode("actionError"); setActionMessage(data.error); return; }
+      setAiAnswer(data.answer || "(no answer)");
+      setAiTaskCount(data.taskCount ?? null);
+      setAiMode("answer");
+    } catch {
+      setAiMode("actionError"); setActionMessage("Network error");
+    }
+  }
+
+  async function runAction(confirm = false) {
+    if (!trimmed) return;
+    setAiMode(confirm ? "actionRunning" : "asking");
+    try {
+      const res = await fetch("/api/action", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: trimmed, confirm }),
+      });
+      const data = await res.json();
+      if (data.needsConfirm) {
+        setActionIntent(data.intent);
+        setAiMode("actionPreview");
+        return;
+      }
+      if (data.executed && data.redirect) {
+        setActionMessage(data.message || "Done");
+        setAiMode("actionDone");
+        setTimeout(() => { setIsOpen(false); router.push(data.redirect); }, 500);
+        return;
+      }
+      setActionMessage(data.message || "Could not run command");
+      setAiMode("actionError");
+    } catch {
+      setAiMode("actionError"); setActionMessage("Network error");
+    }
+  }
 
   const go = useCallback(
     (href: string) => {
@@ -128,10 +197,103 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                     ESC
                   </kbd>
                 </div>
-                <Command.List className="max-h-[420px] overflow-y-auto p-1.5">
+                <Command.List className="max-h-[460px] overflow-y-auto p-1.5">
                   <Command.Empty className="py-8 text-center text-sm text-fg-muted">
-                    No results.
+                    {trimmed ? "Hit ↵ to ask AI or use a command." : "No results."}
                   </Command.Empty>
+
+                  {/* AI smart panel */}
+                  {trimmed.length >= 3 && aiMode === null && (
+                    <Command.Group
+                      heading="AI"
+                      className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                    >
+                      {(isQuestion || (!isAction)) && (
+                        <Command.Item
+                          value={`__ai_ask__ ${trimmed}`}
+                          onSelect={runAsk}
+                          className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-accent/10"
+                        >
+                          <Sparkles size={14} className="text-accent" />
+                          <span className="flex-1 truncate">Ask COS: <span className="text-fg-muted italic">"{trimmed}"</span></span>
+                          <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
+                        </Command.Item>
+                      )}
+                      {isAction && (
+                        <Command.Item
+                          value={`__ai_action__ ${trimmed}`}
+                          onSelect={() => runAction(false)}
+                          className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-accent/10"
+                        >
+                          <Zap size={14} className="text-accent" />
+                          <span className="flex-1 truncate">Run command: <span className="text-fg-muted italic">"{trimmed}"</span></span>
+                          <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
+                        </Command.Item>
+                      )}
+                    </Command.Group>
+                  )}
+
+                  {/* AI loading */}
+                  {aiMode === "asking" && (
+                    <div className="px-3 py-4 flex items-center gap-2 text-sm text-fg-muted">
+                      <Loader2 size={14} className="animate-spin text-accent" /> Thinking…
+                    </div>
+                  )}
+
+                  {/* AI answer */}
+                  {aiMode === "answer" && (
+                    <div className="px-3 py-3 bg-accent/5 border border-accent/20 rounded-lg mx-1 mb-2">
+                      <div className="flex items-center gap-2 mb-2 text-xs text-fg-muted">
+                        <Bot size={12} className="text-accent" /> Ask COS
+                        {aiTaskCount !== null && <span className="text-fg-subtle">· based on {aiTaskCount} task{aiTaskCount !== 1 ? "s" : ""}</span>}
+                      </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{aiAnswer}</p>
+                    </div>
+                  )}
+
+                  {/* Action confirmation card */}
+                  {aiMode === "actionPreview" && actionIntent && (
+                    <div className="px-3 py-3 bg-warn/5 border border-warn/30 rounded-lg mx-1 mb-2 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-warn">
+                        <Zap size={12} /> Confirm action
+                      </div>
+                      <pre className="text-xs bg-bg-subtle rounded px-2 py-1.5 overflow-auto font-mono">
+{JSON.stringify(actionIntent, null, 2)}
+                      </pre>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => runAction(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity"
+                        >
+                          <Check size={12} /> Confirm
+                        </button>
+                        <button
+                          onClick={resetAI}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+                        >
+                          <XIcon size={12} /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {aiMode === "actionRunning" && (
+                    <div className="px-3 py-4 flex items-center gap-2 text-sm text-fg-muted">
+                      <Loader2 size={14} className="animate-spin text-accent" /> Running…
+                    </div>
+                  )}
+
+                  {aiMode === "actionDone" && (
+                    <div className="px-3 py-3 bg-success/5 border border-success/30 rounded-lg mx-1 mb-2 flex items-center gap-2 text-sm text-success font-medium">
+                      <Check size={14} /> {actionMessage}
+                    </div>
+                  )}
+
+                  {aiMode === "actionError" && (
+                    <div className="px-3 py-3 bg-danger/5 border border-danger/30 rounded-lg mx-1 mb-2 text-sm text-danger">
+                      {actionMessage}
+                    </div>
+                  )}
 
                   {/* Tasks (from server search) */}
                   {items.length > 0 && (

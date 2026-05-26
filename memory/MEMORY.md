@@ -1,0 +1,13 @@
+- [Project Overview](project_overview.md) — COS System: Chief of Staff command centre for Oracle Group's 7 companies. Next.js 16 + Drizzle + Postgres.
+- [Tech Stack](tech_stack.md) — Next.js 16, React 19, Drizzle ORM, Supabase Postgres (pooler 6543, prepare:false), Tailwind v4, Groq LLM.
+- [Repo Layout](repo_layout.md) — Monorepo lives under `cos-system/`. App Router pages, server actions, lib/, db/, drizzle/ migrations, scripts/.
+- [Database Schema](database_schema.md) — 12 tables: companies, departments, people, tasks, task_assignees, task_updates, audit_log, corrections, reminders, outbox, daily_snapshots, settings.
+- [Domain Model](domain_model.md) — Companies CO01-CO07, task codes `<COxx>-NNN`, statuses/priorities/flags, derive.ts rules (due-soon=3d, aging=30d, stalled=14d).
+- [Routes and Pages](routes_and_pages.md) — Dashboard, Capture, Task, Registry, Meeting, Digest, Escalations, Companies, People, Outbox, Audit, Settings + 6 API routes.
+- [AI Integration](ai_integration.md) — Groq llama-3.1-8b-instant powers /polish, /extract-meeting, /draft-email, /digest-narrative. Rule-based fallback in smart-parse.ts.
+- [Outbox and Reminders](outbox_and_reminders.md) — Per-person daily reminder builder with dedupe key `date|channel|name|taskIds|daily`. WhatsApp/Email/SMS.
+- [Audit Trail](audit_trail.md) — Every field change logged to audit_log with old/new/reason. Corrections table links errors to fix entries.
+- [Import Pipeline](import_pipeline.md) — `npm run import` ingests `Chief Of Staff Workflow - Live.xlsx`: 7 company sheets + _People Directory + _Settings.
+- [Dev Workflow](dev_workflow.md) — npm scripts, env vars (DATABASE_URL, GROQ_API_KEY), drizzle baseline+migrate flow, Supabase pooler caveats.
+- [UI Conventions](ui_conventions.md) — TopPill nav with pins/recents, command palette (Cmd+K), QuickCapture, ThemeProvider, ToastProvider, framer-motion page transitions.
+- [Open Issues and TODOs](open_issues.md) — Things observed during handover doc pass that future devs should know about.

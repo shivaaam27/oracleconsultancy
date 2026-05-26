@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Loader2, Bot, User, Trash2, ChevronRight } from "lucide-react";
+import { Sparkles, Send, Loader2, Bot, User, Trash2, ChevronRight, Mic, MicOff } from "lucide-react";
 
 type Message = {
   id: string;
@@ -23,7 +23,44 @@ export function AskCOS() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setVoiceSupported(!!SR);
+  }, []);
+
+  function toggleVoice() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening && recRef.current) {
+      recRef.current.stop();
+      return;
+    }
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = "en-IN";
+    rec.onstart = () => setListening(true);
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    rec.onresult = (e: any) => {
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
+      setInput(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        rec.stop();
+        // auto-submit on final transcript
+        setTimeout(() => ask(transcript), 100);
+      }
+    };
+    recRef.current = rec;
+    rec.start();
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -38,10 +75,12 @@ export function AskCOS() {
     setInput("");
     setLoading(true);
     try {
+      // Send last 6 turns as memory so follow-ups work
+      const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history: recentHistory }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -147,10 +186,25 @@ export function AskCOS() {
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="Ask anything about your tasks, deadlines, people…"
+          placeholder={listening ? "Listening…" : "Ask anything — or press the mic"}
           disabled={loading}
           className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50"
         />
+        {voiceSupported && (
+          <button
+            type="button"
+            onClick={toggleVoice}
+            disabled={loading}
+            title={listening ? "Stop listening" : "Speak"}
+            className={`inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-all ${
+              listening
+                ? "border-danger bg-danger/10 text-danger animate-pulse"
+                : "border-border text-fg-muted hover:text-accent hover:border-accent/40"
+            } disabled:opacity-50`}
+          >
+            {listening ? <MicOff size={14} /> : <Mic size={14} />}
+          </button>
+        )}
         <button
           type="submit"
           disabled={loading || !input.trim()}

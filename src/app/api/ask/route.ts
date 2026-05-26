@@ -176,6 +176,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const question: string = (body?.question ?? "").toString().trim();
+    const history: { role: "user" | "assistant"; content: string }[] =
+      Array.isArray(body?.history) ? body.history.slice(-6) : [];
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
     const apiKey = process.env.GROQ_API_KEY;
@@ -183,7 +185,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
     }
 
-    const context = await buildContext(question);
+    // For retrieval, combine the current question with the last user message
+    // so follow-ups like "open it" still hit relevant data.
+    const lastUserContent = [...history].reverse().find(m => m.role === "user")?.content || "";
+    const retrievalQuery = `${lastUserContent} ${question}`.trim();
+
+    const context = await buildContext(retrievalQuery);
+
+    const messages: any[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nUse this CONTEXT to answer follow-up questions. The conversation history is provided next.` },
+      ...history,
+      { role: "user", content: question },
+    ];
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -193,10 +207,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nQUESTION:\n${question}` },
-        ],
+        messages,
         max_tokens: 600,
         temperature: 0.2,
       }),
