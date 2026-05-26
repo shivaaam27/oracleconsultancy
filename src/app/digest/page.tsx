@@ -2,6 +2,7 @@ import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { PageHeader, Card } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
+import { DigestNarrative } from "@/components/digest-narrative";
 import { FileText } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -102,6 +103,35 @@ export default async function DigestPage() {
 
   const digestText = lines.join("\n");
 
+  // Build compact stats payload for AI narrative
+  const narrativeStats = {
+    totalOpen: rows.filter(r => isOpen(r.status)).length,
+    overdue: overdue.slice(0, 10).map(r => ({
+      code: r.code, company: r.companyName, action: r.actionItem,
+      daysLate: typeof r.daysToDeadline === "number" ? Math.abs(r.daysToDeadline) : undefined,
+      assignees: r.assignees,
+    })),
+    escalated: escalated.slice(0, 10).map(r => ({
+      code: r.code, company: r.companyName, action: r.actionItem,
+      latestUpdate: r.latestUpdate || undefined,
+    })),
+    critical: critical.slice(0, 10).map(r => ({
+      code: r.code, company: r.companyName, action: r.actionItem,
+      deadline: r.deadline ? fmtDate(r.deadline) : undefined,
+    })),
+    dueSoon: dueSoon.slice(0, 10).map(r => ({
+      code: r.code, company: r.companyName, action: r.actionItem,
+      deadline: r.deadline ? fmtDate(r.deadline) : undefined,
+    })),
+    recentlyClosed: recentlyClosed.slice(0, 5).map(r => ({
+      code: r.code, company: r.companyName, action: r.actionItem,
+    })),
+    companies: kpis.map(c => ({
+      name: c.name, open: c.open, overdue: c.overdue, critical: c.critical,
+      escalated: c.escalated, completed: c.completed,
+    })),
+  };
+
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between gap-4">
@@ -111,6 +141,8 @@ export default async function DigestPage() {
         />
         <CopyButton text={digestText} label="Copy to Clipboard" />
       </div>
+
+      <DigestNarrative stats={narrativeStats} />
 
       {/* Alert summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

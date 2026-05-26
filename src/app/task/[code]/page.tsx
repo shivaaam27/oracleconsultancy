@@ -5,6 +5,7 @@ import { flagLabel } from "@/lib/derive";
 import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { UpdateBox } from "@/components/update-box";
 import { PolishedInput } from "@/components/polished-input";
+import { DraftEmailButton } from "@/components/draft-email-button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
@@ -90,9 +91,12 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
             {r.assignees.length > 0 && <span>Assigned to <strong>{r.assignees.join(", ")}</strong></span>}
           </div>
         </div>
-        <form action={remove}>
-          <Button variant="danger" type="submit"><Trash2 size={13} /> Delete</Button>
-        </form>
+        <div className="flex items-center gap-2 shrink-0">
+          <DraftEmailButton taskId={r.id} />
+          <form action={remove}>
+            <Button variant="danger" type="submit"><Trash2 size={13} /> Delete</Button>
+          </form>
+        </div>
       </div>
 
       {/* Quick stats row */}
