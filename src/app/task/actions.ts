@@ -25,16 +25,58 @@ function splitNames(v: string | null): string[] {
 async function getOrCreatePerson(name: string, companyId: number | null): Promise<number> {
   const existing = await db.select().from(schema.people).where(eq(schema.people.name, name)).limit(1);
   if (existing.length) return existing[0].id;
-  const [row] = await db.insert(schema.people).values({ name, companyId: companyId ?? undefined, active: true }).returning();
-  return row.id;
+  const inserted = await db
+    .insert(schema.people)
+    .values({ name, companyId: companyId ?? undefined, active: true })
+    .onConflictDoNothing({ target: schema.people.name })
+    .returning();
+  if (inserted.length) return inserted[0].id;
+  const after = await db.select().from(schema.people).where(eq(schema.people.name, name)).limit(1);
+  return after[0].id;
 }
 
 async function getOrCreateDept(name: string | null): Promise<number | null> {
   if (!name) return null;
   const existing = await db.select().from(schema.departments).where(eq(schema.departments.name, name)).limit(1);
   if (existing.length) return existing[0].id;
-  const [row] = await db.insert(schema.departments).values({ name }).returning();
-  return row.id;
+  const inserted = await db
+    .insert(schema.departments)
+    .values({ name })
+    .onConflictDoNothing({ target: schema.departments.name })
+    .returning();
+  if (inserted.length) return inserted[0].id;
+  const after = await db.select().from(schema.departments).where(eq(schema.departments.name, name)).limit(1);
+  return after[0].id;
+}
+
+async function deptName(id: number | null): Promise<string | null> {
+  if (id == null) return null;
+  const r = await db.select({ name: schema.departments.name }).from(schema.departments).where(eq(schema.departments.id, id)).limit(1);
+  return r[0]?.name ?? null;
+}
+
+async function insertTaskWithUniqueCode(
+  companyId: number,
+  codePrefix: string,
+  values: Omit<typeof schema.tasks.$inferInsert, "code" | "companyId">,
+): Promise<typeof schema.tasks.$inferSelect> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const existing = await db.select({ code: schema.tasks.code }).from(schema.tasks).where(eq(schema.tasks.companyId, companyId));
+    let maxNum = 0;
+    for (const e of existing) {
+      const m = e.code.match(/^[A-Z]+\d+-(\d+)$/);
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    }
+    const newCode = `${codePrefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
+    try {
+      const [row] = await db.insert(schema.tasks).values({ ...values, companyId, code: newCode }).returning();
+      return row;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate key|unique/i.test(msg)) throw err;
+    }
+  }
+  throw new Error("Could not allocate unique task code after retries");
 }
 
 async function logChange(
@@ -46,8 +88,14 @@ async function logChange(
   newVal: unknown,
   reason: string | null
 ) {
-  const oldS = oldVal == null ? null : oldVal instanceof Date ? oldVal.toISOString().slice(0, 10) : String(oldVal);
-  const newS = newVal == null ? null : newVal instanceof Date ? newVal.toISOString().slice(0, 10) : String(newVal);
+  const fmtLocalDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const oldS = oldVal == null ? null : oldVal instanceof Date ? fmtLocalDate(oldVal) : String(oldVal);
+  const newS = newVal == null ? null : newVal instanceof Date ? fmtLocalDate(newVal) : String(newVal);
   if (oldS === newS) return;
   await db.insert(schema.auditLog).values({
     taskId,
@@ -71,23 +119,28 @@ export async function updateTask(code: string, formData: FormData) {
   const actionItem = str(formData.get("actionItem")) || t.actionItem;
   const departmentName = str(formData.get("department"));
   const departmentId = await getOrCreateDept(departmentName);
-  const status = str(formData.get("status")) || "Not Started";
-  const priority = str(formData.get("priority")) || "Low";
-  const risk = str(formData.get("risk"));
-  const escalation = str(formData.get("escalation")) || "No";
-  const category = str(formData.get("category"));
+  const status = str(formData.get("status")) ?? t.status;
+  const priority = str(formData.get("priority")) ?? t.priority;
+  const risk = formData.has("risk") ? str(formData.get("risk")) : t.risk;
+  const escalation = str(formData.get("escalation")) ?? t.escalation ?? "No";
+  const category = formData.has("category") ? str(formData.get("category")) : t.category;
   const deadline = parseDate(formData.get("deadline"));
   const meetingDate = parseDate(formData.get("meetingDate"));
   const comments = str(formData.get("comments"));
   const latestUpdate = str(formData.get("latestUpdate"));
   const accountableRaw = str(formData.get("accountable"));
   const changeReason = str(formData.get("changeReason"));
-  const closingNow = (status === "Completed" || status === "Closed") && !(t.status === "Completed" || t.status === "Closed");
+  const wasClosed = t.status === "Completed" || t.status === "Closed";
+  const isClosed = status === "Completed" || status === "Closed";
+  const closingNow = isClosed && !wasClosed;
+  const reopeningNow = !isClosed && wasClosed;
+
+  const [oldDeptName, newDeptName] = await Promise.all([deptName(t.departmentId), deptName(departmentId)]);
 
   // Diff & audit log
   const fields: [string, unknown, unknown][] = [
     ["Action Item", t.actionItem, actionItem],
-    ["Department", t.departmentId, departmentId],
+    ["Department", oldDeptName, newDeptName],
     ["Status", t.status, status],
     ["Priority", t.priority, priority],
     ["Risk", t.risk, risk],
@@ -102,7 +155,7 @@ export async function updateTask(code: string, formData: FormData) {
     await logChange(t.id, t.code, t.companyId, f, o, n, changeReason);
   }
 
-  const newClosedDate = closingNow ? new Date() : t.closedDate;
+  const newClosedDate = closingNow ? new Date() : reopeningNow ? null : t.closedDate;
 
   await db
     .update(schema.tasks)
@@ -156,42 +209,29 @@ export async function createTask(formData: FormData) {
   if (!company.length) throw new Error("Company not found");
   const code = company[0].code;
 
-  // Find next number for this company
-  const existing = await db.select({ code: schema.tasks.code }).from(schema.tasks).where(eq(schema.tasks.companyId, companyId));
-  let maxNum = 0;
-  for (const e of existing) {
-    const m = e.code.match(/^[A-Z]+\d+-(\d+)$/);
-    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-  }
-  const newCode = `${code}-${String(maxNum + 1).padStart(3, "0")}`;
-
   const departmentId = await getOrCreateDept(str(formData.get("department")));
   const status = str(formData.get("status")) || "Not Started";
   const priority = str(formData.get("priority")) || "Low";
   const accountableRaw = str(formData.get("accountable"));
   const now = new Date();
 
-  const [task] = await db
-    .insert(schema.tasks)
-    .values({
-      code: newCode,
-      companyId,
-      departmentId,
-      actionItem,
-      status,
-      priority,
-      risk: str(formData.get("risk")),
-      escalation: str(formData.get("escalation")) || "No",
-      category: str(formData.get("category")),
-      deadline: parseDate(formData.get("deadline")),
-      meetingDate: parseDate(formData.get("meetingDate")),
-      comments: str(formData.get("comments")),
-      latestUpdate: str(formData.get("latestUpdate")),
-      createdDate: now,
-      lastUpdatedAt: now,
-      archived: false,
-    })
-    .returning();
+  const task = await insertTaskWithUniqueCode(companyId, code, {
+    departmentId,
+    actionItem,
+    status,
+    priority,
+    risk: str(formData.get("risk")),
+    escalation: str(formData.get("escalation")) || "No",
+    category: str(formData.get("category")),
+    deadline: parseDate(formData.get("deadline")),
+    meetingDate: parseDate(formData.get("meetingDate")),
+    comments: str(formData.get("comments")),
+    latestUpdate: str(formData.get("latestUpdate")),
+    createdDate: now,
+    lastUpdatedAt: now,
+    archived: false,
+  });
+  const newCode = task.code;
 
   for (const n of splitNames(accountableRaw)) {
     const pid = await getOrCreatePerson(n, companyId);
@@ -243,30 +283,36 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
     lastUpdatedAt: new Date(),
   };
 
+  let pendingAudit: typeof schema.auditLog.$inferInsert | null = null;
   if (newStatus) {
     const task = await db.select().from(schema.tasks).where(eq(schema.tasks.id, taskId)).limit(1);
     if (task.length) {
       const t = task[0];
-      const closingNow = (newStatus === "Completed" || newStatus === "Closed") && !(t.status === "Completed" || t.status === "Closed");
+      const wasClosed = t.status === "Completed" || t.status === "Closed";
+      const isClosed = newStatus === "Completed" || newStatus === "Closed";
       updatePayload.status = newStatus;
-      if (closingNow) updatePayload.closedDate = new Date();
+      if (isClosed && !wasClosed) updatePayload.closedDate = new Date();
+      else if (!isClosed && wasClosed) updatePayload.closedDate = null;
 
-      await db.insert(schema.auditLog).values({
-        taskId,
-        taskCode,
-        companyId: t.companyId,
-        entryType: "CHANGE",
-        field: "Status",
-        oldValue: t.status,
-        newValue: newStatus,
-        changeReason: trimmed,
-        createdAt: new Date(),
-        createdBy: "web-ui",
-      });
+      if (t.status !== newStatus) {
+        pendingAudit = {
+          taskId,
+          taskCode,
+          companyId: t.companyId,
+          entryType: "CHANGE",
+          field: "Status",
+          oldValue: t.status,
+          newValue: newStatus,
+          changeReason: trimmed,
+          createdAt: new Date(),
+          createdBy: "web-ui",
+        };
+      }
     }
   }
 
   await db.update(schema.tasks).set(updatePayload).where(eq(schema.tasks.id, taskId));
+  if (pendingAudit) await db.insert(schema.auditLog).values(pendingAudit);
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/registry");
   revalidatePath("/");

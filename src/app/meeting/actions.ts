@@ -123,16 +123,52 @@ export type BulkTaskInput = {
 async function getOrCreatePerson(name: string, companyId: number): Promise<number> {
   const ex = await db.select().from(schema.people).where(eq(schema.people.name, name)).limit(1);
   if (ex.length) return ex[0].id;
-  const [row] = await db.insert(schema.people).values({ name, companyId, active: true }).returning();
-  return row.id;
+  const inserted = await db
+    .insert(schema.people)
+    .values({ name, companyId, active: true })
+    .onConflictDoNothing({ target: schema.people.name })
+    .returning();
+  if (inserted.length) return inserted[0].id;
+  const after = await db.select().from(schema.people).where(eq(schema.people.name, name)).limit(1);
+  return after[0].id;
 }
 
 async function getOrCreateDept(name: string | null): Promise<number | null> {
   if (!name) return null;
   const ex = await db.select().from(schema.departments).where(eq(schema.departments.name, name)).limit(1);
   if (ex.length) return ex[0].id;
-  const [row] = await db.insert(schema.departments).values({ name }).returning();
-  return row.id;
+  const inserted = await db
+    .insert(schema.departments)
+    .values({ name })
+    .onConflictDoNothing({ target: schema.departments.name })
+    .returning();
+  if (inserted.length) return inserted[0].id;
+  const after = await db.select().from(schema.departments).where(eq(schema.departments.name, name)).limit(1);
+  return after[0].id;
+}
+
+async function insertTaskWithUniqueCode(
+  companyId: number,
+  codePrefix: string,
+  values: Omit<typeof schema.tasks.$inferInsert, "code" | "companyId">,
+): Promise<typeof schema.tasks.$inferSelect> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const existing = await db.select({ code: schema.tasks.code }).from(schema.tasks).where(eq(schema.tasks.companyId, companyId));
+    let maxNum = 0;
+    for (const e of existing) {
+      const m = e.code.match(/^[A-Z]+\d+-(\d+)$/);
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    }
+    const newCode = `${codePrefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
+    try {
+      const [row] = await db.insert(schema.tasks).values({ ...values, companyId, code: newCode }).returning();
+      return row;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate key|unique/i.test(msg)) throw err;
+    }
+  }
+  throw new Error("Could not allocate unique task code after retries");
 }
 
 export async function bulkCreateTasks(tasks: BulkTaskInput[]): Promise<{ created: number }> {
@@ -143,22 +179,9 @@ export async function bulkCreateTasks(tasks: BulkTaskInput[]): Promise<{ created
     const company = await db.select().from(schema.companies).where(eq(schema.companies.id, t.companyId)).limit(1);
     if (!company.length) continue;
     const code = company[0].code;
-
-    const existing = await db
-      .select({ code: schema.tasks.code })
-      .from(schema.tasks)
-      .where(eq(schema.tasks.companyId, t.companyId));
-    let maxNum = 0;
-    for (const e of existing) {
-      const m = e.code.match(/^[A-Z]+\d+-(\d+)$/);
-      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-    }
-    const newCode = `${code}-${String(maxNum + 1).padStart(3, "0")}`;
     const now = new Date();
 
-    const [task] = await db.insert(schema.tasks).values({
-      code: newCode,
-      companyId: t.companyId,
+    const task = await insertTaskWithUniqueCode(t.companyId, code, {
       actionItem: t.actionItem,
       status: t.status || "Not Started",
       priority: t.priority || "Low",
@@ -168,7 +191,8 @@ export async function bulkCreateTasks(tasks: BulkTaskInput[]): Promise<{ created
       createdDate: now,
       lastUpdatedAt: now,
       archived: false,
-    }).returning();
+    });
+    const newCode = task.code;
 
     for (const name of t.assigneeNames) {
       const pid = await getOrCreatePerson(name, t.companyId);

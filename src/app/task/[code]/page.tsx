@@ -23,7 +23,12 @@ function fmtDate(d: Date | null | undefined) {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 function dateInput(d: Date | null | undefined) {
-  return d ? new Date(d).toISOString().slice(0, 10) : "";
+  if (!d) return "";
+  const dt = new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "info" {
   if (f === "closed") return "default";
