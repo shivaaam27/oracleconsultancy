@@ -251,12 +251,16 @@ export function polishActionItem(raw: string): string {
     text = handleExistential(text);
   }
 
-  // Step 4 — strip leading subject ("We will / John needs to")
+  // Step 4 — strip bare leading modal/necessity FIRST ("need to", "must"...)
+  // so that "need to we follow up" becomes "we follow up" before subject strip.
+  text = text.replace(/^(need to|needs to|have to|has to|must|should|shall|will|would|can|could)\s+/i, "");
+  text = text.replace(/^to\s+(?=[a-z])/i, "");
+
+  // Step 5 — strip leading subject ("We will / John needs to / we follow up")
   text = stripLeadingSubject(text);
 
-  // Step 5 — strip bare leading modal/necessity ("need to", "must", "should"…)
+  // Re-strip modal in case subject-strip exposed another one
   text = text.replace(/^(need to|needs to|have to|has to|must|should|shall|will|would|can|could)\s+/i, "");
-  // Strip leading infinitive marker ("to review..." → "review...")
   text = text.replace(/^to\s+(?=[a-z])/i, "");
 
   // Step 6 — try passive→active inversion
