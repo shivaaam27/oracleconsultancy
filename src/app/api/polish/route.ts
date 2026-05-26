@@ -1,48 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import Groq from "groq-sdk";
 import { polishActionItem } from "@/lib/smart-parse";
 
-const SYSTEM_PROMPT = `You are a Chief of Staff assistant. Your only job is to rewrite action items into clear, professional, concise business tasks.
-
-Rules:
-- Always start with an imperative verb (Review, Send, Follow up, Schedule, Resolve, etc.)
-- Maximum 12 words
-- Remove all filler words (please, kindly, need to, make sure, asap, etc.)
-- Keep specific names, dates, and company references
-- Return ONLY the rewritten action item — no explanation, no punctuation at end, no quotes`;
+const SYSTEM_PROMPT = `You are a Chief of Staff assistant. Rewrite action items as clear, concise business tasks.
+Rules: Start with an imperative verb. Maximum 12 words. Remove filler words (please, need to, make sure, asap). Keep names, dates, companies. Return ONLY the rewritten text, nothing else.`;
 
 export async function POST(req: NextRequest) {
-  const { text } = await req.json();
-  if (!text?.trim()) return NextResponse.json({ result: "" });
-
-  // Rule-based result as instant fallback
-  const fallback = polishActionItem(text);
-
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return NextResponse.json({ result: fallback });
-
   try {
-    const groq = new Groq({ apiKey });
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text.trim() },
-      ],
-      max_tokens: 60,
-      temperature: 0.2,
-    });
+    const body = await req.json();
+    const text = (body?.text ?? "").trim();
+    if (!text) return NextResponse.json({ result: "" });
 
-    const result = completion.choices[0]?.message?.content?.trim() ?? "";
-    // Sanity check — if AI returns something weird, fall back to rule-based
-    if (!result || result.length > 200 || result.includes("\n")) {
-      return NextResponse.json({ result: fallback });
+    const fallback = polishActionItem(text);
+    const apiKey = process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json({ result: fallback, source: "rules" });
     }
 
-    // Strip any trailing punctuation the model adds
-    const cleaned = result.replace(/[.!?]+$/, "").trim();
-    return NextResponse.json({ result: cleaned });
-  } catch {
-    return NextResponse.json({ result: fallback });
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user",   content: text },
+        ],
+        max_tokens: 60,
+        temperature: 0.2,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("Groq error:", res.status, err);
+      return NextResponse.json({ result: fallback, source: "rules" });
+    }
+
+    const data = await res.json();
+    const aiResult = data?.choices?.[0]?.message?.content?.trim() ?? "";
+
+    if (!aiResult || aiResult.length > 200 || aiResult.includes("\n")) {
+      return NextResponse.json({ result: fallback, source: "rules" });
+    }
+
+    const cleaned = aiResult.replace(/^["']|["']$/g, "").replace(/[.!?]+$/, "").trim();
+    return NextResponse.json({ result: cleaned, source: "ai" });
+
+  } catch (e) {
+    console.error("Polish route error:", e);
+    return NextResponse.json({ result: polishActionItem(""), source: "error" });
   }
 }
