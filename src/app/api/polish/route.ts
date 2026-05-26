@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         result: fallback,
         source: "rules",
         debug: `gemini-${res.status}`,
-        geminiError: err.slice(0, 300),
+        geminiError: err.slice(0, 2000),
       });
     }
 
