@@ -3,7 +3,26 @@ import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
 export function Card({ className, ...p }: ComponentProps<"div">) {
-  return <div className={cn("bg-bg-elev border border-border rounded-lg shadow-sm", className)} {...p} />;
+  return <div className={cn("bg-bg-elev border border-border rounded-xl shadow-sm", className)} {...p} />;
+}
+
+/** Solid raised surface — for cards, panels, sheets. */
+export function Surface({
+  className,
+  elevation = "md",
+  ...p
+}: { elevation?: "sm" | "md" | "lg" } & ComponentProps<"div">) {
+  const shadow = elevation === "lg" ? "shadow-lg" : elevation === "sm" ? "shadow-sm" : "shadow-md";
+  return <div className={cn("bg-bg-elev border border-border rounded-2xl", shadow, className)} {...p} />;
+}
+
+/** Translucent macOS-style material — for floating bars, popovers, overlays. */
+export function Vibrancy({
+  className,
+  strong = false,
+  ...p
+}: { strong?: boolean } & ComponentProps<"div">) {
+  return <div className={cn(strong ? "vibrancy-strong" : "vibrancy", "rounded-2xl shadow-pill", className)} {...p} />;
 }
 
 export function PageHeader({ title, sub, action }: { title: string; sub?: ReactNode; action?: ReactNode }) {
