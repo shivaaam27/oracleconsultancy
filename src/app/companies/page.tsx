@@ -16,7 +16,7 @@ export default async function CompaniesPage() {
           <Link key={c.id} href={`/companies/${c.id}`} className="group">
             <Card className="p-5 hover:border-accent transition-all hover:shadow-md">
               <div className="flex items-start justify-between">
-                <div className="w-10 h-10 rounded-lg bg-accent-soft text-accent flex items-center justify-center">
+                <div className="w-11 h-11 rounded-xl bg-accent-soft text-fg flex items-center justify-center">
                   <Building2 size={18} />
                 </div>
                 <Badge tone={c.riskScore > 50 ? "danger" : c.riskScore > 20 ? "warn" : "success"}>

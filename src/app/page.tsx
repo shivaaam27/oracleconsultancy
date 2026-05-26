@@ -63,7 +63,7 @@ export default async function DashboardPage() {
 
       {/* Needs Attention strip */}
       {needsAttention.length > 0 && (
-        <div className="rounded-xl border border-danger/30 bg-danger/5 p-4 space-y-2">
+        <div className="rounded-2xl border border-danger/25 bg-danger/[0.04] p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-danger text-sm font-medium">
               <AlertOctagon size={14} /> Needs Attention
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
             {needsAttention.map(r => (
-              <Link key={r.id} href={`/task/${r.code}`} className="group flex items-start gap-2.5 bg-bg rounded-lg px-3 py-2 border border-border hover:border-danger/40 transition-colors">
+              <Link key={r.id} href={`/task/${r.code}`} className="group flex items-start gap-2.5 bg-bg-elev rounded-xl px-3 py-2.5 border border-border hover:border-danger/40 hover:shadow-sm transition-all">
                 <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${r.flag === "overdue" || r.flag === "escalate-now" ? "bg-danger" : "bg-warn"}`} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium line-clamp-1 group-hover:text-accent transition-colors">{r.actionItem}</p>
@@ -90,7 +90,7 @@ export default async function DashboardPage() {
 
       <section>
         <SectionHeading>Operational KPIs · All Companies</SectionHeading>
-        <div className="grid grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <Stat label="Total Open" value={k.open} icon={<Clock size={14} />} />
           <Stat label="Overdue" value={k.overdue} tone={k.overdue ? "danger" : "default"} icon={<AlertOctagon size={14} />} />
           <Stat label="Due Soon" value={k.dueSoon} tone={k.dueSoon ? "warn" : "default"} icon={<AlertTriangle size={14} />} />

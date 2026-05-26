@@ -152,7 +152,7 @@ export default async function DigestPage() {
           { label: "Critical", count: critical.length, color: "text-warn bg-warn/5 border-warn/20" },
           { label: "Due This Week", count: dueSoon.length, color: "text-info bg-info/5 border-info/20" },
         ].map(s => (
-          <div key={s.label} className={`rounded-xl border p-4 ${s.color}`}>
+          <div key={s.label} className={`rounded-2xl border p-5 ${s.color}`}>
             <div className="text-xs font-medium opacity-70">{s.label}</div>
             <div className="text-2xl font-bold tabular mt-1">{s.count}</div>
           </div>
