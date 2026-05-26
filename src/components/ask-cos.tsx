@@ -1,13 +1,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Loader2, Bot, User, Trash2, ChevronRight, Mic, MicOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Sparkles, Send, Loader2, Bot, User, Trash2, ChevronRight, Mic, MicOff, Zap, Check, X as XIcon } from "lucide-react";
+import { LinkifiedAnswer } from "./linkified-answer";
 
 type Message = {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "action";
   content: string;
   taskCount?: number;
+  // for action messages:
+  intent?: any;
+  status?: "preview" | "running" | "done" | "error";
+  resultMessage?: string;
+  redirect?: string;
 };
 
 const SUGGESTIONS = [
@@ -15,18 +22,28 @@ const SUGGESTIONS = [
   "What's blocking Dar Spices?",
   "Who has the most critical tasks?",
   "What did we close in the last 7 days?",
-  "Which tasks need my attention today?",
 ];
 
+// Detect if a message is a command vs a question
+function looksLikeCommand(text: string): boolean {
+  return /^(mark|complete|finish|close|escalate|create|add|update|set|change|open|go to|navigate|show me task|delete|remove|assign|reassign)/i.test(text.trim());
+}
+
 export function AskCOS() {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [focusedTask, setFocusedTask] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<any>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, loading]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -37,10 +54,7 @@ export function AskCOS() {
   function toggleVoice() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
-    if (listening && recRef.current) {
-      recRef.current.stop();
-      return;
-    }
+    if (listening && recRef.current) { recRef.current.stop(); return; }
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
@@ -54,29 +68,92 @@ export function AskCOS() {
       setInput(transcript);
       if (e.results[e.results.length - 1].isFinal) {
         rec.stop();
-        // auto-submit on final transcript
-        setTimeout(() => ask(transcript), 100);
+        setTimeout(() => submit(transcript), 100);
       }
     };
     recRef.current = rec;
     rec.start();
   }
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, loading]);
-
-  async function ask(q: string) {
-    const question = q.trim();
-    if (!question || loading) return;
-    setError(null);
-    const userMsg: Message = { id: `u-${Date.now()}`, role: "user", content: question };
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-    setLoading(true);
+  async function runAction(command: string, confirm: boolean, intentMsgId?: string) {
     try {
-      // Send last 6 turns as memory so follow-ups work
-      const recentHistory = messages.slice(-6).map(m => ({ role: m.role, content: m.content }));
+      const recentHistory = messages
+        .filter(m => m.role !== "action")
+        .slice(-4)
+        .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+      const res = await fetch("/api/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command,
+          confirm,
+          history: recentHistory,
+          activeContext: focusedTask ? { taskCode: focusedTask } : undefined,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.intent?.type === "unknown") {
+        setMessages(prev => [...prev, {
+          id: `a-${Date.now()}`, role: "assistant",
+          content: `Couldn't understand: ${data.message || data.intent.reason || "unclear"}`,
+        }]);
+        return;
+      }
+
+      if (data.needsConfirm) {
+        // Show preview card
+        setMessages(prev => [...prev, {
+          id: `act-${Date.now()}`, role: "action",
+          content: command,
+          intent: data.intent,
+          status: "preview",
+        }]);
+        return;
+      }
+
+      // Navigation or executed action
+      if (data.executed) {
+        if (intentMsgId) {
+          setMessages(prev => prev.map(m => m.id === intentMsgId ? { ...m, status: "done", resultMessage: data.message } : m));
+        } else {
+          setMessages(prev => [...prev, {
+            id: `act-${Date.now()}`, role: "action",
+            content: command,
+            intent: data.intent,
+            status: "done",
+            resultMessage: data.message,
+            redirect: data.redirect,
+          }]);
+        }
+        if (data.intent?.taskCode) setFocusedTask(data.intent.taskCode);
+        if (data.redirect && data.intent?.type === "navigate") {
+          setTimeout(() => router.push(data.redirect), 400);
+        }
+        return;
+      }
+
+      // Failure
+      const failMsg = data.message || "Command failed";
+      if (intentMsgId) {
+        setMessages(prev => prev.map(m => m.id === intentMsgId ? { ...m, status: "error", resultMessage: failMsg } : m));
+      } else {
+        setMessages(prev => [...prev, {
+          id: `a-${Date.now()}`, role: "assistant", content: `⚠️ ${failMsg}`,
+        }]);
+      }
+    } catch {
+      setError("Network error. Try again.");
+    }
+  }
+
+  async function runAsk(question: string) {
+    try {
+      const recentHistory = messages
+        .filter(m => m.role === "user" || m.role === "assistant")
+        .slice(-6)
+        .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,13 +168,30 @@ export function AskCOS() {
       }
       const data = await res.json();
       setMessages(prev => [...prev, {
-        id: `a-${Date.now()}`,
-        role: "assistant",
+        id: `a-${Date.now()}`, role: "assistant",
         content: data.answer || "(no answer)",
         taskCount: data.taskCount,
       }]);
     } catch {
       setError("Network error. Try again.");
+    }
+  }
+
+  async function submit(text: string) {
+    const q = text.trim();
+    if (!q || loading) return;
+    setError(null);
+    const userMsg: Message = { id: `u-${Date.now()}`, role: "user", content: q };
+    setMessages(prev => [...prev, userMsg]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      if (looksLikeCommand(q)) {
+        await runAction(q, false);
+      } else {
+        await runAsk(q);
+      }
     } finally {
       setLoading(false);
     }
@@ -106,6 +200,16 @@ export function AskCOS() {
   function clear() {
     setMessages([]);
     setError(null);
+    setFocusedTask(null);
+  }
+
+  async function confirmAction(msg: Message) {
+    setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: "running" } : m));
+    await runAction(msg.content, true, msg.id);
+  }
+
+  function cancelAction(msgId: string) {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: "error", resultMessage: "Cancelled" } : m));
   }
 
   return (
@@ -114,51 +218,127 @@ export function AskCOS() {
         <div className="flex items-center gap-2">
           <Bot size={16} className="text-accent" />
           <span className="font-semibold text-sm">Ask COS</span>
-          <span className="text-xs text-fg-muted ml-1">— ask anything about your portfolio</span>
+          <span className="text-xs text-fg-muted ml-1">— ask or command, click results to navigate</span>
         </div>
-        {messages.length > 0 && (
-          <button
-            onClick={clear}
-            className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-danger transition-colors"
-          >
-            <Trash2 size={11} /> Clear
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {focusedTask && (
+            <span className="text-[10px] font-mono bg-accent/10 text-accent rounded-full px-2 py-0.5">
+              focused: {focusedTask}
+            </span>
+          )}
+          {messages.length > 0 && (
+            <button
+              onClick={clear}
+              className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-danger transition-colors"
+            >
+              <Trash2 size={11} /> Clear
+            </button>
+          )}
+        </div>
       </div>
 
-      <div ref={scrollRef} className="max-h-[400px] overflow-y-auto px-5 py-4 space-y-4">
+      <div ref={scrollRef} className="max-h-[480px] overflow-y-auto px-5 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="space-y-3">
             <p className="text-xs text-fg-muted italic">
-              Try asking about overdue items, specific companies, who's busy, or what was completed recently.
+              Ask questions, run commands, or use pronouns once a task is focused. Try:
             </p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTIONS.map(s => (
                 <button
                   key={s}
-                  onClick={() => ask(s)}
+                  onClick={() => submit(s)}
                   className="inline-flex items-center gap-1 text-xs bg-bg-subtle hover:bg-accent/10 hover:text-accent border border-border rounded-full px-3 py-1 transition-colors"
                 >
                   <ChevronRight size={10} /> {s}
                 </button>
               ))}
             </div>
+            <p className="text-[11px] text-fg-subtle italic pt-1">
+              Commands: <span className="font-mono">mark CO01-004 done</span>, <span className="font-mono">escalate it</span>, <span className="font-mono">add update to it: still waiting</span>, <span className="font-mono">open it</span>
+            </p>
           </div>
         )}
 
-        {messages.map(m => (
-          <div key={m.id} className={`flex gap-3 ${m.role === "user" ? "" : "bg-accent/5 -mx-5 px-5 py-3"}`}>
-            <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white ${m.role === "user" ? "bg-fg-muted" : "bg-accent"}`}>
-              {m.role === "user" ? <User size={12} /> : <Sparkles size={12} />}
+        {messages.map(m => {
+          if (m.role === "user") {
+            return (
+              <div key={m.id} className="flex gap-3">
+                <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white bg-fg-muted">
+                  <User size={12} />
+                </div>
+                <p className="flex-1 text-sm">{m.content}</p>
+              </div>
+            );
+          }
+
+          if (m.role === "assistant") {
+            return (
+              <div key={m.id} className="flex gap-3 bg-accent/5 -mx-5 px-5 py-3">
+                <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white bg-accent">
+                  <Sparkles size={12} />
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <LinkifiedAnswer
+                    text={m.content}
+                    onFocusTask={code => setFocusedTask(code)}
+                  />
+                  {m.taskCount !== undefined && (
+                    <p className="text-xs text-fg-subtle italic">Based on {m.taskCount} relevant task{m.taskCount !== 1 ? "s" : ""}</p>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // action
+          return (
+            <div key={m.id} className="flex gap-3 bg-warn/5 -mx-5 px-5 py-3">
+              <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white bg-warn">
+                <Zap size={12} />
+              </div>
+              <div className="flex-1 min-w-0 space-y-2">
+                <p className="text-xs font-medium text-warn flex items-center gap-1.5">
+                  Command: <span className="font-mono text-fg italic">"{m.content}"</span>
+                </p>
+                {m.status === "preview" && m.intent && (
+                  <>
+                    <pre className="text-xs bg-bg-subtle rounded px-2 py-1.5 overflow-auto font-mono">
+{JSON.stringify(m.intent, null, 2)}
+                    </pre>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => confirmAction(m)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium hover:opacity-90 transition-opacity"
+                      >
+                        <Check size={12} /> Confirm
+                      </button>
+                      <button
+                        onClick={() => cancelAction(m.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+                      >
+                        <XIcon size={12} /> Cancel
+                      </button>
+                    </div>
+                  </>
+                )}
+                {m.status === "running" && (
+                  <p className="text-xs text-fg-muted flex items-center gap-1.5">
+                    <Loader2 size={12} className="animate-spin" /> Running…
+                  </p>
+                )}
+                {m.status === "done" && (
+                  <p className="text-xs text-success flex items-center gap-1.5">
+                    <Check size={12} /> {m.resultMessage}
+                  </p>
+                )}
+                {m.status === "error" && (
+                  <p className="text-xs text-danger">{m.resultMessage}</p>
+                )}
+              </div>
             </div>
-            <div className="flex-1 min-w-0 space-y-1">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{m.content}</p>
-              {m.taskCount !== undefined && m.role === "assistant" && (
-                <p className="text-xs text-fg-subtle italic">Based on {m.taskCount} relevant task{m.taskCount !== 1 ? "s" : ""}</p>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
 
         {loading && (
           <div className="flex gap-3 bg-accent/5 -mx-5 px-5 py-3">
@@ -166,8 +346,7 @@ export function AskCOS() {
               <Sparkles size={12} />
             </div>
             <div className="flex items-center gap-2 text-sm text-fg-muted">
-              <Loader2 size={12} className="animate-spin" />
-              Thinking…
+              <Loader2 size={12} className="animate-spin" /> Thinking…
             </div>
           </div>
         )}
@@ -180,13 +359,13 @@ export function AskCOS() {
       )}
 
       <form
-        onSubmit={e => { e.preventDefault(); ask(input); }}
+        onSubmit={e => { e.preventDefault(); submit(input); }}
         className="flex items-center gap-2 px-5 py-3 border-t border-border bg-bg-subtle"
       >
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder={listening ? "Listening…" : "Ask anything — or press the mic"}
+          placeholder={listening ? "Listening…" : "Ask anything — or type a command"}
           disabled={loading}
           className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50"
         />

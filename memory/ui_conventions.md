@@ -1,4 +1,4 @@
----
+﻿---
 name: ui-conventions
 description: "Shell layout, navigation pattern, design tokens, and component primitives"
 metadata: 
@@ -7,7 +7,7 @@ metadata:
   originSessionId: ce50e4c8-def7-4b23-a6ab-4d8b492e1b43
 ---
 
-## Shell ([app/layout.tsx](../../../OneDrive/Documents/COS%20System/cos-system/src/app/layout.tsx))
+## Shell ([app/layout.tsx](../src/app/layout.tsx))
 ```
 <ThemeProvider>          // next-themes, dark default
   <ToastProvider>        // simple toast queue, components/toast.tsx
@@ -20,7 +20,7 @@ metadata:
 ```
 
 ## Navigation
-- Source of truth: [src/lib/nav.ts](../../../OneDrive/Documents/COS%20System/cos-system/src/lib/nav.ts) — `NAV_ROUTES` (12 routes) and `DEFAULT_PINS = ["capture","digest","outbox","task","people"]`.
+- Source of truth: [src/lib/nav.ts](../src/lib/nav.ts) â€” `NAV_ROUTES` (12 routes) and `DEFAULT_PINS = ["capture","digest","outbox","task","people"]`.
 - Pins and recents stored as JSON blobs in the `settings` table, accessed via `/api/prefs/nav-pins` and `/api/prefs/nav-recents`.
 - `use-pins.ts` client hook reads/writes pins.
 
@@ -32,20 +32,20 @@ Accents: `accent`, `danger`, `warn`, `success`.
 
 Used throughout via classes like `bg-bg-elev`, `text-fg-muted`, `border-danger/25`.
 
-## Primitives ([components/ui.tsx](../../../OneDrive/Documents/COS%20System/cos-system/src/components/ui.tsx))
+## Primitives ([components/ui.tsx](../src/components/ui.tsx))
 `Card`, `PageHeader`, `SectionHeading`, `Stat`, `TableShell`, `Th`, `Td`, `Badge`, `EmptyState`. These wrap the design tokens.
 
 Badge tones: `"default" | "success" | "warn" | "danger" | "info"`.
 Stat tones: `"default" | "success" | "warn" | "danger"`.
 
 ## Interactive components
-- `QuickCapture` (dashboard) — POSTs to `/capture` create action.
-- `PolishedInput` — debounced call to `/api/polish` for any action-item textbox.
-- `MeetingExtractor` — large textarea → `/api/extract-meeting` → editable preview list → bulk create.
-- `DraftEmailButton` — per-task button → `/api/draft-email` → opens copyable subject/body.
-- `DigestNarrative` — renders LLM-generated paragraph on `/digest`.
-- `UpdateBox` — append a `task_updates` row, optional status change.
-- `CopyButton` — clipboard helper.
+- `QuickCapture` (dashboard) â€” POSTs to `/capture` create action.
+- `PolishedInput` â€” debounced call to `/api/polish` for any action-item textbox.
+- `MeetingExtractor` â€” large textarea â†’ `/api/extract-meeting` â†’ editable preview list â†’ bulk create.
+- `DraftEmailButton` â€” per-task button â†’ `/api/draft-email` â†’ opens copyable subject/body.
+- `DigestNarrative` â€” renders LLM-generated paragraph on `/digest`.
+- `UpdateBox` â€” append a `task_updates` row, optional status change.
+- `CopyButton` â€” clipboard helper.
 
 ## Conventions
 - All list pages use `force-dynamic` to bypass cache (data changes frequently).

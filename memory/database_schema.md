@@ -1,4 +1,4 @@
----
+﻿---
 name: database-schema
 description: "All 12 tables, their columns, relationships, and the why behind non-obvious choices"
 metadata: 
@@ -7,7 +7,7 @@ metadata:
   originSessionId: ce50e4c8-def7-4b23-a6ab-4d8b492e1b43
 ---
 
-Defined in [src/db/schema.ts](../../../OneDrive/Documents/COS%20System/cos-system/src/db/schema.ts). Migration: [drizzle/0000_flaky_amphibian.sql](../../../OneDrive/Documents/COS%20System/cos-system/drizzle/0000_flaky_amphibian.sql).
+Defined in [src/db/schema.ts](../src/db/schema.ts). Migration: [drizzle/0000_flaky_amphibian.sql](../drizzle/0000_flaky_amphibian.sql).
 
 ## Core entities
 
@@ -18,14 +18,14 @@ Defined in [src/db/schema.ts](../../../OneDrive/Documents/COS%20System/cos-syste
 `id, name (unique)`. Auto-created on demand by `getOrCreateDept` in task actions.
 
 ### people
-`id, name (unique), email, phone, whatsapp, preferred_channel, role, company_id → companies, manager_id, contact_status, active, notes`.
-- `name` is unique — used as the natural key when importing/auto-creating.
+`id, name (unique), email, phone, whatsapp, preferred_channel, role, company_id â†’ companies, manager_id, contact_status, active, notes`.
+- `name` is unique â€” used as the natural key when importing/auto-creating.
 - `manager_id` has no FK constraint (self-reference left soft).
 
 ### tasks
-`id, code (unique e.g. "CO01-007"), company_id (NOT NULL → companies), department_id → departments, meeting_date, action_item (NOT NULL), owner_id → people, created_date, deadline, status (default "Not Started"), priority (default "Low"), category, risk, escalation (default "No"), comments, latest_update, last_updated_at, closed_date, archived`.
+`id, code (unique e.g. "CO01-007"), company_id (NOT NULL â†’ companies), department_id â†’ departments, meeting_date, action_item (NOT NULL), owner_id â†’ people, created_date, deadline, status (default "Not Started"), priority (default "Low"), category, risk, escalation (default "No"), comments, latest_update, last_updated_at, closed_date, archived`.
 - `owner_id` is the single owner; **assignees are M2M** via `task_assignees`.
-- `latest_update` is a denormalised mirror of the most recent `task_updates.body` — updated by `addTaskUpdate`.
+- `latest_update` is a denormalised mirror of the most recent `task_updates.body` â€” updated by `addTaskUpdate`.
 
 ### task_assignees (M2M join)
 `(task_id, person_id)` composite PK. Cascade delete on either side.
@@ -39,7 +39,7 @@ Defined in [src/db/schema.ts](../../../OneDrive/Documents/COS%20System/cos-syste
 `id, external_id, task_id (set null on delete), task_code, company_id, entry_type ("CREATE"|"CHANGE"|...), field, old_value, new_value, change_reason, created_at, created_by`. Written by `logChange` in task actions and by `addTaskUpdate` when status changes.
 
 ### corrections
-`id, audit_log_id → audit_log, corrected_by_entry_id → audit_log, status (default "Open"), created_at`. Links an erroneous audit entry to the entry that fixed it. Currently no UI writes this — wired in schema for future correction flow.
+`id, audit_log_id â†’ audit_log, corrected_by_entry_id â†’ audit_log, status (default "Open"), created_at`. Links an erroneous audit entry to the entry that fixed it. Currently no UI writes this â€” wired in schema for future correction flow.
 
 ## Outreach
 
@@ -52,14 +52,14 @@ Defined in [src/db/schema.ts](../../../OneDrive/Documents/COS%20System/cos-syste
 ## Analytics
 
 ### daily_snapshots
-`id, snapshot_date, company_id, total, open, overdue, due_soon, blocked, critical, escalated, completed, closed, risk_score`. Time-series of company KPIs. Currently no scheduled job writes to this — table is ready for cron.
+`id, snapshot_date, company_id, total, open, overdue, due_soon, blocked, critical, escalated, completed, closed, risk_score`. Time-series of company KPIs. Currently no scheduled job writes to this â€” table is ready for cron.
 
 ## Config
 
 ### settings
-`key (PK), value`. Imported from `_Settings` sheet. Also used by the UI for nav-pins / nav-recents JSON blobs (see [/api/prefs/](../../../OneDrive/Documents/COS%20System/cos-system/src/app/api/prefs/)).
+`key (PK), value`. Imported from `_Settings` sheet. Also used by the UI for nav-pins / nav-recents JSON blobs (see [/api/prefs/](../src/app/api/prefs/)).
 
 ## Conventions
-- All timestamps stored as Postgres `timestamp` (no timezone) in `mode: "date"`. Application is single-user, single-TZ — no TZ logic.
+- All timestamps stored as Postgres `timestamp` (no timezone) in `mode: "date"`. Application is single-user, single-TZ â€” no TZ logic.
 - Soft delete = `archived: boolean` on tasks. People/companies use `active`.
-- No row-level security; no auth — Supabase service key effectively gates the whole app.
+- No row-level security; no auth â€” Supabase service key effectively gates the whole app.

@@ -47,9 +47,24 @@ RULES:
 - Today is ${new Date().toISOString().slice(0, 10)}.
 - Return ONLY JSON. No markdown, no prose, no explanations.`;
 
-async function parseCommand(command: string): Promise<ParsedIntent> {
+async function parseCommand(
+  command: string,
+  history: { role: "user" | "assistant"; content: string }[] = [],
+  activeContext?: { taskCode?: string; companyName?: string },
+): Promise<ParsedIntent> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return { type: "unknown", reason: "AI not configured" };
+
+  // Inject pronoun resolution context
+  const contextHint = activeContext?.taskCode || activeContext?.companyName
+    ? `\n\nACTIVE CONTEXT (resolve pronouns like "it", "this", "that one" using this):\n${JSON.stringify(activeContext)}`
+    : "";
+
+  const messages: any[] = [
+    { role: "system", content: SYSTEM_PROMPT + contextHint },
+    ...history.slice(-4),
+    { role: "user", content: command },
+  ];
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -59,10 +74,7 @@ async function parseCommand(command: string): Promise<ParsedIntent> {
     },
     body: JSON.stringify({
       model: "llama-3.1-8b-instant",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: command },
-      ],
+      messages,
       max_tokens: 200,
       temperature: 0.1,
       response_format: { type: "json_object" },
@@ -256,9 +268,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const command: string = (body?.command ?? "").toString().trim();
     const confirm: boolean = !!body?.confirm;
+    const history = Array.isArray(body?.history) ? body.history : [];
+    const activeContext = body?.activeContext || undefined;
     if (!command) return NextResponse.json({ error: "command required" }, { status: 400 });
 
-    const intent = await parseCommand(command);
+    const intent = await parseCommand(command, history, activeContext);
 
     if (intent.type === "navigate") {
       // Resolve target

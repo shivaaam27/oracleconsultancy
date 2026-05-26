@@ -1,4 +1,4 @@
----
+﻿---
 name: routes-and-pages
 description: "Every page route and API endpoint, what it does, and which files implement it"
 metadata: 
@@ -17,7 +17,7 @@ metadata:
 | `/task/new` | `app/task/new/page.tsx` | Create-task form. Calls `createTask` server action. |
 | `/task/[code]` | `app/task/[code]/page.tsx` | Task detail: editable fields, assignee list, latest update, full task_updates timeline, draft-email button, audit history. |
 | `/registry` | `app/registry/page.tsx` | Master sortable registry of all tasks. |
-| `/meeting` | `app/meeting/page.tsx` + `actions.ts` | Paste meeting notes → MeetingExtractor (calls /api/extract-meeting) → review extracted tasks → bulk create. |
+| `/meeting` | `app/meeting/page.tsx` + `actions.ts` | Paste meeting notes â†’ MeetingExtractor (calls /api/extract-meeting) â†’ review extracted tasks â†’ bulk create. |
 | `/digest` | `app/digest/page.tsx` | Weekly digest stats + AI-generated narrative via DigestNarrative component. |
 | `/escalations` | `app/escalations/page.tsx` | All tasks flagged escalated / escalate-now / overdue / stalled. |
 | `/companies` | `app/companies/page.tsx` | Company list with KPIs. |
@@ -28,21 +28,25 @@ metadata:
 | `/settings` | `app/settings/page.tsx` | Settings table view + nav pin management. |
 
 ## Server actions
-- `app/task/actions.ts` — `createTask`, `updateTask`, `deleteTask`, `addTaskUpdate`. Diffs every field, writes audit_log on each change, redirects after.
-- `app/capture/actions.ts` — quick-capture submit.
-- `app/meeting/actions.ts` — bulk-create from extracted tasks.
-- `app/outbox/actions.ts` — markSent / dispatch.
+- `app/task/actions.ts` â€” `createTask`, `updateTask`, `deleteTask`, `addTaskUpdate`. Diffs every field, writes audit_log on each change, redirects after.
+- `app/capture/actions.ts` â€” quick-capture submit.
+- `app/meeting/actions.ts` â€” bulk-create from extracted tasks.
+- `app/outbox/actions.ts` â€” markSent / dispatch.
 
-## API routes ([src/app/api/](../../../OneDrive/Documents/COS%20System/cos-system/src/app/api/))
+## API routes ([src/app/api/](../src/app/api/))
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/polish` | POST `{text}` | Rewrites raw text → crisp imperative action item. Groq LLM with rule-based fallback ([smart-parse.ts](../../../OneDrive/Documents/COS%20System/cos-system/src/lib/smart-parse.ts) `polishActionItem`). Caches company+people list 5min. |
+| `/api/polish` | POST `{text}` | Rewrites raw text â†’ crisp imperative action item. Groq LLM with rule-based fallback ([smart-parse.ts](../src/lib/smart-parse.ts) `polishActionItem`). Caches company+people list 5min. |
 | `/api/extract-meeting` | POST `{notes}` | Groq extracts an array of structured tasks from raw meeting notes. JSON object response. Returns `{tasks: []}` if no key. |
 | `/api/draft-email` | POST `{taskId}` | Groq drafts subject+body follow-up email for a single task. British-English, executive tone. 503 if no key. |
 | `/api/digest-narrative` | POST `{stats}` | Groq writes 4-6 sentence narrative paragraph from KPI stats blob. |
 | `/api/search` | GET `?q=` | Command palette search across code/actionItem/assignees/company. Defaults to open tasks if no query. Limit 12. |
 | `/api/prefs/nav-pins` | GET/PUT | Reads/writes user's pinned routes from `settings` table. |
 | `/api/prefs/nav-recents` | GET/PUT | Reads/writes user's recently visited routes. |
+| `/api/ask` | POST `{question, history?}` | RAG Q&A: retrieves relevant tasks/companies/people/updates by keyword + intent filters (overdue/critical/escalated/closed), answers via Groq. Supports last-6-turn history. 503 if no key. |
+| `/api/action` | POST `{command, confirm?}` | Natural-language → typed intent (complete/escalate/update/set_status/set_priority/create/navigate/unknown). First call returns `needsConfirm: true`; second with `confirm: true` executes. Mutation audit rows tagged `createdBy: "ai-command"`. |
+| `/api/company-summary` | POST `{companyId}` | 5-7 sentence executive briefing for one company. 120-180 words, British English. 503 if no key. |
+| `/api/similar-tasks` | POST `{query, excludeId?}` | Up to 5 similar tasks by keyword overlap (no embeddings, no LLM). Used to flag duplicates on creation. |
 
-All AI routes degrade gracefully when `GROQ_API_KEY` is missing.
+All Groq-backed routes degrade gracefully when `GROQ_API_KEY` is missing (`/draft-email`, `/ask`, `/company-summary` return 503; others fall back to rules or empty result). `/api/similar-tasks` is pure SQL and always works.

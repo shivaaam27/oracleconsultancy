@@ -11,7 +11,10 @@ metadata:
 
 A single-operator web app the principal of **Oracle Group** uses to run weekly operations across 7 portfolio companies. Replaces a sprawling Excel workbook (`Chief Of Staff Workflow - Live.xlsx`) with a real database-backed system.
 
-**Repo root:** `C:\Users\User\OneDrive\Documents\COS System\cos-system\`
+**Repo root (primary):** `C:\Users\User\OneDrive\Documents\COS System\cos-system\`
+**Backup copy:** `C:\dev\cos-system\` (mirror created 2026-05-26 for safety; OneDrive path is still the working tree)
+
+Project-root `CLAUDE.md` is auto-loaded by Claude Code. Detailed handover notes live in `memory/` inside the project (mirrored from `~/.claude/projects/<key>/memory/`).
 
 ## What it does
 - **Track action items** across companies with status, priority, deadlines, assignees, risk, escalation.

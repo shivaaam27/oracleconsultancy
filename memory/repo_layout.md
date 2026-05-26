@@ -9,6 +9,8 @@ metadata:
 
 ```
 cos-system/
+├── CLAUDE.md                         # Auto-loaded project instructions for Claude Code
+├── memory/                           # Reference copies of Claude auto-memory (these files)
 ├── drizzle/                          # Generated SQL migrations
 │   ├── 0000_flaky_amphibian.sql      # Baseline schema (already applied to prod)
 │   └── meta/                         # Drizzle journal
@@ -23,7 +25,17 @@ cos-system/
 │   └── migrate.ts                    # drizzle migrator wrapper
 ├── src/
 │   ├── app/                          # Next.js App Router
-│   │   ├── api/                      # 6 API routes (see ai_integration.md, routes_and_pages.md)
+│   │   ├── api/                      # 11 API routes (see ai_integration.md, routes_and_pages.md)
+│   │   │   ├── action/               # NL command → typed intent → execute
+│   │   │   ├── ask/                  # RAG Q&A (with conversation history)
+│   │   │   ├── company-summary/      # Per-company executive briefing
+│   │   │   ├── digest-narrative/
+│   │   │   ├── draft-email/
+│   │   │   ├── extract-meeting/
+│   │   │   ├── polish/
+│   │   │   ├── prefs/                # nav-pins, nav-recents
+│   │   │   ├── search/
+│   │   │   └── similar-tasks/        # Keyword-overlap duplicate finder (no LLM)
 │   │   ├── audit/page.tsx
 │   │   ├── capture/{page.tsx, actions.ts}
 │   │   ├── companies/{page.tsx, [id]/page.tsx}
@@ -39,6 +51,10 @@ cos-system/
 │   │   ├── layout.tsx                # ThemeProvider + ToastProvider + CommandPalette + TopPill + PageTransition
 │   │   └── page.tsx                  # Dashboard
 │   ├── components/                   # Shared UI
+│   │   ├── action-item-field.tsx     # Action-item input wrapper (used in create/edit)
+│   │   ├── ask-cos.tsx               # Chat UI → /api/ask (RAG Q&A)
+│   │   ├── company-summary.tsx       # Renders /api/company-summary briefing
+│   │   ├── similar-tasks.tsx         # Shows possible duplicates → /api/similar-tasks
 │   │   ├── command-palette.tsx       # Cmd+K provider, search /api/search
 │   │   ├── copy-button.tsx
 │   │   ├── digest-narrative.tsx      # Calls /api/digest-narrative
@@ -59,6 +75,7 @@ cos-system/
 │   │   ├── index.ts                  # postgres.js + drizzle client
 │   │   └── schema.ts                 # All 12 tables
 │   └── lib/
+│       ├── ai-context.ts             # Shared RAG: loadContext, loadTaskContext, findSimilarTasks
 │       ├── cn.ts                     # clsx + tailwind-merge helper
 │       ├── constants.ts              # STATUSES / PRIORITIES / RISKS
 │       ├── derive.ts                 # daysOpen, daysToDeadline, flag(), labels, colors
