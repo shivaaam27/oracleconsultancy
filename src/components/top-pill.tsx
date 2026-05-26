@@ -20,6 +20,7 @@ import { NAV_ROUTES, ROUTE_BY_ID, type NavRoute } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
+import { DensityToggle } from "./density-toggle";
 
 /* --------------------------------------------------------------------- */
 
@@ -436,8 +437,9 @@ export function TopPill() {
             </kbd>
           </button>
 
-          {/* Theme toggle */}
-          <div className="shrink-0 pl-0.5">
+          {/* Density + Theme toggles */}
+          <div className="shrink-0 pl-0.5 flex items-center">
+            <DensityToggle />
             <ThemeToggle />
           </div>
         </motion.div>

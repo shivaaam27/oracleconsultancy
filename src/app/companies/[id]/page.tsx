@@ -2,15 +2,12 @@ import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { PageHeader, TableShell, Th, Td, Badge, LinkButton } from "@/components/ui";
 import { CompanySummary } from "@/components/company-summary";
+import { Deadline } from "@/components/deadline";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-function fmt(d: Date | null) {
-  return d ? d.toISOString().slice(0, 10) : "—";
-}
 
 function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "info" {
   if (f === "closed") return "default";
@@ -64,7 +61,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
                 </Td>
                 <Td><Link href={`/task/${r.code}`} className="hover:text-accent">{r.actionItem}</Link></Td>
                 <Td className="text-fg-muted">{r.assignees.join(", ")}</Td>
-                <Td className="whitespace-nowrap">{fmt(r.deadline)}</Td>
+                <Td className="whitespace-nowrap"><Deadline date={r.deadline} /></Td>
                 <Td className="whitespace-nowrap">{r.status}</Td>
                 <Td className="whitespace-nowrap">{r.priority}</Td>
                 <Td><Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge></Td>

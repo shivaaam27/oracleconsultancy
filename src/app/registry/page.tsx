@@ -1,14 +1,11 @@
 import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { PageHeader, TableShell, Th, Td, Badge, LinkButton, Card, EmptyState } from "@/components/ui";
+import { Deadline } from "@/components/deadline";
 import Link from "next/link";
 import { Plus, RotateCcw, ListFilter, Inbox } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-function fmt(d: Date | null) {
-  return d ? d.toISOString().slice(0, 10) : "—";
-}
 
 function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "info" {
   switch (f) {
@@ -129,13 +126,21 @@ export default async function RegistryPage({ searchParams }: { searchParams: Pro
                   <Td className="font-mono text-xs text-fg-muted">
                     <Link href={`/task/${r.code}`} className="group-hover:text-accent">{r.code}</Link>
                   </Td>
-                  <Td className="whitespace-nowrap">{r.companyName}</Td>
+                  <Td className="whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="inline-block w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: r.companyAccent || "transparent" }}
+                      />
+                      {r.companyName}
+                    </span>
+                  </Td>
                   <Td className="whitespace-nowrap text-fg-muted">{r.department || ""}</Td>
                   <Td className="max-w-md">
                     <Link href={`/task/${r.code}`} className="hover:text-accent">{r.actionItem}</Link>
                   </Td>
                   <Td className="whitespace-nowrap text-fg-muted">{r.assignees.join(", ")}</Td>
-                  <Td className="whitespace-nowrap">{fmt(r.deadline)}</Td>
+                  <Td className="whitespace-nowrap"><Deadline date={r.deadline} /></Td>
                   <Td className="whitespace-nowrap"><Badge tone={statusTone(r.status)}>{r.status}</Badge></Td>
                   <Td className="whitespace-nowrap"><Badge tone={priorityTone(r.priority)}>{r.priority}</Badge></Td>
                   <Td align="right" className="text-fg-muted">{r.daysOpen ?? ""}</Td>

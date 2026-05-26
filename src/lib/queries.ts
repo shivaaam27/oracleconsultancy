@@ -7,6 +7,7 @@ export type TaskRow = {
   code: string;
   companyId: number;
   companyName: string;
+  companyAccent: string | null;
   department: string | null;
   actionItem: string;
   owner: string | null;
@@ -33,6 +34,7 @@ export async function getAllTasks(): Promise<TaskRow[]> {
   if (!tasks.length) return [];
   const companies = await db.select().from(schema.companies);
   const cMap = new Map(companies.map((c) => [c.id, c.name]));
+  const cAccent = new Map(companies.map((c) => [c.id, c.accentColor]));
   const depts = await db.select().from(schema.departments);
   const dMap = new Map(depts.map((d) => [d.id, d.name]));
   const people = await db.select().from(schema.people);
@@ -50,6 +52,7 @@ export async function getAllTasks(): Promise<TaskRow[]> {
     code: t.code,
     companyId: t.companyId,
     companyName: cMap.get(t.companyId) || "",
+    companyAccent: cAccent.get(t.companyId) ?? null,
     department: t.departmentId ? dMap.get(t.departmentId) || null : null,
     actionItem: t.actionItem,
     owner: t.ownerId ? pMap.get(t.ownerId) || null : null,

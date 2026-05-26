@@ -1,15 +1,11 @@
 import { getAllTasks } from "@/lib/queries";
 import { flagLabel, flagColor } from "@/lib/derive";
 import { PageHeader, Badge, TableShell, Th, Td, EmptyState } from "@/components/ui";
+import { Deadline } from "@/components/deadline";
 import Link from "next/link";
 import { AlertOctagon, CheckCircle2, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-function fmtDate(d: Date | null) {
-  if (!d) return "—";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
 
 function tone(f: string): "danger" | "warn" | "default" | "success" | "info" {
   if (["escalate-now", "overdue", "escalated", "stalled"].includes(f)) return "danger";
@@ -120,7 +116,7 @@ export default async function EscalationsPage() {
                           r.priority === "High" ? "text-warn" : "text-fg-muted"
                         }`}>{r.priority}</span>
                       </Td>
-                      <Td align="right" className="text-sm text-fg-muted">{fmtDate(r.deadline)}</Td>
+                      <Td align="right" className="text-sm"><Deadline date={r.deadline} /></Td>
                       <Td align="right">
                         {r.daysToDeadline === "done" ? (
                           <span className="text-xs text-success">Done</span>

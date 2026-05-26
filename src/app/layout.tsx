@@ -6,6 +6,7 @@ import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
 import { ToastProvider } from "@/components/toast";
 import { UndoBanner } from "@/components/undo-banner";
+import { DensityScript } from "@/components/density-toggle";
 import { PageTransition } from "@/components/page-transition";
 
 export const metadata: Metadata = {
@@ -16,6 +17,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <DensityScript />
+      </head>
       <body>
         <ThemeProvider>
           <ToastProvider>

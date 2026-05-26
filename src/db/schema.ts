@@ -5,6 +5,7 @@ export const companies = pgTable("companies", {
   name: text("name").notNull().unique(),
   code: text("code").notNull().unique(),
   active: boolean("active").notNull().default(true),
+  accentColor: text("accent_color"),
 });
 
 export const departments = pgTable("departments", {

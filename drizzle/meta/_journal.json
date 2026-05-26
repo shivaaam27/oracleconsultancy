@@ -15,6 +15,13 @@
       "when": 1779816360031,
       "tag": "0001_naive_epoch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779817303212,
+      "tag": "0002_cute_timeslip",
+      "breakpoints": true
     }
   ]
 }

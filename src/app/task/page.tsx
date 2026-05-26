@@ -2,6 +2,8 @@ import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { PageHeader, Card, Badge, LinkButton, EmptyState } from "@/components/ui";
 import { InlineEdit } from "@/components/inline-edit";
+import { Deadline } from "@/components/deadline";
+import { TaskHover } from "@/components/task-hover";
 import Link from "next/link";
 import { Plus, CheckSquare, Inbox } from "lucide-react";
 
@@ -147,7 +149,8 @@ export default async function TasksPage({
                   col.items.map((r) => (
                     <div
                       key={r.id}
-                      className="card p-3 hover:border-accent transition-colors"
+                      className="card p-3 hover:border-accent transition-colors border-l-4"
+                      style={{ borderLeftColor: r.companyAccent || "transparent" }}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1.5">
                         <Link
@@ -160,11 +163,19 @@ export default async function TasksPage({
                           <Badge tone={priorityTone(r.priority)}>{r.priority}</Badge>
                         </InlineEdit>
                       </div>
-                      <Link href={`/task/${r.code}`} className="block">
-                        <div className="text-sm leading-snug mb-2 line-clamp-3">
-                          {r.actionItem}
-                        </div>
-                      </Link>
+                      <TaskHover
+                        actionItem={r.actionItem}
+                        latestUpdate={r.latestUpdate}
+                        assignees={r.assignees}
+                        status={r.status}
+                        priority={r.priority}
+                      >
+                        <Link href={`/task/${r.code}`} className="block">
+                          <div className="text-sm leading-snug mb-2 line-clamp-3">
+                            {r.actionItem}
+                          </div>
+                        </Link>
+                      </TaskHover>
                       <div className="flex items-center justify-between text-xs text-fg-muted">
                         <span className="truncate">{r.companyName}</span>
                         <InlineEdit
@@ -173,7 +184,7 @@ export default async function TasksPage({
                           value={r.deadline ? r.deadline.toISOString() : null}
                           className="whitespace-nowrap"
                         >
-                          {fmt(r.deadline)}
+                          <Deadline date={r.deadline} />
                         </InlineEdit>
                       </div>
                       {r.assignees.length > 0 && (
