@@ -5,9 +5,13 @@ import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-async function extractWithAI(notes: string, companyMap: { id: number; name: string }[], defaultCompanyId?: number): Promise<MeetingTask[] | null> {
+type AIExtractResult =
+  | { ok: true; tasks: MeetingTask[] }
+  | { ok: false; reason: "no-key" | "http-error" | "exception"; detail?: string };
+
+async function extractWithAI(notes: string, companyMap: { id: number; name: string }[], defaultCompanyId?: number): Promise<AIExtractResult> {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return { ok: false, reason: "no-key" };
 
   try {
     const [companies, people] = await Promise.all([
@@ -54,7 +58,7 @@ Rules:
 
     if (!res.ok) {
       console.error("AI meeting extract failed:", res.status);
-      return null;
+      return { ok: false, reason: "http-error", detail: `HTTP ${res.status}` };
     }
     const data = await res.json();
     const content: string = data?.choices?.[0]?.message?.content ?? "{}";
@@ -65,7 +69,7 @@ Rules:
     const validPriority = ["Critical", "High", "Medium", "Low"];
     const validCategory = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 
-    return rawTasks.map((t, idx): MeetingTask => {
+    const tasks = rawTasks.map((t, idx): MeetingTask => {
       const company = companyMap.find(c => c.name.toLowerCase() === (t.companyName || "").toLowerCase());
       const deadlineDate = t.deadline && /^\d{4}-\d{2}-\d{2}$/.test(t.deadline) ? new Date(t.deadline + "T00:00:00") : null;
       return {
@@ -85,16 +89,23 @@ Rules:
         rawInput: t.actionItem || "",
       };
     }).filter(t => t.actionItem.length > 0);
+    return { ok: true, tasks };
   } catch (e) {
     console.error("AI meeting extract exception:", e);
-    return null;
+    return { ok: false, reason: "exception", detail: e instanceof Error ? e.message : String(e) };
   }
 }
+
+export type ParseMeetingResult = {
+  tasks: MeetingTask[];
+  source: "ai" | "rules" | "rules-empty-ai" | "rules-no-key" | "rules-ai-error";
+  aiError?: string;
+};
 
 export async function parseMeetingNotes(
   notes: string,
   defaultCompanyId?: number,
-): Promise<MeetingTask[]> {
+): Promise<ParseMeetingResult> {
   const companies = await db
     .select({ id: schema.companies.id, name: schema.companies.name, code: schema.companies.code })
     .from(schema.companies);
@@ -102,11 +113,14 @@ export async function parseMeetingNotes(
     .select({ id: schema.people.id, name: schema.people.name })
     .from(schema.people);
 
-  // Try AI first; fall back to rule-based if it fails or returns empty
   const aiResult = await extractWithAI(notes, companies, defaultCompanyId);
-  if (aiResult && aiResult.length > 0) return aiResult;
-
-  return extractMeetingTasks(notes, companies, people, defaultCompanyId);
+  if (aiResult.ok && aiResult.tasks.length > 0) {
+    return { tasks: aiResult.tasks, source: "ai" };
+  }
+  const fallback = extractMeetingTasks(notes, companies, people, defaultCompanyId);
+  if (aiResult.ok) return { tasks: fallback, source: "rules-empty-ai" };
+  if (aiResult.reason === "no-key") return { tasks: fallback, source: "rules-no-key" };
+  return { tasks: fallback, source: "rules-ai-error", aiError: aiResult.detail };
 }
 
 export type BulkTaskInput = {
@@ -171,53 +185,63 @@ async function insertTaskWithUniqueCode(
   throw new Error("Could not allocate unique task code after retries");
 }
 
-export async function bulkCreateTasks(tasks: BulkTaskInput[]): Promise<{ created: number }> {
+export type BulkFailure = { index: number; actionItem: string; reason: string };
+
+export async function bulkCreateTasks(tasks: BulkTaskInput[]): Promise<{ created: number; failures: BulkFailure[] }> {
   let created = 0;
-  for (const t of tasks) {
-    if (!t.companyId || !t.actionItem.trim()) continue;
+  const failures: BulkFailure[] = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    try {
+      if (!t.companyId) { failures.push({ index: i, actionItem: t.actionItem, reason: "Missing company" }); continue; }
+      if (!t.actionItem.trim()) { failures.push({ index: i, actionItem: t.actionItem, reason: "Empty action item" }); continue; }
 
-    const company = await db.select().from(schema.companies).where(eq(schema.companies.id, t.companyId)).limit(1);
-    if (!company.length) continue;
-    const code = company[0].code;
-    const now = new Date();
+      const company = await db.select().from(schema.companies).where(eq(schema.companies.id, t.companyId)).limit(1);
+      if (!company.length) { failures.push({ index: i, actionItem: t.actionItem, reason: "Company not found" }); continue; }
+      const code = company[0].code;
+      const now = new Date();
 
-    const task = await insertTaskWithUniqueCode(t.companyId, code, {
-      actionItem: t.actionItem,
-      status: t.status || "Not Started",
-      priority: t.priority || "Low",
-      category: t.category,
-      escalation: t.escalation || "No",
-      deadline: t.deadline ? new Date(t.deadline) : null,
-      createdDate: now,
-      lastUpdatedAt: now,
-      archived: false,
-    });
-    const newCode = task.code;
+      const task = await insertTaskWithUniqueCode(t.companyId, code, {
+        actionItem: t.actionItem,
+        status: t.status || "Not Started",
+        priority: t.priority || "Low",
+        category: t.category,
+        escalation: t.escalation || "No",
+        deadline: t.deadline ? new Date(t.deadline) : null,
+        createdDate: now,
+        lastUpdatedAt: now,
+        archived: false,
+      });
+      const newCode = task.code;
 
-    for (const name of t.assigneeNames) {
-      const pid = await getOrCreatePerson(name, t.companyId);
-      try {
-        await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: pid });
-      } catch {}
+      for (const name of t.assigneeNames) {
+        const pid = await getOrCreatePerson(name, t.companyId);
+        try {
+          await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: pid });
+        } catch {}
+      }
+
+      await db.insert(schema.auditLog).values({
+        taskId: task.id,
+        taskCode: newCode,
+        companyId: t.companyId,
+        entryType: "CREATE",
+        field: "Task",
+        oldValue: null,
+        newValue: t.actionItem,
+        changeReason: "Created via Meeting Mode",
+        createdAt: now,
+        createdBy: "meeting-mode",
+      });
+
+      created++;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      failures.push({ index: i, actionItem: t.actionItem, reason: msg });
     }
-
-    await db.insert(schema.auditLog).values({
-      taskId: task.id,
-      taskCode: newCode,
-      companyId: t.companyId,
-      entryType: "CREATE",
-      field: "Task",
-      oldValue: null,
-      newValue: t.actionItem,
-      changeReason: "Created via Meeting Mode",
-      createdAt: now,
-      createdBy: "meeting-mode",
-    });
-
-    created++;
   }
 
   revalidatePath("/registry");
   revalidatePath("/");
-  return { created };
+  return { created, failures };
 }

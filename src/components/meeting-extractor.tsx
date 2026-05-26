@@ -40,16 +40,25 @@ export function MeetingExtractor({ companies }: Props) {
   const [isParsing, startParse] = useTransition();
   const [isSaving, startSave] = useTransition();
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [saveFailures, setSaveFailures] = useState<{ actionItem: string; reason: string }[]>([]);
+  const [parseInfo, setParseInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function handleExtract() {
     if (!notes.trim()) return;
     setError(null);
     setSavedCount(null);
+    setSaveFailures([]);
+    setParseInfo(null);
     startParse(async () => {
-      const parsed = await parseMeetingNotes(notes, defaultCompany || undefined);
+      const { tasks: parsed, source, aiError } = await parseMeetingNotes(notes, defaultCompany || undefined);
       setTasks(parsed.map((p, i) => taskFromParsed(p, i)));
-      if (parsed.length === 0) setError("No action items detected. Try adding bullet points or starting lines with action verbs.");
+      if (parsed.length === 0) {
+        setError("No action items detected. Try adding bullet points or starting lines with action verbs.");
+      }
+      if (source === "rules-no-key") setParseInfo("AI extraction unavailable (no API key) — used rule-based parser.");
+      else if (source === "rules-ai-error") setParseInfo(`AI extraction failed (${aiError || "unknown error"}) — used rule-based parser.`);
+      else if (source === "rules-empty-ai") setParseInfo("AI returned no items — used rule-based parser as fallback.");
     });
   }
 
@@ -76,10 +85,16 @@ export function MeetingExtractor({ companies }: Props) {
     if (!toSave.length) { setError("Select at least one task with a company and action item."); return; }
     setError(null);
     startSave(async () => {
-      const { created } = await bulkCreateTasks(toSave);
+      const { created, failures } = await bulkCreateTasks(toSave);
       setSavedCount(created);
-      setTasks([]);
-      setNotes("");
+      setSaveFailures(failures.map(f => ({ actionItem: f.actionItem, reason: f.reason })));
+      if (failures.length === 0) {
+        setTasks([]);
+        setNotes("");
+      } else {
+        const failedKeys = new Set(failures.map(f => f.actionItem));
+        setTasks(prev => prev.filter(t => failedKeys.has(t.actionItem)));
+      }
       router.refresh();
     });
   }
@@ -143,6 +158,21 @@ export function MeetingExtractor({ companies }: Props) {
 
       {error && (
         <p className="text-sm text-danger bg-danger/5 border border-danger/20 rounded-lg px-4 py-3">{error}</p>
+      )}
+
+      {parseInfo && (
+        <p className="text-xs text-warn bg-warn/5 border border-warn/20 rounded-lg px-4 py-2">{parseInfo}</p>
+      )}
+
+      {saveFailures.length > 0 && (
+        <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
+          <p className="font-medium text-danger mb-1.5">{saveFailures.length} task{saveFailures.length !== 1 ? "s" : ""} failed to save</p>
+          <ul className="space-y-1 text-xs text-fg-muted">
+            {saveFailures.map((f, i) => (
+              <li key={i}><span className="text-fg">{f.actionItem || "(empty)"}</span> — {f.reason}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Extracted tasks */}
