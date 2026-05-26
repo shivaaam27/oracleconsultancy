@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Sidebar } from "@/components/sidebar";
-import { Topbar } from "@/components/topbar";
+import { TopPill } from "@/components/top-pill";
 import { CommandPaletteProvider } from "@/components/command-palette";
 
 export const metadata: Metadata = {
@@ -16,13 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
           <CommandPaletteProvider>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <div className="flex-1 min-w-0">
-                <Topbar />
-                <main className="px-8 py-6 max-w-[1400px] fade-in">{children}</main>
-              </div>
-            </div>
+            <TopPill />
+            <main className="pt-20 px-4 sm:px-6 lg:px-10 pb-12 mx-auto max-w-[1400px] fade-in">
+              {children}
+            </main>
           </CommandPaletteProvider>
         </ThemeProvider>
       </body>

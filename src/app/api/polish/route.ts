@@ -13,39 +13,43 @@ export async function POST(req: NextRequest) {
     if (!text) return NextResponse.json({ result: "" });
 
     const fallback = polishActionItem(text);
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json({ result: fallback, source: "rules", debug: "no-key" });
     }
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: "user", parts: [{ text }] }],
-          generationConfig: { maxOutputTokens: 60, temperature: 0.2 },
-        }),
-      }
-    );
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: text },
+        ],
+        max_tokens: 60,
+        temperature: 0.2,
+      }),
+    });
 
     if (!res.ok) {
       const err = await res.text();
-      console.error("Gemini error:", res.status, err);
+      console.error("Groq error:", res.status, err);
       return NextResponse.json({
         result: fallback,
         source: "rules",
-        debug: `gemini-${res.status}`,
-        geminiError: err.slice(0, 2000),
+        debug: `groq-${res.status}`,
+        groqError: err.slice(0, 2000),
       });
     }
 
     const data = await res.json();
     const aiResult: string =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+      data?.choices?.[0]?.message?.content?.trim() ?? "";
 
     if (!aiResult || aiResult.length > 200 || aiResult.includes("\n")) {
       return NextResponse.json({
