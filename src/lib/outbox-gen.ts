@@ -102,25 +102,33 @@ export async function markSent(channel: string, name: string, taskCodes: string[
   const existing = await db.select().from(schema.reminders).where(eq(schema.reminders.dedupeKey, key)).limit(1);
   if (existing.length) return false;
 
-  await db.insert(schema.outbox).values({
-    channel,
-    recipientName: name,
-    recipientContact,
-    body: message,
-    messageType: "DAILY TASK REMINDER",
-    status: "Sent",
-    contactStatus,
-    createdAt: new Date(),
-    sentAt: new Date(),
-  });
-
-  await db.insert(schema.reminders).values({
-    channel,
-    messageType: "DAILY TASK REMINDER",
-    escalationLevel: "LEVEL 1",
-    sentAt: new Date(),
-    dedupeKey: key,
-    createdAt: new Date(),
-  });
+  const now = new Date();
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.reminders).values({
+        channel,
+        messageType: "DAILY TASK REMINDER",
+        escalationLevel: "LEVEL 1",
+        sentAt: now,
+        dedupeKey: key,
+        createdAt: now,
+      });
+      await tx.insert(schema.outbox).values({
+        channel,
+        recipientName: name,
+        recipientContact,
+        body: message,
+        messageType: "DAILY TASK REMINDER",
+        status: "Sent",
+        contactStatus,
+        createdAt: now,
+        sentAt: now,
+      });
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/duplicate key|unique/i.test(msg)) return false;
+    throw err;
+  }
   return true;
 }

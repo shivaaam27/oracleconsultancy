@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
         r.companyName.toLowerCase().includes(q)
     );
   } else {
-    rows = rows.filter((r) => r.status !== "Completed" && r.status !== "Closed").slice(0, 20);
+    rows = rows.filter((r) => r.status !== "Completed" && r.status !== "Closed");
   }
   const items = rows.slice(0, 12).map((r) => ({
     code: r.code,

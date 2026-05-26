@@ -50,8 +50,10 @@ export default async function DashboardPage() {
   const needsAttention = rows
     .filter((r) => r.flag === "escalate-now" || r.flag === "overdue" || r.status === "Escalated" || r.escalation === "Yes" || (r.priority === "Critical" && r.flag !== "on-track" && r.status !== "Completed" && r.status !== "Closed"))
     .sort((a, b) => {
-      const order = ["escalate-now", "overdue", "escalated", "due-soon"];
-      return order.indexOf(a.flag) - order.indexOf(b.flag);
+      const order = ["escalate-now", "overdue", "escalated", "stalled", "due-soon", "aging", "no-deadline", "on-track", "closed"];
+      const ai = order.indexOf(a.flag);
+      const bi = order.indexOf(b.flag);
+      return (ai === -1 ? order.length : ai) - (bi === -1 ? order.length : bi);
     })
     .slice(0, 5);
 

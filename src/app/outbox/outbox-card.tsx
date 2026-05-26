@@ -13,6 +13,7 @@ function cleanPhone(p: string | null): string | null {
 export function OutboxCard({ draft, channel }: { draft: OutboxDraft; channel: "WHATSAPP" | "EMAIL" | "SMS" }) {
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
+  const [duplicate, setDuplicate] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const onCopy = async () => {
@@ -33,8 +34,9 @@ export function OutboxCard({ draft, channel }: { draft: OutboxDraft; channel: "W
       channel === "EMAIL" ? draft.email || "" : channel === "WHATSAPP" ? draft.whatsapp || "" : draft.phone || ""
     );
     startTransition(async () => {
-      await recordSent(fd);
-      setSent(true);
+      const res = await recordSent(fd);
+      if (res.ok) setSent(true);
+      else if (res.reason === "duplicate") setDuplicate(true);
     });
   };
 
@@ -96,6 +98,8 @@ export function OutboxCard({ draft, channel }: { draft: OutboxDraft; channel: "W
         <div className="flex items-center gap-2">
           {sent ? (
             <Badge tone="success"><Check size={11} /> Marked sent</Badge>
+          ) : duplicate ? (
+            <Badge tone="warn"><AlertCircle size={11} /> Already sent today</Badge>
           ) : (
             <button
               onClick={onMarkSent}
