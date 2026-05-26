@@ -1,9 +1,18 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "framer-motion";
-import { MoreHorizontal, Pin, PinOff, ChevronLeft, ChevronRight, Search, Sparkles, GripVertical } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pin,
+  PinOff,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Sparkles,
+  GripVertical,
+} from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Dialog from "@radix-ui/react-dialog";
 import { cn } from "@/lib/cn";
@@ -13,8 +22,6 @@ import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 
 /* --------------------------------------------------------------------- */
-/* Helpers                                                                */
-/* --------------------------------------------------------------------- */
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -22,18 +29,10 @@ function isActive(pathname: string, href: string) {
 }
 
 /* --------------------------------------------------------------------- */
-/* Chip                                                                   */
+/* Chip — Reorder.Item with imperative ref forwarded out for measurement */
 /* --------------------------------------------------------------------- */
 
-function PillChip({
-  route,
-  active,
-  onUnpin,
-  onMoveLeft,
-  onMoveRight,
-  canMoveLeft,
-  canMoveRight,
-}: {
+type ChipProps = {
   route: NavRoute;
   active: boolean;
   onUnpin: () => void;
@@ -41,13 +40,19 @@ function PillChip({
   onMoveRight: () => void;
   canMoveLeft: boolean;
   canMoveRight: boolean;
-}) {
+};
+
+const PillChip = forwardRef<HTMLDivElement, ChipProps>(function PillChip(
+  { route, active, onUnpin, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight },
+  ref
+) {
   const controls = useDragControls();
   const Icon = route.icon;
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <Reorder.Item
+      ref={ref}
       value={route.id}
       dragListener={false}
       dragControls={controls}
@@ -60,23 +65,18 @@ function PillChip({
         <DropdownMenu.Trigger asChild>
           <Link
             href={route.href}
+            // Stop Radix from opening on normal left-click; allow navigation.
             onPointerDown={(e) => {
-              // Allow drag handle to take over without triggering nav
-              if ((e.target as HTMLElement).dataset.dragHandle === "1") {
-                e.preventDefault();
-                controls.start(e);
-              }
+              if (e.button === 0) e.preventDefault();
             }}
             onContextMenu={(e) => {
               e.preventDefault();
               setMenuOpen(true);
             }}
             className={cn(
-              "group relative inline-flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full text-[13px] transition-colors",
+              "group relative inline-flex items-center gap-1.5 h-8 pl-1.5 pr-3 rounded-full text-[13px] transition-colors",
               "select-none whitespace-nowrap outline-none",
-              active
-                ? "text-fg"
-                : "text-fg-muted hover:text-fg"
+              active ? "text-fg" : "text-fg-muted hover:text-fg"
             )}
           >
             {active && (
@@ -86,10 +86,20 @@ function PillChip({
                 transition={{ type: "spring", stiffness: 500, damping: 36 }}
               />
             )}
+            {/* Drag handle — stops navigation, starts drag */}
             <span
-              data-drag-handle="1"
-              className="relative opacity-0 group-hover:opacity-60 transition-opacity -ml-1 mr-0.5 cursor-grab active:cursor-grabbing"
-              title="Drag to reorder"
+              role="button"
+              aria-label="Drag to reorder"
+              onPointerDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                controls.start(e);
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="relative opacity-0 group-hover:opacity-60 transition-opacity cursor-grab active:cursor-grabbing -ml-0.5"
             >
               <GripVertical size={12} />
             </span>
@@ -129,7 +139,7 @@ function PillChip({
       </DropdownMenu.Root>
     </Reorder.Item>
   );
-}
+});
 
 /* --------------------------------------------------------------------- */
 /* Manage-pins sheet                                                      */
@@ -156,14 +166,18 @@ function ManagePinsSheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[55] bg-fg/30 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
+        <Dialog.Overlay className="fixed inset-0 z-[55] bg-black/30 backdrop-blur-sm" />
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] w-[min(92vw,520px)] vibrancy-strong rounded-2xl shadow-lg overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <Dialog.Title className="text-sm font-semibold">Manage pinned navigation</Dialog.Title>
-            <Dialog.Description className="sr-only">Pin, unpin, and reorder destinations in the floating bar.</Dialog.Description>
+            <Dialog.Description className="sr-only">
+              Pin, unpin, and reorder destinations in the floating bar.
+            </Dialog.Description>
           </div>
           <div className="p-3 max-h-[70vh] overflow-y-auto">
-            <div className="text-[10px] uppercase tracking-wider text-fg-subtle px-2 pb-1.5">Pinned · drag to reorder</div>
+            <div className="text-[10px] uppercase tracking-wider text-fg-subtle px-2 pb-1.5">
+              Pinned · drag to reorder
+            </div>
             <Reorder.Group axis="y" values={pins} onReorder={setPins} className="space-y-0.5">
               {pins.map((id) => {
                 const r = ROUTE_BY_ID[id];
@@ -194,7 +208,9 @@ function ManagePinsSheet({
 
             {unpinned.length > 0 && (
               <>
-                <div className="text-[10px] uppercase tracking-wider text-fg-subtle px-2 pt-4 pb-1.5">Available</div>
+                <div className="text-[10px] uppercase tracking-wider text-fg-subtle px-2 pt-4 pb-1.5">
+                  Available
+                </div>
                 <div className="space-y-0.5">
                   {unpinned.map((r) => {
                     const Icon = r.icon;
@@ -206,7 +222,9 @@ function ManagePinsSheet({
                       >
                         <Icon size={14} className="text-fg-muted" />
                         <span className="text-sm flex-1">{r.label}</span>
-                        <span className="text-xs text-fg-subtle flex items-center gap-1"><Pin size={12} /> Pin</span>
+                        <span className="text-xs text-fg-subtle flex items-center gap-1">
+                          <Pin size={12} /> Pin
+                        </span>
                       </button>
                     );
                   })}
@@ -232,16 +250,26 @@ function ManagePinsSheet({
 /* Main floating pill                                                     */
 /* --------------------------------------------------------------------- */
 
+const RESERVED_PX = 260; // brand + 2 dividers + ⋯ + search + theme
+
 export function TopPill() {
   const pathname = usePathname() || "/";
-  const { pins, setPins, unpin, toggle, move, loaded } = usePins();
+  const { pins, setPins, unpin, toggle, move } = usePins();
   const { open: openPalette } = useCommandPalette();
   const [manageOpen, setManageOpen] = useState(false);
   const [overflowCount, setOverflowCount] = useState(0);
   const measureRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef<Map<string, HTMLElement>>(new Map());
 
-  // Mobile breakpoint
+  const setChipRef = useCallback(
+    (id: string) => (el: HTMLElement | null) => {
+      if (el) chipRefs.current.set(id, el);
+      else chipRefs.current.delete(id);
+    },
+    []
+  );
+
+  // Mobile detection — guarded for SSR
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -251,34 +279,44 @@ export function TopPill() {
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Active route
+  // Active route (for mobile label)
   const activeRoute = useMemo(
     () => NAV_ROUTES.find((r) => isActive(pathname, r.href)) ?? NAV_ROUTES[0],
     [pathname]
   );
 
-  // Measured overflow: hide chips that don't fit
-  useLayoutEffect(() => {
-    if (isMobile || !measureRef.current) return;
+  // Measure overflow — recompute on container resize OR pins change
+  const recomputeOverflow = useCallback(() => {
     const container = measureRef.current;
-    const RESERVED = 96; // space for trailing ⋯ and ⌘K chip
-    const ro = new ResizeObserver(() => {
-      const max = container.clientWidth - RESERVED;
-      let used = 0;
-      let hidden = 0;
-      for (let i = 0; i < pins.length; i++) {
-        const el = chipRefs.current.get(pins[i]);
-        if (!el) continue;
-        used += el.offsetWidth + 4; // gap
-        if (used > max) hidden = pins.length - i;
+    if (!container || isMobile) {
+      setOverflowCount(0);
+      return;
+    }
+    const max = container.clientWidth;
+    let used = 0;
+    let firstHiddenIdx = -1;
+    for (let i = 0; i < pins.length; i++) {
+      const el = chipRefs.current.get(pins[i]);
+      if (!el) continue;
+      used += el.offsetWidth + 4; // gap-1 = 4px
+      if (used > max) {
+        firstHiddenIdx = i;
+        break;
       }
-      setOverflowCount(hidden);
-    });
+    }
+    setOverflowCount(firstHiddenIdx === -1 ? 0 : pins.length - firstHiddenIdx);
+  }, [pins, isMobile]);
+
+  useEffect(() => {
+    recomputeOverflow();
+    const container = measureRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver(() => recomputeOverflow());
     ro.observe(container);
     return () => ro.disconnect();
-  }, [pins, isMobile, loaded]);
+  }, [recomputeOverflow]);
 
-  const visiblePins = isMobile ? [] : pins.slice(0, Math.max(0, pins.length - overflowCount));
+  const visiblePins = isMobile ? [] : pins.slice(0, pins.length - overflowCount);
   const overflowPins = isMobile ? pins : pins.slice(pins.length - overflowCount);
 
   return (
@@ -288,21 +326,28 @@ export function TopPill() {
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: "spring", stiffness: 380, damping: 30 }}
-          className="pointer-events-auto vibrancy-strong rounded-full shadow-pill flex items-center gap-1 px-1.5 h-11 max-w-[min(96vw,1100px)]"
+          className="pointer-events-auto vibrancy-strong rounded-full shadow-pill flex items-center gap-1 px-1.5 h-11 max-w-[min(96vw,1100px)] w-full sm:w-auto"
         >
           {/* Brand */}
-          <Link href="/" className="flex items-center gap-1.5 pl-2 pr-2.5 h-8 rounded-full hover:bg-bg-muted/60 transition-colors">
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 pl-2 pr-2.5 h-8 rounded-full hover:bg-bg-muted/60 transition-colors shrink-0"
+          >
             <div className="w-5 h-5 rounded-md bg-accent flex items-center justify-center">
               <Sparkles size={11} className="text-accent-fg" />
             </div>
             <span className="text-[13px] font-semibold tracking-tight hidden sm:inline">COS</span>
           </Link>
 
-          <span className="w-px h-5 bg-border mx-0.5" aria-hidden />
+          <span className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
 
-          {/* Pinned chips */}
+          {/* Pinned chips (desktop) */}
           {!isMobile && (
-            <div ref={measureRef} className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden">
+            <div
+              ref={measureRef}
+              className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden"
+              style={{ maxWidth: `calc(100% - ${RESERVED_PX}px)` }}
+            >
               <Reorder.Group
                 axis="x"
                 values={pins}
@@ -315,23 +360,17 @@ export function TopPill() {
                     const r = ROUTE_BY_ID[id];
                     if (!r) return null;
                     return (
-                      <div
+                      <PillChip
                         key={id}
-                        ref={(el) => {
-                          if (el) chipRefs.current.set(id, el);
-                          else chipRefs.current.delete(id);
-                        }}
-                      >
-                        <PillChip
-                          route={r}
-                          active={isActive(pathname, r.href)}
-                          onUnpin={() => unpin(id)}
-                          onMoveLeft={() => move(id, -1)}
-                          onMoveRight={() => move(id, 1)}
-                          canMoveLeft={idx > 0}
-                          canMoveRight={idx < visiblePins.length - 1}
-                        />
-                      </div>
+                        ref={setChipRef(id)}
+                        route={r}
+                        active={isActive(pathname, r.href)}
+                        onUnpin={() => unpin(id)}
+                        onMoveLeft={() => move(id, -1)}
+                        onMoveRight={() => move(id, 1)}
+                        canMoveLeft={idx > 0}
+                        canMoveRight={idx < visiblePins.length - 1}
+                      />
                     );
                   })}
                 </AnimatePresence>
@@ -339,7 +378,7 @@ export function TopPill() {
             </div>
           )}
 
-          {/* Mobile: show only active route chip */}
+          {/* Mobile: active-route label */}
           {isMobile && (
             <div className="flex-1 min-w-0 px-2">
               <div className="text-[13px] font-medium truncate">{activeRoute.label}</div>
@@ -347,61 +386,59 @@ export function TopPill() {
           )}
 
           {/* Overflow + manage menu */}
-          {(overflowPins.length > 0 || true) && (
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  className={cn(
-                    "shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors",
-                    overflowPins.length > 0 && "text-fg"
-                  )}
-                  aria-label="More navigation"
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button
+                className={cn(
+                  "shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors",
+                  overflowPins.length > 0 && "text-fg"
+                )}
+                aria-label="More navigation"
+              >
+                <MoreHorizontal size={15} />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                sideOffset={10}
+                align="end"
+                className="z-[60] min-w-[200px] vibrancy-strong rounded-xl p-1 shadow-lg text-sm"
+              >
+                {overflowPins.length > 0 && (
+                  <>
+                    <DropdownMenu.Label className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">
+                      More pinned
+                    </DropdownMenu.Label>
+                    {overflowPins.map((id) => {
+                      const r = ROUTE_BY_ID[id];
+                      if (!r) return null;
+                      const Icon = r.icon;
+                      return (
+                        <DropdownMenu.Item key={id} asChild>
+                          <Link
+                            href={r.href}
+                            className="px-2.5 py-1.5 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted"
+                          >
+                            <Icon size={14} />
+                            <span>{r.label}</span>
+                          </Link>
+                        </DropdownMenu.Item>
+                      );
+                    })}
+                    <DropdownMenu.Separator className="h-px bg-border my-1" />
+                  </>
+                )}
+                <DropdownMenu.Item
+                  onSelect={() => setManageOpen(true)}
+                  className="px-2.5 py-1.5 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted"
                 >
-                  <MoreHorizontal size={15} />
-                </button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content
-                  sideOffset={10}
-                  align="end"
-                  className="z-[60] min-w-[200px] vibrancy-strong rounded-xl p-1 shadow-lg text-sm"
-                >
-                  {overflowPins.length > 0 && (
-                    <>
-                      <DropdownMenu.Label className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">
-                        More pinned
-                      </DropdownMenu.Label>
-                      {overflowPins.map((id) => {
-                        const r = ROUTE_BY_ID[id];
-                        if (!r) return null;
-                        const Icon = r.icon;
-                        return (
-                          <DropdownMenu.Item key={id} asChild>
-                            <Link
-                              href={r.href}
-                              className="px-2.5 py-1.5 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted"
-                            >
-                              <Icon size={14} />
-                              <span>{r.label}</span>
-                            </Link>
-                          </DropdownMenu.Item>
-                        );
-                      })}
-                      <DropdownMenu.Separator className="h-px bg-border my-1" />
-                    </>
-                  )}
-                  <DropdownMenu.Item
-                    onSelect={() => setManageOpen(true)}
-                    className="px-2.5 py-1.5 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted"
-                  >
-                    <Pin size={14} /> Manage pins…
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-          )}
+                  <Pin size={14} /> Manage pins…
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
 
-          <span className="w-px h-5 bg-border mx-0.5" aria-hidden />
+          <span className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
 
           {/* Search / palette */}
           <button
@@ -411,7 +448,9 @@ export function TopPill() {
           >
             <Search size={13} />
             <span className="hidden md:inline">Search</span>
-            <kbd className="hidden sm:inline text-[10px] font-mono bg-bg-muted/80 border border-border px-1.5 py-0.5 rounded-md ml-0.5">⌘K</kbd>
+            <kbd className="hidden sm:inline text-[10px] font-mono bg-bg-muted/80 border border-border px-1.5 py-0.5 rounded-md ml-0.5">
+              ⌘K
+            </kbd>
           </button>
 
           {/* Theme toggle */}
