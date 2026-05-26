@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db";
 import { eq, ilike, desc, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { insertTaskWithUniqueCode } from "@/lib/task-codes";
 
 export const maxDuration = 60;
 
@@ -219,18 +220,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     const company = await db.select().from(schema.companies).where(eq(schema.companies.id, companyId)).limit(1);
     if (!company.length) return { ok: false, message: "Company not found" };
 
-    // Compute next code
-    const existing = await db.select({ code: schema.tasks.code }).from(schema.tasks).where(eq(schema.tasks.companyId, companyId));
-    let maxNum = 0;
-    for (const e of existing) {
-      const m = e.code.match(/^[A-Z]+\d+-(\d+)$/);
-      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-    }
-    const newCode = `${company[0].code}-${String(maxNum + 1).padStart(3, "0")}`;
-
-    const [task] = await db.insert(schema.tasks).values({
-      code: newCode,
-      companyId,
+    const task = await insertTaskWithUniqueCode(companyId, company[0].code, {
       actionItem: intent.actionItem,
       status: "Not Started",
       priority: intent.priority || "Low",
@@ -239,7 +229,8 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
       createdDate: now,
       lastUpdatedAt: now,
       archived: false,
-    }).returning();
+    });
+    const newCode = task.code;
 
     if (intent.assignee) {
       const p = await findPersonByName(intent.assignee);

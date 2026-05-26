@@ -302,16 +302,12 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                       className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                     >
                       {items.map((it) => (
-                        <Command.Item
+                        <SearchTaskRow
                           key={it.code}
-                          value={`${it.code} ${it.label} ${it.sub}`}
-                          onSelect={() => go(it.href)}
-                          className="px-2 py-2 rounded-lg flex items-center gap-3 text-sm cursor-pointer aria-selected:bg-bg-muted"
-                        >
-                          <span className="font-mono text-xs text-fg-muted w-20 shrink-0">{it.code}</span>
-                          <span className="flex-1 truncate">{it.label}</span>
-                          <span className="text-xs text-fg-subtle">{it.sub}</span>
-                        </Command.Item>
+                          item={it}
+                          onOpen={() => go(it.href)}
+                          onClose={() => setIsOpen(false)}
+                        />
                       ))}
                     </Command.Group>
                   )}
@@ -376,6 +372,131 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
         )}
       </AnimatePresence>
     </CommandCtx.Provider>
+  );
+}
+
+/* --------------------------------------------------------------------- */
+
+function SearchTaskRow({
+  item,
+  onOpen,
+  onClose,
+}: {
+  item: SearchItem;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const [running, setRunning] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [updateBody, setUpdateBody] = useState("");
+  const router = useRouter();
+
+  async function runCmd(command: string, label: string, redirect?: string) {
+    setRunning(label);
+    try {
+      const res = await fetch("/api/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command, confirm: true }),
+      });
+      const data = await res.json();
+      if (data.executed) {
+        setDone(label);
+        if (redirect) setTimeout(() => { onClose(); router.push(redirect); }, 400);
+        else setTimeout(() => setDone(null), 1500);
+      }
+    } catch {}
+    finally { setRunning(null); }
+  }
+
+  return (
+    <div className="group/row px-2 py-2 rounded-lg flex flex-col gap-1 text-sm aria-selected:bg-bg-muted">
+      <Command.Item
+        value={`${item.code} ${item.label} ${item.sub}`}
+        onSelect={onOpen}
+        className="flex items-center gap-3 cursor-pointer w-full"
+      >
+        <span className="font-mono text-xs text-fg-muted w-20 shrink-0">{item.code}</span>
+        <span className="flex-1 truncate">{item.label}</span>
+        <span className="text-xs text-fg-subtle">{item.sub}</span>
+      </Command.Item>
+      <div className="flex items-center gap-1 pl-20 opacity-60 group-hover/row:opacity-100 transition-opacity">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
+          title="Open"
+        >
+          Open
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); runCmd(`mark ${item.code} as completed`, "complete", item.href); }}
+          disabled={!!running}
+          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-success transition-colors px-1.5 py-0.5 rounded disabled:opacity-50"
+          title="Mark complete"
+        >
+          {running === "complete" ? <Loader2 size={10} className="animate-spin" /> : done === "complete" ? <Check size={10} className="text-success" /> : "Done"}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); runCmd(`escalate ${item.code}`, "escalate", item.href); }}
+          disabled={!!running}
+          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-danger transition-colors px-1.5 py-0.5 rounded disabled:opacity-50"
+          title="Escalate"
+        >
+          {running === "escalate" ? <Loader2 size={10} className="animate-spin" /> : done === "escalate" ? <Check size={10} className="text-danger" /> : "Escalate"}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setShowUpdate(s => !s); }}
+          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
+          title="Add update"
+        >
+          Update
+        </button>
+      </div>
+      {showUpdate && (
+        <div className="flex items-center gap-1 pl-20" onClick={(e) => e.stopPropagation()}>
+          <input
+            value={updateBody}
+            onChange={(e) => setUpdateBody(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (updateBody.trim()) {
+                  runCmd(`add update to ${item.code}: ${updateBody.trim()}`, "update", item.href);
+                  setUpdateBody("");
+                  setShowUpdate(false);
+                }
+              }
+              if (e.key === "Escape") { setShowUpdate(false); setUpdateBody(""); }
+              e.stopPropagation();
+            }}
+            placeholder="Type update, then Enter…"
+            autoFocus
+            className="flex-1 bg-bg border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent/50"
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (updateBody.trim()) {
+                runCmd(`add update to ${item.code}: ${updateBody.trim()}`, "update", item.href);
+                setUpdateBody("");
+                setShowUpdate(false);
+              }
+            }}
+            disabled={!updateBody.trim() || running === "update"}
+            className="inline-flex items-center justify-center w-6 h-6 rounded bg-accent text-white disabled:opacity-50"
+            title="Post update"
+          >
+            {running === "update" ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
