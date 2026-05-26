@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useCallback } from "react";
 import { Sparkles, Loader2, X, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { parseRawCapture } from "@/app/capture/actions";
@@ -22,6 +22,8 @@ export function QuickCapture({ companies }: Props) {
   const [isSaving, startSave] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [polishState, setPolishState] = useState<"idle"|"loading"|"done">("idle");
+  const [polishSource, setPolishSource] = useState<"ai"|"rules"|null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Editable fields after parse
@@ -212,30 +214,52 @@ export function QuickCapture({ companies }: Props) {
                 <input
                   type="text"
                   value={actionItem}
-                  onChange={e => setActionItem(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  onChange={e => { setActionItem(e.target.value); setPolishState("idle"); }}
+                  className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors ${
+                    polishState === "done" ? "border-accent bg-accent/5" : "border-border bg-bg"
+                  }`}
                 />
                 <button
                   type="button"
+                  disabled={polishState === "loading"}
                   onClick={async () => {
-                    const rulebased = polishActionItem(actionItem);
+                    const original = actionItem;
+                    const rulebased = polishActionItem(original);
                     setActionItem(rulebased);
+                    setPolishState("loading");
+                    setPolishSource(null);
                     try {
                       const res = await fetch("/api/polish", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text: actionItem }),
+                        body: JSON.stringify({ text: original }),
                       });
-                      const { result } = await res.json();
-                      if (result?.trim()) setActionItem(result);
-                    } catch {}
+                      const data = await res.json();
+                      if (data.result?.trim()) setActionItem(data.result);
+                      setPolishSource(data.source === "ai" ? "ai" : "rules");
+                      setPolishState("done");
+                      setTimeout(() => { setPolishState("idle"); setPolishSource(null); }, 3000);
+                    } catch {
+                      setPolishState("done");
+                      setPolishSource("rules");
+                      setTimeout(() => { setPolishState("idle"); setPolishSource(null); }, 3000);
+                    }
                   }}
-                  title="Polish with AI"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-fg-muted hover:text-accent transition-colors"
+                  title="Polish with AI ✦"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-fg-muted hover:text-accent transition-colors disabled:opacity-50"
                 >
-                  <Sparkles size={14} />
+                  {polishState === "loading"
+                    ? <Loader2 size={14} className="animate-spin text-accent" />
+                    : <Sparkles size={14} className={polishState === "done" ? "text-accent" : ""} />
+                  }
                 </button>
               </div>
+              {polishState === "done" && (
+                <p className="flex items-center gap-1 text-xs text-success">
+                  <CheckCircle2 size={11} />
+                  {polishSource === "ai" ? "Polished with AI" : "Polished"}
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
