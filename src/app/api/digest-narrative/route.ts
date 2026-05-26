@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 const SYSTEM_PROMPT = `You are the Chief of Staff drafting a concise weekly executive briefing for the principal of a multi-company portfolio (Oracle Group). Output a single 4-6 sentence narrative paragraph (no bullet points, no markdown headers, no greeting/signoff).
 
 STYLE:

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db";
 
+export const maxDuration = 60;
+
 const SYSTEM_PROMPT_TMPL = (companies: string[], people: string[]) => `You are the Chief of Staff for a multi-company portfolio. The principal has just dropped raw meeting notes — bullet points, free text, fragments, sometimes minutes.
 
 Your job: extract every action item (a thing someone needs to do) and structure each one as JSON. Skip discussion points, decisions without actions, and pleasantries.

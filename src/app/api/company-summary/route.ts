@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db";
 import { eq, desc } from "drizzle-orm";
 
+export const maxDuration = 60;
+
 const SYSTEM_PROMPT = `You are the Chief of Staff for a multi-company portfolio. Given a snapshot of one company's tasks, you produce a 5-7 sentence executive briefing.
 
 STYLE:

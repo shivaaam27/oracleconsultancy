@@ -4,7 +4,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db";
-import { desc, eq, or, ilike, and, gte } from "drizzle-orm";
+import { desc, eq, or, ilike, gte, inArray } from "drizzle-orm";
+
+export const maxDuration = 60; // allow up to 60s on Vercel
 
 const SYSTEM_PROMPT = `You are the Chief of Staff for a multi-company portfolio. Answer the principal's question using ONLY the data provided in the CONTEXT below. Be specific — name people, task codes, deadlines, and companies.
 
@@ -115,7 +117,7 @@ async function buildContext(question: string) {
     filtered = filtered.filter(t => ["Completed", "Closed"].includes(t.status));
   }
   if (filtered.length === 0) filtered = allTasks;
-  filtered = filtered.slice(0, 30);
+  filtered = filtered.slice(0, 20);
 
   // Pull assignees + recent updates for these tasks
   const taskIds = filtered.map(t => t.id);
@@ -123,19 +125,20 @@ async function buildContext(question: string) {
   let assigneesByTask: Record<number, string[]> = {};
 
   if (taskIds.length) {
-    const updateRows = await db
-      .select({ taskId: schema.taskUpdates.taskId, body: schema.taskUpdates.body, createdAt: schema.taskUpdates.createdAt })
-      .from(schema.taskUpdates)
-      .where(or(...taskIds.map(id => eq(schema.taskUpdates.taskId, id))))
-      .orderBy(desc(schema.taskUpdates.createdAt))
-      .limit(40);
+    const [updateRows, aRows] = await Promise.all([
+      db
+        .select({ taskId: schema.taskUpdates.taskId, body: schema.taskUpdates.body, createdAt: schema.taskUpdates.createdAt })
+        .from(schema.taskUpdates)
+        .where(inArray(schema.taskUpdates.taskId, taskIds))
+        .orderBy(desc(schema.taskUpdates.createdAt))
+        .limit(40),
+      db
+        .select({ taskId: schema.taskAssignees.taskId, name: schema.people.name })
+        .from(schema.taskAssignees)
+        .innerJoin(schema.people, eq(schema.taskAssignees.personId, schema.people.id))
+        .where(inArray(schema.taskAssignees.taskId, taskIds)),
+    ]);
     updates = updateRows;
-
-    const aRows = await db
-      .select({ taskId: schema.taskAssignees.taskId, name: schema.people.name })
-      .from(schema.taskAssignees)
-      .innerJoin(schema.people, eq(schema.taskAssignees.personId, schema.people.id))
-      .where(or(...taskIds.map(id => eq(schema.taskAssignees.taskId, id))));
     for (const a of aRows) {
       (assigneesByTask[a.taskId] ||= []).push(a.name);
     }
