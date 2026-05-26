@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "framer-motion";
 import {
   MoreHorizontal,
@@ -42,17 +42,21 @@ type ChipProps = {
   canMoveRight: boolean;
 };
 
-const PillChip = forwardRef<HTMLDivElement, ChipProps>(function PillChip(
-  { route, active, onUnpin, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight },
-  ref
-) {
+function PillChip({
+  route,
+  active,
+  onUnpin,
+  onMoveLeft,
+  onMoveRight,
+  canMoveLeft,
+  canMoveRight,
+}: ChipProps) {
   const controls = useDragControls();
   const Icon = route.icon;
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <Reorder.Item
-      ref={ref}
       value={route.id}
       dragListener={false}
       dragControls={controls}
@@ -139,7 +143,7 @@ const PillChip = forwardRef<HTMLDivElement, ChipProps>(function PillChip(
       </DropdownMenu.Root>
     </Reorder.Item>
   );
-});
+}
 
 /* --------------------------------------------------------------------- */
 /* Manage-pins sheet                                                      */
@@ -251,23 +255,16 @@ function ManagePinsSheet({
 /* --------------------------------------------------------------------- */
 
 const RESERVED_PX = 260; // brand + 2 dividers + ⋯ + search + theme
+const PILL_MAX_PX = 1100;
+const PILL_VIEWPORT_RATIO = 0.96;
+const APPROX_CHIP_PX = 110; // conservative average label-chip width
 
 export function TopPill() {
   const pathname = usePathname() || "/";
   const { pins, setPins, unpin, toggle, move } = usePins();
   const { open: openPalette } = useCommandPalette();
   const [manageOpen, setManageOpen] = useState(false);
-  const [overflowCount, setOverflowCount] = useState(0);
-  const measureRef = useRef<HTMLDivElement>(null);
-  const chipRefs = useRef<Map<string, HTMLElement>>(new Map());
-
-  const setChipRef = useCallback(
-    (id: string) => (el: HTMLElement | null) => {
-      if (el) chipRefs.current.set(id, el);
-      else chipRefs.current.delete(id);
-    },
-    []
-  );
+  const [visibleCount, setVisibleCount] = useState(pins.length);
 
   // Mobile detection — guarded for SSR
   const [isMobile, setIsMobile] = useState(false);
@@ -285,39 +282,32 @@ export function TopPill() {
     [pathname]
   );
 
-  // Measure overflow — recompute on container resize OR pins change
-  const recomputeOverflow = useCallback(() => {
-    const container = measureRef.current;
-    if (!container || isMobile) {
-      setOverflowCount(0);
+  /* ------------------------------------------------------------------
+   * Overflow: derive from viewport width (stable — no observer loop).
+   * Allocate available_px = min(viewport * 0.96, 1100) - RESERVED_PX
+   * Count = floor(available_px / approx_chip_px), capped at pins.length.
+   * This may be slightly conservative; the manage menu always covers
+   * any chips that don't fit.
+   * ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (isMobile) {
+      setVisibleCount(0);
       return;
     }
-    const max = container.clientWidth;
-    let used = 0;
-    let firstHiddenIdx = -1;
-    for (let i = 0; i < pins.length; i++) {
-      const el = chipRefs.current.get(pins[i]);
-      if (!el) continue;
-      used += el.offsetWidth + 4; // gap-1 = 4px
-      if (used > max) {
-        firstHiddenIdx = i;
-        break;
-      }
-    }
-    setOverflowCount(firstHiddenIdx === -1 ? 0 : pins.length - firstHiddenIdx);
-  }, [pins, isMobile]);
+    const compute = () => {
+      const vw = window.innerWidth;
+      const pillWidth = Math.min(vw * PILL_VIEWPORT_RATIO, PILL_MAX_PX);
+      const available = Math.max(0, pillWidth - RESERVED_PX);
+      const fit = Math.max(0, Math.floor(available / APPROX_CHIP_PX));
+      setVisibleCount(Math.min(fit, pins.length));
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, [isMobile, pins.length]);
 
-  useEffect(() => {
-    recomputeOverflow();
-    const container = measureRef.current;
-    if (!container) return;
-    const ro = new ResizeObserver(() => recomputeOverflow());
-    ro.observe(container);
-    return () => ro.disconnect();
-  }, [recomputeOverflow]);
-
-  const visiblePins = isMobile ? [] : pins.slice(0, pins.length - overflowCount);
-  const overflowPins = isMobile ? pins : pins.slice(pins.length - overflowCount);
+  const visiblePins = isMobile ? [] : pins.slice(0, visibleCount);
+  const overflowPins = isMobile ? pins : pins.slice(visibleCount);
 
   return (
     <>
@@ -343,39 +333,32 @@ export function TopPill() {
 
           {/* Pinned chips (desktop) */}
           {!isMobile && (
-            <div
-              ref={measureRef}
-              className="flex items-center gap-1 min-w-0 flex-1 overflow-hidden"
-              style={{ maxWidth: `calc(100% - ${RESERVED_PX}px)` }}
+            <Reorder.Group
+              axis="x"
+              values={pins}
+              onReorder={setPins}
+              className="flex items-center gap-1 min-w-0"
+              as="div"
             >
-              <Reorder.Group
-                axis="x"
-                values={pins}
-                onReorder={setPins}
-                className="flex items-center gap-1"
-                as="div"
-              >
-                <AnimatePresence initial={false}>
-                  {visiblePins.map((id, idx) => {
-                    const r = ROUTE_BY_ID[id];
-                    if (!r) return null;
-                    return (
-                      <PillChip
-                        key={id}
-                        ref={setChipRef(id)}
-                        route={r}
-                        active={isActive(pathname, r.href)}
-                        onUnpin={() => unpin(id)}
-                        onMoveLeft={() => move(id, -1)}
-                        onMoveRight={() => move(id, 1)}
-                        canMoveLeft={idx > 0}
-                        canMoveRight={idx < visiblePins.length - 1}
-                      />
-                    );
-                  })}
-                </AnimatePresence>
-              </Reorder.Group>
-            </div>
+              <AnimatePresence initial={false}>
+                {visiblePins.map((id, idx) => {
+                  const r = ROUTE_BY_ID[id];
+                  if (!r) return null;
+                  return (
+                    <PillChip
+                      key={id}
+                      route={r}
+                      active={isActive(pathname, r.href)}
+                      onUnpin={() => unpin(id)}
+                      onMoveLeft={() => move(id, -1)}
+                      onMoveRight={() => move(id, 1)}
+                      canMoveLeft={idx > 0}
+                      canMoveRight={idx < visiblePins.length - 1}
+                    />
+                  );
+                })}
+              </AnimatePresence>
+            </Reorder.Group>
           )}
 
           {/* Mobile: active-route label */}
