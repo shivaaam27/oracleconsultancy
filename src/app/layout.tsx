@@ -5,6 +5,7 @@ import { TopPill } from "@/components/top-pill";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
 import { ToastProvider } from "@/components/toast";
+import { UndoBanner } from "@/components/undo-banner";
 import { PageTransition } from "@/components/page-transition";
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
           <ToastProvider>
+            <UndoBanner />
             <CommandPaletteProvider>
               <RecentsTracker />
               <TopPill />

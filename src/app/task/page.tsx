@@ -1,6 +1,7 @@
 import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { PageHeader, Card, Badge, LinkButton, EmptyState } from "@/components/ui";
+import { InlineEdit } from "@/components/inline-edit";
 import Link from "next/link";
 import { Plus, CheckSquare, Inbox } from "lucide-react";
 
@@ -144,21 +145,36 @@ export default async function TasksPage({
                   </div>
                 ) : (
                   col.items.map((r) => (
-                    <Link
+                    <div
                       key={r.id}
-                      href={`/task/${r.code}`}
-                      className="block card p-3 hover:border-accent transition-colors"
+                      className="card p-3 hover:border-accent transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <span className="font-mono text-[10px] text-fg-muted">{r.code}</span>
-                        <Badge tone={priorityTone(r.priority)}>{r.priority}</Badge>
+                        <Link
+                          href={`/task/${r.code}`}
+                          className="font-mono text-[10px] text-fg-muted hover:text-fg"
+                        >
+                          {r.code}
+                        </Link>
+                        <InlineEdit field="priority" taskCode={r.code} value={r.priority}>
+                          <Badge tone={priorityTone(r.priority)}>{r.priority}</Badge>
+                        </InlineEdit>
                       </div>
-                      <div className="text-sm leading-snug mb-2 line-clamp-3">
-                        {r.actionItem}
-                      </div>
+                      <Link href={`/task/${r.code}`} className="block">
+                        <div className="text-sm leading-snug mb-2 line-clamp-3">
+                          {r.actionItem}
+                        </div>
+                      </Link>
                       <div className="flex items-center justify-between text-xs text-fg-muted">
                         <span className="truncate">{r.companyName}</span>
-                        <span className="whitespace-nowrap">{fmt(r.deadline)}</span>
+                        <InlineEdit
+                          field="deadline"
+                          taskCode={r.code}
+                          value={r.deadline ? r.deadline.toISOString() : null}
+                          className="whitespace-nowrap"
+                        >
+                          {fmt(r.deadline)}
+                        </InlineEdit>
                       </div>
                       {r.assignees.length > 0 && (
                         <div className="text-xs text-fg-subtle mt-1 truncate">
@@ -166,9 +182,11 @@ export default async function TasksPage({
                         </div>
                       )}
                       <div className="mt-2 flex items-center gap-1">
-                        <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
+                        <InlineEdit field="status" taskCode={r.code} value={r.status}>
+                          <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
+                        </InlineEdit>
                       </div>
-                    </Link>
+                    </div>
                   ))
                 )}
               </div>

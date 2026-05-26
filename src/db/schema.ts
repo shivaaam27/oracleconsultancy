@@ -141,3 +141,14 @@ export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value"),
 });
+
+export const undoTokens = pgTable("undo_tokens", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  payload: text("payload").notNull(),
+  taskId: integer("task_id"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+  consumedAt: timestamp("consumed_at", { mode: "date" }),
+});

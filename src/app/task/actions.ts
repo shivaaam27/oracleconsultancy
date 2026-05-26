@@ -5,6 +5,8 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { insertTaskWithUniqueCode } from "@/lib/task-codes";
+import { mutate } from "@/lib/mutate";
+import { setUndoCookie } from "@/lib/undo-cookie";
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
@@ -21,6 +23,10 @@ function str(v: FormDataEntryValue | null): string | null {
 function splitNames(v: string | null): string[] {
   if (!v) return [];
   return v.split(/,| & | and /i).map((x) => x.trim()).filter(Boolean);
+}
+
+function isoOrNull(d: Date | null | undefined): string | null {
+  return d ? d.toISOString() : null;
 }
 
 async function getOrCreatePerson(name: string, companyId: number | null): Promise<number> {
@@ -89,87 +95,135 @@ async function logChange(
 }
 
 export async function updateTask(code: string, formData: FormData) {
-  const existing = await db.select().from(schema.tasks).where(eq(schema.tasks.code, code)).limit(1);
-  if (!existing.length) throw new Error("Task not found");
-  const t = existing[0];
-
-  const actionItem = str(formData.get("actionItem")) || t.actionItem;
+  const actionItemField = str(formData.get("actionItem"));
   const departmentName = str(formData.get("department"));
-  const departmentId = await getOrCreateDept(departmentName);
-  const status = str(formData.get("status")) ?? t.status;
-  const priority = str(formData.get("priority")) ?? t.priority;
-  const risk = formData.has("risk") ? str(formData.get("risk")) : t.risk;
-  const escalation = str(formData.get("escalation")) ?? t.escalation ?? "No";
-  const category = formData.has("category") ? str(formData.get("category")) : t.category;
+  const statusField = str(formData.get("status"));
+  const priorityField = str(formData.get("priority"));
+  const riskField = formData.has("risk") ? str(formData.get("risk")) : undefined;
+  const escalationField = str(formData.get("escalation"));
+  const categoryField = formData.has("category") ? str(formData.get("category")) : undefined;
   const deadline = parseDate(formData.get("deadline"));
   const meetingDate = parseDate(formData.get("meetingDate"));
   const comments = str(formData.get("comments"));
   const latestUpdate = str(formData.get("latestUpdate"));
   const accountableRaw = str(formData.get("accountable"));
   const changeReason = str(formData.get("changeReason"));
-  const wasClosed = t.status === "Completed" || t.status === "Closed";
-  const isClosed = status === "Completed" || status === "Closed";
-  const closingNow = isClosed && !wasClosed;
-  const reopeningNow = !isClosed && wasClosed;
 
-  const [oldDeptName, newDeptName] = await Promise.all([deptName(t.departmentId), deptName(departmentId)]);
+  const result = await mutate({
+    kind: "task.update",
+    run: async () => {
+      const existing = await db.select().from(schema.tasks).where(eq(schema.tasks.code, code)).limit(1);
+      if (!existing.length) throw new Error("Task not found");
+      const t = existing[0];
 
-  // Diff & audit log
-  const fields: [string, unknown, unknown][] = [
-    ["Action Item", t.actionItem, actionItem],
-    ["Department", oldDeptName, newDeptName],
-    ["Status", t.status, status],
-    ["Priority", t.priority, priority],
-    ["Risk", t.risk, risk],
-    ["Escalation", t.escalation, escalation],
-    ["Category", t.category, category],
-    ["Deadline", t.deadline, deadline],
-    ["Meeting Date", t.meetingDate, meetingDate],
-    ["Comments", t.comments, comments],
-    ["Latest Update", t.latestUpdate, latestUpdate],
-  ];
-  for (const [f, o, n] of fields) {
-    await logChange(t.id, t.code, t.companyId, f, o, n, changeReason);
-  }
+      const actionItem = actionItemField || t.actionItem;
+      const departmentId = await getOrCreateDept(departmentName);
+      const status = statusField ?? t.status;
+      const priority = priorityField ?? t.priority;
+      const risk = riskField === undefined ? t.risk : riskField;
+      const escalation = escalationField ?? t.escalation ?? "No";
+      const category = categoryField === undefined ? t.category : categoryField;
+      const wasClosed = t.status === "Completed" || t.status === "Closed";
+      const isClosed = status === "Completed" || status === "Closed";
+      const closingNow = isClosed && !wasClosed;
+      const reopeningNow = !isClosed && wasClosed;
 
-  const newClosedDate = closingNow ? new Date() : reopeningNow ? null : t.closedDate;
+      const [oldDeptName, newDeptName] = await Promise.all([deptName(t.departmentId), deptName(departmentId)]);
 
-  await db
-    .update(schema.tasks)
-    .set({
-      actionItem,
-      departmentId,
-      status,
-      priority,
-      risk,
-      escalation,
-      category,
-      deadline,
-      meetingDate,
-      comments,
-      latestUpdate,
-      lastUpdatedAt: new Date(),
-      closedDate: newClosedDate,
-    })
-    .where(eq(schema.tasks.id, t.id));
+      // capture before-assignees for undo
+      const beforeAssignees = (
+        await db.select().from(schema.taskAssignees).where(eq(schema.taskAssignees.taskId, t.id))
+      ).map((a) => a.personId);
 
-  // Replace assignees
-  const newNames = splitNames(accountableRaw);
-  const oldAssignees = await db.select().from(schema.taskAssignees).where(eq(schema.taskAssignees.taskId, t.id));
-  const oldPeople = await db.select().from(schema.people);
-  const pMap = new Map(oldPeople.map((p) => [p.id, p.name]));
-  const oldNamesStr = oldAssignees.map((a) => pMap.get(a.personId)).filter(Boolean).join(", ");
-  const newNamesStr = newNames.join(", ");
-  if (oldNamesStr !== newNamesStr) {
-    await logChange(t.id, t.code, t.companyId, "Accountable", oldNamesStr, newNamesStr, changeReason);
-    await db.delete(schema.taskAssignees).where(eq(schema.taskAssignees.taskId, t.id));
-    for (const n of newNames) {
-      const pid = await getOrCreatePerson(n, t.companyId);
-      try {
-        await db.insert(schema.taskAssignees).values({ taskId: t.id, personId: pid });
-      } catch {}
-    }
-  }
+      // diff & audit
+      const fields: [string, unknown, unknown][] = [
+        ["Action Item", t.actionItem, actionItem],
+        ["Department", oldDeptName, newDeptName],
+        ["Status", t.status, status],
+        ["Priority", t.priority, priority],
+        ["Risk", t.risk, risk],
+        ["Escalation", t.escalation, escalation],
+        ["Category", t.category, category],
+        ["Deadline", t.deadline, deadline],
+        ["Meeting Date", t.meetingDate, meetingDate],
+        ["Comments", t.comments, comments],
+        ["Latest Update", t.latestUpdate, latestUpdate],
+      ];
+      for (const [f, o, n] of fields) {
+        await logChange(t.id, t.code, t.companyId, f, o, n, changeReason);
+      }
+
+      const newClosedDate = closingNow ? new Date() : reopeningNow ? null : t.closedDate;
+
+      await db
+        .update(schema.tasks)
+        .set({
+          actionItem,
+          departmentId,
+          status,
+          priority,
+          risk,
+          escalation,
+          category,
+          deadline,
+          meetingDate,
+          comments,
+          latestUpdate,
+          lastUpdatedAt: new Date(),
+          closedDate: newClosedDate,
+        })
+        .where(eq(schema.tasks.id, t.id));
+
+      // replace assignees
+      const newNames = splitNames(accountableRaw);
+      const oldPeople = await db.select().from(schema.people);
+      const pMap = new Map(oldPeople.map((p) => [p.id, p.name]));
+      const oldNamesStr = beforeAssignees.map((id) => pMap.get(id)).filter(Boolean).join(", ");
+      const newNamesStr = newNames.join(", ");
+      if (oldNamesStr !== newNamesStr) {
+        await logChange(t.id, t.code, t.companyId, "Accountable", oldNamesStr, newNamesStr, changeReason);
+        await db.delete(schema.taskAssignees).where(eq(schema.taskAssignees.taskId, t.id));
+        for (const n of newNames) {
+          const pid = await getOrCreatePerson(n, t.companyId);
+          try {
+            await db.insert(schema.taskAssignees).values({ taskId: t.id, personId: pid });
+          } catch {}
+        }
+      }
+
+      return {
+        result: { code: t.code },
+        undo: {
+          kind: "task.update",
+          taskId: t.id,
+          payload: {
+            taskId: t.id,
+            taskCode: t.code,
+            companyId: t.companyId,
+            before: {
+              actionItem: t.actionItem,
+              departmentId: t.departmentId,
+              status: t.status,
+              priority: t.priority,
+              risk: t.risk,
+              escalation: t.escalation,
+              category: t.category,
+              deadline: isoOrNull(t.deadline),
+              meetingDate: isoOrNull(t.meetingDate),
+              comments: t.comments,
+              latestUpdate: t.latestUpdate,
+              lastUpdatedAt: isoOrNull(t.lastUpdatedAt),
+              closedDate: isoOrNull(t.closedDate),
+            },
+            beforeAssignees,
+          },
+        },
+      };
+    },
+  });
+
+  if (!result.ok) throw new Error(result.error);
+  if (result.undoToken) await setUndoCookie(result.undoToken, "Task updated.");
 
   revalidatePath(`/task/${code}`);
   revalidatePath("/registry");
@@ -182,63 +236,133 @@ export async function createTask(formData: FormData) {
   const actionItem = str(formData.get("actionItem"));
   if (!companyId || !actionItem) throw new Error("Company and Action Item are required");
 
-  const company = await db.select().from(schema.companies).where(eq(schema.companies.id, companyId)).limit(1);
-  if (!company.length) throw new Error("Company not found");
-  const code = company[0].code;
-
-  const departmentId = await getOrCreateDept(str(formData.get("department")));
+  const departmentName = str(formData.get("department"));
   const status = str(formData.get("status")) || "Not Started";
   const priority = str(formData.get("priority")) || "Low";
+  const risk = str(formData.get("risk"));
+  const escalation = str(formData.get("escalation")) || "No";
+  const category = str(formData.get("category"));
+  const deadline = parseDate(formData.get("deadline"));
+  const meetingDate = parseDate(formData.get("meetingDate"));
+  const comments = str(formData.get("comments"));
+  const latestUpdate = str(formData.get("latestUpdate"));
   const accountableRaw = str(formData.get("accountable"));
-  const now = new Date();
 
-  const task = await insertTaskWithUniqueCode(companyId, code, {
-    departmentId,
-    actionItem,
-    status,
-    priority,
-    risk: str(formData.get("risk")),
-    escalation: str(formData.get("escalation")) || "No",
-    category: str(formData.get("category")),
-    deadline: parseDate(formData.get("deadline")),
-    meetingDate: parseDate(formData.get("meetingDate")),
-    comments: str(formData.get("comments")),
-    latestUpdate: str(formData.get("latestUpdate")),
-    createdDate: now,
-    lastUpdatedAt: now,
-    archived: false,
+  const result = await mutate({
+    kind: "task.create",
+    run: async () => {
+      const company = await db.select().from(schema.companies).where(eq(schema.companies.id, companyId)).limit(1);
+      if (!company.length) throw new Error("Company not found");
+      const code = company[0].code;
+
+      const departmentId = await getOrCreateDept(departmentName);
+      const now = new Date();
+
+      const task = await insertTaskWithUniqueCode(companyId, code, {
+        departmentId,
+        actionItem,
+        status,
+        priority,
+        risk,
+        escalation,
+        category,
+        deadline,
+        meetingDate,
+        comments,
+        latestUpdate,
+        createdDate: now,
+        lastUpdatedAt: now,
+        archived: false,
+      });
+      const newCode = task.code;
+
+      for (const n of splitNames(accountableRaw)) {
+        const pid = await getOrCreatePerson(n, companyId);
+        try {
+          await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: pid });
+        } catch {}
+      }
+
+      await db.insert(schema.auditLog).values({
+        taskId: task.id,
+        taskCode: newCode,
+        companyId,
+        entryType: "CREATE",
+        field: "Task",
+        oldValue: null,
+        newValue: actionItem,
+        changeReason: null,
+        createdAt: now,
+        createdBy: "web-ui",
+      });
+
+      return {
+        result: { code: newCode },
+        undo: {
+          kind: "task.create",
+          taskId: task.id,
+          payload: { taskId: task.id },
+        },
+      };
+    },
   });
-  const newCode = task.code;
 
-  for (const n of splitNames(accountableRaw)) {
-    const pid = await getOrCreatePerson(n, companyId);
-    try {
-      await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: pid });
-    } catch {}
-  }
-
-  await db.insert(schema.auditLog).values({
-    taskId: task.id,
-    taskCode: newCode,
-    companyId,
-    entryType: "CREATE",
-    field: "Task",
-    oldValue: null,
-    newValue: actionItem,
-    changeReason: null,
-    createdAt: now,
-    createdBy: "web-ui",
-  });
+  if (!result.ok) throw new Error(result.error);
+  if (result.undoToken) await setUndoCookie(result.undoToken, "Task created.");
 
   revalidatePath("/registry");
   revalidatePath("/");
-  redirect(`/task/${newCode}`);
+  redirect(`/task/${result.result.code}`);
 }
 
 export async function deleteTask(code: string) {
-  const existing = await db.select().from(schema.tasks).where(eq(schema.tasks.code, code)).limit(1);
-  if (!existing.length) return;
-  await db.delete(schema.tasks).where(eq(schema.tasks.id, existing[0].id));
+  const result = await mutate({
+    kind: "task.delete",
+    run: async () => {
+      const existing = await db.select().from(schema.tasks).where(eq(schema.tasks.code, code)).limit(1);
+      if (!existing.length) return { result: null, undo: undefined };
+      const t = existing[0];
+      const assignees = (
+        await db.select().from(schema.taskAssignees).where(eq(schema.taskAssignees.taskId, t.id))
+      ).map((a) => a.personId);
+
+      await db.delete(schema.tasks).where(eq(schema.tasks.id, t.id));
+
+      return {
+        result: { deleted: true },
+        undo: {
+          kind: "task.delete",
+          payload: {
+            task: {
+              code: t.code,
+              companyId: t.companyId,
+              departmentId: t.departmentId,
+              meetingDate: isoOrNull(t.meetingDate),
+              actionItem: t.actionItem,
+              ownerId: t.ownerId,
+              createdDate: isoOrNull(t.createdDate),
+              deadline: isoOrNull(t.deadline),
+              status: t.status,
+              priority: t.priority,
+              category: t.category,
+              risk: t.risk,
+              escalation: t.escalation,
+              comments: t.comments,
+              latestUpdate: t.latestUpdate,
+              lastUpdatedAt: isoOrNull(t.lastUpdatedAt),
+              closedDate: isoOrNull(t.closedDate),
+              archived: t.archived,
+            },
+            assignees,
+          },
+        },
+      };
+    },
+  });
+
+  if (!result.ok) throw new Error(result.error);
+  if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
+
   revalidatePath("/registry");
   revalidatePath("/");
   redirect("/registry");
@@ -248,49 +372,180 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
   const trimmed = body.trim();
   if (!trimmed) return;
 
-  await db.insert(schema.taskUpdates).values({
+  const result = await mutate({
+    kind: "task.update.add",
     taskId,
-    body: trimmed,
-    createdAt: new Date(),
-    createdBy: "web-ui",
-  });
+    run: async () => {
+      const taskRows = await db.select().from(schema.tasks).where(eq(schema.tasks.id, taskId)).limit(1);
+      if (!taskRows.length) throw new Error("Task not found");
+      const t = taskRows[0];
 
-  const updatePayload: Partial<typeof schema.tasks.$inferInsert> = {
-    latestUpdate: trimmed,
-    lastUpdatedAt: new Date(),
-  };
+      const before = {
+        latestUpdate: t.latestUpdate,
+        lastUpdatedAt: isoOrNull(t.lastUpdatedAt),
+        status: t.status,
+        closedDate: isoOrNull(t.closedDate),
+      };
 
-  let pendingAudit: typeof schema.auditLog.$inferInsert | null = null;
-  if (newStatus) {
-    const task = await db.select().from(schema.tasks).where(eq(schema.tasks.id, taskId)).limit(1);
-    if (task.length) {
-      const t = task[0];
-      const wasClosed = t.status === "Completed" || t.status === "Closed";
-      const isClosed = newStatus === "Completed" || newStatus === "Closed";
-      updatePayload.status = newStatus;
-      if (isClosed && !wasClosed) updatePayload.closedDate = new Date();
-      else if (!isClosed && wasClosed) updatePayload.closedDate = null;
-
-      if (t.status !== newStatus) {
-        pendingAudit = {
+      const inserted = await db
+        .insert(schema.taskUpdates)
+        .values({
           taskId,
-          taskCode,
-          companyId: t.companyId,
-          entryType: "CHANGE",
-          field: "Status",
-          oldValue: t.status,
-          newValue: newStatus,
-          changeReason: trimmed,
+          body: trimmed,
           createdAt: new Date(),
           createdBy: "web-ui",
-        };
-      }
-    }
-  }
+        })
+        .returning({ id: schema.taskUpdates.id });
+      const taskUpdateId = inserted[0].id;
 
-  await db.update(schema.tasks).set(updatePayload).where(eq(schema.tasks.id, taskId));
-  if (pendingAudit) await db.insert(schema.auditLog).values(pendingAudit);
+      const updatePayload: Partial<typeof schema.tasks.$inferInsert> = {
+        latestUpdate: trimmed,
+        lastUpdatedAt: new Date(),
+      };
+
+      if (newStatus) {
+        const wasClosed = t.status === "Completed" || t.status === "Closed";
+        const isClosed = newStatus === "Completed" || newStatus === "Closed";
+        updatePayload.status = newStatus;
+        if (isClosed && !wasClosed) updatePayload.closedDate = new Date();
+        else if (!isClosed && wasClosed) updatePayload.closedDate = null;
+
+        if (t.status !== newStatus) {
+          await db.insert(schema.auditLog).values({
+            taskId,
+            taskCode,
+            companyId: t.companyId,
+            entryType: "CHANGE",
+            field: "Status",
+            oldValue: t.status,
+            newValue: newStatus,
+            changeReason: trimmed,
+            createdAt: new Date(),
+            createdBy: "web-ui",
+          });
+        }
+      }
+
+      await db.update(schema.tasks).set(updatePayload).where(eq(schema.tasks.id, taskId));
+
+      return {
+        result: { taskUpdateId },
+        undo: {
+          kind: "task.update.add",
+          taskId,
+          payload: {
+            taskUpdateId,
+            taskId,
+            taskCode,
+            companyId: t.companyId,
+            before,
+          },
+        },
+      };
+    },
+  });
+
+  if (!result.ok) throw new Error(result.error);
+  if (result.undoToken) await setUndoCookie(result.undoToken, "Update added.");
+
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/registry");
   revalidatePath("/");
+}
+
+export async function inlineUpdateTask(
+  code: string,
+  field: "status" | "priority" | "deadline" | "category" | "escalation",
+  value: string | null
+): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
+  const result = await mutate({
+    kind: "task.update",
+    run: async () => {
+      const existing = await db.select().from(schema.tasks).where(eq(schema.tasks.code, code)).limit(1);
+      if (!existing.length) throw new Error("Task not found");
+      const t = existing[0];
+
+      const beforeAssignees = (
+        await db.select().from(schema.taskAssignees).where(eq(schema.taskAssignees.taskId, t.id))
+      ).map((a) => a.personId);
+
+      const patch: Partial<typeof schema.tasks.$inferInsert> = { lastUpdatedAt: new Date() };
+      let oldVal: unknown = null;
+      let newVal: unknown = null;
+      let fieldLabel = "";
+
+      if (field === "status") {
+        const status = value || t.status;
+        oldVal = t.status;
+        newVal = status;
+        fieldLabel = "Status";
+        const wasClosed = t.status === "Completed" || t.status === "Closed";
+        const isClosed = status === "Completed" || status === "Closed";
+        patch.status = status;
+        if (isClosed && !wasClosed) patch.closedDate = new Date();
+        else if (!isClosed && wasClosed) patch.closedDate = null;
+      } else if (field === "priority") {
+        oldVal = t.priority;
+        newVal = value || t.priority;
+        fieldLabel = "Priority";
+        patch.priority = value || t.priority;
+      } else if (field === "deadline") {
+        const newDate = value ? new Date(value) : null;
+        oldVal = t.deadline;
+        newVal = newDate;
+        fieldLabel = "Deadline";
+        patch.deadline = newDate;
+      } else if (field === "category") {
+        oldVal = t.category;
+        newVal = value;
+        fieldLabel = "Category";
+        patch.category = value;
+      } else if (field === "escalation") {
+        oldVal = t.escalation;
+        newVal = value || "No";
+        fieldLabel = "Escalation";
+        patch.escalation = value || "No";
+      }
+
+      await logChange(t.id, t.code, t.companyId, fieldLabel, oldVal, newVal, null);
+      await db.update(schema.tasks).set(patch).where(eq(schema.tasks.id, t.id));
+
+      return {
+        result: { code: t.code },
+        undo: {
+          kind: "task.update",
+          taskId: t.id,
+          payload: {
+            taskId: t.id,
+            taskCode: t.code,
+            companyId: t.companyId,
+            before: {
+              actionItem: t.actionItem,
+              departmentId: t.departmentId,
+              status: t.status,
+              priority: t.priority,
+              risk: t.risk,
+              escalation: t.escalation,
+              category: t.category,
+              deadline: isoOrNull(t.deadline),
+              meetingDate: isoOrNull(t.meetingDate),
+              comments: t.comments,
+              latestUpdate: t.latestUpdate,
+              lastUpdatedAt: isoOrNull(t.lastUpdatedAt),
+              closedDate: isoOrNull(t.closedDate),
+            },
+            beforeAssignees,
+          },
+        },
+      };
+    },
+  });
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/task/${code}`);
+  revalidatePath("/task");
+  revalidatePath("/registry");
+  revalidatePath("/");
+  return { ok: true, undoToken: result.undoToken };
 }

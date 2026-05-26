@@ -5,18 +5,25 @@ import { CheckCircle2, AlertTriangle, AlertOctagon, Info, X } from "lucide-react
 import { cn } from "@/lib/cn";
 
 type ToastTone = "default" | "success" | "warn" | "danger" | "info";
+type ToastAction = { label: string; onClick: () => void | Promise<void> };
 type Toast = {
   id: number;
   message: string;
   tone: ToastTone;
   description?: string;
   duration: number;
+  action?: ToastAction;
 };
 
 type Ctx = {
   toast: (
     message: string,
-    opts?: { tone?: ToastTone; description?: string; duration?: number }
+    opts?: {
+      tone?: ToastTone;
+      description?: string;
+      duration?: number;
+      action?: ToastAction;
+    }
   ) => void;
   dismiss: (id: number) => void;
 };
@@ -59,6 +66,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       tone: opts?.tone ?? "default",
       description: opts?.description,
       duration: opts?.duration ?? 4000,
+      action: opts?.action,
     };
     setToasts((cur) => [...cur, t]);
   }, []);
@@ -94,6 +102,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   <div className="text-xs text-fg-muted mt-0.5">{t.description}</div>
                 )}
               </div>
+              {t.action && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await t.action!.onClick();
+                    } finally {
+                      dismiss(t.id);
+                    }
+                  }}
+                  className="text-xs font-semibold px-2 py-1 rounded-md bg-bg-muted hover:bg-bg-elev text-fg transition-colors"
+                >
+                  {t.action.label}
+                </button>
+              )}
               <button
                 onClick={() => dismiss(t.id)}
                 className="text-fg-subtle hover:text-fg transition-colors -mr-1 -mt-1 p-1"

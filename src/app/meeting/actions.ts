@@ -4,6 +4,8 @@ import { db, schema } from "@/db";
 import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { mutate } from "@/lib/mutate";
+import { setUndoCookie } from "@/lib/undo-cookie";
 
 type AIExtractResult =
   | { ok: true; tasks: MeetingTask[] }
@@ -187,61 +189,85 @@ async function insertTaskWithUniqueCode(
 
 export type BulkFailure = { index: number; actionItem: string; reason: string };
 
-export async function bulkCreateTasks(tasks: BulkTaskInput[]): Promise<{ created: number; failures: BulkFailure[] }> {
-  let created = 0;
-  const failures: BulkFailure[] = [];
-  for (let i = 0; i < tasks.length; i++) {
-    const t = tasks[i];
-    try {
-      if (!t.companyId) { failures.push({ index: i, actionItem: t.actionItem, reason: "Missing company" }); continue; }
-      if (!t.actionItem.trim()) { failures.push({ index: i, actionItem: t.actionItem, reason: "Empty action item" }); continue; }
+export async function bulkCreateTasks(
+  tasks: BulkTaskInput[]
+): Promise<{ created: number; failures: BulkFailure[]; undoToken?: string }> {
+  const result = await mutate({
+    kind: "meeting.bulkCreate",
+    run: async () => {
+      let created = 0;
+      const failures: BulkFailure[] = [];
+      const createdIds: number[] = [];
 
-      const company = await db.select().from(schema.companies).where(eq(schema.companies.id, t.companyId)).limit(1);
-      if (!company.length) { failures.push({ index: i, actionItem: t.actionItem, reason: "Company not found" }); continue; }
-      const code = company[0].code;
-      const now = new Date();
-
-      const task = await insertTaskWithUniqueCode(t.companyId, code, {
-        actionItem: t.actionItem,
-        status: t.status || "Not Started",
-        priority: t.priority || "Low",
-        category: t.category,
-        escalation: t.escalation || "No",
-        deadline: t.deadline ? new Date(t.deadline) : null,
-        createdDate: now,
-        lastUpdatedAt: now,
-        archived: false,
-      });
-      const newCode = task.code;
-
-      for (const name of t.assigneeNames) {
-        const pid = await getOrCreatePerson(name, t.companyId);
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
         try {
-          await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: pid });
-        } catch {}
+          if (!t.companyId) { failures.push({ index: i, actionItem: t.actionItem, reason: "Missing company" }); continue; }
+          if (!t.actionItem.trim()) { failures.push({ index: i, actionItem: t.actionItem, reason: "Empty action item" }); continue; }
+
+          const company = await db.select().from(schema.companies).where(eq(schema.companies.id, t.companyId)).limit(1);
+          if (!company.length) { failures.push({ index: i, actionItem: t.actionItem, reason: "Company not found" }); continue; }
+          const code = company[0].code;
+          const now = new Date();
+
+          const task = await insertTaskWithUniqueCode(t.companyId, code, {
+            actionItem: t.actionItem,
+            status: t.status || "Not Started",
+            priority: t.priority || "Low",
+            category: t.category,
+            escalation: t.escalation || "No",
+            deadline: t.deadline ? new Date(t.deadline) : null,
+            createdDate: now,
+            lastUpdatedAt: now,
+            archived: false,
+          });
+          const newCode = task.code;
+          createdIds.push(task.id);
+
+          for (const name of t.assigneeNames) {
+            const pid = await getOrCreatePerson(name, t.companyId);
+            try {
+              await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: pid });
+            } catch {}
+          }
+
+          await db.insert(schema.auditLog).values({
+            taskId: task.id,
+            taskCode: newCode,
+            companyId: t.companyId,
+            entryType: "CREATE",
+            field: "Task",
+            oldValue: null,
+            newValue: t.actionItem,
+            changeReason: "Created via Meeting Mode",
+            createdAt: now,
+            createdBy: "meeting-mode",
+          });
+
+          created++;
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          failures.push({ index: i, actionItem: t.actionItem, reason: msg });
+        }
       }
 
-      await db.insert(schema.auditLog).values({
-        taskId: task.id,
-        taskCode: newCode,
-        companyId: t.companyId,
-        entryType: "CREATE",
-        field: "Task",
-        oldValue: null,
-        newValue: t.actionItem,
-        changeReason: "Created via Meeting Mode",
-        createdAt: now,
-        createdBy: "meeting-mode",
-      });
-
-      created++;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      failures.push({ index: i, actionItem: t.actionItem, reason: msg });
-    }
-  }
+      return {
+        result: { created, failures },
+        undo: createdIds.length
+          ? { kind: "meeting.bulkCreate", payload: { taskIds: createdIds } }
+          : undefined,
+      };
+    },
+  });
 
   revalidatePath("/registry");
   revalidatePath("/");
-  return { created, failures };
+
+  if (!result.ok) {
+    return { created: 0, failures: [{ index: -1, actionItem: "", reason: result.error }] };
+  }
+  if (result.undoToken) {
+    await setUndoCookie(result.undoToken, `${result.result.created} task${result.result.created === 1 ? "" : "s"} created.`);
+  }
+  return { ...result.result, undoToken: result.undoToken };
 }

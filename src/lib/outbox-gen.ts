@@ -97,12 +97,24 @@ export function dedupeKey(channel: string, name: string, taskIds: string[]): str
   return `${todayDateKey()}|${channel}|${name.toLowerCase()}|${taskIds.sort().join(",")}|daily`;
 }
 
-export async function markSent(channel: string, name: string, taskCodes: string[], message: string, contactStatus: string, recipientContact: string | null) {
+export type MarkSentResult =
+  | { ok: true; dedupeKey: string; outboxId: number }
+  | { ok: false; reason: "duplicate" };
+
+export async function markSent(
+  channel: string,
+  name: string,
+  taskCodes: string[],
+  message: string,
+  contactStatus: string,
+  recipientContact: string | null
+): Promise<MarkSentResult> {
   const key = dedupeKey(channel, name, taskCodes);
   const existing = await db.select().from(schema.reminders).where(eq(schema.reminders.dedupeKey, key)).limit(1);
-  if (existing.length) return false;
+  if (existing.length) return { ok: false, reason: "duplicate" };
 
   const now = new Date();
+  let outboxId = 0;
   try {
     await db.transaction(async (tx) => {
       await tx.insert(schema.reminders).values({
@@ -113,22 +125,26 @@ export async function markSent(channel: string, name: string, taskCodes: string[
         dedupeKey: key,
         createdAt: now,
       });
-      await tx.insert(schema.outbox).values({
-        channel,
-        recipientName: name,
-        recipientContact,
-        body: message,
-        messageType: "DAILY TASK REMINDER",
-        status: "Sent",
-        contactStatus,
-        createdAt: now,
-        sentAt: now,
-      });
+      const inserted = await tx
+        .insert(schema.outbox)
+        .values({
+          channel,
+          recipientName: name,
+          recipientContact,
+          body: message,
+          messageType: "DAILY TASK REMINDER",
+          status: "Sent",
+          contactStatus,
+          createdAt: now,
+          sentAt: now,
+        })
+        .returning({ id: schema.outbox.id });
+      outboxId = inserted[0]?.id ?? 0;
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/duplicate key|unique/i.test(msg)) return false;
+    if (/duplicate key|unique/i.test(msg)) return { ok: false, reason: "duplicate" };
     throw err;
   }
-  return true;
+  return { ok: true, dedupeKey: key, outboxId };
 }
