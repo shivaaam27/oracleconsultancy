@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json({ result: fallback, source: "rules" });
+      return NextResponse.json({ result: fallback, source: "rules", debug: "no-key" });
     }
 
     const res = await fetch(
@@ -35,7 +35,12 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const err = await res.text();
       console.error("Gemini error:", res.status, err);
-      return NextResponse.json({ result: fallback, source: "rules" });
+      return NextResponse.json({
+        result: fallback,
+        source: "rules",
+        debug: `gemini-${res.status}`,
+        geminiError: err.slice(0, 300),
+      });
     }
 
     const data = await res.json();
@@ -43,7 +48,12 @@ export async function POST(req: NextRequest) {
       data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 
     if (!aiResult || aiResult.length > 200 || aiResult.includes("\n")) {
-      return NextResponse.json({ result: fallback, source: "rules" });
+      return NextResponse.json({
+        result: fallback,
+        source: "rules",
+        debug: "bad-ai-output",
+        aiResult: aiResult.slice(0, 200),
+      });
     }
 
     const cleaned = aiResult.replace(/^["']|["']$/g, "").replace(/[.!?]+$/, "").trim();
