@@ -1,10 +1,4 @@
-import { db, schema } from "@/db";
-import { and, eq, gte, lte, desc, isNotNull } from "drizzle-orm";
-
-// Note: previously wrapped these in unstable_cache for cross-request caching,
-// but that caused 300s function timeouts on Vercel — likely a Next 16 +
-// postgres.js + transaction-pooler interaction. Reverted to direct queries;
-// /outbox is fast enough without the cross-request cache.
+import { sb } from "@/db/supabase";
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -18,39 +12,38 @@ function endOfDay(d: Date): Date {
   return x;
 }
 
-// Returns the set of dedupe keys that already exist for today on this channel.
-// (Kept for callers that still want a per-channel key set.)
+// Returns set of dedupe keys for today on a specific channel (legacy helper,
+// still used by markSent tests).
 export async function todaysSentKeys(channel: string): Promise<Set<string>> {
-  const start = startOfDay(new Date());
-  const end = endOfDay(new Date());
-  const rows = await db
-    .select({ key: schema.reminders.dedupeKey })
-    .from(schema.reminders)
-    .where(
-      and(
-        eq(schema.reminders.channel, channel),
-        gte(schema.reminders.createdAt, start),
-        lte(schema.reminders.createdAt, end)
-      )
-    );
-  return new Set(rows.map((r) => r.key));
+  const start = startOfDay(new Date()).toISOString();
+  const end = endOfDay(new Date()).toISOString();
+  const { data, error } = await sb
+    .from("reminders")
+    .select("dedupe_key")
+    .eq("channel", channel)
+    .gte("created_at", start)
+    .lte("created_at", end);
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((r) => r.dedupe_key as string));
 }
 
-// JSON-safe: returns Record<name, channel[]> so it's cacheable across requests.
+// JSON-safe: Record<name, channel[]> across all channels.
 export type SentTodayPlain = Record<string, string[]>;
 
 export async function todaysSentChannelsByName(): Promise<SentTodayPlain> {
-  const start = startOfDay(new Date());
-  const end = endOfDay(new Date());
-  const rows = await db
-    .select({ key: schema.reminders.dedupeKey, channel: schema.reminders.channel })
-    .from(schema.reminders)
-    .where(and(gte(schema.reminders.createdAt, start), lte(schema.reminders.createdAt, end)));
+  const start = startOfDay(new Date()).toISOString();
+  const end = endOfDay(new Date()).toISOString();
+  const { data, error } = await sb
+    .from("reminders")
+    .select("dedupe_key,channel")
+    .gte("created_at", start)
+    .lte("created_at", end);
+  if (error) throw new Error(error.message);
   const out: SentTodayPlain = {};
-  for (const r of rows) {
-    const parts = r.key.split("|");
+  for (const r of data ?? []) {
+    const parts = (r.dedupe_key as string).split("|");
     const name = parts[2];
-    const ch = r.channel?.toUpperCase() || "WHATSAPP";
+    const ch = ((r.channel as string) || "WHATSAPP").toUpperCase();
     if (!name) continue;
     const list = out[name] || [];
     if (!list.includes(ch)) list.push(ch);
@@ -69,44 +62,33 @@ export type HistoryEntry = {
   status: string;
 };
 
-// JSON-safe: dates as ISO strings; map keyed by day key.
 export async function historyByDay(days: number): Promise<Record<string, HistoryEntry[]>> {
   const start = startOfDay(new Date());
   start.setDate(start.getDate() - days);
   const yesterdayEnd = endOfDay(new Date());
   yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
 
-  const rows = await db
-    .select({
-      id: schema.outbox.id,
-      channel: schema.outbox.channel,
-      recipientName: schema.outbox.recipientName,
-      recipientContact: schema.outbox.recipientContact,
-      body: schema.outbox.body,
-      sentAt: schema.outbox.sentAt,
-      status: schema.outbox.status,
-    })
-    .from(schema.outbox)
-    .where(
-      and(
-        gte(schema.outbox.createdAt, start),
-        lte(schema.outbox.createdAt, yesterdayEnd)
-      )
-    )
-    .orderBy(desc(schema.outbox.sentAt));
+  const { data, error } = await sb
+    .from("outbox")
+    .select("id,channel,recipient_name,recipient_contact,body,sent_at,status")
+    .gte("created_at", start.toISOString())
+    .lte("created_at", yesterdayEnd.toISOString())
+    .order("sent_at", { ascending: false });
+  if (error) throw new Error(error.message);
 
   const byDay: Record<string, HistoryEntry[]> = {};
-  for (const r of rows) {
-    const d = r.sentAt ?? new Date();
+  for (const r of data ?? []) {
+    const sentAtIso = (r.sent_at as string | null) ?? null;
+    const d = sentAtIso ? new Date(sentAtIso) : new Date();
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const entry: HistoryEntry = {
-      id: r.id,
-      channel: r.channel,
-      recipientName: r.recipientName,
-      recipientContact: r.recipientContact,
-      body: r.body,
-      sentAt: r.sentAt ? r.sentAt.toISOString() : null,
-      status: r.status,
+      id: r.id as number,
+      channel: r.channel as string,
+      recipientName: (r.recipient_name as string | null) ?? null,
+      recipientContact: (r.recipient_contact as string | null) ?? null,
+      body: r.body as string,
+      sentAt: sentAtIso,
+      status: r.status as string,
     };
     const list = byDay[key] || [];
     list.push(entry);
@@ -122,14 +104,20 @@ export type SnoozedPerson = {
 };
 
 export async function snoozedToday(): Promise<SnoozedPerson[]> {
-  const now = new Date();
-  const rows = await db
-    .select({ id: schema.people.id, name: schema.people.name, snoozedUntil: schema.people.snoozedUntil })
-    .from(schema.people)
-    .where(and(isNotNull(schema.people.snoozedUntil), gte(schema.people.snoozedUntil, now)));
-  return rows
-    .filter((r) => r.snoozedUntil !== null)
-    .map((r) => ({ id: r.id, name: r.name, snoozedUntil: r.snoozedUntil!.toISOString() }))
+  const nowIso = new Date().toISOString();
+  const { data, error } = await sb
+    .from("people")
+    .select("id,name,snoozed_until")
+    .not("snoozed_until", "is", null)
+    .gte("snoozed_until", nowIso);
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .filter((r) => r.snoozed_until !== null)
+    .map((r) => ({
+      id: r.id as number,
+      name: r.name as string,
+      snoozedUntil: r.snoozed_until as string,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

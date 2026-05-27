@@ -1,5 +1,6 @@
 import { db, schema } from "@/db";
 import { eq } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
 
@@ -63,7 +64,20 @@ function buildAllMessages(name: string, list: TaskRow[]): Record<Channel, string
 
 export async function generateDrafts(): Promise<OutboxDraft[]> {
   const tasks = (await getAllTasks()).filter((t) => isOpen(t.status));
-  const people = await db.select().from(schema.people);
+  const { data: peopleRaw, error: pErr } = await sb
+    .from("people")
+    .select("id,name,email,phone,whatsapp,preferred_channel,notes,snoozed_until");
+  if (pErr) throw new Error(pErr.message);
+  const people = (peopleRaw ?? []).map((p) => ({
+    id: p.id as number,
+    name: p.name as string,
+    email: p.email as string | null,
+    phone: p.phone as string | null,
+    whatsapp: p.whatsapp as string | null,
+    preferredChannel: p.preferred_channel as string | null,
+    notes: p.notes as string | null,
+    snoozedUntil: p.snoozed_until ? new Date(p.snoozed_until as string) : null,
+  }));
   const pByName = new Map(people.map((p) => [p.name, p]));
   const now = new Date();
   const snoozedNames = new Set(
