@@ -543,6 +543,7 @@ export async function editTaskUpdate(
 
   await recomputeLatestUpdateMirror(u.task_id);
   revalidatePath(`/task/${t.code}`);
+  revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
   updateTag("tasks");
   return { ok: true };
@@ -577,6 +578,7 @@ export async function deleteTaskUpdate(
 
   await recomputeLatestUpdateMirror(u.task_id);
   revalidatePath(`/task/${t.code}`);
+  revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
   updateTag("tasks");
   return { ok: true };
@@ -611,6 +613,7 @@ export async function toggleUpdatePin(updateId: number): Promise<{ ok: boolean; 
   });
 
   revalidatePath(`/task/${t.code}`);
+  revalidatePath(`/companies/${t.company_id}`);
   updateTag("tasks");
   return { ok: true, pinned: !wasPinned };
 }
