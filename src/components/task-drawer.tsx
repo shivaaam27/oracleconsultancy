@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { UpdateBox } from "./update-box";
 import { CodeLinkedText } from "./code-linked-text";
+import { AssigneeList } from "./assignee-list";
 import { Badge } from "./ui";
 import {
   sortTimeline,
@@ -260,23 +261,32 @@ export function TaskDrawer() {
 
                 {/* Meta grid */}
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
-                  {[
-                    {
-                      label: "Deadline",
-                      value: data.task.deadline ? fmtDate(new Date(data.task.deadline)) : "—",
-                    },
-                    {
-                      label: "Accountable",
-                      value: data.task.assignees.length ? data.task.assignees.join(", ") : "—",
-                    },
-                    { label: "Department", value: data.task.department || "—" },
-                    { label: "Category", value: data.task.category || "—" },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="flex flex-col gap-0.5">
-                      <span className="text-fg-muted">{label}</span>
-                      <span className="font-medium text-fg">{value}</span>
-                    </div>
-                  ))}
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-fg-muted">Deadline</span>
+                    <span className="font-medium text-fg">
+                      {data.task.deadline ? fmtDate(new Date(data.task.deadline)) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-fg-muted">Accountable</span>
+                    {data.task.assignees.length ? (
+                      <AssigneeList
+                        names={data.task.assignees}
+                        ids={data.task.assigneeIds}
+                        className="font-medium text-fg"
+                      />
+                    ) : (
+                      <span className="font-medium text-fg">—</span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-fg-muted">Department</span>
+                    <span className="font-medium text-fg">{data.task.department || "—"}</span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-fg-muted">Category</span>
+                    <span className="font-medium text-fg">{data.task.category || "—"}</span>
+                  </div>
                 </div>
 
                 {/* Latest update callout */}

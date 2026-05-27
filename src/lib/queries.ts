@@ -11,7 +11,10 @@ export type TaskRow = {
   department: string | null;
   actionItem: string;
   owner: string | null;
+  ownerId: number | null;
   assignees: string[];
+  /** Parallel array to `assignees`; same order, same length. Enables PersonDrawerLink rendering. */
+  assigneeIds: number[];
   meetingDate: Date | null;
   createdDate: Date | null;
   deadline: Date | null;
@@ -89,10 +92,14 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
   const dName = new Map(depts.map((d) => [d.id, d.name]));
   const pName = new Map(people.map((p) => [p.id, p.name]));
   const aMap = new Map<number, string[]>();
+  const aIdMap = new Map<number, number[]>();
   for (const a of assignees) {
     const list = aMap.get(a.task_id) || [];
+    const idList = aIdMap.get(a.task_id) || [];
     list.push(pName.get(a.person_id) || "");
+    idList.push(a.person_id);
     aMap.set(a.task_id, list);
+    aIdMap.set(a.task_id, idList);
   }
 
   return tasks.map((t): TaskRow => {
@@ -109,7 +116,9 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
       department: t.department_id ? dName.get(t.department_id) || null : null,
       actionItem: t.action_item,
       owner: t.owner_id ? pName.get(t.owner_id) || null : null,
+      ownerId: t.owner_id ?? null,
       assignees: aMap.get(t.id) || [],
+      assigneeIds: aIdMap.get(t.id) || [],
       meetingDate: toDate(t.meeting_date),
       createdDate,
       deadline,

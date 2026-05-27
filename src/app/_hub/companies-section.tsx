@@ -5,6 +5,7 @@ import { CompanyKpiStrip } from "@/app/companies/[id]/_tabs/company-kpis";
 import { MomentumStrip } from "@/app/companies/[id]/_tabs/momentum-strip";
 import { CompanySummary } from "@/components/company-summary";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
+import { AssigneeList } from "@/components/assignee-list";
 import { flagLabel } from "@/lib/derive";
 import { Badge, TableShell, Th, Td } from "@/components/ui";
 import { Deadline } from "@/components/deadline";
@@ -117,7 +118,9 @@ function CompanyOpenTasksTable({ rows }: { rows: TaskRow[] }) {
                   {r.actionItem}
                 </TaskDrawerLink>
               </Td>
-              <Td className="text-fg-muted">{r.assignees.join(", ")}</Td>
+              <Td className="text-fg-muted">
+                <AssigneeList names={r.assignees} ids={r.assigneeIds} />
+              </Td>
               <Td className="whitespace-nowrap"><Deadline date={r.deadline} /></Td>
               <Td className="whitespace-nowrap">{r.status}</Td>
               <Td><Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge></Td>

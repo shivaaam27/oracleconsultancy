@@ -8,6 +8,7 @@ import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
 import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
+import { AssigneeList } from "@/components/assignee-list";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, ArrowLeft, ExternalLink } from "lucide-react";
@@ -118,7 +119,9 @@ function CompanyTaskTable({
                   {r.actionItem}
                 </TaskDrawerLink>
               </Td>
-              <Td className="text-fg-muted">{r.assignees.join(", ")}</Td>
+              <Td className="text-fg-muted">
+                <AssigneeList names={r.assignees} ids={r.assigneeIds} />
+              </Td>
               <Td className="whitespace-nowrap"><Deadline date={r.deadline} /></Td>
               <Td className="whitespace-nowrap">{r.status}</Td>
               <Td className="whitespace-nowrap">{r.priority}</Td>

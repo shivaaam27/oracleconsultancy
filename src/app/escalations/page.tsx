@@ -2,6 +2,7 @@ import { getScopedTasks } from "@/lib/scope";
 import { flagLabel, flagColor } from "@/lib/derive";
 import { PageHeader, Badge, TableShell, Th, Td, EmptyState } from "@/components/ui";
 import { Deadline } from "@/components/deadline";
+import { AssigneeList } from "@/components/assignee-list";
 import Link from "next/link";
 import { AlertOctagon, CheckCircle2, ExternalLink } from "lucide-react";
 
@@ -109,7 +110,13 @@ export default async function EscalationsPage() {
                           {r.actionItem}
                         </Link>
                       </Td>
-                      <Td className="text-sm text-fg-muted">{r.assignees.join(", ") || r.owner || "—"}</Td>
+                      <Td className="text-sm text-fg-muted">
+                        {r.assignees.length > 0 ? (
+                          <AssigneeList names={r.assignees} ids={r.assigneeIds} />
+                        ) : (
+                          r.owner || "—"
+                        )}
+                      </Td>
                       <Td>
                         <span className={`text-xs font-medium ${
                           r.priority === "Critical" ? "text-danger" :

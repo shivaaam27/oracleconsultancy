@@ -3,31 +3,30 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 type Props = {
-  code: string;
-  children: React.ReactNode;
+  id: number;
+  name: string;
   className?: string;
 };
 
 /**
- * Pushes ?task=CODE into the URL (no page navigation) so the TaskDrawer
- * picks it up via useSearchParams. The full /task/[code] page is unchanged
- * and still reachable via the "Full page" button inside the drawer.
+ * Pushes ?person=<id> into the URL (no page navigation) so PersonDrawer picks
+ * it up. Also clears any ?task= so the task drawer closes when a person opens.
  */
-export function TaskDrawerLink({ code, children, className }: Props) {
+export function PersonDrawerLink({ id, name, className }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
   const open = () => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("task", code);
-    params.delete("person"); // one drawer at a time
+    params.set("person", String(id));
+    params.delete("task"); // one drawer at a time
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   return (
     <button type="button" onClick={open} className={className}>
-      {children}
+      {name}
     </button>
   );
 }

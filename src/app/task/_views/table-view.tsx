@@ -6,6 +6,7 @@ import { InlineEdit } from "@/components/inline-edit";
 import { Deadline } from "@/components/deadline";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
+import { AssigneeList } from "@/components/assignee-list";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -83,7 +84,9 @@ export function TableView({ rows }: { rows: TaskRow[] }) {
                   {r.actionItem}
                 </TaskDrawerLink>
               </Td>
-              <Td className="whitespace-nowrap text-fg-muted">{r.assignees.join(", ")}</Td>
+              <Td className="whitespace-nowrap text-fg-muted">
+                <AssigneeList names={r.assignees} ids={r.assigneeIds} />
+              </Td>
               <Td className="whitespace-nowrap">
                 <InlineEdit
                   field="deadline"

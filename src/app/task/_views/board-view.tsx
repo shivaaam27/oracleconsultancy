@@ -7,6 +7,7 @@ import { InlineEdit } from "@/components/inline-edit";
 import { Deadline } from "@/components/deadline";
 import { TaskHover } from "@/components/task-hover";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
+import { AssigneeList } from "@/components/assignee-list";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 
 const BOARD_STATUSES = [
@@ -119,7 +120,9 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                     </InlineEdit>
                   </div>
                   {r.assignees.length > 0 && (
-                    <div className="text-xs text-fg-subtle mt-1 truncate">{r.assignees.join(", ")}</div>
+                    <div className="text-xs text-fg-subtle mt-1 truncate">
+                      <AssigneeList names={r.assignees} ids={r.assigneeIds} />
+                    </div>
                   )}
                   <div className="mt-2 flex items-center gap-1">
                     <InlineEdit field="status" taskCode={r.code} value={r.status}>

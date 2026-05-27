@@ -22,6 +22,7 @@ import {
   type TimelineFilter,
 } from "@/lib/timeline";
 import { CodeLinkedText } from "@/components/code-linked-text";
+import { AssigneeList } from "@/components/assignee-list";
 import { TimelineFilters } from "@/components/timeline-filters";
 import { UpdateMenu } from "@/components/update-menu";
 import { Pin, Pencil } from "lucide-react";
@@ -159,7 +160,11 @@ export default async function TaskPage({
             {r.daysToDeadline !== null && r.daysToDeadline !== "done" && (
               <span>DTD <strong className={`tabular ${Number(r.daysToDeadline) < 0 ? "text-danger" : Number(r.daysToDeadline) <= 7 ? "text-warn" : ""}`}>{r.daysToDeadline}d</strong></span>
             )}
-            {r.assignees.length > 0 && <span>Assigned to <strong>{r.assignees.join(", ")}</strong></span>}
+            {r.assignees.length > 0 && (
+              <span>
+                Assigned to <AssigneeList names={r.assignees} ids={r.assigneeIds} className="font-semibold text-fg" />
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
