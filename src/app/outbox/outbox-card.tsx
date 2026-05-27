@@ -1,14 +1,15 @@
 "use client";
 import { Badge, Card } from "@/components/ui";
-import type { OutboxDraft } from "@/lib/outbox-gen";
-import { Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote, ChevronDown, ChevronUp } from "lucide-react";
+import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
+import {
+  Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote,
+  ChevronDown, ChevronUp, MessageCircle, Mail, Phone,
+} from "lucide-react";
 import { useState, useTransition } from "react";
 import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { cn } from "@/lib/cn";
-
-type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 
 type Urgency = "critical" | "warn" | "normal";
 
@@ -39,29 +40,62 @@ const dotClass: Record<Urgency, string> = {
   normal: "bg-fg-subtle/30",
 };
 
+const channelIcon: Record<Channel, typeof MessageCircle> = {
+  WHATSAPP: MessageCircle,
+  EMAIL: Mail,
+  SMS: Phone,
+};
+
 function channelLabel(c: Channel): string {
   return c === "WHATSAPP" ? "WhatsApp" : c === "EMAIL" ? "Email" : "SMS";
 }
 
+function defaultChannel(draft: OutboxDraft): Channel {
+  const pref = (draft.preferredChannel?.toUpperCase() as Channel) || null;
+  if (pref && draft.contactByChannel[pref] === "Complete") return pref;
+  if (draft.contactByChannel.WHATSAPP === "Complete") return "WHATSAPP";
+  if (draft.contactByChannel.EMAIL === "Complete") return "EMAIL";
+  if (draft.contactByChannel.SMS === "Complete") return "SMS";
+  return pref || "WHATSAPP";
+}
+
 export function OutboxCard({
   draft,
-  channel,
   alreadySent = false,
+  sentChannels,
   compact = false,
 }: {
   draft: OutboxDraft;
-  channel: Channel;
   alreadySent?: boolean;
+  sentChannels?: Set<Channel>;
   compact?: boolean;
 }) {
+  const initialChannel = defaultChannel(draft);
+  const [channel, setChannel] = useState<Channel>(initialChannel);
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(alreadySent);
   const [duplicate, setDuplicate] = useState(false);
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
-  const [message, setMessage] = useState(draft.message);
+  const [message, setMessage] = useState(draft.messages[initialChannel]);
   const [expanded, setExpanded] = useState(false);
+  const [localSent, setLocalSent] = useState<Set<Channel>>(new Set(sentChannels));
   const { toast } = useToast();
+
+  // When user switches channel, replace the working message unless they were editing.
+  const switchChannel = (c: Channel) => {
+    setChannel(c);
+    if (!editing) setMessage(draft.messages[c]);
+  };
+
+  const contactValue =
+    channel === "EMAIL"
+      ? draft.email
+      : channel === "WHATSAPP"
+        ? draft.whatsapp
+        : draft.phone;
+
+  const channelReady = draft.contactByChannel[channel] === "Complete";
 
   const doMarkSent = async (): Promise<{ ok: boolean; undoToken?: string }> => {
     const fd = new FormData();
@@ -69,19 +103,18 @@ export function OutboxCard({
     fd.set("name", draft.recipientName);
     fd.set("taskCodes", JSON.stringify(draft.tasks.map((t) => t.code)));
     fd.set("message", message);
-    fd.set("contactStatus", draft.contactStatus);
-    fd.set(
-      "recipientContact",
-      channel === "EMAIL" ? draft.email || "" : channel === "WHATSAPP" ? draft.whatsapp || "" : draft.phone || ""
-    );
+    fd.set("contactStatus", draft.contactByChannel[channel]);
+    fd.set("recipientContact", contactValue || "");
     const res = await recordSent(fd);
     if (res.ok) {
       setSent(true);
+      setLocalSent((prev) => new Set(prev).add(channel));
       return { ok: true, undoToken: res.undoToken };
     }
     if (res.reason === "duplicate") {
       setSent(true);
       setDuplicate(true);
+      setLocalSent((prev) => new Set(prev).add(channel));
       return { ok: false };
     }
     toast("Couldn't mark sent.", { tone: "danger" });
@@ -115,14 +148,14 @@ export function OutboxCard({
       await navigator.clipboard.writeText(message);
       setCopied(true);
       const { ok, undoToken } = await doMarkSent();
-      if (ok) showUndoToast(`Copied & marked sent for ${draft.recipientName}.`, undoToken);
+      if (ok) showUndoToast(`Copied & marked sent (${channelLabel(channel)}) for ${draft.recipientName}.`, undoToken);
     });
   };
 
   const onMarkSentOnly = () => {
     startTransition(async () => {
       const { ok, undoToken } = await doMarkSent();
-      if (ok) showUndoToast(`Marked sent for ${draft.recipientName}.`, undoToken);
+      if (ok) showUndoToast(`Marked sent via ${channelLabel(channel)} for ${draft.recipientName}.`, undoToken);
     });
   };
 
@@ -138,21 +171,55 @@ export function OutboxCard({
         return;
       }
       showUndoToast(`Skipped ${draft.recipientName} for today.`, res.undoToken);
-      // Person disappears on next page revalidation (already triggered server-side).
       if (typeof window !== "undefined") window.location.reload();
     });
   };
 
   const u = urgencyOf(draft.tasks);
-  const prefersOther =
-    draft.preferredChannel && draft.preferredChannel.toUpperCase() !== channel;
+  const CurrentChannelIcon = channelIcon[channel];
 
-  // Compact row mode — one line, click to expand
+  // Channel picker chip group
+  const ChannelPicker = ({ size = "sm" }: { size?: "sm" | "xs" }) => {
+    const all: Channel[] = ["WHATSAPP", "EMAIL", "SMS"];
+    return (
+      <div className="inline-flex bg-bg-subtle border border-border rounded-md p-0.5 gap-0.5">
+        {all.map((c) => {
+          const Icon = channelIcon[c];
+          const active = channel === c;
+          const ready = draft.contactByChannel[c] === "Complete";
+          const sentOnThis = localSent.has(c);
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => switchChannel(c)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded transition-colors",
+                size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs",
+                active
+                  ? "bg-bg-elev text-fg shadow-sm"
+                  : ready
+                    ? "text-fg-muted hover:text-fg"
+                    : "text-fg-subtle"
+              )}
+              title={ready ? channelLabel(c) : `No ${channelLabel(c)} contact`}
+            >
+              <Icon size={size === "xs" ? 9 : 11} />
+              {size !== "xs" && <span>{channelLabel(c).slice(0, channelLabel(c) === "WhatsApp" ? 2 : 5)}</span>}
+              {sentOnThis && <Check size={size === "xs" ? 8 : 10} className="text-success" />}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Compact row mode
   if (compact && !expanded) {
     return (
       <div
         className={cn(
-          "card border-l-4 px-3 py-2 flex items-center gap-3 hover:border-accent transition-colors group",
+          "card border-l-4 px-3 py-2 flex items-center gap-3 hover:border-accent transition-colors",
           stripeClass[u.level],
           sent && "opacity-60"
         )}
@@ -164,22 +231,17 @@ export function OutboxCard({
           className="flex-1 min-w-0 text-left flex items-center gap-2 hover:text-accent transition-colors"
         >
           <span className="font-medium truncate">{draft.recipientName}</span>
-          {prefersOther && (
-            <span className="text-[9px] px-1 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 shrink-0">
-              {draft.preferredChannel}
-            </span>
-          )}
           <span className="text-xs text-fg-muted truncate">
-            · {draft.tasks.length}{" "}
-            {u.overdue > 0 && <span className="text-red-600 dark:text-red-400">· {u.overdue} overdue</span>}
-            {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400">· {u.critical} critical</span>}
+            · {draft.tasks.length}
+            {u.overdue > 0 && <span className="text-red-600 dark:text-red-400"> · {u.overdue} overdue</span>}
+            {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400"> · {u.critical} critical</span>}
             {u.overdue === 0 && u.critical === 0 && u.dueSoon > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">· {u.dueSoon} due soon</span>
+              <span className="text-amber-600 dark:text-amber-400"> · {u.dueSoon} due soon</span>
             )}
           </span>
-          {draft.contactStatus !== "Complete" && (
+          {!channelReady && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 shrink-0 inline-flex items-center gap-1">
-              <AlertCircle size={9} /> {draft.contactStatus.replace("Missing ", "No ")}
+              <AlertCircle size={9} /> No {channelLabel(channel)}
             </span>
           )}
         </button>
@@ -190,12 +252,13 @@ export function OutboxCard({
           </Badge>
         ) : (
           <div className="flex items-center gap-1 shrink-0">
+            <ChannelPicker size="xs" />
             <button
               type="button"
               onClick={onCopyAndMark}
-              disabled={pending}
+              disabled={pending || !channelReady}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
-              title="Copy message and mark sent"
+              title={channelReady ? "Copy message and mark sent" : `No ${channelLabel(channel)} contact for this person`}
             >
               <Send size={11} /> {pending ? "…" : "Copy & Sent"}
             </button>
@@ -213,6 +276,7 @@ export function OutboxCard({
     );
   }
 
+  // Expanded card
   return (
     <Card
       className={cn(
@@ -227,17 +291,7 @@ export function OutboxCard({
             <User size={15} />
           </div>
           <div className="min-w-0">
-            <div className="font-medium truncate flex items-center gap-2">
-              {draft.recipientName}
-              {prefersOther && (
-                <span
-                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                  title={`This person prefers ${draft.preferredChannel}`}
-                >
-                  Prefers {draft.preferredChannel}
-                </span>
-              )}
-            </div>
+            <div className="font-medium truncate">{draft.recipientName}</div>
             <div className="text-xs text-fg-muted flex flex-wrap gap-x-2 gap-y-0.5">
               <span>{draft.tasks.length} task{draft.tasks.length === 1 ? "" : "s"}</span>
               {u.overdue > 0 && <span className="text-red-600 dark:text-red-400">· {u.overdue} overdue</span>}
@@ -245,21 +299,20 @@ export function OutboxCard({
               {u.dueSoon > 0 && u.overdue === 0 && u.critical === 0 && (
                 <span className="text-amber-600 dark:text-amber-400">· {u.dueSoon} due soon</span>
               )}
-              {channel === "WHATSAPP" && draft.whatsapp && <span className="text-fg-subtle">· {draft.whatsapp}</span>}
-              {channel === "EMAIL" && draft.email && <span className="text-fg-subtle">· {draft.email}</span>}
-              {channel === "SMS" && draft.phone && <span className="text-fg-subtle">· {draft.phone}</span>}
+              {contactValue && <span className="text-fg-subtle">· {contactValue}</span>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          <ChannelPicker />
           {sent ? (
             <Badge tone={duplicate ? "warn" : "success"}>
               <Check size={11} /> {duplicate ? "Already sent" : "Sent"}
             </Badge>
-          ) : draft.contactStatus === "Complete" ? (
+          ) : channelReady ? (
             <Badge tone="success">Ready</Badge>
           ) : (
-            <Badge tone="warn"><AlertCircle size={11} /> {draft.contactStatus}</Badge>
+            <Badge tone="warn"><AlertCircle size={11} /> No {channelLabel(channel)}</Badge>
           )}
           {compact && (
             <button
@@ -298,7 +351,7 @@ export function OutboxCard({
       <div className="p-3 flex items-center justify-between gap-2 bg-bg-elev border-t border-border">
         {sent ? (
           <span className="text-xs text-fg-subtle inline-flex items-center gap-1.5">
-            <Check size={12} /> {duplicate ? "Was already done today." : `Sent via ${channelLabel(channel)}.`}
+            <CurrentChannelIcon size={12} /> {duplicate ? "Was already done today." : `Sent via ${channelLabel(channel)}.`}
           </span>
         ) : (
           <button
@@ -345,8 +398,9 @@ export function OutboxCard({
             <button
               type="button"
               onClick={onCopyAndMark}
-              disabled={pending}
+              disabled={pending || !channelReady}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
+              title={channelReady ? `Copy & mark sent on ${channelLabel(channel)}` : `No ${channelLabel(channel)} contact`}
             >
               <Send size={12} /> {pending ? "Working…" : "Copy & Mark Sent"}
             </button>

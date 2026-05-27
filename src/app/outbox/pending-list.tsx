@@ -1,18 +1,20 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import type { OutboxDraft } from "@/lib/outbox-gen";
+import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
 import { OutboxCard } from "./outbox-card";
 import { Card } from "@/components/ui";
 import { Search, X, Rows3, Rows2 } from "lucide-react";
 
 const DENSITY_KEY = "cos-outbox-density";
 
-type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 type Filter = "all" | "critical" | "overdue" | "missing";
 
-type Item = { draft: OutboxDraft; alreadySent: boolean };
+export type PendingItem = {
+  draft: OutboxDraft;
+  sentChannels: Channel[];
+};
 
-export function PendingList({ items, channel }: { items: Item[]; channel: Channel }) {
+export function PendingList({ items }: { items: PendingItem[] }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [density, setDensity] = useState<"compact" | "expanded">("compact");
@@ -33,9 +35,7 @@ export function PendingList({ items, channel }: { items: Item[]; channel: Channe
 
   const counts = useMemo(() => {
     const all = items.length;
-    const critical = items.filter((i) =>
-      i.draft.tasks.some((t) => t.priority === "Critical")
-    ).length;
+    const critical = items.filter((i) => i.draft.tasks.some((t) => t.priority === "Critical")).length;
     const overdue = items.filter((i) =>
       i.draft.tasks.some((t) => t.flag === "overdue" || t.flag === "escalate-now")
     ).length;
@@ -101,8 +101,8 @@ export function PendingList({ items, channel }: { items: Item[]; channel: Channe
             <OutboxCard
               key={a.draft.recipientName}
               draft={a.draft}
-              channel={channel}
               alreadySent={false}
+              sentChannels={new Set(a.sentChannels)}
               compact
             />
           ))}
@@ -113,8 +113,8 @@ export function PendingList({ items, channel }: { items: Item[]; channel: Channe
             <OutboxCard
               key={a.draft.recipientName}
               draft={a.draft}
-              channel={channel}
               alreadySent={false}
+              sentChannels={new Set(a.sentChannels)}
             />
           ))}
         </div>

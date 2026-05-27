@@ -31,8 +31,33 @@ export async function todaysSentKeys(channel: string): Promise<Set<string>> {
   return new Set(rows.map((r) => r.key));
 }
 
+export type SentToday = Map<string, Set<"WHATSAPP" | "EMAIL" | "SMS">>;
+
+// Parses today's reminders.dedupeKey into a map: lowercased name -> Set of channels sent.
+// dedupeKey format: ${YYYY-MM-DD}|${channel}|${name.toLowerCase()}|${taskIds.sort().join(",")}|daily
+export async function todaysSentChannelsByName(): Promise<SentToday> {
+  const start = startOfDay(new Date());
+  const end = endOfDay(new Date());
+  const rows = await db
+    .select({ key: schema.reminders.dedupeKey, channel: schema.reminders.channel })
+    .from(schema.reminders)
+    .where(and(gte(schema.reminders.createdAt, start), lte(schema.reminders.createdAt, end)));
+  const out: SentToday = new Map();
+  for (const r of rows) {
+    const parts = r.key.split("|");
+    const name = parts[2];
+    const ch = (r.channel?.toUpperCase() as "WHATSAPP" | "EMAIL" | "SMS") || "WHATSAPP";
+    if (!name) continue;
+    const s = out.get(name) || new Set();
+    s.add(ch);
+    out.set(name, s);
+  }
+  return out;
+}
+
 export type HistoryEntry = {
   id: number;
+  channel: string;
   recipientName: string | null;
   recipientContact: string | null;
   body: string;
@@ -40,12 +65,9 @@ export type HistoryEntry = {
   status: string;
 };
 
-// Past sent messages for the given channel, grouped by local date (yyyy-mm-dd).
+// Past sent messages across all channels, grouped by local date (yyyy-mm-dd).
 // Returns most-recent first; today's entries are excluded (UI handles today separately).
-export async function historyByDay(
-  channel: string,
-  days: number = 14
-): Promise<Map<string, HistoryEntry[]>> {
+export async function historyByDay(days: number = 14): Promise<Map<string, HistoryEntry[]>> {
   const start = startOfDay(new Date());
   start.setDate(start.getDate() - days);
   const yesterdayEnd = endOfDay(new Date());
@@ -54,6 +76,7 @@ export async function historyByDay(
   const rows = await db
     .select({
       id: schema.outbox.id,
+      channel: schema.outbox.channel,
       recipientName: schema.outbox.recipientName,
       recipientContact: schema.outbox.recipientContact,
       body: schema.outbox.body,
@@ -63,7 +86,6 @@ export async function historyByDay(
     .from(schema.outbox)
     .where(
       and(
-        eq(schema.outbox.channel, channel),
         gte(schema.outbox.createdAt, start),
         lte(schema.outbox.createdAt, yesterdayEnd)
       )

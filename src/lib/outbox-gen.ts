@@ -3,6 +3,10 @@ import { eq } from "drizzle-orm";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
 
+export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
+
+export type ContactStatus = "Complete" | "Missing WhatsApp" | "Missing Email" | "Missing Phone" | "Unknown";
+
 export type OutboxDraft = {
   recipientName: string;
   personId: number | null;
@@ -12,8 +16,12 @@ export type OutboxDraft = {
   preferredChannel: string | null;
   notes: string | null;
   tasks: TaskRow[];
-  message: string;
-  contactStatus: "Complete" | "Missing WhatsApp" | "Missing Email" | "Unknown";
+  // One pre-built message body per channel.
+  messages: Record<Channel, string>;
+  // Per-channel readiness.
+  contactByChannel: Record<Channel, ContactStatus>;
+  // Convenience: overall contact label (uses preferred channel if set, else WhatsApp).
+  contactStatus: ContactStatus;
 };
 
 function fmtDate(d: Date | null): string {
@@ -45,7 +53,15 @@ export function buildSmsMessage(t: TaskRow): string {
   return `${t.code} ${t.companyName}: ${t.actionItem} · Due ${fmtDate(t.deadline)} · ${t.priority}`;
 }
 
-export async function generateDrafts(channel: "WHATSAPP" | "EMAIL" | "SMS"): Promise<OutboxDraft[]> {
+function buildAllMessages(name: string, list: TaskRow[]): Record<Channel, string> {
+  return {
+    WHATSAPP: buildWhatsAppMessage(name, list),
+    EMAIL: buildEmailMessage(name, list),
+    SMS: list.map((t) => buildSmsMessage(t)).join("\n"),
+  };
+}
+
+export async function generateDrafts(): Promise<OutboxDraft[]> {
   const tasks = (await getAllTasks()).filter((t) => isOpen(t.status));
   const people = await db.select().from(schema.people);
   const pByName = new Map(people.map((p) => [p.name, p]));
@@ -67,17 +83,20 @@ export async function generateDrafts(channel: "WHATSAPP" | "EMAIL" | "SMS"): Pro
   for (const [name, list] of byPerson) {
     if (snoozedNames.has(name)) continue;
     const p = pByName.get(name);
-    const message =
-      channel === "WHATSAPP"
-        ? buildWhatsAppMessage(name, list)
-        : channel === "EMAIL"
-        ? buildEmailMessage(name, list)
-        : list.map((t) => buildSmsMessage(t)).join("\n");
 
-    let contactStatus: OutboxDraft["contactStatus"] = "Complete";
-    if (channel === "WHATSAPP" && !p?.whatsapp) contactStatus = "Missing WhatsApp";
-    if (channel === "EMAIL" && !p?.email) contactStatus = "Missing Email";
-    if (!p) contactStatus = "Unknown";
+    const contactByChannel: Record<Channel, ContactStatus> = {
+      WHATSAPP: p ? (p.whatsapp ? "Complete" : "Missing WhatsApp") : "Unknown",
+      EMAIL: p ? (p.email ? "Complete" : "Missing Email") : "Unknown",
+      SMS: p ? (p.phone ? "Complete" : "Missing Phone") : "Unknown",
+    };
+
+    const pref = (p?.preferredChannel?.toUpperCase() as Channel) || "WHATSAPP";
+    const overall: ContactStatus =
+      contactByChannel[pref] === "Complete"
+        ? "Complete"
+        : contactByChannel.WHATSAPP === "Complete" || contactByChannel.EMAIL === "Complete" || contactByChannel.SMS === "Complete"
+          ? "Complete"
+          : contactByChannel[pref];
 
     drafts.push({
       recipientName: name,
@@ -88,8 +107,9 @@ export async function generateDrafts(channel: "WHATSAPP" | "EMAIL" | "SMS"): Pro
       preferredChannel: p?.preferredChannel ?? null,
       notes: p?.notes ?? null,
       tasks: list,
-      message,
-      contactStatus,
+      messages: buildAllMessages(name, list),
+      contactByChannel,
+      contactStatus: overall,
     });
   }
 
