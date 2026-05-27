@@ -9,7 +9,7 @@ import { CompanyKpiStrip } from "./_tabs/company-kpis";
 import { MomentumStrip } from "./_tabs/momentum-strip";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Plus, ArrowLeft, ExternalLink } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,6 @@ export default async function CompanyPage({
   const name = rows[0].companyName;
 
   const openRows = rows.filter((r) => r.status !== "Completed" && r.status !== "Closed");
-  const tableRows = tab === "tasks" ? rows : openRows;
 
   return (
     <div className="space-y-4">
@@ -62,24 +61,20 @@ export default async function CompanyPage({
           <CompanyKpiStrip rows={rows} companyName={name} />
           <MomentumStrip companyId={companyId} />
           <CompanySummary companyId={companyId} />
-          <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted pt-2">
-            Open tasks
-          </h2>
-          <CompanyTaskTable rows={openRows} flagBadgeTone={flagBadgeTone} />
-        </>
-      )}
 
-      {tab === "tasks" && (
-        <>
-          <CompanyKpiStrip rows={rows} companyName={name} />
-          <div className="text-xs text-fg-muted">
-            Showing all {rows.length} tasks (including completed and closed).
-            {" "}
-            <Link href={`/task?view=table&company=${encodeURIComponent(name)}`} className="text-accent hover:underline">
-              Open in main Tasks view →
+          {/* Open tasks — compact hub view */}
+          <div className="flex items-center justify-between pt-2">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">
+              Open tasks ({openRows.length})
+            </h2>
+            <Link
+              href={`/task?view=table&company=${encodeURIComponent(name)}`}
+              className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
+            >
+              <ExternalLink size={11} /> Manage in Registry
             </Link>
           </div>
-          <CompanyTaskTable rows={tableRows} flagBadgeTone={flagBadgeTone} />
+          <CompanyTaskTable rows={openRows} flagBadgeTone={flagBadgeTone} />
         </>
       )}
 

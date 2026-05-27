@@ -1,24 +1,22 @@
 import Link from "next/link";
-import { LayoutDashboard, ListChecks, Activity } from "lucide-react";
+import { LayoutDashboard, Activity } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type CompanyTab = "overview" | "tasks" | "timeline";
+export type CompanyTab = "overview" | "timeline";
 
-export const COMPANY_TABS: CompanyTab[] = ["overview", "tasks", "timeline"];
+export const COMPANY_TABS: CompanyTab[] = ["overview", "timeline"];
 
 export function parseCompanyTab(v: string | undefined): CompanyTab {
-  return v === "tasks" || v === "timeline" ? v : "overview";
+  return v === "timeline" ? v : "overview";
 }
 
 const ICONS: Record<CompanyTab, React.ComponentType<{ size?: number }>> = {
   overview: LayoutDashboard,
-  tasks: ListChecks,
   timeline: Activity,
 };
 
 const LABELS: Record<CompanyTab, string> = {
   overview: "Overview",
-  tasks: "Tasks",
   timeline: "Timeline",
 };
 
