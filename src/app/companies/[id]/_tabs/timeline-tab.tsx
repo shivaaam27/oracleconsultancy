@@ -18,6 +18,7 @@ import {
   sortTimeline,
   mergeStatusIntoUpdates,
   groupBulkRuns,
+  suppressUpdateMetaAudits,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
@@ -26,6 +27,8 @@ import {
   type TimelineBulk,
   type TimelineFilter,
 } from "@/lib/timeline";
+import { UpdateMenu } from "@/components/update-menu";
+import { Pencil } from "lucide-react";
 
 const ITEM_LIMIT = 200;
 
@@ -108,8 +111,11 @@ export async function TimelineTab({
     });
   }
 
-  // Pipeline: sort → merge status into updates → collapse bulk runs.
-  const merged = groupBulkRuns(mergeStatusIntoUpdates(sortTimeline(raw)));
+  // Pipeline: sort → merge status into updates → suppress update-meta audits
+  // (edited/deleted/pinned) → collapse bulk runs.
+  const merged = groupBulkRuns(
+    suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))
+  );
 
   // Counts (post-merge, pre-filter) for the chip strip.
   const counts: Record<TimelineFilter, number> = {
@@ -310,21 +316,38 @@ function TimelineItemView({
           <span className="text-fg-subtle ml-auto whitespace-nowrap">{fmtTime(item.createdAt)}</span>
         </div>
         {item.kind === "update" ? (
-          <div className="bg-accent/5 border border-accent/20 rounded-lg p-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
-              <FilePlus2 size={10} /> Update
-              {item.editedAt && (
-                <span
-                  className="text-fg-subtle italic normal-case tracking-normal"
-                  title={item.originalBody ? `Original: ${item.originalBody}` : "Edited"}
-                >
-                  · edited
-                </span>
-              )}
+          <div className="group bg-accent/5 border border-accent/20 rounded-lg p-2.5 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
+                <FilePlus2 size={10} /> Update
+              </div>
+              <UpdateMenu
+                updateId={item.id}
+                body={item.body}
+                pinned={false}
+                showPin={false}
+              />
             </div>
             <p className="text-sm leading-relaxed">
               <CodeLinkedText text={item.body} />
             </p>
+            {item.editedAt && (
+              item.originalBody ? (
+                <details className="text-[11px] -mt-0.5">
+                  <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-fg-subtle hover:text-fg transition-colors w-fit">
+                    <Pencil size={9} />
+                    <span>edited · view original</span>
+                  </summary>
+                  <div className="mt-1.5 px-2.5 py-1.5 rounded bg-bg-subtle italic text-fg-muted leading-relaxed">
+                    &ldquo;{item.originalBody}&rdquo;
+                  </div>
+                </details>
+              ) : (
+                <span className="text-[11px] text-fg-subtle inline-flex items-center gap-1">
+                  <Pencil size={9} /> edited
+                </span>
+              )
+            )}
             {item.statusChange && (
               <div className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted bg-bg-subtle rounded px-2 py-0.5">
                 <GitCommitHorizontal size={10} />

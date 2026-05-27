@@ -10,11 +10,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
-import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, Pencil } from "lucide-react";
+import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal } from "lucide-react";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
   liftPinnedUpdates,
+  suppressUpdateMetaAudits,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
@@ -23,7 +24,7 @@ import {
 import { CodeLinkedText } from "@/components/code-linked-text";
 import { TimelineFilters } from "@/components/timeline-filters";
 import { UpdateMenu } from "@/components/update-menu";
-import { Pin } from "lucide-react";
+import { Pin, Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -106,9 +107,11 @@ export default async function TaskPage({
     })),
   ];
 
-  // Tier 1 B: stable sort, then A: merge status-change audits into their update,
-  // then Tier 2 L: hoist pinned updates to the top.
-  const merged = liftPinnedUpdates(mergeStatusIntoUpdates(sortTimeline(rawTimeline)));
+  // Pipeline: stable sort → merge status into updates → suppress redundant
+  // edit/delete/pin audit rows → hoist pinned updates to top.
+  const merged = liftPinnedUpdates(
+    suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(rawTimeline)))
+  );
 
   // Counts (before filter) for the chip strip.
   const counts: Record<TimelineFilter, number> = {
@@ -319,14 +322,6 @@ export default async function TaskPage({
                                 <Pin size={9} className="text-accent fill-accent" />
                               )}
                               <span>Update</span>
-                              {item.editedAt && (
-                                <span
-                                  className="text-fg-subtle italic normal-case tracking-normal"
-                                  title={item.originalBody ? `Original: ${item.originalBody}` : "Edited"}
-                                >
-                                  · edited {fmt(item.editedAt)}
-                                </span>
-                              )}
                             </div>
                             <UpdateMenu
                               updateId={item.id}
@@ -337,6 +332,23 @@ export default async function TaskPage({
                           <p className="text-sm leading-relaxed">
                             <CodeLinkedText text={item.body} />
                           </p>
+                          {item.editedAt && (
+                            item.originalBody ? (
+                              <details className="text-[11px] -mt-0.5">
+                                <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-fg-subtle hover:text-fg transition-colors w-fit">
+                                  <Pencil size={9} />
+                                  <span>edited · view original</span>
+                                </summary>
+                                <div className="mt-1.5 px-2.5 py-1.5 rounded bg-bg-subtle italic text-fg-muted leading-relaxed">
+                                  &ldquo;{item.originalBody}&rdquo;
+                                </div>
+                              </details>
+                            ) : (
+                              <span className="text-[11px] text-fg-subtle inline-flex items-center gap-1">
+                                <Pencil size={9} /> edited
+                              </span>
+                            )
+                          )}
                           {item.statusChange && (
                             <div className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted bg-bg-subtle rounded px-2 py-0.5">
                               <GitCommitHorizontal size={10} />

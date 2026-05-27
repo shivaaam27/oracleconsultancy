@@ -76,6 +76,24 @@ export function sortTimeline<T extends { kind: string; createdAt: Date }>(items:
 }
 
 /**
+ * Tier 2 B: hide redundant audit rows about update meta (edited / deleted /
+ * pinned / unpinned). Those changes are already represented inline on the
+ * update bubble itself; surfacing them as separate audit rows in the timeline
+ * just creates strikethrough noise. The rows still exist in DB and on /audit
+ * for governance.
+ */
+const SUPPRESSED_AUDIT_FIELDS = new Set([
+  "Update edited",
+  "Update deleted",
+  "Update pinned",
+  "Update unpinned",
+]);
+
+export function suppressUpdateMetaAudits(items: TimelineItem[]): TimelineItem[] {
+  return items.filter((i) => !(i.kind === "audit" && i.field && SUPPRESSED_AUDIT_FIELDS.has(i.field)));
+}
+
+/**
  * Tier 2 L: hoist pinned updates to the top of a per-task timeline.
  * Multiple pinned updates among themselves sort by pin time desc (most recently
  * pinned first). Used after sortTimeline + mergeStatusIntoUpdates.
