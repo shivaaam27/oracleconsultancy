@@ -260,7 +260,7 @@ const PILL_MAX_PX = 1100;
 const PILL_VIEWPORT_RATIO = 0.96;
 const APPROX_CHIP_PX = 110; // conservative average label-chip width
 
-export function TopPill() {
+export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
   const pathname = usePathname() || "/";
   const { pins, setPins, unpin, toggle, move } = usePins();
   const { open: openPalette } = useCommandPalette();
@@ -423,6 +423,14 @@ export function TopPill() {
           </DropdownMenu.Root>
 
           <span className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
+
+          {/* Company scope switcher (server-rendered slot) */}
+          {scopeSlot && (
+            <>
+              {scopeSlot}
+              <span className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
+            </>
+          )}
 
           {/* Search / palette */}
           <button

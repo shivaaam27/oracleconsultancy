@@ -11,6 +11,16 @@ import { notFound } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
 import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, Pencil } from "lucide-react";
+import {
+  sortTimeline,
+  mergeStatusIntoUpdates,
+  applyTimelineFilter,
+  parseTimelineFilter,
+  type TimelineItem,
+  type TimelineFilter,
+} from "@/lib/timeline";
+import { CodeLinkedText } from "@/components/code-linked-text";
+import { TimelineFilters } from "@/components/timeline-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +48,15 @@ function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "
   return "default";
 }
 
-type TimelineItem =
-  | { kind: "update"; id: number; body: string; createdAt: Date; createdBy: string | null }
-  | { kind: "audit"; id: number; field: string | null; oldValue: string | null; newValue: string | null; changeReason: string | null; entryType: string | null; createdAt: Date; createdBy: string | null };
-
-export default async function TaskPage({ params }: { params: Promise<{ code: string }> }) {
-  const { code } = await params;
+export default async function TaskPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ code: string }>;
+  searchParams: Promise<{ tl?: string }>;
+}) {
+  const [{ code }, sp] = await Promise.all([params, searchParams]);
+  const filter = parseTimelineFilter(sp.tl);
   const all = await getAllTasks();
   const r = all.find((t) => t.code === code);
   if (!r) return notFound();
@@ -61,17 +74,21 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
       .order("created_at", { ascending: false }),
   ]);
 
-  const timeline: TimelineItem[] = [
-    ...(updateRaw ?? []).map((u) => ({
-      kind: "update" as const,
+  const rawTimeline: TimelineItem[] = [
+    ...(updateRaw ?? []).map<TimelineItem>((u) => ({
+      kind: "update",
       id: u.id as number,
+      taskId: r.id,
+      taskCode: r.code,
       body: u.body as string,
       createdAt: new Date(u.created_at as string),
       createdBy: (u.created_by as string | null) ?? null,
     })),
-    ...(auditRaw ?? []).map((a) => ({
-      kind: "audit" as const,
+    ...(auditRaw ?? []).map<TimelineItem>((a) => ({
+      kind: "audit",
       id: a.id as number,
+      taskId: r.id,
+      taskCode: r.code,
       field: (a.field as string | null) ?? null,
       oldValue: (a.old_value as string | null) ?? null,
       newValue: (a.new_value as string | null) ?? null,
@@ -80,7 +97,22 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
       createdAt: new Date(a.created_at as string),
       createdBy: (a.created_by as string | null) ?? null,
     })),
-  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  ];
+
+  // Tier 1 B: stable sort, then A: merge status-change audits into their update.
+  const merged = mergeStatusIntoUpdates(sortTimeline(rawTimeline));
+
+  // Counts (before filter) for the chip strip.
+  const counts: Record<TimelineFilter, number> = {
+    all: merged.length,
+    updates: merged.filter((i) => i.kind === "update").length,
+    status: merged.filter((i) => (i.kind === "update" && i.statusChange) || (i.kind === "audit" && i.field === "Status")).length,
+    field: merged.filter((i) => i.kind === "audit" && i.field !== "Status" && i.entryType !== "CREATE").length,
+    escalation: merged.filter((i) => i.kind === "audit" && (i.entryType === "ESCALATION" || i.field === "Escalation" || i.newValue === "Escalated" || i.newValue === "Yes")).length,
+    bulk: merged.filter((i) => i.kind === "audit" && i.changeReason?.toLowerCase().startsWith("bulk")).length,
+  };
+  const timeline = applyTimelineFilter(merged, filter);
+  const buildTimelineHref = (f: TimelineFilter) => (f === "all" ? `/task/${r.code}` : `/task/${r.code}?tl=${f}`);
 
   const update = updateTask.bind(null, code);
   const remove = deleteTask.bind(null, code);
@@ -147,7 +179,7 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
       {r.latestUpdate && (
         <div className="border-l-2 border-accent pl-4 py-1">
           <div className="text-xs text-fg-muted mb-0.5">Latest update · {fmt(r.lastUpdatedAt)}</div>
-          <p className="text-sm">{r.latestUpdate}</p>
+          <p className="text-sm"><CodeLinkedText text={r.latestUpdate} /></p>
         </div>
       )}
 
@@ -235,10 +267,19 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
 
           <UpdateBox taskId={r.id} taskCode={r.code} currentStatus={r.status} />
 
+          {/* Filter chips */}
+          {counts.all > 0 && (
+            <TimelineFilters current={filter} counts={counts} buildHref={buildTimelineHref} />
+          )}
+
           {/* Timeline */}
           <div className="space-y-0">
             {timeline.length === 0 ? (
-              <p className="text-xs text-fg-muted py-4 text-center">No updates yet. Post the first one above.</p>
+              <p className="text-xs text-fg-muted py-4 text-center">
+                {counts.all === 0
+                  ? "No updates yet. Post the first one above."
+                  : "No items match this filter."}
+              </p>
             ) : (
               <div className="relative pl-5">
                 {/* vertical line */}
@@ -248,14 +289,35 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
                   {timeline.map((item) => (
                     <div key={`${item.kind}-${item.id}`} className="relative">
                       {/* dot */}
-                      <div className={`absolute -left-3.5 top-1.5 w-2 h-2 rounded-full border-2 border-bg ${item.kind === "update" ? "bg-accent" : "bg-border"}`} />
+                      <div
+                        className={`absolute -left-3.5 top-1.5 w-2 h-2 rounded-full border-2 border-bg ${
+                          item.kind === "update"
+                            ? "bg-accent"
+                            : item.kind === "audit" && (item.newValue === "Completed" || item.newValue === "Closed")
+                              ? "bg-success"
+                              : "bg-border"
+                        }`}
+                      />
 
                       {item.kind === "update" ? (
-                        <div className="bg-accent/5 border border-accent/20 rounded-lg p-3">
-                          <p className="text-sm leading-relaxed">{item.body}</p>
-                          <p className="text-xs text-fg-muted mt-1.5">{fmt(item.createdAt)}</p>
+                        <div className="bg-accent/5 border border-accent/20 rounded-lg p-3 space-y-1.5">
+                          <p className="text-sm leading-relaxed">
+                            <CodeLinkedText text={item.body} />
+                          </p>
+                          {item.statusChange && (
+                            <div className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted bg-bg-subtle rounded px-2 py-0.5">
+                              <GitCommitHorizontal size={10} />
+                              <span>Status</span>
+                              {item.statusChange.from && (
+                                <span className="line-through">{item.statusChange.from}</span>
+                              )}
+                              <span>→</span>
+                              <span className="text-fg font-medium">{item.statusChange.to}</span>
+                            </div>
+                          )}
+                          <p className="text-xs text-fg-muted">{fmt(item.createdAt)}</p>
                         </div>
-                      ) : (
+                      ) : item.kind === "audit" ? (
                         <div className="rounded-lg px-3 py-2 bg-bg-subtle">
                           {item.entryType === "CREATE" ? (
                             <p className="text-xs text-fg-muted">Task created</p>
@@ -267,12 +329,16 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
                                 {item.oldValue && item.newValue && <GitCommitHorizontal size={10} />}
                                 {item.newValue && <span className="text-fg">{item.newValue}</span>}
                               </div>
-                              {item.changeReason && <p className="italic text-fg-muted">{item.changeReason}</p>}
+                              {item.changeReason && (
+                                <p className="italic text-fg-muted">
+                                  <CodeLinkedText text={item.changeReason} />
+                                </p>
+                              )}
                             </div>
                           )}
                           <p className="text-xs text-fg-subtle mt-1">{fmt(item.createdAt)}</p>
                         </div>
-                      )}
+                      ) : null /* per-task page doesn't surface bulk runs as a separate kind */}
                     </div>
                   ))}
                 </div>

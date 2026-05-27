@@ -439,6 +439,134 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
   updateTag("tasks");
 }
 
+/* ----------------------------------------------------------------------
+ * Bulk operations
+ * ----------------------------------------------------------------------
+ * Applied to many tasks at once from the Tasks page selection toolbar.
+ * Each task gets its own audit-log entry so history stays per-task.
+ * No undo token (bulk undo is intentionally not supported — the user is
+ * expected to confirm before applying).
+ */
+
+export type BulkAction =
+  | { kind: "status"; value: string }
+  | { kind: "priority"; value: string }
+  | { kind: "postpone"; days: number }
+  | { kind: "escalate" }
+  | { kind: "close" }
+  | { kind: "update"; body: string };
+
+export type BulkResult = {
+  ok: boolean;
+  applied: number;
+  skipped: number;
+  errors: { code: string; error: string }[];
+};
+
+export async function bulkUpdateTasks(codes: string[], action: BulkAction): Promise<BulkResult> {
+  if (!Array.isArray(codes) || codes.length === 0) {
+    return { ok: false, applied: 0, skipped: 0, errors: [{ code: "-", error: "No tasks selected" }] };
+  }
+
+  const errors: { code: string; error: string }[] = [];
+  let applied = 0;
+  let skipped = 0;
+
+  for (const code of codes) {
+    try {
+      const t = await findTaskByCode(code);
+      if (!t) {
+        errors.push({ code, error: "Not found" });
+        continue;
+      }
+
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const patch: Record<string, unknown> = { last_updated_at: nowIso };
+      let field = "";
+      let oldVal: unknown = null;
+      let newVal: unknown = null;
+      let changeReason: string | null = null;
+
+      if (action.kind === "status") {
+        if (t.status === action.value) { skipped++; continue; }
+        const wasClosed = t.status === "Completed" || t.status === "Closed";
+        const isClosed = action.value === "Completed" || action.value === "Closed";
+        patch.status = action.value;
+        if (isClosed && !wasClosed) patch.closed_date = nowIso;
+        else if (!isClosed && wasClosed) patch.closed_date = null;
+        field = "Status";
+        oldVal = t.status;
+        newVal = action.value;
+        changeReason = "Bulk update";
+      } else if (action.kind === "priority") {
+        if (t.priority === action.value) { skipped++; continue; }
+        patch.priority = action.value;
+        field = "Priority";
+        oldVal = t.priority;
+        newVal = action.value;
+        changeReason = "Bulk update";
+      } else if (action.kind === "postpone") {
+        const base = t.deadline ? new Date(t.deadline) : new Date();
+        const next = new Date(base);
+        next.setDate(next.getDate() + action.days);
+        patch.deadline = next.toISOString();
+        field = "Deadline";
+        oldVal = t.deadline ? new Date(t.deadline) : null;
+        newVal = next;
+        changeReason = `Bulk: postponed ${action.days}d`;
+      } else if (action.kind === "escalate") {
+        if (t.escalation === "Yes" && t.status === "Escalated") { skipped++; continue; }
+        patch.escalation = "Yes";
+        patch.status = "Escalated";
+        field = "Escalation";
+        oldVal = t.escalation;
+        newVal = "Yes";
+        changeReason = "Bulk: escalated";
+      } else if (action.kind === "close") {
+        if (t.status === "Closed") { skipped++; continue; }
+        patch.status = "Closed";
+        patch.closed_date = nowIso;
+        field = "Status";
+        oldVal = t.status;
+        newVal = "Closed";
+        changeReason = "Bulk: closed";
+      } else if (action.kind === "update") {
+        const body = action.body.trim();
+        if (!body) { skipped++; continue; }
+        // Append a task_updates row + denormalised latest_update mirror
+        await sb.from("task_updates").insert({
+          task_id: t.id,
+          body,
+          created_at: nowIso,
+          created_by: "web-ui",
+        });
+        patch.latest_update = body;
+        field = "Update";
+        oldVal = null;
+        newVal = body;
+        changeReason = null;
+      }
+
+      if (field) {
+        await logChangeSb(t.id, t.code, t.company_id, field, oldVal, newVal, changeReason);
+      }
+      await sb.from("tasks").update(patch).eq("id", t.id);
+      applied++;
+    } catch (e) {
+      errors.push({ code, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  revalidatePath("/task");
+  revalidatePath("/registry");
+  revalidatePath("/escalations");
+  revalidatePath("/");
+  updateTag("tasks");
+
+  return { ok: errors.length === 0, applied, skipped, errors };
+}
+
 export async function inlineUpdateTask(
   code: string,
   field: "status" | "priority" | "deadline" | "category" | "escalation",

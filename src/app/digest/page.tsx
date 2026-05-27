@@ -1,9 +1,11 @@
 import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
+import { getScopedCompanyId } from "@/lib/scope";
 import { isOpen } from "@/lib/derive";
-import { PageHeader, Card } from "@/components/ui";
+import { PageHeader, Card, Badge } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
 import { DigestNarrative } from "@/components/digest-narrative";
 import { FileText } from "lucide-react";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,9 @@ function wasRecentlyClosed(d: Date | null) {
 }
 
 export default async function DigestPage() {
-  const rows = await getAllTasks();
+  const [allRows, scopedId] = await Promise.all([getAllTasks(), getScopedCompanyId()]);
+  const rows = scopedId != null ? allRows.filter((r) => r.companyId === scopedId) : allRows;
+  const scopeName = scopedId != null ? rows[0]?.companyName ?? null : null;
   const kpis = computeCompanyKpis(rows);
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
@@ -39,9 +43,12 @@ export default async function DigestPage() {
   const recentlyClosed = rows.filter(r => (r.status === "Completed" || r.status === "Closed") && wasRecentlyClosed(r.closedDate));
 
   // Build the plain-text digest
+  const headerSub = scopeName
+    ? `${scopeName.toUpperCase()} · Chief of Staff briefing`
+    : `Oracle Group · Chief of Staff Command Center`;
   const lines: string[] = [
     `📊 COS WEEKLY DIGEST — ${today.toUpperCase()}`,
-    `Oracle Group · Chief of Staff Command Center`,
+    headerSub,
     ``,
   ];
 
@@ -78,7 +85,7 @@ export default async function DigestPage() {
     lines.push(``);
   }
 
-  lines.push(`📋 COMPANY SNAPSHOT`);
+  lines.push(scopeName ? `📋 SNAPSHOT` : `📋 COMPANY SNAPSHOT`);
   for (const c of kpis) {
     const parts = [];
     if (c.open) parts.push(`${c.open} open`);
@@ -136,11 +143,26 @@ export default async function DigestPage() {
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between gap-4">
         <PageHeader
-          title="Weekly Digest"
+          title={scopeName ? `${scopeName} · Weekly Digest` : "Weekly Digest"}
           sub={`Auto-generated summary · ${today}`}
         />
         <CopyButton text={digestText} label="Copy to Clipboard" />
       </div>
+
+      {scopeName && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs">
+          <div className="flex items-center gap-2 text-fg-muted">
+            <Badge tone="info">Scoped</Badge>
+            <span>
+              This digest covers <strong className="text-fg">{scopeName}</strong> only.
+              Clear the company scope (top bar) for the group-wide digest.
+            </span>
+          </div>
+          <Link href="/digest" className="text-accent hover:underline whitespace-nowrap">
+            Refresh ↻
+          </Link>
+        </div>
+      )}
 
       <DigestNarrative stats={narrativeStats} />
 

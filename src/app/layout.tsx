@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPill } from "@/components/top-pill";
+import { CompanyScopeServer } from "@/components/company-scope-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
 import { ToastProvider } from "@/components/toast";
@@ -26,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <UndoBanner />
             <CommandPaletteProvider>
               <RecentsTracker />
-              <TopPill />
+              <TopPill scopeSlot={<CompanyScopeServer />} />
               <main className="pt-20 px-4 sm:px-6 lg:px-10 pb-12 mx-auto max-w-[1400px]">
                 <PageTransition>{children}</PageTransition>
               </main>

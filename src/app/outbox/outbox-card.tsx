@@ -13,6 +13,35 @@ import { cn } from "@/lib/cn";
 
 type Urgency = "critical" | "warn" | "normal";
 
+type TaskItem = OutboxDraft["tasks"][number];
+
+/**
+ * Bucket a person's tasks by company so cross-company recipients are visually triageable.
+ * Companies are ordered by urgency (most-overdue first), then count desc.
+ */
+function groupByCompany(tasks: TaskItem[]) {
+  const flagOrder = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track", "closed"];
+  const groups = new Map<string, { name: string; accent: string | null; items: TaskItem[] }>();
+  for (const t of tasks) {
+    const key = t.companyName;
+    const cur = groups.get(key) || { name: t.companyName, accent: t.companyAccent ?? null, items: [] };
+    cur.items.push(t);
+    groups.set(key, cur);
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    const aWorst = Math.min(...a.items.map((t) => {
+      const i = flagOrder.indexOf(t.flag);
+      return i === -1 ? flagOrder.length : i;
+    }));
+    const bWorst = Math.min(...b.items.map((t) => {
+      const i = flagOrder.indexOf(t.flag);
+      return i === -1 ? flagOrder.length : i;
+    }));
+    if (aWorst !== bWorst) return aWorst - bWorst;
+    return b.items.length - a.items.length;
+  });
+}
+
 function topTaskOf(tasks: OutboxDraft["tasks"]) {
   if (tasks.length === 0) return null;
   const flagOrder = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track", "closed"];
@@ -268,6 +297,27 @@ export function OutboxCard({
           {topTask ? `${topTask.code} · ${topTask.actionItem}` : ""}
         </button>
 
+        {/* Cross-company hint — coloured dots when this person spans multiple companies */}
+        {(() => {
+          const groups = groupByCompany(draft.tasks);
+          if (groups.length <= 1) return null;
+          return (
+            <div
+              className="hidden lg:inline-flex items-center gap-0.5 shrink-0"
+              title={groups.map((g) => `${g.name} · ${g.items.length}`).join("\n")}
+            >
+              {groups.slice(0, 4).map((g) => (
+                <span
+                  key={g.name}
+                  className="inline-block w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: g.accent || "var(--accent)" }}
+                />
+              ))}
+              <span className="text-[10px] text-fg-subtle ml-1">{groups.length} cos</span>
+            </div>
+          );
+        })()}
+
         {/* Contact value preview for current channel */}
         {channelReady && contactValue && (
           <span className="text-[11px] text-fg-subtle truncate max-w-[140px] tabular shrink-0 hidden md:inline">
@@ -363,6 +413,68 @@ export function OutboxCard({
           )}
         </div>
       </div>
+
+      {/* By-company breakdown — surfaces cross-company recipients without changing dedupe */}
+      {(() => {
+        const groups = groupByCompany(draft.tasks);
+        if (groups.length === 0) return null;
+        return (
+          <div className="px-4 py-3 border-b border-border bg-bg-subtle/30 space-y-2">
+            <div className="text-[10px] uppercase tracking-wider text-fg-subtle">
+              By company
+              {groups.length > 1 && (
+                <span className="ml-1 text-amber-600 dark:text-amber-400">
+                  · {groups.length} companies
+                </span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              {groups.map((g) => {
+                const od = g.items.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length;
+                const crit = g.items.filter((t) => t.priority === "Critical").length;
+                return (
+                  <div key={g.name} className="flex items-start gap-2 text-xs">
+                    <span
+                      className="inline-block w-2 h-2 rounded-full mt-1.5 shrink-0"
+                      style={{ backgroundColor: g.accent || "var(--accent)" }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-fg">{g.name}</span>
+                        <span className="text-[10px] text-fg-subtle tabular">
+                          {g.items.length} task{g.items.length === 1 ? "" : "s"}
+                        </span>
+                        {od > 0 && (
+                          <span className="text-[10px] text-red-600 dark:text-red-400 tabular">
+                            · {od} overdue
+                          </span>
+                        )}
+                        {crit > 0 && od === 0 && (
+                          <span className="text-[10px] text-red-600 dark:text-red-400 tabular">
+                            · {crit} critical
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-fg-muted mt-0.5 leading-snug">
+                        {g.items.slice(0, 3).map((t, i) => (
+                          <span key={t.code}>
+                            {i > 0 && <span className="text-fg-subtle"> · </span>}
+                            <span className="font-mono text-[10px] text-fg-subtle">{t.code}</span>{" "}
+                            <span className="text-fg-muted">{t.actionItem}</span>
+                          </span>
+                        ))}
+                        {g.items.length > 3 && (
+                          <span className="text-fg-subtle"> · +{g.items.length - 3} more</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {!sent && draft.notes && (
         <div className="px-4 py-2 text-xs italic text-fg-muted bg-amber-500/5 border-b border-amber-500/20 flex items-start gap-1.5">

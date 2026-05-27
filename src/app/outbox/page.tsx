@@ -1,6 +1,8 @@
 import { generateDrafts } from "@/lib/outbox-gen";
 import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday } from "@/lib/outbox-history";
-import { PageHeader, Card, EmptyState } from "@/components/ui";
+import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
+import { PageHeader, Card, EmptyState, Badge } from "@/components/ui";
+import { Globe2 } from "lucide-react";
 import { UnsnoozeButton } from "./outbox-card";
 import { PendingList, type PendingItem } from "./pending-list";
 import { SentLogDrawer } from "./sent-log-drawer";
@@ -9,12 +11,17 @@ import { Send, Inbox, Check, Clock, BellOff } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function OutboxPage() {
-  const [drafts, sentByName, history, snoozed] = await Promise.all([
+  const [drafts, sentByName, history, snoozed, scopedId, scopeOptions] = await Promise.all([
     generateDrafts(),
     todaysSentChannelsByName(),
     historyByDay(7),
     snoozedToday(),
+    getScopedCompanyId(),
+    getScopeOptions(),
   ]);
+  const scopeName = scopedId != null
+    ? scopeOptions.find((o) => o.id === scopedId)?.name ?? null
+    : null;
 
   // Per-draft sent state across all channels.
   const annotated: (PendingItem & { alreadySent: boolean })[] = drafts.map((d) => {
@@ -92,6 +99,26 @@ export default async function OutboxPage() {
           </div>
         }
       />
+
+      {scopeName && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-xs">
+          <Globe2 size={14} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <Badge tone="warn">Scope ignored</Badge>
+              <span className="font-medium text-fg">
+                Outbox is intentionally global.
+              </span>
+            </div>
+            <p className="text-fg-muted leading-relaxed">
+              You're scoped to <strong className="text-fg">{scopeName}</strong>, but reminders
+              are grouped per person across <em>all</em> their tasks — that way nobody gets
+              pinged twice on the same day or quietly missed. Each card below shows the
+              company breakdown so you can still triage by company at a glance.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Progress strip */}
       {totalToday > 0 && (

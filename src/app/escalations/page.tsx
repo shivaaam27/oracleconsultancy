@@ -1,4 +1,4 @@
-import { getAllTasks } from "@/lib/queries";
+import { getScopedTasks } from "@/lib/scope";
 import { flagLabel, flagColor } from "@/lib/derive";
 import { PageHeader, Badge, TableShell, Th, Td, EmptyState } from "@/components/ui";
 import { Deadline } from "@/components/deadline";
@@ -15,7 +15,7 @@ function tone(f: string): "danger" | "warn" | "default" | "success" | "info" {
 }
 
 export default async function EscalationsPage() {
-  const rows = await getAllTasks();
+  const rows = await getScopedTasks();
 
   const alerts = rows.filter((r) =>
     r.flag === "escalate-now" ||
