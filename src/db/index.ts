@@ -24,3 +24,7 @@ const client = postgres(url, {
 
 export const db = drizzle(client, { schema });
 export { schema };
+
+// Build-time marker so each deploy spawns fresh lambdas (avoids warm
+// instances from prior deploys holding stale connection pools).
+export const DEPLOY_TAG = process.env.VERCEL_DEPLOYMENT_ID || "local";
