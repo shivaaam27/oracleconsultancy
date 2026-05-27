@@ -122,25 +122,37 @@ export const outbox = pgTable("outbox", {
   sentAt: timestamp("sent_at", { mode: "date" }),
 });
 
-export const dailySnapshots = pgTable("daily_snapshots", {
-  id: serial("id").primaryKey(),
-  snapshotDate: timestamp("snapshot_date", { mode: "date" }).notNull(),
-  companyId: integer("company_id").references(() => companies.id),
-  total: integer("total").notNull().default(0),
-  open: integer("open").notNull().default(0),
-  overdue: integer("overdue").notNull().default(0),
-  dueSoon: integer("due_soon").notNull().default(0),
-  blocked: integer("blocked").notNull().default(0),
-  critical: integer("critical").notNull().default(0),
-  escalated: integer("escalated").notNull().default(0),
-  completed: integer("completed").notNull().default(0),
-  closed: integer("closed").notNull().default(0),
-  riskScore: doublePrecision("risk_score").notNull().default(0),
-});
+export const dailySnapshots = pgTable(
+  "daily_snapshots",
+  {
+    id: serial("id").primaryKey(),
+    snapshotDate: timestamp("snapshot_date", { mode: "date" }).notNull(),
+    companyId: integer("company_id").references(() => companies.id),
+    total: integer("total").notNull().default(0),
+    open: integer("open").notNull().default(0),
+    overdue: integer("overdue").notNull().default(0),
+    dueSoon: integer("due_soon").notNull().default(0),
+    blocked: integer("blocked").notNull().default(0),
+    critical: integer("critical").notNull().default(0),
+    escalated: integer("escalated").notNull().default(0),
+    completed: integer("completed").notNull().default(0),
+    closed: integer("closed").notNull().default(0),
+    riskScore: doublePrecision("risk_score").notNull().default(0),
+  },
+  (t) => [uniqueIndex("daily_snapshots_company_date_idx").on(t.companyId, t.snapshotDate)]
+);
 
 export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value"),
+});
+
+export const systemEvents = pgTable("system_events", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull(),         // "cron.snapshots" | "cron.cleanup" | "dispatch" | "error" | "heartbeat"
+  status: text("status").notNull(),     // "ok" | "error" | "skip"
+  details: text("details"),             // JSON string, free-form
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
 });
 
 export const undoTokens = pgTable("undo_tokens", {
