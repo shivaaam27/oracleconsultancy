@@ -15,10 +15,16 @@ export function SavedViewsBar({
   initialViews,
   currentQuery,
   hasFilters,
+  basePath = "/task",
+  extraQuery = "",
 }: {
   initialViews: SavedView[];
   currentQuery: string;
   hasFilters: boolean;
+  /** Base URL for saved-view links. /task for standalone, / for hub. */
+  basePath?: string;
+  /** Extra params to prepend (e.g. "tab=tasks" for hub). */
+  extraQuery?: string;
 }) {
   const [views, setViews] = useState<SavedView[]>(initialViews);
   const [pending, startTransition] = useTransition();
@@ -61,7 +67,7 @@ export function SavedViewsBar({
       {views.map((v) => (
         <span key={v.id} className="inline-flex items-center group">
           <Link
-            href={`/task?${v.query}`}
+            href={`${basePath}?${extraQuery ? `${extraQuery}&` : ""}${v.query}`}
             className="text-xs px-2 py-1 rounded-l-full bg-bg-muted hover:bg-bg-elev"
           >
             {v.name}

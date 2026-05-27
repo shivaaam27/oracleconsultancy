@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui";
 import { InlineEdit } from "@/components/inline-edit";
 import { Deadline } from "@/components/deadline";
 import { TaskHover } from "@/components/task-hover";
+import { TaskDrawerLink } from "@/components/task-drawer-link";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 
 const BOARD_STATUSES = [
@@ -102,9 +103,9 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                     status={r.status}
                     priority={r.priority}
                   >
-                    <Link href={`/task/${r.code}`} className="block">
+                    <TaskDrawerLink code={r.code} className="block w-full text-left">
                       <div className="text-sm leading-snug mb-2 line-clamp-3">{r.actionItem}</div>
-                    </Link>
+                    </TaskDrawerLink>
                   </TaskHover>
                   <div className="flex items-center justify-between text-xs text-fg-muted">
                     <span className="truncate">{r.companyName}</span>

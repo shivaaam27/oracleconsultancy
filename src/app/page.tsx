@@ -43,10 +43,10 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-2">
-      <PageHeader
-        title={tab === "overview" ? "Command Centre" : tab === "companies" ? "Companies" : "Tasks"}
-        sub={tab === "overview" ? today() : undefined}
-      />
+      {/* Only the Overview tab gets a PageHeader. Companies & Tasks render their own headings. */}
+      {tab === "overview" && (
+        <PageHeader title="Command Centre" sub={today()} />
+      )}
 
       <HubTabs current={tab} />
 

@@ -25,7 +25,8 @@ export function CompanyKpiStrip({
   const noOwner = openish.filter((r) => r.assignees.length === 0 && r.status !== "Completed").length;
 
   const enc = encodeURIComponent(companyName);
-  const base = `/task?view=table&company=${enc}`;
+  // Deep-link into the hub Tasks tab pre-filtered by this company.
+  const base = `/?tab=tasks&view=table&company=${enc}`;
 
   const chips: Array<{ label: string; count: number; tone: "danger" | "warn" | "info"; href: string }> = [
     { label: "Overdue", count: overdue, tone: "danger", href: `${base}&flag=overdue` },

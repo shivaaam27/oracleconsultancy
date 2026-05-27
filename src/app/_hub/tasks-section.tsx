@@ -1,5 +1,4 @@
 import { getAllTasks } from "@/lib/queries";
-import { getScopedCompanyId } from "@/lib/scope";
 import { getSavedViews } from "@/lib/task-views";
 import { Card, LinkButton, EmptyState } from "@/components/ui";
 import { SavedViewsBar } from "@/components/saved-views-bar";
@@ -58,13 +57,12 @@ function queryWithoutView(sp: Sp): string {
 }
 
 export async function TasksSection({ sp }: { sp: Sp }) {
-  const [allUnscoped, savedViews, scopedId] = await Promise.all([
+  // Hub Tasks tab is always global — no scope filtering. The scope cookie
+  // applies to /task (standalone) but the hub shows all companies by design.
+  const [all, savedViews] = await Promise.all([
     getAllTasks(),
     getSavedViews(),
-    getScopedCompanyId(),
   ]);
-
-  const all = scopedId != null ? allUnscoped.filter((r) => r.companyId === scopedId) : allUnscoped;
   const view = parseViewMode(sp.view);
   const showClosed = sp.closed === "1";
   const statusOverridesClosed = sp.status === "Closed" || sp.status === "Completed";
@@ -163,8 +161,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       {dayMode && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs">
           <div className="text-fg-muted">
-            Focus mode — overdue, due-soon, escalated, and critical tasks
-            {scopedId != null ? " for this company" : " across all companies"}.
+            Focus mode — overdue, due-soon, escalated, and critical tasks across all companies.
           </div>
           <Link href="/?tab=tasks&all=1" className="text-accent hover:underline whitespace-nowrap">
             Show all tasks →
@@ -252,7 +249,13 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         </form>
       </Card>
 
-      <SavedViewsBar initialViews={savedViews} currentQuery={currentQuery} hasFilters={hasFilters} />
+      <SavedViewsBar
+        initialViews={savedViews}
+        currentQuery={currentQuery}
+        hasFilters={hasFilters}
+        basePath="/"
+        extraQuery="tab=tasks"
+      />
 
       {total === 0 && view !== "calendar" ? (
         <Card className="p-8">

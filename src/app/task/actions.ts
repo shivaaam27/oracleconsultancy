@@ -614,6 +614,7 @@ export async function toggleUpdatePin(updateId: number): Promise<{ ok: boolean; 
 
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
+  revalidatePath("/");
   updateTag("tasks");
   return { ok: true, pinned: !wasPinned };
 }
