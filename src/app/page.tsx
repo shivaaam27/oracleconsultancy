@@ -58,9 +58,30 @@ export default async function DashboardPage() {
     })
     .slice(0, 5);
 
+  // "Today" focus tiles
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+  const isOpenRow = (r: typeof rows[number]) => r.status !== "Completed" && r.status !== "Closed";
+  const focus = {
+    dueToday: rows.filter((r) => isOpenRow(r) && r.deadline && r.deadline >= todayStart && r.deadline <= todayEnd).length,
+    overdue: rows.filter((r) => r.flag === "overdue" || r.flag === "escalate-now").length,
+    stalled: rows.filter((r) => r.flag === "stalled").length,
+    noDeadline: rows.filter((r) => r.flag === "no-deadline").length,
+    critical: rows.filter((r) => r.priority === "Critical" && isOpenRow(r)).length,
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader title="Dashboard" sub={today} />
+
+      {/* Today focus tiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        <FocusTile label="Due Today" count={focus.dueToday} href="/task" tone="warn" />
+        <FocusTile label="Overdue" count={focus.overdue} href="/task?flag=overdue" tone="danger" />
+        <FocusTile label="Stalled" count={focus.stalled} href="/task?flag=stalled" tone="danger" />
+        <FocusTile label="No Deadline" count={focus.noDeadline} href="/task?flag=no-deadline" tone="warn" />
+        <FocusTile label="Critical" count={focus.critical} href="/task?priority=Critical" tone="danger" />
+      </div>
 
       {/* Needs Attention strip */}
       {needsAttention.length > 0 && (
@@ -175,5 +196,35 @@ export default async function DashboardPage() {
       </div>
 
     </div>
+  );
+}
+
+function FocusTile({
+  label,
+  count,
+  href,
+  tone,
+}: {
+  label: string;
+  count: number;
+  href: string;
+  tone: "danger" | "warn" | "info";
+}) {
+  const dim = count === 0;
+  const colour = dim
+    ? "text-fg-subtle border-border"
+    : tone === "danger"
+      ? "text-red-700 dark:text-red-300 border-red-500/40 bg-red-500/[0.04]"
+      : tone === "warn"
+        ? "text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/[0.04]"
+        : "text-blue-700 dark:text-blue-300 border-blue-500/40 bg-blue-500/[0.04]";
+  return (
+    <Link
+      href={href}
+      className={`rounded-xl border px-3 py-2.5 transition-all hover:shadow-sm hover:border-accent ${colour}`}
+    >
+      <div className="text-2xl font-semibold tabular leading-none">{count}</div>
+      <div className="text-xs mt-1.5 text-fg-muted">{label}</div>
+    </Link>
   );
 }
