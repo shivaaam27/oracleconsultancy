@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPill } from "@/components/top-pill";
@@ -9,6 +10,7 @@ import { ToastProvider } from "@/components/toast";
 import { UndoBanner } from "@/components/undo-banner";
 import { DensityScript } from "@/components/density-toggle";
 import { PageTransition } from "@/components/page-transition";
+import { TaskDrawer } from "@/components/task-drawer";
 
 export const metadata: Metadata = {
   title: "COS — Oracle Group Operations",
@@ -31,6 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <PageTransition>{children}</PageTransition>
               </main>
               <TopPill scopeSlot={<CompanyScopeServer />} />
+              <Suspense>
+                <TaskDrawer />
+              </Suspense>
             </CommandPaletteProvider>
           </ToastProvider>
         </ThemeProvider>

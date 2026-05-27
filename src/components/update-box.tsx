@@ -6,9 +6,15 @@ import { addTaskUpdate } from "@/app/task/actions";
 
 const STATUSES = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
 
-type Props = { taskId: number; taskCode: string; currentStatus: string };
+type Props = {
+  taskId: number;
+  taskCode: string;
+  currentStatus: string;
+  /** Called after a successful post — used by TaskDrawer to trigger a re-fetch. */
+  onSuccess?: () => void;
+};
 
-export function UpdateBox({ taskId, taskCode, currentStatus }: Props) {
+export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props) {
   const [body, setBody] = useState("");
   const [status, setStatus] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -22,6 +28,7 @@ export function UpdateBox({ taskId, taskCode, currentStatus }: Props) {
       setBody("");
       setStatus("");
       setSuccess(true);
+      onSuccess?.();
       setTimeout(() => setSuccess(false), 2000);
     });
   }

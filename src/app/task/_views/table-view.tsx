@@ -5,6 +5,7 @@ import { TableShell, Th, Td, Badge } from "@/components/ui";
 import { InlineEdit } from "@/components/inline-edit";
 import { Deadline } from "@/components/deadline";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
+import { TaskDrawerLink } from "@/components/task-drawer-link";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -78,7 +79,9 @@ export function TableView({ rows }: { rows: TaskRow[] }) {
               </Td>
               <Td className="whitespace-nowrap text-fg-muted">{r.department || ""}</Td>
               <Td className="max-w-md">
-                <Link href={`/task/${r.code}`} className="hover:text-accent">{r.actionItem}</Link>
+                <TaskDrawerLink code={r.code} className="hover:text-accent text-left">
+                  {r.actionItem}
+                </TaskDrawerLink>
               </Td>
               <Td className="whitespace-nowrap text-fg-muted">{r.assignees.join(", ")}</Td>
               <Td className="whitespace-nowrap">
