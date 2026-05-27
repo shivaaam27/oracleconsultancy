@@ -139,13 +139,14 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
               Done today · {doneToday.length}
             </SectionLabel>
           </summary>
-          <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="mt-3 space-y-1.5">
             {doneToday.map((a) => (
               <OutboxCard
                 key={a.draft.recipientName}
                 draft={a.draft}
                 channel={channel}
                 alreadySent
+                compact
               />
             ))}
           </div>

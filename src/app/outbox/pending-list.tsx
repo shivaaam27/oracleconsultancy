@@ -1,9 +1,11 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OutboxDraft } from "@/lib/outbox-gen";
 import { OutboxCard } from "./outbox-card";
 import { Card } from "@/components/ui";
-import { Search, X } from "lucide-react";
+import { Search, X, Rows3, Rows2 } from "lucide-react";
+
+const DENSITY_KEY = "cos-outbox-density";
 
 type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 type Filter = "all" | "critical" | "overdue" | "missing";
@@ -13,6 +15,21 @@ type Item = { draft: OutboxDraft; alreadySent: boolean };
 export function PendingList({ items, channel }: { items: Item[]; channel: Channel }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
+  const [density, setDensity] = useState<"compact" | "expanded">("compact");
+
+  useEffect(() => {
+    const stored = (typeof window !== "undefined" && localStorage.getItem(DENSITY_KEY)) as
+      | "compact"
+      | "expanded"
+      | null;
+    if (stored === "compact" || stored === "expanded") setDensity(stored);
+  }, []);
+
+  const toggleDensity = () => {
+    const next = density === "compact" ? "expanded" : "compact";
+    setDensity(next);
+    if (typeof window !== "undefined") localStorage.setItem(DENSITY_KEY, next);
+  };
 
   const counts = useMemo(() => {
     const all = items.length;
@@ -44,7 +61,15 @@ export function PendingList({ items, channel }: { items: Item[]; channel: Channe
         <Chip label="Critical" count={counts.critical} active={filter === "critical"} onClick={() => setFilter(filter === "critical" ? "all" : "critical")} tone="danger" />
         <Chip label="Overdue" count={counts.overdue} active={filter === "overdue"} onClick={() => setFilter(filter === "overdue" ? "all" : "overdue")} tone="danger" />
         <Chip label="Missing contact" count={counts.missing} active={filter === "missing"} onClick={() => setFilter(filter === "missing" ? "all" : "missing")} tone="warn" />
-        <div className="ml-auto relative">
+        <button
+          type="button"
+          onClick={toggleDensity}
+          title={`Density: ${density}`}
+          className="ml-auto inline-flex items-center justify-center p-1.5 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors"
+        >
+          {density === "compact" ? <Rows3 size={13} /> : <Rows2 size={13} />}
+        </button>
+        <div className="relative">
           <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
@@ -70,6 +95,18 @@ export function PendingList({ items, channel }: { items: Item[]; channel: Channe
         <Card className="p-6 text-center text-sm text-fg-muted">
           No drafts match these filters.
         </Card>
+      ) : density === "compact" ? (
+        <div className="space-y-1.5">
+          {visible.map((a) => (
+            <OutboxCard
+              key={a.draft.recipientName}
+              draft={a.draft}
+              channel={channel}
+              alreadySent={false}
+              compact
+            />
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {visible.map((a) => (

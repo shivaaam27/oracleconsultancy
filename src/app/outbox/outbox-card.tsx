@@ -1,7 +1,7 @@
 "use client";
 import { Badge, Card } from "@/components/ui";
 import type { OutboxDraft } from "@/lib/outbox-gen";
-import { Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote } from "lucide-react";
+import { Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote, ChevronDown, ChevronUp } from "lucide-react";
 import { useState, useTransition } from "react";
 import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
 import { useToast } from "@/components/toast";
@@ -33,6 +33,12 @@ const stripeClass: Record<Urgency, string> = {
   normal: "border-l-transparent",
 };
 
+const dotClass: Record<Urgency, string> = {
+  critical: "bg-red-500",
+  warn: "bg-amber-500",
+  normal: "bg-fg-subtle/30",
+};
+
 function channelLabel(c: Channel): string {
   return c === "WHATSAPP" ? "WhatsApp" : c === "EMAIL" ? "Email" : "SMS";
 }
@@ -41,10 +47,12 @@ export function OutboxCard({
   draft,
   channel,
   alreadySent = false,
+  compact = false,
 }: {
   draft: OutboxDraft;
   channel: Channel;
   alreadySent?: boolean;
+  compact?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(alreadySent);
@@ -52,6 +60,7 @@ export function OutboxCard({
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState(draft.message);
+  const [expanded, setExpanded] = useState(false);
   const { toast } = useToast();
 
   const doMarkSent = async (): Promise<{ ok: boolean; undoToken?: string }> => {
@@ -138,6 +147,72 @@ export function OutboxCard({
   const prefersOther =
     draft.preferredChannel && draft.preferredChannel.toUpperCase() !== channel;
 
+  // Compact row mode — one line, click to expand
+  if (compact && !expanded) {
+    return (
+      <div
+        className={cn(
+          "card border-l-4 px-3 py-2 flex items-center gap-3 hover:border-accent transition-colors group",
+          stripeClass[u.level],
+          sent && "opacity-60"
+        )}
+      >
+        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotClass[u.level])} />
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex-1 min-w-0 text-left flex items-center gap-2 hover:text-accent transition-colors"
+        >
+          <span className="font-medium truncate">{draft.recipientName}</span>
+          {prefersOther && (
+            <span className="text-[9px] px-1 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 shrink-0">
+              {draft.preferredChannel}
+            </span>
+          )}
+          <span className="text-xs text-fg-muted truncate">
+            · {draft.tasks.length}{" "}
+            {u.overdue > 0 && <span className="text-red-600 dark:text-red-400">· {u.overdue} overdue</span>}
+            {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400">· {u.critical} critical</span>}
+            {u.overdue === 0 && u.critical === 0 && u.dueSoon > 0 && (
+              <span className="text-amber-600 dark:text-amber-400">· {u.dueSoon} due soon</span>
+            )}
+          </span>
+          {draft.contactStatus !== "Complete" && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 shrink-0 inline-flex items-center gap-1">
+              <AlertCircle size={9} /> {draft.contactStatus.replace("Missing ", "No ")}
+            </span>
+          )}
+        </button>
+
+        {sent ? (
+          <Badge tone={duplicate ? "warn" : "success"}>
+            <Check size={11} /> {duplicate ? "Done" : "Sent"}
+          </Badge>
+        ) : (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={onCopyAndMark}
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
+              title="Copy message and mark sent"
+            >
+              <Send size={11} /> {pending ? "…" : "Copy & Sent"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="text-fg-subtle hover:text-fg p-1 rounded-md hover:bg-bg-muted"
+              title="Expand"
+            >
+              <ChevronDown size={13} />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <Card
       className={cn(
@@ -185,6 +260,16 @@ export function OutboxCard({
             <Badge tone="success">Ready</Badge>
           ) : (
             <Badge tone="warn"><AlertCircle size={11} /> {draft.contactStatus}</Badge>
+          )}
+          {compact && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="text-fg-subtle hover:text-fg p-1 rounded-md hover:bg-bg-muted"
+              title="Collapse"
+            >
+              <ChevronUp size={13} />
+            </button>
           )}
         </div>
       </div>
