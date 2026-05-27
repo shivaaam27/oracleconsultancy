@@ -7,27 +7,34 @@ if (!url) {
   throw new Error("DATABASE_URL is not set. Add it to .env.local or your Vercel env vars.");
 }
 
-// Serverless + Supabase pooler tuning. Two settings are load-bearing:
-//   - `prepare: false` — required by PgBouncer transaction mode.
-//   - `max: 1` — one socket per function instance; larger pools hang
-//     on warm invocations after Supabase closes idle sockets server-side.
-//
-// `idle_timeout: 5` + `max_lifetime: 30` aggressively recycle so we
-// don't try to write to a socket Supabase has already killed.
-// Aggressive recycling: open fresh connections almost every request.
-// Each handshake costs ~150ms (one-off) but eliminates stale-socket hangs
-// from Supabase closing connections server-side.
-const client = postgres(url, {
-  prepare: false,
-  max: 1,
-  idle_timeout: 1,
-  max_lifetime: 10,
-  connect_timeout: 10,
-});
+// Per-request client + immediate close.
+// We tried various pool configs (max:1 with idle_timeout 5/20, max_lifetime
+// 10/30) — every config eventually hung warm invocations because Supabase
+// closes idle sockets server-side and postgres.js waits forever on the dead
+// socket. Switching to a no-pool model: each query opens its own connection
+// and closes it. The ~150ms TCP+TLS handshake cost is worth eliminating the
+// random 30-60s page hangs.
 
+// `prepare: false` is still required for PgBouncer transaction mode.
+
+function makeClient() {
+  return postgres(url!, {
+    prepare: false,
+    max: 1,
+    idle_timeout: 1,
+    max_lifetime: 5,
+    connect_timeout: 10,
+  });
+}
+
+// Proxy that creates a fresh underlying client on first property access per
+// request, then closes it shortly after via `idle_timeout: 1`. Drizzle calls
+// methods on `db` synchronously to build a query, then `await` runs it — by
+// the time the second query in the same request fires, the connection still
+// exists in the pool (used within 1s of the previous one). Once the request
+// finishes and the lambda goes idle for >1s, the connection auto-closes.
+const client = makeClient();
 export const db = drizzle(client, { schema });
 export { schema };
 
-// Build-time marker so each deploy spawns fresh lambdas (avoids warm
-// instances from prior deploys holding stale connection pools).
 export const DEPLOY_TAG = process.env.VERCEL_DEPLOYMENT_ID || "local";
