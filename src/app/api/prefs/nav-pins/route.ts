@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 const KEY = "nav.pinned";
 const DEFAULT_PINS = ["capture", "digest", "outbox", "task", "people"];
@@ -8,8 +7,8 @@ const DEFAULT_PINS = ["capture", "digest", "outbox", "task", "people"];
 export const dynamic = "force-dynamic";
 
 async function readPins(): Promise<string[]> {
-  const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, KEY)).limit(1);
-  const raw = rows[0]?.value;
+  const { data } = await sb.from("settings").select("value").eq("key", KEY).maybeSingle();
+  const raw = (data?.value as string | null) ?? null;
   if (!raw) return DEFAULT_PINS;
   try {
     const parsed = JSON.parse(raw);
@@ -30,9 +29,9 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "pins must be string[]" }, { status: 400 });
   }
   const value = JSON.stringify(pins);
-  await db
-    .insert(schema.settings)
-    .values({ key: KEY, value })
-    .onConflictDoUpdate({ target: schema.settings.key, set: { value } });
+  const { error } = await sb
+    .from("settings")
+    .upsert({ key: KEY, value }, { onConflict: "key" });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ pins });
 }

@@ -1,35 +1,33 @@
 import { NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 const KEY = "task.savedViews";
 
 export type SavedView = {
   id: string;
   name: string;
-  // Encoded URL query string for /task — e.g. "company=Dar+Spices&priority=Critical"
   query: string;
 };
 
 export const dynamic = "force-dynamic";
 
 async function readViews(): Promise<SavedView[]> {
-  const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, KEY)).limit(1);
-  const raw = rows[0]?.value;
+  const { data } = await sb.from("settings").select("value").eq("key", KEY).maybeSingle();
+  const raw = (data?.value as string | null) ?? null;
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.filter((v) => v && typeof v.id === "string" && typeof v.name === "string" && typeof v.query === "string");
+    if (Array.isArray(parsed))
+      return parsed.filter(
+        (v) => v && typeof v.id === "string" && typeof v.name === "string" && typeof v.query === "string"
+      );
   } catch {}
   return [];
 }
 
 async function writeViews(views: SavedView[]) {
   const value = JSON.stringify(views);
-  await db
-    .insert(schema.settings)
-    .values({ key: KEY, value })
-    .onConflictDoUpdate({ target: schema.settings.key, set: { value } });
+  await sb.from("settings").upsert({ key: KEY, value }, { onConflict: "key" });
 }
 
 export async function GET() {

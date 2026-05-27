@@ -1,6 +1,4 @@
 import { cache } from "react";
-import { db, schema } from "@/db";
-import { eq, inArray } from "drizzle-orm";
 import { sb } from "@/db/supabase";
 import { flag, isOpen, daysOpen, daysToDeadline } from "./derive";
 

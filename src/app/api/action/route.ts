@@ -5,10 +5,9 @@
 //   POST { command, confirm: true }      → parses AND executes
 
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { eq, ilike, desc, or } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { insertTaskWithUniqueCode } from "@/lib/task-codes";
+import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 export const maxDuration = 60;
 
@@ -93,50 +92,62 @@ async function parseCommand(
   }
 }
 
-async function findTaskByCode(code: string) {
-  // Case-insensitive exact match
-  const rows = await db
-    .select()
-    .from(schema.tasks)
-    .where(ilike(schema.tasks.code, code))
-    .limit(1);
-  return rows[0] || null;
+type TaskRow = {
+  id: number;
+  code: string;
+  company_id: number;
+  status: string;
+  priority: string;
+  escalation: string | null;
+};
+
+async function findTaskByCode(code: string): Promise<TaskRow | null> {
+  const { data } = await sb
+    .from("tasks")
+    .select("id,code,company_id,status,priority,escalation")
+    .ilike("code", code)
+    .maybeSingle();
+  return (data as TaskRow | null) ?? null;
 }
 
-async function findCompanyByName(name: string) {
-  const rows = await db
-    .select()
-    .from(schema.companies)
-    .where(ilike(schema.companies.name, `%${name}%`))
-    .limit(1);
-  return rows[0] || null;
+async function findCompanyByName(name: string): Promise<{ id: number; code: string } | null> {
+  const { data } = await sb
+    .from("companies")
+    .select("id,code")
+    .ilike("name", `%${name}%`)
+    .limit(1)
+    .maybeSingle();
+  return data ? { id: data.id as number, code: data.code as string } : null;
 }
 
-async function findPersonByName(name: string) {
-  const rows = await db
-    .select()
-    .from(schema.people)
-    .where(ilike(schema.people.name, `%${name}%`))
-    .limit(1);
-  return rows[0] || null;
+async function findPersonByName(name: string): Promise<{ id: number; name: string } | null> {
+  const { data } = await sb
+    .from("people")
+    .select("id,name")
+    .ilike("name", `%${name}%`)
+    .limit(1)
+    .maybeSingle();
+  return data ? { id: data.id as number, name: data.name as string } : null;
+}
+
+async function audit(taskId: number, taskCode: string, companyId: number, entryType: string, field: string, oldVal: string | null, newVal: string | null, reason: string) {
+  await sb.from("audit_log").insert({
+    task_id: taskId, task_code: taskCode, company_id: companyId,
+    entry_type: entryType, field,
+    old_value: oldVal, new_value: newVal,
+    change_reason: reason,
+    created_at: new Date().toISOString(), created_by: "ai-command",
+  });
 }
 
 async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: string; redirect?: string }> {
-  const now = new Date();
+  const nowIso = new Date().toISOString();
 
   if (intent.type === "complete") {
     const t = await findTaskByCode(intent.taskCode);
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
-    await db.update(schema.tasks)
-      .set({ status: "Completed", closedDate: now, lastUpdatedAt: now })
-      .where(eq(schema.tasks.id, t.id));
-    await db.insert(schema.auditLog).values({
-      taskId: t.id, taskCode: t.code, companyId: t.companyId,
-      entryType: "STATUS", field: "status",
-      oldValue: t.status, newValue: "Completed",
-      changeReason: "Marked complete via command",
-      createdAt: now, createdBy: "ai-command",
-    });
+    await sb.from("tasks").update({ status: "Completed", closed_date: nowIso, last_updated_at: nowIso }).eq("id", t.id);
+    await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, "Completed", "Marked complete via command");
     revalidatePath("/registry"); revalidatePath("/"); revalidatePath(`/task/${t.code}`);
     return { ok: true, message: `✓ Marked ${t.code} as Completed`, redirect: `/task/${t.code}` };
   }
@@ -144,16 +155,8 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
   if (intent.type === "escalate") {
     const t = await findTaskByCode(intent.taskCode);
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
-    await db.update(schema.tasks)
-      .set({ escalation: "Yes", status: "Escalated", lastUpdatedAt: now })
-      .where(eq(schema.tasks.id, t.id));
-    await db.insert(schema.auditLog).values({
-      taskId: t.id, taskCode: t.code, companyId: t.companyId,
-      entryType: "ESCALATION", field: "escalation",
-      oldValue: t.escalation, newValue: "Yes",
-      changeReason: "Escalated via command",
-      createdAt: now, createdBy: "ai-command",
-    });
+    await sb.from("tasks").update({ escalation: "Yes", status: "Escalated", last_updated_at: nowIso }).eq("id", t.id);
+    await audit(t.id, t.code, t.company_id, "ESCALATION", "escalation", t.escalation, "Yes", "Escalated via command");
     revalidatePath("/escalations"); revalidatePath(`/task/${t.code}`);
     return { ok: true, message: `🚨 Escalated ${t.code}`, redirect: `/task/${t.code}` };
   }
@@ -162,12 +165,12 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     const t = await findTaskByCode(intent.taskCode);
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     if (!intent.body?.trim()) return { ok: false, message: "Update body is empty" };
-    await db.insert(schema.taskUpdates).values({
-      taskId: t.id, body: intent.body, createdAt: now, createdBy: "ai-command",
+    await sb.from("task_updates").insert({
+      task_id: t.id, body: intent.body, created_at: nowIso, created_by: "ai-command",
     });
-    const patch: any = { latestUpdate: intent.body, lastUpdatedAt: now };
+    const patch: Record<string, unknown> = { latest_update: intent.body, last_updated_at: nowIso };
     if (intent.newStatus) patch.status = intent.newStatus;
-    await db.update(schema.tasks).set(patch).where(eq(schema.tasks.id, t.id));
+    await sb.from("tasks").update(patch).eq("id", t.id);
     revalidatePath(`/task/${t.code}`);
     return { ok: true, message: `📝 Added update to ${t.code}`, redirect: `/task/${t.code}` };
   }
@@ -177,16 +180,10 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     const valid = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
     if (!valid.includes(intent.status)) return { ok: false, message: `Invalid status "${intent.status}"` };
-    await db.update(schema.tasks)
-      .set({ status: intent.status, lastUpdatedAt: now, ...(["Completed","Closed"].includes(intent.status) ? { closedDate: now } : {}) })
-      .where(eq(schema.tasks.id, t.id));
-    await db.insert(schema.auditLog).values({
-      taskId: t.id, taskCode: t.code, companyId: t.companyId,
-      entryType: "STATUS", field: "status",
-      oldValue: t.status, newValue: intent.status,
-      changeReason: "Set via command",
-      createdAt: now, createdBy: "ai-command",
-    });
+    const patch: Record<string, unknown> = { status: intent.status, last_updated_at: nowIso };
+    if (["Completed","Closed"].includes(intent.status)) patch.closed_date = nowIso;
+    await sb.from("tasks").update(patch).eq("id", t.id);
+    await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, intent.status, "Set via command");
     revalidatePath(`/task/${t.code}`);
     return { ok: true, message: `✓ ${t.code} → ${intent.status}`, redirect: `/task/${t.code}` };
   }
@@ -196,31 +193,23 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     const valid = ["Critical","High","Medium","Low"];
     if (!valid.includes(intent.priority)) return { ok: false, message: `Invalid priority "${intent.priority}"` };
-    await db.update(schema.tasks)
-      .set({ priority: intent.priority, lastUpdatedAt: now })
-      .where(eq(schema.tasks.id, t.id));
-    await db.insert(schema.auditLog).values({
-      taskId: t.id, taskCode: t.code, companyId: t.companyId,
-      entryType: "PRIORITY", field: "priority",
-      oldValue: t.priority, newValue: intent.priority,
-      changeReason: "Set via command",
-      createdAt: now, createdBy: "ai-command",
-    });
+    await sb.from("tasks").update({ priority: intent.priority, last_updated_at: nowIso }).eq("id", t.id);
+    await audit(t.id, t.code, t.company_id, "PRIORITY", "priority", t.priority, intent.priority, "Set via command");
     revalidatePath(`/task/${t.code}`);
     return { ok: true, message: `⚡ ${t.code} priority → ${intent.priority}`, redirect: `/task/${t.code}` };
   }
 
   if (intent.type === "create") {
     let companyId: number | undefined;
+    let companyCode: string | undefined;
     if (intent.companyName) {
       const c = await findCompanyByName(intent.companyName);
-      if (c) companyId = c.id;
+      if (c) { companyId = c.id; companyCode = c.code; }
     }
-    if (!companyId) return { ok: false, message: `Couldn't match company "${intent.companyName || ""}"` };
-    const company = await db.select().from(schema.companies).where(eq(schema.companies.id, companyId)).limit(1);
-    if (!company.length) return { ok: false, message: "Company not found" };
+    if (!companyId || !companyCode) return { ok: false, message: `Couldn't match company "${intent.companyName || ""}"` };
 
-    const task = await insertTaskWithUniqueCode(companyId, company[0].code, {
+    const now = new Date();
+    const task = await insertTaskWithUniqueCodeSb(companyId, companyCode, {
       actionItem: intent.actionItem,
       status: "Not Started",
       priority: intent.priority || "Low",
@@ -235,17 +224,13 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     if (intent.assignee) {
       const p = await findPersonByName(intent.assignee);
       if (p) {
-        try { await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: p.id }); } catch {}
+        await sb
+          .from("task_assignees")
+          .upsert({ task_id: task.id, person_id: p.id }, { ignoreDuplicates: true });
       }
     }
 
-    await db.insert(schema.auditLog).values({
-      taskId: task.id, taskCode: newCode, companyId,
-      entryType: "CREATE", field: "Task",
-      oldValue: null, newValue: intent.actionItem,
-      changeReason: "Created via command",
-      createdAt: now, createdBy: "ai-command",
-    });
+    await audit(task.id, newCode, companyId, "CREATE", "Task", null, intent.actionItem, "Created via command");
 
     revalidatePath("/registry"); revalidatePath("/");
     return { ok: true, message: `✨ Created ${newCode}: ${intent.actionItem}`, redirect: `/task/${newCode}` };
