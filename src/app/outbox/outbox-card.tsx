@@ -13,6 +13,20 @@ import { cn } from "@/lib/cn";
 
 type Urgency = "critical" | "warn" | "normal";
 
+function topTaskOf(tasks: OutboxDraft["tasks"]) {
+  if (tasks.length === 0) return null;
+  const flagOrder = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track", "closed"];
+  const prioOrder = ["Critical", "High", "Medium", "Low"];
+  return [...tasks].sort((a, b) => {
+    const fa = flagOrder.indexOf(a.flag);
+    const fb = flagOrder.indexOf(b.flag);
+    const fai = fa === -1 ? flagOrder.length : fa;
+    const fbi = fb === -1 ? flagOrder.length : fb;
+    if (fai !== fbi) return fai - fbi;
+    return prioOrder.indexOf(a.priority) - prioOrder.indexOf(b.priority);
+  })[0];
+}
+
 function urgencyOf(tasks: OutboxDraft["tasks"]): {
   level: Urgency;
   overdue: number;
@@ -216,6 +230,7 @@ export function OutboxCard({
 
   // Compact row mode
   if (compact && !expanded) {
+    const topTask = topTaskOf(draft.tasks);
     return (
       <div
         className={cn(
@@ -225,26 +240,40 @@ export function OutboxCard({
         )}
       >
         <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotClass[u.level])} />
+
+        {/* Name + meta — fixed width so it doesn't push actions away */}
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex-1 min-w-0 text-left flex items-center gap-2 hover:text-accent transition-colors"
+          className="text-left flex items-center gap-1.5 hover:text-accent transition-colors shrink-0 w-[180px]"
         >
           <span className="font-medium truncate">{draft.recipientName}</span>
-          <span className="text-xs text-fg-muted truncate">
+          <span className="text-[11px] text-fg-subtle whitespace-nowrap">
             · {draft.tasks.length}
-            {u.overdue > 0 && <span className="text-red-600 dark:text-red-400"> · {u.overdue} overdue</span>}
-            {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400"> · {u.critical} critical</span>}
+            {u.overdue > 0 && <span className="text-red-600 dark:text-red-400"> · {u.overdue} od</span>}
+            {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400"> · {u.critical} crit</span>}
             {u.overdue === 0 && u.critical === 0 && u.dueSoon > 0 && (
-              <span className="text-amber-600 dark:text-amber-400"> · {u.dueSoon} due soon</span>
+              <span className="text-amber-600 dark:text-amber-400"> · {u.dueSoon} soon</span>
             )}
           </span>
-          {!channelReady && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 shrink-0 inline-flex items-center gap-1">
-              <AlertCircle size={9} /> No {channelLabel(channel)}
-            </span>
-          )}
         </button>
+
+        {/* Top task preview — fills the gap with real info */}
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="flex-1 min-w-0 text-left text-xs text-fg-muted truncate hover:text-fg transition-colors"
+          title={topTask?.actionItem}
+        >
+          {topTask ? `${topTask.code} · ${topTask.actionItem}` : ""}
+        </button>
+
+        {/* Contact value preview for current channel */}
+        {channelReady && contactValue && (
+          <span className="text-[11px] text-fg-subtle truncate max-w-[140px] tabular shrink-0 hidden md:inline">
+            {contactValue}
+          </span>
+        )}
 
         {sent ? (
           <Badge tone={duplicate ? "warn" : "success"}>
@@ -252,6 +281,14 @@ export function OutboxCard({
           </Badge>
         ) : (
           <div className="flex items-center gap-1 shrink-0">
+            {!channelReady && (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 inline-flex items-center gap-1"
+                title={`This person has no ${channelLabel(channel)} contact`}
+              >
+                <AlertCircle size={9} /> No {channelLabel(channel)}
+              </span>
+            )}
             <ChannelPicker size="xs" />
             <button
               type="button"

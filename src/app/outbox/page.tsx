@@ -69,7 +69,7 @@ export default async function OutboxPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[960px] mx-auto">
       <PageHeader
         title="Outbox"
         sub={
