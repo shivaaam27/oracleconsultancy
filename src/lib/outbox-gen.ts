@@ -10,6 +10,7 @@ export type OutboxDraft = {
   phone: string | null;
   email: string | null;
   preferredChannel: string | null;
+  notes: string | null;
   tasks: TaskRow[];
   message: string;
   contactStatus: "Complete" | "Missing WhatsApp" | "Missing Email" | "Unknown";
@@ -85,6 +86,7 @@ export async function generateDrafts(channel: "WHATSAPP" | "EMAIL" | "SMS"): Pro
       phone: p?.phone ?? null,
       email: p?.email ?? null,
       preferredChannel: p?.preferredChannel ?? null,
+      notes: p?.notes ?? null,
       tasks: list,
       message,
       contactStatus,

@@ -1,7 +1,7 @@
 "use client";
 import { Badge, Card } from "@/components/ui";
 import type { OutboxDraft } from "@/lib/outbox-gen";
-import { Copy, Check, AlertCircle, User, BellOff, Clock, Send } from "lucide-react";
+import { Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote } from "lucide-react";
 import { useState, useTransition } from "react";
 import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
 import { useToast } from "@/components/toast";
@@ -50,6 +50,8 @@ export function OutboxCard({
   const [sent, setSent] = useState(alreadySent);
   const [duplicate, setDuplicate] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
+  const [message, setMessage] = useState(draft.message);
   const { toast } = useToast();
 
   const doMarkSent = async (): Promise<{ ok: boolean; undoToken?: string }> => {
@@ -57,7 +59,7 @@ export function OutboxCard({
     fd.set("channel", channel);
     fd.set("name", draft.recipientName);
     fd.set("taskCodes", JSON.stringify(draft.tasks.map((t) => t.code)));
-    fd.set("message", draft.message);
+    fd.set("message", message);
     fd.set("contactStatus", draft.contactStatus);
     fd.set(
       "recipientContact",
@@ -94,14 +96,14 @@ export function OutboxCard({
   };
 
   const onCopy = async () => {
-    await navigator.clipboard.writeText(draft.message);
+    await navigator.clipboard.writeText(message);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
   const onCopyAndMark = () => {
     startTransition(async () => {
-      await navigator.clipboard.writeText(draft.message);
+      await navigator.clipboard.writeText(message);
       setCopied(true);
       const { ok, undoToken } = await doMarkSent();
       if (ok) showUndoToast(`Copied & marked sent for ${draft.recipientName}.`, undoToken);
@@ -187,9 +189,24 @@ export function OutboxCard({
         </div>
       </div>
 
+      {!sent && draft.notes && (
+        <div className="px-4 py-2 text-xs italic text-fg-muted bg-amber-500/5 border-b border-amber-500/20 flex items-start gap-1.5">
+          <StickyNote size={11} className="shrink-0 mt-0.5 text-amber-500" />
+          <span>{draft.notes}</span>
+        </div>
+      )}
+
       {!sent && (
         <div className="p-4 bg-bg-subtle/50 max-h-64 overflow-y-auto">
-          <pre className="text-xs whitespace-pre-wrap font-sans text-fg-muted leading-relaxed">{draft.message}</pre>
+          {editing ? (
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full min-h-[180px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-md p-2 focus:outline-none focus:border-accent"
+            />
+          ) : (
+            <pre className="text-xs whitespace-pre-wrap font-sans text-fg-muted leading-relaxed">{message}</pre>
+          )}
         </div>
       )}
 
@@ -212,6 +229,19 @@ export function OutboxCard({
 
         {!sent && (
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setEditing((e) => !e)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors",
+                editing
+                  ? "bg-accent/15 text-accent"
+                  : "text-fg-subtle hover:text-fg hover:bg-bg-muted"
+              )}
+              title={editing ? "Finish editing" : "Edit message before copying"}
+            >
+              {editing ? <X size={12} /> : <Pencil size={12} />}
+            </button>
             <button
               type="button"
               onClick={onCopy}

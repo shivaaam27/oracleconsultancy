@@ -2,6 +2,7 @@ import { generateDrafts, dedupeKey } from "@/lib/outbox-gen";
 import { todaysSentKeys, historyByDay, formatDayLabel, snoozedToday } from "@/lib/outbox-history";
 import { PageHeader, Card, EmptyState } from "@/components/ui";
 import { OutboxCard, UnsnoozeButton } from "./outbox-card";
+import { PendingList } from "./pending-list";
 import Link from "next/link";
 import { Send, MessageCircle, Mail, Phone, Inbox, ChevronDown, Check, Clock, BellOff } from "lucide-react";
 
@@ -125,16 +126,7 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
       ) : (
         <section className="space-y-3">
           <SectionLabel>Today · pending</SectionLabel>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {pending.map((a) => (
-              <OutboxCard
-                key={a.draft.recipientName}
-                draft={a.draft}
-                channel={channel}
-                alreadySent={false}
-              />
-            ))}
-          </div>
+          <PendingList items={pending} channel={channel} />
         </section>
       )}
 
