@@ -1,8 +1,7 @@
 // Shared context loader for AI endpoints (RAG layer).
 // Caches the heavy queries for a short period so we don't hammer the DB on every keystroke.
 
-import { db, schema } from "@/db";
-import { eq, desc, and, or, ilike, isNull, ne } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 export type AIContext = {
   companies: { id: number; name: string; code: string }[];
@@ -17,16 +16,16 @@ const TTL_MS = 5 * 60 * 1000;
 export async function loadContext(force = false): Promise<AIContext> {
   if (!force && cache && Date.now() - cache.ts < TTL_MS) return cache;
 
-  const [companies, people, recent] = await Promise.all([
-    db.select({ id: schema.companies.id, name: schema.companies.name, code: schema.companies.code }).from(schema.companies),
-    db.select({ id: schema.people.id, name: schema.people.name }).from(schema.people),
-    db.select({ actionItem: schema.tasks.actionItem }).from(schema.tasks).orderBy(desc(schema.tasks.createdDate)).limit(30),
+  const [{ data: cRows }, { data: pRows }, { data: rRows }] = await Promise.all([
+    sb.from("companies").select("id,name,code"),
+    sb.from("people").select("id,name"),
+    sb.from("tasks").select("action_item").order("created_date", { ascending: false }).limit(30),
   ]);
 
   cache = {
-    companies,
-    people,
-    recentActionItems: recent.map(r => r.actionItem).filter(s => s.length > 5),
+    companies: (cRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string, code: c.code as string })),
+    people: (pRows ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
+    recentActionItems: (rRows ?? []).map((r) => r.action_item as string).filter((s) => s.length > 5),
     ts: Date.now(),
   };
   return cache;
@@ -52,55 +51,61 @@ export type TaskContext = {
 };
 
 export async function loadTaskContext(taskId: number): Promise<TaskContext | null> {
-  const rows = await db
-    .select({
-      id: schema.tasks.id,
-      code: schema.tasks.code,
-      actionItem: schema.tasks.actionItem,
-      status: schema.tasks.status,
-      priority: schema.tasks.priority,
-      deadline: schema.tasks.deadline,
-      category: schema.tasks.category,
-      escalation: schema.tasks.escalation,
-      createdDate: schema.tasks.createdDate,
-      companyName: schema.companies.name,
-    })
-    .from(schema.tasks)
-    .leftJoin(schema.companies, eq(schema.tasks.companyId, schema.companies.id))
-    .where(eq(schema.tasks.id, taskId))
-    .limit(1);
+  const { data: t } = await sb
+    .from("tasks")
+    .select("id,code,action_item,status,priority,deadline,category,escalation,created_date,company_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!t) return null;
 
-  if (!rows.length) return null;
-  const t = rows[0];
-
-  const [assigneeRows, updateRows] = await Promise.all([
-    db
-      .select({ name: schema.people.name })
-      .from(schema.taskAssignees)
-      .innerJoin(schema.people, eq(schema.taskAssignees.personId, schema.people.id))
-      .where(eq(schema.taskAssignees.taskId, taskId)),
-    db
-      .select({ body: schema.taskUpdates.body, createdAt: schema.taskUpdates.createdAt })
-      .from(schema.taskUpdates)
-      .where(eq(schema.taskUpdates.taskId, taskId))
-      .orderBy(desc(schema.taskUpdates.createdAt))
+  const [{ data: companyRow }, { data: assigneeRows }, { data: updateRows }] = await Promise.all([
+    t.company_id
+      ? sb.from("companies").select("name").eq("id", t.company_id as number).maybeSingle()
+      : Promise.resolve({ data: null }),
+    sb
+      .from("task_assignees")
+      .select("people(name)")
+      .eq("task_id", taskId),
+    sb
+      .from("task_updates")
+      .select("body,created_at")
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: false })
       .limit(5),
   ]);
 
-  const daysOpen = t.createdDate ? Math.floor((Date.now() - new Date(t.createdDate).getTime()) / 86400000) : null;
+  const companyName = companyRow ? ((companyRow.name as string | null) ?? null) : null;
+  const assignees = (assigneeRows ?? [])
+    .map((r) => {
+      const peopleField = (r as { people?: { name?: string } | { name?: string }[] }).people;
+      if (Array.isArray(peopleField)) return peopleField[0]?.name ?? null;
+      return peopleField?.name ?? null;
+    })
+    .filter((n): n is string => !!n);
+
+  const createdDateRaw = t.created_date as string | null;
+  const daysOpen = createdDateRaw
+    ? Math.floor((Date.now() - new Date(createdDateRaw).getTime()) / 86400000)
+    : null;
+  const deadlineRaw = t.deadline as string | null;
 
   return {
-    id: t.id,
-    code: t.code,
-    actionItem: t.actionItem,
-    status: t.status,
-    priority: t.priority,
-    deadline: t.deadline ? new Date(t.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : null,
-    category: t.category,
-    escalation: t.escalation ?? "No",
-    companyName: t.companyName,
-    assignees: assigneeRows.map(a => a.name),
-    recentUpdates: updateRows.map(u => ({ body: u.body, createdAt: new Date(u.createdAt).toISOString() })),
+    id: t.id as number,
+    code: t.code as string,
+    actionItem: t.action_item as string,
+    status: t.status as string,
+    priority: t.priority as string,
+    deadline: deadlineRaw
+      ? new Date(deadlineRaw).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+      : null,
+    category: (t.category as string | null) ?? null,
+    escalation: ((t.escalation as string | null) ?? "No"),
+    companyName,
+    assignees,
+    recentUpdates: (updateRows ?? []).map((u) => ({
+      body: u.body as string,
+      createdAt: new Date(u.created_at as string).toISOString(),
+    })),
     daysOpen,
   };
 }
@@ -125,48 +130,51 @@ export async function findSimilarTasks(
 
   if (!words.length) return [];
 
-  const conditions = words.map(w => ilike(schema.tasks.actionItem, `%${w}%`));
-  const filter = excludeId
-    ? and(or(...conditions), ne(schema.tasks.id, excludeId))
-    : or(...conditions);
-
-  const rows = await db
-    .select({
-      id: schema.tasks.id,
-      code: schema.tasks.code,
-      actionItem: schema.tasks.actionItem,
-      status: schema.tasks.status,
-      createdDate: schema.tasks.createdDate,
-      closedDate: schema.tasks.closedDate,
-      latestUpdate: schema.tasks.latestUpdate,
-      companyName: schema.companies.name,
-    })
-    .from(schema.tasks)
-    .leftJoin(schema.companies, eq(schema.tasks.companyId, schema.companies.id))
-    .where(filter)
+  // PostgREST `or` filter with ilike per word.
+  const orParts = words.map((w) => `action_item.ilike.%${w}%`).join(",");
+  let q = sb
+    .from("tasks")
+    .select("id,code,action_item,status,created_date,closed_date,latest_update,company_id")
+    .or(orParts)
     .limit(50);
+  if (excludeId) q = q.neq("id", excludeId);
+
+  const { data: rows } = await q;
+  if (!rows || rows.length === 0) return [];
+
+  // Hydrate company names
+  const companyIds = Array.from(new Set(rows.map((r) => r.company_id as number).filter(Boolean)));
+  const { data: cRows } = companyIds.length
+    ? await sb.from("companies").select("id,name").in("id", companyIds)
+    : { data: [] };
+  const cMap = new Map((cRows ?? []).map((c) => [c.id as number, c.name as string]));
 
   // Rank by overlap score
-  const scored = rows.map(r => {
-    const text = r.actionItem.toLowerCase();
-    const score = words.reduce((s, w) => s + (text.includes(w) ? 1 : 0), 0);
-    return { row: r, score };
-  })
-  .filter(x => x.score > 0)
-  .sort((a, b) => b.score - a.score)
-  .slice(0, limit);
+  const scored = rows
+    .map((r) => {
+      const text = (r.action_item as string).toLowerCase();
+      const score = words.reduce((s, w) => s + (text.includes(w) ? 1 : 0), 0);
+      return { row: r, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 
-  return scored.map(({ row }) => ({
-    id: row.id,
-    code: row.code,
-    actionItem: row.actionItem,
-    status: row.status,
-    companyName: row.companyName,
-    resolvedInDays: row.closedDate && row.createdDate
-      ? Math.floor((new Date(row.closedDate).getTime() - new Date(row.createdDate).getTime()) / 86400000)
-      : null,
-    latestUpdate: row.latestUpdate,
-  }));
+  return scored.map(({ row }) => {
+    const createdDate = row.created_date as string | null;
+    const closedDate = row.closed_date as string | null;
+    return {
+      id: row.id as number,
+      code: row.code as string,
+      actionItem: row.action_item as string,
+      status: row.status as string,
+      companyName: cMap.get(row.company_id as number) ?? null,
+      resolvedInDays: closedDate && createdDate
+        ? Math.floor((new Date(closedDate).getTime() - new Date(createdDate).getTime()) / 86400000)
+        : null,
+      latestUpdate: (row.latest_update as string | null) ?? null,
+    };
+  });
 }
 
 const STOP_WORDS = new Set([

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
+import { sb } from "@/db/supabase";
 
 export const maxDuration = 60;
 
@@ -48,12 +48,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ tasks: [], source: "no-key" });
     }
 
-    const [companies, people] = await Promise.all([
-      db.select({ name: schema.companies.name }).from(schema.companies),
-      db.select({ name: schema.people.name }).from(schema.people),
+    const [{ data: cRows }, { data: pRows }] = await Promise.all([
+      sb.from("companies").select("name"),
+      sb.from("people").select("name"),
     ]);
-    const cNames = companies.map(c => c.name);
-    const pNames = people.map(p => p.name);
+    const cNames = (cRows ?? []).map((c) => c.name as string);
+    const pNames = (pRows ?? []).map((p) => p.name as string);
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -92,11 +92,10 @@ export async function POST(req: NextRequest) {
 
     // Resolve companyId / map to expected shape
     const tasksResolved = tasks.map((t: any) => {
-      const company = cNames.find(c => c.toLowerCase() === (t.companyName || "").toLowerCase());
-      const companyId = company ? companies[cNames.indexOf(company)] : null;
+      const company = cNames.find((c) => c.toLowerCase() === (t.companyName || "").toLowerCase());
       return {
         actionItem: String(t.actionItem || "").trim(),
-        companyId: companyId ? companies.find(c => c.name === company)?.name : null,
+        companyId: null,
         companyName: company || null,
         assigneeNames: Array.isArray(t.assigneeNames) ? t.assigneeNames.map((n: any) => String(n).trim()).filter(Boolean) : [],
         priority: ["Critical", "High", "Medium", "Low"].includes(t.priority) ? t.priority : "Low",

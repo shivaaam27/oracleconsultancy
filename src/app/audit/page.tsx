@@ -1,18 +1,36 @@
-import { db, schema } from "@/db";
-import { desc } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { PageHeader, TableShell, Th, Td } from "@/components/ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-function fmt(d: Date | null) {
-  return d ? d.toISOString().slice(0, 16).replace("T", " ") : "—";
+function fmt(d: string | null) {
+  return d ? new Date(d).toISOString().slice(0, 16).replace("T", " ") : "—";
 }
 
+type AuditRow = {
+  id: number;
+  task_code: string | null;
+  company_id: number | null;
+  field: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+  created_by: string | null;
+};
+
 export default async function AuditPage() {
-  const rows = await db.select().from(schema.auditLog).orderBy(desc(schema.auditLog.createdAt)).limit(500);
-  const companies = await db.select().from(schema.companies);
-  const cMap = new Map(companies.map((c) => [c.id, c.name]));
+  const [{ data: rowsRaw }, { data: companiesRaw }] = await Promise.all([
+    sb
+      .from("audit_log")
+      .select("id,task_code,company_id,field,old_value,new_value,created_at,created_by")
+      .order("created_at", { ascending: false })
+      .limit(500),
+    sb.from("companies").select("id,name"),
+  ]);
+  const rows = (rowsRaw ?? []) as AuditRow[];
+  const cMap = new Map((companiesRaw ?? []).map((c) => [c.id as number, c.name as string]));
+
   return (
     <div className="space-y-4">
       <PageHeader title="Audit Log" sub={`Showing latest ${rows.length} entries`} />
@@ -32,15 +50,15 @@ export default async function AuditPage() {
           <tbody>
             {rows.map((a) => (
               <tr key={a.id} className="hover:bg-bg-subtle transition-colors">
-                <Td className="font-mono text-xs text-fg-muted whitespace-nowrap">{fmt(a.createdAt)}</Td>
-                <Td className="whitespace-nowrap">{a.companyId ? cMap.get(a.companyId) : ""}</Td>
+                <Td className="font-mono text-xs text-fg-muted whitespace-nowrap">{fmt(a.created_at)}</Td>
+                <Td className="whitespace-nowrap">{a.company_id ? cMap.get(a.company_id) : ""}</Td>
                 <Td className="font-mono text-xs">
-                  {a.taskCode ? <Link href={`/task/${a.taskCode}`} className="hover:text-accent">{a.taskCode}</Link> : ""}
+                  {a.task_code ? <Link href={`/task/${a.task_code}`} className="hover:text-accent">{a.task_code}</Link> : ""}
                 </Td>
                 <Td>{a.field}</Td>
-                <Td className="text-fg-muted max-w-xs truncate">{a.oldValue}</Td>
-                <Td className="max-w-xs truncate">{a.newValue}</Td>
-                <Td className="text-xs text-fg-muted">{a.createdBy}</Td>
+                <Td className="text-fg-muted max-w-xs truncate">{a.old_value}</Td>
+                <Td className="max-w-xs truncate">{a.new_value}</Td>
+                <Td className="text-xs text-fg-muted">{a.created_by}</Td>
               </tr>
             ))}
           </tbody>

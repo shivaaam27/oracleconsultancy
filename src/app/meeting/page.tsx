@@ -1,4 +1,4 @@
-import { db, schema } from "@/db";
+import { sb } from "@/db/supabase";
 import { PageHeader } from "@/components/ui";
 import { MeetingExtractor } from "@/components/meeting-extractor";
 import { NotebookPen } from "lucide-react";
@@ -6,10 +6,8 @@ import { NotebookPen } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function MeetingPage() {
-  const companies = await db
-    .select({ id: schema.companies.id, name: schema.companies.name })
-    .from(schema.companies)
-    .orderBy(schema.companies.name);
+  const { data: rows } = await sb.from("companies").select("id,name").order("name");
+  const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
 
   return (
     <div className="space-y-6 max-w-4xl">

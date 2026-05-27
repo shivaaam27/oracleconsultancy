@@ -1,5 +1,4 @@
-import { db, schema } from "@/db";
-import { eq, desc } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
@@ -49,15 +48,38 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
   const r = all.find((t) => t.code === code);
   if (!r) return notFound();
 
-  const [auditRows, updateRows] = await Promise.all([
-    db.select().from(schema.auditLog).where(eq(schema.auditLog.taskCode, code)).orderBy(desc(schema.auditLog.createdAt)),
-    db.select().from(schema.taskUpdates).where(eq(schema.taskUpdates.taskId, r.id)).orderBy(desc(schema.taskUpdates.createdAt)),
+  const [{ data: auditRaw }, { data: updateRaw }] = await Promise.all([
+    sb
+      .from("audit_log")
+      .select("id,field,old_value,new_value,change_reason,entry_type,created_at,created_by")
+      .eq("task_code", code)
+      .order("created_at", { ascending: false }),
+    sb
+      .from("task_updates")
+      .select("id,body,created_at,created_by")
+      .eq("task_id", r.id)
+      .order("created_at", { ascending: false }),
   ]);
 
-  // Merge into unified timeline sorted newest first
   const timeline: TimelineItem[] = [
-    ...updateRows.map(u => ({ kind: "update" as const, id: u.id, body: u.body, createdAt: u.createdAt, createdBy: u.createdBy })),
-    ...auditRows.map(a => ({ kind: "audit" as const, id: a.id, field: a.field, oldValue: a.oldValue, newValue: a.newValue, changeReason: a.changeReason, entryType: a.entryType, createdAt: a.createdAt, createdBy: a.createdBy })),
+    ...(updateRaw ?? []).map((u) => ({
+      kind: "update" as const,
+      id: u.id as number,
+      body: u.body as string,
+      createdAt: new Date(u.created_at as string),
+      createdBy: (u.created_by as string | null) ?? null,
+    })),
+    ...(auditRaw ?? []).map((a) => ({
+      kind: "audit" as const,
+      id: a.id as number,
+      field: (a.field as string | null) ?? null,
+      oldValue: (a.old_value as string | null) ?? null,
+      newValue: (a.new_value as string | null) ?? null,
+      changeReason: (a.change_reason as string | null) ?? null,
+      entryType: (a.entry_type as string | null) ?? null,
+      createdAt: new Date(a.created_at as string),
+      createdBy: (a.created_by as string | null) ?? null,
+    })),
   ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   const update = updateTask.bind(null, code);

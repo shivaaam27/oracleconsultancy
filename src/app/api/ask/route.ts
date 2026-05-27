@@ -3,8 +3,7 @@
 // from the DB and asks Groq to answer using that context.
 
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { desc, eq, or, ilike, gte, inArray } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
 
@@ -20,8 +19,55 @@ STYLE:
 - Never invent task codes, names, or dates that aren't in CONTEXT.
 - Keep responses under 200 words unless the question explicitly asks for detail.`;
 
+type RawTaskRow = {
+  id: number;
+  code: string;
+  action_item: string;
+  status: string;
+  priority: string;
+  deadline: string | null;
+  latest_update: string | null;
+  escalation: string | null;
+  company_id: number | null;
+  created_date: string | null;
+  closed_date: string | null;
+  last_updated_at: string | null;
+};
+
+type EnrichedTask = {
+  id: number;
+  code: string;
+  actionItem: string;
+  status: string;
+  priority: string;
+  deadline: string | null;
+  latestUpdate: string | null;
+  escalation: string | null;
+  companyName: string | null;
+  createdDate: string | null;
+  closedDate: string | null;
+};
+
+const TASK_COLS =
+  "id,code,action_item,status,priority,deadline,latest_update,escalation,company_id,created_date,closed_date,last_updated_at";
+
+function enrich(rows: RawTaskRow[], cMap: Map<number, string>): EnrichedTask[] {
+  return rows.map((t) => ({
+    id: t.id,
+    code: t.code,
+    actionItem: t.action_item,
+    status: t.status,
+    priority: t.priority,
+    deadline: t.deadline,
+    latestUpdate: t.latest_update,
+    escalation: t.escalation,
+    companyName: t.company_id ? cMap.get(t.company_id) ?? null : null,
+    createdDate: t.created_date,
+    closedDate: t.closed_date,
+  }));
+}
+
 async function buildContext(question: string) {
-  // Extract keyword tokens (3+ chars) for retrieval
   const tokens = question
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -30,13 +76,14 @@ async function buildContext(question: string) {
     .filter(w => !STOP.has(w))
     .slice(0, 10);
 
-  // Always include companies + people (small lists)
-  const [companies, peopleAll] = await Promise.all([
-    db.select({ id: schema.companies.id, name: schema.companies.name, code: schema.companies.code }).from(schema.companies),
-    db.select({ id: schema.people.id, name: schema.people.name }).from(schema.people),
+  const [{ data: cRows }, { data: pRows }] = await Promise.all([
+    sb.from("companies").select("id,name,code"),
+    sb.from("people").select("id,name"),
   ]);
+  const companies = (cRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string, code: c.code as string }));
+  const peopleAll = (pRows ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
+  const cMap = new Map(companies.map((c) => [c.id, c.name]));
 
-  // Match company by name token
   const matchedCompanies = companies.filter(c =>
     tokens.some(t => c.name.toLowerCase().includes(t) || c.code.toLowerCase() === t)
   );
@@ -44,53 +91,34 @@ async function buildContext(question: string) {
     tokens.some(t => p.name.toLowerCase().split(/\s+/).some(w => w === t || w.startsWith(t)))
   );
 
-  // Question intent flags
   const wantsOverdue = /overdue|late|missed|behind/.test(question.toLowerCase());
   const wantsCritical = /critical|urgent|high.priority|emergency/.test(question.toLowerCase());
   const wantsEscalated = /escalat/.test(question.toLowerCase());
   const wantsClosed = /complet|done|closed|finished/.test(question.toLowerCase());
 
-  // Pull tasks relevant to question
-  const taskConditions = [];
+  // Build OR-of-ilikes for keyword retrieval; optional company-id constraint.
+  const orFilters: string[] = [];
   if (tokens.length) {
-    taskConditions.push(or(...tokens.map(t => ilike(schema.tasks.actionItem, `%${t}%`))));
+    for (const t of tokens) orFilters.push(`action_item.ilike.%${t}%`);
   }
-  if (matchedCompanies.length) {
-    taskConditions.push(or(...matchedCompanies.map(c => eq(schema.tasks.companyId, c.id))));
+  for (const c of matchedCompanies) orFilters.push(`company_id.eq.${c.id}`);
+
+  let relevantTasksRaw: EnrichedTask[] = [];
+  if (orFilters.length) {
+    const { data } = await sb.from("tasks").select(TASK_COLS).or(orFilters.join(",")).limit(60);
+    relevantTasksRaw = enrich((data ?? []) as RawTaskRow[], cMap);
   }
 
-  const relevantTasksRaw = taskConditions.length
-    ? await db
-        .select({
-          id: schema.tasks.id, code: schema.tasks.code, actionItem: schema.tasks.actionItem,
-          status: schema.tasks.status, priority: schema.tasks.priority,
-          deadline: schema.tasks.deadline, latestUpdate: schema.tasks.latestUpdate,
-          escalation: schema.tasks.escalation, companyName: schema.companies.name,
-          createdDate: schema.tasks.createdDate, closedDate: schema.tasks.closedDate,
-        })
-        .from(schema.tasks)
-        .leftJoin(schema.companies, eq(schema.tasks.companyId, schema.companies.id))
-        .where(or(...taskConditions))
-        .limit(60)
-    : [];
-
-  // If no direct keyword match, fall back to general state slice
-  let generalTasks: typeof relevantTasksRaw = [];
+  let generalTasks: EnrichedTask[] = [];
   if (relevantTasksRaw.length < 5) {
-    const since = new Date(Date.now() - 60 * 86400000);
-    generalTasks = await db
-      .select({
-        id: schema.tasks.id, code: schema.tasks.code, actionItem: schema.tasks.actionItem,
-        status: schema.tasks.status, priority: schema.tasks.priority,
-        deadline: schema.tasks.deadline, latestUpdate: schema.tasks.latestUpdate,
-        escalation: schema.tasks.escalation, companyName: schema.companies.name,
-        createdDate: schema.tasks.createdDate, closedDate: schema.tasks.closedDate,
-      })
-      .from(schema.tasks)
-      .leftJoin(schema.companies, eq(schema.tasks.companyId, schema.companies.id))
-      .where(gte(schema.tasks.lastUpdatedAt, since))
-      .orderBy(desc(schema.tasks.lastUpdatedAt))
+    const since = new Date(Date.now() - 60 * 86400000).toISOString();
+    const { data } = await sb
+      .from("tasks")
+      .select(TASK_COLS)
+      .gte("last_updated_at", since)
+      .order("last_updated_at", { ascending: false })
       .limit(40);
+    generalTasks = enrich((data ?? []) as RawTaskRow[], cMap);
   }
 
   // Combine, dedupe, slice
@@ -120,27 +148,33 @@ async function buildContext(question: string) {
   filtered = filtered.slice(0, 20);
 
   // Pull assignees + recent updates for these tasks
-  const taskIds = filtered.map(t => t.id);
+  const taskIds = filtered.map((t) => t.id);
   let updates: { taskId: number; body: string; createdAt: Date }[] = [];
-  let assigneesByTask: Record<number, string[]> = {};
+  const assigneesByTask: Record<number, string[]> = {};
 
   if (taskIds.length) {
-    const [updateRows, aRows] = await Promise.all([
-      db
-        .select({ taskId: schema.taskUpdates.taskId, body: schema.taskUpdates.body, createdAt: schema.taskUpdates.createdAt })
-        .from(schema.taskUpdates)
-        .where(inArray(schema.taskUpdates.taskId, taskIds))
-        .orderBy(desc(schema.taskUpdates.createdAt))
+    const [{ data: updateRows }, { data: aRows }] = await Promise.all([
+      sb
+        .from("task_updates")
+        .select("task_id,body,created_at")
+        .in("task_id", taskIds)
+        .order("created_at", { ascending: false })
         .limit(40),
-      db
-        .select({ taskId: schema.taskAssignees.taskId, name: schema.people.name })
-        .from(schema.taskAssignees)
-        .innerJoin(schema.people, eq(schema.taskAssignees.personId, schema.people.id))
-        .where(inArray(schema.taskAssignees.taskId, taskIds)),
+      sb
+        .from("task_assignees")
+        .select("task_id,people(name)")
+        .in("task_id", taskIds),
     ]);
-    updates = updateRows;
-    for (const a of aRows) {
-      (assigneesByTask[a.taskId] ||= []).push(a.name);
+    updates = (updateRows ?? []).map((u) => ({
+      taskId: u.task_id as number,
+      body: u.body as string,
+      createdAt: new Date(u.created_at as string),
+    }));
+    for (const a of aRows ?? []) {
+      const tid = a.task_id as number;
+      const pf = (a as { people?: { name?: string } | { name?: string }[] }).people;
+      const nm = Array.isArray(pf) ? pf[0]?.name : pf?.name;
+      if (nm) (assigneesByTask[tid] ||= []).push(nm);
     }
   }
 

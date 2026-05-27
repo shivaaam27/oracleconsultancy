@@ -1,4 +1,4 @@
-import { db, schema } from "@/db";
+import { sb } from "@/db/supabase";
 import { QuickCapture } from "@/components/quick-capture";
 import { PageHeader, Card } from "@/components/ui";
 import { Sparkles } from "lucide-react";
@@ -6,9 +6,8 @@ import { Sparkles } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function CapturePage() {
-  const companies = await db
-    .select({ id: schema.companies.id, name: schema.companies.name })
-    .from(schema.companies);
+  const { data: rows } = await sb.from("companies").select("id,name");
+  const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
 
   return (
     <div className="space-y-6 max-w-3xl">

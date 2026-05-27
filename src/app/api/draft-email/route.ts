@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 export const maxDuration = 60;
 
@@ -35,43 +34,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AI not configured" }, { status: 503 });
     }
 
-    // Load task with company, assignees, latest update
-    const taskRows = await db
-      .select({
-        id: schema.tasks.id,
-        code: schema.tasks.code,
-        actionItem: schema.tasks.actionItem,
-        priority: schema.tasks.priority,
-        status: schema.tasks.status,
-        deadline: schema.tasks.deadline,
-        latestUpdate: schema.tasks.latestUpdate,
-        escalation: schema.tasks.escalation,
-        category: schema.tasks.category,
-        companyName: schema.companies.name,
+    const { data: task } = await sb
+      .from("tasks")
+      .select("id,code,action_item,priority,status,deadline,latest_update,escalation,category,company_id")
+      .eq("id", taskId)
+      .maybeSingle();
+
+    if (!task) return NextResponse.json({ error: "task not found" }, { status: 404 });
+
+    const [{ data: company }, { data: aRows }] = await Promise.all([
+      task.company_id
+        ? sb.from("companies").select("name").eq("id", task.company_id as number).maybeSingle()
+        : Promise.resolve({ data: null }),
+      sb.from("task_assignees").select("people(name)").eq("task_id", taskId),
+    ]);
+
+    const companyName = company ? ((company.name as string | null) ?? null) : null;
+    const assignees = (aRows ?? [])
+      .map((r) => {
+        const pf = (r as { people?: { name?: string } | { name?: string }[] }).people;
+        return Array.isArray(pf) ? pf[0]?.name ?? null : pf?.name ?? null;
       })
-      .from(schema.tasks)
-      .leftJoin(schema.companies, eq(schema.tasks.companyId, schema.companies.id))
-      .where(eq(schema.tasks.id, taskId))
-      .limit(1);
+      .filter((n): n is string => !!n);
 
-    if (!taskRows.length) return NextResponse.json({ error: "task not found" }, { status: 404 });
-    const task = taskRows[0];
-
-    const assigneeRows = await db
-      .select({ name: schema.people.name })
-      .from(schema.taskAssignees)
-      .innerJoin(schema.people, eq(schema.taskAssignees.personId, schema.people.id))
-      .where(eq(schema.taskAssignees.taskId, taskId));
-    const assignees = assigneeRows.map(r => r.name);
-
+    const deadlineRaw = task.deadline as string | null;
     const taskContext = {
       code: task.code,
-      company: task.companyName,
-      action: task.actionItem,
+      company: companyName,
+      action: task.action_item,
       priority: task.priority,
       status: task.status,
-      deadline: task.deadline ? new Date(task.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : null,
-      latestUpdate: task.latestUpdate || null,
+      deadline: deadlineRaw
+        ? new Date(deadlineRaw).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+        : null,
+      latestUpdate: (task.latest_update as string | null) || null,
       assignees,
       category: task.category,
       escalation: task.escalation,
@@ -109,7 +105,7 @@ export async function POST(req: NextRequest) {
         subject: parsed.subject || "Follow-up",
         body: parsed.body || "",
         recipient: assignees.join(", ") || null,
-        company: task.companyName,
+        company: companyName,
         taskCode: task.code,
       });
     } catch {

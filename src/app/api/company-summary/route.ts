@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { eq, desc } from "drizzle-orm";
+import { sb } from "@/db/supabase";
+
+type TaskRow = {
+  id: number;
+  code: string;
+  action_item: string;
+  status: string;
+  priority: string;
+  deadline: string | null;
+  closed_date: string | null;
+  latest_update: string | null;
+  escalation: string | null;
+};
 
 export const maxDuration = 60;
 
@@ -24,16 +35,24 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
 
-    const company = await db.select().from(schema.companies).where(eq(schema.companies.id, companyId)).limit(1);
-    if (!company.length) return NextResponse.json({ error: "company not found" }, { status: 404 });
+    const { data: company } = await sb
+      .from("companies")
+      .select("name")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (!company) return NextResponse.json({ error: "company not found" }, { status: 404 });
 
-    const tasks = await db.select().from(schema.tasks).where(eq(schema.tasks.companyId, companyId));
+    const { data: tasksRaw } = await sb
+      .from("tasks")
+      .select("id,code,action_item,status,priority,deadline,closed_date,latest_update,escalation")
+      .eq("company_id", companyId);
+    const tasks = (tasksRaw ?? []) as TaskRow[];
 
     const now = new Date();
     const openTasks = tasks.filter(t => !["Completed", "Closed"].includes(t.status));
     const closed = tasks.filter(t => ["Completed", "Closed"].includes(t.status));
 
-    function dtd(t: typeof tasks[number]) {
+    function dtd(t: TaskRow) {
       if (!t.deadline) return null;
       return Math.floor((new Date(t.deadline).getTime() - now.getTime()) / 86400000);
     }
@@ -44,19 +63,24 @@ export async function POST(req: NextRequest) {
     const dueThisWeek = openTasks.filter(t => { const d = dtd(t); return d !== null && d >= 0 && d <= 7; });
 
     const recentClosed = closed
-      .filter(t => t.closedDate && (now.getTime() - new Date(t.closedDate).getTime()) < 30 * 86400000)
+      .filter(t => t.closed_date && (now.getTime() - new Date(t.closed_date).getTime()) < 30 * 86400000)
       .slice(0, 5);
 
-    const recentUpdates = await db
-      .select({ body: schema.taskUpdates.body, createdAt: schema.taskUpdates.createdAt, taskId: schema.taskUpdates.taskId })
-      .from(schema.taskUpdates)
-      .innerJoin(schema.tasks, eq(schema.taskUpdates.taskId, schema.tasks.id))
-      .where(eq(schema.tasks.companyId, companyId))
-      .orderBy(desc(schema.taskUpdates.createdAt))
-      .limit(8);
+    // Updates for this company's tasks
+    const taskIds = tasks.map((t) => t.id);
+    let recentUpdates: { body: string }[] = [];
+    if (taskIds.length) {
+      const { data: uRows } = await sb
+        .from("task_updates")
+        .select("body,created_at")
+        .in("task_id", taskIds)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      recentUpdates = (uRows ?? []).map((u) => ({ body: u.body as string }));
+    }
 
     const snapshot = {
-      company: company[0].name,
+      company: company.name,
       totals: {
         all: tasks.length,
         open: openTasks.length,
@@ -67,18 +91,18 @@ export async function POST(req: NextRequest) {
         dueThisWeek: dueThisWeek.length,
       },
       overdue: overdue.slice(0, 8).map(t => ({
-        code: t.code, action: t.actionItem, priority: t.priority,
+        code: t.code, action: t.action_item, priority: t.priority,
         daysLate: dtd(t) ? Math.abs(dtd(t)!) : null,
-        status: t.status, latestUpdate: t.latestUpdate,
+        status: t.status, latestUpdate: t.latest_update,
       })),
       critical: critical.slice(0, 6).map(t => ({
-        code: t.code, action: t.actionItem, status: t.status,
+        code: t.code, action: t.action_item, status: t.status,
         deadline: t.deadline ? new Date(t.deadline).toISOString().slice(0, 10) : null,
       })),
       escalated: escalated.slice(0, 6).map(t => ({
-        code: t.code, action: t.actionItem, latestUpdate: t.latestUpdate,
+        code: t.code, action: t.action_item, latestUpdate: t.latest_update,
       })),
-      recentlyClosed: recentClosed.map(t => ({ code: t.code, action: t.actionItem })),
+      recentlyClosed: recentClosed.map(t => ({ code: t.code, action: t.action_item })),
       recentUpdates: recentUpdates.map(u => ({ body: u.body.slice(0, 150) })),
     };
 

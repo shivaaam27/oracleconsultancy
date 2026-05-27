@@ -1,10 +1,11 @@
-import { db, schema } from "@/db";
+import { sb } from "@/db/supabase";
 import { PageHeader, TableShell, Th, Td } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const rows = await db.select().from(schema.settings);
+  const { data: rowsRaw } = await sb.from("settings").select("key,value");
+  const rows = (rowsRaw ?? []) as { key: string; value: string | null }[];
   return (
     <div className="space-y-4">
       <PageHeader title="Settings" sub="Read-only · Editable controls coming in Phase 4" />
