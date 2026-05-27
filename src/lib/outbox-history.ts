@@ -1,6 +1,10 @@
 import { db, schema } from "@/db";
 import { and, eq, gte, lte, desc, isNotNull } from "drizzle-orm";
-import { unstable_cache } from "next/cache";
+
+// Note: previously wrapped these in unstable_cache for cross-request caching,
+// but that caused 300s function timeouts on Vercel — likely a Next 16 +
+// postgres.js + transaction-pooler interaction. Reverted to direct queries;
+// /outbox is fast enough without the cross-request cache.
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -35,7 +39,7 @@ export async function todaysSentKeys(channel: string): Promise<Set<string>> {
 // JSON-safe: returns Record<name, channel[]> so it's cacheable across requests.
 export type SentTodayPlain = Record<string, string[]>;
 
-async function todaysSentChannelsByNameRaw(): Promise<SentTodayPlain> {
+export async function todaysSentChannelsByName(): Promise<SentTodayPlain> {
   const start = startOfDay(new Date());
   const end = endOfDay(new Date());
   const rows = await db
@@ -55,12 +59,6 @@ async function todaysSentChannelsByNameRaw(): Promise<SentTodayPlain> {
   return out;
 }
 
-export const todaysSentChannelsByName = unstable_cache(
-  todaysSentChannelsByNameRaw,
-  ["outbox-sent-today-v1"],
-  { tags: ["outbox"], revalidate: 60 }
-);
-
 export type HistoryEntry = {
   id: number;
   channel: string;
@@ -72,7 +70,7 @@ export type HistoryEntry = {
 };
 
 // JSON-safe: dates as ISO strings; map keyed by day key.
-async function historyByDayRaw(days: number): Promise<Record<string, HistoryEntry[]>> {
+export async function historyByDay(days: number): Promise<Record<string, HistoryEntry[]>> {
   const start = startOfDay(new Date());
   start.setDate(start.getDate() - days);
   const yesterdayEnd = endOfDay(new Date());
@@ -117,19 +115,13 @@ async function historyByDayRaw(days: number): Promise<Record<string, HistoryEntr
   return byDay;
 }
 
-export const historyByDay = unstable_cache(
-  historyByDayRaw,
-  ["outbox-history-v1"],
-  { tags: ["outbox"], revalidate: 60 }
-);
-
 export type SnoozedPerson = {
   id: number;
   name: string;
   snoozedUntil: string; // ISO
 };
 
-async function snoozedTodayRaw(): Promise<SnoozedPerson[]> {
+export async function snoozedToday(): Promise<SnoozedPerson[]> {
   const now = new Date();
   const rows = await db
     .select({ id: schema.people.id, name: schema.people.name, snoozedUntil: schema.people.snoozedUntil })
@@ -140,12 +132,6 @@ async function snoozedTodayRaw(): Promise<SnoozedPerson[]> {
     .map((r) => ({ id: r.id, name: r.name, snoozedUntil: r.snoozedUntil!.toISOString() }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
-
-export const snoozedToday = unstable_cache(
-  snoozedTodayRaw,
-  ["snoozed-today-v1"],
-  { tags: ["people"], revalidate: 60 }
-);
 
 export function formatDayLabel(key: string): string {
   const [y, m, d] = key.split("-").map(Number);
