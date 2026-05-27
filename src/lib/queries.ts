@@ -30,18 +30,16 @@ export type TaskRow = {
   flag: ReturnType<typeof flag>;
 };
 
-// React cache() dedupes within a single render. (Cross-request unstable_cache
-// previously wrapped this but caused 300s timeouts on Vercel — likely a Next 16
-// + postgres.js interaction. Reverted; keeping in-render dedup + parallel reads.)
+// React cache() dedupes within a single render.
+// Sequential reads (Promise.all hung on max:1 pool — postgres.js queues
+// concurrent queries on a single socket but in our setup that deadlocked).
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
-  const [tasks, companies, depts, people, assignees] = await Promise.all([
-    db.select().from(schema.tasks),
-    db.select().from(schema.companies),
-    db.select().from(schema.departments),
-    db.select().from(schema.people),
-    db.select().from(schema.taskAssignees),
-  ]);
+  const tasks = await db.select().from(schema.tasks);
   if (!tasks.length) return [];
+  const companies = await db.select().from(schema.companies);
+  const depts = await db.select().from(schema.departments);
+  const people = await db.select().from(schema.people);
+  const assignees = await db.select().from(schema.taskAssignees);
   const cMap = new Map(companies.map((c) => [c.id, c.name]));
   const cAccent = new Map(companies.map((c) => [c.id, c.accentColor]));
   const dMap = new Map(depts.map((d) => [d.id, d.name]));
