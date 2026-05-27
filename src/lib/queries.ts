@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { db, schema } from "@/db";
 import { eq, inArray } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { flag, isOpen, daysOpen, daysToDeadline } from "./derive";
 
 export type TaskRow = {
@@ -30,53 +31,104 @@ export type TaskRow = {
   flag: ReturnType<typeof flag>;
 };
 
-// React cache() dedupes within a single render.
-// Sequential reads (Promise.all hung on max:1 pool — postgres.js queues
-// concurrent queries on a single socket but in our setup that deadlocked).
+// Migrated to Supabase JS (HTTP / PostgREST) — no persistent socket, no
+// warm-pool hangs. React cache() still dedupes within a single render.
+// Promise.all is safe here because each call is a separate HTTP request.
+type SbTask = {
+  id: number;
+  code: string;
+  company_id: number;
+  department_id: number | null;
+  meeting_date: string | null;
+  action_item: string;
+  owner_id: number | null;
+  created_date: string | null;
+  deadline: string | null;
+  status: string;
+  priority: string;
+  category: string | null;
+  risk: string | null;
+  escalation: string | null;
+  comments: string | null;
+  latest_update: string | null;
+  last_updated_at: string | null;
+  closed_date: string | null;
+  archived: boolean;
+};
+type SbCompany = { id: number; name: string; accent_color: string | null };
+type SbDept = { id: number; name: string };
+type SbPerson = { id: number; name: string };
+type SbAssignee = { task_id: number; person_id: number };
+
+function toDate(s: string | null): Date | null {
+  return s ? new Date(s) : null;
+}
+
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
-  const tasks = await db.select().from(schema.tasks);
+  const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes] = await Promise.all([
+    sb.from("tasks").select("id,code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),
+    sb.from("companies").select("id,name,accent_color"),
+    sb.from("departments").select("id,name"),
+    sb.from("people").select("id,name"),
+    sb.from("task_assignees").select("task_id,person_id"),
+  ]);
+
+  if (tasksRes.error) throw new Error(tasksRes.error.message);
+  if (companiesRes.error) throw new Error(companiesRes.error.message);
+  if (deptsRes.error) throw new Error(deptsRes.error.message);
+  if (peopleRes.error) throw new Error(peopleRes.error.message);
+  if (assigneesRes.error) throw new Error(assigneesRes.error.message);
+
+  const tasks = (tasksRes.data ?? []) as SbTask[];
   if (!tasks.length) return [];
-  const companies = await db.select().from(schema.companies);
-  const depts = await db.select().from(schema.departments);
-  const people = await db.select().from(schema.people);
-  const assignees = await db.select().from(schema.taskAssignees);
-  const cMap = new Map(companies.map((c) => [c.id, c.name]));
-  const cAccent = new Map(companies.map((c) => [c.id, c.accentColor]));
-  const dMap = new Map(depts.map((d) => [d.id, d.name]));
-  const pMap = new Map(people.map((p) => [p.id, p.name]));
+  const companies = (companiesRes.data ?? []) as SbCompany[];
+  const depts = (deptsRes.data ?? []) as SbDept[];
+  const people = (peopleRes.data ?? []) as SbPerson[];
+  const assignees = (assigneesRes.data ?? []) as SbAssignee[];
+
+  const cName = new Map(companies.map((c) => [c.id, c.name]));
+  const cAccent = new Map(companies.map((c) => [c.id, c.accent_color]));
+  const dName = new Map(depts.map((d) => [d.id, d.name]));
+  const pName = new Map(people.map((p) => [p.id, p.name]));
   const aMap = new Map<number, string[]>();
   for (const a of assignees) {
-    const list = aMap.get(a.taskId) || [];
-    list.push(pMap.get(a.personId) || "");
-    aMap.set(a.taskId, list);
+    const list = aMap.get(a.task_id) || [];
+    list.push(pName.get(a.person_id) || "");
+    aMap.set(a.task_id, list);
   }
 
-  return tasks.map((t) => ({
-    id: t.id,
-    code: t.code,
-    companyId: t.companyId,
-    companyName: cMap.get(t.companyId) || "",
-    companyAccent: cAccent.get(t.companyId) ?? null,
-    department: t.departmentId ? dMap.get(t.departmentId) || null : null,
-    actionItem: t.actionItem,
-    owner: t.ownerId ? pMap.get(t.ownerId) || null : null,
-    assignees: aMap.get(t.id) || [],
-    meetingDate: t.meetingDate,
-    createdDate: t.createdDate,
-    deadline: t.deadline,
-    status: t.status,
-    priority: t.priority,
-    category: t.category,
-    risk: t.risk,
-    escalation: t.escalation,
-    comments: t.comments,
-    latestUpdate: t.latestUpdate,
-    lastUpdatedAt: t.lastUpdatedAt,
-    closedDate: t.closedDate,
-    daysOpen: daysOpen(t),
-    daysToDeadline: daysToDeadline(t),
-    flag: flag(t),
-  }));
+  return tasks.map((t): TaskRow => {
+    const deadline = toDate(t.deadline);
+    const createdDate = toDate(t.created_date);
+    const closedDate = toDate(t.closed_date);
+    const derived = { status: t.status, priority: t.priority, createdDate, deadline, closedDate };
+    return {
+      id: t.id,
+      code: t.code,
+      companyId: t.company_id,
+      companyName: cName.get(t.company_id) || "",
+      companyAccent: cAccent.get(t.company_id) ?? null,
+      department: t.department_id ? dName.get(t.department_id) || null : null,
+      actionItem: t.action_item,
+      owner: t.owner_id ? pName.get(t.owner_id) || null : null,
+      assignees: aMap.get(t.id) || [],
+      meetingDate: toDate(t.meeting_date),
+      createdDate,
+      deadline,
+      status: t.status,
+      priority: t.priority,
+      category: t.category,
+      risk: t.risk,
+      escalation: t.escalation,
+      comments: t.comments,
+      latestUpdate: t.latest_update,
+      lastUpdatedAt: toDate(t.last_updated_at),
+      closedDate,
+      daysOpen: daysOpen(derived),
+      daysToDeadline: daysToDeadline(derived),
+      flag: flag(derived),
+    };
+  });
 });
 
 export type CompanyKpi = {
