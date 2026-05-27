@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { db, schema } from "@/db";
 import { eq, inArray } from "drizzle-orm";
 import { flag, isOpen, daysOpen, daysToDeadline } from "./derive";
@@ -30,53 +31,97 @@ export type TaskRow = {
   flag: ReturnType<typeof flag>;
 };
 
-export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
-  // Run independent reads in parallel; pool=5 allows up to 5 concurrent sockets.
-  const [tasks, companies, depts, people, assignees] = await Promise.all([
-    db.select().from(schema.tasks),
-    db.select().from(schema.companies),
-    db.select().from(schema.departments),
-    db.select().from(schema.people),
-    db.select().from(schema.taskAssignees),
-  ]);
-  if (!tasks.length) return [];
-  const cMap = new Map(companies.map((c) => [c.id, c.name]));
-  const cAccent = new Map(companies.map((c) => [c.id, c.accentColor]));
-  const dMap = new Map(depts.map((d) => [d.id, d.name]));
-  const pMap = new Map(people.map((p) => [p.id, p.name]));
-  const aMap = new Map<number, string[]>();
-  for (const a of assignees) {
-    const list = aMap.get(a.taskId) || [];
-    list.push(pMap.get(a.personId) || "");
-    aMap.set(a.taskId, list);
-  }
+// JSON-safe shape stored in the cross-request cache. Dates as ISO strings;
+// derived fields (daysOpen / daysToDeadline / flag) are recomputed on revival
+// so they stay accurate even when the cache is hours old.
+type TaskRowSerial = Omit<TaskRow, "meetingDate" | "createdDate" | "deadline" | "lastUpdatedAt" | "closedDate" | "daysOpen" | "daysToDeadline" | "flag"> & {
+  meetingDate: string | null;
+  createdDate: string | null;
+  deadline: string | null;
+  lastUpdatedAt: string | null;
+  closedDate: string | null;
+};
 
-  return tasks.map((t) => ({
-    id: t.id,
-    code: t.code,
-    companyId: t.companyId,
-    companyName: cMap.get(t.companyId) || "",
-    companyAccent: cAccent.get(t.companyId) ?? null,
-    department: t.departmentId ? dMap.get(t.departmentId) || null : null,
-    actionItem: t.actionItem,
-    owner: t.ownerId ? pMap.get(t.ownerId) || null : null,
-    assignees: aMap.get(t.id) || [],
-    meetingDate: t.meetingDate,
-    createdDate: t.createdDate,
-    deadline: t.deadline,
-    status: t.status,
-    priority: t.priority,
-    category: t.category,
-    risk: t.risk,
-    escalation: t.escalation,
-    comments: t.comments,
-    latestUpdate: t.latestUpdate,
-    lastUpdatedAt: t.lastUpdatedAt,
-    closedDate: t.closedDate,
-    daysOpen: daysOpen(t),
-    daysToDeadline: daysToDeadline(t),
-    flag: flag(t),
-  }));
+function iso(d: Date | null): string | null {
+  return d ? d.toISOString() : null;
+}
+function toDate(s: string | null): Date | null {
+  return s ? new Date(s) : null;
+}
+
+const getAllTasksSerial = unstable_cache(
+  async (): Promise<TaskRowSerial[]> => {
+    // Run independent reads in parallel; pool=5 allows up to 5 concurrent sockets.
+    const [tasks, companies, depts, people, assignees] = await Promise.all([
+      db.select().from(schema.tasks),
+      db.select().from(schema.companies),
+      db.select().from(schema.departments),
+      db.select().from(schema.people),
+      db.select().from(schema.taskAssignees),
+    ]);
+    if (!tasks.length) return [];
+    const cMap = new Map(companies.map((c) => [c.id, c.name]));
+    const cAccent = new Map(companies.map((c) => [c.id, c.accentColor]));
+    const dMap = new Map(depts.map((d) => [d.id, d.name]));
+    const pMap = new Map(people.map((p) => [p.id, p.name]));
+    const aMap = new Map<number, string[]>();
+    for (const a of assignees) {
+      const list = aMap.get(a.taskId) || [];
+      list.push(pMap.get(a.personId) || "");
+      aMap.set(a.taskId, list);
+    }
+
+    return tasks.map((t) => ({
+      id: t.id,
+      code: t.code,
+      companyId: t.companyId,
+      companyName: cMap.get(t.companyId) || "",
+      companyAccent: cAccent.get(t.companyId) ?? null,
+      department: t.departmentId ? dMap.get(t.departmentId) || null : null,
+      actionItem: t.actionItem,
+      owner: t.ownerId ? pMap.get(t.ownerId) || null : null,
+      assignees: aMap.get(t.id) || [],
+      meetingDate: iso(t.meetingDate),
+      createdDate: iso(t.createdDate),
+      deadline: iso(t.deadline),
+      status: t.status,
+      priority: t.priority,
+      category: t.category,
+      risk: t.risk,
+      escalation: t.escalation,
+      comments: t.comments,
+      latestUpdate: t.latestUpdate,
+      lastUpdatedAt: iso(t.lastUpdatedAt),
+      closedDate: iso(t.closedDate),
+    }));
+  },
+  ["all-tasks-v1"],
+  { tags: ["tasks"], revalidate: 60 }
+);
+
+// React cache() dedupes within a single render; underlying call also gets the
+// cross-request cache benefit. Dates are revived here so callers keep their
+// existing Date-based API. Derived fields (daysOpen/daysToDeadline/flag) are
+// computed on revival against today's date so stale-cache stays correct.
+export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
+  const rows = await getAllTasksSerial();
+  return rows.map((r): TaskRow => {
+    const deadline = toDate(r.deadline);
+    const createdDate = toDate(r.createdDate);
+    const closedDate = toDate(r.closedDate);
+    const derived = { status: r.status, priority: r.priority, createdDate, deadline, closedDate };
+    return {
+      ...r,
+      meetingDate: toDate(r.meetingDate),
+      createdDate,
+      deadline,
+      lastUpdatedAt: toDate(r.lastUpdatedAt),
+      closedDate,
+      daysOpen: daysOpen(derived),
+      daysToDeadline: daysToDeadline(derived),
+      flag: flag(derived),
+    };
+  });
 });
 
 export type CompanyKpi = {

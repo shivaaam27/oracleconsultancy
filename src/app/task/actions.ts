@@ -2,7 +2,7 @@
 
 import { db, schema } from "@/db";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { insertTaskWithUniqueCode } from "@/lib/task-codes";
 import { mutate } from "@/lib/mutate";
@@ -228,6 +228,7 @@ export async function updateTask(code: string, formData: FormData) {
   revalidatePath(`/task/${code}`);
   revalidatePath("/registry");
   revalidatePath("/");
+  updateTag("tasks");
   redirect(`/task/${code}`);
 }
 
@@ -312,6 +313,7 @@ export async function createTask(formData: FormData) {
 
   revalidatePath("/registry");
   revalidatePath("/");
+  updateTag("tasks");
   redirect(`/task/${result.result.code}`);
 }
 
@@ -365,6 +367,7 @@ export async function deleteTask(code: string) {
 
   revalidatePath("/registry");
   revalidatePath("/");
+  updateTag("tasks");
   redirect("/registry");
 }
 
@@ -451,6 +454,7 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/registry");
   revalidatePath("/");
+  updateTag("tasks");
 }
 
 export async function inlineUpdateTask(
@@ -547,5 +551,6 @@ export async function inlineUpdateTask(
   revalidatePath("/task");
   revalidatePath("/registry");
   revalidatePath("/");
+  updateTag("tasks");
   return { ok: true, undoToken: result.undoToken };
 }

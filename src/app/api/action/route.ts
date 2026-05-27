@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db";
 import { eq, ilike, desc, or } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCode } from "@/lib/task-codes";
 
 export const maxDuration = 60;
@@ -300,6 +300,10 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await execute(intent);
+    if (result.ok) {
+      // AI command touched a task — bust the cross-request cache so the next read is fresh.
+      revalidateTag("tasks", { expire: 0 });
+    }
     return NextResponse.json({ intent, ...result, executed: result.ok });
   } catch (e) {
     console.error("Action route error:", e);

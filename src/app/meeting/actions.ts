@@ -3,7 +3,7 @@
 import { db, schema } from "@/db";
 import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 
@@ -262,6 +262,7 @@ export async function bulkCreateTasks(
 
   revalidatePath("/registry");
   revalidatePath("/");
+  updateTag("tasks");
 
   if (!result.ok) {
     return { created: 0, failures: [{ index: -1, actionItem: "", reason: result.error }] };
