@@ -7,15 +7,18 @@ if (!url) {
   throw new Error("DATABASE_URL is not set. Add it to .env.local or your Vercel env vars.");
 }
 
-// Serverless + Supabase pooler: `max: 1` is load-bearing.
-// We tried max:5 to parallelise Promise.all queries — fast on a fresh
-// function, but warm invocations hung for 60s+ because Supabase silently
-// closes idle sockets and postgres.js waits forever on the dead ones.
-// `prepare: false` is also load-bearing (PgBouncer transaction mode).
+// Serverless + Supabase pooler tuning. Two settings are load-bearing:
+//   - `prepare: false` — required by PgBouncer transaction mode.
+//   - `max: 1` — one socket per function instance; larger pools hang
+//     on warm invocations after Supabase closes idle sockets server-side.
+//
+// `idle_timeout: 5` + `max_lifetime: 30` aggressively recycle so we
+// don't try to write to a socket Supabase has already killed.
 const client = postgres(url, {
   prepare: false,
   max: 1,
-  idle_timeout: 20,
+  idle_timeout: 5,
+  max_lifetime: 30,
   connect_timeout: 10,
 });
 
