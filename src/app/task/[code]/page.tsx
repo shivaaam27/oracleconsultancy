@@ -14,6 +14,7 @@ import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, Pencil
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
+  liftPinnedUpdates,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
@@ -21,6 +22,8 @@ import {
 } from "@/lib/timeline";
 import { CodeLinkedText } from "@/components/code-linked-text";
 import { TimelineFilters } from "@/components/timeline-filters";
+import { UpdateMenu } from "@/components/update-menu";
+import { Pin } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -69,8 +72,9 @@ export default async function TaskPage({
       .order("created_at", { ascending: false }),
     sb
       .from("task_updates")
-      .select("id,body,created_at,created_by")
+      .select("id,body,created_at,created_by,edited_at,original_body,pinned_at")
       .eq("task_id", r.id)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false }),
   ]);
 
@@ -83,6 +87,9 @@ export default async function TaskPage({
       body: u.body as string,
       createdAt: new Date(u.created_at as string),
       createdBy: (u.created_by as string | null) ?? null,
+      editedAt: (u.edited_at as string | null) ? new Date(u.edited_at as string) : null,
+      originalBody: (u.original_body as string | null) ?? null,
+      pinnedAt: (u.pinned_at as string | null) ? new Date(u.pinned_at as string) : null,
     })),
     ...(auditRaw ?? []).map<TimelineItem>((a) => ({
       kind: "audit",
@@ -99,8 +106,9 @@ export default async function TaskPage({
     })),
   ];
 
-  // Tier 1 B: stable sort, then A: merge status-change audits into their update.
-  const merged = mergeStatusIntoUpdates(sortTimeline(rawTimeline));
+  // Tier 1 B: stable sort, then A: merge status-change audits into their update,
+  // then Tier 2 L: hoist pinned updates to the top.
+  const merged = liftPinnedUpdates(mergeStatusIntoUpdates(sortTimeline(rawTimeline)));
 
   // Counts (before filter) for the chip strip.
   const counts: Record<TimelineFilter, number> = {
@@ -300,7 +308,32 @@ export default async function TaskPage({
                       />
 
                       {item.kind === "update" ? (
-                        <div className="bg-accent/5 border border-accent/20 rounded-lg p-3 space-y-1.5">
+                        <div
+                          className={`group bg-accent/5 border rounded-lg p-3 space-y-1.5 ${
+                            item.pinnedAt ? "border-accent/50" : "border-accent/20"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
+                              {item.pinnedAt && (
+                                <Pin size={9} className="text-accent fill-accent" />
+                              )}
+                              <span>Update</span>
+                              {item.editedAt && (
+                                <span
+                                  className="text-fg-subtle italic normal-case tracking-normal"
+                                  title={item.originalBody ? `Original: ${item.originalBody}` : "Edited"}
+                                >
+                                  · edited {fmt(item.editedAt)}
+                                </span>
+                              )}
+                            </div>
+                            <UpdateMenu
+                              updateId={item.id}
+                              body={item.body}
+                              pinned={!!item.pinnedAt}
+                            />
+                          </div>
                           <p className="text-sm leading-relaxed">
                             <CodeLinkedText text={item.body} />
                           </p>

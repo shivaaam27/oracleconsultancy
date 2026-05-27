@@ -22,6 +22,11 @@ export type TimelineUpdate = {
   createdBy: string | null;
   /** Set by mergeStatusIntoUpdates when this update also moved status. */
   statusChange?: { from: string | null; to: string | null };
+  /** Edit metadata (Tier 2 F). */
+  editedAt?: Date | null;
+  originalBody?: string | null;
+  /** Pin metadata (Tier 2 L). Pinned updates sort to the top in per-task timelines. */
+  pinnedAt?: Date | null;
 };
 
 export type TimelineAudit = {
@@ -68,6 +73,27 @@ export function sortTimeline<T extends { kind: string; createdAt: Date }>(items:
     const rank = (k: string) => (k === "update" ? 0 : k === "audit" ? 1 : 2);
     return rank(a.kind) - rank(b.kind);
   });
+}
+
+/**
+ * Tier 2 L: hoist pinned updates to the top of a per-task timeline.
+ * Multiple pinned updates among themselves sort by pin time desc (most recently
+ * pinned first). Used after sortTimeline + mergeStatusIntoUpdates.
+ */
+export function liftPinnedUpdates(items: TimelineItem[]): TimelineItem[] {
+  const pinned: TimelineItem[] = [];
+  const rest: TimelineItem[] = [];
+  for (const i of items) {
+    if (i.kind === "update" && i.pinnedAt) pinned.push(i);
+    else rest.push(i);
+  }
+  if (pinned.length === 0) return items;
+  pinned.sort((a, b) => {
+    const ap = a.kind === "update" && a.pinnedAt ? a.pinnedAt.getTime() : 0;
+    const bp = b.kind === "update" && b.pinnedAt ? b.pinnedAt.getTime() : 0;
+    return bp - ap;
+  });
+  return [...pinned, ...rest];
 }
 
 /* ----------------------------------------------------------------------

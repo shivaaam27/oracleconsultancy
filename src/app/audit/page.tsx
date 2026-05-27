@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { PageHeader, TableShell, Th, Td } from "@/components/ui";
+import { ResyncLatestUpdateButton } from "./resync-button";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,11 @@ export default async function AuditPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Audit Log" sub={`Showing latest ${rows.length} entries`} />
+      <PageHeader
+        title="Audit Log"
+        sub={`Showing latest ${rows.length} entries`}
+        action={<ResyncLatestUpdateButton />}
+      />
       <TableShell>
         <table className="w-full">
           <thead>

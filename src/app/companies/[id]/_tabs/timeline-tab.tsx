@@ -58,8 +58,9 @@ export async function TimelineTab({
   const [updRes, audRes] = await Promise.all([
     sb
       .from("task_updates")
-      .select("id,task_id,body,created_at,created_by")
+      .select("id,task_id,body,created_at,created_by,edited_at,original_body")
       .in("task_id", taskIds)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(ITEM_LIMIT),
     sb
@@ -73,6 +74,7 @@ export async function TimelineTab({
   const raw: TimelineItem[] = [];
   for (const u of (updRes.data ?? []) as Array<{
     id: number; task_id: number; body: string; created_at: string; created_by: string | null;
+    edited_at: string | null; original_body: string | null;
   }>) {
     raw.push({
       kind: "update",
@@ -82,6 +84,8 @@ export async function TimelineTab({
       body: u.body,
       createdAt: new Date(u.created_at),
       createdBy: u.created_by,
+      editedAt: u.edited_at ? new Date(u.edited_at) : null,
+      originalBody: u.original_body,
     });
   }
   for (const a of (audRes.data ?? []) as Array<{
@@ -309,6 +313,14 @@ function TimelineItemView({
           <div className="bg-accent/5 border border-accent/20 rounded-lg p-2.5 space-y-1.5">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
               <FilePlus2 size={10} /> Update
+              {item.editedAt && (
+                <span
+                  className="text-fg-subtle italic normal-case tracking-normal"
+                  title={item.originalBody ? `Original: ${item.originalBody}` : "Edited"}
+                >
+                  · edited
+                </span>
+              )}
             </div>
             <p className="text-sm leading-relaxed">
               <CodeLinkedText text={item.body} />

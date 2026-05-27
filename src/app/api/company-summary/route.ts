@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
         .from("task_updates")
         .select("body,created_at")
         .in("task_id", taskIds)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(8);
       recentUpdates = (uRows ?? []).map((u) => ({ body: u.body as string }));

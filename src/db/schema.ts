@@ -66,6 +66,14 @@ export const taskUpdates = pgTable("task_updates", {
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   createdBy: text("created_by"),
+  /** Set on first edit; preserves the original text for history. */
+  originalBody: text("original_body"),
+  /** Timestamp of most recent edit (null = never edited). */
+  editedAt: timestamp("edited_at", { mode: "date" }),
+  /** Soft-delete marker; rows with this set are hidden from timelines. */
+  deletedAt: timestamp("deleted_at", { mode: "date" }),
+  /** When set, sort this update to the top of its task's timeline. */
+  pinnedAt: timestamp("pinned_at", { mode: "date" }),
 });
 
 export const auditLog = pgTable("audit_log", {

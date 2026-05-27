@@ -70,6 +70,7 @@ export async function loadTaskContext(taskId: number): Promise<TaskContext | nul
       .from("task_updates")
       .select("body,created_at")
       .eq("task_id", taskId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(5),
   ]);

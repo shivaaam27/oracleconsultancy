@@ -27,7 +27,11 @@ function str(v: FormDataEntryValue | null): string | null {
 
 function splitNames(v: string | null): string[] {
   if (!v) return [];
-  return v.split(/,| & | and /i).map((x) => x.trim()).filter(Boolean);
+  // Split on commas or " & " (with surrounding spaces). Previously included
+  // " and " too, which mangled names containing "and" as a word
+  // (e.g. "Rand and Co" → ["R", "Co"]). Users wanting "and" as a separator
+  // should use a comma.
+  return v.split(/,|\s+&\s+/).map((x) => x.trim()).filter(Boolean);
 }
 
 function isoOrNull(d: Date | null | undefined): string | null {
@@ -447,6 +451,169 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
  * No undo token (bulk undo is intentionally not supported — the user is
  * expected to confirm before applying).
  */
+
+/* ----------------------------------------------------------------------
+ * Per-update operations: edit, soft-delete, pin/unpin
+ * ----------------------------------------------------------------------
+ * Updates live in task_updates; corrections leaves an audit trail and
+ * preserves the original body the first time you edit a row. Soft-deletes
+ * are hidden from timelines but kept in the table for governance.
+ *
+ * The denormalised tasks.latest_update mirror is re-derived after each of
+ * these ops so the task header stays in sync.
+ */
+
+async function recomputeLatestUpdateMirror(taskId: number) {
+  // Pick the most recent non-deleted update and copy its body to tasks.latest_update.
+  const { data: latest } = await sb
+    .from("task_updates")
+    .select("body,created_at")
+    .eq("task_id", taskId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  await sb
+    .from("tasks")
+    .update({
+      latest_update: latest?.body ?? null,
+      last_updated_at: latest?.created_at ?? new Date().toISOString(),
+    })
+    .eq("id", taskId);
+}
+
+async function loadUpdate(updateId: number) {
+  const { data, error } = await sb
+    .from("task_updates")
+    .select("id,task_id,body,original_body,edited_at,deleted_at,pinned_at,created_at")
+    .eq("id", updateId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function findTaskMeta(taskId: number) {
+  const { data } = await sb
+    .from("tasks")
+    .select("code,company_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  return data as { code: string; company_id: number } | null;
+}
+
+export async function editTaskUpdate(
+  updateId: number,
+  newBody: string,
+  reason?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = newBody.trim();
+  if (!trimmed) return { ok: false, error: "Body cannot be empty." };
+
+  const u = await loadUpdate(updateId);
+  if (!u) return { ok: false, error: "Update not found." };
+  if (u.deleted_at) return { ok: false, error: "Update is deleted." };
+  if (u.body === trimmed) return { ok: true };
+
+  const t = await findTaskMeta(u.task_id);
+  if (!t) return { ok: false, error: "Task not found." };
+
+  const now = new Date().toISOString();
+  await sb
+    .from("task_updates")
+    .update({
+      body: trimmed,
+      // Preserve original body only on the first edit
+      original_body: u.original_body ?? u.body,
+      edited_at: now,
+    })
+    .eq("id", updateId);
+
+  await sb.from("audit_log").insert({
+    task_id: u.task_id,
+    task_code: t.code,
+    company_id: t.company_id,
+    entry_type: "CHANGE",
+    field: "Update edited",
+    old_value: u.original_body ?? u.body,
+    new_value: trimmed,
+    change_reason: reason ?? null,
+    created_at: now,
+    created_by: "web-ui",
+  });
+
+  await recomputeLatestUpdateMirror(u.task_id);
+  revalidatePath(`/task/${t.code}`);
+  revalidatePath("/");
+  updateTag("tasks");
+  return { ok: true };
+}
+
+export async function deleteTaskUpdate(
+  updateId: number,
+  reason?: string
+): Promise<{ ok: boolean; error?: string }> {
+  const u = await loadUpdate(updateId);
+  if (!u) return { ok: false, error: "Update not found." };
+  if (u.deleted_at) return { ok: true };
+
+  const t = await findTaskMeta(u.task_id);
+  if (!t) return { ok: false, error: "Task not found." };
+
+  const now = new Date().toISOString();
+  await sb.from("task_updates").update({ deleted_at: now }).eq("id", updateId);
+
+  await sb.from("audit_log").insert({
+    task_id: u.task_id,
+    task_code: t.code,
+    company_id: t.company_id,
+    entry_type: "CHANGE",
+    field: "Update deleted",
+    old_value: u.body,
+    new_value: "(deleted)",
+    change_reason: reason ?? null,
+    created_at: now,
+    created_by: "web-ui",
+  });
+
+  await recomputeLatestUpdateMirror(u.task_id);
+  revalidatePath(`/task/${t.code}`);
+  revalidatePath("/");
+  updateTag("tasks");
+  return { ok: true };
+}
+
+export async function toggleUpdatePin(updateId: number): Promise<{ ok: boolean; pinned?: boolean; error?: string }> {
+  const u = await loadUpdate(updateId);
+  if (!u) return { ok: false, error: "Update not found." };
+  if (u.deleted_at) return { ok: false, error: "Update is deleted." };
+
+  const t = await findTaskMeta(u.task_id);
+  if (!t) return { ok: false, error: "Task not found." };
+
+  const wasPinned = !!u.pinned_at;
+  const now = new Date().toISOString();
+  await sb
+    .from("task_updates")
+    .update({ pinned_at: wasPinned ? null : now })
+    .eq("id", updateId);
+
+  await sb.from("audit_log").insert({
+    task_id: u.task_id,
+    task_code: t.code,
+    company_id: t.company_id,
+    entry_type: "CHANGE",
+    field: wasPinned ? "Update unpinned" : "Update pinned",
+    old_value: wasPinned ? "pinned" : null,
+    new_value: wasPinned ? null : "pinned",
+    change_reason: null,
+    created_at: now,
+    created_by: "web-ui",
+  });
+
+  revalidatePath(`/task/${t.code}`);
+  updateTag("tasks");
+  return { ok: true, pinned: !wasPinned };
+}
 
 export type BulkAction =
   | { kind: "status"; value: string }

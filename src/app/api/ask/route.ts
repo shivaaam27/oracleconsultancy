@@ -158,6 +158,7 @@ async function buildContext(question: string) {
         .from("task_updates")
         .select("task_id,body,created_at")
         .in("task_id", taskIds)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(40),
       sb
