@@ -1,11 +1,11 @@
 "use server";
 
-import { db, schema } from "@/db";
 import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
-import { eq } from "drizzle-orm";
 import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
+import { sb } from "@/db/supabase";
+import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 type AIExtractResult =
   | { ok: true; tasks: MeetingTask[] }
@@ -16,12 +16,12 @@ async function extractWithAI(notes: string, companyMap: { id: number; name: stri
   if (!apiKey) return { ok: false, reason: "no-key" };
 
   try {
-    const [companies, people] = await Promise.all([
-      db.select({ name: schema.companies.name }).from(schema.companies),
-      db.select({ name: schema.people.name }).from(schema.people),
+    const [{ data: companies }, { data: people }] = await Promise.all([
+      sb.from("companies").select("name"),
+      sb.from("people").select("name"),
     ]);
-    const cNames = companies.map(c => c.name);
-    const pNames = people.map(p => p.name);
+    const cNames = (companies ?? []).map((c) => c.name as string);
+    const pNames = (people ?? []).map((p) => p.name as string);
 
     const systemPrompt = `You are the Chief of Staff for a multi-company portfolio. Extract every action item from raw meeting notes as JSON.
 
@@ -108,12 +108,12 @@ export async function parseMeetingNotes(
   notes: string,
   defaultCompanyId?: number,
 ): Promise<ParseMeetingResult> {
-  const companies = await db
-    .select({ id: schema.companies.id, name: schema.companies.name, code: schema.companies.code })
-    .from(schema.companies);
-  const people = await db
-    .select({ id: schema.people.id, name: schema.people.name })
-    .from(schema.people);
+  const [{ data: cRows }, { data: pRows }] = await Promise.all([
+    sb.from("companies").select("id,name,code"),
+    sb.from("people").select("id,name"),
+  ]);
+  const companies = (cRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string, code: c.code as string }));
+  const people = (pRows ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
 
   const aiResult = await extractWithAI(notes, companies, defaultCompanyId);
   if (aiResult.ok && aiResult.tasks.length > 0) {
@@ -136,57 +136,6 @@ export type BulkTaskInput = {
   escalation: string;
 };
 
-async function getOrCreatePerson(name: string, companyId: number): Promise<number> {
-  const ex = await db.select().from(schema.people).where(eq(schema.people.name, name)).limit(1);
-  if (ex.length) return ex[0].id;
-  const inserted = await db
-    .insert(schema.people)
-    .values({ name, companyId, active: true })
-    .onConflictDoNothing({ target: schema.people.name })
-    .returning();
-  if (inserted.length) return inserted[0].id;
-  const after = await db.select().from(schema.people).where(eq(schema.people.name, name)).limit(1);
-  return after[0].id;
-}
-
-async function getOrCreateDept(name: string | null): Promise<number | null> {
-  if (!name) return null;
-  const ex = await db.select().from(schema.departments).where(eq(schema.departments.name, name)).limit(1);
-  if (ex.length) return ex[0].id;
-  const inserted = await db
-    .insert(schema.departments)
-    .values({ name })
-    .onConflictDoNothing({ target: schema.departments.name })
-    .returning();
-  if (inserted.length) return inserted[0].id;
-  const after = await db.select().from(schema.departments).where(eq(schema.departments.name, name)).limit(1);
-  return after[0].id;
-}
-
-async function insertTaskWithUniqueCode(
-  companyId: number,
-  codePrefix: string,
-  values: Omit<typeof schema.tasks.$inferInsert, "code" | "companyId">,
-): Promise<typeof schema.tasks.$inferSelect> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const existing = await db.select({ code: schema.tasks.code }).from(schema.tasks).where(eq(schema.tasks.companyId, companyId));
-    let maxNum = 0;
-    for (const e of existing) {
-      const m = e.code.match(/^[A-Z]+\d+-(\d+)$/);
-      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-    }
-    const newCode = `${codePrefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
-    try {
-      const [row] = await db.insert(schema.tasks).values({ ...values, companyId, code: newCode }).returning();
-      return row;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!/duplicate key|unique/i.test(msg)) throw err;
-    }
-  }
-  throw new Error("Could not allocate unique task code after retries");
-}
-
 export type BulkFailure = { index: number; actionItem: string; reason: string };
 
 export async function bulkCreateTasks(
@@ -205,12 +154,17 @@ export async function bulkCreateTasks(
           if (!t.companyId) { failures.push({ index: i, actionItem: t.actionItem, reason: "Missing company" }); continue; }
           if (!t.actionItem.trim()) { failures.push({ index: i, actionItem: t.actionItem, reason: "Empty action item" }); continue; }
 
-          const company = await db.select().from(schema.companies).where(eq(schema.companies.id, t.companyId)).limit(1);
-          if (!company.length) { failures.push({ index: i, actionItem: t.actionItem, reason: "Company not found" }); continue; }
-          const code = company[0].code;
+          const { data: company, error: cErr } = await sb
+            .from("companies")
+            .select("code")
+            .eq("id", t.companyId)
+            .maybeSingle();
+          if (cErr) throw new Error(cErr.message);
+          if (!company) { failures.push({ index: i, actionItem: t.actionItem, reason: "Company not found" }); continue; }
+          const code = company.code as string;
           const now = new Date();
 
-          const task = await insertTaskWithUniqueCode(t.companyId, code, {
+          const task = await insertTaskWithUniqueCodeSb(t.companyId, code, {
             actionItem: t.actionItem,
             status: t.status || "Not Started",
             priority: t.priority || "Low",
@@ -225,23 +179,23 @@ export async function bulkCreateTasks(
           createdIds.push(task.id);
 
           for (const name of t.assigneeNames) {
-            const pid = await getOrCreatePerson(name, t.companyId);
-            try {
-              await db.insert(schema.taskAssignees).values({ taskId: task.id, personId: pid });
-            } catch {}
+            const pid = await getOrCreatePersonSb(name, t.companyId);
+            await sb
+              .from("task_assignees")
+              .upsert({ task_id: task.id, person_id: pid }, { ignoreDuplicates: true });
           }
 
-          await db.insert(schema.auditLog).values({
-            taskId: task.id,
-            taskCode: newCode,
-            companyId: t.companyId,
-            entryType: "CREATE",
+          await sb.from("audit_log").insert({
+            task_id: task.id,
+            task_code: newCode,
+            company_id: t.companyId,
+            entry_type: "CREATE",
             field: "Task",
-            oldValue: null,
-            newValue: t.actionItem,
-            changeReason: "Created via Meeting Mode",
-            createdAt: now,
-            createdBy: "meeting-mode",
+            old_value: null,
+            new_value: t.actionItem,
+            change_reason: "Created via Meeting Mode",
+            created_at: now.toISOString(),
+            created_by: "meeting-mode",
           });
 
           created++;

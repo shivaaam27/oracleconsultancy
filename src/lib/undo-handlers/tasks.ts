@@ -1,5 +1,4 @@
-import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
 
 type TaskFields = {
@@ -10,7 +9,7 @@ type TaskFields = {
   risk: string | null;
   escalation: string | null;
   category: string | null;
-  deadline: string | null;        // ISO date or null
+  deadline: string | null;
   meetingDate: string | null;
   comments: string | null;
   latestUpdate: string | null;
@@ -18,31 +17,26 @@ type TaskFields = {
   closedDate: string | null;
 };
 
-function toDate(v: string | null): Date | null {
-  return v ? new Date(v) : null;
-}
-
 async function writeUndoAudit(
   taskId: number,
   taskCode: string,
   companyId: number,
   kind: string
 ) {
-  await db.insert(schema.auditLog).values({
-    taskId,
-    taskCode,
-    companyId,
-    entryType: "UNDO",
+  await sb.from("audit_log").insert({
+    task_id: taskId,
+    task_code: taskCode,
+    company_id: companyId,
+    entry_type: "UNDO",
     field: "Task",
-    oldValue: null,
-    newValue: null,
-    changeReason: `undo of ${kind}`,
-    createdAt: new Date(),
-    createdBy: "web-ui",
+    old_value: null,
+    new_value: null,
+    change_reason: `undo of ${kind}`,
+    created_at: new Date().toISOString(),
+    created_by: "web-ui",
   });
 }
 
-// task.update — restore prior field values + assignees
 registerUndoHandler("task.update", async (raw) => {
   const p = raw as {
     taskId: number;
@@ -51,43 +45,39 @@ registerUndoHandler("task.update", async (raw) => {
     before: TaskFields;
     beforeAssignees: number[];
   };
-  await db
-    .update(schema.tasks)
-    .set({
-      actionItem: p.before.actionItem,
-      departmentId: p.before.departmentId,
+  await sb
+    .from("tasks")
+    .update({
+      action_item: p.before.actionItem,
+      department_id: p.before.departmentId,
       status: p.before.status,
       priority: p.before.priority,
       risk: p.before.risk,
       escalation: p.before.escalation,
       category: p.before.category,
-      deadline: toDate(p.before.deadline),
-      meetingDate: toDate(p.before.meetingDate),
+      deadline: p.before.deadline,
+      meeting_date: p.before.meetingDate,
       comments: p.before.comments,
-      latestUpdate: p.before.latestUpdate,
-      lastUpdatedAt: toDate(p.before.lastUpdatedAt),
-      closedDate: toDate(p.before.closedDate),
+      latest_update: p.before.latestUpdate,
+      last_updated_at: p.before.lastUpdatedAt,
+      closed_date: p.before.closedDate,
     })
-    .where(eq(schema.tasks.id, p.taskId));
+    .eq("id", p.taskId);
 
-  await db.delete(schema.taskAssignees).where(eq(schema.taskAssignees.taskId, p.taskId));
+  await sb.from("task_assignees").delete().eq("task_id", p.taskId);
   for (const personId of p.beforeAssignees) {
-    try {
-      await db.insert(schema.taskAssignees).values({ taskId: p.taskId, personId });
-    } catch {
-      // ignore unique violations
-    }
+    await sb
+      .from("task_assignees")
+      .upsert({ task_id: p.taskId, person_id: personId }, { ignoreDuplicates: true });
   }
   await writeUndoAudit(p.taskId, p.taskCode, p.companyId, "task.update");
 });
 
-// task.create — hard delete the just-created task (cascade removes children)
 registerUndoHandler("task.create", async (raw) => {
   const p = raw as { taskId: number };
-  await db.delete(schema.tasks).where(eq(schema.tasks.id, p.taskId));
+  await sb.from("tasks").delete().eq("id", p.taskId);
 });
 
-// task.delete — reinsert task + assignees (task_updates not restored)
 registerUndoHandler("task.delete", async (raw) => {
   const p = raw as {
     task: {
@@ -112,43 +102,41 @@ registerUndoHandler("task.delete", async (raw) => {
     };
     assignees: number[];
   };
-  const inserted = await db
-    .insert(schema.tasks)
-    .values({
+  const { data: inserted } = await sb
+    .from("tasks")
+    .insert({
       code: p.task.code,
-      companyId: p.task.companyId,
-      departmentId: p.task.departmentId,
-      meetingDate: toDate(p.task.meetingDate),
-      actionItem: p.task.actionItem,
-      ownerId: p.task.ownerId,
-      createdDate: toDate(p.task.createdDate),
-      deadline: toDate(p.task.deadline),
+      company_id: p.task.companyId,
+      department_id: p.task.departmentId,
+      meeting_date: p.task.meetingDate,
+      action_item: p.task.actionItem,
+      owner_id: p.task.ownerId,
+      created_date: p.task.createdDate,
+      deadline: p.task.deadline,
       status: p.task.status,
       priority: p.task.priority,
       category: p.task.category,
       risk: p.task.risk,
       escalation: p.task.escalation,
       comments: p.task.comments,
-      latestUpdate: p.task.latestUpdate,
-      lastUpdatedAt: toDate(p.task.lastUpdatedAt),
-      closedDate: toDate(p.task.closedDate),
+      latest_update: p.task.latestUpdate,
+      last_updated_at: p.task.lastUpdatedAt,
+      closed_date: p.task.closedDate,
       archived: p.task.archived,
     })
-    .returning({ id: schema.tasks.id });
-  const newId = inserted[0]?.id;
+    .select("id")
+    .single();
+  const newId = inserted?.id as number | undefined;
   if (newId) {
     for (const personId of p.assignees) {
-      try {
-        await db.insert(schema.taskAssignees).values({ taskId: newId, personId });
-      } catch {
-        // ignore
-      }
+      await sb
+        .from("task_assignees")
+        .upsert({ task_id: newId, person_id: personId }, { ignoreDuplicates: true });
     }
     await writeUndoAudit(newId, p.task.code, p.task.companyId, "task.delete");
   }
 });
 
-// task.update.add — remove the new task_updates row + restore mirrored task fields
 registerUndoHandler("task.update.add", async (raw) => {
   const p = raw as {
     taskUpdateId: number;
@@ -162,15 +150,15 @@ registerUndoHandler("task.update.add", async (raw) => {
       closedDate: string | null;
     };
   };
-  await db.delete(schema.taskUpdates).where(eq(schema.taskUpdates.id, p.taskUpdateId));
-  await db
-    .update(schema.tasks)
-    .set({
-      latestUpdate: p.before.latestUpdate,
-      lastUpdatedAt: toDate(p.before.lastUpdatedAt),
+  await sb.from("task_updates").delete().eq("id", p.taskUpdateId);
+  await sb
+    .from("tasks")
+    .update({
+      latest_update: p.before.latestUpdate,
+      last_updated_at: p.before.lastUpdatedAt,
       status: p.before.status,
-      closedDate: toDate(p.before.closedDate),
+      closed_date: p.before.closedDate,
     })
-    .where(eq(schema.tasks.id, p.taskId));
+    .eq("id", p.taskId);
   await writeUndoAudit(p.taskId, p.taskCode, p.companyId, "task.update.add");
 });

@@ -1,13 +1,17 @@
-import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 export type SavedView = { id: string; name: string; query: string };
 
 const KEY = "task.savedViews";
 
 export async function getSavedViews(): Promise<SavedView[]> {
-  const rows = await db.select().from(schema.settings).where(eq(schema.settings.key, KEY)).limit(1);
-  const raw = rows[0]?.value;
+  const { data, error } = await sb
+    .from("settings")
+    .select("value")
+    .eq("key", KEY)
+    .maybeSingle();
+  if (error || !data) return [];
+  const raw = data.value as string | null;
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);

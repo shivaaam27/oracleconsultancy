@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { sql, isNull, and, gte } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { lastEvent } from "@/lib/system-events";
 
 export const dynamic = "force-dynamic";
@@ -11,8 +10,9 @@ export async function GET() {
 
   // DB ping
   try {
-    await db.execute(sql`select 1`);
-    checks.db = "ok";
+    const { error } = await sb.from("companies").select("id").limit(1);
+    checks.db = error ? error.message : "ok";
+    if (error) ok = false;
   } catch (err) {
     ok = false;
     checks.db = err instanceof Error ? err.message : "error";
@@ -34,11 +34,13 @@ export async function GET() {
 
   // Active undo tokens (non-expired, non-consumed)
   try {
-    const rows = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(schema.undoTokens)
-      .where(and(isNull(schema.undoTokens.consumedAt), gte(schema.undoTokens.expiresAt, new Date())));
-    checks.activeUndoTokens = rows[0]?.count ?? 0;
+    const nowIso = new Date().toISOString();
+    const { count } = await sb
+      .from("undo_tokens")
+      .select("id", { count: "exact", head: true })
+      .is("consumed_at", null)
+      .gte("expires_at", nowIso);
+    checks.activeUndoTokens = count ?? 0;
   } catch {
     checks.activeUndoTokens = "error";
   }

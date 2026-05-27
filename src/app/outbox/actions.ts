@@ -2,8 +2,7 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { markSent } from "@/lib/outbox-gen";
 import { mutate } from "@/lib/mutate";
-import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 export async function recordSent(
   formData: FormData
@@ -53,15 +52,24 @@ export async function snoozePerson(
   const result = await mutate<{ personId: number }>({
     kind: "person.snooze",
     run: async () => {
-      const rows = await db.select().from(schema.people).where(eq(schema.people.id, personId)).limit(1);
-      if (!rows.length) throw new Error("Person not found");
-      const before = rows[0].snoozedUntil;
-      await db.update(schema.people).set({ snoozedUntil: endOfToday() }).where(eq(schema.people.id, personId));
+      const { data: row, error: e1 } = await sb
+        .from("people")
+        .select("snoozed_until")
+        .eq("id", personId)
+        .maybeSingle();
+      if (e1) throw new Error(e1.message);
+      if (!row) throw new Error("Person not found");
+      const before = (row.snoozed_until as string | null) ?? null;
+      const { error: uErr } = await sb
+        .from("people")
+        .update({ snoozed_until: endOfToday().toISOString() })
+        .eq("id", personId);
+      if (uErr) throw new Error(uErr.message);
       return {
         result: { personId },
         undo: {
           kind: "person.snooze",
-          payload: { personId, before: before ? before.toISOString() : null },
+          payload: { personId, before },
         },
       };
     },
@@ -74,14 +82,10 @@ export async function snoozePerson(
 }
 
 export async function unsnoozePerson(personId: number): Promise<{ ok: boolean; error?: string }> {
-  try {
-    await db.update(schema.people).set({ snoozedUntil: null }).where(eq(schema.people.id, personId));
-    revalidatePath("/outbox");
+  const { error } = await sb.from("people").update({ snoozed_until: null }).eq("id", personId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/outbox");
   updateTag("outbox");
   updateTag("people");
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "error" };
-  }
+  return { ok: true };
 }
-

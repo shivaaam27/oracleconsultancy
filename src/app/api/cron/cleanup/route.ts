@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { lt } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { authoriseCron } from "@/lib/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
@@ -12,15 +11,18 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
 
   try {
-    const now = new Date();
-    const deleted = await db
-      .delete(schema.undoTokens)
-      .where(lt(schema.undoTokens.expiresAt, now))
-      .returning({ id: schema.undoTokens.id });
+    const nowIso = new Date().toISOString();
+    const { data: deleted, error } = await sb
+      .from("undo_tokens")
+      .delete()
+      .lt("expires_at", nowIso)
+      .select("id");
+    if (error) throw new Error(error.message);
 
-    await recordEvent("cron.cleanup", "ok", { undoTokensDeleted: deleted.length });
+    const count = (deleted ?? []).length;
+    await recordEvent("cron.cleanup", "ok", { undoTokensDeleted: count });
     await recordEvent("heartbeat", "ok");
-    return NextResponse.json({ ok: true, undoTokensDeleted: deleted.length });
+    return NextResponse.json({ ok: true, undoTokensDeleted: count });
   } catch (err) {
     await reportError(err, { route: "cron.cleanup" });
     await recordEvent("cron.cleanup", "error", {

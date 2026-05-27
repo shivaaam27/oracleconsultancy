@@ -1,5 +1,4 @@
-import { db, schema } from "@/db";
-import { desc, eq, and } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 
 export type EventStatus = "ok" | "error" | "skip";
 
@@ -9,11 +8,11 @@ export async function recordEvent(
   details?: Record<string, unknown>
 ): Promise<void> {
   try {
-    await db.insert(schema.systemEvents).values({
+    await sb.from("system_events").insert({
       kind,
       status,
       details: details ? JSON.stringify(details) : null,
-      createdAt: new Date(),
+      created_at: new Date().toISOString(),
     });
   } catch {
     // Telemetry must never crash the caller.
@@ -21,22 +20,26 @@ export async function recordEvent(
 }
 
 export async function lastEvent(kind: string): Promise<{ at: Date; status: string } | null> {
-  const rows = await db
-    .select({ createdAt: schema.systemEvents.createdAt, status: schema.systemEvents.status })
-    .from(schema.systemEvents)
-    .where(eq(schema.systemEvents.kind, kind))
-    .orderBy(desc(schema.systemEvents.createdAt))
-    .limit(1);
-  if (!rows.length) return null;
-  return { at: rows[0].createdAt, status: rows[0].status };
+  const { data, error } = await sb
+    .from("system_events")
+    .select("created_at,status")
+    .eq("kind", kind)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return { at: new Date(data.created_at as string), status: data.status as string };
 }
 
 export async function lastSuccessfulEvent(kind: string): Promise<Date | null> {
-  const rows = await db
-    .select({ createdAt: schema.systemEvents.createdAt })
-    .from(schema.systemEvents)
-    .where(and(eq(schema.systemEvents.kind, kind), eq(schema.systemEvents.status, "ok")))
-    .orderBy(desc(schema.systemEvents.createdAt))
-    .limit(1);
-  return rows[0]?.createdAt ?? null;
+  const { data } = await sb
+    .from("system_events")
+    .select("created_at")
+    .eq("kind", kind)
+    .eq("status", "ok")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  return new Date(data.created_at as string);
 }

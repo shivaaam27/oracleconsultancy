@@ -1,4 +1,4 @@
-import { db, schema } from "@/db";
+import { sb } from "@/db/supabase";
 import { reportError } from "./sentry";
 
 // 10 minutes
@@ -24,7 +24,6 @@ export type MutateResult<T> =
   | { ok: false; error: string };
 
 function newId() {
-  // Short, URL-safe, unique enough for 10-minute tokens.
   return (
     Date.now().toString(36) +
     Math.random().toString(36).slice(2, 10)
@@ -40,17 +39,17 @@ export async function mutate<T>(input: MutateInput<T>): Promise<MutateResult<T>>
     if (undo) {
       const id = newId();
       const now = new Date();
-      await db.insert(schema.undoTokens).values({
+      const { error } = await sb.from("undo_tokens").insert({
         id,
         kind: undo.kind,
         payload: JSON.stringify(undo.payload),
-        taskId: undo.taskId ?? input.taskId ?? null,
-        createdBy: actor,
-        createdAt: now,
-        expiresAt: new Date(now.getTime() + UNDO_TTL_MS),
-        consumedAt: null,
+        task_id: undo.taskId ?? input.taskId ?? null,
+        created_by: actor,
+        created_at: now.toISOString(),
+        expires_at: new Date(now.getTime() + UNDO_TTL_MS).toISOString(),
+        consumed_at: null,
       });
-      undoToken = id;
+      if (!error) undoToken = id;
     }
 
     return { ok: true, result, undoToken };

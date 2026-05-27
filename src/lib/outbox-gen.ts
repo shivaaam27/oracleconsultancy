@@ -1,5 +1,3 @@
-import { db, schema } from "@/db";
-import { eq } from "drizzle-orm";
 import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
@@ -151,41 +149,48 @@ export async function markSent(
   recipientContact: string | null
 ): Promise<MarkSentResult> {
   const key = dedupeKey(channel, name, taskCodes);
-  const existing = await db.select().from(schema.reminders).where(eq(schema.reminders.dedupeKey, key)).limit(1);
-  if (existing.length) return { ok: false, reason: "duplicate" };
 
-  const now = new Date();
-  let outboxId = 0;
-  try {
-    await db.transaction(async (tx) => {
-      await tx.insert(schema.reminders).values({
-        channel,
-        messageType: "DAILY TASK REMINDER",
-        escalationLevel: "LEVEL 1",
-        sentAt: now,
-        dedupeKey: key,
-        createdAt: now,
-      });
-      const inserted = await tx
-        .insert(schema.outbox)
-        .values({
-          channel,
-          recipientName: name,
-          recipientContact,
-          body: message,
-          messageType: "DAILY TASK REMINDER",
-          status: "Sent",
-          contactStatus,
-          createdAt: now,
-          sentAt: now,
-        })
-        .returning({ id: schema.outbox.id });
-      outboxId = inserted[0]?.id ?? 0;
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (/duplicate key|unique/i.test(msg)) return { ok: false, reason: "duplicate" };
-    throw err;
+  // Pre-check (best-effort; the unique index on reminders.dedupe_key is the real guard).
+  const { data: existing } = await sb
+    .from("reminders")
+    .select("id")
+    .eq("dedupe_key", key)
+    .maybeSingle();
+  if (existing) return { ok: false, reason: "duplicate" };
+
+  const nowIso = new Date().toISOString();
+
+  // Insert reminder first — if it fails on the unique index, treat as duplicate.
+  const { error: rErr } = await sb.from("reminders").insert({
+    channel,
+    message_type: "DAILY TASK REMINDER",
+    escalation_level: "LEVEL 1",
+    sent_at: nowIso,
+    dedupe_key: key,
+    created_at: nowIso,
+  });
+  if (rErr) {
+    if (/duplicate key|unique/i.test(rErr.message)) return { ok: false, reason: "duplicate" };
+    throw new Error(rErr.message);
   }
-  return { ok: true, dedupeKey: key, outboxId };
+
+  // Then insert outbox row (always succeeds; no unique constraint).
+  const { data: outboxRow, error: oErr } = await sb
+    .from("outbox")
+    .insert({
+      channel,
+      recipient_name: name,
+      recipient_contact: recipientContact,
+      body: message,
+      message_type: "DAILY TASK REMINDER",
+      status: "Sent",
+      contact_status: contactStatus,
+      created_at: nowIso,
+      sent_at: nowIso,
+    })
+    .select("id")
+    .single();
+  if (oErr) throw new Error(oErr.message);
+
+  return { ok: true, dedupeKey: key, outboxId: (outboxRow?.id as number) ?? 0 };
 }

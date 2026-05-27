@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
+import { sb } from "@/db/supabase";
 import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
 import { authoriseCron } from "@/lib/cron-auth";
 import { recordEvent } from "@/lib/system-events";
@@ -25,38 +25,25 @@ export async function GET(req: NextRequest) {
 
     let written = 0;
     for (const k of kpis) {
-      // Idempotent upsert via the unique (company_id, snapshot_date) index.
-      await db
-        .insert(schema.dailySnapshots)
-        .values({
-          snapshotDate,
-          companyId: k.id,
-          total: k.total,
-          open: k.open,
-          overdue: k.overdue,
-          dueSoon: k.dueSoon,
-          blocked: k.blocked,
-          critical: k.critical,
-          escalated: k.escalated,
-          completed: k.completed,
-          closed: k.closed,
-          riskScore: k.riskScore,
-        })
-        .onConflictDoUpdate({
-          target: [schema.dailySnapshots.companyId, schema.dailySnapshots.snapshotDate],
-          set: {
-            total: k.total,
-            open: k.open,
-            overdue: k.overdue,
-            dueSoon: k.dueSoon,
-            blocked: k.blocked,
-            critical: k.critical,
-            escalated: k.escalated,
-            completed: k.completed,
-            closed: k.closed,
-            riskScore: k.riskScore,
-          },
-        });
+      const payload = {
+        snapshot_date: snapshotDate.toISOString(),
+        company_id: k.id,
+        total: k.total,
+        open: k.open,
+        overdue: k.overdue,
+        due_soon: k.dueSoon,
+        blocked: k.blocked,
+        critical: k.critical,
+        escalated: k.escalated,
+        completed: k.completed,
+        closed: k.closed,
+        risk_score: k.riskScore,
+      };
+      // Idempotent upsert via unique (company_id, snapshot_date) index.
+      const { error } = await sb
+        .from("daily_snapshots")
+        .upsert(payload, { onConflict: "company_id,snapshot_date" });
+      if (error) throw new Error(error.message);
       written++;
     }
 

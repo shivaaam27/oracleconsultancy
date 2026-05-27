@@ -1,5 +1,4 @@
-import { db, schema } from "@/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { reportError } from "./sentry";
 
 export type UndoResult = { ok: boolean; message: string };
@@ -13,19 +12,22 @@ export function registerUndoHandler(kind: string, fn: Handler) {
 }
 
 export async function consumeUndo(tokenId: string): Promise<UndoResult> {
-  const rows = await db
-    .select()
-    .from(schema.undoTokens)
-    .where(eq(schema.undoTokens.id, tokenId))
-    .limit(1);
-  const token = rows[0];
+  const { data: token, error: e1 } = await sb
+    .from("undo_tokens")
+    .select("id,kind,payload,expires_at,consumed_at")
+    .eq("id", tokenId)
+    .maybeSingle();
+  if (e1) {
+    await reportError(e1, { tokenId });
+    return { ok: false, message: "Couldn't load undo token." };
+  }
   if (!token) return { ok: false, message: "Undo token not found." };
-  if (token.consumedAt) return { ok: false, message: "Already undone." };
-  if (token.expiresAt.getTime() < Date.now()) {
+  if (token.consumed_at) return { ok: false, message: "Already undone." };
+  if (new Date(token.expires_at as string).getTime() < Date.now()) {
     return { ok: false, message: "Undo expired." };
   }
 
-  const handler = handlers[token.kind];
+  const handler = handlers[token.kind as string];
   if (!handler) {
     await reportError(new Error("No undo handler registered"), { kind: token.kind });
     return { ok: false, message: "Can't undo this kind of change." };
@@ -33,7 +35,7 @@ export async function consumeUndo(tokenId: string): Promise<UndoResult> {
 
   let payload: unknown;
   try {
-    payload = JSON.parse(token.payload);
+    payload = JSON.parse(token.payload as string);
   } catch (err) {
     await reportError(err, { tokenId });
     return { ok: false, message: "Couldn't read undo data." };
@@ -46,10 +48,11 @@ export async function consumeUndo(tokenId: string): Promise<UndoResult> {
     return { ok: false, message: "Undo failed." };
   }
 
-  await db
-    .update(schema.undoTokens)
-    .set({ consumedAt: new Date() })
-    .where(and(eq(schema.undoTokens.id, tokenId), isNull(schema.undoTokens.consumedAt)));
+  await sb
+    .from("undo_tokens")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("id", tokenId)
+    .is("consumed_at", null);
 
   return { ok: true, message: "Undone." };
 }

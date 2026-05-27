@@ -1,23 +1,12 @@
-import { db, schema } from "@/db";
-import { eq, inArray } from "drizzle-orm";
+import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
 
-// person.snooze — restore prior snoozed_until value (or null).
-registerUndoHandler("person.snooze", async (raw) => {
-  const p = raw as { personId: number; before: string | null };
-  await db
-    .update(schema.people)
-    .set({ snoozedUntil: p.before ? new Date(p.before) : null })
-    .where(eq(schema.people.id, p.personId));
-});
-
 // outbox.markSent — delete the reminder + outbox rows we just inserted.
-// We identify them by dedupeKey (reminders) and outbox id.
 registerUndoHandler("outbox.markSent", async (raw) => {
   const p = raw as { dedupeKey: string; outboxIds: number[] };
-  await db.delete(schema.reminders).where(eq(schema.reminders.dedupeKey, p.dedupeKey));
+  await sb.from("reminders").delete().eq("dedupe_key", p.dedupeKey);
   if (p.outboxIds.length) {
-    await db.delete(schema.outbox).where(inArray(schema.outbox.id, p.outboxIds));
+    await sb.from("outbox").delete().in("id", p.outboxIds);
   }
 });
 
@@ -25,5 +14,11 @@ registerUndoHandler("outbox.markSent", async (raw) => {
 registerUndoHandler("meeting.bulkCreate", async (raw) => {
   const p = raw as { taskIds: number[] };
   if (!p.taskIds.length) return;
-  await db.delete(schema.tasks).where(inArray(schema.tasks.id, p.taskIds));
+  await sb.from("tasks").delete().in("id", p.taskIds);
+});
+
+// person.snooze — restore prior snoozed_until value (or null).
+registerUndoHandler("person.snooze", async (raw) => {
+  const p = raw as { personId: number; before: string | null };
+  await sb.from("people").update({ snoozed_until: p.before }).eq("id", p.personId);
 });
