@@ -48,6 +48,10 @@ export async function generateDrafts(channel: "WHATSAPP" | "EMAIL" | "SMS"): Pro
   const tasks = (await getAllTasks()).filter((t) => isOpen(t.status));
   const people = await db.select().from(schema.people);
   const pByName = new Map(people.map((p) => [p.name, p]));
+  const now = new Date();
+  const snoozedNames = new Set(
+    people.filter((p) => p.snoozedUntil && p.snoozedUntil >= now).map((p) => p.name)
+  );
 
   const byPerson = new Map<string, TaskRow[]>();
   for (const t of tasks) {
@@ -60,6 +64,7 @@ export async function generateDrafts(channel: "WHATSAPP" | "EMAIL" | "SMS"): Pro
 
   const drafts: OutboxDraft[] = [];
   for (const [name, list] of byPerson) {
+    if (snoozedNames.has(name)) continue;
     const p = pByName.get(name);
     const message =
       channel === "WHATSAPP"

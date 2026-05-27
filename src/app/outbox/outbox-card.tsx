@@ -1,15 +1,14 @@
 "use client";
 import { Badge, Card } from "@/components/ui";
 import type { OutboxDraft } from "@/lib/outbox-gen";
-import { Copy, ExternalLink, Check, MessageCircle, Mail, Phone, AlertCircle, User } from "lucide-react";
+import { Copy, Check, AlertCircle, User, BellOff, Clock, Send } from "lucide-react";
 import { useState, useTransition } from "react";
-import { recordSent } from "./actions";
+import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
+import { useToast } from "@/components/toast";
+import { callUndo } from "@/components/undo-banner";
 import { cn } from "@/lib/cn";
 
-function cleanPhone(p: string | null): string | null {
-  if (!p) return null;
-  return p.replace(/[^\d+]/g, "");
-}
+type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 
 type Urgency = "critical" | "warn" | "normal";
 
@@ -34,27 +33,26 @@ const stripeClass: Record<Urgency, string> = {
   normal: "border-l-transparent",
 };
 
+function channelLabel(c: Channel): string {
+  return c === "WHATSAPP" ? "WhatsApp" : c === "EMAIL" ? "Email" : "SMS";
+}
+
 export function OutboxCard({
   draft,
   channel,
   alreadySent = false,
 }: {
   draft: OutboxDraft;
-  channel: "WHATSAPP" | "EMAIL" | "SMS";
+  channel: Channel;
   alreadySent?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(alreadySent);
   const [duplicate, setDuplicate] = useState(false);
   const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
 
-  const onCopy = async () => {
-    await navigator.clipboard.writeText(draft.message);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  const onMarkSent = () => {
+  const doMarkSent = async (): Promise<{ ok: boolean; undoToken?: string }> => {
     const fd = new FormData();
     fd.set("channel", channel);
     fd.set("name", draft.recipientName);
@@ -65,31 +63,78 @@ export function OutboxCard({
       "recipientContact",
       channel === "EMAIL" ? draft.email || "" : channel === "WHATSAPP" ? draft.whatsapp || "" : draft.phone || ""
     );
-    startTransition(async () => {
-      const res = await recordSent(fd);
-      if (res.ok) setSent(true);
-      else if (res.reason === "duplicate") {
-        setDuplicate(true);
-        setSent(true);
-      }
+    const res = await recordSent(fd);
+    if (res.ok) {
+      setSent(true);
+      return { ok: true, undoToken: res.undoToken };
+    }
+    if (res.reason === "duplicate") {
+      setSent(true);
+      setDuplicate(true);
+      return { ok: false };
+    }
+    toast("Couldn't mark sent.", { tone: "danger" });
+    return { ok: false };
+  };
+
+  const showUndoToast = (label: string, undoToken: string | undefined) => {
+    if (!undoToken) return;
+    toast(label, {
+      tone: "success",
+      duration: 10000,
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const r = await callUndo(undoToken);
+          toast(r.message, { tone: r.ok ? "success" : "warn", duration: 3000 });
+          if (r.ok && typeof window !== "undefined") window.location.reload();
+        },
+      },
     });
   };
 
-  const waNumber = cleanPhone(draft.whatsapp);
-  const waLink =
-    channel === "WHATSAPP" && waNumber
-      ? `https://wa.me/${waNumber.replace(/^\+/, "")}?text=${encodeURIComponent(draft.message)}`
-      : null;
-  const mailtoLink =
-    channel === "EMAIL" && draft.email
-      ? `mailto:${draft.email}?subject=${encodeURIComponent("Daily Task Reminder — " + new Date().toLocaleDateString())}&body=${encodeURIComponent(draft.message)}`
-      : null;
-  const smsLink = channel === "SMS" && draft.phone ? `sms:${cleanPhone(draft.phone)}?body=${encodeURIComponent(draft.message)}` : null;
+  const onCopy = async () => {
+    await navigator.clipboard.writeText(draft.message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
 
-  const openLink = waLink || mailtoLink || smsLink;
-  const OpenIcon = channel === "WHATSAPP" ? MessageCircle : channel === "EMAIL" ? Mail : Phone;
+  const onCopyAndMark = () => {
+    startTransition(async () => {
+      await navigator.clipboard.writeText(draft.message);
+      setCopied(true);
+      const { ok, undoToken } = await doMarkSent();
+      if (ok) showUndoToast(`Copied & marked sent for ${draft.recipientName}.`, undoToken);
+    });
+  };
+
+  const onMarkSentOnly = () => {
+    startTransition(async () => {
+      const { ok, undoToken } = await doMarkSent();
+      if (ok) showUndoToast(`Marked sent for ${draft.recipientName}.`, undoToken);
+    });
+  };
+
+  const onSkip = () => {
+    if (!draft.personId) {
+      toast("Can't skip — person isn't in directory.", { tone: "warn" });
+      return;
+    }
+    startTransition(async () => {
+      const res = await snoozePerson(draft.personId!);
+      if (!res.ok) {
+        toast(res.error || "Skip failed.", { tone: "danger" });
+        return;
+      }
+      showUndoToast(`Skipped ${draft.recipientName} for today.`, res.undoToken);
+      // Person disappears on next page revalidation (already triggered server-side).
+      if (typeof window !== "undefined") window.location.reload();
+    });
+  };
 
   const u = urgencyOf(draft.tasks);
+  const prefersOther =
+    draft.preferredChannel && draft.preferredChannel.toUpperCase() !== channel;
 
   return (
     <Card
@@ -99,13 +144,23 @@ export function OutboxCard({
         sent && "opacity-60"
       )}
     >
-      <div className="p-4 border-b border-border flex items-center justify-between">
+      <div className="p-4 border-b border-border flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
             <User size={15} />
           </div>
           <div className="min-w-0">
-            <div className="font-medium truncate">{draft.recipientName}</div>
+            <div className="font-medium truncate flex items-center gap-2">
+              {draft.recipientName}
+              {prefersOther && (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                  title={`This person prefers ${draft.preferredChannel}`}
+                >
+                  Prefers {draft.preferredChannel}
+                </span>
+              )}
+            </div>
             <div className="text-xs text-fg-muted flex flex-wrap gap-x-2 gap-y-0.5">
               <span>{draft.tasks.length} task{draft.tasks.length === 1 ? "" : "s"}</span>
               {u.overdue > 0 && <span className="text-red-600 dark:text-red-400">· {u.overdue} overdue</span>}
@@ -121,7 +176,9 @@ export function OutboxCard({
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {sent ? (
-            <Badge tone="success"><Check size={11} /> Sent</Badge>
+            <Badge tone={duplicate ? "warn" : "success"}>
+              <Check size={11} /> {duplicate ? "Already sent" : "Sent"}
+            </Badge>
           ) : draft.contactStatus === "Complete" ? (
             <Badge tone="success">Ready</Badge>
           ) : (
@@ -137,41 +194,77 @@ export function OutboxCard({
       )}
 
       <div className="p-3 flex items-center justify-between gap-2 bg-bg-elev border-t border-border">
-        <button
-          onClick={onCopy}
-          disabled={sent}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors disabled:opacity-50"
-        >
-          {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
-        </button>
+        {sent ? (
+          <span className="text-xs text-fg-subtle inline-flex items-center gap-1.5">
+            <Check size={12} /> {duplicate ? "Was already done today." : `Sent via ${channelLabel(channel)}.`}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={pending || !draft.personId}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-40"
+            title="Hide this person until tomorrow"
+          >
+            <BellOff size={12} /> Skip today
+          </button>
+        )}
 
-        <div className="flex items-center gap-2">
-          {sent ? (
-            <Badge tone={duplicate ? "warn" : "default"}>
-              {duplicate ? "Already sent today" : "Done"}
-            </Badge>
-          ) : (
+        {!sent && (
+          <div className="flex items-center gap-1.5">
             <button
-              onClick={onMarkSent}
-              disabled={pending}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50"
+              type="button"
+              onClick={onCopy}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors"
             >
-              {pending ? "Saving…" : "Mark sent"}
+              {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
             </button>
-          )}
-          {openLink && !sent && (
-            <a
-              href={openLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity"
+            <button
+              type="button"
+              onClick={onMarkSentOnly}
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50"
             >
-              <OpenIcon size={12} /> Open {channel === "WHATSAPP" ? "WhatsApp" : channel === "EMAIL" ? "Email" : "SMS"}
-              <ExternalLink size={10} />
-            </a>
-          )}
-        </div>
+              <Check size={12} /> Mark sent
+            </button>
+            <button
+              type="button"
+              onClick={onCopyAndMark}
+              disabled={pending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              <Send size={12} /> {pending ? "Working…" : "Copy & Mark Sent"}
+            </button>
+          </div>
+        )}
       </div>
     </Card>
+  );
+}
+
+// Small client-side button used in the page's snoozed list.
+export function UnsnoozeButton({ personId, name }: { personId: number; name: string }) {
+  const [pending, startTransition] = useTransition();
+  const { toast } = useToast();
+  const onClick = () => {
+    startTransition(async () => {
+      const res = await unsnoozePerson(personId);
+      if (!res.ok) {
+        toast(res.error || "Couldn't bring back.", { tone: "danger" });
+        return;
+      }
+      toast(`${name} is back in today's list.`, { tone: "success" });
+      if (typeof window !== "undefined") window.location.reload();
+    });
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending}
+      className="text-xs text-accent hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+    >
+      <Clock size={11} /> Bring back
+    </button>
   );
 }

@@ -29,6 +29,13 @@
       "when": 1779865561186,
       "tag": "0003_hard_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779868455194,
+      "tag": "0004_fancy_mockingbird",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,15 @@ import { db, schema } from "@/db";
 import { eq, inArray } from "drizzle-orm";
 import { registerUndoHandler } from "../undo";
 
+// person.snooze — restore prior snoozed_until value (or null).
+registerUndoHandler("person.snooze", async (raw) => {
+  const p = raw as { personId: number; before: string | null };
+  await db
+    .update(schema.people)
+    .set({ snoozedUntil: p.before ? new Date(p.before) : null })
+    .where(eq(schema.people.id, p.personId));
+});
+
 // outbox.markSent — delete the reminder + outbox rows we just inserted.
 // We identify them by dedupeKey (reminders) and outbox id.
 registerUndoHandler("outbox.markSent", async (raw) => {

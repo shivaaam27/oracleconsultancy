@@ -1,9 +1,9 @@
 import { generateDrafts, dedupeKey } from "@/lib/outbox-gen";
-import { todaysSentKeys, historyByDay, formatDayLabel } from "@/lib/outbox-history";
+import { todaysSentKeys, historyByDay, formatDayLabel, snoozedToday } from "@/lib/outbox-history";
 import { PageHeader, Card, EmptyState } from "@/components/ui";
-import { OutboxCard } from "./outbox-card";
+import { OutboxCard, UnsnoozeButton } from "./outbox-card";
 import Link from "next/link";
-import { Send, MessageCircle, Mail, Phone, Inbox, ChevronDown, Check, Clock } from "lucide-react";
+import { Send, MessageCircle, Mail, Phone, Inbox, ChevronDown, Check, Clock, BellOff } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +13,11 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
   const sp = await searchParams;
   const channel: Channel = (sp.channel?.toUpperCase() as Channel) || "WHATSAPP";
 
-  const [drafts, sentKeys, history] = await Promise.all([
+  const [drafts, sentKeys, history, snoozed] = await Promise.all([
     generateDrafts(channel),
     todaysSentKeys(channel),
     historyByDay(channel, 14),
+    snoozedToday(),
   ]);
 
   // Mark drafts as already-sent so the UI can move them into the "Done today" bucket.
@@ -156,6 +157,28 @@ export default async function OutboxPage({ searchParams }: { searchParams: Promi
               />
             ))}
           </div>
+        </details>
+      )}
+
+      {/* SNOOZED TODAY */}
+      {snoozed.length > 0 && (
+        <details>
+          <summary className="cursor-pointer list-none">
+            <SectionLabel>
+              <BellOff size={12} className="inline-block" />
+              Snoozed today · {snoozed.length}
+            </SectionLabel>
+          </summary>
+          <Card className="mt-3 p-0 overflow-hidden">
+            <ul className="divide-y divide-border text-sm">
+              {snoozed.map((s) => (
+                <li key={s.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                  <span className="truncate font-medium">{s.name}</span>
+                  <UnsnoozeButton personId={s.id} name={s.name} />
+                </li>
+              ))}
+            </ul>
+          </Card>
         </details>
       )}
 

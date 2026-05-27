@@ -1,5 +1,5 @@
 import { db, schema } from "@/db";
-import { and, eq, gte, lte, desc } from "drizzle-orm";
+import { and, eq, gte, lte, desc, isNotNull } from "drizzle-orm";
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -79,6 +79,23 @@ export async function historyByDay(
     byDay.set(key, list);
   }
   return byDay;
+}
+
+export type SnoozedPerson = {
+  id: number;
+  name: string;
+  snoozedUntil: Date;
+};
+
+export async function snoozedToday(): Promise<SnoozedPerson[]> {
+  const now = new Date();
+  const rows = await db
+    .select({ id: schema.people.id, name: schema.people.name, snoozedUntil: schema.people.snoozedUntil })
+    .from(schema.people)
+    .where(and(isNotNull(schema.people.snoozedUntil), gte(schema.people.snoozedUntil, now)));
+  return rows
+    .filter((r): r is SnoozedPerson => r.snoozedUntil !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function formatDayLabel(key: string): string {

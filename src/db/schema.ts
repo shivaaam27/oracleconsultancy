@@ -26,6 +26,7 @@ export const people = pgTable("people", {
   contactStatus: text("contact_status"),
   active: boolean("active").notNull().default(true),
   notes: text("notes"),
+  snoozedUntil: timestamp("snoozed_until", { mode: "date" }),
 });
 
 export const tasks = pgTable("tasks", {
