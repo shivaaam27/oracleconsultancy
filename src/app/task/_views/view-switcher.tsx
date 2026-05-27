@@ -25,10 +25,13 @@ const LABELS: Record<ViewMode, string> = {
 export function ViewSwitcher({
   current,
   queryWithoutView,
+  basePath = "/task",
 }: {
   current: ViewMode;
   /** Current query string without the `view` param. Built by the page. */
   queryWithoutView: string;
+  /** Base URL for generated links. Defaults to /task; pass "/" for hub embed. */
+  basePath?: string;
 }) {
   return (
     <div className="inline-flex items-center rounded-full bg-bg-subtle p-0.5 text-xs">
@@ -39,7 +42,7 @@ export function ViewSwitcher({
         // board is the default — keep URLs clean
         if (m !== "board") params.set("view", m);
         const q = params.toString();
-        const href = q ? `/task?${q}` : "/task";
+        const href = q ? `${basePath}?${q}` : basePath;
         return (
           <Link
             key={m}

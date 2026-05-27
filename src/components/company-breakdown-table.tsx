@@ -16,7 +16,14 @@ type CompanyKpi = {
   riskScore: number;
 };
 
-export function CompanyBreakdownTable({ companies }: { companies: CompanyKpi[] }) {
+export function CompanyBreakdownTable({
+  companies,
+  isHub = false,
+}: {
+  companies: CompanyKpi[];
+  /** When true, clicking a row navigates to the hub companies tab instead of /companies/[id]. */
+  isHub?: boolean;
+}) {
   const router = useRouter();
 
   return (
@@ -39,7 +46,7 @@ export function CompanyBreakdownTable({ companies }: { companies: CompanyKpi[] }
           {companies.map((c) => (
             <tr
               key={c.id}
-              onClick={() => router.push(`/companies/${c.id}`)}
+              onClick={() => router.push(isHub ? `/?tab=companies&co=${c.id}` : `/companies/${c.id}`)}
               className="hover:bg-bg-subtle transition-colors cursor-pointer group"
             >
               <Td>
