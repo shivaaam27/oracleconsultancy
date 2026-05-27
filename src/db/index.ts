@@ -14,11 +14,14 @@ if (!url) {
 //
 // `idle_timeout: 5` + `max_lifetime: 30` aggressively recycle so we
 // don't try to write to a socket Supabase has already killed.
+// Aggressive recycling: open fresh connections almost every request.
+// Each handshake costs ~150ms (one-off) but eliminates stale-socket hangs
+// from Supabase closing connections server-side.
 const client = postgres(url, {
   prepare: false,
   max: 1,
-  idle_timeout: 5,
-  max_lifetime: 30,
+  idle_timeout: 1,
+  max_lifetime: 10,
   connect_timeout: 10,
 });
 
