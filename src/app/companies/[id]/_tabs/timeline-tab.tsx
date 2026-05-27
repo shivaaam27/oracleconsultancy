@@ -349,11 +349,11 @@ function TimelineItemView({
               )
             )}
             {item.statusChange && (
-              <div className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted bg-bg-subtle rounded px-2 py-0.5">
-                <GitCommitHorizontal size={10} />
-                <span>Status</span>
-                {item.statusChange.from && <span className="line-through">{item.statusChange.from}</span>}
-                <span>→</span>
+              <div className="inline-flex items-center gap-1.5 text-[11px] bg-bg-subtle rounded px-2 py-0.5">
+                <GitCommitHorizontal size={10} className="text-fg-subtle" />
+                <span className="text-fg-subtle">Status</span>
+                {item.statusChange.from && <span className="text-fg-muted">{item.statusChange.from}</span>}
+                <span className="text-fg-subtle">→</span>
                 <span className="text-fg font-medium">{item.statusChange.to}</span>
               </div>
             )}
@@ -365,10 +365,10 @@ function TimelineItemView({
             ) : (
               <div className="space-y-0.5">
                 <span className="font-medium text-fg">{item.field || item.entryType}</span>
-                <div className="flex items-center gap-1.5 text-fg-muted flex-wrap">
-                  {item.oldValue && <span className="line-through">{item.oldValue}</span>}
-                  {item.oldValue && item.newValue && <GitCommitHorizontal size={10} />}
-                  {item.newValue && <span className="text-fg">{item.newValue}</span>}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {item.oldValue && <span className="text-fg-muted">{item.oldValue}</span>}
+                  {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}
+                  {item.newValue && <span className="text-fg font-medium">{item.newValue}</span>}
                 </div>
                 {item.changeReason && (
                   <p className="italic text-fg-muted">

@@ -98,10 +98,10 @@ export function UpdateMenu({ updateId, body, pinned, showPin = true }: Props) {
         <DropdownMenu.Trigger asChild>
           <button
             type="button"
-            className="inline-flex items-center justify-center h-5 w-5 rounded text-fg-subtle hover:text-fg hover:bg-bg-muted opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+            className="inline-flex items-center justify-center h-6 w-6 rounded text-fg-subtle hover:text-fg hover:bg-bg-muted opacity-70 hover:opacity-100 focus:opacity-100 transition-opacity"
             aria-label="Update options"
           >
-            <MoreHorizontal size={12} />
+            <MoreHorizontal size={14} />
           </button>
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal>
