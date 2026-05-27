@@ -7,13 +7,14 @@ if (!url) {
   throw new Error("DATABASE_URL is not set. Add it to .env.local or your Vercel env vars.");
 }
 
-// Serverless: each function instance only handles one request at a time, so
-// keep the per-instance pool tiny. Supabase's pooler (transaction mode, port
-// 6543) handles concurrency across instances. `prepare: false` is required
-// because PgBouncer transaction mode does not support prepared statements.
+// Serverless: each function instance handles one request, but a single
+// request often issues several queries (especially `Promise.all` ones).
+// `max: 5` lets those parallelise instead of serialising on one socket.
+// `prepare: false` is the load-bearing setting — required by PgBouncer
+// transaction mode and must not be removed.
 const client = postgres(url, {
   prepare: false,
-  max: 1,
+  max: 5,
   idle_timeout: 20,
   connect_timeout: 10,
 });

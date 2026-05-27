@@ -12,7 +12,7 @@ export default async function OutboxPage() {
   const [drafts, sentByName, history, snoozed] = await Promise.all([
     generateDrafts(),
     todaysSentChannelsByName(),
-    historyByDay(14),
+    historyByDay(7),
     snoozedToday(),
   ]);
 

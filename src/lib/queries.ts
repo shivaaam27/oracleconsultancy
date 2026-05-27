@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db, schema } from "@/db";
 import { eq, inArray } from "drizzle-orm";
 import { flag, isOpen, daysOpen, daysToDeadline } from "./derive";
@@ -29,17 +30,20 @@ export type TaskRow = {
   flag: ReturnType<typeof flag>;
 };
 
-export async function getAllTasks(): Promise<TaskRow[]> {
-  const tasks = await db.select().from(schema.tasks);
+export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
+  // Run independent reads in parallel; pool=5 allows up to 5 concurrent sockets.
+  const [tasks, companies, depts, people, assignees] = await Promise.all([
+    db.select().from(schema.tasks),
+    db.select().from(schema.companies),
+    db.select().from(schema.departments),
+    db.select().from(schema.people),
+    db.select().from(schema.taskAssignees),
+  ]);
   if (!tasks.length) return [];
-  const companies = await db.select().from(schema.companies);
   const cMap = new Map(companies.map((c) => [c.id, c.name]));
   const cAccent = new Map(companies.map((c) => [c.id, c.accentColor]));
-  const depts = await db.select().from(schema.departments);
   const dMap = new Map(depts.map((d) => [d.id, d.name]));
-  const people = await db.select().from(schema.people);
   const pMap = new Map(people.map((p) => [p.id, p.name]));
-  const assignees = await db.select().from(schema.taskAssignees);
   const aMap = new Map<number, string[]>();
   for (const a of assignees) {
     const list = aMap.get(a.taskId) || [];
@@ -73,7 +77,7 @@ export async function getAllTasks(): Promise<TaskRow[]> {
     daysToDeadline: daysToDeadline(t),
     flag: flag(t),
   }));
-}
+});
 
 export type CompanyKpi = {
   id: number;
