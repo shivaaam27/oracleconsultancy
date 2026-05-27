@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui";
 import { PeopleTable } from "@/components/people-table";
+import { NewPersonButton } from "@/components/new-person-button";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { sb } from "@/db/supabase";
 
@@ -16,6 +17,9 @@ export default async function PeoplePage() {
     name: c.name as string,
   }));
 
+  // For the manager dropdown in the create dialog — derived from already-loaded data
+  const peopleList = people.map((p) => ({ id: p.id, name: p.name, active: p.active }));
+
   const activeCount = people.filter((p) => p.active).length;
   const overdueLoad = people.filter((p) => p.active && p.workload.overdue > 0).length;
 
@@ -24,6 +28,7 @@ export default async function PeoplePage() {
       <PageHeader
         title="People Directory"
         sub={`${activeCount} active · ${overdueLoad} carrying overdue work`}
+        action={<NewPersonButton companies={companies} peopleList={peopleList} />}
       />
       <PeopleTable people={people} companies={companies} />
     </div>

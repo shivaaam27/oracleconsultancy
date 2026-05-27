@@ -5,11 +5,15 @@ import { useEffect, useState, useCallback } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, Loader2, AlertCircle,
-  Briefcase, Building2, ExternalLink, Activity, ListTodo,
+  Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
+  RotateCcw, Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { TaskDrawerLink } from "./task-drawer-link";
+import { PersonForm } from "./person-form";
 import { Badge } from "./ui";
+import { useToast } from "./toast";
+import { togglePersonActive, snoozePerson } from "@/app/people/actions";
 import type { TaskRow } from "@/lib/queries";
 
 /* -------------------------------------------------------------------------
@@ -51,6 +55,8 @@ type DrawerData = {
     body: string;
     createdAt: string;
   }>;
+  companies: Array<{ id: number; name: string }>;
+  peopleList: Array<{ id: number; name: string; active: boolean }>;
 };
 
 /* -------------------------------------------------------------------------
@@ -92,6 +98,11 @@ export function PersonDrawer() {
   const [data, setData] = useState<DrawerData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [snoozeInput, setSnoozeInput] = useState<string>("");
+  const [actionPending, setActionPending] = useState(false);
+  const { toast } = useToast();
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -101,7 +112,7 @@ export function PersonDrawer() {
   }, [pathname, router, searchParams]);
 
   useEffect(() => {
-    if (!idStr) { setData(null); return; }
+    if (!idStr) { setData(null); setMode("view"); setSnoozeInput(""); return; }
     setLoading(true);
     setError(false);
     fetch(`/api/people-detail?id=${encodeURIComponent(idStr)}`)
@@ -109,9 +120,48 @@ export function PersonDrawer() {
         if (!r.ok) throw new Error("not found");
         return r.json();
       })
-      .then((d: DrawerData) => { setData(d); setLoading(false); })
+      .then((d: DrawerData) => {
+        setData(d);
+        setLoading(false);
+        // Seed snooze input from current value (YYYY-MM-DD)
+        if (d.person.snoozedUntil) {
+          setSnoozeInput(d.person.snoozedUntil.slice(0, 10));
+        }
+      })
       .catch(() => { setError(true); setLoading(false); });
-  }, [idStr]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idStr, refreshKey]);
+
+  // Reset to view mode whenever a new person opens
+  useEffect(() => { setMode("view"); }, [idStr]);
+
+  const refresh = () => setRefreshKey((k) => k + 1);
+
+  const handleArchiveToggle = async () => {
+    if (!person) return;
+    setActionPending(true);
+    const res = await togglePersonActive(person.id);
+    setActionPending(false);
+    if (res.ok) {
+      toast(res.active ? "Person restored." : "Person archived.", { tone: "success" });
+      refresh();
+    } else {
+      toast(res.error, { tone: "danger" });
+    }
+  };
+
+  const handleSnoozeSave = async () => {
+    if (!person) return;
+    setActionPending(true);
+    const res = await snoozePerson(person.id, snoozeInput || null);
+    setActionPending(false);
+    if (res.ok) {
+      toast(snoozeInput ? "Snoozed." : "Snooze cleared.", { tone: "success" });
+      refresh();
+    } else {
+      toast(res.error, { tone: "danger" });
+    }
+  };
 
   const person = data?.person;
   const snoozed = person?.snoozedUntil ? new Date(person.snoozedUntil) > new Date() : false;
@@ -145,15 +195,26 @@ export function PersonDrawer() {
                 {person?.name ?? "Loading…"}
               </Dialog.Title>
             </div>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                aria-label="Close"
-                className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </Dialog.Close>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {data && mode === "view" && (
+                <button
+                  type="button"
+                  onClick={() => setMode("edit")}
+                  className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2 py-1 rounded hover:bg-bg-subtle transition-colors"
+                >
+                  <Pencil size={11} /> Edit
+                </button>
+              )}
+              <Dialog.Close asChild>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </Dialog.Close>
+            </div>
           </div>
 
           {/* Body */}
@@ -172,7 +233,43 @@ export function PersonDrawer() {
               </div>
             )}
 
-            {person && (
+            {/* Edit mode — full form */}
+            {person && data && mode === "edit" && (
+              <div className="p-5 space-y-3">
+                <p className="text-xs text-fg-muted">
+                  Editing <span className="font-medium text-fg">{person.name}</span>
+                </p>
+                <PersonForm
+                  mode="edit"
+                  id={person.id}
+                  compact
+                  defaults={{
+                    name: person.name,
+                    email: person.email,
+                    phone: person.phone,
+                    whatsapp: person.whatsapp,
+                    preferredChannel: person.preferredChannel,
+                    role: person.role,
+                    companyId: person.companyId,
+                    managerId: person.managerId,
+                    notes: person.notes,
+                  }}
+                  companies={data.companies}
+                  peopleList={data.peopleList}
+                  onCancel={() => setMode("view")}
+                  onComplete={(res) => {
+                    if (res.ok) {
+                      toast("Person updated.", { tone: "success" });
+                      setMode("view");
+                      refresh();
+                    }
+                  }}
+                />
+              </div>
+            )}
+
+            {/* View mode — read-only profile + workload + tasks + activity */}
+            {person && mode === "view" && (
               <div className="p-5 space-y-5">
                 {/* Role + Company + status */}
                 <div className="space-y-2">
@@ -358,17 +455,91 @@ export function PersonDrawer() {
                   </div>
                 )}
 
-                {/* Footer link to view all their tasks */}
-                {person && (
-                  <div className="pt-2 border-t border-border">
-                    <Link
-                      href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`}
-                      className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
-                    >
-                      <ExternalLink size={11} /> View all tasks involving {person.name.split(" ")[0]}
-                    </Link>
+                {/* Manager (if set) */}
+                {person.managerId && data?.peopleList && (() => {
+                  const mgr = data.peopleList.find((p) => p.id === person.managerId);
+                  return mgr ? (
+                    <div className="text-xs text-fg-muted">
+                      Reports to{" "}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const params = new URLSearchParams(searchParams.toString());
+                          params.set("person", String(mgr.id));
+                          router.push(`${pathname}?${params.toString()}`, { scroll: false });
+                        }}
+                        className="font-medium text-fg hover:text-accent transition-colors"
+                      >
+                        {mgr.name}
+                      </button>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Action rail — Snooze + Archive */}
+                <div className="pt-3 border-t border-border space-y-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-1.5 inline-flex items-center gap-1.5">
+                      <Clock size={11} /> Snooze reminders
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={snoozeInput}
+                        onChange={(e) => setSnoozeInput(e.target.value)}
+                        min={new Date().toISOString().slice(0, 10)}
+                        disabled={actionPending}
+                        className="flex-1 rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSnoozeSave}
+                        disabled={actionPending}
+                        className="px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      {person.snoozedUntil && (
+                        <button
+                          type="button"
+                          onClick={() => { setSnoozeInput(""); }}
+                          disabled={actionPending}
+                          className="px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {person.snoozedUntil && (
+                      <p className="text-[11px] text-fg-subtle mt-1">
+                        Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.
+                      </p>
+                    )}
                   </div>
-                )}
+
+                  <button
+                    type="button"
+                    onClick={handleArchiveToggle}
+                    disabled={actionPending}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 ${
+                      person.active
+                        ? "border-danger/40 text-danger hover:bg-danger/10"
+                        : "border-success/40 text-success hover:bg-success/10"
+                    }`}
+                  >
+                    {person.active ? <><Archive size={12} /> Archive person</> : <><RotateCcw size={12} /> Restore person</>}
+                  </button>
+                </div>
+
+                {/* Footer link to view all their tasks */}
+                <div className="pt-2 border-t border-border">
+                  <Link
+                    href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`}
+                    className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
+                  >
+                    <ExternalLink size={11} /> View all tasks involving {person.name.split(" ")[0]}
+                  </Link>
+                </div>
               </div>
             )}
           </div>

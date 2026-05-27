@@ -106,6 +106,9 @@ export type PersonDetail = {
     body: string;
     createdAt: Date;
   }>;
+  /** Lookup data for edit dropdowns — small enough to inline in the response. */
+  companies: Array<{ id: number; name: string }>;
+  peopleList: Array<{ id: number; name: string; active: boolean }>;
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
@@ -169,5 +172,20 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     });
   }
 
-  return { person, workload, assignedTasks, recentUpdates };
+  // Lookup arrays for the edit form's company + manager dropdowns
+  const companies = Array.from(cMap.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const { data: rawAllPeople } = await sb
+    .from("people")
+    .select("id,name,active")
+    .order("name");
+  const peopleList = (rawAllPeople ?? []).map((p) => ({
+    id: p.id as number,
+    name: p.name as string,
+    active: (p.active as boolean | null) ?? true,
+  }));
+
+  return { person, workload, assignedTasks, recentUpdates, companies, peopleList };
 }
