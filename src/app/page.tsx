@@ -1,11 +1,13 @@
 import { getAllTasks, computeCompanyKpis, computeGlobalKpis, statusBreakdown, priorityBreakdown } from "@/lib/queries";
 import { flagLabel, flagColor } from "@/lib/derive";
-import { Card, PageHeader, SectionHeading, Stat, TableShell, Th, Td, Badge, EmptyState } from "@/components/ui";
+import { Card, PageHeader, SectionHeading, Stat, Badge } from "@/components/ui";
 import { QuickCapture } from "@/components/quick-capture";
 import { AskCOS } from "@/components/ask-cos";
 import { sb } from "@/db/supabase";
 import Link from "next/link";
 import { AlertTriangle, AlertOctagon, Clock, Flame, Ban, ArrowUpRight, CheckCircle2, Archive, ExternalLink } from "lucide-react";
+import { TaskDrawerLink } from "@/components/task-drawer-link";
+import { CompanyBreakdownTable } from "@/components/company-breakdown-table";
 
 export const dynamic = "force-dynamic";
 
@@ -97,13 +99,17 @@ export default async function DashboardPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
             {needsAttention.map(r => (
-              <Link key={r.id} href={`/task/${r.code}`} className="group flex items-start gap-2.5 bg-bg-elev rounded-xl px-3 py-2.5 border border-border hover:border-danger/40 hover:shadow-sm transition-all">
+              <TaskDrawerLink
+                key={r.id}
+                code={r.code}
+                className="group flex items-start gap-2.5 bg-bg-elev rounded-xl px-3 py-2.5 border border-border hover:border-danger/40 hover:shadow-sm transition-all w-full text-left"
+              >
                 <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${r.flag === "overdue" || r.flag === "escalate-now" ? "bg-danger" : "bg-warn"}`} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium line-clamp-1 group-hover:text-accent transition-colors">{r.actionItem}</p>
                   <p className="text-xs text-fg-muted mt-0.5">{r.code} · {r.companyName} · <span className={r.flag === "overdue" || r.flag === "escalate-now" ? "text-danger" : "text-warn"}>{r.status}</span></p>
                 </div>
-              </Link>
+              </TaskDrawerLink>
             ))}
           </div>
         </div>
@@ -130,44 +136,7 @@ export default async function DashboardPage() {
 
       <section>
         <SectionHeading>Company Breakdown</SectionHeading>
-        <TableShell>
-          <table className="w-full">
-            <thead>
-              <tr>
-                <Th>Company</Th>
-                <Th align="right">Total</Th>
-                <Th align="right">Open</Th>
-                <Th align="right">Overdue</Th>
-                <Th align="right">Blocked</Th>
-                <Th align="right">Critical</Th>
-                <Th align="right">Done</Th>
-                <Th align="right">Risk</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {companies.map((c) => (
-                <tr key={c.id} className="hover:bg-bg-subtle transition-colors">
-                  <Td>
-                    <Link href={`/companies/${c.id}`} className="font-medium hover:text-accent">
-                      {c.name}
-                    </Link>
-                  </Td>
-                  <Td align="right">{c.total}</Td>
-                  <Td align="right">{c.open}</Td>
-                  <Td align="right" className={c.overdue ? "text-danger font-medium" : "text-fg-subtle"}>{c.overdue || "—"}</Td>
-                  <Td align="right" className={c.blocked ? "text-warn" : "text-fg-subtle"}>{c.blocked || "—"}</Td>
-                  <Td align="right" className={c.critical ? "text-danger font-medium" : "text-fg-subtle"}>{c.critical || "—"}</Td>
-                  <Td align="right" className={c.completed ? "text-success" : "text-fg-subtle"}>{c.completed || "—"}</Td>
-                  <Td align="right">
-                    <Badge tone={c.riskScore > 50 ? "danger" : c.riskScore > 20 ? "warn" : "success"}>
-                      {c.riskScore}
-                    </Badge>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableShell>
+        <CompanyBreakdownTable companies={companies} />
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
