@@ -27,10 +27,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <UndoBanner />
             <CommandPaletteProvider>
               <RecentsTracker />
-              <TopPill scopeSlot={<CompanyScopeServer />} />
-              <main className="pt-20 px-4 sm:px-6 lg:px-10 pb-12 mx-auto max-w-[1400px]">
+              <main className="pt-6 px-4 sm:px-6 lg:px-10 pb-28 mx-auto max-w-[1400px]">
                 <PageTransition>{children}</PageTransition>
               </main>
+              <TopPill scopeSlot={<CompanyScopeServer />} />
             </CommandPaletteProvider>
           </ToastProvider>
         </ThemeProvider>
