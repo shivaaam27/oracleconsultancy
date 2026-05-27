@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { markSent } from "@/lib/outbox-gen";
 import { mutate } from "@/lib/mutate";
 import { db, schema } from "@/db";
@@ -33,6 +33,8 @@ export async function recordSent(
   });
 
   revalidatePath("/outbox");
+  updateTag("outbox");
+  updateTag("people");
 
   if (!result.ok) return { ok: false, reason: "error" };
   if (result.result.duplicate) return { ok: false, reason: "duplicate" };
@@ -65,6 +67,8 @@ export async function snoozePerson(
     },
   });
   revalidatePath("/outbox");
+  updateTag("outbox");
+  updateTag("people");
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true, undoToken: result.undoToken };
 }
@@ -73,6 +77,8 @@ export async function unsnoozePerson(personId: number): Promise<{ ok: boolean; e
   try {
     await db.update(schema.people).set({ snoozedUntil: null }).where(eq(schema.people.id, personId));
     revalidatePath("/outbox");
+  updateTag("outbox");
+  updateTag("people");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "error" };

@@ -18,7 +18,7 @@ export default async function OutboxPage() {
 
   // Per-draft sent state across all channels.
   const annotated: (PendingItem & { alreadySent: boolean })[] = drafts.map((d) => {
-    const channels = Array.from(sentByName.get(d.recipientName.toLowerCase()) || []);
+    const channels = (sentByName[d.recipientName.toLowerCase()] || []) as ("WHATSAPP" | "EMAIL" | "SMS")[];
     return { draft: d, sentChannels: channels, alreadySent: channels.length > 0 };
   });
 
@@ -47,24 +47,24 @@ export default async function OutboxPage() {
     sentAt: new Date().toISOString(),
   }));
 
-  const yesterdayEntries = (history.get(yesterdayKey) || []).map((h) => ({
+  const yesterdayEntries = (history[yesterdayKey] || []).map((h) => ({
     id: h.id,
     channel: h.channel,
     recipientName: h.recipientName,
     recipientContact: h.recipientContact,
-    sentAt: h.sentAt ? h.sentAt.toISOString() : null,
+    sentAt: h.sentAt,
   }));
 
-  const olderDayKeys = Array.from(history.keys()).filter((k) => k !== yesterdayKey && k !== todayKey).sort().reverse();
+  const olderDayKeys = Object.keys(history).filter((k) => k !== yesterdayKey && k !== todayKey).sort().reverse();
   const olderBuckets = olderDayKeys.map((k) => ({
     dayKey: k,
     label: formatDayLabel(k),
-    entries: (history.get(k) || []).map((h) => ({
+    entries: (history[k] || []).map((h) => ({
       id: h.id,
       channel: h.channel,
       recipientName: h.recipientName,
       recipientContact: h.recipientContact,
-      sentAt: h.sentAt ? h.sentAt.toISOString() : null,
+      sentAt: h.sentAt,
     })),
   }));
 

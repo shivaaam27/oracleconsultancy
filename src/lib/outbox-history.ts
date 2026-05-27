@@ -1,5 +1,6 @@
 import { db, schema } from "@/db";
 import { and, eq, gte, lte, desc, isNotNull } from "drizzle-orm";
+import { unstable_cache } from "next/cache";
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);
@@ -14,7 +15,7 @@ function endOfDay(d: Date): Date {
 }
 
 // Returns the set of dedupe keys that already exist for today on this channel.
-// Used to pre-mark drafts as "already sent today" without an extra round-trip.
+// (Kept for callers that still want a per-channel key set.)
 export async function todaysSentKeys(channel: string): Promise<Set<string>> {
   const start = startOfDay(new Date());
   const end = endOfDay(new Date());
@@ -31,29 +32,34 @@ export async function todaysSentKeys(channel: string): Promise<Set<string>> {
   return new Set(rows.map((r) => r.key));
 }
 
-export type SentToday = Map<string, Set<"WHATSAPP" | "EMAIL" | "SMS">>;
+// JSON-safe: returns Record<name, channel[]> so it's cacheable across requests.
+export type SentTodayPlain = Record<string, string[]>;
 
-// Parses today's reminders.dedupeKey into a map: lowercased name -> Set of channels sent.
-// dedupeKey format: ${YYYY-MM-DD}|${channel}|${name.toLowerCase()}|${taskIds.sort().join(",")}|daily
-export async function todaysSentChannelsByName(): Promise<SentToday> {
+async function todaysSentChannelsByNameRaw(): Promise<SentTodayPlain> {
   const start = startOfDay(new Date());
   const end = endOfDay(new Date());
   const rows = await db
     .select({ key: schema.reminders.dedupeKey, channel: schema.reminders.channel })
     .from(schema.reminders)
     .where(and(gte(schema.reminders.createdAt, start), lte(schema.reminders.createdAt, end)));
-  const out: SentToday = new Map();
+  const out: SentTodayPlain = {};
   for (const r of rows) {
     const parts = r.key.split("|");
     const name = parts[2];
-    const ch = (r.channel?.toUpperCase() as "WHATSAPP" | "EMAIL" | "SMS") || "WHATSAPP";
+    const ch = r.channel?.toUpperCase() || "WHATSAPP";
     if (!name) continue;
-    const s = out.get(name) || new Set();
-    s.add(ch);
-    out.set(name, s);
+    const list = out[name] || [];
+    if (!list.includes(ch)) list.push(ch);
+    out[name] = list;
   }
   return out;
 }
+
+export const todaysSentChannelsByName = unstable_cache(
+  todaysSentChannelsByNameRaw,
+  ["outbox-sent-today-v1"],
+  { tags: ["outbox"], revalidate: 60 }
+);
 
 export type HistoryEntry = {
   id: number;
@@ -61,13 +67,12 @@ export type HistoryEntry = {
   recipientName: string | null;
   recipientContact: string | null;
   body: string;
-  sentAt: Date | null;
+  sentAt: string | null; // ISO
   status: string;
 };
 
-// Past sent messages across all channels, grouped by local date (yyyy-mm-dd).
-// Returns most-recent first; today's entries are excluded (UI handles today separately).
-export async function historyByDay(days: number = 14): Promise<Map<string, HistoryEntry[]>> {
+// JSON-safe: dates as ISO strings; map keyed by day key.
+async function historyByDayRaw(days: number): Promise<Record<string, HistoryEntry[]>> {
   const start = startOfDay(new Date());
   start.setDate(start.getDate() - days);
   const yesterdayEnd = endOfDay(new Date());
@@ -92,33 +97,55 @@ export async function historyByDay(days: number = 14): Promise<Map<string, Histo
     )
     .orderBy(desc(schema.outbox.sentAt));
 
-  const byDay = new Map<string, HistoryEntry[]>();
+  const byDay: Record<string, HistoryEntry[]> = {};
   for (const r of rows) {
     const d = r.sentAt ?? new Date();
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const list = byDay.get(key) || [];
-    list.push(r);
-    byDay.set(key, list);
+    const entry: HistoryEntry = {
+      id: r.id,
+      channel: r.channel,
+      recipientName: r.recipientName,
+      recipientContact: r.recipientContact,
+      body: r.body,
+      sentAt: r.sentAt ? r.sentAt.toISOString() : null,
+      status: r.status,
+    };
+    const list = byDay[key] || [];
+    list.push(entry);
+    byDay[key] = list;
   }
   return byDay;
 }
 
+export const historyByDay = unstable_cache(
+  historyByDayRaw,
+  ["outbox-history-v1"],
+  { tags: ["outbox"], revalidate: 60 }
+);
+
 export type SnoozedPerson = {
   id: number;
   name: string;
-  snoozedUntil: Date;
+  snoozedUntil: string; // ISO
 };
 
-export async function snoozedToday(): Promise<SnoozedPerson[]> {
+async function snoozedTodayRaw(): Promise<SnoozedPerson[]> {
   const now = new Date();
   const rows = await db
     .select({ id: schema.people.id, name: schema.people.name, snoozedUntil: schema.people.snoozedUntil })
     .from(schema.people)
     .where(and(isNotNull(schema.people.snoozedUntil), gte(schema.people.snoozedUntil, now)));
   return rows
-    .filter((r): r is SnoozedPerson => r.snoozedUntil !== null)
+    .filter((r) => r.snoozedUntil !== null)
+    .map((r) => ({ id: r.id, name: r.name, snoozedUntil: r.snoozedUntil!.toISOString() }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
+
+export const snoozedToday = unstable_cache(
+  snoozedTodayRaw,
+  ["snoozed-today-v1"],
+  { tags: ["people"], revalidate: 60 }
+);
 
 export function formatDayLabel(key: string): string {
   const [y, m, d] = key.split("-").map(Number);

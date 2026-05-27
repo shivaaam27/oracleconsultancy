@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { consumeUndo } from "@/lib/undo";
 import "@/lib/undo-handlers";
 
@@ -14,5 +15,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, message: "Missing token." }, { status: 400 });
   }
   const result = await consumeUndo(token);
+  if (result.ok) {
+    // Undo can touch tasks, outbox or people — cheap to bust all three.
+    revalidateTag("tasks", { expire: 0 });
+    revalidateTag("outbox", { expire: 0 });
+    revalidateTag("people", { expire: 0 });
+  }
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }
