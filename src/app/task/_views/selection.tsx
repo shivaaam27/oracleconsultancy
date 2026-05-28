@@ -10,6 +10,7 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import {
   CheckSquare,
   Square,
@@ -194,8 +195,13 @@ export function BulkBar() {
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center pointer-events-none px-3">
-      <div className="pointer-events-auto vibrancy-strong rounded-2xl shadow-pill border border-border w-full max-w-[760px] overflow-hidden">
+    <div className="fixed inset-x-0 top-4 z-50 flex justify-center pointer-events-none px-3">
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+        className="pointer-events-auto vibrancy-strong rounded-2xl shadow-pill border border-border w-full max-w-[760px] overflow-hidden"
+      >
         {/* Top row: count + actions */}
         <div className="flex items-center gap-2 px-3 py-2">
           <button
@@ -299,7 +305,7 @@ export function BulkBar() {
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

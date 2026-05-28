@@ -50,7 +50,7 @@ function PinnedIcon({
             setMenuOpen(true);
           }}
           className={cn(
-            "relative inline-flex items-center justify-center h-8 w-8 rounded-full transition-colors outline-none shrink-0",
+            "relative inline-flex items-center justify-center h-9 w-9 rounded-full transition-colors outline-none shrink-0",
             active
               ? "bg-accent-soft text-fg"
               : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
@@ -63,7 +63,7 @@ function PinnedIcon({
               transition={{ type: "spring", stiffness: 500, damping: 36 }}
             />
           )}
-          <Icon size={14} strokeWidth={active ? 2.4 : 2} className="relative" />
+          <Icon size={16} strokeWidth={active ? 2.4 : 2} className="relative" />
         </Link>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -111,13 +111,13 @@ function BrowseRoutes({
       <DropdownMenu.Trigger asChild>
         <button
           className={cn(
-            "relative inline-flex items-center justify-center h-8 w-8 rounded-full transition-colors shrink-0",
+            "relative inline-flex items-center justify-center h-9 w-9 rounded-full transition-colors shrink-0",
             "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
           )}
           aria-label="Browse all routes"
           title="Browse all routes"
         >
-          <LayoutGrid size={14} />
+          <LayoutGrid size={16} />
           {hasActiveUnpinned && (
             <span
               className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent"
@@ -216,22 +216,22 @@ export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto vibrancy-strong rounded-full shadow-pill flex items-center gap-1 px-1.5 h-11 max-w-[min(96vw,920px)] w-auto"
+        className="pointer-events-auto vibrancy-strong rounded-full shadow-pill flex items-center gap-1 px-2 h-12 max-w-[min(96vw,920px)] w-auto"
       >
         {/* Brand */}
         <Link
           href="/"
-          className="flex items-center gap-1.5 pl-2 pr-2.5 h-8 rounded-full hover:bg-bg-muted/60 transition-colors shrink-0"
+          className="flex items-center gap-1.5 pl-2 pr-2.5 h-9 rounded-full hover:bg-bg-muted/60 transition-colors shrink-0"
           aria-label="Dashboard"
           title="COS · Dashboard"
         >
-          <div className="w-5 h-5 rounded-md bg-accent flex items-center justify-center">
-            <Sparkles size={11} className="text-accent-fg" />
+          <div className="w-6 h-6 rounded-md bg-accent flex items-center justify-center">
+            <Sparkles size={13} className="text-accent-fg" />
           </div>
-          <span className="text-[13px] font-semibold tracking-tight hidden sm:inline">COS</span>
+          <span className="text-[14px] font-semibold tracking-tight hidden sm:inline">COS</span>
         </Link>
 
-        <span className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
+        <span className="w-px h-6 bg-border mx-0.5 shrink-0" aria-hidden />
 
         {/* Pinned icon rail (horizontal scroll on overflow) */}
         <div className="flex items-center gap-0.5 min-w-0 overflow-x-auto no-scrollbar">
@@ -264,21 +264,21 @@ export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
           hasActiveUnpinned={hasActiveUnpinned}
         />
 
-        <span className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
+        <span className="w-px h-6 bg-border mx-0.5 shrink-0" aria-hidden />
 
         {/* Scope */}
         {scopeSlot}
 
-        <span className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
+        <span className="w-px h-6 bg-border mx-0.5 shrink-0" aria-hidden />
 
         {/* Search / palette */}
         <button
           onClick={openPalette}
-          className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+          className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
           aria-label="Search"
           title="Search (⌘K)"
         >
-          <Search size={14} />
+          <Search size={16} />
         </button>
 
         {/* Theme */}
