@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Sparkles, Trash2, CheckCircle2, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Sparkles, Trash2, CheckCircle2, Plus, ChevronDown, ChevronUp, CheckSquare, Square } from "lucide-react";
 import { parseMeetingNotes, bulkCreateTasks, type BulkTaskInput } from "@/app/meeting/actions";
 import { polishActionItem } from "@/lib/smart-parse";
 import type { MeetingTask } from "@/lib/meeting-parse";
 import { useRouter } from "next/navigation";
+import { PromptBox } from "@/components/prompt-box";
 
 const STATUSES   = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
 const PRIORITIES = ["Critical","High","Medium","Low"];
@@ -100,52 +101,58 @@ export function MeetingExtractor({ companies }: Props) {
   }
 
   const checkedCount = tasks.filter(t => t.checked).length;
+  const allChecked = tasks.length > 0 && tasks.every(t => t.checked);
+  function toggleAll() {
+    const next = !allChecked;
+    setTasks(prev => prev.map(t => ({ ...t, checked: next })));
+  }
+  const summary = {
+    companies: new Set(tasks.filter(t => t.companyId).map(t => t.companyId)).size,
+    deadlines: tasks.filter(t => t.deadline).length,
+    critical: tasks.filter(t => t.priority === "Critical").length,
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Input panel */}
-      <div className="card p-5 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-3">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-fg-muted">Default Company <span className="font-normal">(applied when not detected in the text)</span></label>
-            <select
-              value={defaultCompany}
-              onChange={e => setDefaultCompany(Number(e.target.value))}
-              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted px-1">
+          Meeting Notes
+          <span className="font-normal text-fg-subtle ml-1">— paste raw notes, bullet points, minutes, anything · ⌘↵ to extract</span>
+        </label>
+        <PromptBox
+          value={notes}
+          onChange={setNotes}
+          onSubmit={handleExtract}
+          disabled={isParsing}
+          submitOnEnter={false}
+          minHeight={150}
+          maxHeight={360}
+          placeholder={`Dar Spices meeting — 26 May 2026\n\n- Review packaging supplier contract by end of month\n- Shivam to follow up on payment invoice urgent\n- Schedule quality inspection next week`}
+          hint={
+            <div className="flex items-center gap-1.5">
+              <span className="text-fg-subtle shrink-0">Default company:</span>
+              <select
+                value={defaultCompany}
+                onChange={e => setDefaultCompany(Number(e.target.value))}
+                className="!bg-transparent !border-0 !shadow-none text-xs text-fg-muted focus:!ring-0 focus:!shadow-none cursor-pointer max-w-[160px] truncate"
+              >
+                <option value={0}>Auto-detect only</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          }
+          actions={
+            <button
+              onClick={handleExtract}
+              disabled={!notes.trim() || isParsing}
+              className="flex items-center gap-1.5 px-3.5 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
             >
-              <option value={0}>— Auto-detect only —</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium text-fg-muted">
-            Meeting Notes
-            <span className="font-normal text-fg-subtle ml-1">— paste raw notes, bullet points, minutes, anything</span>
-          </label>
-          <textarea
-            rows={8}
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            placeholder={`Dar Spices meeting — 26 May 2026\n\n- Review packaging supplier contract by end of month\n- Shivam to follow up on payment invoice urgent\n- Schedule quality inspection next week\n- John will send updated sales report by Friday\n- Resolve warehouse delay — critical`}
-            className="w-full rounded-lg border border-border bg-bg-subtle px-3 py-3 text-sm placeholder:text-fg-subtle resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 font-mono leading-relaxed"
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleExtract}
-            disabled={!notes.trim() || isParsing}
-            className="flex items-center gap-2 px-5 py-2 rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-          >
-            {isParsing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-            {isParsing ? "Extracting…" : "Extract Action Items"}
-          </button>
-          {tasks.length > 0 && (
-            <span className="text-xs text-fg-muted">{tasks.length} item{tasks.length !== 1 ? "s" : ""} found — edit before saving</span>
-          )}
-        </div>
+              {isParsing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              {isParsing ? "Extracting…" : "Extract Action Items"}
+            </button>
+          }
+        />
       </div>
 
       {/* Success */}
@@ -177,37 +184,50 @@ export function MeetingExtractor({ companies }: Props) {
 
       {/* Extracted tasks */}
       {tasks.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">
-              Extracted Tasks — {checkedCount} of {tasks.length} selected
-            </h2>
-            <div className="flex gap-2">
-              <button onClick={addBlank} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg border border-border rounded-lg px-3 py-1.5 transition-colors">
-                <Plus size={12} /> Add manually
-              </button>
+        <div className="space-y-3 pb-16">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">
+                Extracted Tasks — {checkedCount} of {tasks.length}
+              </h2>
               <button
-                onClick={handleSave}
-                disabled={!checkedCount || isSaving}
-                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-accent text-white text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+                onClick={toggleAll}
+                className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg transition-colors"
               >
-                {isSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                {isSaving ? "Creating…" : `Create ${checkedCount} Task${checkedCount !== 1 ? "s" : ""}`}
+                {allChecked ? <CheckSquare size={13} /> : <Square size={13} />}
+                {allChecked ? "Deselect all" : "Select all"}
               </button>
             </div>
+            <button onClick={addBlank} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg border border-border rounded-lg px-3 py-1.5 transition-colors">
+              <Plus size={12} /> Add manually
+            </button>
+          </div>
+
+          {/* Detected summary */}
+          <div className="flex flex-wrap gap-1.5 text-[11px]">
+            <span className="rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted">{summary.companies} compan{summary.companies === 1 ? "y" : "ies"}</span>
+            <span className="rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted">{summary.deadlines} deadline{summary.deadlines === 1 ? "" : "s"}</span>
+            {summary.critical > 0 && (
+              <span className="rounded-full bg-red-500/10 text-red-700 dark:text-red-300 px-2 py-0.5">{summary.critical} critical</span>
+            )}
           </div>
 
           <div className="space-y-2">
             {tasks.map(task => {
               const isExpanded = expandedId === task.id;
               const hasIssue = !task.companyId || !task.actionItem.trim();
+              const stripe = task.priority === "Critical" ? "bg-danger"
+                : task.priority === "High" ? "bg-warn"
+                : task.priority === "Medium" ? "bg-accent"
+                : "bg-border";
               return (
                 <div
                   key={task.id}
-                  className={`card border transition-colors ${!task.checked ? "opacity-50" : ""} ${hasIssue ? "border-warn/40" : ""}`}
+                  className={`relative overflow-hidden card border transition-colors ${!task.checked ? "opacity-50" : ""} ${hasIssue ? "border-warn/40" : ""}`}
                 >
+                  <span className={`absolute left-0 top-0 bottom-0 w-1 ${stripe}`} />
                   {/* Row header */}
-                  <div className="flex items-center gap-3 p-3">
+                  <div className="flex items-center gap-3 p-3 pl-4">
                     <input
                       type="checkbox"
                       checked={task.checked}
@@ -334,17 +354,19 @@ export function MeetingExtractor({ companies }: Props) {
             })}
           </div>
 
-          {/* Bottom save bar */}
-          <div className="flex items-center justify-between border-t border-border pt-4">
-            <span className="text-xs text-fg-muted">{checkedCount} task{checkedCount !== 1 ? "s" : ""} will be created</span>
-            <button
-              onClick={handleSave}
-              disabled={!checkedCount || isSaving}
-              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-            >
-              {isSaving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              {isSaving ? "Creating tasks…" : `Create ${checkedCount} Task${checkedCount !== 1 ? "s" : ""}`}
-            </button>
+          {/* Sticky create bar — clears the bottom nav pill */}
+          <div className="sticky bottom-20 z-30 flex justify-end pointer-events-none">
+            <div className="pointer-events-auto flex items-center gap-3 vibrancy-strong rounded-full shadow-pill border border-border pl-4 pr-2 py-1.5">
+              <span className="text-xs text-fg-muted">{checkedCount} task{checkedCount !== 1 ? "s" : ""} to create</span>
+              <button
+                onClick={handleSave}
+                disabled={!checkedCount || isSaving}
+                className="flex items-center gap-2 px-4 h-9 rounded-full bg-accent text-accent-fg text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+              >
+                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                {isSaving ? "Creating…" : `Create ${checkedCount} Task${checkedCount !== 1 ? "s" : ""}`}
+              </button>
+            </div>
           </div>
         </div>
       )}

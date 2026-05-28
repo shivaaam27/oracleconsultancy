@@ -16,6 +16,8 @@ type Props = {
   minHeight?: number;
   maxHeight?: number;
   autoFocus?: boolean;
+  /** Enter submits (Shift+Enter newline). When false, only ⌘/Ctrl+Enter submits. */
+  submitOnEnter?: boolean;
   className?: string;
 };
 
@@ -30,6 +32,7 @@ export function PromptBox({
   minHeight = 0,
   maxHeight = 200,
   autoFocus = false,
+  submitOnEnter = true,
   className,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -56,7 +59,11 @@ export function PromptBox({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+          if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+          if (submitOnEnter && !e.shiftKey) {
+            e.preventDefault();
+            if (!disabled) onSubmit();
+          } else if (!submitOnEnter && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             if (!disabled) onSubmit();
           }
