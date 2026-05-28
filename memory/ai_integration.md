@@ -16,6 +16,22 @@ AI is optional. All AI features must respect `getGroqKey()` from `src/lib/settin
 
 ## AI Surfaces
 
+### Voice intelligence actions
+
+Implemented in `src/app/voice/actions.ts`.
+
+- `polishDictation` cleans rough dictated speech into polished COS text.
+- `teachVoiceDictionary` appends trusted names/phrases to the Settings voice dictionary.
+
+The action uses Groq when available and falls back to basic clean-up when AI is off or fails. It receives context such as meeting title/company/attendees or task code/status, and it preserves configured dictionary terms.
+
+Current voice language choices live in Settings:
+
+- English (`en-GB`)
+- Swahili (`sw-TZ`)
+- Hindi (`hi-IN`)
+- Gujarati (`gu-IN`)
+
 ### `/api/polish`
 
 Polishes raw action-item text. Falls back to `polishActionItem` in `smart-parse.ts`.
@@ -89,7 +105,7 @@ All Meeting Workspace AI actions have rule fallbacks:
 
 ## Planned AI Enhancements
 
-- Multilingual meeting support: English, Swahili, Hindi, Gujarati.
-- Personal dictionary for business names and local terms.
-- Voice intelligence layer across Quick Capture, Meeting Workspace, task updates, Ask COS, comments, and Outbox drafts.
+- Deeper multilingual meeting support: original-language notes plus optional English minutes/summary modes.
+- Use the personal dictionary more broadly in Ask COS, Outbox drafts, and action extraction.
+- Extend voice intelligence to remaining long-form inputs and Outbox drafts.
 - Optional web search with explicit user control and source attribution.

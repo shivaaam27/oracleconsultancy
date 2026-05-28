@@ -99,6 +99,8 @@ Unique index on `(company_id, snapshot_date)`. `/api/cron/snapshots` can write s
 
 Stores typed `v2.*` app settings plus nav pins/recents JSON.
 
+Current typed settings include risk thresholds, weather location, AI master switch, `v2.voiceLanguage`, and `v2.voiceDictionary`.
+
 ### system_events
 `id, kind, status, details, created_at`.
 

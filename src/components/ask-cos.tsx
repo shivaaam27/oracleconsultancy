@@ -79,7 +79,7 @@ export function AskCOS({ embedded = false, minimal = false }: { embedded?: boole
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
-    rec.lang = "en-IN";
+    rec.lang = navigator.language || "en-GB";
     rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);

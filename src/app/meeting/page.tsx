@@ -2,6 +2,7 @@ import { sb } from "@/db/supabase";
 import { MeetingExtractor } from "@/components/meeting-extractor";
 import { ClipboardPaste, ListChecks, Wand2 } from "lucide-react";
 import { listMeetings } from "./actions";
+import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -12,20 +13,21 @@ const STEPS = [
 ];
 
 export default async function MeetingPage() {
-  const [{ data: rows }, meetings] = await Promise.all([
+  const [{ data: rows }, meetings, settings] = await Promise.all([
     sb.from("companies").select("id,name").order("name"),
     listMeetings(),
+    getAppSettings(),
   ]);
   const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
 
   return (
-    <div className="space-y-5 max-w-5xl mx-auto">
+    <div className="space-y-3 sm:space-y-5 max-w-5xl mx-auto">
       <div className="flex items-baseline justify-between gap-3">
         <h1 className="text-lg font-semibold tracking-tight">Meeting Workspace</h1>
-        <span className="text-xs text-fg-muted">Save notes, generate minutes, and create action items</span>
+        <span className="hidden sm:inline text-xs text-fg-muted">Save notes, generate minutes, and create action items</span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="hidden sm:grid grid-cols-3 gap-2">
         {STEPS.map((s, i) => {
           const Icon = s.icon;
           return (
@@ -44,7 +46,7 @@ export default async function MeetingPage() {
         })}
       </div>
 
-      <MeetingExtractor companies={companies} meetings={meetings} />
+      <MeetingExtractor companies={companies} meetings={meetings} voiceLanguage={settings.voiceLanguage} />
     </div>
   );
 }

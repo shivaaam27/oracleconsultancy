@@ -31,8 +31,9 @@ Task codes use the company prefix, for example `CO01-001`.
 - **Command centre** - `/` shows Overview, Companies, and Tasks tabs with KPIs, Needs Attention, risk, company breakdowns, and task views.
 - **Task registry** - tasks have company, status, priority, deadline, owner/assignees, risk, escalation, comments, and latest update.
 - **Timeline** - each task shows progress updates and audit-log field changes in one history stream.
-- **Quick Capture** - embedded in the hub; turns natural-language task text into structured task data.
-- **Meeting Workspace** - `/meeting` saves notes, generates minutes, extracts actions, and links created tasks back to meetings.
+- **Quick Capture** - embedded in the hub; turns typed or dictated natural-language task text into structured task data.
+- **Meeting Workspace** - `/meeting` saves notes, generates minutes, extracts actions, links created tasks back to meetings, and keeps mobile capture compact.
+- **Voice intelligence** - shared dictation clean-up for rough speech, with a COS vocabulary dictionary and initial English, Swahili, Hindi, and Gujarati language support.
 - **Ask COS** - floating assistant and embedded chat answer questions and run commands over tasks, updates, companies, people, and now saved meeting minutes.
 - **People** - internal, external, and expat contacts with company associations.
 - **Outbox** - creates per-person reminder drafts and records sends; real dispatch is not implemented yet.

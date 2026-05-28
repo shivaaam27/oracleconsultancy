@@ -18,7 +18,7 @@ All list/data pages are dynamic because operational data changes often.
 | `/task/new` | `src/app/task/new/page.tsx` | Create task form. |
 | `/task/[code]` | `src/app/task/[code]/page.tsx` | Task detail, edit form, assignees, latest update, source meeting card, updates, audit timeline, similar tasks, draft email. |
 | `/registry` | `src/app/registry/page.tsx` | Redirects to `/?tab=tasks&view=table`. |
-| `/meeting` | `src/app/meeting/page.tsx` | Meeting Workspace: saved notes, AI minutes, clean notes, decisions, risks, follow-up draft, history search/filter, action extraction, linked tasks. |
+| `/meeting` | `src/app/meeting/page.tsx` | Mobile-tight Meeting Workspace: saved notes, AI minutes, clean notes, decisions, risks, follow-up draft, history search/filter, action extraction, linked tasks, voice polish, dictionary teaching. |
 | `/companies` | `src/app/companies/page.tsx` | Company list with KPIs. |
 | `/companies/[id]` | `src/app/companies/[id]/page.tsx` | Company detail with Overview, Completed, Timeline. Open tasks grouped by month. |
 | `/people` | `src/app/people/page.tsx` | People directory with internal/external/expat contacts. |
@@ -42,6 +42,7 @@ Do not recreate these as standalone pages:
 - `src/app/meeting/actions.ts` - saved meetings, notes clean-up, minutes, insights, task extraction, bulk create, meeting-task links.
 - `src/app/outbox/actions.ts` - record sends.
 - `src/app/settings/actions.ts` - save typed settings.
+- `src/app/voice/actions.ts` - shared dictation polish and voice dictionary teaching.
 - `src/app/audit/actions.ts` - edit/delete/restore audit timeline rows.
 - `src/app/people/actions.ts` - people/contact management.
 - `src/app/scope-actions.ts` - company scope controls.

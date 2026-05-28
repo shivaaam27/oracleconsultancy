@@ -5,6 +5,7 @@ import { Sparkles, Loader2, X, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { parseRawCapture } from "@/app/capture/actions";
 import { createTask } from "@/app/task/actions";
+import { polishDictation } from "@/app/voice/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
 import { polishActionItem } from "@/lib/smart-parse";
 import { PromptBox } from "./prompt-box";
@@ -27,6 +28,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
   const [polishState, setPolishState] = useState<"idle"|"loading"|"done">("idle");
   const [polishSource, setPolishSource] = useState<"ai"|"rules"|null>(null);
   const [interim, setInterim] = useState("");
+  const [voiceInfo, setVoiceInfo] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const rawRef = useRef("");
 
@@ -41,6 +43,20 @@ export function QuickCapture({ companies, embedded = false }: Props) {
     rawRef.current = next;
     setRaw(next);
   }, []);
+
+  async function polishAndParseDictation() {
+    const dictated = rawRef.current.trim();
+    if (!dictated) return;
+    setVoiceInfo("Cleaning dictated task...");
+    const result = await polishDictation({
+      text: dictated,
+      mode: "task",
+      context: "Quick Capture task entry. Preserve company, person, priority, status, and deadline clues.",
+    });
+    updateRaw(result.polished);
+    setVoiceInfo(result.source === "ai" ? "Dictation polished by COS." : "Dictation cleaned.");
+    handleParse(result.polished);
+  }
 
   // Editable fields after parse
   const [companyId, setCompanyId] = useState("");
@@ -167,9 +183,9 @@ export function QuickCapture({ companies, embedded = false }: Props) {
               onInterim={setInterim}
               onStop={() => {
                 setInterim("");
-                // Hand the dictated text straight to the AI parser.
-                if (rawRef.current.trim()) handleParse(rawRef.current);
+                void polishAndParseDictation();
               }}
+              title="Dictate task"
             />
             {raw && (
               <button
@@ -197,6 +213,8 @@ export function QuickCapture({ companies, embedded = false }: Props) {
       <p className="text-xs text-fg-muted -mt-1">
         Tip: tap 🎙 to dictate, or type. Mention company name, person name, deadline (e.g. "end of month"), priority (urgent/high/critical), and status — the AI structures it for you.
       </p>
+
+      {voiceInfo && <p className="text-xs text-fg-muted -mt-2">{voiceInfo}</p>}
 
       {/* Parsed preview */}
       {parsed && (

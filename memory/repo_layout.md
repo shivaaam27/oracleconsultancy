@@ -93,7 +93,9 @@ cos-system/
 
 - `src/app/page.tsx` - command centre.
 - `src/app/meeting/actions.ts` - Meeting Workspace server actions and AI helpers.
+- `src/app/voice/actions.ts` - shared dictation polish and voice dictionary teaching.
 - `src/components/meeting-extractor.tsx` - Meeting Workspace UI.
+- `src/components/voice-button.tsx` - reusable Web Speech microphone control.
 - `src/app/api/ask/route.ts` - Ask COS RAG over tasks and meetings.
 - `src/db/schema.ts` - database schema.
 - `src/db/index.ts` - Drizzle/postgres.js pooler client. Do not remove `prepare: false` or `max: 1`.

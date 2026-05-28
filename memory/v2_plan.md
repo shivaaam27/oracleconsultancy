@@ -34,8 +34,8 @@ metadata:
 | 5b. Morning brief card | Pending | Read-only dashboard brief: overdue, due today, newly escalated, closed yesterday. |
 | 5c. Real message sending | Pending | Outbox currently records sends only. Integrate one provider when ready. |
 | 5d. Per-company health trend | Partly built | `daily_snapshots` and `/api/cron/snapshots` exist. Scheduling/production verification still needs checking. |
-| Voice intelligence layer | Planned | Wispr Flow-style dictation quality inside COS: voice everywhere, personal dictionary, context-aware clean-up. |
-| Multilingual meeting support | Planned | Start with English, Swahili, Hindi, Gujarati. Preserve original notes and optionally generate English minutes. |
+| Voice intelligence layer | In progress | Shared dictation polishing action, Meeting/Quick Capture/task update voice flows, personal dictionary, and browser-language Ask COS dictation. |
+| Multilingual meeting support | In progress | Settings now starts with English, Swahili, Hindi, and Gujarati dictation language choices. Deeper translation/minutes modes remain next. |
 | Web search | Planned | Add explicit, source-attributed web search later. Do not silently browse from app features. |
 
 ## Key Design Decisions
@@ -44,6 +44,7 @@ metadata:
 - **Completed work is hidden, not deleted.** Completed/Closed tasks live in Completed tabs and remain queryable.
 - **AI is optional.** `getGroqKey()` respects the Settings AI master switch. AI-off paths must still work manually or with rule fallbacks.
 - **Meeting notes are first-class data.** `/meeting` now saves raw notes and minutes, and tasks created from meetings are linked back to the source meeting.
+- **Voice should polish, not merely transcribe.** Dictation keeps rough capture fast, then cleans text with context and the COS vocabulary dictionary.
 - **One future "Messages" channel.** WhatsApp/Email/SMS are still schema concepts, but the product direction is a single Messages workflow once real dispatch exists.
 
 ## How To Work Here

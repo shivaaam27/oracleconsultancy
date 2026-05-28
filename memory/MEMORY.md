@@ -5,8 +5,8 @@
 - [Database Schema](database_schema.md) - current tables, including meetings, meeting_tasks, person_companies, system_events, and undo_tokens.
 - [Domain Model](domain_model.md) - companies, task codes, statuses, priorities, flags, and risk rules.
 - [Routes and Pages](routes_and_pages.md) - current page routes, removed routes, server actions, and API routes.
-- [Meeting Workspace](meeting_workspace.md) - saved notes, AI minutes, linked tasks, and meeting intelligence.
-- [AI Integration](ai_integration.md) - Groq routes, Ask COS RAG, meeting intelligence, fallbacks, and AI master switch.
+- [Meeting Workspace](meeting_workspace.md) - saved notes, AI minutes, linked tasks, compact mobile layout, voice polish, and meeting intelligence.
+- [AI Integration](ai_integration.md) - Groq routes, Ask COS RAG, meeting intelligence, voice intelligence, fallbacks, and AI master switch.
 - [Outbox and Reminders](outbox_and_reminders.md) - per-person reminder drafts and sent-record ledger.
 - [Audit Trail](audit_trail.md) - task audit logging, timeline behaviour, and entry types.
 - [Import Pipeline](import_pipeline.md) - Excel workbook import flow.

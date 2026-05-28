@@ -35,6 +35,7 @@ import type { MeetingTask } from "@/lib/meeting-parse";
 import { polishActionItem } from "@/lib/smart-parse";
 import { PromptBox } from "@/components/prompt-box";
 import { VoiceButton } from "@/components/voice-button";
+import { polishDictation, teachVoiceDictionary } from "@/app/voice/actions";
 
 const fieldCls =
   "w-full rounded-lg bg-bg-subtle border border-border/60 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-accent focus:bg-bg";
@@ -45,7 +46,7 @@ const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 
 type EditableTask = BulkTaskInput & { id: string; checked: boolean; deadlineLabel?: string | null };
-type Props = { companies: { id: number; name: string }[]; meetings: SavedMeeting[] };
+type Props = { companies: { id: number; name: string }[]; meetings: SavedMeeting[]; voiceLanguage?: string };
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -68,7 +69,7 @@ function taskFromParsed(p: MeetingTask, idx: number): EditableTask {
   };
 }
 
-export function MeetingExtractor({ companies, meetings }: Props) {
+export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" }: Props) {
   const router = useRouter();
 
   const [meetingList, setMeetingList] = useState<SavedMeeting[]>(meetings);
@@ -93,6 +94,9 @@ export function MeetingExtractor({ companies, meetings }: Props) {
   const [historyQuery, setHistoryQuery] = useState("");
   const [historyCompany, setHistoryCompany] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [lastRawVoice, setLastRawVoice] = useState<string | null>(null);
+  const [voiceInfo, setVoiceInfo] = useState<string | null>(null);
+  const [voiceTerm, setVoiceTerm] = useState("");
 
   const [isParsing, startParse] = useTransition();
   const [isSaving, startSave] = useTransition();
@@ -100,6 +104,8 @@ export function MeetingExtractor({ companies, meetings }: Props) {
   const [isGeneratingMinutes, startMinutes] = useTransition();
   const [isCleaningNotes, startCleanNotes] = useTransition();
   const [isGeneratingInsight, startInsight] = useTransition();
+  const [isPolishingVoice, startVoicePolish] = useTransition();
+  const [isTeachingVoice, startTeachVoice] = useTransition();
 
   const updateNotes = useCallback((v: string) => {
     notesRef.current = v;
@@ -107,10 +113,39 @@ export function MeetingExtractor({ companies, meetings }: Props) {
   }, []);
 
   const appendNotes = useCallback((chunk: string) => {
-    const next = notesRef.current ? `${notesRef.current} ${chunk}` : chunk;
+    const next = notesRef.current ? `${notesRef.current}\n${chunk}` : chunk;
     notesRef.current = next;
     setNotes(next);
   }, []);
+
+  function handleVoiceStop() {
+    const raw = notesRef.current;
+    if (!raw.trim()) return;
+    setLastRawVoice(raw);
+    setVoiceInfo("Cleaning dictated notes...");
+    startVoicePolish(async () => {
+      const companyName = companies.find(c => c.id === defaultCompany)?.name ?? "Group-wide";
+      const result = await polishDictation({
+        text: raw,
+        mode: "note",
+        language: voiceLanguage,
+        context: `Meeting: ${title}. Company: ${companyName}. Attendees: ${attendees || "not specified"}. Date: ${meetingDate}.`,
+      });
+      updateNotes(result.polished);
+      if (result.source === "ai") setVoiceInfo("Dictation polished by COS.");
+      else if (result.source === "no-key") setVoiceInfo("AI is off, so COS applied basic clean-up.");
+      else if (result.source === "error") setVoiceInfo("AI clean-up failed, so COS applied basic clean-up.");
+      else setVoiceInfo("Dictation cleaned.");
+    });
+  }
+
+  function handleTeachVoice() {
+    startTeachVoice(async () => {
+      const result = await teachVoiceDictionary(voiceTerm);
+      setVoiceInfo(result.message);
+      if (result.saved) setVoiceTerm("");
+    });
+  }
 
   function loadMeeting(m: SavedMeeting) {
     setMeetingId(m.id);
@@ -329,10 +364,10 @@ export function MeetingExtractor({ companies, meetings }: Props) {
   const selectedMeeting = meetingId ? meetingList.find(m => m.id === meetingId) : null;
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        <section className="space-y-4">
-          <div className="rounded-2xl border border-border bg-bg-elev p-4 space-y-3">
+    <div className="space-y-3 sm:space-y-5">
+      <div className="grid gap-3 lg:gap-4 lg:grid-cols-[1fr_280px]">
+        <section className="space-y-3 sm:space-y-4">
+          <div className="rounded-xl sm:rounded-2xl border border-border bg-bg-elev p-3 sm:p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-wider text-fg-subtle">Current meeting</p>
@@ -343,8 +378,8 @@ export function MeetingExtractor({ companies, meetings }: Props) {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="space-y-1">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <label className="space-y-1 col-span-2 sm:col-span-1">
                 <span className={labelCls}>Title</span>
                 <input value={title} onChange={e => setTitle(e.target.value)} className={fieldCls} />
               </label>
@@ -352,37 +387,37 @@ export function MeetingExtractor({ companies, meetings }: Props) {
                 <span className={labelCls}>Date</span>
                 <input type="date" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} className={fieldCls} />
               </label>
-              <label className="space-y-1">
+              <label className="space-y-1 col-span-2 sm:col-span-1">
                 <span className={labelCls}>Meeting company</span>
                 <select value={defaultCompany} onChange={e => setDefaultCompany(Number(e.target.value))} className={fieldCls}>
                   <option value={0}>Group-wide / auto-detect</option>
                   {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </label>
-              <label className="space-y-1">
+              <label className="space-y-1 col-span-2 sm:col-span-1">
                 <span className={labelCls}>Attendees</span>
                 <input value={attendees} onChange={e => setAttendees(e.target.value)} placeholder="Comma-separated names" className={fieldCls} />
               </label>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
               <button type="button" onClick={handleSaveMeeting} disabled={isSavingMeeting} className="inline-flex items-center gap-2 rounded-full bg-accent px-3.5 py-2 text-xs font-medium text-accent-fg disabled:opacity-50">
                 {isSavingMeeting ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                 {isSavingMeeting ? "Saving..." : "Save meeting"}
               </button>
               <button type="button" onClick={handleGenerateMinutes} disabled={isGeneratingMinutes || !notes.trim()} className="inline-flex items-center gap-2 rounded-full border border-border px-3.5 py-2 text-xs font-medium text-fg-muted hover:text-fg disabled:opacity-50">
                 {isGeneratingMinutes ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
-                {isGeneratingMinutes ? "Generating..." : "Generate minutes"}
+                {isGeneratingMinutes ? "Generating..." : "Minutes"}
               </button>
               <button type="button" onClick={handleCleanNotes} disabled={isCleaningNotes || !notes.trim()} className="inline-flex items-center gap-2 rounded-full border border-border px-3.5 py-2 text-xs font-medium text-fg-muted hover:text-fg disabled:opacity-50">
                 {isCleaningNotes ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                {isCleaningNotes ? "Cleaning..." : "Clean notes"}
+                {isCleaningNotes ? "Cleaning..." : "Clean"}
               </button>
               <button type="button" onClick={handleExtract} disabled={!notes.trim() || isParsing} className="inline-flex items-center gap-2 rounded-full border border-border px-3.5 py-2 text-xs font-medium text-fg-muted hover:text-fg disabled:opacity-50">
                 {isParsing ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
-                {isParsing ? "Extracting..." : "Extract actions"}
+                {isParsing ? "Extracting..." : "Actions"}
               </button>
-              {meetingNotice && <span className="text-xs text-success">{meetingNotice}</span>}
+              {meetingNotice && <span className="col-span-2 text-xs text-success">{meetingNotice}</span>}
             </div>
 
             {selectedMeeting && (
@@ -399,7 +434,7 @@ export function MeetingExtractor({ companies, meetings }: Props) {
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-fg-muted px-1">
               Raw notes
-              <span className="font-normal text-fg-subtle ml-1">- type, paste, or dictate during the meeting</span>
+              <span className="hidden sm:inline font-normal text-fg-subtle ml-1">- type, paste, or dictate during the meeting</span>
             </label>
             <PromptBox
               value={notes}
@@ -407,20 +442,42 @@ export function MeetingExtractor({ companies, meetings }: Props) {
               onSubmit={handleExtract}
               disabled={isParsing}
               submitOnEnter={false}
-              minHeight={170}
-              maxHeight={380}
+              minHeight={120}
+              maxHeight={260}
               placeholder={`Dar Spices meeting - ${meetingDate}\n\n- Review packaging supplier contract by end of month\n- Shivam to follow up on payment invoice urgent\n- Schedule quality inspection next week`}
               hint={<span className="text-fg-subtle">Saved notes can become minutes and tasks.</span>}
               actions={
                 <>
-                  <VoiceButton disabled={isParsing} onResult={appendNotes} />
-                  <button onClick={handleExtract} disabled={!notes.trim() || isParsing} className="flex items-center gap-1.5 px-3.5 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
+                  <VoiceButton disabled={isParsing || isPolishingVoice} onResult={appendNotes} onStop={handleVoiceStop} lang={voiceLanguage} title="Dictate notes" />
+                  <button onClick={handleExtract} disabled={!notes.trim() || isParsing} className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
                     {isParsing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                    {isParsing ? "Extracting..." : "Extract Action Items"}
+                    {isParsing ? "Extracting..." : "Actions"}
                   </button>
                 </>
               }
             />
+            {(voiceInfo || lastRawVoice) && (
+              <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-fg-muted">
+                {isPolishingVoice && <Loader2 size={12} className="animate-spin" />}
+                {voiceInfo && <span>{voiceInfo}</span>}
+                {lastRawVoice && (
+                  <button type="button" onClick={() => updateNotes(lastRawVoice)} className="text-accent hover:underline">
+                    Use raw
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="flex gap-2 px-1">
+              <input
+                value={voiceTerm}
+                onChange={e => setVoiceTerm(e.target.value)}
+                placeholder="Teach COS a name or phrase"
+                className="min-w-0 flex-1 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent"
+              />
+              <button type="button" onClick={handleTeachVoice} disabled={isTeachingVoice || !voiceTerm.trim()} className="rounded-lg border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg disabled:opacity-50">
+                {isTeachingVoice ? "Saving..." : "Teach"}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -432,7 +489,7 @@ export function MeetingExtractor({ companies, meetings }: Props) {
               value={minutes}
               onChange={e => setMinutes(e.target.value)}
               placeholder="Generate minutes from the notes, or write them manually..."
-              className="w-full min-h-[180px] rounded-2xl border border-border bg-bg-elev p-4 text-sm leading-relaxed focus:outline-none focus:border-accent"
+              className="w-full min-h-[130px] sm:min-h-[180px] rounded-xl sm:rounded-2xl border border-border bg-bg-elev p-3 sm:p-4 text-sm leading-relaxed focus:outline-none focus:border-accent"
             />
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => handleInsight("decisions")} disabled={isGeneratingInsight || (!notes.trim() && !minutes.trim())} className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-fg-muted hover:text-fg disabled:opacity-50">
@@ -463,11 +520,14 @@ export function MeetingExtractor({ companies, meetings }: Props) {
           )}
         </section>
 
-        <aside className="space-y-2">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
+        <aside className="space-y-2 lg:sticky lg:top-20 lg:self-start">
+          <div className="flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
+            <span className="inline-flex items-center gap-2">
             <History size={13} /> Meeting history
+            </span>
+            <span className="lg:hidden normal-case tracking-normal text-fg-subtle">{filteredMeetings.length} shown</span>
           </div>
-          <div className="rounded-2xl border border-border bg-bg-elev p-3 space-y-2">
+          <div className="rounded-xl sm:rounded-2xl border border-border bg-bg-elev p-2.5 sm:p-3 space-y-2">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5">
               <Search size={13} className="text-fg-subtle shrink-0" />
               <input
@@ -487,7 +547,7 @@ export function MeetingExtractor({ companies, meetings }: Props) {
               <span className="rounded-full bg-bg-muted px-2 py-0.5">{historyStats.withTasks} with tasks</span>
             </div>
           </div>
-          <div className="max-h-[520px] overflow-y-auto space-y-2 pr-1">
+          <div className="max-h-64 lg:max-h-[520px] overflow-y-auto space-y-2 pr-1">
             {meetingList.length === 0 && (
               <div className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted">No saved meetings yet.</div>
             )}

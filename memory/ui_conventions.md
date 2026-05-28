@@ -65,6 +65,13 @@ Prefer existing primitives from `src/components/ui.tsx` where they fit.
 
 Keep this page work-focused and dense enough for repeated operational use. Avoid marketing-style hero sections.
 
+Mobile Meeting layout should stay concise:
+
+- hide the three-step explainer on phones;
+- keep metadata in compact two-column rows where possible;
+- keep raw notes and minutes shorter on first load;
+- avoid large empty cards before the operator reaches notes/actions.
+
 ## Voice
 
 `src/components/voice-button.tsx` uses the Web Speech API. It renders nothing on unsupported browsers.
@@ -72,9 +79,18 @@ Keep this page work-focused and dense enough for repeated operational use. Avoid
 Currently wired into:
 
 - Quick Capture;
-- Meeting Workspace raw notes.
+- Meeting Workspace raw notes;
+- task updates;
+- Ask COS dictation, using the browser speech language.
 
-Planned direction: voice everywhere inside COS, with context-aware clean-up and a personal dictionary.
+Voice should feel native to COS:
+
+- "speak rough, save polished";
+- clean dictation through `src/app/voice/actions.ts`;
+- respect the Settings AI master switch;
+- support English, Swahili, Hindi, and Gujarati dictation choices;
+- preserve business vocabulary from the Settings voice dictionary;
+- expose a lightweight quality loop where misheard names/phrases can be taught back.
 
 ## Floating COS Assistant
 

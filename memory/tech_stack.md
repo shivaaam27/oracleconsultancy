@@ -52,7 +52,8 @@ Do not remove these unless switching away from PgBouncer transaction mode.
 - Model: `llama-3.1-8b-instant`.
 - `GROQ_API_KEY` unlocks AI features.
 - `getGroqKey()` applies the Settings AI master switch.
-- AI surfaces include polish, draft email, digest narrative, Ask COS, AI commands, company summaries, and Meeting Workspace intelligence.
+- AI surfaces include polish, draft email, digest narrative, Ask COS, AI commands, company summaries, Meeting Workspace intelligence, and shared voice dictation polish.
+- Voice dictation uses the browser Web Speech API through `src/components/voice-button.tsx`; clean-up runs through `src/app/voice/actions.ts`.
 
 ## Spreadsheet Ingest
 

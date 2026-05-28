@@ -23,6 +23,7 @@ The system replaces an Excel workbook with:
 - company and portfolio risk views;
 - saved meeting notes and minutes;
 - AI-assisted meeting intelligence;
+- COS-native voice intelligence;
 - per-person reminder drafts;
 - Ask COS assistant.
 
@@ -103,8 +104,21 @@ Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/aud
 - bulk-create tasks;
 - link created tasks back to meetings;
 - search/filter meeting history.
+- compact mobile layout with reduced vertical drag.
 
 Ask COS can use saved meeting minutes/raw notes in its RAG context.
+
+## Voice Intelligence
+
+Voice is now a shared product layer, not only a microphone button:
+
+- `src/components/voice-button.tsx` accepts a language code and streams Web Speech API text.
+- `src/app/voice/actions.ts` polishes rough dictation through Groq with rule/no-key fallbacks.
+- Settings stores `v2.voiceLanguage` and `v2.voiceDictionary`.
+- Supported starting languages: English (`en-GB`), Swahili (`sw-TZ`), Hindi (`hi-IN`), Gujarati (`gu-IN`).
+- Meeting notes, Quick Capture, and task updates use "speak rough, save polished" behaviour.
+- Meeting Workspace includes a small quality loop to teach COS names/phrases into the voice dictionary.
+- Ask COS dictation now follows the browser language instead of a hardcoded speech locale.
 
 ## AI Conventions
 

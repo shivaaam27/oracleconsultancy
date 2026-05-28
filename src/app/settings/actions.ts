@@ -20,6 +20,8 @@ export async function saveSettings(fd: FormData): Promise<void> {
     weatherLat: num(fd, "weatherLat"),
     weatherLon: num(fd, "weatherLon"),
     aiEnabled: fd.get("aiEnabled") === "on",
+    voiceLanguage: (fd.get("voiceLanguage") as string | null)?.trim() || undefined,
+    voiceDictionary: (fd.get("voiceDictionary") as string | null)?.trim() || undefined,
   };
 
   await saveAppSettings(patch);

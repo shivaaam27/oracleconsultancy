@@ -1,9 +1,9 @@
-import { Card, PageHeader, Button, FieldLabel, Input } from "@/components/ui";
+import { Card, PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { getAppSettings } from "@/lib/settings";
 import { saveSettings } from "./actions";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +101,38 @@ export default async function SettingsPage({
             />
             <span className="text-sm">Enable AI features</span>
           </label>
+        </Card>
+
+        {/* Voice */}
+        <Card className="p-5 space-y-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Mic2 size={14} className="text-accent" /> Voice intelligence
+            </h2>
+            <p className="text-xs text-fg-muted mt-1">
+              Dictation language and trusted words used when COS cleans rough speech into polished notes.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <FieldLabel>Primary dictation language</FieldLabel>
+              <Select name="voiceLanguage" defaultValue={s.voiceLanguage}>
+                <option value="en-GB">English</option>
+                <option value="sw-TZ">Swahili</option>
+                <option value="hi-IN">Hindi</option>
+                <option value="gu-IN">Gujarati</option>
+              </Select>
+            </div>
+            <div>
+              <FieldLabel>COS voice dictionary</FieldLabel>
+              <Textarea
+                name="voiceDictionary"
+                rows={7}
+                defaultValue={s.voiceDictionary}
+                placeholder="Add names, companies, places, acronyms, and phrases COS should preserve..."
+              />
+            </div>
+          </div>
         </Card>
 
         {/* Reminders (informational for now) */}

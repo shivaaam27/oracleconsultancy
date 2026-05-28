@@ -15,6 +15,8 @@ export type AppSettings = {
   weatherLat: number;
   weatherLon: number;
   aiEnabled: boolean;
+  voiceLanguage: string;
+  voiceDictionary: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -25,6 +27,18 @@ export const DEFAULT_SETTINGS: AppSettings = {
   weatherLat: -6.7924,
   weatherLon: 39.2083,
   aiEnabled: true,
+  voiceLanguage: "en-GB",
+  voiceDictionary: [
+    "Oracle Group",
+    "Dar Spices",
+    "Cocozuri Chocolat",
+    "Terra Green",
+    "Oracle Consultancy",
+    "PES Ltd",
+    "MES Ltd",
+    "Pamoja Plus",
+    "Dar es Salaam",
+  ].join("\n"),
 };
 
 /** Map of canonical setting field → storage key. */
@@ -36,6 +50,8 @@ const KEY: Record<keyof AppSettings, string> = {
   weatherLat: "v2.weatherLat",
   weatherLon: "v2.weatherLon",
   aiEnabled: "v2.aiEnabled",
+  voiceLanguage: "v2.voiceLanguage",
+  voiceDictionary: "v2.voiceDictionary",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -67,6 +83,8 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     weatherLat: toNum(map.get(KEY.weatherLat), d.weatherLat),
     weatherLon: toNum(map.get(KEY.weatherLon), d.weatherLon),
     aiEnabled: toBool(map.get(KEY.aiEnabled), d.aiEnabled),
+    voiceLanguage: map.get(KEY.voiceLanguage) ?? d.voiceLanguage,
+    voiceDictionary: map.get(KEY.voiceDictionary) ?? d.voiceDictionary,
   };
 });
 

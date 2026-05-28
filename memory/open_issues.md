@@ -21,9 +21,9 @@ metadata:
 
 - Add recent meetings to company pages.
 - Add a read-only meeting detail/drawer view if history becomes too dense.
-- Add multilingual support: English, Swahili, Hindi, Gujarati.
-- Add personal dictionary for names, company terms, vendors, local words.
-- Add better voice intelligence across all text inputs.
+- Deepen multilingual support beyond dictation language: original-language notes, English minutes, and translated summaries.
+- Expand voice dictionary quality loops beyond Meeting Workspace.
+- Add voice intelligence to Outbox drafts and any remaining long-form inputs.
 - Decide whether Meeting intelligence output should be stored separately or remain transient/editable text.
 
 ## Technical Smells

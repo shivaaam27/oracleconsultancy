@@ -18,9 +18,10 @@ Built with **Next.js 16**, **React 19**, **TypeScript**, **Drizzle ORM**, **Supa
 
 - Command centre dashboard with Overview, Companies, and Tasks tabs.
 - Task registry with per-task timeline and audit history.
-- Meeting Workspace with saved notes, AI minutes, decisions/risks/follow-up intelligence, history search, and linked tasks.
+- Mobile-tight Meeting Workspace with saved notes, AI minutes, decisions/risks/follow-up intelligence, history search, and linked tasks.
 - Ask COS assistant over tasks, updates, companies, people, and saved meeting minutes.
-- Quick Capture and Meeting Workspace voice dictation.
+- COS-native voice intelligence for Quick Capture, Meeting notes, task updates, and Ask COS dictation.
+- Voice settings for English, Swahili, Hindi, and Gujarati, plus a COS vocabulary dictionary.
 - People directory with internal, external, and expat contact types.
 - Outbox reminder drafts and sent-record history.
 - Settings for risk thresholds, weather, AI master switch, reminders, and navigation.
@@ -29,9 +30,10 @@ Built with **Next.js 16**, **React 19**, **TypeScript**, **Drizzle ORM**, **Supa
 
 1. `memory/v2_plan.md` - current roadmap and mental model.
 2. `CLAUDE.md` / `AGENTS.md` - project instructions for coding agents.
-3. `memory/meeting_workspace.md` - saved meetings, minutes, linked tasks, and meeting intelligence.
-4. `memory/database_schema.md` - current schema.
-5. `memory/routes_and_pages.md` - current pages and API routes.
+3. `memory/meeting_workspace.md` - saved meetings, minutes, linked tasks, mobile layout, and meeting intelligence.
+4. `memory/ai_integration.md` - Groq, Ask COS, meeting AI, and voice intelligence.
+5. `memory/database_schema.md` - current schema.
+6. `memory/routes_and_pages.md` - current pages and API routes.
 
 ## Getting Started
 

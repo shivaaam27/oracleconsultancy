@@ -40,6 +40,8 @@ type Props = {
   /** Fired once when the user stops dictation (mic turned off / silence). */
   onStop?: () => void;
   disabled?: boolean;
+  lang?: string;
+  title?: string;
   className?: string;
 };
 
@@ -48,7 +50,7 @@ type Props = {
  * caller. Renders nothing when the browser has no Web Speech API support, so the
  * surrounding UI stays clean on unsupported devices.
  */
-export function VoiceButton({ onResult, onInterim, onStop, disabled, className }: Props) {
+export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title, className }: Props) {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
@@ -69,7 +71,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, className }
     const Ctor = getRecognitionCtor();
     if (!Ctor) return;
     const rec = new Ctor();
-    rec.lang = typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB";
+    rec.lang = lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
     rec.continuous = true;
     rec.interimResults = true;
 
@@ -104,7 +106,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, className }
     } catch {
       setListening(false);
     }
-  }, [onResult, onInterim, onStop]);
+  }, [onResult, onInterim, onStop, lang]);
 
   if (!supported) return null;
 
@@ -114,7 +116,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, className }
       disabled={disabled}
       onClick={() => (listening ? stop() : start())}
       aria-pressed={listening}
-      title={listening ? "Stop dictation" : "Dictate (speak your task)"}
+      title={listening ? "Stop dictation" : title ?? "Dictate"}
       className={cn(
         "relative inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors disabled:opacity-50",
         listening
