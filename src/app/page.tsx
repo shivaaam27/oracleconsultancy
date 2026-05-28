@@ -1,5 +1,7 @@
-import { getAllTasks } from "@/lib/queries";
+import { getAllTasks, computeGlobalKpis, type TaskRow } from "@/lib/queries";
+import { isOpen } from "@/lib/derive";
 import { HubTabs, type HubTab } from "@/components/hub-tabs";
+import { WelcomeHero } from "@/components/welcome-hero";
 import { OverviewSection } from "./_hub/overview-section";
 import { CompaniesSection } from "./_hub/companies-section";
 import { TasksSection } from "./_hub/tasks-section";
@@ -27,10 +29,27 @@ function parseTab(v: string | undefined): HubTab {
   return "overview";
 }
 
-const today = () =>
-  new Date().toLocaleDateString("en-GB", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
+/** One-line operational summary for the hero. */
+function buildPulse(rows: TaskRow[]): string {
+  const k = computeGlobalKpis(rows);
+
+  // Hotspot = company with the most overdue/critical open items.
+  const heat = new Map<string, number>();
+  for (const r of rows) {
+    if (!isOpen(r.status)) continue;
+    const hot = r.flag === "overdue" || r.flag === "escalate-now" || r.priority === "Critical";
+    if (hot) heat.set(r.companyName, (heat.get(r.companyName) ?? 0) + 1);
+  }
+  const hotspot = [...heat.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  const parts = [`${k.open} open`];
+  if (k.overdue) parts.push(`${k.overdue} overdue`);
+  if (k.critical) parts.push(`${k.critical} critical`);
+  const stat = parts.join(" · ");
+
+  if (k.overdue === 0 && k.critical === 0) return `${stat} — everything's on track. 🎉`;
+  return `${stat}${hotspot ? ` — ${hotspot} needs the most attention today.` : "."}`;
+}
 
 export default async function HubPage({ searchParams }: { searchParams: Promise<Sp> }) {
   const sp = await searchParams;
@@ -41,14 +60,9 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
   const rows = tab === "overview" ? await getAllTasks() : [];
 
   return (
-    <div className="space-y-2">
-      {/* Only the Overview tab gets a heading. Companies & Tasks render their own. */}
-      {tab === "overview" && (
-        <div className="flex items-baseline justify-between gap-3 mb-3">
-          <h1 className="text-lg font-semibold tracking-tight">Command Centre</h1>
-          <span className="text-xs text-fg-muted">{today()}</span>
-        </div>
-      )}
+    <div className="space-y-4">
+      {/* Overview opens with the welcome hero. Companies & Tasks render their own headers. */}
+      {tab === "overview" && <WelcomeHero pulse={buildPulse(rows)} />}
 
       <HubTabs current={tab} />
 
