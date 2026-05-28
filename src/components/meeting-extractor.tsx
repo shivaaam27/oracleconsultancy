@@ -13,6 +13,7 @@ import {
   History,
   Loader2,
   Plus,
+  Search,
   Save,
   Sparkles,
   Square,
@@ -87,6 +88,8 @@ export function MeetingExtractor({ companies, meetings }: Props) {
   const [minutesInfo, setMinutesInfo] = useState<string | null>(null);
   const [meetingNotice, setMeetingNotice] = useState<string | null>(null);
   const [createdTaskLinks, setCreatedTaskLinks] = useState<SavedMeeting["tasks"]>([]);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [historyCompany, setHistoryCompany] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
 
   const [isParsing, startParse] = useTransition();
@@ -292,6 +295,19 @@ export function MeetingExtractor({ companies, meetings }: Props) {
     setTasks(prev => prev.map(t => ({ ...t, checked: next })));
   }
 
+  const filteredMeetings = meetingList.filter(m => {
+    const q = historyQuery.trim().toLowerCase();
+    const matchesCompany = !historyCompany || m.companyId === historyCompany;
+    const haystack = `${m.title} ${m.companyName ?? ""} ${m.attendees ?? ""} ${m.rawNotes} ${m.minutes ?? ""}`.toLowerCase();
+    return matchesCompany && (!q || haystack.includes(q));
+  });
+  const historyStats = {
+    total: meetingList.length,
+    withMinutes: meetingList.filter(m => !!m.minutes).length,
+    withTasks: meetingList.filter(m => m.taskCount > 0).length,
+  };
+  const selectedMeeting = meetingId ? meetingList.find(m => m.id === meetingId) : null;
+
   return (
     <div className="space-y-5">
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
@@ -348,6 +364,16 @@ export function MeetingExtractor({ companies, meetings }: Props) {
               </button>
               {meetingNotice && <span className="text-xs text-success">{meetingNotice}</span>}
             </div>
+
+            {selectedMeeting && (
+              <div className="rounded-xl border border-border bg-bg-subtle px-3 py-2 text-xs text-fg-muted flex flex-wrap gap-x-3 gap-y-1">
+                <span>Saved meeting</span>
+                <span>{selectedMeeting.companyName || "Group-wide"}</span>
+                <span>{selectedMeeting.meetingDate}</span>
+                {selectedMeeting.minutes && <span className="text-success">Minutes saved</span>}
+                {selectedMeeting.taskCount > 0 && <span>{selectedMeeting.taskCount} linked task{selectedMeeting.taskCount === 1 ? "" : "s"}</span>}
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -396,11 +422,34 @@ export function MeetingExtractor({ companies, meetings }: Props) {
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
             <History size={13} /> Meeting history
           </div>
+          <div className="rounded-2xl border border-border bg-bg-elev p-3 space-y-2">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5">
+              <Search size={13} className="text-fg-subtle shrink-0" />
+              <input
+                value={historyQuery}
+                onChange={e => setHistoryQuery(e.target.value)}
+                placeholder="Search notes, minutes, attendees..."
+                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs shadow-none focus:!shadow-none focus:!ring-0"
+              />
+            </div>
+            <select value={historyCompany} onChange={e => setHistoryCompany(Number(e.target.value))} className="w-full rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-xs">
+              <option value={0}>All companies</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <div className="flex flex-wrap gap-1.5 text-[11px] text-fg-muted">
+              <span className="rounded-full bg-bg-muted px-2 py-0.5">{historyStats.total} saved</span>
+              <span className="rounded-full bg-bg-muted px-2 py-0.5">{historyStats.withMinutes} with minutes</span>
+              <span className="rounded-full bg-bg-muted px-2 py-0.5">{historyStats.withTasks} with tasks</span>
+            </div>
+          </div>
           <div className="max-h-[520px] overflow-y-auto space-y-2 pr-1">
             {meetingList.length === 0 && (
               <div className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted">No saved meetings yet.</div>
             )}
-            {meetingList.map(m => (
+            {meetingList.length > 0 && filteredMeetings.length === 0 && (
+              <div className="rounded-xl border border-dashed border-border p-4 text-sm text-fg-muted">No meetings match that search.</div>
+            )}
+            {filteredMeetings.map(m => (
               <button key={m.id} type="button" onClick={() => loadMeeting(m)} className={`w-full rounded-xl border p-3 text-left transition-colors ${meetingId === m.id ? "border-accent bg-accent/5" : "border-border bg-bg-elev hover:border-accent/50"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
