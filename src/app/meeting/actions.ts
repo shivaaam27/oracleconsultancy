@@ -264,6 +264,86 @@ Rules:
   }
 }
 
+export type MeetingInsightKind = "decisions" | "risks" | "follow-up";
+
+export async function generateMeetingInsight(input: {
+  kind: MeetingInsightKind;
+  title: string;
+  companyName?: string | null;
+  attendees?: string | null;
+  rawNotes: string;
+  minutes?: string | null;
+}): Promise<{ text: string; source: "ai" | "rules" | "no-key" | "error"; message?: string }> {
+  const sourceText = [input.minutes, input.rawNotes].filter(Boolean).join("\n\n");
+  if (!sourceText.trim()) return { text: "", source: "rules", message: "Add notes or minutes first." };
+
+  const label = input.kind === "decisions" ? "Decisions" : input.kind === "risks" ? "Risks and Blockers" : "Follow-up Draft";
+  const fallbackLines = sourceText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*•\d.)\s]+/, "").trim())
+    .filter(Boolean);
+  const re =
+    input.kind === "decisions"
+      ? /\b(decided|agreed|approved|confirmed|decision|will proceed)\b/i
+      : input.kind === "risks"
+        ? /\b(risk|blocked|delay|issue|concern|urgent|escalat|stuck|pending)\b/i
+        : /\b(to|will|needs?|follow up|send|review|prepare|confirm|schedule|update|share|resolve|check)\b/i;
+  const fallbackHits = fallbackLines.filter((line) => re.test(line)).slice(0, 8);
+  const fallback = [label, ...(fallbackHits.length ? fallbackHits.map((line) => `- ${line}`) : ["- Nothing clear was detected."])].join("\n");
+
+  const apiKey = await getGroqKey();
+  if (!apiKey) return { text: fallback, source: "no-key" };
+
+  const instruction =
+    input.kind === "decisions"
+      ? "Extract only decisions made or clearly agreed. Do not include general discussion."
+      : input.kind === "risks"
+        ? "Extract only risks, blockers, delays, dependencies, and escalation-worthy concerns."
+        : "Draft a concise follow-up message to attendees summarising decisions and next actions. British English, professional, no invented facts.";
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: `${instruction}
+
+Return Markdown only.
+If there is not enough evidence, say "Nothing clear was captured."
+Preserve names, companies, dates, amounts, and task references.`,
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              title: input.title,
+              company: input.companyName || "Group-wide or unspecified",
+              attendees: input.attendees || null,
+              notes: input.rawNotes,
+              minutes: input.minutes || null,
+            }),
+          },
+        ],
+        max_tokens: input.kind === "follow-up" ? 700 : 450,
+        temperature: 0.2,
+      }),
+    });
+    if (!res.ok) return { text: fallback, source: "error", message: `AI returned HTTP ${res.status}` };
+    const data = await res.json();
+    const text = String(data?.choices?.[0]?.message?.content || "").trim();
+    return { text: text || fallback, source: text ? "ai" : "rules" };
+  } catch (err) {
+    return {
+      text: fallback,
+      source: "error",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 type AIExtractResult =
   | { ok: true; tasks: MeetingTask[] }
   | { ok: false; reason: "no-key" | "http-error" | "exception"; detail?: string };

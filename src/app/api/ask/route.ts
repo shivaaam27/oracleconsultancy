@@ -14,6 +14,7 @@ STYLE:
 - Direct and decision-grade. No hedging.
 - British English.
 - Use task codes in brackets, e.g. [DAR-007].
+- If using meeting notes or minutes, name the meeting and date.
 - If the answer is a list, use compact bullet points (one line each, no nested bullets).
 - If the answer is a recommendation or summary, use 2-4 sentence prose.
 - If the data doesn't contain enough information, say so plainly: "Not enough data — try X."
@@ -96,6 +97,7 @@ async function buildContext(question: string) {
   const wantsCritical = /critical|urgent|high.priority|emergency/.test(question.toLowerCase());
   const wantsEscalated = /escalat/.test(question.toLowerCase());
   const wantsClosed = /complet|done|closed|finished/.test(question.toLowerCase());
+  const wantsMeetings = /meeting|minutes|notes|decision|decided|discussion|discussed|attendee|risk|blocker|follow.up|followup/.test(question.toLowerCase());
 
   // Build OR-of-ilikes for keyword retrieval; optional company-id constraint.
   const orFilters: string[] = [];
@@ -180,6 +182,52 @@ async function buildContext(question: string) {
     }
   }
 
+  const meetingOrFilters: string[] = [];
+  if (tokens.length) {
+    for (const t of tokens) {
+      meetingOrFilters.push(`title.ilike.%${t}%`);
+      meetingOrFilters.push(`raw_notes.ilike.%${t}%`);
+      meetingOrFilters.push(`minutes.ilike.%${t}%`);
+      meetingOrFilters.push(`attendees.ilike.%${t}%`);
+    }
+  }
+  for (const c of matchedCompanies) meetingOrFilters.push(`company_id.eq.${c.id}`);
+
+  let meetingRows: any[] = [];
+  if (meetingOrFilters.length) {
+    const { data } = await sb
+      .from("meetings")
+      .select("id,title,company_id,meeting_date,attendees,raw_notes,minutes,updated_at")
+      .or(meetingOrFilters.join(","))
+      .order("meeting_date", { ascending: false })
+      .limit(12);
+    meetingRows = data ?? [];
+  }
+  if (wantsMeetings && meetingRows.length < 5) {
+    const { data } = await sb
+      .from("meetings")
+      .select("id,title,company_id,meeting_date,attendees,raw_notes,minutes,updated_at")
+      .order("meeting_date", { ascending: false })
+      .limit(10);
+    const seenMeetings = new Set(meetingRows.map((m) => m.id));
+    meetingRows = [...meetingRows, ...(data ?? []).filter((m: any) => !seenMeetings.has(m.id))];
+  }
+
+  const meetingIds = meetingRows.map((m) => m.id as number);
+  const tasksByMeeting: Record<number, string[]> = {};
+  if (meetingIds.length) {
+    const { data: linkRows } = await sb
+      .from("meeting_tasks")
+      .select("meeting_id,tasks(code)")
+      .in("meeting_id", meetingIds);
+    for (const row of linkRows ?? []) {
+      const meetingId = row.meeting_id as number;
+      const taskField = (row as { tasks?: { code?: string } | { code?: string }[] }).tasks;
+      const linkedCode = Array.isArray(taskField) ? taskField[0]?.code : taskField?.code;
+      if (linkedCode) (tasksByMeeting[meetingId] ||= []).push(linkedCode);
+    }
+  }
+
   return {
     today: new Date().toISOString().slice(0, 10),
     companies: companies.map(c => c.name),
@@ -204,6 +252,16 @@ async function buildContext(question: string) {
       taskId: filtered.find(t => t.id === u.taskId)?.code,
       body: u.body.slice(0, 200),
       createdAt: u.createdAt.toISOString().slice(0, 10),
+    })),
+    meetings: meetingRows.slice(0, 12).map((m) => ({
+      id: m.id as number,
+      title: m.title as string,
+      company: m.company_id ? cMap.get(m.company_id as number) ?? null : "Group-wide",
+      date: m.meeting_date ? new Date(m.meeting_date as string).toISOString().slice(0, 10) : null,
+      attendees: (m.attendees as string | null) ?? null,
+      minutes: ((m.minutes as string | null) ?? "").slice(0, 1400),
+      rawNotes: ((m.raw_notes as string | null) ?? "").slice(0, 900),
+      linkedTaskCodes: tasksByMeeting[m.id as number] ?? [],
     })),
   };
 }
@@ -261,6 +319,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       answer,
       taskCount: context.tasks.length,
+      meetingCount: context.meetings.length,
       source: "ai",
     });
   } catch (e) {
