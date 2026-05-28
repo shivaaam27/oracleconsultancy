@@ -1,11 +1,10 @@
 import { computeGlobalKpis, statusBreakdown, priorityBreakdown } from "@/lib/queries";
 import { Card } from "@/components/ui";
 import { CosBar } from "@/components/cos-bar";
-import { TaskDrawerLink } from "@/components/task-drawer-link";
+import { AttentionPanel, type AttnItem } from "@/components/attention-panel";
 import { sb } from "@/db/supabase";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
-import { AlertOctagon, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 
 function Bar({ value, max, tone = "accent" }: { value: number; max: number; tone?: "accent" | "danger" | "warn" }) {
@@ -54,6 +53,23 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
     })
     .slice(0, 6);
 
+  const toAttn = (r: TaskRow): AttnItem => ({
+    code: r.code,
+    actionItem: r.actionItem,
+    companyName: r.companyName,
+    status: r.status,
+    flag: r.flag,
+    deadlineTs: r.deadline ? r.deadline.getTime() : null,
+    updatedTs: r.lastUpdatedAt ? r.lastUpdatedAt.getTime() : null,
+    latestUpdate: r.latestUpdate,
+  });
+  const attnItems = needsAttention.map(toAttn);
+  const recentItems = rows
+    .filter((r) => r.lastUpdatedAt)
+    .sort((a, b) => (b.lastUpdatedAt?.getTime() ?? 0) - (a.lastUpdatedAt?.getTime() ?? 0))
+    .slice(0, 6)
+    .map(toAttn);
+
   const metrics = [
     { label: "Open", count: k.open, href: "/?tab=tasks", tone: "neutral" as const },
     { label: "Due Today", count: focus.dueToday, href: "/?tab=tasks", tone: "warn" as const },
@@ -94,34 +110,8 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
         })}
       </div>
 
-      {/* Needs Attention */}
-      {needsAttention.length > 0 && (
-        <div className="rounded-2xl border border-danger/25 bg-danger/[0.04] p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-danger text-sm font-medium">
-              <AlertOctagon size={14} /> Needs Attention
-            </div>
-            <Link href="/escalations" className="text-xs text-fg-muted hover:text-accent inline-flex items-center gap-1">
-              View all <ExternalLink size={10} />
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-            {needsAttention.map((r) => (
-              <TaskDrawerLink
-                key={r.id}
-                code={r.code}
-                className="group flex items-start gap-2.5 bg-bg-elev rounded-xl px-3 py-2.5 border border-border hover:border-danger/40 hover:shadow-sm transition-all w-full text-left"
-              >
-                <span className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${r.flag === "overdue" || r.flag === "escalate-now" ? "bg-danger" : "bg-warn"}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium line-clamp-1 group-hover:text-accent transition-colors">{r.actionItem}</p>
-                  <p className="text-xs text-fg-muted mt-0.5">{r.code} · {r.companyName} · <span className={r.flag === "overdue" || r.flag === "escalate-now" ? "text-danger" : "text-warn"}>{r.status}</span></p>
-                </div>
-              </TaskDrawerLink>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Needs Attention / Recent Updates */}
+      <AttentionPanel needsAttention={attnItems} recentUpdates={recentItems} />
 
       {/* Unified Ask / Capture bar */}
       <CosBar companies={companiesList} />
