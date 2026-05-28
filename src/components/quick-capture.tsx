@@ -7,6 +7,7 @@ import { parseRawCapture } from "@/app/capture/actions";
 import { createTask } from "@/app/task/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
 import { polishActionItem } from "@/lib/smart-parse";
+import { PromptBox } from "./prompt-box";
 
 const STATUSES = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
 const PRIORITIES = ["Critical","High","Medium","Low"];
@@ -133,31 +134,36 @@ export function QuickCapture({ companies, embedded = false }: Props) {
       )}
 
       {/* Input */}
-      <div className="relative">
-        <textarea
-          rows={2}
-          value={raw}
-          onChange={e => setRaw(e.target.value)}
-          onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleParse(); }}
-          placeholder={'e.g. "dar spices packaging delay shivam urgent end of month"'}
-          className="w-full rounded-lg border border-border bg-bg-subtle px-3 py-2.5 text-sm placeholder:text-fg-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 pr-24"
-        />
-        <div className="absolute right-2 bottom-2 flex gap-1.5">
-          {raw && (
-            <button onClick={handleClear} className="p-1.5 rounded text-fg-muted hover:text-fg transition-colors">
-              <X size={14} />
+      <PromptBox
+        value={raw}
+        onChange={setRaw}
+        onSubmit={handleParse}
+        disabled={isParsing}
+        placeholder={'e.g. "dar spices packaging delay shivam urgent end of month"'}
+        actions={
+          <>
+            {raw && (
+              <button
+                type="button"
+                onClick={handleClear}
+                title="Clear"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleParse}
+              disabled={!raw.trim() || isParsing}
+              className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+            >
+              {isParsing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              {isParsing ? "Parsing…" : "Parse"}
             </button>
-          )}
-          <button
-            onClick={handleParse}
-            disabled={!raw.trim() || isParsing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-          >
-            {isParsing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            {isParsing ? "Parsing…" : "Parse"}
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <p className="text-xs text-fg-muted -mt-1">
         Tip: mention company name, person name, deadline (e.g. "end of month"), priority (urgent/high/critical), and status

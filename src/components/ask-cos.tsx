@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, Bot, User, Trash2, ChevronRight, Mic, MicOff, Zap, Check, X as XIcon } from "lucide-react";
+import { Sparkles, Send, Loader2, Bot, User, Trash2, Mic, MicOff, Zap, Check, X as XIcon } from "lucide-react";
 import { LinkifiedAnswer } from "./linkified-answer";
+import { PromptBox } from "./prompt-box";
 
 type Message = {
   id: string;
@@ -17,11 +18,11 @@ type Message = {
   redirect?: string;
 };
 
-const SUGGESTIONS = [
-  "What's overdue this week?",
-  "What's blocking Dar Spices?",
-  "Who has the most critical tasks?",
-  "What did we close in the last 7 days?",
+const SUGGESTIONS: { title: string; sub: string; q: string }[] = [
+  { title: "What's overdue", sub: "this week?", q: "What's overdue this week?" },
+  { title: "What's blocking", sub: "Dar Spices?", q: "What's blocking Dar Spices?" },
+  { title: "Who has the most", sub: "critical tasks?", q: "Who has the most critical tasks?" },
+  { title: "What did we close", sub: "in the last 7 days?", q: "What did we close in the last 7 days?" },
 ];
 
 // Detect if a message is a command vs a question
@@ -263,14 +264,15 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
             <p className="text-xs text-fg-muted italic">
               Ask questions, run commands, or use pronouns once a task is focused. Try:
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="grid sm:grid-cols-2 gap-2">
               {SUGGESTIONS.map(s => (
                 <button
-                  key={s}
-                  onClick={() => submit(s)}
-                  className="inline-flex items-center gap-1 text-xs bg-bg-subtle hover:bg-accent/10 hover:text-accent border border-border rounded-full px-3 py-1 transition-colors"
+                  key={s.q}
+                  onClick={() => submit(s.q)}
+                  className="text-left rounded-xl border border-border bg-bg-elev hover:bg-accent/5 hover:border-accent/40 px-3 py-2.5 transition-colors"
                 >
-                  <ChevronRight size={10} /> {s}
+                  <div className="text-sm font-medium leading-tight">{s.title}</div>
+                  <div className="text-xs text-fg-muted mt-0.5">{s.sub}</div>
                 </button>
               ))}
             </div>
@@ -378,40 +380,43 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
         </div>
       )}
 
-      <form
-        onSubmit={e => { e.preventDefault(); submit(input); }}
-        className={`flex items-center gap-2 px-5 py-3 ${embedded ? "order-1 border-b border-border" : "border-t border-border bg-bg-subtle"}`}
-      >
-        <input
+      <div className={`px-5 py-3 ${embedded ? "order-1 border-b border-border" : "border-t border-border bg-bg-subtle"}`}>
+        <PromptBox
           value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder={listening ? "Listening…" : "Ask anything — or type a command"}
+          onChange={setInput}
+          onSubmit={() => submit(input)}
           disabled={loading}
-          className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 disabled:opacity-50"
+          placeholder={listening ? "Listening…" : "Ask anything — or type a command"}
+          actions={
+            <>
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={toggleVoice}
+                  disabled={loading}
+                  title={listening ? "Stop listening" : "Speak"}
+                  className={`inline-flex items-center justify-center w-8 h-8 rounded-full border transition-all ${
+                    listening
+                      ? "border-danger bg-danger/10 text-danger animate-pulse"
+                      : "border-border text-fg-muted hover:text-accent hover:border-accent/40"
+                  } disabled:opacity-50`}
+                >
+                  {listening ? <MicOff size={14} /> : <Mic size={14} />}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => submit(input)}
+                disabled={loading || !input.trim()}
+                title="Send"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 transition-opacity"
+              >
+                {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+              </button>
+            </>
+          }
         />
-        {voiceSupported && (
-          <button
-            type="button"
-            onClick={toggleVoice}
-            disabled={loading}
-            title={listening ? "Stop listening" : "Speak"}
-            className={`inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-all ${
-              listening
-                ? "border-danger bg-danger/10 text-danger animate-pulse"
-                : "border-border text-fg-muted hover:text-accent hover:border-accent/40"
-            } disabled:opacity-50`}
-          >
-            {listening ? <MicOff size={14} /> : <Mic size={14} />}
-          </button>
-        )}
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-        >
-          {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-        </button>
-      </form>
+      </div>
     </div>
   );
 }
