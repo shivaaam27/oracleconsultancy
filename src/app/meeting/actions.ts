@@ -8,6 +8,262 @@ import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
+export type SavedMeeting = {
+  id: number;
+  title: string;
+  companyId: number | null;
+  companyName: string | null;
+  meetingDate: string;
+  attendees: string | null;
+  rawNotes: string;
+  minutes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  taskCount: number;
+  tasks: {
+    id: number;
+    code: string;
+    actionItem: string;
+    status: string;
+  }[];
+};
+
+function isoDateOnly(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function fallbackMinutes(notes: string): string {
+  const lines = notes
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*•\d.)\s]+/, "").trim())
+    .filter(Boolean);
+  const actionish = lines.filter((line) => /\b(to|will|needs?|follow up|send|review|prepare|confirm|schedule|update|share|resolve|check)\b/i.test(line));
+  const risks = lines.filter((line) => /\b(risk|blocked|delay|issue|concern|urgent|escalat|stuck)\b/i.test(line));
+
+  const summary = lines.slice(0, 4);
+  return [
+    "Summary",
+    summary.length ? summary.map((line) => `- ${line}`).join("\n") : "- Meeting notes captured; no clear summary points detected.",
+    "",
+    "Decisions and Discussion",
+    lines.length ? lines.slice(0, 8).map((line) => `- ${line}`).join("\n") : "- No detailed discussion captured yet.",
+    "",
+    "Risks and Blockers",
+    risks.length ? risks.slice(0, 6).map((line) => `- ${line}`).join("\n") : "- No obvious risks or blockers detected.",
+    "",
+    "Follow-up Actions",
+    actionish.length ? actionish.slice(0, 8).map((line) => `- ${line}`).join("\n") : "- No clear follow-up actions detected.",
+  ].join("\n");
+}
+
+function fallbackCleanNotes(notes: string): string {
+  return notes
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^[-*•\s]+/, "- "))
+    .join("\n");
+}
+
+export async function listMeetings(): Promise<SavedMeeting[]> {
+  const [{ data: meetings, error }, { data: links, error: linkErr }] = await Promise.all([
+    sb
+      .from("meetings")
+      .select("id,title,company_id,meeting_date,attendees,raw_notes,minutes,created_at,updated_at,companies(name)")
+      .order("meeting_date", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(30),
+    sb.from("meeting_tasks").select("meeting_id,tasks(id,code,action_item,status)"),
+  ]);
+  if (error) throw new Error(error.message);
+  if (linkErr) throw new Error(linkErr.message);
+
+  const byMeeting = new Map<number, SavedMeeting["tasks"]>();
+  for (const row of links ?? []) {
+    const meetingId = row.meeting_id as number;
+    const task = (row as any).tasks;
+    if (!task) continue;
+    const next = byMeeting.get(meetingId) ?? [];
+    next.push({
+      id: task.id as number,
+      code: task.code as string,
+      actionItem: task.action_item as string,
+      status: task.status as string,
+    });
+    byMeeting.set(meetingId, next);
+  }
+
+  return (meetings ?? []).map((m: any) => ({
+    id: m.id as number,
+    title: m.title as string,
+    companyId: (m.company_id as number | null) ?? null,
+    companyName: (m.companies?.name as string | null) ?? null,
+    meetingDate: isoDateOnly(new Date(m.meeting_date as string)),
+    attendees: (m.attendees as string | null) ?? null,
+    rawNotes: (m.raw_notes as string) ?? "",
+    minutes: (m.minutes as string | null) ?? null,
+    createdAt: m.created_at as string,
+    updatedAt: m.updated_at as string,
+    taskCount: byMeeting.get(m.id as number)?.length ?? 0,
+    tasks: byMeeting.get(m.id as number) ?? [],
+  }));
+}
+
+export async function saveMeeting(input: {
+  id?: number | null;
+  title: string;
+  companyId?: number | null;
+  meetingDate: string;
+  attendees?: string | null;
+  rawNotes: string;
+  minutes?: string | null;
+}): Promise<SavedMeeting> {
+  const now = new Date().toISOString();
+  const title = input.title.trim() || "Untitled meeting";
+  const payload = {
+    title,
+    company_id: input.companyId || null,
+    meeting_date: input.meetingDate ? new Date(`${input.meetingDate}T00:00:00`).toISOString() : now,
+    attendees: input.attendees?.trim() || null,
+    raw_notes: input.rawNotes,
+    minutes: input.minutes?.trim() || null,
+    updated_at: now,
+  };
+
+  if (input.id) {
+    const { error } = await sb.from("meetings").update(payload).eq("id", input.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { data, error } = await sb
+      .from("meetings")
+      .insert({ ...payload, created_at: now, created_by: "web-ui" })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    input.id = data.id as number;
+  }
+
+  revalidatePath("/meeting");
+  const meetings = await listMeetings();
+  const saved = meetings.find((m) => m.id === input.id);
+  if (!saved) throw new Error("Meeting saved, but could not reload it.");
+  return saved;
+}
+
+export async function generateMeetingMinutes(input: {
+  title: string;
+  companyName?: string | null;
+  attendees?: string | null;
+  rawNotes: string;
+}): Promise<{ minutes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string }> {
+  const apiKey = await getGroqKey();
+  if (!input.rawNotes.trim()) return { minutes: "", source: "rules", message: "Add notes before generating minutes." };
+  if (!apiKey) return { minutes: fallbackMinutes(input.rawNotes), source: "no-key" };
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: `You write concise British-English meeting minutes for a Chief of Staff command centre.
+
+Return clean Markdown with exactly these headings:
+Summary
+Decisions
+Risks and Blockers
+Follow-up Actions
+
+Rules:
+- Keep it factual; do not invent details.
+- Use short bullets.
+- Preserve names, companies, dates, and amounts when present.
+- Follow-up Actions should contain only action-like items.`,
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              title: input.title,
+              company: input.companyName || "Group-wide or unspecified",
+              attendees: input.attendees || null,
+              notes: input.rawNotes,
+            }),
+          },
+        ],
+        max_tokens: 900,
+        temperature: 0.2,
+      }),
+    });
+    if (!res.ok) return { minutes: fallbackMinutes(input.rawNotes), source: "error", message: `AI returned HTTP ${res.status}` };
+    const data = await res.json();
+    const minutes = String(data?.choices?.[0]?.message?.content || "").trim();
+    return { minutes: minutes || fallbackMinutes(input.rawNotes), source: minutes ? "ai" : "rules" };
+  } catch (err) {
+    return {
+      minutes: fallbackMinutes(input.rawNotes),
+      source: "error",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function improveMeetingNotes(input: {
+  title: string;
+  companyName?: string | null;
+  rawNotes: string;
+}): Promise<{ notes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string }> {
+  const apiKey = await getGroqKey();
+  if (!input.rawNotes.trim()) return { notes: "", source: "rules", message: "Add notes before cleaning them." };
+  const fallback = fallbackCleanNotes(input.rawNotes);
+  if (!apiKey) return { notes: fallback, source: "no-key" };
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: `Clean rough meeting notes in British English without changing meaning.
+
+Rules:
+- Keep all names, companies, dates, amounts, and task references.
+- Do not invent or remove facts.
+- Use clear short bullets grouped only when obvious.
+- Preserve action-like statements because another parser will extract tasks later.
+- Return only the cleaned notes.`,
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              title: input.title,
+              company: input.companyName || "Group-wide or unspecified",
+              notes: input.rawNotes,
+            }),
+          },
+        ],
+        max_tokens: 1000,
+        temperature: 0.15,
+      }),
+    });
+    if (!res.ok) return { notes: fallback, source: "error", message: `AI returned HTTP ${res.status}` };
+    const data = await res.json();
+    const cleaned = String(data?.choices?.[0]?.message?.content || "").trim();
+    return { notes: cleaned || fallback, source: cleaned ? "ai" : "rules" };
+  } catch (err) {
+    return {
+      notes: fallback,
+      source: "error",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 type AIExtractResult =
   | { ok: true; tasks: MeetingTask[] }
   | { ok: false; reason: "no-key" | "http-error" | "exception"; detail?: string };
@@ -127,6 +383,7 @@ export async function parseMeetingNotes(
 }
 
 export type BulkTaskInput = {
+  meetingId?: number | null;
   companyId: number;
   actionItem: string;
   priority: string;
@@ -199,6 +456,15 @@ export async function bulkCreateTasks(
             created_by: "meeting-mode",
           });
 
+          if (t.meetingId) {
+            await sb
+              .from("meeting_tasks")
+              .upsert(
+                { meeting_id: t.meetingId, task_id: task.id, created_at: now.toISOString() },
+                { ignoreDuplicates: true }
+              );
+          }
+
           created++;
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -217,6 +483,7 @@ export async function bulkCreateTasks(
 
   revalidatePath("/registry");
   revalidatePath("/");
+  revalidatePath("/meeting");
   updateTag("tasks");
 
   if (!result.ok) {

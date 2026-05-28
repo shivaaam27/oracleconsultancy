@@ -10,7 +10,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
-import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal } from "lucide-react";
+import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, FileText } from "lucide-react";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
@@ -70,7 +70,7 @@ export default async function TaskPage({
   const r = all.find((t) => t.code === code);
   if (!r) return notFound();
 
-  const [{ data: auditRaw }, { data: updateRaw }] = await Promise.all([
+  const [{ data: auditRaw }, { data: updateRaw }, { data: sourceMeeting }] = await Promise.all([
     sb
       .from("audit_log")
       .select("id,field,old_value,new_value,change_reason,entry_type,created_at,created_by")
@@ -83,6 +83,11 @@ export default async function TaskPage({
       .eq("task_id", r.id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
+    sb
+      .from("meeting_tasks")
+      .select("meetings(id,title,meeting_date)")
+      .eq("task_id", r.id)
+      .maybeSingle(),
   ]);
 
   const rawTimeline: TimelineItem[] = [
@@ -203,6 +208,19 @@ export default async function TaskPage({
         <div className="border-l-2 border-accent pl-4 py-1">
           <div className="text-xs text-fg-muted mb-0.5">Latest update · {fmt(r.lastUpdatedAt)}</div>
           <p className="text-sm"><CodeLinkedText text={r.latestUpdate} /></p>
+        </div>
+      )}
+
+      {(sourceMeeting as any)?.meetings && (
+        <div className="rounded-2xl border border-border bg-bg-elev px-4 py-3 flex items-start gap-3">
+          <div className="mt-0.5 h-8 w-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
+            <FileText size={15} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-wider text-fg-subtle">Source meeting</div>
+            <p className="text-sm font-medium truncate">{(sourceMeeting as any).meetings.title}</p>
+            <p className="text-xs text-fg-muted">{fmtDate(new Date((sourceMeeting as any).meetings.meeting_date as string))}</p>
+          </div>
         </div>
       )}
 

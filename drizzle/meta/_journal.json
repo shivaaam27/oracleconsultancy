@@ -57,6 +57,13 @@
       "when": 1779996210311,
       "tag": "0007_happy_phantom_reporter",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0008_meeting_workspace",
+      "breakpoints": true
     }
   ]
 }

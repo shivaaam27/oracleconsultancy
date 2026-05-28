@@ -1,27 +1,30 @@
 import { sb } from "@/db/supabase";
 import { MeetingExtractor } from "@/components/meeting-extractor";
-import { ClipboardPaste, Wand2, ListChecks } from "lucide-react";
+import { ClipboardPaste, ListChecks, Wand2 } from "lucide-react";
+import { listMeetings } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const STEPS = [
-  { icon: ClipboardPaste, title: "Paste anything", desc: "Minutes, bullets, transcripts — any format" },
-  { icon: Wand2, title: "Auto-extracted", desc: "Assignees, deadlines, priorities detected" },
-  { icon: ListChecks, title: "Review & save", desc: "Edit, then bulk-create into the registry" },
+  { icon: ClipboardPaste, title: "Capture notes", desc: "Type, paste, or dictate the meeting" },
+  { icon: Wand2, title: "Generate minutes", desc: "Turn rough notes into clean minutes" },
+  { icon: ListChecks, title: "Create tasks", desc: "Review actions, then save to the registry" },
 ];
 
 export default async function MeetingPage() {
-  const { data: rows } = await sb.from("companies").select("id,name").order("name");
+  const [{ data: rows }, meetings] = await Promise.all([
+    sb.from("companies").select("id,name").order("name"),
+    listMeetings(),
+  ]);
   const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
+    <div className="space-y-5 max-w-5xl mx-auto">
       <div className="flex items-baseline justify-between gap-3">
-        <h1 className="text-lg font-semibold tracking-tight">Meeting Mode</h1>
-        <span className="text-xs text-fg-muted">Paste notes — action items extracted automatically</span>
+        <h1 className="text-lg font-semibold tracking-tight">Meeting Workspace</h1>
+        <span className="text-xs text-fg-muted">Save notes, generate minutes, and create action items</span>
       </div>
 
-      {/* Slim step strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {STEPS.map((s, i) => {
           const Icon = s.icon;
@@ -41,7 +44,7 @@ export default async function MeetingPage() {
         })}
       </div>
 
-      <MeetingExtractor companies={companies} />
+      <MeetingExtractor companies={companies} meetings={meetings} />
     </div>
   );
 }

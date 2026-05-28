@@ -93,6 +93,29 @@ export const taskUpdates = pgTable("task_updates", {
   pinnedAt: timestamp("pinned_at", { mode: "date" }),
 });
 
+export const meetings = pgTable("meetings", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  meetingDate: timestamp("meeting_date", { mode: "date" }).notNull(),
+  attendees: text("attendees"),
+  rawNotes: text("raw_notes").notNull().default(""),
+  minutes: text("minutes"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+export const meetingTasks = pgTable(
+  "meeting_tasks",
+  {
+    meetingId: integer("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.meetingId, t.taskId] })]
+);
+
 export const auditLog = pgTable("audit_log", {
   id: serial("id").primaryKey(),
   externalId: text("external_id"),

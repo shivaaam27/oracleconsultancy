@@ -12,6 +12,7 @@ import {
   Pencil,
   Loader2,
   AlertCircle,
+  FileText,
 } from "lucide-react";
 import { UpdateBox } from "./update-box";
 import { CodeLinkedText } from "./code-linked-text";
@@ -56,6 +57,11 @@ type DrawerData = {
   task: TaskRow;
   updates: DrawerUpdate[];
   audit: DrawerAudit[];
+  sourceMeeting: {
+    id: number;
+    title: string;
+    meeting_date: string;
+  } | null;
 };
 
 /* -------------------------------------------------------------------------
@@ -301,6 +307,19 @@ export function TaskDrawer() {
                     <p className="text-sm leading-relaxed">
                       <CodeLinkedText text={data.task.latestUpdate} />
                     </p>
+                  </div>
+                )}
+
+                {data.sourceMeeting && (
+                  <div className="rounded-xl border border-border bg-bg-subtle px-3 py-2.5 flex items-start gap-2.5">
+                    <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
+                      <FileText size={13} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Source meeting</div>
+                      <p className="truncate text-sm font-medium">{data.sourceMeeting.title}</p>
+                      <p className="text-xs text-fg-muted">{fmtDate(new Date(data.sourceMeeting.meeting_date))}</p>
+                    </div>
                   </div>
                 )}
 

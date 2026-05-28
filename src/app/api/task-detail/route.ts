@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const task = all.find((t) => t.code === code);
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [{ data: updates }, { data: audit }] = await Promise.all([
+  const [{ data: updates }, { data: audit }, { data: sourceMeeting }] = await Promise.all([
     sb
       .from("task_updates")
       .select("id,body,created_at,created_by,edited_at,original_body,pinned_at")
@@ -27,7 +27,12 @@ export async function GET(req: NextRequest) {
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(25),
+    sb
+      .from("meeting_tasks")
+      .select("meetings(id,title,meeting_date)")
+      .eq("task_id", task.id)
+      .maybeSingle(),
   ]);
 
-  return NextResponse.json({ task, updates: updates ?? [], audit: audit ?? [] });
+  return NextResponse.json({ task, updates: updates ?? [], audit: audit ?? [], sourceMeeting: (sourceMeeting as any)?.meetings ?? null });
 }
