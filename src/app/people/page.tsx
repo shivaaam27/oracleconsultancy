@@ -24,7 +24,7 @@ export default async function PeoplePage() {
   const overdueLoad = people.filter((p) => p.active && p.workload.overdue > 0).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-4xl">
       <PageHeader
         title="People Directory"
         sub={`${activeCount} active · ${overdueLoad} carrying overdue work`}

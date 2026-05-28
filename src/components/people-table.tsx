@@ -164,9 +164,7 @@ export function PeopleTable({ people, companies }: {
               <SortableTh label="Company" active={sortKey === "company"} dir={sortDir} onClick={() => toggleSort("company")} />
               <Th>Role</Th>
               <Th>Contact</Th>
-              <Th>Channel</Th>
               <SortableTh label="Workload" active={sortKey === "workload"} dir={sortDir} onClick={() => toggleSort("workload")} align="right" />
-              <Th>Status</Th>
             </tr>
           </thead>
           <tbody>
@@ -181,16 +179,32 @@ export function PeopleTable({ people, companies }: {
                   )}
                 >
                   <Td className="font-medium">
-                    <PersonDrawerLink
-                      id={p.id}
-                      name={p.name}
-                      className="text-left hover:text-accent transition-colors"
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <PersonDrawerLink
+                        id={p.id}
+                        name={p.name}
+                        className="text-left hover:text-accent transition-colors"
+                      />
+                      {!p.active && (
+                        <span title="Inactive" className="text-fg-subtle shrink-0">
+                          <UserX size={12} />
+                        </span>
+                      )}
+                      {p.snoozedUntil && p.snoozedUntil > new Date() && (
+                        <span title={`Snoozed until ${p.snoozedUntil.toLocaleDateString("en-GB")}`} className="text-warn shrink-0">
+                          <MoonStar size={12} />
+                        </span>
+                      )}
+                    </div>
                   </Td>
                   <Td className="text-fg-muted">{p.companyName ?? "—"}</Td>
                   <Td className="text-fg-muted text-xs">{p.role ?? "—"}</Td>
                   <Td>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
+                      {p.preferredChannel && (
+                        <Badge tone="info">{p.preferredChannel}</Badge>
+                      )}
+                      <div className="flex items-center gap-1.5">
                       {p.email && (
                         <a
                           href={`mailto:${p.email}`}
@@ -228,14 +242,8 @@ export function PeopleTable({ people, companies }: {
                           <AlertCircle size={13} />
                         </span>
                       )}
+                      </div>
                     </div>
-                  </Td>
-                  <Td>
-                    {p.preferredChannel ? (
-                      <Badge tone="info">{p.preferredChannel}</Badge>
-                    ) : (
-                      <span className="text-fg-subtle text-xs">—</span>
-                    )}
                   </Td>
                   <Td align="right">
                     <PersonDrawerLink
@@ -248,23 +256,6 @@ export function PeopleTable({ people, companies }: {
                         p.workload.open === 0 ? "text-fg-subtle" : "text-fg"
                       )}
                     />
-                  </Td>
-                  <Td>
-                    <div className="flex items-center gap-1">
-                      {!p.active && (
-                        <span title="Inactive" className="text-fg-subtle">
-                          <UserX size={12} />
-                        </span>
-                      )}
-                      {p.snoozedUntil && p.snoozedUntil > new Date() && (
-                        <span title={`Snoozed until ${p.snoozedUntil.toLocaleDateString("en-GB")}`} className="text-warn">
-                          <MoonStar size={12} />
-                        </span>
-                      )}
-                      {p.contactStatus === "Complete" && (
-                        <Badge tone="success">✓</Badge>
-                      )}
-                    </div>
                   </Td>
                 </tr>
               );

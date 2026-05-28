@@ -131,7 +131,7 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
           <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Status Distribution</p>
           <Card className="p-4 space-y-2">
             {statuses.map((s) => (
-              <div key={s.status} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
+              <div key={s.status} className="grid grid-cols-[92px_1fr] items-center gap-3 text-sm">
                 <div className="text-fg-muted truncate">{s.status}</div>
                 <Bar value={s.count} max={maxStatus} />
               </div>
@@ -142,7 +142,7 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
           <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Priority Breakdown</p>
           <Card className="p-4 space-y-2">
             {priorities.map((p) => (
-              <div key={p.priority} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
+              <div key={p.priority} className="grid grid-cols-[92px_1fr] items-center gap-3 text-sm">
                 <div className="text-fg-muted truncate">{p.priority}</div>
                 <Bar value={p.count} max={maxPrio} tone={p.priority === "Critical" ? "danger" : p.priority === "High" ? "warn" : "accent"} />
               </div>
