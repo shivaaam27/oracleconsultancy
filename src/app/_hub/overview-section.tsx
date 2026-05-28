@@ -84,7 +84,9 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
   return (
     <div className="space-y-5">
       {/* Metric strip — one compact, clickable row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+      <section className="space-y-2">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">At a glance</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
         {metrics.map(({ label, count, href, tone }) => {
           const dim = count === 0 && tone !== "neutral";
           const toneClass = dim
@@ -108,7 +110,8 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
             </Link>
           );
         })}
-      </div>
+        </div>
+      </section>
 
       {/* Needs Attention / Recent Updates */}
       <AttentionPanel needsAttention={attnItems} recentUpdates={recentItems} />

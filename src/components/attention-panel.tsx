@@ -67,6 +67,13 @@ const toneDot: Record<Tone, string> = {
   muted: "bg-fg-subtle",
 };
 
+const stripeColor: Record<Tone, string> = {
+  danger: "bg-danger",
+  warn: "bg-warn",
+  success: "bg-success",
+  muted: "bg-border",
+};
+
 function Card({ t, mode }: { t: AttnItem; mode: Mode }) {
   const dot = mode === "recent" ? "muted" : flagTone(t.flag);
   const right =
@@ -76,10 +83,10 @@ function Card({ t, mode }: { t: AttnItem; mode: Mode }) {
   return (
     <TaskDrawerLink
       code={t.code}
-      className="card p-3 flex flex-col gap-1.5 hover:border-accent hover:shadow-sm transition-all text-left w-full"
+      className="relative overflow-hidden rounded-xl border border-border bg-bg-elev shadow-sm pl-4 pr-3 py-2.5 flex flex-col gap-1.5 hover:border-accent hover:shadow-md hover:-translate-y-0.5 transition-all text-left w-full"
     >
+      <span className={`absolute left-0 top-0 bottom-0 w-1 ${stripeColor[dot as Tone]}`} />
       <div className="flex items-center gap-2">
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${toneDot[dot as Tone]}`} />
         <span className="text-[10px] font-mono text-fg-muted">{t.code}</span>
         <span className="ml-auto text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted">{t.status}</span>
       </div>
@@ -106,7 +113,7 @@ export function AttentionPanel({
   const items = mode === "attention" ? needsAttention : recentUpdates;
 
   return (
-    <section className="rounded-2xl border border-border bg-bg-elev p-4 space-y-3 shadow-sm">
+    <section className="rounded-2xl border border-border bg-bg-subtle p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-bg-muted/60 border border-border">
           <button

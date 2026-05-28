@@ -22,9 +22,6 @@ export function CosBar({ companies }: Props) {
       </div>
 
       <div className="card overflow-hidden shadow-md ring-1 ring-border">
-        {/* Accent top edge */}
-        <div className="h-0.5 bg-gradient-to-r from-accent via-accent/60 to-accent/20" />
-
         {/* Toggle header */}
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-bg-subtle">
         <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-bg-muted/60 border border-border">
