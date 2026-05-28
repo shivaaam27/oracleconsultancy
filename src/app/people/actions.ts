@@ -31,7 +31,6 @@ function contactStatus(email: string | null, phone: string | null, whatsapp: str
 function invalidate() {
   revalidatePath("/people");
   revalidatePath("/outbox");
-  revalidatePath("/digest");
   updateTag("people");
 }
 

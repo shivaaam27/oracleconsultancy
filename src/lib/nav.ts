@@ -7,7 +7,6 @@ import {
   History,
   Settings,
   AlertOctagon,
-  FileText,
   NotebookPen,
   type LucideIcon,
 } from "lucide-react";
@@ -24,7 +23,6 @@ export const NAV_ROUTES: NavRoute[] = [
   // Hub — the unified workspace (Overview + Companies + Tasks in one place)
   { id: "hub",         href: "/",            label: "Hub",        icon: LayoutDashboard },
   { id: "meeting",     href: "/meeting",     label: "Meeting",    icon: NotebookPen },
-  { id: "digest",      href: "/digest",      label: "Digest",     icon: FileText },
   { id: "escalations", href: "/escalations", label: "Escalations",icon: AlertOctagon },
   { id: "people",      href: "/people",      label: "People",     icon: Users },
   { id: "outbox",      href: "/outbox",      label: "Outbox",     icon: Send },
@@ -39,4 +37,4 @@ export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
   NAV_ROUTES.map((r) => [r.id, r])
 );
 
-export const DEFAULT_PINS = ["hub", "digest", "outbox", "people"];
+export const DEFAULT_PINS = ["hub", "outbox", "people"];

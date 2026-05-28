@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, Bot, User, Trash2, Mic, MicOff, Zap, Check, X as XIcon } from "lucide-react";
+import { Sparkles, Send, Loader2, Bot, User, Trash2, Mic, MicOff, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { LinkifiedAnswer } from "./linkified-answer";
 import { PromptBox } from "./prompt-box";
+import { CopyButton } from "./copy-button";
 
 type Message = {
   id: string;
@@ -16,18 +17,37 @@ type Message = {
   status?: "preview" | "running" | "done" | "error";
   resultMessage?: string;
   redirect?: string;
+  // for digest messages:
+  kind?: "digest";
+  digestText?: string;
+  narrative?: string;
 };
 
 const SUGGESTIONS: { title: string; sub: string; q: string }[] = [
+  { title: "Weekly digest", sub: "for the group", q: "Give me this week's digest" },
   { title: "What's overdue", sub: "this week?", q: "What's overdue this week?" },
   { title: "What's blocking", sub: "Dar Spices?", q: "What's blocking Dar Spices?" },
   { title: "Who has the most", sub: "critical tasks?", q: "Who has the most critical tasks?" },
-  { title: "What did we close", sub: "in the last 7 days?", q: "What did we close in the last 7 days?" },
 ];
 
 // Detect if a message is a command vs a question
 function looksLikeCommand(text: string): boolean {
   return /^(mark|complete|finish|close|escalate|create|add|update|set|change|open|go to|navigate|show me task|delete|remove|assign|reassign)/i.test(text.trim());
+}
+
+// Detect a request for the weekly digest / briefing
+function looksLikeDigest(text: string): boolean {
+  return /\b(digest|weekly (brief|briefing|summary|update|report)|exec(utive)? (brief|briefing|summary))\b/i.test(text.trim());
+}
+
+// Pull a company name out of "digest for X" / "digest of X"
+function extractDigestCompany(text: string): string | null {
+  const m = text.match(/\b(?:for|of|on)\s+([A-Za-z0-9'&.\- ]+?)\s*[?.!]*$/i);
+  const name = m?.[1]?.trim();
+  if (!name) return null;
+  // Ignore generic tails so "digest for this week" stays group-wide
+  if (/^(this|the|last|next|past)\b/i.test(name) || /\bweek\b/i.test(name)) return null;
+  return name;
 }
 
 export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
@@ -178,6 +198,47 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
     }
   }
 
+  async function runDigest(question: string) {
+    try {
+      const company = extractDigestCompany(question);
+      const res = await fetch("/api/digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company }),
+      });
+      if (!res.ok) {
+        setError("Could not build the digest.");
+        setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: "assistant", content: "⚠️ Could not build the digest." }]);
+        return;
+      }
+      const data = await res.json();
+      const scopeLabel = data.scopeName ? `${data.scopeName} · ` : "Oracle Group · ";
+
+      // Try to enrich with an AI executive narrative (degrades gracefully).
+      let narrative = "";
+      try {
+        const nres = await fetch("/api/digest-narrative", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stats: data.stats }),
+        });
+        const ndata = await nres.json();
+        if (ndata?.result) narrative = ndata.result;
+      } catch { /* narrative is optional */ }
+
+      setMessages(prev => [...prev, {
+        id: `dg-${Date.now()}`,
+        role: "assistant",
+        kind: "digest",
+        content: `${scopeLabel}weekly digest`,
+        digestText: data.text,
+        narrative,
+      }]);
+    } catch {
+      setError("Network error. Try again.");
+    }
+  }
+
   async function submit(text: string) {
     const q = text.trim();
     if (!q || loading) return;
@@ -188,7 +249,9 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
     setLoading(true);
 
     try {
-      if (looksLikeCommand(q)) {
+      if (looksLikeDigest(q)) {
+        await runDigest(q);
+      } else if (looksLikeCommand(q)) {
         await runAction(q, false);
       } else {
         await runAsk(q);
@@ -291,6 +354,10 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
                 <p className="flex-1 text-sm">{m.content}</p>
               </div>
             );
+          }
+
+          if (m.role === "assistant" && m.kind === "digest") {
+            return <DigestMessage key={m.id} content={m.content} narrative={m.narrative} digestText={m.digestText || ""} />;
           }
 
           if (m.role === "assistant") {
@@ -416,6 +483,43 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
             </>
           }
         />
+      </div>
+    </div>
+  );
+}
+
+function DigestMessage({ content, narrative, digestText }: { content: string; narrative?: string; digestText: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex gap-3 bg-accent/5 -mx-5 px-5 py-3">
+      <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-white bg-accent">
+        <FileText size={12} />
+      </div>
+      <div className="flex-1 min-w-0 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-medium uppercase tracking-wider text-fg-muted">{content}</p>
+          <CopyButton text={digestText} label="Copy" />
+        </div>
+
+        {narrative && (
+          <div className="bg-bg-subtle border border-border rounded-lg p-3 text-sm leading-relaxed whitespace-pre-wrap">
+            {narrative}
+          </div>
+        )}
+
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition-colors"
+        >
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          {open ? "Hide" : "Show"} full digest
+        </button>
+
+        {open && (
+          <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap text-fg-muted bg-bg-subtle rounded-lg p-3 overflow-auto max-h-[50vh]">
+            {digestText}
+          </pre>
+        )}
       </div>
     </div>
   );
