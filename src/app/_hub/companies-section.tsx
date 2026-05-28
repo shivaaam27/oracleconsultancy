@@ -1,6 +1,7 @@
 import { getAllTasks } from "@/lib/queries";
 import { computeCompanyKpis } from "@/lib/queries";
 import { CompanyKpiStrip } from "@/app/companies/[id]/_tabs/company-kpis";
+import { CompanyCard, type MiniTask } from "@/components/company-card";
 import { MomentumStrip } from "@/app/companies/[id]/_tabs/momentum-strip";
 import { CompanySummary } from "@/components/company-summary";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
@@ -82,59 +83,41 @@ export async function CompaniesSection({ coId }: { coId: number | null }) {
   /* ── Company list view ── */
   const companies = computeCompanyKpis(all);
 
+  // Per-company open tasks for the hover preview (most urgent first).
+  const flagOrder = ["escalate-now", "overdue", "escalated", "stalled", "due-soon", "aging", "no-deadline", "on-track"];
+  const openByCompany = new Map<number, MiniTask[]>();
+  for (const r of all) {
+    if (r.status === "Completed" || r.status === "Closed") continue;
+    const list = openByCompany.get(r.companyId) ?? [];
+    list.push({
+      code: r.code,
+      actionItem: r.actionItem,
+      status: r.status,
+      flag: r.flag,
+      deadlineTs: r.deadline ? r.deadline.getTime() : null,
+    });
+    openByCompany.set(r.companyId, list);
+  }
+  for (const list of openByCompany.values()) {
+    list.sort((a, b) => {
+      const fa = flagOrder.indexOf(a.flag);
+      const fb = flagOrder.indexOf(b.flag);
+      if (fa !== fb) return (fa < 0 ? 99 : fa) - (fb < 0 ? 99 : fb);
+      const da = a.deadlineTs ?? Number.POSITIVE_INFINITY;
+      const db = b.deadlineTs ?? Number.POSITIVE_INFINITY;
+      return da - db;
+    });
+  }
+
   return (
     <div className="space-y-4">
       <p className="text-xs font-medium uppercase tracking-wider text-fg-muted">
         {companies.length} companies
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {companies.map((c) => {
-          const riskDot =
-            c.riskScore > 50 ? "bg-danger" : c.riskScore > 20 ? "bg-warn" : "bg-success";
-          const chips = [
-            c.overdue > 0 && { label: `${c.overdue} overdue`, tone: "danger" as const },
-            c.critical > 0 && { label: `${c.critical} critical`, tone: "danger" as const },
-            c.blocked > 0 && { label: `${c.blocked} blocked`, tone: "warn" as const },
-            c.dueSoon > 0 && { label: `${c.dueSoon} due soon`, tone: "warn" as const },
-          ].filter(Boolean) as { label: string; tone: "danger" | "warn" }[];
-          return (
-            <Link
-              key={c.id}
-              href={`/?tab=companies&co=${c.id}`}
-              className="card p-4 flex flex-col gap-3 hover:border-accent hover:shadow-md transition-all"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="font-semibold text-sm leading-tight">{c.name}</h3>
-                <span
-                  className={`mt-1 w-2 h-2 rounded-full shrink-0 ${riskDot}`}
-                  title={`Risk ${c.riskScore}`}
-                />
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-semibold tabular leading-none">{c.open}</span>
-                <span className="text-xs text-fg-muted">open · {c.total} total</span>
-              </div>
-              {chips.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {chips.map((ch) => (
-                    <span
-                      key={ch.label}
-                      className={`text-[11px] rounded-full px-2 py-0.5 ${
-                        ch.tone === "danger"
-                          ? "bg-red-500/10 text-red-700 dark:text-red-300"
-                          : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                      }`}
-                    >
-                      {ch.label}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-[11px] text-success">On track</span>
-              )}
-            </Link>
-          );
-        })}
+        {companies.map((c) => (
+          <CompanyCard key={c.id} c={c} openTasks={openByCompany.get(c.id) ?? []} />
+        ))}
       </div>
     </div>
   );
