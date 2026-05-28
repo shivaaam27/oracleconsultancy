@@ -14,10 +14,25 @@ export type PendingItem = {
   sentChannels: Channel[];
 };
 
-export function PendingList({ items }: { items: PendingItem[] }) {
+export function PendingList({ items, scopeName = null }: { items: PendingItem[]; scopeName?: string | null }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
+  const [company, setCompany] = useState<string>("all");
   const [density, setDensity] = useState<"compact" | "expanded">("compact");
+
+  // Company list with recipient counts (a person counts once per company they touch).
+  const companyCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of items) {
+      const seen = new Set<string>();
+      for (const t of i.draft.tasks) {
+        if (seen.has(t.companyName)) continue;
+        seen.add(t.companyName);
+        m.set(t.companyName, (m.get(t.companyName) || 0) + 1);
+      }
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [items]);
 
   useEffect(() => {
     const stored = (typeof window !== "undefined" && localStorage.getItem(DENSITY_KEY)) as
@@ -49,10 +64,11 @@ export function PendingList({ items }: { items: PendingItem[] }) {
       if (filter === "critical" && !i.draft.tasks.some((t) => t.priority === "Critical")) return false;
       if (filter === "overdue" && !i.draft.tasks.some((t) => t.flag === "overdue" || t.flag === "escalate-now")) return false;
       if (filter === "missing" && i.draft.contactStatus === "Complete") return false;
+      if (company !== "all" && !i.draft.tasks.some((t) => t.companyName === company)) return false;
       if (query && !i.draft.recipientName.toLowerCase().includes(query)) return false;
       return true;
     });
-  }, [items, filter, q]);
+  }, [items, filter, q, company]);
 
   return (
     <div className="space-y-3">
@@ -61,6 +77,25 @@ export function PendingList({ items }: { items: PendingItem[] }) {
         <Chip label="Critical" count={counts.critical} active={filter === "critical"} onClick={() => setFilter(filter === "critical" ? "all" : "critical")} tone="danger" />
         <Chip label="Overdue" count={counts.overdue} active={filter === "overdue"} onClick={() => setFilter(filter === "overdue" ? "all" : "overdue")} tone="danger" />
         <Chip label="Missing contact" count={counts.missing} active={filter === "missing"} onClick={() => setFilter(filter === "missing" ? "all" : "missing")} tone="warn" />
+
+        <select
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          className={`text-xs rounded-full border px-2.5 py-1 cursor-pointer transition-colors ${
+            company !== "all"
+              ? "border-accent/40 bg-accent/10 text-fg"
+              : "border-border bg-bg-elev text-fg-muted hover:text-fg"
+          }`}
+          title="Filter by company"
+        >
+          <option value="all">All companies ({items.length})</option>
+          {companyCounts.map(([name, n]) => (
+            <option key={name} value={name}>
+              {name === scopeName ? `★ ${name}` : name} ({n})
+            </option>
+          ))}
+        </select>
+
         <button
           type="button"
           onClick={toggleDensity}
@@ -91,6 +126,13 @@ export function PendingList({ items }: { items: PendingItem[] }) {
         </div>
       </div>
 
+      {(company !== "all" || filter !== "all" || q.trim()) && (
+        <p className="text-xs text-fg-muted">
+          Showing {visible.length} of {items.length} recipients
+          {company !== "all" && <> · <strong className="text-fg">{company}</strong></>}
+        </p>
+      )}
+
       {visible.length === 0 ? (
         <Card className="p-6 text-center text-sm text-fg-muted">
           No drafts match these filters.
@@ -103,6 +145,7 @@ export function PendingList({ items }: { items: PendingItem[] }) {
               draft={a.draft}
               alreadySent={false}
               sentChannels={new Set(a.sentChannels)}
+              scopeName={scopeName}
               compact
             />
           ))}
@@ -115,6 +158,7 @@ export function PendingList({ items }: { items: PendingItem[] }) {
               draft={a.draft}
               alreadySent={false}
               sentChannels={new Set(a.sentChannels)}
+              scopeName={scopeName}
             />
           ))}
         </div>

@@ -161,7 +161,7 @@ export default async function OutboxPage() {
           </div>
         </Card>
       ) : (
-        <PendingList items={pending} />
+        <PendingList items={pending} scopeName={scopeName} />
       )}
 
       {/* Snoozed */}

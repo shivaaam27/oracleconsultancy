@@ -107,12 +107,15 @@ export function OutboxCard({
   alreadySent = false,
   sentChannels,
   compact = false,
+  scopeName = null,
 }: {
   draft: OutboxDraft;
   alreadySent?: boolean;
   sentChannels?: Set<Channel>;
   compact?: boolean;
+  scopeName?: string | null;
 }) {
+  const hasScoped = scopeName ? draft.tasks.some((t) => t.companyName === scopeName) : false;
   const initialChannel = defaultChannel(draft);
   const [channel, setChannel] = useState<Channel>(initialChannel);
   const [copied, setCopied] = useState(false);
@@ -265,6 +268,7 @@ export function OutboxCard({
         className={cn(
           "card border-l-4 px-3 py-2 flex items-center gap-3 hover:border-accent transition-colors",
           stripeClass[u.level],
+          hasScoped && "ring-1 ring-accent/30",
           sent && "opacity-60"
         )}
       >
@@ -297,23 +301,35 @@ export function OutboxCard({
           {topTask ? `${topTask.code} · ${topTask.actionItem}` : ""}
         </button>
 
-        {/* Cross-company hint — coloured dots when this person spans multiple companies */}
+        {/* Company chips — scoped company first & highlighted */}
         {(() => {
           const groups = groupByCompany(draft.tasks);
-          if (groups.length <= 1) return null;
+          const ordered = scopeName
+            ? [...groups].sort((a, b) => (b.name === scopeName ? 1 : 0) - (a.name === scopeName ? 1 : 0))
+            : groups;
+          const shown = ordered.slice(0, 2);
+          const extra = ordered.length - shown.length;
           return (
             <div
-              className="hidden lg:inline-flex items-center gap-0.5 shrink-0"
+              className="hidden md:flex items-center gap-1 shrink-0"
               title={groups.map((g) => `${g.name} · ${g.items.length}`).join("\n")}
             >
-              {groups.slice(0, 4).map((g) => (
+              {shown.map((g) => (
                 <span
                   key={g.name}
-                  className="inline-block w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: g.accent || "var(--accent)" }}
-                />
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[10px] rounded-full px-1.5 py-0.5 max-w-[110px]",
+                    g.name === scopeName
+                      ? "bg-accent/15 text-fg border border-accent/40"
+                      : "bg-bg-muted text-fg-muted"
+                  )}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: g.accent || "var(--accent)" }} />
+                  <span className="truncate">{g.name}</span>
+                  <span className="text-fg-subtle shrink-0">{g.items.length}</span>
+                </span>
               ))}
-              <span className="text-[10px] text-fg-subtle ml-1">{groups.length} cos</span>
+              {extra > 0 && <span className="text-[10px] text-fg-subtle">+{extra}</span>}
             </div>
           );
         })()}
