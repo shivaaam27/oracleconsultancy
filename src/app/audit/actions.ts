@@ -75,23 +75,3 @@ export async function restoreAuditEntry(id: number): Promise<ActionResult> {
   invalidate(row.task_code as string | null, row.company_id as number | null);
   return { ok: true };
 }
-
-/* ----------------------------------------------------------------------
- * Bulk delete
- * ---------------------------------------------------------------------- */
-export async function bulkDeleteAuditEntries(
-  ids: number[]
-): Promise<{ ok: boolean; deleted: number; error?: string }> {
-  if (ids.length === 0) return { ok: true, deleted: 0 };
-
-  const { error, count } = await sb
-    .from("audit_log")
-    .update({ deleted_at: new Date().toISOString() }, { count: "exact" })
-    .in("id", ids)
-    .is("deleted_at", null);
-
-  if (error) return { ok: false, deleted: 0, error: error.message };
-
-  invalidate();
-  return { ok: true, deleted: count ?? 0 };
-}

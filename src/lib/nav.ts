@@ -1,7 +1,6 @@
 import {
   Users,
   Send,
-  History,
   Settings,
   NotebookPen,
   type LucideIcon,
@@ -23,7 +22,6 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "meeting",     href: "/meeting",     label: "Meeting",    icon: NotebookPen },
   { id: "people",      href: "/people",      label: "People",     icon: Users },
   { id: "outbox",      href: "/outbox",      label: "Outbox",     icon: Send },
-  { id: "audit",       href: "/audit",       label: "Audit",      icon: History },
   { id: "settings",    href: "/settings",    label: "Settings",   icon: Settings },
 ];
 
