@@ -62,7 +62,7 @@ All timestamps are `timestamp` (no TZ), `mode: "date"`. Soft delete via `archive
 >
 > `/companies/[id]` Overview groups open tasks **by month** (collapsible) + has a **Completed** tab. `/settings` is now a real control panel (risk thresholds, weather location, AI master switch, reminders) + Navigation reorder card + Resync. Quick Capture and the Meeting extractor support **voice dictation** (Web Speech API).
 
-**API:** `/api/polish`, `/api/extract-meeting`, `/api/draft-email`, `/api/digest-narrative`, `/api/ask` (RAG Q&A with history), `/api/action` (NL command → confirm → execute, audits as `ai-command`), `/api/company-summary` (per-company briefing), `/api/similar-tasks` (keyword duplicate finder, no LLM), `/api/search`, `/api/prefs/nav-pins`, `/api/prefs/nav-recents`.
+**API:** `/api/polish`, `/api/draft-email`, `/api/digest-narrative`, `/api/ask` (RAG Q&A with history), `/api/action` (NL command → confirm → execute, audits as `ai-command`), `/api/company-summary` (per-company briefing), `/api/similar-tasks` (keyword duplicate finder, no LLM), `/api/search`, `/api/prefs/nav-pins`, `/api/prefs/nav-recents`.
 
 **Shared RAG layer:** `src/lib/ai-context.ts` — `loadContext()` (cached companies/people/recent items), `loadTaskContext(id)` (per-task with assignees + last 5 updates), `findSimilarTasks(query)` (keyword overlap, no embeddings).
 
@@ -100,7 +100,6 @@ Migration flow: edit `schema.ts` → `db:generate` → review SQL → `db:migrat
 - `corrections` table has no UI.
 - `lucide-react@^1.16.0` constraint looks suspect — verify before any `npm install` refresh.
 - `splitNames` regex `/,| & | and /i` splits names containing "and".
-- `/api/extract-meeting/route.ts:97` has a buggy `companyId` resolution.
 
 ## Memory files (deeper context)
 Detailed handover notes live in `memory/` — read these before non-trivial changes:
