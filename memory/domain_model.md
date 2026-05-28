@@ -1,60 +1,101 @@
-﻿---
+---
 name: domain-model
-description: "Statuses, priorities, derived flags, and the constants that drive UI colour and risk"
-metadata: 
+description: "Statuses, priorities, derived flags, task codes, and risk rules"
+metadata:
   node_type: memory
   type: project
-  originSessionId: ce50e4c8-def7-4b23-a6ab-4d8b492e1b43
 ---
 
-## Statuses (in display order)
-`Not Started, In Progress, Under Review, Blocked, Waiting External, Escalated, Completed, Closed`.
+# Domain Model
 
-Open = anything except `Completed` and `Closed` (see `isOpen` in [derive.ts](../src/lib/derive.ts)).
+## Companies
 
-## Priorities & Risk
-`Critical, High, Medium, Low`. Same scale for both.
+Oracle Group has 7 portfolio companies:
+
+- CO01 Dar Spices
+- CO02 Cocozuri Chocolat
+- CO03 Terra Green
+- CO04 Oracle Consultancy
+- CO05 PES Ltd
+- CO06 MES Ltd
+- CO07 Pamoja Plus
+
+## Task Codes
+
+Format: `<COxx>-NNN`, for example `CO01-001`.
+
+Allocation uses read-max-then-insert with retries in helper paths. If task creation becomes highly concurrent, consider a stronger Postgres-side allocator.
+
+## Statuses
+
+Display order:
+
+`Not Started, In Progress, Under Review, Blocked, Waiting External, Escalated, Completed, Closed`
+
+Open means anything except `Completed` or `Closed`.
+
+## Priorities and Risk
+
+`Critical, High, Medium, Low`.
 
 ## Escalation
-String column, default `"No"`. Set to `"Yes"` when escalation language appears in capture or user manually toggles.
 
-## Derived flags ([derive.ts](../src/lib/derive.ts))
+String column, usually `"No"` or `"Yes"`.
 
-Thresholds (constants â€” change here if business rules shift):
+## Categories
+
+`Finance, Operations, Marketing, HR, Legal, Technology, Sales, Admin, Meetings, Strategy, Other`.
+
+Keep parser/AI prompts aligned with this list.
+
+## Derived Flags
+
+Defined in `src/lib/derive.ts`.
+
+Thresholds:
+
 - `DUE_SOON_DAYS = 3`
 - `AGING_CRITICAL_DAYS = 30`
 - `BLOCKED_STALLED_DAYS = 14`
 
-`flag(task)` returns one of (in priority order):
+Flag order:
+
 | Flag | Condition |
-|------|-----------|
-| `closed` | status âˆˆ {Completed, Closed} |
-| `escalated` | status = Escalated |
-| `stalled` | status = Blocked AND daysOpen > 14 |
-| `no-deadline` | open and no deadline set |
-| `escalate-now` | priority = Critical AND past deadline |
-| `overdue` | past deadline (non-critical) |
+|---|---|
+| `closed` | Completed or Closed |
+| `escalated` | status is Escalated |
+| `stalled` | Blocked and open longer than 14 days |
+| `no-deadline` | open with no deadline |
+| `escalate-now` | Critical and past deadline |
+| `overdue` | past deadline |
 | `due-soon` | deadline within 3 days |
-| `aging` | daysOpen > 30 |
-| `on-track` | otherwise |
+| `aging` | open longer than 30 days |
+| `on-track` | none of the above |
 
-Each flag has a label (emoji + text) and a Tailwind colour class in `flagLabel` / `flagColor`.
+## Risk Score
 
-## Risk score (company KPI)
-`riskScore = round(((overdue * 3 + blocked * 2 + aging) / total) * 100)`.
-Used to sort companies on the dashboard. Badge tone: >50 danger, >20 warn, else success.
+Company KPI risk score:
 
-## Task codes
-Format: `<COxx>-NNN` (zero-padded 3-digit serial within company). Allocator is `insertTaskWithUniqueCode` in [task/actions.ts](../src/app/task/actions.ts): finds max existing serial per company, increments, retries on uniqueness collision up to 5x.
+`round(((overdue * 3 + blocked * 2 + aging) / total) * 100)`
 
-## Category taxonomy
-Used by quick-capture parser + AI extractor (must stay in sync):
-`Finance, Operations, Marketing, HR, Legal, Technology, Sales, Admin, Meetings, Strategy, Other`.
+Badge tone:
+
+- above 50: danger
+- above 20: warn
+- otherwise: success
+
+## Date Semantics
+
+- Comparisons are date-oriented.
+- `daysOpen` measures from created date to closed date or today.
+- `daysToDeadline` is `done`, `null`, or an integer day count.
 
 ## Channels
-For outbox/reminders: `WHATSAPP`, `EMAIL`, `SMS` (uppercase string).
 
-## Date semantics
-- `today()` (derive.ts) zeroes hours/min/sec â€” comparisons are date-only.
-- `daysOpen` measures from `createdDate` to either `closedDate` (if closed) or today.
-- `daysToDeadline` returns `"done"` if closed, `null` if no deadline, else integer.
+Outbox/reminders use uppercase channel strings:
+
+- `WHATSAPP`
+- `EMAIL`
+- `SMS`
+
+Product direction is a single user-facing "Messages" workflow once real dispatch exists.

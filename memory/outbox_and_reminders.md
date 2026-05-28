@@ -1,40 +1,57 @@
-﻿---
+---
 name: outbox-and-reminders
-description: "How reminder drafts are generated, deduped, and recorded"
-metadata: 
+description: "Reminder drafts, dedupe ledger, and sent-record behaviour"
+metadata:
   node_type: memory
   type: project
-  originSessionId: ce50e4c8-def7-4b23-a6ab-4d8b492e1b43
 ---
 
-Source: [src/lib/outbox-gen.ts](../src/lib/outbox-gen.ts) + [src/app/outbox/](../src/app/outbox/).
+# Outbox and Reminders
 
-## Draft generation
-`generateDrafts(channel)` where channel âˆˆ `"WHATSAPP" | "EMAIL" | "SMS"`:
-1. Loads all open tasks (`isOpen(status)`).
-2. Groups by assignee name.
-3. For each person, builds a per-channel message:
-   - **WhatsApp / Email**: greeting â†’ numbered list of their tasks with company, code, accountables, status, deadline, priority, latest update â†’ close-out "Please update the tracker before end of day."
-   - **SMS**: one terse line per task.
-4. Looks up the person row to fill `whatsapp`, `phone`, `email`, `preferredChannel`.
-5. Sets `contactStatus`:
-   - `Complete` if the channel-specific contact exists.
-   - `Missing WhatsApp` / `Missing Email` if the channel field is empty.
-   - `Unknown` if the person isn't in `people` table at all.
-6. Returns drafts sorted by task count descending.
+Source files:
 
-## Sending (markSent)
-`markSent(channel, name, taskCodes, message, contactStatus, recipientContact)`:
-1. Builds dedupe key: `${YYYY-MM-DD}|${channel}|${name.toLowerCase()}|${taskIds_sorted.join(",")}|daily`.
-2. If a `reminders` row already has that key â†’ returns `false` (already sent today).
-3. Otherwise wraps in a transaction:
-   - Inserts `reminders` (message_type `"DAILY TASK REMINDER"`, escalation_level `"LEVEL 1"`).
-   - Inserts `outbox` row with status `"Sent"`, full body, contact, timestamps.
-4. Unique index `reminders_dedupe_idx` is the ultimate guard â€” catches duplicate-key error from concurrent sends and converts to `false`.
+- `src/lib/outbox-gen.ts`
+- `src/lib/outbox-history.ts`
+- `src/app/outbox/*`
+- `src/app/outbox/actions.ts`
 
-## Why two tables
-- `reminders` is the **idempotency ledger** â€” minimal columns, hard unique constraint.
-- `outbox` is the **human-readable record** â€” full message body, status flow (`Ready` â†’ `Sent`), notes.
+## Draft Generation
 
-## Dispatch â€” what's NOT implemented
-Currently the system only *records* sends; there is no actual WhatsApp/Email/SMS gateway integration. The operator copies the message body manually. A future provider (Twilio, Resend, Cloud API for WhatsApp) would plug in to `markSent` after a successful API call.
+`generateDrafts(channel)` loads open tasks, groups by assignee, and creates per-person reminder drafts.
+
+Supported channel strings:
+
+- `WHATSAPP`
+- `EMAIL`
+- `SMS`
+
+WhatsApp/email drafts are longer; SMS drafts are terse.
+
+## Contact Status
+
+Drafts mark contact readiness:
+
+- complete when the relevant channel contact exists;
+- missing WhatsApp/email/phone when needed;
+- unknown when the person cannot be found.
+
+## Sending / Recording
+
+`markSent` records a send; it does not actually dispatch a message.
+
+It writes:
+
+- a `reminders` row as the idempotency ledger;
+- an `outbox` row as the human-readable sent record.
+
+Dedupe key format:
+
+`YYYY-MM-DD|channel|person|taskIds|daily`
+
+The unique index on `reminders.dedupe_key` is the final duplicate-send guard.
+
+## Current Product Direction
+
+The UI direction is a single "Messages" concept. The schema still has WhatsApp/email/SMS channels because real provider integration has not been chosen yet.
+
+Do not add real dispatch casually. Phase 5c should choose one provider first, then wire send success/failure around `markSent`.

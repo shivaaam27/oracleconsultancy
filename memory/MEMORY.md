@@ -1,14 +1,15 @@
-- ⭐ **[V2 Plan — START HERE](v2_plan.md)** — Version 2 direction, phase status (1–4 + 5e done; 5a–5d pending), and how to work here. Read this first for a handover.
-- [Project Overview](project_overview.md) — COS System: Chief of Staff command centre for Oracle Group's 7 companies. Next.js 16 + Drizzle + Postgres.
-- [Tech Stack](tech_stack.md) — Next.js 16, React 19, Drizzle ORM, Supabase Postgres (pooler 6543, prepare:false), Tailwind v4, Groq LLM.
-- [Repo Layout](repo_layout.md) — Monorepo lives under `cos-system/`. App Router pages, server actions, lib/, db/, drizzle/ migrations, scripts/.
-- [Database Schema](database_schema.md) — 12 tables: companies, departments, people, tasks, task_assignees, task_updates, audit_log, corrections, reminders, outbox, daily_snapshots, settings.
-- [Domain Model](domain_model.md) — Companies CO01-CO07, task codes `<COxx>-NNN`, statuses/priorities/flags, derive.ts rules (due-soon=3d, aging=30d, stalled=14d).
-- [Routes and Pages](routes_and_pages.md) — Consolidated command centre `/` (Overview/Companies/Tasks tabs) + Task, Meeting, Companies, People, Outbox, Settings. Removed: /capture, /task list, /digest, /escalations, /audit (audit data kept). + API routes (AI gated by getGroqKey).
-- [AI Integration](ai_integration.md) — Groq llama-3.1-8b-instant powers /polish, /extract-meeting, /draft-email, /digest-narrative, /ask (RAG Q&A), /action (NL→mutation), /company-summary, /similar-tasks. Shared RAG in ai-context.ts.
-- [Outbox and Reminders](outbox_and_reminders.md) — Per-person daily reminder builder with dedupe key `date|channel|name|taskIds|daily`. WhatsApp/Email/SMS.
-- [Audit Trail](audit_trail.md) — Every field change logged with old/new/reason. Entry types CREATE/CHANGE/STATUS/ESCALATION/PRIORITY. `createdBy` is "web-ui" or "ai-command".
-- [Import Pipeline](import_pipeline.md) — `npm run import` ingests `Chief Of Staff Workflow - Live.xlsx`: 7 company sheets + _People Directory + _Settings.
-- [Dev Workflow](dev_workflow.md) — npm scripts, env vars (DATABASE_URL, GROQ_API_KEY), drizzle baseline+migrate flow, Supabase pooler caveats.
-- [UI Conventions](ui_conventions.md) — Bottom-floating TopPill nav with pins/recents + reorder in Settings, command palette (Cmd+K), QuickCapture, voice dictation, mobile/table conventions, ThemeProvider, ToastProvider.
-- [Open Issues and TODOs](open_issues.md) — Known gaps; dispatch = 5c, daily_snapshots = 5d, removed pages noted.
+- **[V2 Plan - START HERE](v2_plan.md)** - current direction, phase status, and how to work here.
+- [Project Overview](project_overview.md) - what COS System is, who uses it, and the main workflows.
+- [Tech Stack](tech_stack.md) - Next.js 16, React 19, Drizzle ORM, Supabase Postgres pooler, Tailwind v4, Groq.
+- [Repo Layout](repo_layout.md) - current directory map and key files.
+- [Database Schema](database_schema.md) - current tables, including meetings, meeting_tasks, person_companies, system_events, and undo_tokens.
+- [Domain Model](domain_model.md) - companies, task codes, statuses, priorities, flags, and risk rules.
+- [Routes and Pages](routes_and_pages.md) - current page routes, removed routes, server actions, and API routes.
+- [Meeting Workspace](meeting_workspace.md) - saved notes, AI minutes, linked tasks, and meeting intelligence.
+- [AI Integration](ai_integration.md) - Groq routes, Ask COS RAG, meeting intelligence, fallbacks, and AI master switch.
+- [Outbox and Reminders](outbox_and_reminders.md) - per-person reminder drafts and sent-record ledger.
+- [Audit Trail](audit_trail.md) - task audit logging, timeline behaviour, and entry types.
+- [Import Pipeline](import_pipeline.md) - Excel workbook import flow.
+- [Dev Workflow](dev_workflow.md) - local setup, scripts, migrations, and Supabase pooler rules.
+- [UI Conventions](ui_conventions.md) - shell, navigation, Meeting Workspace, assistant, voice, and responsive rules.
+- [Open Issues and TODOs](open_issues.md) - current known gaps and follow-ups.

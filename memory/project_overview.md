@@ -1,35 +1,21 @@
 ---
 name: project-overview
-description: "What the COS System is, who it's for, and what it does"
-metadata: 
+description: "What COS System is, who it is for, and what it currently does"
+metadata:
   node_type: memory
   type: project
-  originSessionId: ce50e4c8-def7-4b23-a6ab-4d8b492e1b43
 ---
 
-# COS System — Chief of Staff Command Centre
+# COS System - Chief of Staff Command Centre
 
-A single-operator web app the principal of **Oracle Group** uses to run weekly operations across 7 portfolio companies. Replaces a sprawling Excel workbook (`Chief Of Staff Workflow - Live.xlsx`) with a real database-backed system.
+COS System is a single-operator web app for the principal / Chief of Staff of **Oracle Group**. It runs weekly operations across 7 portfolio companies and replaces the old `Chief Of Staff Workflow - Live.xlsx` workbook with a database-backed command centre.
 
-**Repo root (primary):** `C:\Users\User\OneDrive\Documents\COS System\cos-system\`
-**Backup copy:** `C:\dev\cos-system\` (mirror created 2026-05-26 for safety; OneDrive path is still the working tree)
+The app is intentionally single-user. There is no auth and no multi-tenant model. UI-created records usually use `createdBy = "web-ui"`; AI command mutations use `createdBy = "ai-command"`; Meeting Workspace task creation uses `createdBy = "meeting-mode"`.
 
-Project-root `CLAUDE.md` is auto-loaded by Claude Code. Detailed handover notes live in `memory/` inside the project (mirrored from `~/.claude/projects/<key>/memory/`).
+## Companies
 
-## What it does
-- **Track action items** across companies with status, priority, deadlines, assignees, risk, escalation.
-- **Capture** new tasks fast: natural-language quick capture (`/capture`) parses company, people, deadline, priority out of one sentence; AI polish rewrites them executive-style.
-- **Extract** action items from raw meeting notes via Groq LLM (`/meeting`).
-- **Surface risk** on the dashboard: derive.ts flags every task as overdue / due-soon / aging / stalled / escalated / on-track.
-- **Generate reminders** per-person across WhatsApp / Email / SMS (`/outbox`) with idempotent dedupe.
-- **Draft follow-up emails** per task via LLM (`/draft-email`).
-- **Weekly digest** narrative paragraph generated from KPI stats (`/digest`).
-- **Audit log** of every change with reason field; corrections table for fixing errors.
-- **Daily snapshots** of company KPIs into a time-series table.
-
-## Companies (Oracle Group portfolio)
 | Code | Name |
-|------|------|
+|---|---|
 | CO01 | Dar Spices |
 | CO02 | Cocozuri Chocolat |
 | CO03 | Terra Green |
@@ -38,7 +24,28 @@ Project-root `CLAUDE.md` is auto-loaded by Claude Code. Detailed handover notes 
 | CO06 | MES Ltd |
 | CO07 | Pamoja Plus |
 
-Codes are fixed and used as task code prefix: `CO01-001`, `CO02-042`, etc.
+Task codes use the company prefix, for example `CO01-001`.
 
-## Users
-Single operator (the principal / Chief of Staff). No auth, no multi-tenant. `createdBy` is hard-coded to `"web-ui"`.
+## Main Workflows
+
+- **Command centre** - `/` shows Overview, Companies, and Tasks tabs with KPIs, Needs Attention, risk, company breakdowns, and task views.
+- **Task registry** - tasks have company, status, priority, deadline, owner/assignees, risk, escalation, comments, and latest update.
+- **Timeline** - each task shows progress updates and audit-log field changes in one history stream.
+- **Quick Capture** - embedded in the hub; turns natural-language task text into structured task data.
+- **Meeting Workspace** - `/meeting` saves notes, generates minutes, extracts actions, and links created tasks back to meetings.
+- **Ask COS** - floating assistant and embedded chat answer questions and run commands over tasks, updates, companies, people, and now saved meeting minutes.
+- **People** - internal, external, and expat contacts with company associations.
+- **Outbox** - creates per-person reminder drafts and records sends; real dispatch is not implemented yet.
+- **Settings** - risk thresholds, weather location, AI master switch, reminders, navigation reorder, and resync.
+
+## Current Product Direction
+
+The app is moving towards a lightweight Chief-of-Staff operating system:
+
+- less Excel-era page sprawl;
+- more saved business memory;
+- smarter but optional AI;
+- better mobile/voice capture;
+- eventually installable/offline shell and real message dispatch.
+
+The next product layer is a Wispr Flow-style **COS-native voice intelligence** experience: voice input everywhere, context-aware clean-up, personal vocabulary, and multilingual support inside the site rather than system-wide.

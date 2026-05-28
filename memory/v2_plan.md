@@ -1,43 +1,57 @@
 ---
 name: v2-plan
-description: "START HERE — Version 2 direction, what's been built, and what's next. Read this first for a handover."
+description: "START HERE - Version 2 direction, what has been built, and what is next."
 metadata:
   node_type: memory
   type: project
 ---
 
-# COS System — V2 status & roadmap (START HERE)
+# COS System - V2 Status and Roadmap
 
-**What this app is:** a Chief-of-Staff command centre for Oracle Group's 7 companies. Single operator, no auth. Originally replaced an Excel workbook; "Version 2" is about stripping Excel-era noise, making it minimal and smarter, and reducing AI-dependence so it can eventually run standalone (offline / installable / mobile). The owner is **non-technical** — explain things in plain language.
+**What this app is:** a Chief-of-Staff command centre for Oracle Group's 7 companies. Single operator, no auth. It replaced an Excel workbook with a database-backed Next.js app.
 
-**Core mental model:** the system is really 3 things — (1) a **task** (belongs to one company), (2) a **timeline** (updates + auto-recorded field changes = the audit log, shown inside the task page), (3) a **risk view** (the command centre dashboard). Everything else (outbox, reminders, AI ask, drafts, meeting extraction) is a helper on top.
+**Owner context:** the owner is non-technical. Explain in plain language and use British English.
 
-## Phase status
+**Core mental model:** the system is really four things:
+
+- **Tasks** - action items across companies.
+- **Timeline** - task updates plus audit-log field changes.
+- **Risk view** - dashboard and company health.
+- **Meeting memory** - saved notes, minutes, decisions, risks, and tasks created from meetings.
+
+## Current Phase Status
 
 | Phase | Status | Summary |
-|-------|--------|---------|
-| 1. Clean the slate | ✅ Done | Removed standalone `/audit` page (data + `audit/actions.ts` kept — they power the per-task timeline). Trimmed nav. Resync tool moved to `components/resync-button.tsx`, lives in Settings. |
-| 2. Real Settings | ✅ Done | New `lib/settings.ts` typed layer (`v2.*` keys). LIVE controls: risk thresholds, weather location, AI master switch. Settings page is a real control panel. |
-| 3. Completed / monthly | ✅ Done | Company page has a **Completed** tab; Overview groups open tasks **by month** (collapsible). |
-| 4. Mobile-first | ✅ Done | Tables scroll instead of clipping/squishing; viewport + safe-area + PWA-ready meta; nav reorder UI in Settings; iOS focus-zoom fixed. |
-| 5e. Voice-to-task | ✅ Done | Mic dictation in Quick Capture + Meeting extractor, piped into the existing AI parsers. |
-| 5a. Installable app (PWA) | ⏳ Next | manifest + icons + service worker. Groundwork already in layout viewport/themeColor/appleWebApp meta. Recommended: lightweight hand-written service worker (shell cache + offline fallback), no heavy deps. App data is live/DB-driven so "offline" = app shell + graceful offline message, not full offline editing. |
-| 5b. Morning brief card | ⏳ Pending | Dashboard "here's your day" summary (overdue / due today / newly escalated / closed yesterday). Read-only, no new infra. |
-| 5c. Real message sending | ⏳ Pending | Make the Outbox "Messages" channel actually dispatch via ONE provider (WhatsApp Business API or email). `markSent` currently only records. This is where the deferred 3-channel→"Messages" Outbox refactor finally happens. |
-| 5d. Per-company health trend | ⏳ Pending | Weekly open/overdue trend per company. Requires turning ON daily writes to `daily_snapshots` (nothing writes to it today). |
+|---|---|---|
+| 1. Clean the slate | Done | Removed standalone `/audit`; audit data remains and powers per-task timelines. Trimmed nav. Resync lives in Settings. |
+| 2. Real Settings | Done | `lib/settings.ts` typed layer. Live risk thresholds, weather location, AI master switch, reminders, nav reorder. |
+| 3. Completed / monthly | Done | Company page has a Completed tab and groups open tasks by month. |
+| 4. Mobile-first | Done | Tables scroll on phones, safe-area handling, PWA-ready meta, iOS focus zoom fix. |
+| 5e. Voice-to-task | Done | Web Speech dictation in Quick Capture and Meeting Workspace. |
+| Meeting Workspace | Done | Saved meeting notes, AI minutes, Clean notes, decisions/risks/follow-up intelligence, history search, linked tasks. |
+| Ask COS meeting memory | Done | `/api/ask` includes relevant saved meetings/minutes/raw notes and linked task codes in context. |
+| 5a. Installable app (PWA) | Pending | Manifest, icons, service worker, offline app shell. |
+| 5b. Morning brief card | Pending | Read-only dashboard brief: overdue, due today, newly escalated, closed yesterday. |
+| 5c. Real message sending | Pending | Outbox currently records sends only. Integrate one provider when ready. |
+| 5d. Per-company health trend | Partly built | `daily_snapshots` and `/api/cron/snapshots` exist. Scheduling/production verification still needs checking. |
+| Voice intelligence layer | Planned | Wispr Flow-style dictation quality inside COS: voice everywhere, personal dictionary, context-aware clean-up. |
+| Multilingual meeting support | Planned | Start with English, Swahili, Hindi, Gujarati. Preserve original notes and optionally generate English minutes. |
+| Web search | Planned | Add explicit, source-attributed web search later. Do not silently browse from app features. |
 
-## Key design decisions (agreed with owner)
+## Key Design Decisions
 
-- **Audit:** keep the audit *data* (powers the timeline), remove the standalone page. Apply the same "everything lives inside the task" logic when trimming nav.
-- **Completed tasks = "both combined":** auto-hide finished tasks into a Completed tab AND organise active tasks by month. Nothing is ever deleted.
-- **One channel "Messages":** WhatsApp/Email/SMS collapsed conceptually to a single "Messages" channel. Currently informational only in Settings; the real Outbox refactor is deferred to 5c (when an API is integrated).
-- **AI is optional:** the AI master switch gates the Groq key via `getGroqKey()`. Every AI route already degrades gracefully, so turning AI off makes the app run fully manually.
+- **Audit stays inside tasks.** The standalone audit page is gone; audit data remains.
+- **Completed work is hidden, not deleted.** Completed/Closed tasks live in Completed tabs and remain queryable.
+- **AI is optional.** `getGroqKey()` respects the Settings AI master switch. AI-off paths must still work manually or with rule fallbacks.
+- **Meeting notes are first-class data.** `/meeting` now saves raw notes and minutes, and tasks created from meetings are linked back to the source meeting.
+- **One future "Messages" channel.** WhatsApp/Email/SMS are still schema concepts, but the product direction is a single Messages workflow once real dispatch exists.
 
-## How to work here
+## How To Work Here
 
-- Preserve existing functionality in its new home; reuse components; don't delete shared logic.
-- British English throughout UI copy and LLM prompts.
-- No git auto-push unless asked. Repo: `github.com/shivaaam27/cos-system`, branch `master`.
-- Verify with `npx tsc --noEmit`. All pages are `force-dynamic`; a full `next build` needs DB env.
-- After a phase, update this file and the other `memory/*.md` docs.
-</content>
+- Preserve existing functionality in its new home.
+- Use British English in UI copy and prompts.
+- Prefer Supabase server helpers for newer write paths unless working in older Drizzle paths.
+- Do not change `src/db/index.ts` pooler settings: `prepare: false`, `max: 1`.
+- Verify code changes with `npm exec tsc -- --noEmit`.
+- For schema work: edit `schema.ts`, generate/review migration, apply with `npm run db:migrate`.
+- After meaningful feature work, update these memory docs.

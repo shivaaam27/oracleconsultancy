@@ -1,67 +1,103 @@
-﻿---
+---
 name: ui-conventions
-description: "Shell layout, navigation pattern, design tokens, and component primitives"
-metadata: 
+description: "Shell layout, navigation, interactive surfaces, voice, and responsive conventions"
+metadata:
   node_type: memory
   type: project
-  originSessionId: ce50e4c8-def7-4b23-a6ab-4d8b492e1b43
 ---
 
-## Shell ([app/layout.tsx](../src/app/layout.tsx))
-```
-<ThemeProvider>          // next-themes, dark default
-  <ToastProvider>        // simple toast queue, components/toast.tsx
-    <CommandPaletteProvider>  // Cmd+K via cmdk, searches /api/search
-      <RecentsTracker /> // pushes route visits to /api/prefs/nav-recents
-      <TopPill />        // BOTTOM-floating nav pill (pinned + recent + all routes via dropdown)
-      <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 mx-auto max-w-[1200px]">
-        <PageTransition>{children}</PageTransition>  // framer-motion fade
-      </main>
-```
-- `viewport` export in layout.tsx: `width:device-width, initialScale:1, maximumScale:1, userScalable:false` (the last two fix iOS Safari focus-zoom), `viewportFit:"cover"`, light/dark `themeColor`. `appleWebApp` metadata is set (PWA-ready, prep for 5a).
-- The nav pill sits at `bottom-[calc(0.75rem+env(safe-area-inset-bottom))]` so it clears the iPhone home indicator under viewport-fit:cover.
+# UI Conventions
+
+## Shell
+
+`src/app/layout.tsx` wraps the app with:
+
+- `ThemeProvider`
+- `ToastProvider`
+- `UndoBanner`
+- `CommandPaletteProvider`
+- `RecentsTracker`
+- centred main content
+- bottom `TopPill`
+- task drawer
+- person drawer
+- floating COS assistant
+
+The app uses a bottom-floating navigation pill and safe-area spacing for mobile.
 
 ## Navigation
-- Source of truth: [src/lib/nav.ts](../src/lib/nav.ts) — `NAV_ROUTES` and `DEFAULT_PINS = ["meeting","outbox","people"]`. (Dashboard reached via the brand.)
-- Pins and recents stored as JSON blobs in the `settings` table, accessed via `/api/prefs/nav-pins` and `/api/prefs/nav-recents`.
-- `use-pins.ts` client hook reads/writes pins (`move`/`toggle`/`pin`/`unpin`).
-- **Reorder UI:** Settings → "Navigation" card (`components/nav-settings.tsx`) lets the operator reorder (up/down), remove, and pin available routes; saves instantly via the nav-pins PUT.
-- Stale legacy pins/recents (audit/capture/digest/escalations/hub/registry) are filtered at render by `ROUTE_BY_ID` — harmless.
 
-## Voice dictation
-- `components/voice-button.tsx` — reusable Web Speech API mic button. Renders nothing on unsupported browsers; pulsing red Stop while listening.
-- Wired into **Quick Capture** (dictation appended to raw text; on stop auto-runs `parseRawCapture`) and the **Meeting extractor** (appends to notes; user clicks Extract → `parseMeetingNotes`). Speech feeds the same Groq parse pipelines, so it respects the AI master switch.
+Source of truth: `src/lib/nav.ts`.
 
-## Design tokens (Tailwind v4, defined in `globals.css`)
-Surfaces: `bg`, `bg-elev`, `bg-muted`, `bg-subtle`.
-Text: `fg`, `fg-muted`, `fg-subtle`.
-Borders: `border`.
-Accents: `accent`, `danger`, `warn`, `success`.
+Pins and recents are stored as JSON in the `settings` table through:
 
-Used throughout via classes like `bg-bg-elev`, `text-fg-muted`, `border-danger/25`.
+- `/api/prefs/nav-pins`
+- `/api/prefs/nav-recents`
 
-## Primitives ([components/ui.tsx](../src/components/ui.tsx))
-`Card`, `PageHeader`, `SectionHeading`, `Stat`, `TableShell`, `Th`, `Td`, `Badge`, `EmptyState`. These wrap the design tokens.
+Settings contains the navigation reorder/pin UI.
 
-Badge tones: `"default" | "success" | "warn" | "danger" | "info"`.
-Stat tones: `"default" | "success" | "warn" | "danger"`.
+## Design Tokens
 
-## Interactive components
-- `QuickCapture` (dashboard) â€” POSTs to `/capture` create action.
-- `PolishedInput` â€” debounced call to `/api/polish` for any action-item textbox.
-- `MeetingExtractor` â€” large textarea â†’ `/api/extract-meeting` â†’ editable preview list â†’ bulk create.
-- `DraftEmailButton` â€” per-task button â†’ `/api/draft-email` â†’ opens copyable subject/body.
-- `DigestNarrative` â€” renders LLM-generated paragraph on `/digest`.
-- `UpdateBox` â€” append a `task_updates` row, optional status change.
-- `CopyButton` â€” clipboard helper.
+Tailwind v4 tokens live in `src/app/globals.css`.
 
-## Mobile / responsive conventions
-- `TableShell` uses `overflow-x-auto` (was `overflow-hidden`) so every data table scrolls on phones instead of clipping.
-- Because `w-full` shrinks a table to its container, data tables also need an explicit `min-w-[...]` so they scroll rather than squish. Current widths: people-table 680, company task table 640, tasks table-view 760, hub company-open-tasks 640, company-breakdown 560.
-- Prefer responsive grid prefixes (`grid-cols-1 sm:grid-cols-2 …`) for form rows so they stack on mobile.
+Common classes:
 
-## Conventions
-- All list pages use `force-dynamic` to bypass cache (data changes frequently).
-- Server actions call `revalidatePath` for affected routes then `redirect`.
-- Form fields are uncontrolled HTML inputs; server actions read via `formData.get`.
-- British English throughout UI copy and LLM prompts.
+- backgrounds: `bg-bg`, `bg-bg-elev`, `bg-bg-subtle`, `bg-bg-muted`
+- text: `text-fg`, `text-fg-muted`, `text-fg-subtle`
+- borders: `border-border`
+- semantic: `bg-accent`, `bg-danger`, `bg-warn`, `bg-success`
+
+Prefer existing primitives from `src/components/ui.tsx` where they fit.
+
+## Meeting Workspace
+
+`src/components/meeting-extractor.tsx` is now a full workspace:
+
+- meeting metadata card;
+- raw notes prompt;
+- minutes editor;
+- Clean notes, Generate minutes, Extract actions;
+- Extract decisions, Extract risks, Draft follow-up;
+- editable Meeting intelligence output;
+- searchable/filterable meeting history;
+- linked tasks section;
+- extracted task review cards and sticky create bar.
+
+Keep this page work-focused and dense enough for repeated operational use. Avoid marketing-style hero sections.
+
+## Voice
+
+`src/components/voice-button.tsx` uses the Web Speech API. It renders nothing on unsupported browsers.
+
+Currently wired into:
+
+- Quick Capture;
+- Meeting Workspace raw notes.
+
+Planned direction: voice everywhere inside COS, with context-aware clean-up and a personal dictionary.
+
+## Floating COS Assistant
+
+`src/components/floating-assistant.tsx` is the app-wide assistant launcher.
+
+Mobile-specific behaviour:
+
+- launcher sits above the bottom nav;
+- launcher hides while the mobile sheet is open;
+- sheet uses a solid elevated background to avoid transparency/readability problems.
+
+The assistant reuses `AskCOS` in embedded/minimal mode.
+
+## Responsive Rules
+
+- Tables should scroll horizontally on phones rather than squish.
+- Fixed-format controls should have stable dimensions.
+- Use responsive grids for form rows.
+- Avoid nested cards.
+- Keep compact operational surfaces readable on mobile.
+
+## Copy Conventions
+
+- British English.
+- Plain language for a non-technical owner.
+- Avoid visible instructional bloat in the app; controls should be discoverable through labels, icons, and short status text.

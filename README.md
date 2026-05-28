@@ -1,34 +1,73 @@
 # COS System
 
-A **Chief-of-Staff command centre** for Oracle Group's 7 portfolio companies (CO01 Dar Spices, CO02 Cocozuri Chocolat, CO03 Terra Green, CO04 Oracle Consultancy, CO05 PES Ltd, CO06 MES Ltd, CO07 Pamoja Plus). Single operator, no auth. It replaces an Excel workbook: capture/track action items, surface risk, generate per-person reminders, draft follow-up emails.
+A **Chief-of-Staff command centre** for Oracle Group's 7 portfolio companies:
 
-Built with **Next.js 16** (App Router) + **React 19** + **TypeScript** + **Drizzle ORM** + **Supabase Postgres** + **Tailwind v4**, with optional **Groq** AI features.
+- CO01 Dar Spices
+- CO02 Cocozuri Chocolat
+- CO03 Terra Green
+- CO04 Oracle Consultancy
+- CO05 PES Ltd
+- CO06 MES Ltd
+- CO07 Pamoja Plus
 
-## 👉 Where to start (handover)
+Single operator, no auth. It replaces the old Excel workflow with a database-backed Next.js app for tasks, timelines, risk, meetings, reminders, and AI-assisted operating memory.
 
-1. **`memory/v2_plan.md`** — START HERE. The Version 2 direction, phase status, core mental model (task → timeline → risk view), and how to work in this repo.
-2. **`CLAUDE.md`** — project instructions: stack, critical config (don't break the pooler settings), routes, domain rules, conventions.
-3. **`memory/`** — deeper reference docs (database schema, AI integration, outbox, audit trail, import pipeline, dev workflow, UI conventions, open issues).
+Built with **Next.js 16**, **React 19**, **TypeScript**, **Drizzle ORM**, **Supabase Postgres**, **Tailwind v4**, and optional **Groq** AI.
 
-## Getting started
+## Current Highlights
+
+- Command centre dashboard with Overview, Companies, and Tasks tabs.
+- Task registry with per-task timeline and audit history.
+- Meeting Workspace with saved notes, AI minutes, decisions/risks/follow-up intelligence, history search, and linked tasks.
+- Ask COS assistant over tasks, updates, companies, people, and saved meeting minutes.
+- Quick Capture and Meeting Workspace voice dictation.
+- People directory with internal, external, and expat contact types.
+- Outbox reminder drafts and sent-record history.
+- Settings for risk thresholds, weather, AI master switch, reminders, and navigation.
+
+## Where To Start
+
+1. `memory/v2_plan.md` - current roadmap and mental model.
+2. `CLAUDE.md` / `AGENTS.md` - project instructions for coding agents.
+3. `memory/meeting_workspace.md` - saved meetings, minutes, linked tasks, and meeting intelligence.
+4. `memory/database_schema.md` - current schema.
+5. `memory/routes_and_pages.md` - current pages and API routes.
+
+## Getting Started
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+npm run dev
 ```
 
-Requires a `.env.local` with at least `DATABASE_URL` (Supabase **6543** pooler URL). `GROQ_API_KEY` is optional (unlocks AI; the app runs fully manually without it via the AI master switch in Settings).
+Open `http://localhost:3000`.
 
-## Key scripts
+Required env:
+
+- `DATABASE_URL` - Supabase pooler URL on port `6543`.
+
+Optional env:
+
+- `GROQ_API_KEY` - enables AI features. The app still runs manually when missing or when AI is disabled in Settings.
+- `XLSX_PATH` - optional import override.
+
+## Key Scripts
 
 | Script | Purpose |
 |---|---|
-| `npm run dev` / `build` / `start` | Next dev / build / start |
-| `npm run db:generate` / `db:migrate` | Drizzle migration generate / apply |
-| `npm run db:studio` | Drizzle GUI |
-| `npx tsx scripts/import.ts` | Ingest the source xlsx |
-| `npx tsc --noEmit` | Type-check (use this to verify changes) |
+| `npm run dev` | Local Next dev server |
+| `npm run build` | Production build |
+| `npm run start` | Production server |
+| `npm run db:generate` | Generate Drizzle migration |
+| `npm run db:migrate` | Apply pending migrations |
+| `npm run db:push` | Direct schema sync; avoid in production |
+| `npm run db:studio` | Drizzle Studio |
+| `npx tsx scripts/import.ts` | Import the Excel workbook |
+| `npm exec tsc -- --noEmit` | Type-check |
 
-## Conventions
+## Critical Notes
 
-British English throughout. All list pages are `force-dynamic`. The owner is non-technical — keep explanations in plain language. See `CLAUDE.md` for the full list.
+- `src/db/index.ts` uses `prepare: false` and `max: 1`; this is required for Supabase PgBouncer transaction mode.
+- Use the Supabase pooler URL on port `6543`, not direct `5432`.
+- British English throughout UI copy and AI prompts.
+- Removed standalone routes should not be recreated: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`.

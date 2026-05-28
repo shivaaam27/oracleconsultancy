@@ -1,4 +1,4 @@
-# COS System - Project Instructions
+# COS System - Codex Project Instructions
 
 Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain language and use British English.
 
