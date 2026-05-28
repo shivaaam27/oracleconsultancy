@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 
 export type MiniTask = {
   code: string;
@@ -11,6 +11,7 @@ export type MiniTask = {
   status: string;
   flag: string;
   deadlineTs: number | null;
+  lastUpdatedTs: number | null;
 };
 
 export type CompanyCardData = {
@@ -53,6 +54,16 @@ function flagTone(f: string): "danger" | "warn" | "success" | "muted" {
   return "muted";
 }
 
+function relTime(ts: number): string {
+  const s = (Date.now() - ts) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  const d = Math.round(s / 86400);
+  if (d < 30) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 const toneText = {
   danger: "text-red-600 dark:text-red-400",
   warn: "text-amber-600 dark:text-amber-400",
@@ -67,8 +78,19 @@ const toneDot = {
   muted: "bg-fg-subtle",
 };
 
-export function CompanyCard({ c, openTasks }: { c: CompanyCardData; openTasks: MiniTask[] }) {
+export function CompanyCard({
+  c,
+  openTasks,
+  nextUp,
+  lastActivityTs,
+}: {
+  c: CompanyCardData;
+  openTasks: MiniTask[];
+  nextUp: MiniTask | null;
+  lastActivityTs: number | null;
+}) {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const riskDot = c.riskScore > 50 ? "bg-danger" : c.riskScore > 20 ? "bg-warn" : "bg-success";
   const done = c.completed + c.closed;
@@ -81,14 +103,17 @@ export function CompanyCard({ c, openTasks }: { c: CompanyCardData; openTasks: M
     c.dueSoon > 0 && { label: `${c.dueSoon} due soon`, tone: "warn" as const },
   ].filter(Boolean) as { label: string; tone: "danger" | "warn" }[];
 
-  const preview = openTasks.slice(0, 6);
-  const moreCount = openTasks.length - preview.length;
+  const preview = expanded ? openTasks : openTasks.slice(0, 6);
+  const nextUpDl = nextUp ? deadlineLabel(nextUp.deadlineTs) : null;
 
   return (
     <div
       className="relative"
       onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseLeave={() => {
+        setOpen(false);
+        setExpanded(false);
+      }}
     >
       <Link
         href={`/?tab=companies&co=${c.id}`}
@@ -132,6 +157,23 @@ export function CompanyCard({ c, openTasks }: { c: CompanyCardData; openTasks: M
             <span className="text-[11px] text-success">On track</span>
           )}
         </div>
+
+        {/* Next up */}
+        {nextUp && nextUpDl && (
+          <div className="mt-3 pt-3 border-t border-border flex items-center gap-2 text-xs">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${toneDot[flagTone(nextUp.flag)]}`} />
+            <span className="flex-1 min-w-0 truncate">
+              <span className="text-fg-subtle">Next:</span>{" "}
+              <span className="text-fg-muted">{nextUp.actionItem}</span>
+            </span>
+            <span className={`shrink-0 ${toneText[nextUpDl.tone]}`}>{nextUpDl.text}</span>
+          </div>
+        )}
+
+        {/* Last activity */}
+        {lastActivityTs != null && (
+          <div className="mt-2 text-[10px] text-fg-subtle">Last activity {relTime(lastActivityTs)}</div>
+        )}
       </Link>
 
       {/* Hover preview */}
@@ -147,7 +189,7 @@ export function CompanyCard({ c, openTasks }: { c: CompanyCardData; openTasks: M
           {preview.length === 0 ? (
             <div className="px-3 py-4 text-xs text-fg-muted text-center">No open tasks 🎉</div>
           ) : (
-            <div className="divide-y divide-border">
+            <div className={`divide-y divide-border ${expanded ? "max-h-[300px] overflow-y-auto" : ""}`}>
               {preview.map((t) => {
                 const dl = deadlineLabel(t.deadlineTs);
                 const ft = flagTone(t.flag);
@@ -166,13 +208,27 @@ export function CompanyCard({ c, openTasks }: { c: CompanyCardData; openTasks: M
             </div>
           )}
 
-          <Link
-            href={`/?tab=companies&co=${c.id}`}
-            className="flex items-center justify-between px-3 py-2 border-t border-border text-xs text-accent hover:bg-accent/5 transition-colors"
-          >
-            <span>Open {c.name}</span>
-            <ArrowRight size={12} />
-          </Link>
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-border">
+            <Link
+              href={`/?tab=companies&co=${c.id}`}
+              className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+            >
+              Open {c.name} <ArrowRight size={12} />
+            </Link>
+            {openTasks.length > 6 && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition-colors"
+              >
+                {expanded ? (
+                  <>Show less <ChevronUp size={12} /></>
+                ) : (
+                  <>Show all ({openTasks.length}) <ChevronDown size={12} /></>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
