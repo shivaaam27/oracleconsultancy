@@ -12,6 +12,7 @@ import { DensityScript } from "@/components/density-toggle";
 import { PageTransition } from "@/components/page-transition";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
+import { FloatingAssistant } from "@/components/floating-assistant";
 
 export const metadata: Metadata = {
   title: "COS — Oracle Group Operations",
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Suspense>
                 <PersonDrawer />
               </Suspense>
+              <FloatingAssistant />
             </CommandPaletteProvider>
           </ToastProvider>
         </ThemeProvider>
