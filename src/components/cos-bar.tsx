@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bot, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { QuickCapture } from "./quick-capture";
@@ -10,7 +11,8 @@ type Mode = "ask" | "capture";
 type Props = { companies: { id: number; name: string }[] };
 
 export function CosBar({ companies }: Props) {
-  const [mode, setMode] = useState<Mode>("ask");
+  const searchParams = useSearchParams();
+  const [mode, setMode] = useState<Mode>(searchParams.get("capture") === "1" ? "capture" : "ask");
 
   return (
     <section className="space-y-2">

@@ -746,8 +746,6 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
     }
   }
 
-  revalidatePath("/task");
-  revalidatePath("/registry");
   revalidatePath("/escalations");
   revalidatePath("/");
   updateTag("tasks");
@@ -843,8 +841,6 @@ export async function inlineUpdateTask(
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(`/task/${code}`);
-  revalidatePath("/task");
-  revalidatePath("/registry");
   revalidatePath("/");
   updateTag("tasks");
   return { ok: true, undoToken: result.undoToken };

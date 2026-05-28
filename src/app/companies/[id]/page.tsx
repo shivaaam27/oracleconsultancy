@@ -70,10 +70,10 @@ export default async function CompanyPage({
               Open tasks ({openRows.length})
             </h2>
             <Link
-              href={`/task?view=table&company=${encodeURIComponent(name)}`}
+              href={`/?tab=tasks&view=table&company=${encodeURIComponent(name)}`}
               className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
             >
-              <ExternalLink size={11} /> Manage in Registry
+              <ExternalLink size={11} /> Manage in Tasks
             </Link>
           </div>
           <CompanyTaskTable rows={openRows} flagBadgeTone={flagBadgeTone} />

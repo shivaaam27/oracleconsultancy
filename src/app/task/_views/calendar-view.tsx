@@ -59,12 +59,12 @@ export function CalendarView({
     const params = new URLSearchParams(queryWithoutMonth);
     params.set("view", "calendar");
     params.set("month", mm);
-    return `/task?${params.toString()}`;
+    return `/?${params.toString()}`;
   };
   const todayHref = (() => {
     const params = new URLSearchParams(queryWithoutMonth);
     params.set("view", "calendar");
-    return `/task?${params.toString()}`;
+    return `/?${params.toString()}`;
   })();
 
   const monthLabel = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });

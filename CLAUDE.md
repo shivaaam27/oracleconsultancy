@@ -54,7 +54,9 @@ All timestamps are `timestamp` (no TZ), `mode: "date"`. Soft delete via `archive
 - **Risk score:** `round(((overdue*3 + blocked*2 + aging) / total) * 100)`. >50 danger, >20 warn.
 
 ## Routes
-**Pages:** `/` (dashboard), `/capture`, `/task`, `/task/new`, `/task/[code]`, `/registry`, `/meeting`, `/digest`, `/escalations`, `/companies`, `/companies/[id]`, `/people`, `/outbox`, `/audit`, `/settings`.
+**Pages:** `/` (command centre — Overview/Companies/Tasks tabs + embedded Ask/Capture), `/task/new`, `/task/[code]`, `/registry` (redirects to `/?tab=tasks&view=table`), `/meeting`, `/digest`, `/escalations`, `/companies`, `/companies/[id]`, `/people`, `/outbox`, `/audit`, `/settings`.
+
+> Removed: standalone `/capture` and `/task` list pages. Capture lives in the hub `CosBar` (deep-link `/?capture=1`); the task list is the hub Tasks tab (`/?tab=tasks`). `capture/actions.ts` is kept (used by `QuickCapture`).
 
 **API:** `/api/polish`, `/api/extract-meeting`, `/api/draft-email`, `/api/digest-narrative`, `/api/ask` (RAG Q&A with history), `/api/action` (NL command → confirm → execute, audits as `ai-command`), `/api/company-summary` (per-company briefing), `/api/similar-tasks` (keyword duplicate finder, no LLM), `/api/search`, `/api/prefs/nav-pins`, `/api/prefs/nav-recents`.
 

@@ -16,7 +16,7 @@ export async function setCompanyScope(companyId: number | null) {
     jar.set(SCOPE_COOKIE, String(companyId), { path: "/", maxAge: 60 * 60 * 24 * 365 });
   }
   // Pages most affected by scope — revalidate so cached lists reflect the new filter.
-  for (const p of ["/", "/task", "/registry", "/escalations", "/digest", "/outbox", "/companies"]) {
+  for (const p of ["/", "/escalations", "/digest", "/outbox", "/companies"]) {
     revalidatePath(p);
   }
 }

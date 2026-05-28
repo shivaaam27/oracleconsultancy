@@ -311,7 +311,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                       </Command.Item>
                       <Command.Item
                         value="__qa capture quick"
-                        onSelect={() => go("/capture")}
+                        onSelect={() => go("/?capture=1")}
                         className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
                       >
                         <FilePlus2 size={14} className="text-accent" />
