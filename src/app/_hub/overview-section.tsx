@@ -1,14 +1,12 @@
 import { computeGlobalKpis, statusBreakdown, priorityBreakdown } from "@/lib/queries";
-import { Card, Stat } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { QuickCapture } from "@/components/quick-capture";
 import { AskCOS } from "@/components/ask-cos";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
 import { sb } from "@/db/supabase";
 import Link from "next/link";
-import {
-  AlertTriangle, AlertOctagon, Clock, Flame, Ban,
-  ArrowUpRight, CheckCircle2, Archive, ExternalLink,
-} from "lucide-react";
+import { cn } from "@/lib/cn";
+import { AlertOctagon, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 
 function Bar({ value, max, tone = "accent" }: { value: number; max: number; tone?: "accent" | "danger" | "warn" }) {
@@ -57,27 +55,41 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
     })
     .slice(0, 6);
 
+  const metrics = [
+    { label: "Open", count: k.open, href: "/?tab=tasks", tone: "neutral" as const },
+    { label: "Due Today", count: focus.dueToday, href: "/?tab=tasks", tone: "warn" as const },
+    { label: "Overdue", count: k.overdue, href: "/?tab=tasks&flag=overdue", tone: "danger" as const },
+    { label: "Due Soon", count: k.dueSoon, href: "/?tab=tasks&flag=due-soon", tone: "warn" as const },
+    { label: "Critical", count: k.critical, href: "/?tab=tasks&priority=Critical", tone: "danger" as const },
+    { label: "Blocked", count: k.blocked, href: "/?tab=tasks&status=Blocked", tone: "warn" as const },
+    { label: "Escalated", count: k.escalated, href: "/?tab=tasks&status=Escalated", tone: "danger" as const },
+    { label: "No Deadline", count: focus.noDeadline, href: "/?tab=tasks&flag=no-deadline", tone: "warn" as const },
+  ];
+
   return (
-    <div className="space-y-6">
-      {/* Focus tiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        {[
-          { label: "Due Today", count: focus.dueToday, href: "/?tab=tasks", tone: "warn" as const },
-          { label: "Overdue", count: focus.overdue, href: "/?tab=tasks&flag=overdue", tone: "danger" as const },
-          { label: "Stalled", count: focus.stalled, href: "/?tab=tasks&flag=stalled", tone: "danger" as const },
-          { label: "No Deadline", count: focus.noDeadline, href: "/?tab=tasks&flag=no-deadline", tone: "warn" as const },
-          { label: "Critical", count: focus.critical, href: "/?tab=tasks&priority=Critical", tone: "danger" as const },
-        ].map(({ label, count, href, tone }) => {
-          const dim = count === 0;
-          const colour = dim
-            ? "text-fg-subtle border-border"
+    <div className="space-y-5">
+      {/* Metric strip — one compact, clickable row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+        {metrics.map(({ label, count, href, tone }) => {
+          const dim = count === 0 && tone !== "neutral";
+          const toneClass = dim
+            ? "border-border text-fg-subtle"
             : tone === "danger"
-              ? "text-red-700 dark:text-red-300 border-red-500/40 bg-red-500/[0.04]"
-              : "text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/[0.04]";
+              ? "border-red-500/40 bg-red-500/[0.05] text-red-700 dark:text-red-300"
+              : tone === "warn"
+                ? "border-amber-500/40 bg-amber-500/[0.05] text-amber-700 dark:text-amber-300"
+                : "border-border bg-bg-elev text-fg";
           return (
-            <Link key={label} href={href} className={`rounded-xl border px-3 py-2.5 transition-all hover:shadow-sm hover:border-accent ${colour}`}>
-              <div className="text-2xl font-semibold tabular leading-none">{count}</div>
-              <div className="text-xs mt-1.5 text-fg-muted">{label}</div>
+            <Link
+              key={label}
+              href={href}
+              className={cn(
+                "rounded-xl border px-3 py-2 transition-all hover:border-accent hover:shadow-sm",
+                toneClass
+              )}
+            >
+              <div className="text-xl font-semibold tabular leading-none">{count}</div>
+              <div className="text-[11px] mt-1 text-fg-muted truncate">{label}</div>
             </Link>
           );
         })}
@@ -85,7 +97,7 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
 
       {/* Needs Attention */}
       {needsAttention.length > 0 && (
-        <div className="rounded-2xl border border-danger/25 bg-danger/[0.04] p-5 space-y-3">
+        <div className="rounded-2xl border border-danger/25 bg-danger/[0.04] p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-danger text-sm font-medium">
               <AlertOctagon size={14} /> Needs Attention
@@ -118,40 +130,25 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
         <AskCOS />
       </div>
 
-      {/* Global KPIs */}
-      <section>
-        <p className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-3">Operational KPIs · All Companies</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-          <Stat label="Total Open" value={k.open} icon={<Clock size={14} />} />
-          <Stat label="Overdue" value={k.overdue} tone={k.overdue ? "danger" : "default"} icon={<AlertOctagon size={14} />} />
-          <Stat label="Due Soon" value={k.dueSoon} tone={k.dueSoon ? "warn" : "default"} icon={<AlertTriangle size={14} />} />
-          <Stat label="Critical" value={k.critical} tone={k.critical ? "danger" : "default"} icon={<Flame size={14} />} />
-          <Stat label="Blocked" value={k.blocked} tone={k.blocked ? "warn" : "default"} icon={<Ban size={14} />} />
-          <Stat label="Escalated" value={k.escalated} tone={k.escalated ? "danger" : "default"} icon={<ArrowUpRight size={14} />} />
-          <Stat label="Completed" value={k.completed} tone="success" icon={<CheckCircle2 size={14} />} />
-          <Stat label="Closed" value={k.closed} icon={<Archive size={14} />} />
-        </div>
-      </section>
-
       {/* Status + Priority */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section>
-          <p className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-3">Status Distribution</p>
-          <Card className="p-5 space-y-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Status Distribution</p>
+          <Card className="p-4 space-y-2">
             {statuses.map((s) => (
-              <div key={s.status} className="grid grid-cols-[140px_1fr] items-center gap-3 text-sm">
-                <div className="text-fg-muted">{s.status}</div>
+              <div key={s.status} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
+                <div className="text-fg-muted truncate">{s.status}</div>
                 <Bar value={s.count} max={maxStatus} />
               </div>
             ))}
           </Card>
         </section>
         <section>
-          <p className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-3">Priority Breakdown</p>
-          <Card className="p-5 space-y-2.5">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Priority Breakdown</p>
+          <Card className="p-4 space-y-2">
             {priorities.map((p) => (
-              <div key={p.priority} className="grid grid-cols-[140px_1fr] items-center gap-3 text-sm">
-                <div className="text-fg-muted">{p.priority}</div>
+              <div key={p.priority} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
+                <div className="text-fg-muted truncate">{p.priority}</div>
                 <Bar value={p.count} max={maxPrio} tone={p.priority === "Critical" ? "danger" : p.priority === "High" ? "warn" : "accent"} />
               </div>
             ))}

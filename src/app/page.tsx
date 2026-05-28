@@ -1,5 +1,4 @@
 import { getAllTasks } from "@/lib/queries";
-import { PageHeader } from "@/components/ui";
 import { HubTabs, type HubTab } from "@/components/hub-tabs";
 import { OverviewSection } from "./_hub/overview-section";
 import { CompaniesSection } from "./_hub/companies-section";
@@ -43,9 +42,12 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-2">
-      {/* Only the Overview tab gets a PageHeader. Companies & Tasks render their own headings. */}
+      {/* Only the Overview tab gets a heading. Companies & Tasks render their own. */}
       {tab === "overview" && (
-        <PageHeader title="Command Centre" sub={today()} />
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <h1 className="text-lg font-semibold tracking-tight">Command Centre</h1>
+          <span className="text-xs text-fg-muted">{today()}</span>
+        </div>
       )}
 
       <HubTabs current={tab} />

@@ -14,7 +14,7 @@ const TABS: { id: HubTab; label: string; icon: React.ComponentType<{ size?: numb
 
 export function HubTabs({ current }: { current: HubTab }) {
   return (
-    <div className="flex items-center gap-1 border-b border-border mb-6">
+    <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-bg-muted/60 border border-border mb-5">
       {TABS.map(({ id, label, icon: Icon }) => {
         const active = id === current;
         const href = id === "overview" ? "/" : `/?tab=${id}`;
@@ -23,13 +23,13 @@ export function HubTabs({ current }: { current: HubTab }) {
             key={id}
             href={href}
             className={cn(
-              "inline-flex items-center gap-1.5 px-4 py-2.5 text-sm border-b-2 -mb-px transition-colors",
+              "inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-lg transition-colors",
               active
-                ? "border-accent text-fg font-medium"
-                : "border-transparent text-fg-muted hover:text-fg"
+                ? "bg-bg-elev text-fg font-medium shadow-sm"
+                : "text-fg-muted hover:text-fg hover:bg-bg-elev/50"
             )}
           >
-            <Icon size={13} />
+            <Icon size={14} />
             {label}
           </Link>
         );
