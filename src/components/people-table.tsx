@@ -26,6 +26,7 @@ export function PeopleTable({ people, companies }: {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterKind>("all");
   const [companyFilter, setCompanyFilter] = useState<number | "all">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "internal" | "external" | "expat">("all");
   const [sortKey, setSortKey] = useState<SortKey>("workload");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showInactive, setShowInactive] = useState(false);
@@ -50,9 +51,16 @@ export function PeopleTable({ people, companies }: {
       );
     }
 
-    // Company filter
+    // Company filter — match primary company OR an associated company link
     if (companyFilter !== "all") {
-      rows = rows.filter((p) => p.companyId === companyFilter);
+      rows = rows.filter(
+        (p) => p.companyId === companyFilter || p.associations.some((a) => a.companyId === companyFilter)
+      );
+    }
+
+    // Type filter
+    if (typeFilter !== "all") {
+      rows = rows.filter((p) => p.personType === typeFilter);
     }
 
     // Filter chip
@@ -71,7 +79,7 @@ export function PeopleTable({ people, companies }: {
     });
 
     return rows;
-  }, [people, search, filter, companyFilter, sortKey, sortDir, showInactive]);
+  }, [people, search, filter, companyFilter, typeFilter, sortKey, sortDir, showInactive]);
 
   const counts = useMemo(() => {
     const now = new Date();
@@ -112,6 +120,16 @@ export function PeopleTable({ people, companies }: {
           {companies.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+          className="px-3 py-1.5 text-sm rounded-md border border-border bg-bg-subtle"
+        >
+          <option value="all">All Types</option>
+          <option value="internal">Internal</option>
+          <option value="external">External</option>
+          <option value="expat">Expat</option>
         </select>
       </div>
 
@@ -185,6 +203,11 @@ export function PeopleTable({ people, companies }: {
                         name={p.name}
                         className="text-left hover:text-accent transition-colors"
                       />
+                      {p.personType !== "internal" && (
+                        <Badge tone={p.personType === "expat" ? "info" : "default"}>
+                          {p.personType === "expat" ? "Expat" : "External"}
+                        </Badge>
+                      )}
                       {!p.active && (
                         <span title="Inactive" className="text-fg-subtle shrink-0">
                           <UserX size={12} />
@@ -197,7 +220,19 @@ export function PeopleTable({ people, companies }: {
                       )}
                     </div>
                   </Td>
-                  <Td className="text-fg-muted">{p.companyName ?? "—"}</Td>
+                  <Td className="text-fg-muted">
+                    <span>{p.companyName ?? "—"}</span>
+                    {p.associations.length > 0 && (
+                      <span
+                        className="ml-1 text-xs text-fg-subtle"
+                        title={p.associations
+                          .map((a) => `${a.companyName ?? "?"}${a.relationship ? ` (${a.relationship})` : ""}`)
+                          .join(", ")}
+                      >
+                        +{p.associations.length}
+                      </span>
+                    )}
+                  </Td>
                   <Td className="text-fg-muted text-xs">{p.role ?? "—"}</Td>
                   <Td>
                     <div className="flex items-center gap-2">

@@ -27,7 +27,24 @@ export const people = pgTable("people", {
   active: boolean("active").notNull().default(true),
   notes: text("notes"),
   snoozedUntil: timestamp("snoozed_until", { mode: "date" }),
+  // "internal" (employed) | "external" (broker, agent, vendor) | "expat" (person being processed).
+  personType: text("person_type").notNull().default("internal"),
+  // Soft self-reference: e.g. an immigration agent → the expat they are helping, or vice-versa.
+  relatedPersonId: integer("related_person_id"),
 });
+
+// Additional company associations beyond a person's primary companyId, each with a
+// relationship label (e.g. "Insurance broker", "Immigration agent"). Lets external
+// contacts be linked to the companies they serve without being employed there.
+export const personCompanies = pgTable(
+  "person_companies",
+  {
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    relationship: text("relationship"),
+  },
+  (t) => [primaryKey({ columns: [t.personId, t.companyId] })]
+);
 
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),

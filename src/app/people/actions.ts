@@ -28,6 +28,42 @@ function contactStatus(email: string | null, phone: string | null, whatsapp: str
   return "Pending";
 }
 
+const PERSON_TYPES = ["internal", "external", "expat"] as const;
+function personType(formData: FormData): string {
+  const v = s(formData, "personType");
+  return v && (PERSON_TYPES as readonly string[]).includes(v) ? v : "internal";
+}
+
+/** Parse the associations field (JSON array of {companyId, relationship}) submitted by the form. */
+function parseAssociations(formData: FormData): Array<{ companyId: number; relationship: string | null }> {
+  const raw = s(formData, "associations");
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((a) => ({
+        companyId: typeof a?.companyId === "number" ? a.companyId : parseInt(String(a?.companyId), 10),
+        relationship: a?.relationship ? String(a.relationship).trim() || null : null,
+      }))
+      .filter((a) => Number.isInteger(a.companyId));
+  } catch {
+    return [];
+  }
+}
+
+/** Replace a person's company associations with the supplied set. */
+async function syncAssociations(personId: number, assoc: Array<{ companyId: number; relationship: string | null }>) {
+  await sb.from("person_companies").delete().eq("person_id", personId);
+  if (assoc.length === 0) return;
+  // De-dupe on companyId (composite PK is person_id+company_id).
+  const seen = new Set<number>();
+  const rows = assoc
+    .filter((a) => (seen.has(a.companyId) ? false : (seen.add(a.companyId), true)))
+    .map((a) => ({ person_id: personId, company_id: a.companyId, relationship: a.relationship }));
+  await sb.from("person_companies").insert(rows);
+}
+
 function invalidate() {
   revalidatePath("/people");
   revalidatePath("/outbox");
@@ -63,11 +99,15 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
       notes: s(formData, "notes"),
       active: true,
       contact_status: contactStatus(email, phone, whatsapp),
+      person_type: personType(formData),
+      related_person_id: n(formData, "relatedPersonId"),
     })
     .select("id")
     .single();
 
   if (error) return { ok: false, error: error.message };
+
+  await syncAssociations(data.id as number, parseAssociations(formData));
 
   invalidate();
   return { ok: true, id: data.id as number };
@@ -88,6 +128,10 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   // Person cannot be their own manager
   const safeManagerId = managerId === id ? null : managerId;
 
+  // A person cannot be related to themselves.
+  const relatedPersonId = n(formData, "relatedPersonId");
+  const safeRelatedId = relatedPersonId === id ? null : relatedPersonId;
+
   const email = s(formData, "email");
   const phone = s(formData, "phone");
   const whatsapp = s(formData, "whatsapp");
@@ -105,10 +149,14 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
       manager_id: safeManagerId,
       notes: s(formData, "notes"),
       contact_status: contactStatus(email, phone, whatsapp),
+      person_type: personType(formData),
+      related_person_id: safeRelatedId,
     })
     .eq("id", id);
 
   if (error) return { ok: false, error: error.message };
+
+  await syncAssociations(id, parseAssociations(formData));
 
   invalidate();
   return { ok: true, id };

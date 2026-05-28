@@ -2,6 +2,14 @@ import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
 
+export type PersonType = "internal" | "external" | "expat";
+
+export type CompanyAssociation = {
+  companyId: number;
+  companyName: string | null;
+  relationship: string | null;
+};
+
 export type Person = {
   id: number;
   name: string;
@@ -17,6 +25,11 @@ export type Person = {
   notes: string | null;
   snoozedUntil: Date | null;
   managerId: number | null;
+  personType: PersonType;
+  relatedPersonId: number | null;
+  relatedPersonName: string | null;
+  /** Additional company links beyond the primary company, with relationship labels. */
+  associations: CompanyAssociation[];
 };
 
 export type PersonWorkload = {
@@ -57,17 +70,32 @@ export function computeWorkload(person: Person, tasks: TaskRow[]): PersonWorkloa
 }
 
 export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
-  const [{ data: rawPeople }, { data: rawCompanies }, tasks] = await Promise.all([
+  const [{ data: rawPeople }, { data: rawCompanies }, { data: rawAssoc }, tasks] = await Promise.all([
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,contact_status,active,notes,snoozed_until,manager_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
       ),
     sb.from("companies").select("id,name"),
+    sb.from("person_companies").select("person_id,company_id,relationship"),
     getAllTasks(),
   ]);
 
   const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
+  const nameById = new Map((rawPeople ?? []).map((p) => [p.id as number, p.name as string]));
+
+  // Group company associations by person.
+  const assocByPerson = new Map<number, CompanyAssociation[]>();
+  for (const a of rawAssoc ?? []) {
+    const pid = a.person_id as number;
+    const list = assocByPerson.get(pid) ?? [];
+    list.push({
+      companyId: a.company_id as number,
+      companyName: cMap.get(a.company_id as number) ?? null,
+      relationship: (a.relationship as string | null) ?? null,
+    });
+    assocByPerson.set(pid, list);
+  }
 
   const people: Person[] = (rawPeople ?? []).map((p) => ({
     id: p.id as number,
@@ -84,6 +112,10 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     notes: (p.notes as string | null) ?? null,
     snoozedUntil: p.snoozed_until ? new Date(p.snoozed_until as string) : null,
     managerId: (p.manager_id as number | null) ?? null,
+    personType: ((p.person_type as string | null) ?? "internal") as PersonType,
+    relatedPersonId: (p.related_person_id as number | null) ?? null,
+    relatedPersonName: p.related_person_id ? nameById.get(p.related_person_id as number) ?? null : null,
+    associations: assocByPerson.get(p.id as number) ?? [],
   }));
 
   return people.map((p) => ({
@@ -112,21 +144,35 @@ export type PersonDetail = {
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
-  const [{ data: rawPerson }, { data: rawCompanies }, tasks] = await Promise.all([
+  const [{ data: rawPerson }, { data: rawCompanies }, { data: rawAssoc }, tasks] = await Promise.all([
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,contact_status,active,notes,snoozed_until,manager_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
       )
       .eq("id", id)
       .maybeSingle(),
     sb.from("companies").select("id,name"),
+    sb.from("person_companies").select("company_id,relationship").eq("person_id", id),
     getAllTasks(),
   ]);
 
   if (!rawPerson) return null;
 
   const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
+
+  const relatedPersonId = (rawPerson.related_person_id as number | null) ?? null;
+  let relatedPersonName: string | null = null;
+  if (relatedPersonId) {
+    const { data: rel } = await sb.from("people").select("name").eq("id", relatedPersonId).maybeSingle();
+    relatedPersonName = (rel?.name as string | null) ?? null;
+  }
+
+  const associations: CompanyAssociation[] = (rawAssoc ?? []).map((a) => ({
+    companyId: a.company_id as number,
+    companyName: cMap.get(a.company_id as number) ?? null,
+    relationship: (a.relationship as string | null) ?? null,
+  }));
 
   const person: Person = {
     id: rawPerson.id as number,
@@ -143,6 +189,10 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     notes: (rawPerson.notes as string | null) ?? null,
     snoozedUntil: rawPerson.snoozed_until ? new Date(rawPerson.snoozed_until as string) : null,
     managerId: (rawPerson.manager_id as number | null) ?? null,
+    personType: ((rawPerson.person_type as string | null) ?? "internal") as PersonType,
+    relatedPersonId,
+    relatedPersonName,
+    associations,
   };
 
   const assignedTasks = tasks.filter((t) => isInvolved(person, t));

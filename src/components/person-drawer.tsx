@@ -34,6 +34,10 @@ type DrawerPerson = {
   notes: string | null;
   snoozedUntil: string | null;
   managerId: number | null;
+  personType: "internal" | "external" | "expat";
+  relatedPersonId: number | null;
+  relatedPersonName: string | null;
+  associations: Array<{ companyId: number; companyName: string | null; relationship: string | null }>;
 };
 
 type DrawerData = {
@@ -253,6 +257,9 @@ export function PersonDrawer() {
                     companyId: person.companyId,
                     managerId: person.managerId,
                     notes: person.notes,
+                    personType: person.personType,
+                    relatedPersonId: person.relatedPersonId,
+                    associations: person.associations,
                   }}
                   companies={data.companies}
                   peopleList={data.peopleList}

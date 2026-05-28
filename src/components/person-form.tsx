@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Loader2, Save, UserPlus, AlertCircle } from "lucide-react";
+import { Loader2, Save, UserPlus, AlertCircle, Plus, X } from "lucide-react";
 import { createPerson, updatePerson } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
+
+const PERSON_TYPES = [
+  { value: "internal", label: "Internal", hint: "Employed within the group" },
+  { value: "external", label: "External", hint: "Broker, agent, vendor, lawyer" },
+  { value: "expat", label: "Expat", hint: "Person being processed" },
+] as const;
+
+type Association = { companyId: number | ""; relationship: string };
 
 type Defaults = Partial<{
   name: string | null;
@@ -17,6 +25,9 @@ type Defaults = Partial<{
   companyId: number | null;
   managerId: number | null;
   notes: string | null;
+  personType: string | null;
+  relatedPersonId: number | null;
+  associations: Array<{ companyId: number; relationship: string | null }>;
 }>;
 
 type Result =
@@ -47,9 +58,23 @@ export function PersonForm({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pType, setPType] = useState<string>(defaults?.personType ?? "internal");
+  const [associations, setAssociations] = useState<Association[]>(
+    (defaults?.associations ?? []).map((a) => ({ companyId: a.companyId, relationship: a.relationship ?? "" }))
+  );
+
+  const addAssociation = () => setAssociations((a) => [...a, { companyId: "", relationship: "" }]);
+  const removeAssociation = (i: number) => setAssociations((a) => a.filter((_, idx) => idx !== i));
+  const updateAssociation = (i: number, patch: Partial<Association>) =>
+    setAssociations((a) => a.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
 
   const action = (fd: FormData) => {
     setError(null);
+    // Serialise associations (drop rows with no company selected) into a single JSON field.
+    const clean = associations
+      .filter((a) => a.companyId !== "")
+      .map((a) => ({ companyId: Number(a.companyId), relationship: a.relationship.trim() || null }));
+    fd.set("associations", JSON.stringify(clean));
     start(async () => {
       const res =
         mode === "create"
@@ -91,6 +116,30 @@ export function PersonForm({
             className={inputCls}
             placeholder="Full name"
           />
+        </div>
+
+        {/* Person type — drives whether this is an employee or an external/expat contact */}
+        <div className={compact ? "" : "col-span-2"}>
+          <label className={labelCls}>Type</label>
+          <input type="hidden" name="personType" value={pType} />
+          <div className="grid grid-cols-3 gap-1.5">
+            {PERSON_TYPES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setPType(t.value)}
+                title={t.hint}
+                className={cn(
+                  "rounded-md border px-2 py-1.5 text-xs transition-colors text-left",
+                  pType === t.value
+                    ? "border-accent bg-accent/10 text-accent font-medium"
+                    : "border-border text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div>
@@ -176,6 +225,68 @@ export function PersonForm({
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+        </div>
+
+        {/* Related person — e.g. an immigration agent ↔ the expat they're helping */}
+        <div className={compact ? "" : "col-span-2"}>
+          <label className={labelCls}>Related person</label>
+          <select
+            name="relatedPersonId"
+            defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
+            className={inputCls}
+          >
+            <option value="">— None</option>
+            {managerCandidates.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Associated companies — extra company links with a relationship label */}
+        <div className={compact ? "" : "col-span-2"}>
+          <label className={labelCls}>Associated companies</label>
+          <div className="space-y-2">
+            {associations.length === 0 && (
+              <p className="text-xs text-fg-subtle italic">
+                None. Use this to link external contacts to the companies they serve.
+              </p>
+            )}
+            {associations.map((row, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <select
+                  value={row.companyId === "" ? "" : String(row.companyId)}
+                  onChange={(e) => updateAssociation(i, { companyId: e.target.value === "" ? "" : Number(e.target.value) })}
+                  className={cn(inputCls, "flex-1")}
+                >
+                  <option value="">— Company</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <input
+                  value={row.relationship}
+                  onChange={(e) => updateAssociation(i, { relationship: e.target.value })}
+                  className={cn(inputCls, "flex-1")}
+                  placeholder="e.g. Insurance broker"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeAssociation(i)}
+                  title="Remove"
+                  className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addAssociation}
+              className="inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
+            >
+              <Plus size={13} /> Add company link
+            </button>
+          </div>
         </div>
 
         <div className={compact ? "" : "col-span-2"}>
