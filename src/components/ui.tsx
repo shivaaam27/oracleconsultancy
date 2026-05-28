@@ -256,7 +256,7 @@ export function Stat({
 
 export function TableShell({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-bg-elev border border-border rounded-2xl overflow-hidden shadow-sm">
+    <div className="bg-bg-elev border border-border rounded-2xl overflow-x-auto shadow-sm">
       {children}
     </div>
   );

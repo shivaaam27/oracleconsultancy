@@ -26,7 +26,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
 
       <Card className="p-6">
         <form action={createTask} className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <FieldLabel>Company *</FieldLabel>
               <Select name="companyId" defaultValue={presetCompany} required>
