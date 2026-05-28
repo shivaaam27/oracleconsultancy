@@ -1,26 +1,37 @@
 import Link from "next/link";
-import { LayoutDashboard, Activity } from "lucide-react";
+import { LayoutDashboard, Activity, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type CompanyTab = "overview" | "timeline";
+export type CompanyTab = "overview" | "completed" | "timeline";
 
-export const COMPANY_TABS: CompanyTab[] = ["overview", "timeline"];
+export const COMPANY_TABS: CompanyTab[] = ["overview", "completed", "timeline"];
 
 export function parseCompanyTab(v: string | undefined): CompanyTab {
-  return v === "timeline" ? v : "overview";
+  if (v === "timeline" || v === "completed") return v;
+  return "overview";
 }
 
 const ICONS: Record<CompanyTab, React.ComponentType<{ size?: number }>> = {
   overview: LayoutDashboard,
+  completed: CheckCircle2,
   timeline: Activity,
 };
 
 const LABELS: Record<CompanyTab, string> = {
   overview: "Overview",
+  completed: "Completed",
   timeline: "Timeline",
 };
 
-export function CompanyTabs({ companyId, current }: { companyId: number; current: CompanyTab }) {
+export function CompanyTabs({
+  companyId,
+  current,
+  completedCount,
+}: {
+  companyId: number;
+  current: CompanyTab;
+  completedCount?: number;
+}) {
   return (
     <div className="flex items-center gap-1 border-b border-border">
       {COMPANY_TABS.map((t) => {
@@ -40,6 +51,9 @@ export function CompanyTabs({ companyId, current }: { companyId: number; current
           >
             <Icon size={13} />
             {LABELS[t]}
+            {t === "completed" && completedCount ? (
+              <span className="text-xs text-fg-subtle tabular">({completedCount})</span>
+            ) : null}
           </Link>
         );
       })}

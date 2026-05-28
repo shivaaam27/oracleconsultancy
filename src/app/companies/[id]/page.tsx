@@ -38,6 +38,8 @@ export default async function CompanyPage({
   const name = rows[0].companyName;
 
   const openRows = rows.filter((r) => r.status !== "Completed" && r.status !== "Closed");
+  const completedRows = rows.filter((r) => r.status === "Completed" || r.status === "Closed");
+  const monthGroups = groupByMonth(openRows);
 
   return (
     <div className="space-y-4">
@@ -56,7 +58,7 @@ export default async function CompanyPage({
         }
       />
 
-      <CompanyTabs companyId={companyId} current={tab} />
+      <CompanyTabs companyId={companyId} current={tab} completedCount={completedRows.length} />
 
       {tab === "overview" && (
         <>
@@ -64,7 +66,7 @@ export default async function CompanyPage({
           <MomentumStrip companyId={companyId} />
           <CompanySummary companyId={companyId} />
 
-          {/* Open tasks — compact hub view */}
+          {/* Open tasks — grouped by month so the page never becomes an endless scroll */}
           <div className="flex items-center justify-between pt-2">
             <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">
               Open tasks ({openRows.length})
@@ -76,7 +78,41 @@ export default async function CompanyPage({
               <ExternalLink size={11} /> Manage in Tasks
             </Link>
           </div>
-          <CompanyTaskTable rows={openRows} flagBadgeTone={flagBadgeTone} />
+          {openRows.length === 0 ? (
+            <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks.</div>
+          ) : (
+            <div className="space-y-2">
+              {monthGroups.map((g) => (
+                <details key={g.key} open={g.defaultOpen} className="group">
+                  <summary className="flex items-center gap-2 cursor-pointer select-none py-1.5 text-sm font-medium list-none">
+                    <span className="text-fg-muted transition-transform group-open:rotate-90">▸</span>
+                    {g.label}
+                    <span className="text-xs text-fg-subtle tabular">({g.rows.length})</span>
+                  </summary>
+                  <div className="pt-1">
+                    <CompanyTaskTable rows={g.rows} flagBadgeTone={flagBadgeTone} />
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === "completed" && (
+        <>
+          <div className="flex items-center justify-between pt-2">
+            <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">
+              Completed &amp; closed ({completedRows.length})
+            </h2>
+          </div>
+          {completedRows.length === 0 ? (
+            <div className="text-sm text-fg-muted px-1 py-6 text-center">
+              Nothing completed yet. Finished tasks move here automatically.
+            </div>
+          ) : (
+            <CompanyTaskTable rows={completedRows} flagBadgeTone={flagBadgeTone} />
+          )}
         </>
       )}
 
@@ -85,6 +121,36 @@ export default async function CompanyPage({
       )}
     </div>
   );
+}
+
+type MonthGroup = { key: string; label: string; rows: TaskRow[]; defaultOpen: boolean };
+
+/**
+ * Group open tasks into month buckets by deadline so a company page never
+ * becomes an endless scroll. Overdue (past) and the current month are open by
+ * default; future months and the "No deadline" bucket are collapsed.
+ */
+function groupByMonth(rows: TaskRow[]): MonthGroup[] {
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const buckets = new Map<string, TaskRow[]>();
+  for (const r of rows) {
+    const key = r.deadline
+      ? `${r.deadline.getFullYear()}-${String(r.deadline.getMonth() + 1).padStart(2, "0")}`
+      : "none";
+    (buckets.get(key) ?? buckets.set(key, []).get(key)!).push(r);
+  }
+  const dated = [...buckets.keys()].filter((k) => k !== "none").sort();
+  const ordered = buckets.has("none") ? [...dated, "none"] : dated;
+  return ordered.map((key) => {
+    const groupRows = buckets.get(key)!;
+    if (key === "none") {
+      return { key, label: "No deadline", rows: groupRows, defaultOpen: false };
+    }
+    const [y, m] = key.split("-").map(Number);
+    const label = new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    return { key, label, rows: groupRows, defaultOpen: key <= currentKey };
+  });
 }
 
 function CompanyTaskTable({
