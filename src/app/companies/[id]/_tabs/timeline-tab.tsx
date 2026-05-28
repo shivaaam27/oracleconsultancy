@@ -18,18 +18,21 @@ import {
   sortTimeline,
   mergeStatusIntoUpdates,
   groupBulkRuns,
+  groupFieldEdits,
   suppressUpdateMetaAudits,
-  suppressNoReasonAudits,
+  cleanReason,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
   type TimelineUpdate,
   type TimelineAudit,
   type TimelineBulk,
+  type TimelineEditGroup,
   type TimelineFilter,
 } from "@/lib/timeline";
 import { UpdateMenu } from "@/components/update-menu";
 import { AuditMenu } from "@/components/audit-menu";
+import { TimelineEditGroupView } from "@/components/timeline-edit-group";
 import { Pencil } from "lucide-react";
 
 const ITEM_LIMIT = 200;
@@ -115,10 +118,9 @@ export async function TimelineTab({
   }
 
   // Pipeline: sort → merge status into updates → suppress update-meta audits
-  // (edited/deleted/pinned) → suppress reasonless field-change noise →
-  // collapse bulk runs.
-  const merged = groupBulkRuns(
-    suppressNoReasonAudits(
+  // (edited/deleted/pinned) → collapse bulk runs → group field-edit bursts.
+  const merged = groupFieldEdits(
+    groupBulkRuns(
       suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))
     )
   );
@@ -135,6 +137,7 @@ export async function TimelineTab({
     ).length,
     field: merged.filter(
       (i) =>
+        i.kind === "editgroup" ||
         (i.kind === "audit" && i.field !== "Status" && i.entryType !== "CREATE") ||
         (i.kind === "bulk" && i.field !== "Status")
     ).length,
@@ -210,7 +213,7 @@ function ActivitySummary({ items }: { items: TimelineItem[] }) {
   const expand = (arr: TimelineItem[]): Array<TimelineUpdate | TimelineAudit> => {
     const out: Array<TimelineUpdate | TimelineAudit> = [];
     for (const i of arr) {
-      if (i.kind === "bulk") out.push(...i.items);
+      if (i.kind === "bulk" || i.kind === "editgroup") out.push(...i.items);
       else out.push(i);
     }
     return out;
@@ -299,6 +302,24 @@ function TimelineItemView({
 }) {
   if (item.kind === "bulk") return <BulkRow item={item} titleByCode={titleByCode} />;
 
+  if (item.kind === "editgroup") {
+    const code = item.taskCode ?? null;
+    const title = code ? titleByCode.get(code) ?? null : null;
+    return (
+      <div className="relative">
+        <div className="absolute -left-3.5 top-1.5 w-2 h-2 rounded-full border-2 border-bg bg-border" />
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-[11px] text-fg-muted">
+            {code && <Link href={`/task/${code}`} className="font-mono hover:text-accent">{code}</Link>}
+            {title && <span className="truncate max-w-[420px]">— {title}</span>}
+            <span className="text-fg-subtle ml-auto whitespace-nowrap">{fmtTime(item.createdAt)}</span>
+          </div>
+          <TimelineEditGroupView group={item} />
+        </div>
+      </div>
+    );
+  }
+
   const code = item.kind === "update" ? item.taskCode ?? null : item.taskCode;
   const title = code ? titleByCode.get(code) ?? null : null;
   const dot =
@@ -379,9 +400,9 @@ function TimelineItemView({
                   {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}
                   {item.newValue && <span className="text-fg font-medium">{item.newValue}</span>}
                 </div>
-                {item.changeReason && (
+                {cleanReason(item.changeReason) && (
                   <p className="italic text-fg-muted">
-                    <CodeLinkedText text={item.changeReason} />
+                    <CodeLinkedText text={cleanReason(item.changeReason)!} />
                   </p>
                 )}
               </div>

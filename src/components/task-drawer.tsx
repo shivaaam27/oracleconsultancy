@@ -21,8 +21,10 @@ import {
   sortTimeline,
   mergeStatusIntoUpdates,
   suppressUpdateMetaAudits,
-  suppressNoReasonAudits,
+  groupFieldEdits,
+  cleanReason,
   liftPinnedUpdates,
+  summariseEditGroup,
   type TimelineItem,
   type TimelineUpdate,
 } from "@/lib/timeline";
@@ -114,7 +116,7 @@ function buildTimeline(data: DrawerData): TimelineItem[] {
     })),
   ];
   return liftPinnedUpdates(
-    suppressNoReasonAudits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw))))
+    groupFieldEdits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw))))
   ).slice(0, 12);
 }
 
@@ -348,6 +350,32 @@ export function TaskDrawer() {
  * ---------------------------------------------------------------------- */
 function MiniTimelineItem({ item }: { item: TimelineItem }) {
   if (item.kind === "bulk") return null; // bulk runs don't appear in the mini view
+
+  if (item.kind === "editgroup") {
+    const { label } = summariseEditGroup(item);
+    return (
+      <div className="relative">
+        <div className="absolute -left-2.5 top-1.5 w-1.5 h-1.5 rounded-full bg-border" />
+        <details className="group/edit px-3 py-1.5 bg-bg-subtle rounded-lg text-xs">
+          <summary className="cursor-pointer list-none flex items-center gap-1 text-fg-muted hover:text-fg">
+            <Pencil size={9} />
+            <span className="font-medium text-fg">{label}</span>
+            <span className="ml-auto text-[10px] text-fg-subtle">{fmtTime(item.createdAt)}</span>
+          </summary>
+          <ul className="mt-1.5 space-y-1">
+            {item.items.map((a) => (
+              <li key={a.id} className="flex items-center gap-1 flex-wrap text-[11px]">
+                <span className="font-medium text-fg">{a.field}</span>
+                {a.oldValue && <span className="text-fg-muted">{a.oldValue}</span>}
+                {a.oldValue && a.newValue && <GitCommitHorizontal size={8} className="text-fg-subtle" />}
+                {a.newValue && <span className="text-fg font-medium">{a.newValue}</span>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      </div>
+    );
+  }
 
   const dot =
     item.kind === "update"

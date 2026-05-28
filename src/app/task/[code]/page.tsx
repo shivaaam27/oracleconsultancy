@@ -16,12 +16,14 @@ import {
   mergeStatusIntoUpdates,
   liftPinnedUpdates,
   suppressUpdateMetaAudits,
-  suppressNoReasonAudits,
+  groupFieldEdits,
+  cleanReason,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
   type TimelineFilter,
 } from "@/lib/timeline";
+import { TimelineEditGroupView } from "@/components/timeline-edit-group";
 import { CodeLinkedText } from "@/components/code-linked-text";
 import { AssigneeList } from "@/components/assignee-list";
 import { TimelineFilters } from "@/components/timeline-filters";
@@ -112,10 +114,9 @@ export default async function TaskPage({
   ];
 
   // Pipeline: stable sort → merge status into updates → suppress redundant
-  // edit/delete/pin audit rows → suppress reasonless field-change noise →
-  // hoist pinned updates to top.
+  // edit/delete/pin audit rows → group field-edit bursts → hoist pinned.
   const merged = liftPinnedUpdates(
-    suppressNoReasonAudits(
+    groupFieldEdits(
       suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(rawTimeline)))
     )
   );
@@ -125,7 +126,7 @@ export default async function TaskPage({
     all: merged.length,
     updates: merged.filter((i) => i.kind === "update").length,
     status: merged.filter((i) => (i.kind === "update" && i.statusChange) || (i.kind === "audit" && i.field === "Status")).length,
-    field: merged.filter((i) => i.kind === "audit" && i.field !== "Status" && i.entryType !== "CREATE").length,
+    field: merged.filter((i) => i.kind === "editgroup" || (i.kind === "audit" && i.field !== "Status" && i.entryType !== "CREATE")).length,
     escalation: merged.filter((i) => i.kind === "audit" && (i.entryType === "ESCALATION" || i.field === "Escalation" || i.newValue === "Escalated" || i.newValue === "Yes")).length,
     bulk: merged.filter((i) => i.kind === "audit" && i.changeReason?.toLowerCase().startsWith("bulk")).length,
   };
@@ -321,7 +322,9 @@ export default async function TaskPage({
                         }`}
                       />
 
-                      {item.kind === "update" ? (
+                      {item.kind === "editgroup" ? (
+                        <TimelineEditGroupView group={item} />
+                      ) : item.kind === "update" ? (
                         <div
                           className={`group bg-accent/5 border rounded-lg p-3 space-y-1.5 ${
                             item.pinnedAt ? "border-accent/50" : "border-accent/20"
@@ -388,9 +391,9 @@ export default async function TaskPage({
                                 {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}
                                 {item.newValue && <span className="text-fg font-medium">{item.newValue}</span>}
                               </div>
-                              {item.changeReason && (
+                              {cleanReason(item.changeReason) && (
                                 <p className="italic text-fg-muted">
-                                  <CodeLinkedText text={item.changeReason} />
+                                  <CodeLinkedText text={cleanReason(item.changeReason)!} />
                                 </p>
                               )}
                             </div>

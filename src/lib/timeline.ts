@@ -58,7 +58,33 @@ export type TimelineBulk = {
   items: TimelineAudit[];
 };
 
-export type TimelineItem = TimelineUpdate | TimelineAudit | TimelineBulk;
+/** A grouped run of field-change audits made in one editing session. */
+export type TimelineEditGroup = {
+  kind: "editgroup";
+  id: string;
+  createdAt: Date;
+  createdBy: string | null;
+  taskCode: string | null;
+  taskId: number | null;
+  /** Collapsed field-change rows, newest first. */
+  items: TimelineAudit[];
+};
+
+export type TimelineItem = TimelineUpdate | TimelineAudit | TimelineBulk | TimelineEditGroup;
+
+/* ----------------------------------------------------------------------
+ * Reason normalisation
+ * ----------------------------------------------------------------------
+ * Legacy rows stored the literal "NO REASON PROVIDED". Treat that (and
+ * blank strings) as "no reason" everywhere it's rendered.
+ */
+export function cleanReason(r: string | null | undefined): string | null {
+  if (!r) return null;
+  const t = r.trim();
+  if (t.length === 0) return null;
+  if (t.toUpperCase() === "NO REASON PROVIDED") return null;
+  return t;
+}
 
 /* ----------------------------------------------------------------------
  * Sort
@@ -229,6 +255,104 @@ export function groupBulkRuns(items: TimelineItem[]): TimelineItem[] {
 }
 
 /* ----------------------------------------------------------------------
+ * Group field-edit runs (Tier 3)
+ * ----------------------------------------------------------------------
+ * Collapses a burst of field-change audits — whether many fields from one
+ * Save or the same field rewritten several times — into a single expandable
+ * "edit session" entry. Runs must be the same task and within a 15-minute
+ * window. CREATE / Status / Escalation / meta rows are never grouped (they
+ * carry standalone signal). Status changes are already folded into updates
+ * by mergeStatusIntoUpdates before this runs.
+ */
+const EDIT_GROUP_WINDOW_MS = 15 * 60_000;
+const EDIT_GROUP_MIN_RUN = 2;
+
+const NON_GROUPABLE_FIELDS = new Set([
+  "Status",
+  "Escalation",
+  "Task deleted",
+  "Task created",
+  "Update edited",
+  "Update deleted",
+  "Update pinned",
+  "Update unpinned",
+]);
+
+function isGroupableAudit(it: TimelineItem): it is TimelineAudit {
+  return (
+    it.kind === "audit" &&
+    it.entryType !== "CREATE" &&
+    it.entryType !== "ESCALATION" &&
+    !it.changeReason?.toLowerCase().startsWith("bulk") &&
+    !(it.field != null && NON_GROUPABLE_FIELDS.has(it.field))
+  );
+}
+
+export function groupFieldEdits(items: TimelineItem[]): TimelineItem[] {
+  const out: TimelineItem[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const cur = items[i];
+    if (!isGroupableAudit(cur)) {
+      out.push(cur);
+      i++;
+      continue;
+    }
+    const runStart = cur;
+    const run: TimelineAudit[] = [cur];
+    let j = i + 1;
+    while (j < items.length) {
+      const nxt = items[j];
+      if (!isGroupableAudit(nxt)) break;
+      // Same task (compare by code, fall back to id)
+      const curKey = runStart.taskCode ?? `id:${runStart.taskId}`;
+      const nxtKey = nxt.taskCode ?? `id:${nxt.taskId}`;
+      if (curKey !== nxtKey) break;
+      // Within window of the run's start (items are sorted desc)
+      if (runStart.createdAt.getTime() - nxt.createdAt.getTime() > EDIT_GROUP_WINDOW_MS) break;
+      run.push(nxt);
+      j++;
+    }
+    if (run.length >= EDIT_GROUP_MIN_RUN) {
+      out.push({
+        kind: "editgroup",
+        id: `edit-${runStart.id}-${run.length}`,
+        createdAt: runStart.createdAt,
+        createdBy: runStart.createdBy,
+        taskCode: runStart.taskCode,
+        taskId: runStart.taskId,
+        items: run,
+      });
+      i = j;
+    } else {
+      out.push(cur);
+      i++;
+    }
+  }
+  return out;
+}
+
+/** Summarise an edit group for its header. */
+export function summariseEditGroup(group: TimelineEditGroup): {
+  label: string;
+  distinctFields: string[];
+} {
+  const fields = group.items.map((a) => a.field).filter((f): f is string => !!f);
+  const distinct = Array.from(new Set(fields));
+  if (distinct.length === 1) {
+    const n = group.items.length;
+    return {
+      label: n > 1 ? `${distinct[0]} changed ${n}×` : `${distinct[0]} changed`,
+      distinctFields: distinct,
+    };
+  }
+  return {
+    label: `Edited ${distinct.length} fields`,
+    distinctFields: distinct,
+  };
+}
+
+/* ----------------------------------------------------------------------
  * Filter (Tier 1 C)
  * ---------------------------------------------------------------------- */
 
@@ -261,6 +385,7 @@ export function applyTimelineFilter(items: TimelineItem[], filter: TimelineFilte
       return false;
     }
     if (filter === "field") {
+      if (i.kind === "editgroup") return true; // edit groups are field changes
       return i.kind === "audit" && i.field !== "Status" && i.entryType !== "CREATE";
     }
     return true;
