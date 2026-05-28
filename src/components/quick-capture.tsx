@@ -12,9 +12,9 @@ const STATUSES = ["Not Started","In Progress","Under Review","Blocked","Waiting 
 const PRIORITIES = ["Critical","High","Medium","Low"];
 const CATEGORIES = ["Finance","Operations","Marketing","HR","Legal","Technology","Sales","Admin","Meetings","Strategy","Other"];
 
-type Props = { companies: { id: number; name: string }[] };
+type Props = { companies: { id: number; name: string }[]; embedded?: boolean };
 
-export function QuickCapture({ companies }: Props) {
+export function QuickCapture({ companies, embedded = false }: Props) {
   const router = useRouter();
   const [raw, setRaw] = useState("");
   const [parsed, setParsed] = useState<ParsedCapture | null>(null);
@@ -118,17 +118,19 @@ export function QuickCapture({ companies }: Props) {
   ].filter(Boolean) as { label: string; value: string }[] : [];
 
   return (
-    <div className="card p-5 space-y-4">
+    <div className={embedded ? "p-4 space-y-4" : "card p-5 space-y-4"}>
       {saved && (
         <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-success text-sm font-medium">
           <CheckCircle2 size={14} /> Task created successfully!
         </div>
       )}
-      <div className="flex items-center gap-2">
-        <Sparkles size={16} className="text-accent" />
-        <span className="font-semibold text-sm">Quick Capture</span>
-        <span className="text-xs text-fg-muted ml-1">Type rough notes — the system figures out the rest</span>
-      </div>
+      {!embedded && (
+        <div className="flex items-center gap-2">
+          <Sparkles size={16} className="text-accent" />
+          <span className="font-semibold text-sm">Quick Capture</span>
+          <span className="text-xs text-fg-muted ml-1">Type rough notes — the system figures out the rest</span>
+        </div>
+      )}
 
       {/* Input */}
       <div className="relative">

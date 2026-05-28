@@ -1,7 +1,6 @@
 import { computeGlobalKpis, statusBreakdown, priorityBreakdown } from "@/lib/queries";
 import { Card } from "@/components/ui";
-import { QuickCapture } from "@/components/quick-capture";
-import { AskCOS } from "@/components/ask-cos";
+import { CosBar } from "@/components/cos-bar";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
 import { sb } from "@/db/supabase";
 import Link from "next/link";
@@ -124,11 +123,8 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
         </div>
       )}
 
-      {/* Quick Capture + Ask */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <QuickCapture companies={companiesList} />
-        <AskCOS />
-      </div>
+      {/* Unified Ask / Capture bar */}
+      <CosBar companies={companiesList} />
 
       {/* Status + Priority */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

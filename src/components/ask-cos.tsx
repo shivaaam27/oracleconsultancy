@@ -29,7 +29,7 @@ function looksLikeCommand(text: string): boolean {
   return /^(mark|complete|finish|close|escalate|create|add|update|set|change|open|go to|navigate|show me task|delete|remove|assign|reassign)/i.test(text.trim());
 }
 
-export function AskCOS() {
+export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -213,14 +213,34 @@ export function AskCOS() {
   }
 
   return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-bg-subtle">
-        <div className="flex items-center gap-2">
-          <Bot size={16} className="text-accent" />
-          <span className="font-semibold text-sm">Ask COS</span>
-          <span className="text-xs text-fg-muted ml-1">— ask or command, click results to navigate</span>
+    <div className={embedded ? "" : "card overflow-hidden"}>
+      {!embedded && (
+        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-bg-subtle">
+          <div className="flex items-center gap-2">
+            <Bot size={16} className="text-accent" />
+            <span className="font-semibold text-sm">Ask COS</span>
+            <span className="text-xs text-fg-muted ml-1">— ask or command, click results to navigate</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {focusedTask && (
+              <span className="text-[10px] font-mono bg-accent/10 text-accent rounded-full px-2 py-0.5">
+                focused: {focusedTask}
+              </span>
+            )}
+            {messages.length > 0 && (
+              <button
+                onClick={clear}
+                className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-danger transition-colors"
+              >
+                <Trash2 size={11} /> Clear
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+      )}
+
+      {embedded && (focusedTask || messages.length > 0) && (
+        <div className="flex items-center justify-end gap-2 px-5 pt-3">
           {focusedTask && (
             <span className="text-[10px] font-mono bg-accent/10 text-accent rounded-full px-2 py-0.5">
               focused: {focusedTask}
@@ -235,9 +255,9 @@ export function AskCOS() {
             </button>
           )}
         </div>
-      </div>
+      )}
 
-      <div ref={scrollRef} className="max-h-[480px] overflow-y-auto px-5 py-4 space-y-4">
+      <div ref={scrollRef} className="max-h-[420px] overflow-y-auto px-5 py-4 space-y-4">
         {messages.length === 0 && (
           <div className="space-y-3">
             <p className="text-xs text-fg-muted italic">
@@ -360,7 +380,7 @@ export function AskCOS() {
 
       <form
         onSubmit={e => { e.preventDefault(); submit(input); }}
-        className="flex items-center gap-2 px-5 py-3 border-t border-border bg-bg-subtle"
+        className={`flex items-center gap-2 px-5 py-3 border-t border-border ${embedded ? "" : "bg-bg-subtle"}`}
       >
         <input
           value={input}
