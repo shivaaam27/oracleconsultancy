@@ -3,22 +3,28 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { AskCOS } from "./ask-cos";
 
-// Persistent, app-wide COS assistant. A floating circular button sits in the
-// bottom-right corner on every page; clicking it opens a chat panel that reuses
-// the existing AskCOS widget (ask / command / digest + voice).
+// The COS brand mark — accent rounded square with a sparkle, matching the nav brand.
+function CosMark({ size = 18 }: { size?: number }) {
+  return (
+    <span className="inline-flex items-center justify-center rounded-lg bg-accent" style={{ width: size + 10, height: size + 10 }}>
+      <Sparkles size={size} className="text-accent-fg" />
+    </span>
+  );
+}
+
+// Persistent, app-wide COS assistant: a floating launcher that pops open a minimal
+// chat panel (chat box · voice · send) reusing the AskCOS widget.
 export function FloatingAssistant() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close the panel on route change so it never lingers awkwardly mid-navigation.
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
-  // Esc closes the panel.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -30,44 +36,35 @@ export function FloatingAssistant() {
 
   return (
     <>
-      {/* Launcher button — bottom-right, clear of the centre nav pill */}
-      <motion.button
-        type="button"
-        aria-label={open ? "Close COS assistant" : "Open COS assistant"}
-        onClick={() => setOpen(o => !o)}
-        initial={false}
-        animate={{ rotate: open ? 90 : 0 }}
-        whileTap={{ scale: 0.9 }}
-        className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 inline-flex items-center justify-center h-14 w-14 rounded-full bg-accent text-accent-fg shadow-lg ring-1 ring-black/10 hover:opacity-90 transition-opacity"
-      >
-        {open ? <X size={22} /> : <Bot size={24} />}
-      </motion.button>
-
       <AnimatePresence>
         {open && (
           <>
-            {/* Mobile backdrop — tap to dismiss */}
+            {/* Mobile backdrop */}
             <motion.div
+              key="backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm sm:hidden"
+              className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] sm:hidden"
             />
 
-            {/* Panel: bottom sheet on mobile, floating card on desktop */}
+            {/* Panel — bottom sheet on mobile, popover anchored to the launcher on desktop */}
             <motion.div
-              initial={{ opacity: 0, y: 24, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 24, scale: 0.98 }}
-              transition={{ type: "spring", stiffness: 320, damping: 30 }}
-              className="fixed z-50 inset-x-0 bottom-0 sm:inset-x-auto sm:right-4 sm:bottom-[calc(5.5rem+env(safe-area-inset-bottom))] sm:w-[420px] max-h-[80vh] flex flex-col"
+              key="panel"
+              initial={{ opacity: 0, scale: 0.85, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 12 }}
+              transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
+              className="fixed z-50 origin-bottom sm:origin-bottom-right inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-24 sm:w-[380px]"
             >
-              <div className="card overflow-hidden shadow-2xl ring-1 ring-border rounded-b-none sm:rounded-2xl flex flex-col">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-bg-subtle">
+              <div className="card flex flex-col overflow-hidden shadow-2xl ring-1 ring-border rounded-t-2xl sm:rounded-2xl rounded-b-none sm:rounded-b-2xl">
+                {/* Header */}
+                <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border">
                   <div className="flex items-center gap-2">
-                    <Bot size={16} className="text-accent" />
-                    <span className="font-semibold text-sm">COS Assistant</span>
+                    <CosMark size={14} />
+                    <span className="font-semibold text-sm tracking-tight">COS Assistant</span>
                   </div>
                   <button
                     type="button"
@@ -75,17 +72,52 @@ export function FloatingAssistant() {
                     aria-label="Close"
                     className="inline-flex items-center justify-center h-7 w-7 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
                   >
-                    <X size={15} />
+                    <X size={16} />
                   </button>
                 </div>
-                <div className="overflow-y-auto">
-                  <AskCOS embedded />
+                {/* Chat */}
+                <div className="overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+                  <AskCOS embedded minimal />
                 </div>
               </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+
+      {/* Launcher — COS mark, morphs to a close icon while open */}
+      <motion.button
+        type="button"
+        aria-label={open ? "Close COS assistant" : "Open COS assistant"}
+        onClick={() => setOpen(o => !o)}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.92 }}
+        className="fixed right-5 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 inline-flex items-center justify-center h-14 w-14 rounded-full bg-accent text-accent-fg shadow-lg shadow-accent/25 ring-1 ring-black/5 hover:shadow-xl transition-shadow"
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          {open ? (
+            <motion.span
+              key="close"
+              initial={{ rotate: -90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: 90, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <X size={24} />
+            </motion.span>
+          ) : (
+            <motion.span
+              key="open"
+              initial={{ rotate: 90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: -90, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <Sparkles size={24} />
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </motion.button>
     </>
   );
 }

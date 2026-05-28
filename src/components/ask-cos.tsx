@@ -50,7 +50,7 @@ function extractDigestCompany(text: string): string | null {
   return name;
 }
 
-export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
+export function AskCOS({ embedded = false, minimal = false }: { embedded?: boolean; minimal?: boolean } = {}) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -322,7 +322,13 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
       )}
 
       <div ref={scrollRef} className={`max-h-[420px] overflow-y-auto px-5 py-4 space-y-4 ${embedded ? "order-3" : ""}`}>
-        {messages.length === 0 && (
+        {messages.length === 0 && minimal && (
+          <p className="text-xs text-fg-subtle italic text-center py-2">
+            Ask a question or type a command.
+          </p>
+        )}
+
+        {messages.length === 0 && !minimal && (
           <div className="space-y-3">
             <p className="text-xs text-fg-muted italic">
               Ask questions, run commands, or use pronouns once a task is focused. Try:
