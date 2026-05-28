@@ -213,7 +213,7 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
   }
 
   return (
-    <div className={embedded ? "" : "card overflow-hidden"}>
+    <div className={embedded ? "flex flex-col" : "card overflow-hidden"}>
       {!embedded && (
         <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-bg-subtle">
           <div className="flex items-center gap-2">
@@ -257,7 +257,7 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
         </div>
       )}
 
-      <div ref={scrollRef} className="max-h-[420px] overflow-y-auto px-5 py-4 space-y-4">
+      <div ref={scrollRef} className={`max-h-[420px] overflow-y-auto px-5 py-4 space-y-4 ${embedded ? "order-3" : ""}`}>
         {messages.length === 0 && (
           <div className="space-y-3">
             <p className="text-xs text-fg-muted italic">
@@ -373,14 +373,14 @@ export function AskCOS({ embedded = false }: { embedded?: boolean } = {}) {
       </div>
 
       {error && messages.length === 0 && (
-        <div className="px-5 pb-2">
+        <div className={`px-5 pb-2 ${embedded ? "order-2" : ""}`}>
           <p className="text-xs text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{error}</p>
         </div>
       )}
 
       <form
         onSubmit={e => { e.preventDefault(); submit(input); }}
-        className={`flex items-center gap-2 px-5 py-3 border-t border-border ${embedded ? "" : "bg-bg-subtle"}`}
+        className={`flex items-center gap-2 px-5 py-3 ${embedded ? "order-1 border-b border-border" : "border-t border-border bg-bg-subtle"}`}
       >
         <input
           value={input}
