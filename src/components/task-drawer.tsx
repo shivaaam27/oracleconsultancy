@@ -21,6 +21,7 @@ import {
   sortTimeline,
   mergeStatusIntoUpdates,
   suppressUpdateMetaAudits,
+  suppressNoReasonAudits,
   liftPinnedUpdates,
   type TimelineItem,
   type TimelineUpdate,
@@ -113,7 +114,7 @@ function buildTimeline(data: DrawerData): TimelineItem[] {
     })),
   ];
   return liftPinnedUpdates(
-    suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))
+    suppressNoReasonAudits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw))))
   ).slice(0, 12);
 }
 

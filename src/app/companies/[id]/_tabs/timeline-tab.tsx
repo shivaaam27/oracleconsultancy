@@ -19,6 +19,7 @@ import {
   mergeStatusIntoUpdates,
   groupBulkRuns,
   suppressUpdateMetaAudits,
+  suppressNoReasonAudits,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
@@ -28,6 +29,7 @@ import {
   type TimelineFilter,
 } from "@/lib/timeline";
 import { UpdateMenu } from "@/components/update-menu";
+import { AuditMenu } from "@/components/audit-menu";
 import { Pencil } from "lucide-react";
 
 const ITEM_LIMIT = 200;
@@ -70,6 +72,7 @@ export async function TimelineTab({
       .from("audit_log")
       .select("id,task_id,task_code,field,old_value,new_value,change_reason,entry_type,created_at,created_by")
       .in("task_code", taskCodes)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(ITEM_LIMIT),
   ]);
@@ -112,9 +115,12 @@ export async function TimelineTab({
   }
 
   // Pipeline: sort → merge status into updates → suppress update-meta audits
-  // (edited/deleted/pinned) → collapse bulk runs.
+  // (edited/deleted/pinned) → suppress reasonless field-change noise →
+  // collapse bulk runs.
   const merged = groupBulkRuns(
-    suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))
+    suppressNoReasonAudits(
+      suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))
+    )
   );
 
   // Counts (post-merge, pre-filter) for the chip strip.
@@ -359,12 +365,15 @@ function TimelineItemView({
             )}
           </div>
         ) : (
-          <div className="rounded-lg px-3 py-2 bg-bg-subtle text-xs">
+          <div className="group rounded-lg px-3 py-2 bg-bg-subtle text-xs">
             {item.entryType === "CREATE" ? (
               <p className="text-fg-muted">Task created</p>
             ) : (
               <div className="space-y-0.5">
-                <span className="font-medium text-fg">{item.field || item.entryType}</span>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-medium text-fg">{item.field || item.entryType}</span>
+                  <AuditMenu entryId={item.id} currentReason={item.changeReason} />
+                </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {item.oldValue && <span className="text-fg-muted">{item.oldValue}</span>}
                   {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}

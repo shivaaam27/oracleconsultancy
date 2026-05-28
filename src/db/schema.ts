@@ -89,6 +89,8 @@ export const auditLog = pgTable("audit_log", {
   changeReason: text("change_reason"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   createdBy: text("created_by"),
+  /** Soft-delete marker. Hidden from timelines + /audit by default; toggleable. */
+  deletedAt: timestamp("deleted_at", { mode: "date" }),
 });
 
 export const corrections = pgTable("corrections", {

@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       .from("audit_log")
       .select("id,field,old_value,new_value,change_reason,entry_type,created_at,created_by")
       .eq("task_code", code)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(25),
   ]);

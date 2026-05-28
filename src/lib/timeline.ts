@@ -94,6 +94,26 @@ export function suppressUpdateMetaAudits(items: TimelineItem[]): TimelineItem[] 
 }
 
 /**
+ * Tier 2 N: hide noisy field-change audits that have no human-authored reason.
+ * The xlsx import generated many such rows ("NO REASON PROVIDED" spam). They
+ * stay in DB and on /audit (governance), just not on timelines.
+ *
+ * Preserves: CREATE entries, Status changes (signal-rich on their own),
+ * Escalation changes, and any entry that DOES have a change_reason.
+ */
+export function suppressNoReasonAudits(items: TimelineItem[]): TimelineItem[] {
+  return items.filter((i) => {
+    if (i.kind !== "audit") return true;
+    if (i.entryType === "CREATE") return true;
+    if (i.entryType === "ESCALATION") return true;
+    if (i.field === "Status") return true;
+    if (i.field === "Escalation") return true;
+    if (i.changeReason && i.changeReason.trim().length > 0) return true;
+    return false; // field-change CHANGE entry with no reason → suppress
+  });
+}
+
+/**
  * Tier 2 L: hoist pinned updates to the top of a per-task timeline.
  * Multiple pinned updates among themselves sort by pin time desc (most recently
  * pinned first). Used after sortTimeline + mergeStatusIntoUpdates.

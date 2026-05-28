@@ -16,6 +16,7 @@ import {
   mergeStatusIntoUpdates,
   liftPinnedUpdates,
   suppressUpdateMetaAudits,
+  suppressNoReasonAudits,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
@@ -25,6 +26,7 @@ import { CodeLinkedText } from "@/components/code-linked-text";
 import { AssigneeList } from "@/components/assignee-list";
 import { TimelineFilters } from "@/components/timeline-filters";
 import { UpdateMenu } from "@/components/update-menu";
+import { AuditMenu } from "@/components/audit-menu";
 import { Pin, Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -71,6 +73,7 @@ export default async function TaskPage({
       .from("audit_log")
       .select("id,field,old_value,new_value,change_reason,entry_type,created_at,created_by")
       .eq("task_code", code)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     sb
       .from("task_updates")
@@ -109,9 +112,12 @@ export default async function TaskPage({
   ];
 
   // Pipeline: stable sort → merge status into updates → suppress redundant
-  // edit/delete/pin audit rows → hoist pinned updates to top.
+  // edit/delete/pin audit rows → suppress reasonless field-change noise →
+  // hoist pinned updates to top.
   const merged = liftPinnedUpdates(
-    suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(rawTimeline)))
+    suppressNoReasonAudits(
+      suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(rawTimeline)))
+    )
   );
 
   // Counts (before filter) for the chip strip.
@@ -368,12 +374,15 @@ export default async function TaskPage({
                           <p className="text-xs text-fg-muted">{fmt(item.createdAt)}</p>
                         </div>
                       ) : item.kind === "audit" ? (
-                        <div className="rounded-lg px-3 py-2 bg-bg-subtle">
+                        <div className="group rounded-lg px-3 py-2 bg-bg-subtle">
                           {item.entryType === "CREATE" ? (
                             <p className="text-xs text-fg-muted">Task created</p>
                           ) : (
                             <div className="text-xs space-y-0.5">
-                              <span className="font-medium text-fg">{item.field}</span>
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="font-medium text-fg">{item.field}</span>
+                                <AuditMenu entryId={item.id} currentReason={item.changeReason} />
+                              </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 {item.oldValue && <span className="text-fg-muted">{item.oldValue}</span>}
                                 {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}
