@@ -101,6 +101,9 @@ export function suppressUpdateMetaAudits(items: TimelineItem[]): TimelineItem[] 
  * Preserves: CREATE entries, Status changes (signal-rich on their own),
  * Escalation changes, and any entry that DOES have a change_reason.
  */
+/** Meta-events that must always remain visible even without a reason. */
+const ALWAYS_VISIBLE_AUDIT_FIELDS = new Set(["Task deleted", "Task created"]);
+
 export function suppressNoReasonAudits(items: TimelineItem[]): TimelineItem[] {
   return items.filter((i) => {
     if (i.kind !== "audit") return true;
@@ -108,6 +111,7 @@ export function suppressNoReasonAudits(items: TimelineItem[]): TimelineItem[] {
     if (i.entryType === "ESCALATION") return true;
     if (i.field === "Status") return true;
     if (i.field === "Escalation") return true;
+    if (i.field && ALWAYS_VISIBLE_AUDIT_FIELDS.has(i.field)) return true;
     if (i.changeReason && i.changeReason.trim().length > 0) return true;
     return false; // field-change CHANGE entry with no reason → suppress
   });

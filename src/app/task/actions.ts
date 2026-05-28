@@ -308,6 +308,23 @@ export async function deleteTask(code: string) {
       if (!t) return { result: null, undo: undefined };
       const assignees = await loadAssignees(t.id);
 
+      // Record the deletion in the audit log BEFORE removing the row, so a
+      // deleted task always leaves a trace on /audit even after the undo
+      // window expires. task_id will null out via the FK on delete, but
+      // task_code (text) persists so the entry stays attributable.
+      await sb.from("audit_log").insert({
+        task_id: t.id,
+        task_code: t.code,
+        company_id: t.company_id,
+        entry_type: "CHANGE",
+        field: "Task deleted",
+        old_value: t.action_item,
+        new_value: "(deleted)",
+        change_reason: null,
+        created_at: new Date().toISOString(),
+        created_by: "web-ui",
+      });
+
       await sb.from("tasks").delete().eq("id", t.id);
 
       return {
