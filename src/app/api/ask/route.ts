@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
+import { getGroqKey } from "@/lib/settings";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
 
@@ -215,7 +216,7 @@ export async function POST(req: NextRequest) {
       Array.isArray(body?.history) ? body.history.slice(-6) : [];
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = await getGroqKey();
     if (!apiKey) {
       return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
     }

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { flag, isOpen, daysOpen, daysToDeadline } from "./derive";
+import { getAppSettings } from "./settings";
 
 export type TaskRow = {
   id: number;
@@ -66,13 +67,19 @@ function toDate(s: string | null): Date | null {
 }
 
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
-  const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes] = await Promise.all([
+  const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, settings] = await Promise.all([
     sb.from("tasks").select("id,code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("departments").select("id,name"),
     sb.from("people").select("id,name"),
     sb.from("task_assignees").select("task_id,person_id"),
+    getAppSettings(),
   ]);
+  const thresholds = {
+    dueSoonDays: settings.dueSoonDays,
+    agingDays: settings.agingDays,
+    stalledDays: settings.stalledDays,
+  };
 
   if (tasksRes.error) throw new Error(tasksRes.error.message);
   if (companiesRes.error) throw new Error(companiesRes.error.message);
@@ -133,7 +140,7 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
       closedDate,
       daysOpen: daysOpen(derived),
       daysToDeadline: daysToDeadline(derived),
-      flag: flag(derived),
+      flag: flag(derived, thresholds),
     };
   });
 });

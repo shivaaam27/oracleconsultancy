@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getGroqKey } from "@/lib/settings";
 
 export const maxDuration = 60;
 
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     const stats = body?.stats;
     if (!stats) return NextResponse.json({ result: "" }, { status: 400 });
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = await getGroqKey();
     if (!apiKey) {
       return NextResponse.json({ result: "", source: "no-key" });
     }

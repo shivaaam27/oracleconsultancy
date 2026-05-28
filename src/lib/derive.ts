@@ -17,6 +17,18 @@ export const DUE_SOON_DAYS = 3;
 export const AGING_CRITICAL_DAYS = 30;
 export const BLOCKED_STALLED_DAYS = 14;
 
+export type Thresholds = {
+  dueSoonDays: number;
+  agingDays: number;
+  stalledDays: number;
+};
+
+const DEFAULT_THRESHOLDS: Thresholds = {
+  dueSoonDays: DUE_SOON_DAYS,
+  agingDays: AGING_CRITICAL_DAYS,
+  stalledDays: BLOCKED_STALLED_DAYS,
+};
+
 export function daysOpen(t: DeriveInput): number | null {
   if (!t.createdDate) return null;
   const closed = t.status === "Completed" || t.status === "Closed";
@@ -42,18 +54,18 @@ export type Flag =
   | "aging"
   | "on-track";
 
-export function flag(t: DeriveInput): Flag {
+export function flag(t: DeriveInput, thresholds: Thresholds = DEFAULT_THRESHOLDS): Flag {
   const closed = t.status === "Completed" || t.status === "Closed";
   if (closed) return "closed";
   if (t.status === "Escalated") return "escalated";
   const open = daysOpen(t);
-  if (t.status === "Blocked" && open !== null && open > BLOCKED_STALLED_DAYS) return "stalled";
+  if (t.status === "Blocked" && open !== null && open > thresholds.stalledDays) return "stalled";
   if (!t.deadline) return "no-deadline";
   const dtd = (t.deadline.getTime() - today().getTime()) / DAY;
   if (t.priority === "Critical" && dtd < 0) return "escalate-now";
   if (dtd < 0) return "overdue";
-  if (dtd <= DUE_SOON_DAYS) return "due-soon";
-  if (open !== null && open > AGING_CRITICAL_DAYS) return "aging";
+  if (dtd <= thresholds.dueSoonDays) return "due-soon";
+  if (open !== null && open > thresholds.agingDays) return "aging";
   return "on-track";
 }
 

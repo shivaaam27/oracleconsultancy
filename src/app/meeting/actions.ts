@@ -5,6 +5,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 import { sb } from "@/db/supabase";
+import { getGroqKey } from "@/lib/settings";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 type AIExtractResult =
@@ -12,7 +13,7 @@ type AIExtractResult =
   | { ok: false; reason: "no-key" | "http-error" | "exception"; detail?: string };
 
 async function extractWithAI(notes: string, companyMap: { id: number; name: string }[], defaultCompanyId?: number): Promise<AIExtractResult> {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = await getGroqKey();
   if (!apiKey) return { ok: false, reason: "no-key" };
 
   try {

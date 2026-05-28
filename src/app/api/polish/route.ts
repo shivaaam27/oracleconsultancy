@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getGroqKey } from "@/lib/settings";
 import { polishActionItem } from "@/lib/smart-parse";
 import { loadContext } from "@/lib/ai-context";
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     if (!text) return NextResponse.json({ result: "" });
 
     const fallback = polishActionItem(text);
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = await getGroqKey();
 
     if (!apiKey) {
       return NextResponse.json({ result: fallback, source: "rules", debug: "no-key" });

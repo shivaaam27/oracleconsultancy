@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
+import { getGroqKey } from "@/lib/settings";
 
 type TaskRow = {
   id: number;
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     const companyId = Number(body?.companyId);
     if (!companyId) return NextResponse.json({ error: "companyId required" }, { status: 400 });
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = await getGroqKey();
     if (!apiKey) return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
 
     const { data: company } = await sb

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
+import { getGroqKey } from "@/lib/settings";
 
 export const maxDuration = 60;
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     const taskId = Number(body?.taskId);
     if (!taskId) return NextResponse.json({ error: "taskId required" }, { status: 400 });
 
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = await getGroqKey();
     if (!apiKey) {
       return NextResponse.json({ error: "AI not configured" }, { status: 503 });
     }

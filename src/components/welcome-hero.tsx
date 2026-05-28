@@ -7,10 +7,6 @@ import {
   CloudSnow, CloudLightning, MapPin, type LucideIcon,
 } from "lucide-react";
 
-// Dar es Salaam, Tanzania
-const LAT = -6.7924;
-const LON = 39.2083;
-
 type Weather = { temp: number; label: string; Icon: LucideIcon };
 
 function wmo(code: number): { label: string; Icon: LucideIcon } {
@@ -33,7 +29,17 @@ function greeting(h: number): string {
   return "Working late";
 }
 
-export function WelcomeHero({ pulse }: { pulse: string }) {
+export function WelcomeHero({
+  pulse,
+  city = "Dar es Salaam",
+  lat = -6.7924,
+  lon = 39.2083,
+}: {
+  pulse: string;
+  city?: string;
+  lat?: number;
+  lon?: number;
+}) {
   const [now, setNow] = useState<Date | null>(null);
   const [weather, setWeather] = useState<Weather | null>(null);
 
@@ -45,7 +51,7 @@ export function WelcomeHero({ pulse }: { pulse: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,weather_code`)
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`)
       .then((r) => r.json())
       .then((d) => {
         if (cancelled || !d?.current) return;
@@ -54,7 +60,7 @@ export function WelcomeHero({ pulse }: { pulse: string }) {
       })
       .catch(() => { /* weather is decorative — fail quietly */ });
     return () => { cancelled = true; };
-  }, []);
+  }, [lat, lon]);
 
   const time = now
     ? now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
@@ -87,7 +93,7 @@ export function WelcomeHero({ pulse }: { pulse: string }) {
           <div className="text-right">
             <div className="text-2xl sm:text-3xl font-semibold tabular leading-none">{time}</div>
             <div className="mt-1 text-[11px] text-fg-muted inline-flex items-center gap-1 justify-end">
-              <MapPin size={11} /> Dar es Salaam
+              <MapPin size={11} /> {city}
             </div>
           </div>
 

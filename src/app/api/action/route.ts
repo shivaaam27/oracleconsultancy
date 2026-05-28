@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
+import { getGroqKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
@@ -52,7 +53,7 @@ async function parseCommand(
   history: { role: "user" | "assistant"; content: string }[] = [],
   activeContext?: { taskCode?: string; companyName?: string },
 ): Promise<ParsedIntent> {
-  const apiKey = process.env.GROQ_API_KEY;
+  const apiKey = await getGroqKey();
   if (!apiKey) return { type: "unknown", reason: "AI not configured" };
 
   // Inject pronoun resolution context

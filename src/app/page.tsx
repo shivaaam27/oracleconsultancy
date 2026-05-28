@@ -1,5 +1,6 @@
 import { getAllTasks, computeGlobalKpis, type TaskRow } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
+import { getAppSettings } from "@/lib/settings";
 import { HubTabs, type HubTab } from "@/components/hub-tabs";
 import { WelcomeHero } from "@/components/welcome-hero";
 import { OverviewSection } from "./_hub/overview-section";
@@ -58,11 +59,19 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
 
   // Overview needs all tasks for stats; companies/tasks fetch their own.
   const rows = tab === "overview" ? await getAllTasks() : [];
+  const settings = tab === "overview" ? await getAppSettings() : null;
 
   return (
     <div className="space-y-4">
       {/* Overview opens with the welcome hero. Companies & Tasks render their own headers. */}
-      {tab === "overview" && <WelcomeHero pulse={buildPulse(rows)} />}
+      {tab === "overview" && settings && (
+        <WelcomeHero
+          pulse={buildPulse(rows)}
+          city={settings.weatherCity}
+          lat={settings.weatherLat}
+          lon={settings.weatherLon}
+        />
+      )}
 
       <HubTabs current={tab} />
 
