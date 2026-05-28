@@ -1,5 +1,7 @@
 # COS System — Claude Project Instructions
 
+> **Where to start (V2):** read `memory/v2_plan.md` first — it has the phase status (1–4 + 5e done; 5a–5d pending), the core mental model, and how to work here. The owner is **non-technical**; explain in plain language and use British English.
+
 Chief of Staff command centre for **Oracle Group** (7 portfolio companies: CO01 Dar Spices, CO02 Cocozuri Chocolat, CO03 Terra Green, CO04 Oracle Consultancy, CO05 PES Ltd, CO06 MES Ltd, CO07 Pamoja Plus). Single operator, no auth — `createdBy` is hard-coded to `"web-ui"`.
 
 Replaces an Excel workbook (`Chief Of Staff Workflow - Live.xlsx`) with a database-backed Next.js app: capture/track action items, surface risk, generate per-person reminders, draft follow-up emails, weekly digest.
@@ -54,9 +56,11 @@ All timestamps are `timestamp` (no TZ), `mode: "date"`. Soft delete via `archive
 - **Risk score:** `round(((overdue*3 + blocked*2 + aging) / total) * 100)`. >50 danger, >20 warn.
 
 ## Routes
-**Pages:** `/` (command centre — Overview/Companies/Tasks tabs + embedded Ask/Capture), `/task/new`, `/task/[code]`, `/registry` (redirects to `/?tab=tasks&view=table`), `/meeting`, `/digest`, `/escalations`, `/companies`, `/companies/[id]`, `/people`, `/outbox`, `/audit`, `/settings`.
+**Pages:** `/` (command centre — Overview/Companies/Tasks tabs + embedded Ask/Capture), `/task/new`, `/task/[code]`, `/registry` (redirects to `/?tab=tasks&view=table`), `/meeting`, `/companies`, `/companies/[id]`, `/people`, `/outbox`, `/settings`.
 
-> Removed: standalone `/capture` and `/task` list pages. Capture lives in the hub `CosBar` (deep-link `/?capture=1`); the task list is the hub Tasks tab (`/?tab=tasks`). `capture/actions.ts` is kept (used by `QuickCapture`).
+> **Removed (do not recreate):** `/capture`, `/task` (list), `/digest`, `/escalations`, `/audit`. Capture lives in the hub (deep-link `/?capture=1`); the task list is the hub Tasks tab (`/?tab=tasks`); digest/escalations folded into the hub. The standalone audit page was removed but audit *data* is kept and powers the per-task Timeline. Kept actions: `capture/actions.ts` (QuickCapture), `audit/actions.ts` (timeline edits).
+>
+> `/companies/[id]` Overview groups open tasks **by month** (collapsible) + has a **Completed** tab. `/settings` is now a real control panel (risk thresholds, weather location, AI master switch, reminders) + Navigation reorder card + Resync. Quick Capture and the Meeting extractor support **voice dictation** (Web Speech API).
 
 **API:** `/api/polish`, `/api/extract-meeting`, `/api/draft-email`, `/api/digest-narrative`, `/api/ask` (RAG Q&A with history), `/api/action` (NL command → confirm → execute, audits as `ai-command`), `/api/company-summary` (per-company briefing), `/api/similar-tasks` (keyword duplicate finder, no LLM), `/api/search`, `/api/prefs/nav-pins`, `/api/prefs/nav-recents`.
 
@@ -86,9 +90,13 @@ All list pages use `force-dynamic`. Server actions call `revalidatePath` then `r
 
 Migration flow: edit `schema.ts` → `db:generate` → review SQL → `db:migrate`.
 
+## Settings (V2)
+`lib/settings.ts` is the typed layer (`v2.*` keys in the `settings` table): `getAppSettings()` (cached), `saveAppSettings()`, `getGroqKey()`. LIVE controls: risk thresholds (feed `derive.ts` flag() via `queries.ts`), weather location (welcome-hero), **AI master switch** (gates the Groq key via `getGroqKey()` — off = app runs fully manually, every AI route degrades). Nav pins/recents JSON also live in the settings table.
+
 ## Known gaps / smells (don't surprise-fix unless asked)
-- No real WhatsApp/Email/SMS dispatch — `markSent` only records.
-- No cron writes `daily_snapshots`.
+- No real WhatsApp/Email/SMS dispatch — `markSent` only records. **Planned: Phase 5c.**
+- No cron writes `daily_snapshots`. **Planned: Phase 5d.**
+- Not yet installable (no PWA manifest/service worker). **Planned: Phase 5a** (groundwork already in layout meta).
 - `corrections` table has no UI.
 - `lucide-react@^1.16.0` constraint looks suspect — verify before any `npm install` refresh.
 - `splitNames` regex `/,| & | and /i` splits names containing "and".

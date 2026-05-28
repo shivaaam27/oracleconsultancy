@@ -9,9 +9,13 @@ metadata:
 
 Observed while writing the handover docs on 2026-05-26. Not exhaustive â€” verify by reading code before acting.
 
+> V2 note: see [v2_plan.md](v2_plan.md) for the phase roadmap. Several items below are now scheduled phases rather than open-ended gaps.
+
 ## Not yet implemented
-- **No actual message dispatch.** [outbox-and-reminders](outbox-and-reminders.md) records sends but no Twilio / Resend / WhatsApp Cloud API integration exists.
-- **No scheduled job writes `daily_snapshots`.** Table + columns are wired but nothing populates them. A nightly cron (Vercel Cron or Supabase Edge Function) would compute `computeCompanyKpis` results and insert one row per company per day.
+- **No actual message dispatch.** [outbox-and-reminders](outbox-and-reminders.md) records sends but no provider integration exists. **Planned as Phase 5c** (ONE provider — WhatsApp Business API or email — where the deferred 3-channel→"Messages" Outbox refactor finally happens). `markSent` currently only records.
+- **No scheduled job writes `daily_snapshots`.** Table + columns wired but nothing populates them. **Planned as Phase 5d** (per-company weekly health trend; this phase turns ON the daily snapshot writes).
+- **Not yet installable (no PWA).** Groundwork laid in Phase 4 (viewport-fit:cover, themeColor, appleWebApp meta). **Planned as Phase 5a** (manifest + icons + lightweight service worker; offline = app shell + graceful message, not full offline editing).
+- **No morning brief card.** **Planned as Phase 5b** (dashboard "here's your day": overdue / due today / newly escalated / closed yesterday — read-only from existing data).
 - **`corrections` table has no UI.** Schema is ready; no flow to mark an audit entry as superseded.
 - **No auth.** Single-operator app. If exposed beyond localhost / personal Vercel project, you must add auth before public deployment.
 
@@ -26,7 +30,7 @@ Observed while writing the handover docs on 2026-05-26. Not exhaustive â€” 
 - The pooler config (`prepare: false`, `max: 1`) is load-bearing â€” see [dev-workflow](dev-workflow.md).
 - Task code allocation is **read-then-insert with retry** (no sequences). If you ever hit serious concurrent task creation, switch to a per-company Postgres sequence or advisory lock.
 - `latestUpdate` is denormalised onto `tasks` from the most recent `task_updates.body`. If you bulk-edit `task_updates`, the mirror won't auto-resync.
-- The 12 routes in `NAV_ROUTES` must match real pages â€” adding a route here without creating the page renders a broken pin.
+- Routes in `NAV_ROUTES` must match real pages — adding a route here without creating the page renders a broken pin. Note `/capture`, `/task` (list), `/digest`, `/escalations`, `/audit` were **removed** (consolidated into the hub `/`); don't re-add them as pins. Audit *data* is kept (powers per-task Timeline); only the standalone page went.
 
 ## Conventions to preserve
 - British English throughout LLM prompts and UI copy.

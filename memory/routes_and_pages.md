@@ -9,29 +9,34 @@ metadata:
 
 ## Pages (App Router, all server components unless noted)
 
+The app has consolidated into **one command centre** (`/`) with tabs, plus a handful of focused pages. Several Excel-era standalone pages have been **removed** during V1→V2 consolidation (see "Removed routes" below).
+
 | Route | File | What it shows |
 |-------|------|---------------|
-| `/` | `app/page.tsx` | Dashboard: today's date, Needs Attention strip, QuickCapture, global KPI stats (8), company breakdown table sorted by risk score, status + priority distribution bars. |
-| `/capture` | `app/capture/page.tsx` + `actions.ts` | Free-text capture form. Uses `parseCapture` from smart-parse.ts to pre-fill fields. |
-| `/task` | `app/task/page.tsx` | Tasks list. |
-| `/task/new` | `app/task/new/page.tsx` | Create-task form. Calls `createTask` server action. |
-| `/task/[code]` | `app/task/[code]/page.tsx` | Task detail: editable fields, assignee list, latest update, full task_updates timeline, draft-email button, audit history. |
-| `/registry` | `app/registry/page.tsx` | Master sortable registry of all tasks. |
-| `/meeting` | `app/meeting/page.tsx` + `actions.ts` | Paste meeting notes â†’ MeetingExtractor (calls /api/extract-meeting) â†’ review extracted tasks â†’ bulk create. |
-| `/digest` | `app/digest/page.tsx` | Weekly digest stats + AI-generated narrative via DigestNarrative component. |
-| `/escalations` | `app/escalations/page.tsx` | All tasks flagged escalated / escalate-now / overdue / stalled. |
+| `/` | `app/page.tsx` + `_hub/*` | **Command centre.** Tabs: Overview (KPIs, Needs Attention, company breakdown by risk), Companies (cards + drill-down via `?tab=companies&co=`), Tasks (`?tab=tasks`, list/table view). Embedded Quick Capture (`?capture=1`) and AI Ask. Welcome hero with weather (location from settings). |
+| `/task/new` | `app/task/new/page.tsx` | Create-task form. Calls `createTask` server action. Voice dictation in Quick Capture feeds this pipeline. |
+| `/task/[code]` | `app/task/[code]/page.tsx` | Task detail: editable fields, assignee list, latest update, full task_updates timeline (**this is the per-task audit/timeline**, includes auto-recorded field changes via `audit-menu`), draft-email button. |
+| `/registry` | `app/registry/page.tsx` | Redirects to `/?tab=tasks&view=table`. |
+| `/meeting` | `app/meeting/page.tsx` + `actions.ts` | Paste/dictate meeting notes → MeetingExtractor (calls /api/extract-meeting) → review extracted tasks → bulk create. Voice dictation supported. |
 | `/companies` | `app/companies/page.tsx` | Company list with KPIs. |
-| `/companies/[id]` | `app/companies/[id]/page.tsx` | Per-company drill-down. |
+| `/companies/[id]` | `app/companies/[id]/page.tsx` | Per-company drill-down. **Overview** groups open tasks **by month** (collapsible `<details>`); separate **Completed** tab auto-hides Completed/Closed (count in tab label); **Timeline** tab. |
 | `/people` | `app/people/page.tsx` | People directory. |
-| `/outbox` | `app/outbox/page.tsx` + `actions.ts` + `outbox-card.tsx` | Generated reminder drafts grouped by person across channels; click-to-send marks sent in DB. |
-| `/audit` | `app/audit/page.tsx` | Chronological audit log. |
-| `/settings` | `app/settings/page.tsx` | Settings table view + nav pin management. |
+| `/outbox` | `app/outbox/page.tsx` + `actions.ts` + `outbox-card.tsx` | Generated reminder drafts grouped by person; click-to-send marks sent in DB (`markSent` records only — real dispatch is planned **Phase 5c**). Conceptually a single "Messages" channel. |
+| `/settings` | `app/settings/page.tsx` + `actions.ts` | **Real control panel** (not a raw table). LIVE controls: risk thresholds, weather location, AI master switch, reminders. Plus a **Navigation** card (reorder/pin nav buttons, saves instantly via nav-pins PUT) and the **Resync** tool (`components/resync-button.tsx`). |
+
+### Removed routes (do not recreate)
+- `/capture` — folded into the hub Quick Capture (`/?capture=1`). `capture/actions.ts` is **kept** (used by QuickCapture).
+- `/task` (standalone list) — now the hub Tasks tab (`/?tab=tasks`).
+- `/digest`, `/escalations` — folded into the command centre.
+- `/audit` (standalone page) — **removed**, but audit *data* is kept and powers the per-task Timeline. `app/audit/actions.ts` (editAuditReason/deleteAuditEntry/restoreAuditEntry) is **kept** for the `audit-menu`.
 
 ## Server actions
-- `app/task/actions.ts` â€” `createTask`, `updateTask`, `deleteTask`, `addTaskUpdate`. Diffs every field, writes audit_log on each change, redirects after.
-- `app/capture/actions.ts` â€” quick-capture submit.
-- `app/meeting/actions.ts` â€” bulk-create from extracted tasks.
-- `app/outbox/actions.ts` â€” markSent / dispatch.
+- `app/task/actions.ts` — `createTask`, `updateTask`, `deleteTask`, `addTaskUpdate`. Diffs every field, writes audit_log on each change, redirects after.
+- `app/capture/actions.ts` — quick-capture submit (still used by the hub QuickCapture).
+- `app/meeting/actions.ts` — bulk-create from extracted tasks.
+- `app/outbox/actions.ts` — markSent / dispatch (records only until 5c).
+- `app/settings/actions.ts` — `saveSettings` writes the `v2.*` keys via `saveAppSettings()`.
+- `app/audit/actions.ts` — kept for per-task timeline edits.
 
 ## API routes ([src/app/api/](../src/app/api/))
 
@@ -49,4 +54,6 @@ metadata:
 | `/api/company-summary` | POST `{companyId}` | 5-7 sentence executive briefing for one company. 120-180 words, British English. 503 if no key. |
 | `/api/similar-tasks` | POST `{query, excludeId?}` | Up to 5 similar tasks by keyword overlap (no embeddings, no LLM). Used to flag duplicates on creation. |
 
-All Groq-backed routes degrade gracefully when `GROQ_API_KEY` is missing (`/draft-email`, `/ask`, `/company-summary` return 503; others fall back to rules or empty result). `/api/similar-tasks` is pure SQL and always works.
+All Groq-backed routes degrade gracefully when no key is available (`/draft-email`, `/ask`, `/company-summary` return 503; others fall back to rules or empty result). `/api/similar-tasks` is pure SQL and always works.
+
+**AI master switch:** the key is now resolved via `getGroqKey()` in `lib/settings.ts`, which is gated by the AI master switch in Settings. Turning AI off makes every route behave as "no key" → the app runs fully manually. This is the core "reduce AI-dependence" lever for V2.
