@@ -14,13 +14,18 @@ export async function GET(req: NextRequest) {
         r.companyName.toLowerCase().includes(q)
     );
   } else {
-    rows = rows.filter((r) => r.status !== "Completed" && r.status !== "Closed");
+    // Empty query → recent open tasks (launchpad), most recently touched first.
+    rows = rows
+      .filter((r) => r.status !== "Completed" && r.status !== "Closed")
+      .sort((a, b) => (b.lastUpdatedAt?.getTime() ?? 0) - (a.lastUpdatedAt?.getTime() ?? 0));
   }
-  const items = rows.slice(0, 12).map((r) => ({
+  const items = rows.slice(0, q ? 8 : 6).map((r) => ({
     code: r.code,
     label: r.actionItem,
     sub: r.companyName,
     href: `/task/${r.code}`,
+    status: r.status,
+    flag: r.flag,
   }));
   return NextResponse.json({ items });
 }

@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
@@ -12,7 +12,7 @@ type Ctx = { open: () => void; close: () => void };
 const CommandCtx = createContext<Ctx>({ open: () => {}, close: () => {} });
 export const useCommandPalette = () => useContext(CommandCtx);
 
-type SearchItem = { code: string; label: string; sub: string; href: string };
+type SearchItem = { code: string; label: string; sub: string; href: string; status: string; flag: string };
 
 type AIMode = null | "asking" | "answer" | "actionPreview" | "actionRunning" | "actionDone" | "actionError";
 
@@ -295,10 +295,35 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                     </div>
                   )}
 
+                  {/* Quick actions — launchpad (empty query only) */}
+                  {!trimmed && (
+                    <Command.Group
+                      heading="Quick actions"
+                      className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                    >
+                      <Command.Item
+                        value="__qa new task create"
+                        onSelect={() => go("/task/new")}
+                        className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                      >
+                        <Plus size={14} className="text-accent" />
+                        <span className="flex-1">New Task</span>
+                      </Command.Item>
+                      <Command.Item
+                        value="__qa capture quick"
+                        onSelect={() => go("/capture")}
+                        className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                      >
+                        <FilePlus2 size={14} className="text-accent" />
+                        <span className="flex-1">Quick Capture</span>
+                      </Command.Item>
+                    </Command.Group>
+                  )}
+
                   {/* Tasks (from server search) */}
                   {items.length > 0 && (
                     <Command.Group
-                      heading="Tasks"
+                      heading={trimmed ? "Tasks" : "Recent tasks"}
                       className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                     >
                       {items.map((it) => (
@@ -346,19 +371,21 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                     />
                   )}
 
-                  <Command.Group
-                    heading="Actions"
-                    className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
-                  >
-                    <Command.Item
-                      value="new task create"
-                      onSelect={() => go("/task/new")}
-                      className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                  {trimmed && (
+                    <Command.Group
+                      heading="Actions"
+                      className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                     >
-                      <Plus size={14} />
-                      <span>New Task</span>
-                    </Command.Item>
-                  </Command.Group>
+                      <Command.Item
+                        value="new task create"
+                        onSelect={() => go("/task/new")}
+                        className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                      >
+                        <Plus size={14} />
+                        <span>New Task</span>
+                      </Command.Item>
+                    </Command.Group>
+                  )}
                 </Command.List>
                 <div className="border-t border-border px-3 py-2 text-[10px] text-fg-subtle flex items-center gap-3">
                   <span><kbd className="font-mono">↑↓</kbd> navigate</span>
@@ -410,55 +437,54 @@ function SearchTaskRow({
     finally { setRunning(null); }
   }
 
+  const flagDanger = ["overdue", "escalate-now", "escalated", "stalled"].includes(item.flag);
+  const flagWarn = ["due-soon", "no-deadline", "aging"].includes(item.flag);
+  const dot = flagDanger ? "bg-danger" : flagWarn ? "bg-warn" : "bg-fg-subtle";
+
   return (
-    <div className="group/row px-2 py-2 rounded-lg flex flex-col gap-1 text-sm aria-selected:bg-bg-muted">
+    <div className="rounded-lg flex flex-col gap-1">
       <Command.Item
         value={`${item.code} ${item.label} ${item.sub}`}
         onSelect={onOpen}
-        className="flex items-center gap-3 cursor-pointer w-full"
+        className="group/row px-2 py-2 rounded-lg flex items-center gap-2.5 cursor-pointer text-sm aria-selected:bg-bg-muted"
       >
-        <span className="font-mono text-xs text-fg-muted w-20 shrink-0">{item.code}</span>
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+        <span className="font-mono text-xs text-fg-muted w-[68px] shrink-0">{item.code}</span>
         <span className="flex-1 truncate">{item.label}</span>
-        <span className="text-xs text-fg-subtle">{item.sub}</span>
+        <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{item.status}</span>
+        <span className="text-xs text-fg-subtle shrink-0 max-w-[110px] truncate hidden md:inline">{item.sub}</span>
+        {/* Actions — revealed on hover / keyboard highlight */}
+        <span className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/row:opacity-100 group-data-[selected=true]/row:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); runCmd(`mark ${item.code} as completed`, "complete", item.href); }}
+            disabled={!!running}
+            className="inline-flex items-center justify-center w-6 h-6 rounded-md text-fg-muted hover:text-success hover:bg-bg-elev transition-colors disabled:opacity-50"
+            title="Mark complete"
+          >
+            {running === "complete" ? <Loader2 size={12} className="animate-spin" /> : done === "complete" ? <Check size={12} className="text-success" /> : <CheckCircle2 size={13} />}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); runCmd(`escalate ${item.code}`, "escalate", item.href); }}
+            disabled={!!running}
+            className="inline-flex items-center justify-center w-6 h-6 rounded-md text-fg-muted hover:text-danger hover:bg-bg-elev transition-colors disabled:opacity-50"
+            title="Escalate"
+          >
+            {running === "escalate" ? <Loader2 size={12} className="animate-spin" /> : done === "escalate" ? <Check size={12} className="text-danger" /> : <AlertOctagon size={13} />}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowUpdate(s => !s); }}
+            className="inline-flex items-center justify-center w-6 h-6 rounded-md text-fg-muted hover:text-accent hover:bg-bg-elev transition-colors"
+            title="Add update"
+          >
+            <MessageSquarePlus size={13} />
+          </button>
+        </span>
       </Command.Item>
-      <div className="flex items-center gap-1 pl-20 opacity-60 group-hover/row:opacity-100 transition-opacity">
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onOpen(); }}
-          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
-          title="Open"
-        >
-          Open
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); runCmd(`mark ${item.code} as completed`, "complete", item.href); }}
-          disabled={!!running}
-          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-success transition-colors px-1.5 py-0.5 rounded disabled:opacity-50"
-          title="Mark complete"
-        >
-          {running === "complete" ? <Loader2 size={10} className="animate-spin" /> : done === "complete" ? <Check size={10} className="text-success" /> : "Done"}
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); runCmd(`escalate ${item.code}`, "escalate", item.href); }}
-          disabled={!!running}
-          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-danger transition-colors px-1.5 py-0.5 rounded disabled:opacity-50"
-          title="Escalate"
-        >
-          {running === "escalate" ? <Loader2 size={10} className="animate-spin" /> : done === "escalate" ? <Check size={10} className="text-danger" /> : "Escalate"}
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setShowUpdate(s => !s); }}
-          className="inline-flex items-center gap-1 text-[10px] text-fg-muted hover:text-accent transition-colors px-1.5 py-0.5 rounded"
-          title="Add update"
-        >
-          Update
-        </button>
-      </div>
       {showUpdate && (
-        <div className="flex items-center gap-1 pl-20" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1 pl-[88px] pb-1" onClick={(e) => e.stopPropagation()}>
           <input
             value={updateBody}
             onChange={(e) => setUpdateBody(e.target.value)}
