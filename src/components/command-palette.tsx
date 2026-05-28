@@ -184,16 +184,16 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
               className="relative w-full max-w-xl vibrancy-strong rounded-2xl shadow-lg overflow-hidden"
             >
               <Command shouldFilter={true} loop>
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-                  <Search size={14} className="text-fg-subtle" />
+                <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-border">
+                  <Search size={16} className="text-fg-subtle shrink-0" />
                   <Command.Input
                     autoFocus
                     value={query}
                     onValueChange={setQuery}
                     placeholder="Search tasks or jump to a page…"
-                    className="flex-1 bg-transparent border-0 text-sm focus:outline-none focus:ring-0 placeholder:text-fg-subtle"
+                    className="flex-1 w-full min-w-0 !bg-transparent !border-0 !rounded-none !shadow-none text-[15px] leading-6 focus:outline-none focus:!shadow-none focus:!ring-0 placeholder:text-fg-subtle"
                   />
-                  <kbd className="text-[10px] font-mono text-fg-subtle border border-border rounded-md px-1.5 py-0.5">
+                  <kbd className="shrink-0 text-[10px] font-mono text-fg-subtle border border-border rounded-md px-1.5 py-0.5">
                     ESC
                   </kbd>
                 </div>
