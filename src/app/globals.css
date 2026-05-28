@@ -23,7 +23,7 @@
 
   /* Vibrancy fill (used behind backdrop-blur) */
   --vibrancy:        0 0% 100% / 0.62;
-  --vibrancy-strong: 0 0% 100% / 0.78;
+  --vibrancy-strong: 0 0% 100% / 0.92;
 
   /* Text */
   --fg:        240 10% 10%;
@@ -71,7 +71,7 @@
   --bg-overlay: 240 8% 13%;
 
   --vibrancy:        240 8% 12% / 0.62;
-  --vibrancy-strong: 240 8% 12% / 0.78;
+  --vibrancy-strong: 240 8% 12% / 0.92;
 
   --fg:        0 0% 98%;
   --fg-muted:  240 5% 68%;
