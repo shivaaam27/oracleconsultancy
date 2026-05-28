@@ -6,7 +6,6 @@ import {
   Send,
   History,
   Settings,
-  AlertOctagon,
   NotebookPen,
   type LucideIcon,
 } from "lucide-react";
@@ -23,7 +22,6 @@ export const NAV_ROUTES: NavRoute[] = [
   // Hub — the unified workspace (Overview + Companies + Tasks in one place)
   { id: "hub",         href: "/",            label: "Hub",        icon: LayoutDashboard },
   { id: "meeting",     href: "/meeting",     label: "Meeting",    icon: NotebookPen },
-  { id: "escalations", href: "/escalations", label: "Escalations",icon: AlertOctagon },
   { id: "people",      href: "/people",      label: "People",     icon: Users },
   { id: "outbox",      href: "/outbox",      label: "Outbox",     icon: Send },
   { id: "audit",       href: "/audit",       label: "Audit",      icon: History },

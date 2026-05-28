@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { TaskDrawerLink } from "@/components/task-drawer-link";
 import { cn } from "@/lib/cn";
-import { AlertOctagon, History, ExternalLink } from "lucide-react";
+import { AlertOctagon, History, ChevronDown, ChevronUp } from "lucide-react";
 
 export type AttnItem = {
   code: string;
@@ -12,6 +11,7 @@ export type AttnItem = {
   companyName: string;
   status: string;
   flag: string;
+  priority: string;
   deadlineTs: number | null;
   updatedTs: number | null;
   latestUpdate: string | null;
@@ -102,6 +102,27 @@ function Card({ t, mode }: { t: AttnItem; mode: Mode }) {
   );
 }
 
+const PREVIEW_COUNT = 6;
+
+function severityCounts(items: AttnItem[]) {
+  return {
+    overdue: items.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length,
+    escalated: items.filter((t) => t.flag === "escalated" || t.status === "Escalated").length,
+    critical: items.filter((t) => t.priority === "Critical").length,
+  };
+}
+
+function groupByCompany(items: AttnItem[]): [string, AttnItem[]][] {
+  const map = new Map<string, AttnItem[]>();
+  for (const t of items) {
+    const list = map.get(t.companyName) || [];
+    list.push(t);
+    map.set(t.companyName, list);
+  }
+  // Companies with the most alerts first.
+  return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
+}
+
 export function AttentionPanel({
   needsAttention,
   recentUpdates,
@@ -110,11 +131,14 @@ export function AttentionPanel({
   recentUpdates: AttnItem[];
 }) {
   const [mode, setMode] = useState<Mode>("attention");
-  const items = mode === "attention" ? needsAttention : recentUpdates;
+  const [expanded, setExpanded] = useState(false);
+
+  const counts = severityCounts(needsAttention);
+  const canExpand = mode === "attention" && needsAttention.length > PREVIEW_COUNT;
 
   return (
     <section className="rounded-2xl border border-border bg-bg-subtle p-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-bg-muted/60 border border-border">
           <button
             onClick={() => setMode("attention")}
@@ -136,23 +160,62 @@ export function AttentionPanel({
             <History size={13} /> Recent Updates
           </button>
         </div>
-        {mode === "attention" && (
-          <Link href="/escalations" className="text-xs text-fg-muted hover:text-accent inline-flex items-center gap-1">
-            View all <ExternalLink size={10} />
-          </Link>
+        {mode === "attention" && needsAttention.length > 0 && (
+          <div className="flex items-center gap-2 text-[11px]">
+            {counts.overdue > 0 && <span className="text-red-600 dark:text-red-400">{counts.overdue} overdue</span>}
+            {counts.escalated > 0 && <span className="text-red-600 dark:text-red-400">{counts.escalated} escalated</span>}
+            {counts.critical > 0 && <span className="text-amber-600 dark:text-amber-400">{counts.critical} critical</span>}
+          </div>
         )}
       </div>
 
-      {items.length === 0 ? (
-        <div className="py-6 text-center text-sm text-fg-muted">
-          {mode === "attention" ? "Nothing needs attention right now 🎉" : "No recent updates."}
+      {mode === "recent" ? (
+        recentUpdates.length === 0 ? (
+          <div className="py-6 text-center text-sm text-fg-muted">No recent updates.</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {recentUpdates.map((t) => (
+              <Card key={`recent-${t.code}`} t={t} mode="recent" />
+            ))}
+          </div>
+        )
+      ) : needsAttention.length === 0 ? (
+        <div className="py-6 text-center text-sm text-fg-muted">Nothing needs attention right now 🎉</div>
+      ) : expanded ? (
+        <div className="space-y-4">
+          {groupByCompany(needsAttention).map(([company, list]) => (
+            <div key={company} className="space-y-2">
+              <div className="flex items-center gap-2 px-0.5">
+                <span className="text-xs font-medium text-fg">{company}</span>
+                <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted">{list.length}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {list.map((t) => (
+                  <Card key={`attn-${t.code}`} t={t} mode="attention" />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {items.map((t) => (
-            <Card key={`${mode}-${t.code}`} t={t} mode={mode} />
+          {needsAttention.slice(0, PREVIEW_COUNT).map((t) => (
+            <Card key={`attn-${t.code}`} t={t} mode="attention" />
           ))}
         </div>
+      )}
+
+      {canExpand && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full inline-flex items-center justify-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors pt-1"
+        >
+          {expanded ? (
+            <><ChevronUp size={12} /> Show less</>
+          ) : (
+            <><ChevronDown size={12} /> Show all {needsAttention.length} · grouped by company</>
+          )}
+        </button>
       )}
     </section>
   );

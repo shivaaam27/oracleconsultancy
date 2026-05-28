@@ -42,16 +42,21 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
     critical: rows.filter((r) => r.priority === "Critical" && isOpenRow(r)).length,
   };
 
+  const priorityOrder = ["Critical", "High", "Medium", "Low"];
   const needsAttention = rows
     .filter((r) =>
-      r.flag === "escalate-now" || r.flag === "overdue" || r.status === "Escalated" ||
-      r.escalation === "Yes" || (r.priority === "Critical" && r.flag !== "on-track" && isOpenRow(r))
+      r.flag === "escalate-now" || r.flag === "overdue" || r.flag === "escalated" ||
+      r.flag === "stalled" || r.status === "Escalated" || r.escalation === "Yes" ||
+      (r.priority === "Critical" && r.flag !== "on-track" && isOpenRow(r))
     )
     .sort((a, b) => {
-      const order = ["escalate-now", "overdue", "escalated", "stalled", "due-soon", "aging", "no-deadline", "on-track", "closed"];
-      return (order.indexOf(a.flag) ?? order.length) - (order.indexOf(b.flag) ?? order.length);
-    })
-    .slice(0, 6);
+      const pA = priorityOrder.indexOf(a.priority);
+      const pB = priorityOrder.indexOf(b.priority);
+      if (pA !== pB) return pA - pB;
+      const dA = typeof a.daysToDeadline === "number" ? a.daysToDeadline : 9999;
+      const dB = typeof b.daysToDeadline === "number" ? b.daysToDeadline : 9999;
+      return dA - dB;
+    });
 
   const toAttn = (r: TaskRow): AttnItem => ({
     code: r.code,
@@ -59,6 +64,7 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
     companyName: r.companyName,
     status: r.status,
     flag: r.flag,
+    priority: r.priority,
     deadlineTs: r.deadline ? r.deadline.getTime() : null,
     updatedTs: r.lastUpdatedAt ? r.lastUpdatedAt.getTime() : null,
     latestUpdate: r.latestUpdate,

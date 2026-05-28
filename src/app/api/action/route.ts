@@ -157,7 +157,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     await sb.from("tasks").update({ escalation: "Yes", status: "Escalated", last_updated_at: nowIso }).eq("id", t.id);
     await audit(t.id, t.code, t.company_id, "ESCALATION", "escalation", t.escalation, "Yes", "Escalated via command");
-    revalidatePath("/escalations"); revalidatePath(`/task/${t.code}`);
+    revalidatePath("/"); revalidatePath(`/task/${t.code}`);
     return { ok: true, message: `🚨 Escalated ${t.code}`, redirect: `/task/${t.code}` };
   }
 
@@ -264,7 +264,7 @@ export async function POST(req: NextRequest) {
         if (c) redirect = `/companies/${c.id}`;
         else return NextResponse.json({ intent, ok: false, message: `Company "${q}" not found` });
       } else if (t === "registry") redirect = "/registry";
-      else if (t === "escalations") redirect = "/escalations";
+      else if (t === "escalations") redirect = "/";
       else if (t === "meeting") redirect = "/meeting";
       else if (t === "outbox") redirect = "/outbox";
       else if (t === "audit") redirect = "/audit";

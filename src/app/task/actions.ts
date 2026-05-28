@@ -746,7 +746,6 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
     }
   }
 
-  revalidatePath("/escalations");
   revalidatePath("/");
   updateTag("tasks");
 
