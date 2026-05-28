@@ -6,7 +6,12 @@ import { parseMeetingNotes, bulkCreateTasks, type BulkTaskInput } from "@/app/me
 import { polishActionItem } from "@/lib/smart-parse";
 import type { MeetingTask } from "@/lib/meeting-parse";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { PromptBox } from "@/components/prompt-box";
+
+const fieldCls =
+  "w-full rounded-lg bg-bg-subtle border border-border/60 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-accent focus:bg-bg";
+const labelCls = "text-[11px] uppercase tracking-wide text-fg-subtle";
 
 const STATUSES   = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
 const PRIORITIES = ["Critical","High","Medium","Low"];
@@ -292,63 +297,70 @@ export function MeetingExtractor({ companies }: Props) {
                   </div>
 
                   {/* Expanded edit */}
+                  <AnimatePresence initial={false}>
                   {isExpanded && (
-                    <div className="border-t border-border px-3 pb-3 pt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <motion.div
+                      key="expand"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      className="overflow-hidden"
+                    >
+                    <div className="border-t border-border px-4 pb-4 pt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
                       <div className="space-y-1 col-span-2 sm:col-span-3">
-                        <label className="text-xs text-fg-muted">Company *</label>
+                        <label className={labelCls}>Company *</label>
                         <select
                           value={task.companyId}
                           onChange={e => updateTask(task.id, { companyId: Number(e.target.value) })}
-                          className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                          className={fieldCls}
                         >
                           <option value={0}>Select company…</option>
                           {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-fg-muted">Priority</label>
-                        <select value={task.priority} onChange={e => updateTask(task.id, { priority: e.target.value })}
-                          className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50">
+                        <label className={labelCls}>Priority</label>
+                        <select value={task.priority} onChange={e => updateTask(task.id, { priority: e.target.value })} className={fieldCls}>
                           {PRIORITIES.map(p => <option key={p}>{p}</option>)}
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-fg-muted">Status</label>
-                        <select value={task.status} onChange={e => updateTask(task.id, { status: e.target.value })}
-                          className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50">
+                        <label className={labelCls}>Status</label>
+                        <select value={task.status} onChange={e => updateTask(task.id, { status: e.target.value })} className={fieldCls}>
                           {STATUSES.map(s => <option key={s}>{s}</option>)}
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-fg-muted">Deadline</label>
+                        <label className={labelCls}>Deadline</label>
                         <input type="date" value={task.deadline || ""}
                           onChange={e => updateTask(task.id, { deadline: e.target.value || null, deadlineLabel: null })}
-                          className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50" />
+                          className={fieldCls} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-fg-muted">Category</label>
-                        <select value={task.category || ""} onChange={e => updateTask(task.id, { category: e.target.value || null })}
-                          className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50">
+                        <label className={labelCls}>Category</label>
+                        <select value={task.category || ""} onChange={e => updateTask(task.id, { category: e.target.value || null })} className={fieldCls}>
                           <option value="">—</option>
                           {CATEGORIES.map(c => <option key={c}>{c}</option>)}
                         </select>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-fg-muted">Assigned to</label>
+                        <label className={labelCls}>Assigned to</label>
                         <input type="text" value={task.assigneeNames.join(", ")}
                           onChange={e => updateTask(task.id, { assigneeNames: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
                           placeholder="comma-separated names"
-                          className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50" />
+                          className={fieldCls} />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs text-fg-muted">Escalation</label>
-                        <select value={task.escalation} onChange={e => updateTask(task.id, { escalation: e.target.value })}
-                          className="w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50">
+                        <label className={labelCls}>Escalation</label>
+                        <select value={task.escalation} onChange={e => updateTask(task.id, { escalation: e.target.value })} className={fieldCls}>
                           <option>No</option><option>Yes</option>
                         </select>
                       </div>
                     </div>
+                    </motion.div>
                   )}
+                  </AnimatePresence>
                 </div>
               );
             })}
