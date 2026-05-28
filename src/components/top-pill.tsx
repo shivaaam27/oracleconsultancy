@@ -206,7 +206,9 @@ export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
 
   // Highlight the browse button when the active page is not in the pinned set,
   // so users still get a hint of "where am I" when working on an unpinned route.
+  // Home ("/") is reached via the brand button, so it never counts as "unpinned".
   const hasActiveUnpinned = useMemo(() => {
+    if (pathname === "/") return false;
     return !pinnedRoutes.some((r) => isActive(pathname, r.href));
   }, [pinnedRoutes, pathname]);
 

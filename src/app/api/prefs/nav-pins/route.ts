@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
+import { DEFAULT_PINS } from "@/lib/nav";
 
 const KEY = "nav.pinned";
-const DEFAULT_PINS = ["capture", "digest", "outbox", "task", "people"];
 
 export const dynamic = "force-dynamic";
 
