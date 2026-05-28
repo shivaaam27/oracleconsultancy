@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { AskCOS } from "./ask-cos";
 
 // The COS brand mark — accent rounded square with a sparkle, matching the nav brand.
@@ -57,9 +58,9 @@ export function FloatingAssistant() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 12 }}
               transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
-              className="fixed z-50 origin-bottom sm:origin-bottom-right inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-24 sm:w-[380px]"
+              className="fixed z-[70] origin-bottom sm:origin-bottom-right inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-24 sm:w-[380px]"
             >
-              <div className="card flex flex-col overflow-hidden shadow-2xl ring-1 ring-border rounded-t-2xl sm:rounded-2xl rounded-b-none sm:rounded-b-2xl">
+              <div className="flex max-h-[calc(100svh-1rem)] flex-col overflow-hidden border border-border bg-[hsl(var(--bg-elev))] shadow-2xl rounded-t-2xl sm:max-h-[min(720px,calc(100vh-8rem))] sm:rounded-2xl rounded-b-none sm:rounded-b-2xl">
                 {/* Header */}
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border">
                   <div className="flex items-center gap-2">
@@ -92,7 +93,10 @@ export function FloatingAssistant() {
         onClick={() => setOpen(o => !o)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.92 }}
-        className="fixed right-5 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 inline-flex items-center justify-center h-14 w-14 rounded-full bg-accent text-accent-fg shadow-lg shadow-accent/25 ring-1 ring-black/5 hover:shadow-xl transition-shadow"
+        className={cn(
+          "fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] inline-flex items-center justify-center h-14 w-14 rounded-full bg-accent text-accent-fg shadow-lg shadow-accent/25 ring-1 ring-black/5 hover:shadow-xl transition-shadow sm:right-5 sm:bottom-[calc(1rem+env(safe-area-inset-bottom))]",
+          open && "hidden sm:inline-flex"
+        )}
       >
         <AnimatePresence mode="wait" initial={false}>
           {open ? (
