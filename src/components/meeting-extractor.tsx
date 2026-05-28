@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useCallback } from "react";
 import { Loader2, Sparkles, Trash2, CheckCircle2, Plus, ChevronDown, ChevronUp, CheckSquare, Square } from "lucide-react";
 import { parseMeetingNotes, bulkCreateTasks, type BulkTaskInput } from "@/app/meeting/actions";
 import { polishActionItem } from "@/lib/smart-parse";
@@ -8,6 +8,7 @@ import type { MeetingTask } from "@/lib/meeting-parse";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { PromptBox } from "@/components/prompt-box";
+import { VoiceButton } from "@/components/voice-button";
 
 const fieldCls =
   "w-full rounded-lg bg-bg-subtle border border-border/60 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-accent focus:bg-bg";
@@ -40,6 +41,13 @@ type Props = { companies: { id: number; name: string }[] };
 export function MeetingExtractor({ companies }: Props) {
   const router = useRouter();
   const [notes, setNotes] = useState("");
+  const notesRef = useRef("");
+  const updateNotes = useCallback((v: string) => { notesRef.current = v; setNotes(v); }, []);
+  const appendNotes = useCallback((chunk: string) => {
+    const next = notesRef.current ? `${notesRef.current} ${chunk}` : chunk;
+    notesRef.current = next;
+    setNotes(next);
+  }, []);
   const [defaultCompany, setDefaultCompany] = useState<number>(0);
   const [tasks, setTasks] = useState<EditableTask[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -96,7 +104,7 @@ export function MeetingExtractor({ companies }: Props) {
       setSaveFailures(failures.map(f => ({ actionItem: f.actionItem, reason: f.reason })));
       if (failures.length === 0) {
         setTasks([]);
-        setNotes("");
+        updateNotes("");
       } else {
         const failedKeys = new Set(failures.map(f => f.actionItem));
         setTasks(prev => prev.filter(t => failedKeys.has(t.actionItem)));
@@ -127,7 +135,7 @@ export function MeetingExtractor({ companies }: Props) {
         </label>
         <PromptBox
           value={notes}
-          onChange={setNotes}
+          onChange={updateNotes}
           onSubmit={handleExtract}
           disabled={isParsing}
           submitOnEnter={false}
@@ -148,14 +156,17 @@ export function MeetingExtractor({ companies }: Props) {
             </div>
           }
           actions={
-            <button
-              onClick={handleExtract}
-              disabled={!notes.trim() || isParsing}
-              className="flex items-center gap-1.5 px-3.5 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-            >
-              {isParsing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-              {isParsing ? "Extracting…" : "Extract Action Items"}
-            </button>
+            <>
+              <VoiceButton disabled={isParsing} onResult={appendNotes} />
+              <button
+                onClick={handleExtract}
+                disabled={!notes.trim() || isParsing}
+                className="flex items-center gap-1.5 px-3.5 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+              >
+                {isParsing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                {isParsing ? "Extracting…" : "Extract Action Items"}
+              </button>
+            </>
           }
         />
       </div>

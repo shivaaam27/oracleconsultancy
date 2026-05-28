@@ -8,6 +8,7 @@ import { createTask } from "@/app/task/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
 import { polishActionItem } from "@/lib/smart-parse";
 import { PromptBox } from "./prompt-box";
+import { VoiceButton } from "./voice-button";
 
 const STATUSES = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
 const PRIORITIES = ["Critical","High","Medium","Low"];
@@ -25,7 +26,21 @@ export function QuickCapture({ companies, embedded = false }: Props) {
   const [saved, setSaved] = useState(false);
   const [polishState, setPolishState] = useState<"idle"|"loading"|"done">("idle");
   const [polishSource, setPolishSource] = useState<"ai"|"rules"|null>(null);
+  const [interim, setInterim] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  const rawRef = useRef("");
+
+  // Keep a ref in sync so dictation callbacks always see the latest text.
+  const updateRaw = useCallback((v: string) => {
+    rawRef.current = v;
+    setRaw(v);
+  }, []);
+
+  const appendDictation = useCallback((chunk: string) => {
+    const next = rawRef.current ? `${rawRef.current} ${chunk}` : chunk;
+    rawRef.current = next;
+    setRaw(next);
+  }, []);
 
   // Editable fields after parse
   const [companyId, setCompanyId] = useState("");
@@ -37,15 +52,16 @@ export function QuickCapture({ companies, embedded = false }: Props) {
   const [category, setCategory] = useState("");
   const [escalation, setEscalation] = useState("No");
 
-  function handleParse() {
-    if (!raw.trim()) return;
+  function handleParse(text?: string) {
+    const source = (text ?? raw).trim();
+    if (!source) return;
     setError(null);
     startParse(async () => {
       try {
-        const result = await parseRawCapture(raw);
+        const result = await parseRawCapture(source);
         setParsed(result);
         setCompanyId(result.companyId ? String(result.companyId) : "");
-        setActionItem(result.actionItem || raw.trim());
+        setActionItem(result.actionItem || source);
         setPriority(result.priority);
         setStatus(result.status);
         setDeadline(result.deadline ? result.deadline.toISOString().slice(0, 10) : "");
@@ -56,12 +72,12 @@ export function QuickCapture({ companies, embedded = false }: Props) {
         console.error("Parse error:", err);
         const fallback = {
           companyId: null, companyName: null,
-          actionItem: raw.trim(), priority: "Low", status: "Not Started",
+          actionItem: source, priority: "Low", status: "Not Started",
           deadline: null, deadlineLabel: null, assigneeNames: [],
-          category: null, escalation: "No", risk: null, rawInput: raw,
+          category: null, escalation: "No", risk: null, rawInput: source,
         };
         setParsed(fallback);
-        setActionItem(raw.trim());
+        setActionItem(source);
         setPriority("Low");
         setStatus("Not Started");
         setDeadline("");
@@ -74,7 +90,8 @@ export function QuickCapture({ companies, embedded = false }: Props) {
   }
 
   function handleClear() {
-    setRaw("");
+    updateRaw("");
+    setInterim("");
     setParsed(null);
     setError(null);
   }
@@ -98,7 +115,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
         fd.set("escalation", escalation);
         await createTask(fd);
         setSaved(true);
-        setRaw("");
+        updateRaw("");
         setParsed(null);
         router.refresh();
         setTimeout(() => setSaved(false), 3000);
@@ -136,13 +153,24 @@ export function QuickCapture({ companies, embedded = false }: Props) {
       {/* Input */}
       <PromptBox
         value={raw}
-        onChange={setRaw}
-        onSubmit={handleParse}
+        onChange={updateRaw}
+        onSubmit={() => handleParse()}
         disabled={isParsing}
         minHeight={72}
-        placeholder={'e.g. "dar spices packaging delay shivam urgent end of month"'}
+        placeholder={'Type or speak — e.g. "dar spices packaging delay shivam urgent end of month"'}
+        hint={interim ? <span className="text-accent italic">🎙 {interim}…</span> : undefined}
         actions={
           <>
+            <VoiceButton
+              disabled={isParsing}
+              onResult={appendDictation}
+              onInterim={setInterim}
+              onStop={() => {
+                setInterim("");
+                // Hand the dictated text straight to the AI parser.
+                if (rawRef.current.trim()) handleParse(rawRef.current);
+              }}
+            />
             {raw && (
               <button
                 type="button"
@@ -155,7 +183,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
             )}
             <button
               type="button"
-              onClick={handleParse}
+              onClick={() => handleParse()}
               disabled={!raw.trim() || isParsing}
               className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
             >
@@ -167,7 +195,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
       />
 
       <p className="text-xs text-fg-muted -mt-1">
-        Tip: mention company name, person name, deadline (e.g. "end of month"), priority (urgent/high/critical), and status
+        Tip: tap 🎙 to dictate, or type. Mention company name, person name, deadline (e.g. "end of month"), priority (urgent/high/critical), and status — the AI structures it for you.
       </p>
 
       {/* Parsed preview */}
