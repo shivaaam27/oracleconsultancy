@@ -13,6 +13,7 @@ type Props = {
   actions?: ReactNode;
   /** Optional bottom-left node (hint, status). */
   hint?: ReactNode;
+  minHeight?: number;
   maxHeight?: number;
   autoFocus?: boolean;
   className?: string;
@@ -26,19 +27,20 @@ export function PromptBox({
   disabled = false,
   actions,
   hint,
+  minHeight = 0,
   maxHeight = 200,
   autoFocus = false,
   className,
 }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-grow up to maxHeight, then scroll.
+  // Auto-grow between minHeight and maxHeight, then scroll.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-  }, [value, maxHeight]);
+    el.style.height = `${Math.max(minHeight, Math.min(el.scrollHeight, maxHeight))}px`;
+  }, [value, minHeight, maxHeight]);
 
   return (
     <div
@@ -62,6 +64,7 @@ export function PromptBox({
         placeholder={placeholder}
         disabled={disabled}
         rows={1}
+        style={minHeight ? { minHeight } : undefined}
         autoFocus={autoFocus}
         className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm leading-relaxed outline-none placeholder:text-fg-muted disabled:cursor-not-allowed"
       />

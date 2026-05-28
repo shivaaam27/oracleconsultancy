@@ -13,9 +13,20 @@ export function CosBar({ companies }: Props) {
   const [mode, setMode] = useState<Mode>("ask");
 
   return (
-    <div className="card overflow-hidden">
-      {/* Toggle header */}
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-bg-subtle">
+    <section className="space-y-2">
+      {/* Section identity */}
+      <div className="flex items-center gap-2 px-1">
+        <Bot size={15} className="text-accent" />
+        <h2 className="text-sm font-semibold">Ask COS</h2>
+        <span className="text-xs text-fg-muted">— your command-centre assistant</span>
+      </div>
+
+      <div className="card overflow-hidden shadow-md ring-1 ring-border">
+        {/* Accent top edge */}
+        <div className="h-0.5 bg-gradient-to-r from-accent via-accent/60 to-accent/20" />
+
+        {/* Toggle header */}
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border bg-bg-subtle">
         <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-bg-muted/60 border border-border">
           <button
             onClick={() => setMode("ask")}
@@ -47,12 +58,13 @@ export function CosBar({ companies }: Props) {
         </span>
       </div>
 
-      {/* Body — only the active mode is mounted */}
-      {mode === "ask" ? (
-        <AskCOS embedded />
-      ) : (
-        <QuickCapture companies={companies} embedded />
-      )}
-    </div>
+        {/* Body — only the active mode is mounted */}
+        {mode === "ask" ? (
+          <AskCOS embedded />
+        ) : (
+          <QuickCapture companies={companies} embedded />
+        )}
+      </div>
+    </section>
   );
 }

@@ -139,6 +139,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
         onChange={setRaw}
         onSubmit={handleParse}
         disabled={isParsing}
+        minHeight={72}
         placeholder={'e.g. "dar spices packaging delay shivam urgent end of month"'}
         actions={
           <>
