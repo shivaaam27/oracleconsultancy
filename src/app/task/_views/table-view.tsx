@@ -43,7 +43,7 @@ export function TableView({ rows }: { rows: TaskRow[] }) {
     <>
       <OrderRegistrar codes={rows.map((r) => r.code)} />
       <TableShell>
-      <table className="w-full">
+      <table className="w-full min-w-[760px]">
         <thead>
           <tr>
             <Th> </Th>

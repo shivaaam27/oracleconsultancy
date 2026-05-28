@@ -22,6 +22,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Lock zoom so focusing a small input doesn't trigger iOS Safari's auto-zoom
+  // (and the resulting layout misalignment). The app behaves like a native shell.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },

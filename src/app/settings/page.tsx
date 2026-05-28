@@ -1,8 +1,9 @@
 import { Card, PageHeader, Button, FieldLabel, Input } from "@/components/ui";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
+import { NavSettings } from "@/components/nav-settings";
 import { getAppSettings } from "@/lib/settings";
 import { saveSettings } from "./actions";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +118,20 @@ export default async function SettingsPage({
           <Button type="submit"><Save size={13} /> Save changes</Button>
         </div>
       </form>
+
+      {/* Navigation — lives outside the form; saves instantly on change */}
+      <Card className="p-5 space-y-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <LayoutGrid size={14} className="text-accent" /> Navigation
+          </h2>
+          <p className="text-xs text-fg-muted mt-1">
+            Choose which buttons appear in the bottom bar and what order they sit in. Changes save
+            automatically and apply the next time the bar loads.
+          </p>
+        </div>
+        <NavSettings />
+      </Card>
     </div>
   );
 }

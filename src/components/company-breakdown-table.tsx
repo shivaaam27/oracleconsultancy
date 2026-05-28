@@ -28,7 +28,7 @@ export function CompanyBreakdownTable({
 
   return (
     <TableShell>
-      <table className="w-full">
+      <table className="w-full min-w-[560px]">
         <thead>
           <tr>
             <Th>Company</Th>

@@ -180,7 +180,7 @@ export async function CompaniesSection({ coId }: { coId: number | null }) {
 function CompanyOpenTasksTable({ rows }: { rows: TaskRow[] }) {
   return (
     <TableShell>
-      <table className="w-full">
+      <table className="w-full min-w-[640px]">
         <thead>
           <tr>
             <Th>ID</Th>

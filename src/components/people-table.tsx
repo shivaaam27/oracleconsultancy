@@ -157,7 +157,7 @@ export function PeopleTable({ people, companies }: {
 
       {/* Table */}
       <TableShell>
-        <table className="w-full">
+        <table className="w-full min-w-[680px]">
           <thead>
             <tr>
               <SortableTh label="Name" active={sortKey === "name"} dir={sortDir} onClick={() => toggleSort("name")} />

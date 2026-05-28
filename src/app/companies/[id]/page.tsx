@@ -162,7 +162,7 @@ function CompanyTaskTable({
 }) {
   return (
     <TableShell>
-      <table className="w-full">
+      <table className="w-full min-w-[640px]">
         <thead>
           <tr>
             <Th>ID</Th>
