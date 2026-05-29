@@ -3,7 +3,8 @@
 import { cn } from "@/lib/cn";
 import { Search, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { ComponentProps, ReactNode } from "react";
+import { useId, type ComponentProps, type ReactNode } from "react";
+import { springSnappy } from "@/lib/motion";
 
 /* ═══════════════════════════════════════════════════════════════════════
  * macOS design-system primitives
@@ -24,6 +25,7 @@ export function Segmented<T extends string>({
   className?: string;
 }) {
   const pad = size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs";
+  const groupId = useId();
   return (
     <div role="tablist" className={cn("inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-bg-muted/70 border border-border", className)}>
       {options.map((o) => {
@@ -36,12 +38,19 @@ export function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(o.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md transition-colors whitespace-nowrap",
+              "relative inline-flex items-center gap-1.5 rounded-md transition-colors whitespace-nowrap",
               pad,
-              active ? "bg-bg-elev text-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg"
+              active ? "text-fg font-medium" : "text-fg-muted hover:text-fg"
             )}
           >
-            {o.icon}{o.label}
+            {active && (
+              <motion.span
+                layoutId={`segmented-${groupId}`}
+                transition={springSnappy}
+                className="absolute inset-0 rounded-md bg-bg-elev shadow-sm glass-rim"
+              />
+            )}
+            <span className="relative z-10 inline-flex items-center gap-1.5">{o.icon}{o.label}</span>
           </button>
         );
       })}

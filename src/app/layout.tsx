@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
+import { MotionConfig } from "framer-motion";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPill } from "@/components/top-pill";
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ThemeProvider>
+          <MotionConfig reducedMotion="user">
           <ToastProvider>
             <UndoBanner />
             <CommandPaletteProvider>
@@ -87,6 +89,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Suspense>
             </CommandPaletteProvider>
           </ToastProvider>
+          </MotionConfig>
         </ThemeProvider>
       </body>
     </html>
