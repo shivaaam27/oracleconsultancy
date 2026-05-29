@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPill } from "@/components/top-pill";
 import { SidebarServer } from "@/components/sidebar-server";
+import { MobileSidebarServer } from "@/components/mobile-sidebar-server";
 import { CompanyScopeServer } from "@/components/company-scope-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
@@ -69,6 +70,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </main>
               </div>
               <TopPill scopeSlot={<CompanyScopeServer />} />
+              <Suspense>
+                <MobileSidebarServer />
+              </Suspense>
               <Suspense>
                 <TaskDrawer />
               </Suspense>

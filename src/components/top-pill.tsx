@@ -4,12 +4,13 @@ import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Sparkles, Search, LayoutGrid, PinOff, Pin } from "lucide-react";
+import { Sparkles, Search, LayoutGrid, PinOff, Pin, Menu } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID, type NavRoute } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
+import { openMobileNav } from "./mobile-sidebar";
 
 /* --------------------------------------------------------------------- */
 
@@ -220,10 +221,21 @@ export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
         className="pointer-events-auto vibrancy-strong rounded-full shadow-pill flex items-center gap-1 px-2 h-12 max-w-[min(96vw,920px)] w-auto"
       >
+        {/* Menu — opens the full nav drawer (companies, all pages) */}
+        <button
+          type="button"
+          onClick={openMobileNav}
+          aria-label="Open navigation"
+          title="Menu"
+          className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+        >
+          <Menu size={17} />
+        </button>
+
         {/* Brand */}
         <Link
           href="/"
-          className="flex items-center gap-1.5 pl-2 pr-2.5 h-9 rounded-full hover:bg-bg-muted/60 transition-colors shrink-0"
+          className="flex items-center gap-1.5 pl-1 pr-2.5 h-9 rounded-full hover:bg-bg-muted/60 transition-colors shrink-0"
           aria-label="Dashboard"
           title="COS · Dashboard"
         >

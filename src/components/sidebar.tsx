@@ -27,13 +27,14 @@ const NAV_BELOW = [
 ];
 
 function Item({
-  href, icon: Icon, label, active, indent,
+  href, icon: Icon, label, active, indent, onNavigate,
 }: {
-  href: string; icon?: React.ComponentType<{ size?: number; className?: string }>; label: string; active: boolean; indent?: boolean;
+  href: string; icon?: React.ComponentType<{ size?: number; className?: string }>; label: string; active: boolean; indent?: boolean; onNavigate?: () => void;
 }) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className={cn(
         "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors",
         indent && "pl-8",
@@ -46,7 +47,8 @@ function Item({
   );
 }
 
-export function Sidebar({ companies }: { companies: Company[] }) {
+/** The shared sidebar body — used by the desktop rail and the mobile drawer. */
+export function SidebarContent({ companies, onNavigate }: { companies: Company[]; onNavigate?: () => void }) {
   const pathname = usePathname() || "/";
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab");
@@ -56,9 +58,9 @@ export function Sidebar({ companies }: { companies: Company[] }) {
   const onCompaniesIndex = pathname === "/companies" || (pathname === "/" && tab === "companies");
 
   return (
-    <aside className="hidden md:flex flex-col w-56 lg:w-60 shrink-0 border-r border-border bg-bg-subtle/40 md:h-[100svh] md:sticky md:top-0">
+    <div className="flex flex-col h-full">
       {/* Brand */}
-      <Link href="/" className="flex items-center gap-2 px-3.5 h-12 border-b border-border shrink-0">
+      <Link href="/" onClick={onNavigate} className="flex items-center gap-2 px-3.5 h-12 border-b border-border shrink-0">
         <span className="w-6 h-6 rounded-md bg-accent flex items-center justify-center">
           <Sparkles size={13} className="text-accent-fg" />
         </span>
@@ -68,10 +70,9 @@ export function Sidebar({ companies }: { companies: Company[] }) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
         {NAV.map((n) => (
-          <Item key={n.label} href={n.href} icon={n.icon} label={n.label} active={n.match(pathname, tab)} />
+          <Item key={n.label} href={n.href} icon={n.icon} label={n.label} active={n.match(pathname, tab)} onNavigate={onNavigate} />
         ))}
 
-        {/* Companies (expandable) */}
         <div className="pt-2">
           <div className="flex items-center">
             <button
@@ -82,20 +83,14 @@ export function Sidebar({ companies }: { companies: Company[] }) {
               <ChevronRight size={12} className={cn("transition-transform", companiesOpen && "rotate-90")} />
               Companies
             </button>
-            <Link href="/companies" className={cn("ml-auto mr-1 text-[11px] px-1.5 py-0.5 rounded transition-colors", onCompaniesIndex ? "text-accent" : "text-fg-subtle hover:text-fg")}>
+            <Link href="/companies" onClick={onNavigate} className={cn("ml-auto mr-1 text-[11px] px-1.5 py-0.5 rounded transition-colors", onCompaniesIndex ? "text-accent" : "text-fg-subtle hover:text-fg")}>
               All
             </Link>
           </div>
           {companiesOpen && (
             <div className="mt-0.5 space-y-0.5">
               {companies.map((c) => (
-                <Item
-                  key={c.id}
-                  href={`/companies/${c.id}`}
-                  label={c.name}
-                  indent
-                  active={pathname === `/companies/${c.id}`}
-                />
+                <Item key={c.id} href={`/companies/${c.id}`} label={c.name} indent active={pathname === `/companies/${c.id}`} onNavigate={onNavigate} />
               ))}
             </div>
           )}
@@ -103,7 +98,7 @@ export function Sidebar({ companies }: { companies: Company[] }) {
 
         <div className="pt-2 mt-2 border-t border-border space-y-0.5">
           {NAV_BELOW.map((n) => (
-            <Item key={n.label} href={n.href} icon={n.icon} label={n.label} active={pathname === n.href || pathname.startsWith(n.href + "/")} />
+            <Item key={n.label} href={n.href} icon={n.icon} label={n.label} active={pathname === n.href || pathname.startsWith(n.href + "/")} onNavigate={onNavigate} />
           ))}
         </div>
       </nav>
@@ -111,7 +106,7 @@ export function Sidebar({ companies }: { companies: Company[] }) {
       {/* Footer: search + theme */}
       <div className="border-t border-border p-2 flex items-center gap-1 shrink-0">
         <button
-          onClick={openPalette}
+          onClick={() => { onNavigate?.(); openPalette(); }}
           className="flex-1 inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
         >
           <Search size={15} /> Search
@@ -119,6 +114,15 @@ export function Sidebar({ companies }: { companies: Company[] }) {
         </button>
         <ThemeToggle />
       </div>
+    </div>
+  );
+}
+
+/** Desktop sidebar rail (md+). */
+export function Sidebar({ companies }: { companies: Company[] }) {
+  return (
+    <aside className="hidden md:block w-56 lg:w-60 shrink-0 border-r border-border bg-bg-subtle/40 md:h-[100svh] md:sticky md:top-0">
+      <SidebarContent companies={companies} />
     </aside>
   );
 }
