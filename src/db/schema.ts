@@ -104,6 +104,9 @@ export const meetings = pgTable("meetings", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
+  // "meeting" (default) or "note" — lets meetings and Apple-Notes-style notes
+  // share this table while the Workbook shows them in separate tabs.
+  kind: text("kind").notNull().default("meeting"),
 });
 
 export const meetingTasks = pgTable(

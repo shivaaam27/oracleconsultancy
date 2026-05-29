@@ -70,6 +70,7 @@ export async function listMeetings(): Promise<SavedMeeting[]> {
     sb
       .from("meetings")
       .select("id,title,company_id,meeting_date,attendees,raw_notes,minutes,created_at,updated_at,companies(name)")
+      .eq("kind", "meeting")
       .order("meeting_date", { ascending: false })
       .order("updated_at", { ascending: false })
       .limit(30),

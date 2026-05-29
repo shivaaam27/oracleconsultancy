@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { parseRawCapture, createCaptureTask } from "@/app/capture/actions";
-import { saveMeeting } from "@/app/meeting/actions";
+import { createNote } from "@/app/notes/actions";
 import { markInboxFiled } from "@/app/inbox/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
 
@@ -188,14 +188,13 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
     setSaving(true);
     setError(null);
     try {
-      const m = await saveMeeting({
+      const m = await createNote({
         title: noteTitle.trim() || firstLineTitle(raw),
         companyId: noteCompanyId ? parseInt(noteCompanyId, 10) : null,
-        meetingDate: ymd(new Date()),
-        rawNotes: raw,
+        body: raw,
       });
       if (inboxId) await markInboxFiled(parseInt(inboxId, 10), "note", String(m.id)).catch(() => {});
-      setResult({ kind: "note", label: m.title, href: "/meeting" });
+      setResult({ kind: "note", label: m.title, href: "/workbook?tab=notes" });
       setStep("done");
       router.refresh();
     } catch {
