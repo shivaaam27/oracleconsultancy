@@ -5,8 +5,9 @@ import { Mic, Square, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
- * Browser Web Speech fallback (used only when audio recording / Groq
- * Whisper is unavailable, e.g. AI is switched off or no MediaRecorder).
+ * Browser Web Speech API typings (not in the default TS DOM lib).
+ * Used for live captions while Whisper records, and as a full fallback
+ * when audio recording / Whisper is unavailable.
  * ------------------------------------------------------------------ */
 type SpeechRecognitionResult = { 0: { transcript: string }; isFinal: boolean };
 type SpeechRecognitionEvent = {
@@ -23,6 +24,7 @@ type SpeechRecognitionLike = {
   onresult: ((e: SpeechRecognitionEvent) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
+  onstart: (() => void) | null;
 };
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
@@ -33,6 +35,20 @@ function getRecognitionCtor(): SpeechRecognitionCtor | null {
     webkitSpeechRecognition?: SpeechRecognitionCtor;
   };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+/** Detach all handlers and force-stop a recogniser so it cannot fire stale callbacks. */
+function killRecogniser(rec: SpeechRecognitionLike | null) {
+  if (!rec) return;
+  rec.onresult = null;
+  rec.onerror = null;
+  rec.onend = null;
+  rec.onstart = null;
+  try {
+    rec.abort();
+  } catch {
+    /* already stopped */
+  }
 }
 
 function canRecord(): boolean {
@@ -62,7 +78,7 @@ function fmtTime(seconds: number): string {
 type Props = {
   /** Called with the transcribed text once recording is processed. */
   onResult: (text: string) => void;
-  /** Live interim transcript — only emitted by the browser-speech fallback. */
+  /** Live interim transcript (browser captions / fallback). */
   onInterim?: (text: string) => void;
   /** Fired once when dictation finishes (after transcription completes). */
   onStop?: () => void;
@@ -77,8 +93,11 @@ type Phase = "idle" | "recording" | "transcribing";
 /**
  * COS dictation control. Records real audio and transcribes it through Groq
  * Whisper (accurate, biased toward the personal dictionary). Shows a live level
- * meter and timer while recording, and a transcribing state afterwards. Falls
- * back to the browser speech recogniser when recording or Whisper is unavailable.
+ * meter, timer, and captions while recording, and a transcribing state after.
+ * Falls back to the browser speech recogniser when recording/Whisper is off.
+ *
+ * Every session fully tears down its stream, recorder, recogniser, meter, and
+ * timer, and reuses a single AudioContext, so dictation is repeatable.
  */
 export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title, className }: Props) {
   const [available, setAvailable] = useState(false);
@@ -87,56 +106,81 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
   const [note, setNote] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
 
+  // Always read the latest callbacks/lang from refs so memoised handlers never go stale.
+  const cbRef = useRef({ onResult, onInterim, onStop, lang });
+  cbRef.current = { onResult, onInterim, onStop, lang };
+
   // Recording plumbing.
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startingRef = useRef(false);
 
-  // Level-meter plumbing.
+  // Level-meter plumbing (AudioContext persists across sessions).
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const rafRef = useRef<number | null>(null);
   const barsRef = useRef<HTMLSpanElement[]>([]);
 
-  // Browser-speech fallback.
-  const recRef = useRef<SpeechRecognitionLike | null>(null);
+  // Recognisers: captions (parallel to Whisper) and fallback (standalone).
+  const captionRecRef = useRef<SpeechRecognitionLike | null>(null);
+  const fallbackRecRef = useRef<SpeechRecognitionLike | null>(null);
   const usingFallbackRef = useRef(false);
 
-  // Parallel recogniser used only for live captions while Whisper records.
-  const captionRecRef = useRef<SpeechRecognitionLike | null>(null);
-
-  useEffect(() => {
-    setAvailable(canRecord() || getRecognitionCtor() !== null);
-    return () => cleanup();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const cleanup = useCallback(() => {
+  /** Tear down everything for the current session. Safe to call repeatedly. */
+  const teardownSession = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     timerRef.current = null;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
+
+    killRecogniser(captionRecRef.current);
+    captionRecRef.current = null;
+    killRecogniser(fallbackRecRef.current);
+    fallbackRecRef.current = null;
+
+    try {
+      sourceRef.current?.disconnect();
+    } catch {
+      /* ignore */
+    }
+    sourceRef.current = null;
+
+    if (recorderRef.current) {
+      recorderRef.current.ondataavailable = null;
+      recorderRef.current.onstop = null;
+      try {
+        if (recorderRef.current.state !== "inactive") recorderRef.current.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+    recorderRef.current = null;
+
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
-      void audioCtxRef.current.close();
-    }
-    audioCtxRef.current = null;
-    recorderRef.current = null;
-    recRef.current?.abort();
-    recRef.current = null;
-    captionRecRef.current?.abort();
-    captionRecRef.current = null;
+
     setCaption("");
   }, []);
 
-  // Live captions: run the browser recogniser purely for instant on-screen text
-  // while Whisper records the authoritative audio. Its results are display-only.
+  useEffect(() => {
+    setAvailable(canRecord() || getRecognitionCtor() !== null);
+    return () => {
+      teardownSession();
+      if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+        void audioCtxRef.current.close();
+      }
+      audioCtxRef.current = null;
+    };
+  }, [teardownSession]);
+
+  /** Live captions: browser recogniser purely for instant display while Whisper records. */
   const startCaptions = useCallback(() => {
     const Ctor = getRecognitionCtor();
     if (!Ctor) return;
     const rec = new Ctor();
-    rec.lang = lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
+    rec.lang = cbRef.current.lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
     rec.continuous = true;
     rec.interimResults = true;
     let finalText = "";
@@ -149,17 +193,18 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
       }
       const live = `${finalText}${interim}`.trim();
       setCaption(live);
-      onInterim?.(live);
+      cbRef.current.onInterim?.(live);
     };
-    rec.onerror = () => {};
-    rec.onend = () => {};
+    rec.onerror = null;
+    rec.onend = null;
+    rec.onstart = null;
     captionRecRef.current = rec;
     try {
       rec.start();
     } catch {
-      /* captions are optional */
+      /* captions are optional; ignore start races */
     }
-  }, [lang, onInterim]);
+  }, []);
 
   const runMeter = useCallback((analyser: AnalyserNode) => {
     const data = new Uint8Array(analyser.frequencyBinCount);
@@ -167,7 +212,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
       analyser.getByteFrequencyData(data);
       let sum = 0;
       for (let i = 0; i < data.length; i++) sum += data[i];
-      const level = Math.min(1, sum / data.length / 90); // 0..1, gently amplified
+      const level = Math.min(1, sum / data.length / 90);
       barsRef.current.forEach((bar, i) => {
         if (!bar) return;
         const jitter = 0.4 + Math.abs(Math.sin(Date.now() / 120 + i)) * 0.6;
@@ -182,16 +227,22 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
   const finishRecording = useCallback(
     async (blob: Blob) => {
       setPhase("transcribing");
+      // Stop the mic/meter/captions immediately; we only need the captured blob now.
+      teardownSession();
       try {
+        if (!blob || blob.size === 0) {
+          setNote("Didn't catch any audio — try again.");
+          return;
+        }
         const fd = new FormData();
         const ext = blob.type.includes("mp4") ? "mp4" : blob.type.includes("ogg") ? "ogg" : "webm";
         fd.set("audio", blob, `dictation.${ext}`);
-        if (lang) fd.set("language", lang);
+        if (cbRef.current.lang) fd.set("language", cbRef.current.lang);
         const res = await fetch("/api/transcribe", { method: "POST", body: fd });
         const data = await res.json();
         const text = String(data?.text || "").trim();
         if (text) {
-          onResult(text);
+          cbRef.current.onResult(text);
         } else if (data?.source === "no-key") {
           setNote("Turn AI on in Settings to use voice.");
         } else {
@@ -200,29 +251,40 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
       } catch {
         setNote("Could not transcribe — try again.");
       } finally {
-        cleanup();
         setPhase("idle");
         setSeconds(0);
-        onStop?.();
+        cbRef.current.onStop?.();
       }
     },
-    [lang, onResult, onStop, cleanup],
+    [teardownSession],
   );
 
   const startRecording = useCallback(async () => {
+    usingFallbackRef.current = false;
     setNote(null);
+
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       setNote("Microphone access was blocked.");
+      startingRef.current = false;
       return;
     }
     streamRef.current = stream;
     chunksRef.current = [];
 
     const mimeType = pickMimeType();
-    const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    } catch {
+      stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setNote("Recording isn't supported here.");
+      startingRef.current = false;
+      return;
+    }
     recorderRef.current = recorder;
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -232,37 +294,52 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
       void finishRecording(blob);
     };
 
-    // Level meter.
+    // Level meter — reuse one AudioContext.
     try {
-      const Ctx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new Ctx();
-      audioCtxRef.current = ctx;
+      if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+        const Ctx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        audioCtxRef.current = new Ctx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") void ctx.resume();
       const source = ctx.createMediaStreamSource(stream);
+      sourceRef.current = source;
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
       source.connect(analyser);
       runMeter(analyser);
     } catch {
-      /* meter is cosmetic; ignore failures */
+      /* meter is cosmetic */
     }
 
-    recorder.start();
+    try {
+      recorder.start();
+    } catch {
+      teardownSession();
+      setNote("Could not start recording — try again.");
+      startingRef.current = false;
+      return;
+    }
     startCaptions();
     setPhase("recording");
     setSeconds(0);
     timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-  }, [finishRecording, runMeter, startCaptions]);
+    startingRef.current = false;
+  }, [finishRecording, runMeter, startCaptions, teardownSession]);
 
-  /* ---------------- Browser-speech fallback ---------------- */
+  /* ---------------- Browser-speech-only fallback ---------------- */
   const startFallback = useCallback(() => {
     const Ctor = getRecognitionCtor();
-    if (!Ctor) return;
+    if (!Ctor) {
+      startingRef.current = false;
+      return;
+    }
     usingFallbackRef.current = true;
     setNote(null);
     const rec = new Ctor();
-    rec.lang = lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
+    rec.lang = cbRef.current.lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = (e) => {
@@ -272,48 +349,66 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
         const text = r[0].transcript;
         if (r.isFinal) {
           const trimmed = text.trim();
-          if (trimmed) onResult(trimmed);
+          if (trimmed) cbRef.current.onResult(trimmed);
         } else {
           interim += text;
         }
       }
       setCaption(interim.trim());
-      onInterim?.(interim.trim());
+      cbRef.current.onInterim?.(interim.trim());
     };
-    rec.onerror = () => setPhase("idle");
+    rec.onerror = () => {};
     rec.onend = () => {
+      fallbackRecRef.current = null;
+      setCaption("");
       setPhase("idle");
-      recRef.current = null;
-      onInterim?.("");
-      onStop?.();
+      cbRef.current.onInterim?.("");
+      cbRef.current.onStop?.();
     };
-    recRef.current = rec;
+    rec.onstart = null;
+    fallbackRecRef.current = rec;
     try {
       rec.start();
       setPhase("recording");
     } catch {
       setPhase("idle");
     }
-  }, [lang, onResult, onInterim, onStop]);
+    startingRef.current = false;
+  }, []);
 
   const start = useCallback(() => {
+    if (startingRef.current || phase !== "idle") return;
+    startingRef.current = true;
     if (canRecord()) void startRecording();
     else startFallback();
-  }, [startRecording, startFallback]);
+  }, [phase, startRecording, startFallback]);
 
   const stop = useCallback(() => {
     if (usingFallbackRef.current) {
-      recRef.current?.stop();
+      // onend handler resets state and notifies the caller.
+      try {
+        fallbackRecRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
       return;
     }
+    // Stop captions now; let the recorder's onstop drive transcription.
+    killRecogniser(captionRecRef.current);
+    captionRecRef.current = null;
+    setCaption("");
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      recorderRef.current.stop();
+      try {
+        recorderRef.current.stop();
+      } catch {
+        /* ignore */
+      }
     }
   }, []);
 
   if (!available) return null;
 
-  // Transcribing: show a spinner pill.
+  // Transcribing.
   if (phase === "transcribing") {
     return (
       <span
@@ -328,8 +423,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     );
   }
 
-  // Recording: expanded pill with live level meter + timer + stop, plus a live
-  // caption bubble above when speech is detected.
+  // Recording: pill with live level meter + timer + stop, plus a caption bubble.
   if (phase === "recording") {
     return (
       <span className={cn("relative inline-flex", className)}>
