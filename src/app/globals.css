@@ -219,6 +219,25 @@ h1, h2, h3 { letter-spacing: -0.015em; }
     radial-gradient(120% 140% at 0% 0%, hsl(var(--accent) / 0.16), transparent 55%),
     linear-gradient(135deg, hsl(var(--accent) / 0.10), hsl(var(--bg-elev)) 60%);
 }
+
+/* ---------- Apple-like controls ---------- */
+/* Primary button: soft inner top highlight + accent-tinted outer glow. */
+.btn-primary-rim {
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.22),
+    0 1px 2px hsl(var(--accent) / 0.22),
+    0 6px 16px -7px hsl(var(--accent) / 0.45);
+}
+.btn-primary-rim:hover {
+  box-shadow:
+    inset 0 1px 0 0 hsl(0 0% 100% / 0.28),
+    0 2px 4px hsl(var(--accent) / 0.24),
+    0 10px 22px -8px hsl(var(--accent) / 0.55);
+}
+/* Neutral/secondary control: faint top rim for the "lit pane" read. */
+.btn-rim {
+  box-shadow: inset 0 1px 0 0 hsl(var(--glass-rim)), var(--shadow-sm);
+}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass { background: hsl(var(--bg-elev)); }
 }

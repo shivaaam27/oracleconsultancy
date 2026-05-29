@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 /* --------------------------------------------------------------------- */
@@ -93,14 +94,19 @@ export function SectionHeading({
 /* Button                                                                 */
 /* --------------------------------------------------------------------- */
 
+// Spring-ish press compression + release; full focus ring; reduced-motion safe
+// (the global prefers-reduced-motion rule neutralises the transition).
 const buttonBase =
-  "inline-flex items-center justify-center gap-1.5 font-medium transition-all duration-150 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none select-none";
+  "relative inline-flex items-center justify-center gap-1.5 font-medium select-none " +
+  "transition-[transform,box-shadow,background-color,opacity] duration-150 ease-[var(--ease-out)] " +
+  "active:scale-[0.96] disabled:opacity-50 disabled:pointer-events-none " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg";
 
 const buttonStyles = {
   primary:
-    "bg-accent text-accent-fg hover:bg-accent-hover shadow-sm hover:shadow",
+    "bg-accent text-accent-fg hover:bg-accent-hover btn-primary-rim",
   secondary:
-    "bg-bg-elev border border-border text-fg hover:bg-bg-muted shadow-sm",
+    "bg-bg-elev border border-border text-fg hover:bg-bg-muted btn-rim",
   ghost: "text-fg-muted hover:text-fg hover:bg-bg-muted",
   danger:
     "bg-danger text-white hover:opacity-90 shadow-sm",
@@ -118,19 +124,30 @@ const buttonSizes = {
 type BtnProps = {
   variant?: keyof typeof buttonStyles;
   size?: keyof typeof buttonSizes;
+  loading?: boolean;
 } & ComponentProps<"button">;
+
+const spinnerSize = { xs: 11, sm: 12, md: 14, lg: 14 } as const;
 
 export function Button({
   variant = "primary",
   size = "md",
+  loading = false,
+  disabled,
   className,
+  children,
   ...p
 }: BtnProps) {
   return (
     <button
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       className={cn(buttonBase, buttonSizes[size], buttonStyles[variant], className)}
       {...p}
-    />
+    >
+      {loading && <Loader2 size={spinnerSize[size]} className="animate-spin" />}
+      {children}
+    </button>
   );
 }
 
