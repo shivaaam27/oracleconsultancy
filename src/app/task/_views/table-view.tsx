@@ -48,7 +48,7 @@ function Stop({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
-export function TableView({ rows }: { rows: TaskRow[] }) {
+export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hideCompany?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -69,7 +69,7 @@ export function TableView({ rows }: { rows: TaskRow[] }) {
             <tr>
               <Th> </Th>
               <Th>ID</Th>
-              <Th>Company</Th>
+              {!hideCompany && <Th>Company</Th>}
               <Th>Action Item</Th>
               <Th>Accountable</Th>
               <Th>Deadline</Th>
@@ -90,12 +90,14 @@ export function TableView({ rows }: { rows: TaskRow[] }) {
                   <Stop><SelectCheckbox code={r.code} /></Stop>
                 </Td>
                 <Td className="font-mono text-xs text-fg-muted group-hover:text-accent">{r.code}</Td>
-                <Td className="whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: r.companyAccent || "transparent" }} />
-                    {r.companyName}
-                  </span>
-                </Td>
+                {!hideCompany && (
+                  <Td className="whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: r.companyAccent || "transparent" }} />
+                      {r.companyName}
+                    </span>
+                  </Td>
+                )}
                 <Td className="max-w-md">
                   <span className="group-hover:text-accent">{r.actionItem}</span>
                 </Td>
