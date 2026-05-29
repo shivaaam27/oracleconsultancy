@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Sun, CloudSun, Cloud, CloudFog, CloudDrizzle, CloudRain,
@@ -29,16 +30,20 @@ function greeting(h: number): string {
   return "Working late";
 }
 
+type Stat = { label: string; value: number; href: string; tone?: "neutral" | "warn" | "danger" };
+
 export function WelcomeHero({
   pulse,
   city = "Dar es Salaam",
   lat = -6.7924,
   lon = 39.2083,
+  stats = [],
 }: {
   pulse: string;
   city?: string;
   lat?: number;
   lon?: number;
+  stats?: Stat[];
 }) {
   const [now, setNow] = useState<Date | null>(null);
   const [weather, setWeather] = useState<Weather | null>(null);
@@ -110,6 +115,26 @@ export function WelcomeHero({
         <p className="mt-2 pt-2 border-t border-border/60 text-xs text-fg-muted">
           <span className="text-accent font-medium">Pulse · </span>{pulse}
         </p>
+      )}
+
+      {/* Inline key counts — clickable, replaces the old "At a glance" slab */}
+      {stats.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {stats.map((s) => {
+            const dim = s.value === 0;
+            const tone = dim
+              ? "border-border text-fg-subtle"
+              : s.tone === "danger" ? "border-red-500/40 text-red-700 dark:text-red-300 bg-red-500/[0.06]"
+              : s.tone === "warn" ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/[0.06]"
+              : "border-border text-fg hover:border-accent";
+            return (
+              <Link key={s.label} href={s.href} className={`inline-flex items-baseline gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${tone}`}>
+                <span className="font-semibold tabular">{s.value}</span>
+                <span className="text-fg-muted">{s.label}</span>
+              </Link>
+            );
+          })}
+        </div>
       )}
     </motion.section>
   );

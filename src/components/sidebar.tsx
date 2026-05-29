@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
-  Sparkles, LayoutDashboard, CheckSquare, Building2, Inbox, NotebookPen,
+  Sparkles, Home, CheckSquare, Inbox, NotebookPen, BarChart3,
   Users, Send, Settings, Search, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -14,13 +14,14 @@ import { ThemeToggle } from "./theme-toggle";
 type Company = { id: number; name: string; code: string };
 
 const NAV = [
-  { label: "Overview", href: "/", icon: LayoutDashboard, match: (p: string, tab: string | null) => p === "/" && tab !== "tasks" && tab !== "companies" },
+  { label: "COS Home", href: "/", icon: Home, match: (p: string, tab: string | null) => p === "/" && tab !== "tasks" && tab !== "companies" },
   { label: "Tasks", href: "/?tab=tasks", icon: CheckSquare, match: (p: string, tab: string | null) => p === "/" && tab === "tasks" },
 ];
 
 const NAV_BELOW = [
   { label: "Inbox", href: "/inbox", icon: Inbox },
   { label: "Workbook", href: "/workbook", icon: NotebookPen },
+  { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "People", href: "/people", icon: Users },
   { label: "Outbox", href: "/outbox", icon: Send },
   { label: "Settings", href: "/settings", icon: Settings },
