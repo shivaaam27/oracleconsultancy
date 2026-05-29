@@ -4,11 +4,13 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 
-  --radius-sm: 0.5rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-xl: 1.125rem;
-  --radius-2xl: 1.375rem;
+  /* macOS uses crisper corners than the old scale; tightened for a less
+     "chunky" feel (windows ~10px, cards ~12–16px). */
+  --radius-sm: 0.375rem;  /* 6px  — controls */
+  --radius-md: 0.5rem;    /* 8px  — inputs, small buttons */
+  --radius-lg: 0.625rem;  /* 10px — buttons, popovers */
+  --radius-xl: 0.75rem;   /* 12px — cards */
+  --radius-2xl: 1rem;     /* 16px — panels, sheets */
   --radius-pill: 999px;
 }
 

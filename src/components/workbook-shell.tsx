@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { NotebookPen, StickyNote } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { Segmented } from "@/components/macos";
 
 type Tab = "meetings" | "notes";
 
@@ -36,10 +36,14 @@ export function WorkbookShell({
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold tracking-tight">Workbook</h1>
-        <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-bg-muted/60 border border-border">
-          <TabButton active={tab === "meetings"} onClick={() => setTab("meetings")} icon={NotebookPen} label="Meetings" />
-          <TabButton active={tab === "notes"} onClick={() => setTab("notes")} icon={StickyNote} label="Notes" />
-        </div>
+        <Segmented
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "meetings", label: "Meetings", icon: <NotebookPen size={14} /> },
+            { value: "notes", label: "Notes", icon: <StickyNote size={14} /> },
+          ]}
+        />
       </div>
 
       <AnimatePresence mode="wait">
@@ -54,24 +58,5 @@ export function WorkbookShell({
         </motion.div>
       </AnimatePresence>
     </div>
-  );
-}
-
-function TabButton({
-  active, onClick, icon: Icon, label,
-}: {
-  active: boolean; onClick: () => void; icon: typeof NotebookPen; label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors",
-        active ? "bg-bg-elev text-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg"
-      )}
-    >
-      <Icon size={14} /> {label}
-    </button>
   );
 }
