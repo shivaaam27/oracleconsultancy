@@ -2,6 +2,7 @@ import { getAllTasks } from "@/lib/queries";
 import { getSavedViews } from "@/lib/task-views";
 import { Card, LinkButton, EmptyState } from "@/components/ui";
 import { SavedViewsBar } from "@/components/saved-views-bar";
+import { AutoSubmitSelect } from "@/components/auto-submit-select";
 import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
@@ -34,7 +35,7 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.status) u.set("status", next.status);
   if (next.noOwner) u.set("noOwner", next.noOwner);
   if (next.closed) u.set("closed", next.closed);
-  if (next.view && next.view !== "board") u.set("view", next.view);
+  if (next.view && next.view !== "table") u.set("view", next.view);
   if (next.month) u.set("month", next.month);
   if (next.q) u.set("q", next.q);
   if (next.all) u.set("all", next.all);
@@ -135,7 +136,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     return u.toString();
   })();
 
-  const resetHref = view === "board" ? "/?tab=tasks" : `/?tab=tasks&view=${view}`;
+  const resetHref = view === "table" ? "/?tab=tasks" : `/?tab=tasks&view=${view}`;
 
   return (
     <div className="space-y-4">
@@ -218,23 +219,20 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               className="flex-1 min-w-[200px] px-3 py-1.5 text-sm rounded-md"
             />
           )}
-          <select name="company" defaultValue={sp.company || ""} className="px-3 py-1.5 text-sm rounded-md">
+          <AutoSubmitSelect name="company" defaultValue={sp.company || ""} className="px-3 py-1.5 text-sm rounded-md">
             <option value="">All Companies</option>
             {companies.map((c) => <option key={c}>{c}</option>)}
-          </select>
-          <select name="priority" defaultValue={sp.priority || ""} className="px-3 py-1.5 text-sm rounded-md">
+          </AutoSubmitSelect>
+          <AutoSubmitSelect name="priority" defaultValue={sp.priority || ""} className="px-3 py-1.5 text-sm rounded-md">
             <option value="">All Priorities</option>
             {priorities.map((p) => <option key={p}>{p}</option>)}
-          </select>
-          <select name="status" defaultValue={sp.status || ""} className="px-3 py-1.5 text-sm rounded-md">
+          </AutoSubmitSelect>
+          <AutoSubmitSelect name="status" defaultValue={sp.status || ""} className="px-3 py-1.5 text-sm rounded-md">
             <option value="">All Statuses</option>
             {["Not Started","In Progress","Under Review","Waiting External","Blocked","Escalated","Completed","Closed"].map((s) => (
               <option key={s}>{s}</option>
             ))}
-          </select>
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent text-accent-fg hover:opacity-90">
-            Apply
-          </button>
+          </AutoSubmitSelect>
           {hasFilters && (
             <Link href={resetHref} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">
               Reset

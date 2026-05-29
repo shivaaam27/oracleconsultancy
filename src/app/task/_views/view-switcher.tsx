@@ -4,10 +4,11 @@ import { cn } from "@/lib/cn";
 
 export type ViewMode = "board" | "table" | "calendar";
 
-export const VIEW_MODES: ViewMode[] = ["board", "table", "calendar"];
+// Table first — it's the dense, scannable default (the "spreadsheet" view).
+export const VIEW_MODES: ViewMode[] = ["table", "board", "calendar"];
 
 export function parseViewMode(v: string | undefined): ViewMode {
-  return v === "table" || v === "calendar" ? v : "board";
+  return v === "board" || v === "calendar" ? v : "table";
 }
 
 const ICONS: Record<ViewMode, React.ComponentType<{ size?: number }>> = {
@@ -39,8 +40,8 @@ export function ViewSwitcher({
         const Icon = ICONS[m];
         const active = m === current;
         const params = new URLSearchParams(queryWithoutView);
-        // board is the default — keep URLs clean
-        if (m !== "board") params.set("view", m);
+        // table is the default — keep URLs clean
+        if (m !== "table") params.set("view", m);
         const q = params.toString();
         const href = q ? `${basePath}?${q}` : basePath;
         return (
