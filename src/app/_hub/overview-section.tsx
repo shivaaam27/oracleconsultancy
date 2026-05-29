@@ -2,6 +2,7 @@ import { computeGlobalKpis, statusBreakdown, priorityBreakdown } from "@/lib/que
 import { Card } from "@/components/ui";
 import { CosBar } from "@/components/cos-bar";
 import { AttentionPanel, type AttnItem } from "@/components/attention-panel";
+import { TodayMobile } from "@/components/today-mobile";
 import { sb } from "@/db/supabase";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -89,6 +90,9 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
 
   return (
     <div className="space-y-5">
+      {/* Phone-first Today stack — swipe to complete, tap to open. Mobile only. */}
+      <TodayMobile items={attnItems.slice(0, 12)} />
+
       {/* Metric strip — one compact, clickable row */}
       <section className="space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">At a glance</p>
@@ -119,8 +123,10 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
         </div>
       </section>
 
-      {/* Needs Attention / Recent Updates */}
-      <AttentionPanel needsAttention={attnItems} recentUpdates={recentItems} />
+      {/* Needs Attention / Recent Updates — hidden on phones (Today stack covers it) */}
+      <div className="hidden sm:block">
+        <AttentionPanel needsAttention={attnItems} recentUpdates={recentItems} />
+      </div>
 
       {/* Unified Ask / Capture bar */}
       <CosBar companies={companiesList} />
