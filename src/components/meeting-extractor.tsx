@@ -433,7 +433,7 @@ function AssistMenu({
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.14 }}
-            className="absolute right-0 top-full mt-1 z-30 w-52 rounded-xl border border-border bg-bg-elev shadow-lg overflow-hidden py-1">
+            className="absolute right-0 top-full mt-1 z-30 w-52 rounded-xl vibrancy-strong shadow-lg overflow-hidden py-1">
             {item(<Sparkles size={14} className="text-accent" />, "Clean up notes", onClean, !hasNotes)}
             {item(<FileText size={14} className="text-accent" />, "Generate minutes", onMinutes, !hasNotes)}
             <div className="my-1 border-t border-border" />
@@ -466,8 +466,8 @@ function TasksDrawer({
       {open && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" />
-          <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", stiffness: 360, damping: 34 }}
-            className="fixed right-0 top-0 bottom-0 z-[61] w-full sm:max-w-md flex flex-col bg-bg border-l border-border shadow-2xl">
+          <motion.div initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.97 }} transition={{ type: "spring", stiffness: 360, damping: 32 }}
+            className="fixed inset-0 m-auto z-[61] h-fit max-h-[85svh] w-[calc(100%-1.5rem)] max-w-md flex flex-col overflow-hidden vibrancy-strong rounded-2xl shadow-lg">
             <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
               <h2 className="text-sm font-semibold inline-flex items-center gap-2"><ListChecks size={15} className="text-accent" /> Action items</h2>
               <button type="button" onClick={onClose} aria-label="Close" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-fg-muted hover:bg-bg-muted"><X size={16} /></button>
