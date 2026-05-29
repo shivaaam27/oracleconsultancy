@@ -62,14 +62,25 @@ export type PushPayload = {
   tag?: string;
 };
 
+function endpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return endpoint.slice(0, 40);
+  }
+}
+
 /** Send a notification to every registered device. Prunes dead subscriptions (410/404). */
-export async function sendToAll(payload: PushPayload): Promise<{ sent: number; pruned: number }> {
-  if (!configurePush()) return { sent: 0, pruned: 0 };
+export async function sendToAll(
+  payload: PushPayload
+): Promise<{ sent: number; pruned: number; total: number; errors: { host: string; code?: number; message: string }[] }> {
+  if (!configurePush()) return { sent: 0, pruned: 0, total: 0, errors: [] };
   const subs = await getSubscriptions();
-  if (subs.length === 0) return { sent: 0, pruned: 0 };
+  if (subs.length === 0) return { sent: 0, pruned: 0, total: 0, errors: [] };
 
   const body = JSON.stringify(payload);
   const dead: string[] = [];
+  const errors: { host: string; code?: number; message: string }[] = [];
   let sent = 0;
 
   await Promise.all(
@@ -79,6 +90,10 @@ export async function sendToAll(payload: PushPayload): Promise<{ sent: number; p
         sent += 1;
       } catch (err: unknown) {
         const code = (err as { statusCode?: number })?.statusCode;
+        const message = (err as { body?: string; message?: string })?.body
+          || (err as { message?: string })?.message
+          || "unknown error";
+        errors.push({ host: endpointHost(s.endpoint), code, message: String(message).slice(0, 200) });
         if (code === 404 || code === 410) dead.push(s.endpoint);
       }
     })
@@ -87,5 +102,5 @@ export async function sendToAll(payload: PushPayload): Promise<{ sent: number; p
   if (dead.length > 0) {
     await saveSubscriptions(subs.filter((s) => !dead.includes(s.endpoint)));
   }
-  return { sent, pruned: dead.length };
+  return { sent, pruned: dead.length, total: subs.length, errors };
 }

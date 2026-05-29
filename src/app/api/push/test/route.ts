@@ -17,5 +17,12 @@ export async function POST() {
     url: "/",
     tag: "cos-test",
   });
+  // Surface delivery failures so the UI can explain why a device got nothing.
+  if (res.sent === 0 && res.errors.length > 0) {
+    return NextResponse.json(
+      { error: `Delivery failed: ${res.errors.map((e) => `${e.host} (${e.code ?? "?"})`).join(", ")}`, ...res },
+      { status: 502 }
+    );
+  }
   return NextResponse.json({ ok: true, ...res });
 }
