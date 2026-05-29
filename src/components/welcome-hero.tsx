@@ -80,9 +80,9 @@ export function WelcomeHero({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 280, damping: 30 }}
-      className="rounded-xl border border-border bg-bg-elev px-4 py-3"
+      className="relative overflow-hidden rounded-2xl border border-border wash-accent elevated px-4 py-3.5"
     >
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="relative flex items-center justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <h1 className="text-base font-semibold tracking-tight leading-tight">{hello}</h1>
           <p className="text-xs text-fg-muted">{date}</p>

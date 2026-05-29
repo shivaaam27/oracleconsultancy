@@ -10,7 +10,7 @@ export function Card({ className, ...p }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "bg-bg-elev border border-border rounded-2xl shadow-sm transition-shadow",
+        "bg-bg-elev border border-border rounded-2xl elevated transition-shadow",
         className
       )}
       {...p}
@@ -256,7 +256,7 @@ export function Stat({
 
 export function TableShell({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-bg-elev border border-border rounded-2xl overflow-x-auto shadow-sm">
+    <div className="bg-bg-elev border border-border rounded-2xl overflow-x-auto elevated">
       {children}
     </div>
   );

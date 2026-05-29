@@ -40,7 +40,7 @@ function Item({
       className={cn(
         "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors",
         indent && "pl-8",
-        active ? "bg-accent/15 text-fg font-medium" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+        active ? "bg-accent/15 text-accent font-medium glass-rim" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
       {Icon && <Icon size={15} className="shrink-0" />}
@@ -123,7 +123,7 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
 /** Desktop sidebar rail (md+). */
 export function Sidebar({ companies }: { companies: Company[] }) {
   return (
-    <aside className="hidden md:block w-56 lg:w-60 shrink-0 border-r border-border bg-bg-subtle/40 md:h-[100svh] md:sticky md:top-0">
+    <aside className="hidden md:block w-56 lg:w-60 shrink-0 border-r border-border bg-gradient-to-b from-bg-subtle/70 to-bg-subtle/30 md:h-[100svh] md:sticky md:top-0">
       <SidebarContent companies={companies} />
     </aside>
   );
