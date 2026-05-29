@@ -48,7 +48,7 @@ export function MobileSidebar({ companies }: { companies: Company[] }) {
             <motion.div
               initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
               transition={{ type: "spring", stiffness: 380, damping: 34 }}
-              className="fixed left-0 top-0 bottom-0 z-[76] w-64 max-w-[82vw] bg-bg-elev border-r border-border shadow-2xl pb-[env(safe-area-inset-bottom)]"
+              className="fixed left-0 top-0 bottom-0 z-[76] w-64 max-w-[82vw] glass pb-[env(safe-area-inset-bottom)]"
             >
               <SidebarContent companies={companies} onNavigate={() => setOpen(false)} />
             </motion.div>

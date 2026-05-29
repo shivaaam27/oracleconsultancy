@@ -226,7 +226,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
             className="fixed z-[81] inset-x-0 bottom-0 origin-bottom
               sm:inset-0 sm:m-auto sm:h-fit sm:max-w-lg sm:origin-center"
           >
-            <div className="flex max-h-[88svh] flex-col overflow-hidden border border-border bg-bg-elev shadow-2xl
+            <div className="flex max-h-[88svh] flex-col overflow-hidden glass
               rounded-t-2xl sm:rounded-2xl pb-[env(safe-area-inset-bottom)]">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">

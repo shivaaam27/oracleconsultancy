@@ -200,7 +200,7 @@ export function BulkBar() {
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto vibrancy-strong rounded-2xl shadow-pill border border-border w-full max-w-[760px] overflow-hidden"
+        className="pointer-events-auto glass rounded-2xl shadow-pill border border-border w-full max-w-[760px] overflow-hidden"
       >
         {/* Top row: count + actions */}
         <div className="flex items-center gap-2 px-3 py-2">

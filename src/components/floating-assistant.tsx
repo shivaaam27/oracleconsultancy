@@ -62,7 +62,7 @@ export function FloatingAssistant() {
               transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
               className="fixed z-[70] origin-bottom sm:origin-bottom-right inset-x-0 bottom-0 sm:inset-x-auto sm:right-5 sm:bottom-24 sm:w-[380px]"
             >
-              <div className="flex max-h-[calc(100svh-1rem)] flex-col overflow-hidden border border-border bg-[hsl(var(--bg-elev))] shadow-2xl rounded-t-2xl sm:max-h-[min(720px,calc(100vh-8rem))] sm:rounded-2xl rounded-b-none sm:rounded-b-2xl">
+              <div className="flex max-h-[calc(100svh-1rem)] flex-col overflow-hidden glass rounded-t-2xl sm:max-h-[min(720px,calc(100vh-8rem))] sm:rounded-2xl rounded-b-none sm:rounded-b-2xl">
                 {/* Header */}
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border">
                   <div className="flex items-center gap-2">

@@ -72,7 +72,7 @@ function PinnedIcon({
           side="top"
           sideOffset={10}
           align="center"
-          className="z-[60] min-w-[160px] vibrancy-strong rounded-xl p-1 shadow-lg text-sm"
+          className="z-[60] min-w-[160px] glass rounded-xl p-1 shadow-lg text-sm"
         >
           <DropdownMenu.Label className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">
             {route.label}
@@ -132,7 +132,7 @@ function BrowseRoutes({
           side="top"
           sideOffset={10}
           align="center"
-          className="z-[60] w-[300px] vibrancy-strong rounded-xl shadow-lg overflow-hidden text-sm"
+          className="z-[60] w-[300px] glass rounded-xl shadow-lg overflow-hidden text-sm"
           // Keep open across rapid pin toggles
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
@@ -219,7 +219,7 @@ export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto vibrancy-strong rounded-full shadow-pill flex items-center gap-1 px-2 h-12 max-w-[min(96vw,920px)] w-auto"
+        className="pointer-events-auto glass rounded-full shadow-pill flex items-center gap-1 px-2 h-12 max-w-[min(96vw,920px)] w-auto"
       >
         {/* Menu — opens the full nav drawer (companies, all pages) */}
         <button

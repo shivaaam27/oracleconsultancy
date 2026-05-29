@@ -182,7 +182,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.98 }}
               transition={{ type: "spring", stiffness: 480, damping: 34 }}
-              className="relative w-full max-w-xl vibrancy-strong rounded-2xl shadow-lg overflow-hidden"
+              className="relative w-full max-w-xl glass rounded-2xl shadow-lg overflow-hidden"
             >
               <Command shouldFilter={true} loop>
                 <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-border">
