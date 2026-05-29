@@ -199,6 +199,12 @@ export function TaskDrawer() {
             data-[state=open]:translate-x-0
             data-[state=closed]:translate-x-full"
         >
+          {/* Always-present accessible name — exists from the moment the panel
+              opens, before task data loads, so screen readers can announce it. */}
+          <Dialog.Title className="sr-only">
+            {data?.task ? data.task.actionItem : code ? `Task ${code}` : "Task"}
+          </Dialog.Title>
+
           {/* ── Header ── */}
           <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border shrink-0">
             <div className="flex items-center gap-2 min-w-0">
@@ -258,9 +264,9 @@ export function TaskDrawer() {
               <div className="p-5 space-y-5">
                 {/* Title */}
                 <div className="space-y-2.5">
-                  <Dialog.Title className="text-base font-semibold leading-snug">
+                  <h2 className="text-base font-semibold leading-snug">
                     {data.task.actionItem}
-                  </Dialog.Title>
+                  </h2>
                   <div className="flex flex-wrap gap-1.5">
                     <Badge tone={statusTone(data.task.status)}>{data.task.status}</Badge>
                     <Badge tone={priorityTone(data.task.priority)}>{data.task.priority}</Badge>
