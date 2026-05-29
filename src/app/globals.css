@@ -37,12 +37,27 @@
   --border-strong: 240 6% 80%;
   --hairline:      240 10% 10% / 0.08;
 
-  /* Graphite accent (medium — not dark) */
-  --accent:       240 3% 45%;
-  --accent-hover: 240 3% 52%;
+  /* Cool, professional blue accent */
+  --accent:       214 88% 52%;
+  --accent-hover: 214 88% 46%;
   --accent-fg:    0 0% 100%;
-  --accent-soft:  240 5% 90%;
-  --accent-ring:  240 4% 58%;
+  --accent-soft:  214 92% 95%;
+  --accent-ring:  214 88% 58%;
+
+  /* ── Liquid glass material ── */
+  --glass-tint:   0 0% 100% / 0.72;   /* frosted surface fill (kept opaque for readability) */
+  --glass-border: 240 10% 10% / 0.08; /* hairline edge */
+  --glass-rim:    0 0% 100% / 0.65;   /* bright top specular rim */
+  --blur-sm: 12px;
+  --blur-md: 20px;
+  --blur-lg: 32px;
+
+  /* ── Motion ── */
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
 
   /* Semantic (macOS-y) */
   --success:      142 60% 42%;
@@ -83,11 +98,16 @@
   --border-strong: 240 6% 28%;
   --hairline:      0 0% 100% / 0.08;
 
-  --accent:       240 4% 64%;
-  --accent-hover: 240 4% 70%;
-  --accent-fg:    240 10% 8%;
-  --accent-soft:  240 6% 22%;
-  --accent-ring:  240 4% 70%;
+  --accent:       213 94% 62%;
+  --accent-hover: 213 94% 68%;
+  --accent-fg:    0 0% 100%;
+  --accent-soft:  214 60% 20%;
+  --accent-ring:  213 94% 66%;
+
+  /* ── Liquid glass material (dark) ── */
+  --glass-tint:   240 8% 13% / 0.60;
+  --glass-border: 0 0% 100% / 0.08;
+  --glass-rim:    0 0% 100% / 0.12;
 
   --success:      142 55% 55%;
   --success-soft: 142 35% 18%;
@@ -172,6 +192,25 @@ h1, h2, h3 { letter-spacing: -0.015em; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .vibrancy, .vibrancy-strong { background: hsl(var(--bg-elev)); }
+}
+
+/* ---------- Liquid glass (frosted panel + specular rim + depth) ---------- */
+.glass {
+  background: hsl(var(--glass-tint));
+  backdrop-filter: saturate(180%) blur(var(--blur-md));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur-md));
+  border: 1px solid hsl(var(--glass-border));
+  /* inset top line = bright rim highlight; stacked ambient + drop shadow = depth */
+  box-shadow:
+    inset 0 1px 0 0 hsl(var(--glass-rim)),
+    0 1px 2px hsl(240 10% 10% / 0.04),
+    0 12px 32px -12px hsl(240 10% 10% / 0.18);
+}
+.glass-rim {
+  box-shadow: inset 0 1px 0 0 hsl(var(--glass-rim));
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: hsl(var(--bg-elev)); }
 }
 
 /* ---------- Focus ring (graphite) ---------- */
