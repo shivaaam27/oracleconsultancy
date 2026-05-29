@@ -54,9 +54,11 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Fire-and-forget push so the operator is alerted (never blocks the response).
+  // Await the push so it actually goes out before the serverless function is
+  // frozen/terminated on response. The bridge (Shortcut/script) doesn't care
+  // about response speed, but the alert must reliably and promptly fire.
   const label = subject || (text ? text.slice(0, 60) : "New item");
-  void sendToAll({
+  await sendToAll({
     title: source === "email" ? "New email to file" : "New item to file",
     body: label,
     url: "/inbox",

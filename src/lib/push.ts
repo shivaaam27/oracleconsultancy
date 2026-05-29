@@ -86,7 +86,12 @@ export async function sendToAll(
   await Promise.all(
     subs.map(async (s) => {
       try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, body);
+        // urgency:high asks Apple/Google to deliver promptly rather than batch;
+        // TTL keeps it deliverable for 10 min if the device is briefly offline.
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, body, {
+          urgency: "high",
+          TTL: 600,
+        });
         sent += 1;
       } catch (err: unknown) {
         const code = (err as { statusCode?: number })?.statusCode;
