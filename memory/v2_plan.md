@@ -35,6 +35,7 @@ metadata:
 | 5c. Real message sending | Pending | Outbox currently records sends only. Integrate one provider when ready. |
 | 5d. Per-company health trend | Partly built | `daily_snapshots` and `/api/cron/snapshots` exist. Scheduling/production verification still needs checking. |
 | Voice intelligence layer | In progress | Shared dictation polishing action, Meeting/Quick Capture/task update voice flows, personal dictionary, and browser-language Ask COS dictation. |
+| Wispr-style voice — Phase 1 (engine + interface) | Done | Real audio recording transcribed by Groq Whisper `whisper-large-v3-turbo` via `/api/transcribe`, dictionary used as prompt bias. New `voice-button.tsx` with live level meter, timer, transcribing state, and browser-speech fallback. Phases 2-6 (intent/correction handling, punctuation/lists, self-learning dictionary, snippets, tone shaping) still pending. Ask COS mic not yet migrated to the Whisper engine. |
 | Multilingual meeting support | In progress | Settings now starts with English, Swahili, Hindi, and Gujarati dictation language choices. Deeper translation/minutes modes remain next. |
 | Web search | Planned | Add explicit, source-attributed web search later. Do not silently browse from app features. |
 

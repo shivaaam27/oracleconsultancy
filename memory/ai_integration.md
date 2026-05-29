@@ -18,12 +18,21 @@ AI is optional. All AI features must respect `getGroqKey()` from `src/lib/settin
 
 ### Voice intelligence actions
 
-Implemented in `src/app/voice/actions.ts`.
+Speech-to-text engine (Phase 1): `/api/transcribe` (`src/app/api/transcribe/route.ts`).
+
+- Accepts recorded audio as multipart FormData (`audio`, optional `language`).
+- Transcribes via Groq Whisper `whisper-large-v3-turbo` at `https://api.groq.com/openai/v1/audio/transcriptions`.
+- Passes the personal voice dictionary as a `prompt` bias so uncommon names/terms are spelt correctly, and maps the BCP-47 voice language to Whisper's 2-letter `language` hint.
+- Returns `{ text, source }`. `source` is `ai` on success, `no-key` when AI is off, `error` on failure. The client uses these to fall back to browser speech.
+
+Clean-up actions in `src/app/voice/actions.ts`.
 
 - `polishDictation` cleans rough dictated speech into polished COS text.
 - `teachVoiceDictionary` appends trusted names/phrases to the Settings voice dictionary.
 
 The action uses Groq when available and falls back to basic clean-up when AI is off or fails. It receives context such as meeting title/company/attendees or task code/status, and it preserves configured dictionary terms.
+
+`src/components/voice-button.tsx` records real audio (MediaRecorder), shows a live mic-level meter and timer while recording and a transcribing state afterwards, sends the clip to `/api/transcribe`, then emits the transcript through `onResult` before firing `onStop`. It falls back to the browser Web Speech recogniser when audio recording is unsupported (and surfaces a hint when AI is off). Callers (`quick-capture`, `update-box`, `meeting-extractor`) still run `polishDictation` in their `onStop` handlers.
 
 Current voice language choices live in Settings:
 
