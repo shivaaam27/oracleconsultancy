@@ -27,12 +27,12 @@ Speech-to-text engine (Phase 1): `/api/transcribe` (`src/app/api/transcribe/rout
 
 Clean-up actions in `src/app/voice/actions.ts`.
 
-- `polishDictation` cleans rough dictated speech into polished COS text.
+- `polishDictation` cleans rough dictated speech into polished COS text. **Phase 2 (clean-up brain):** the system prompt now resolves self-corrections (keeps the final value after cues like "actually", "no wait", "scratch that", "I mean", "sorry"), strips fillers (um/uh/er/"you know"), and collapses restarts/stutters — without dropping real information. The rule fallback (`basicClean`) does a lighter version of the same (filler list + correction-cue stripping) when AI is off.
 - `teachVoiceDictionary` appends trusted names/phrases to the Settings voice dictionary.
 
 The action uses Groq when available and falls back to basic clean-up when AI is off or fails. It receives context such as meeting title/company/attendees or task code/status, and it preserves configured dictionary terms.
 
-`src/components/voice-button.tsx` records real audio (MediaRecorder), shows a live mic-level meter and timer while recording and a transcribing state afterwards, sends the clip to `/api/transcribe`, then emits the transcript through `onResult` before firing `onStop`. It falls back to the browser Web Speech recogniser when audio recording is unsupported (and surfaces a hint when AI is off). Callers (`quick-capture`, `update-box`, `meeting-extractor`) still run `polishDictation` in their `onStop` handlers.
+`src/components/voice-button.tsx` records real audio (MediaRecorder), shows a live mic-level meter and timer while recording and a transcribing state afterwards, sends the clip to `/api/transcribe`, then emits the transcript through `onResult` before firing `onStop`. It falls back to the browser Web Speech recogniser when audio recording is unsupported (and surfaces a hint when AI is off). Live captions are streamed via `onInterim` only — there is no caption bubble. Each caller writes interim text directly into its own text field (committed text + interim, without committing) so captions appear live where the text lands; the final Whisper transcript then replaces it via `onResult`. Callers (`quick-capture`, `update-box`, `meeting-extractor`, `ask-cos`) run `polishDictation` in their `onStop` handlers.
 
 Current voice language choices live in Settings:
 

@@ -12,8 +12,29 @@ const LANGUAGE_LABELS: Record<string, string> = {
   "gu-IN": "Gujarati",
 };
 
+// Filler words and verbal tics that should never survive into polished text.
+const FILLERS = [
+  "um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm",
+  "you know", "i mean", "like i said", "sort of", "kind of",
+  "basically", "literally", "actually you know",
+];
+
+// Rule-based clean-up used when AI is off or fails. Strips fillers and obvious
+// self-corrections ("...no wait, X"), collapses whitespace, and capitalises.
 function basicClean(text: string): string {
-  const clean = text.replace(/\s+/g, " ").trim();
+  let clean = text.replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+
+  // Drop a leading discourse marker after a "scratch that" cue, keeping the latest take.
+  clean = clean.replace(/\b(?:no wait|scratch that|i mean|sorry|let me rephrase|rather)\b[\s,]*/gi, " ");
+
+  // Remove standalone filler words/phrases.
+  for (const filler of FILLERS) {
+    const re = new RegExp(`(^|[\\s,.])${filler}(?=[\\s,.]|$)`, "gi");
+    clean = clean.replace(re, "$1");
+  }
+
+  clean = clean.replace(/\s+([,.])/g, "$1").replace(/\s+/g, " ").trim();
   if (!clean) return "";
   return clean.charAt(0).toUpperCase() + clean.slice(1);
 }
@@ -47,12 +68,19 @@ export async function polishDictation(input: {
         messages: [
           {
             role: "system",
-            content: `You clean rough dictated speech for a Chief of Staff system.
+            content: `You clean rough dictated speech for a Chief of Staff system. The input is raw speech-to-text: it contains fillers, false starts, repetitions, and the speaker changing their mind mid-sentence. Your job is to recover what the speaker finally meant to say.
 
-Return only the polished text, no explanation.
+Return only the polished text, no explanation, no preamble.
 
-Rules:
-- Preserve meaning, names, numbers, dates, amounts, and commitments.
+Clean-up rules (apply before anything else):
+- Honour self-corrections: when the speaker changes their mind, keep only the final value and silently drop the earlier one. Examples: "by 5pm, actually make it 6pm" -> "by 6pm"; "send it to Amina, no wait, to Shivam" -> "send it to Shivam"; "the red one, sorry the blue one" -> "the blue one".
+- Treat cues like "actually", "no wait", "scratch that", "I mean", "sorry", "let me rephrase", "or rather" as correction signals — keep the text after the cue, discard the contradicted text before it.
+- Remove filler words and verbal tics: um, uh, er, erm, "you know", "I mean" (when not a correction), "sort of", "kind of", "basically", "literally".
+- Collapse restarts and stutters: "I think we should, we should call the supplier" -> "We should call the supplier".
+- Do NOT drop real information — only remove fillers, repetitions, and contradicted text. If unsure whether something is a correction, keep it.
+
+Formatting rules:
+- Preserve meaning, names, numbers, dates, amounts, and commitments exactly (after resolving corrections).
 - Keep the output in ${languageName}.
 - Use British English spelling when the language is English.
 - If the text is a meeting note, keep useful bullet structure.
