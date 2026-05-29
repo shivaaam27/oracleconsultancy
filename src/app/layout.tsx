@@ -17,7 +17,15 @@ import { FloatingAssistant } from "@/components/floating-assistant";
 export const metadata: Metadata = {
   title: "COS — Oracle Group Operations",
   description: "Chief of Staff Command Center",
+  manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "COS" },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {
