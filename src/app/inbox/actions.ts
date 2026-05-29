@@ -45,6 +45,14 @@ export async function dismissInboxItem(id: number): Promise<void> {
   revalidatePath("/inbox");
 }
 
+export async function updateInboxBody(id: number, body: string): Promise<{ ok: boolean }> {
+  const trimmed = body.trim();
+  if (!trimmed) return { ok: false };
+  await sb.from("inbox").update({ body: trimmed }).eq("id", id);
+  revalidatePath("/inbox");
+  return { ok: true };
+}
+
 export async function markInboxFiled(
   id: number,
   filedKind: "task" | "note",

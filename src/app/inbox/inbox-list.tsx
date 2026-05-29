@@ -2,8 +2,24 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip } from "lucide-react";
-import { dismissInboxItem, type InboxItem } from "./actions";
+import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { dismissInboxItem, updateInboxBody, type InboxItem } from "./actions";
+
+function CopyChip({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+    >
+      {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
 
 function sourceMeta(source: string) {
   if (source === "email") return { icon: Mail, label: "Email" };
@@ -20,14 +36,20 @@ function relTime(iso: string): string {
   if (s < 60) return "just now";
   if (s < 3600) return `${Math.round(s / 60)}m ago`;
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return new Date(norm).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
+
+// Show the toggle only when the text is long enough to be clamped.
+const LONG = 180;
 
 export function InboxList({ items }: { items: InboxItem[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
 
   if (items.length === 0) {
     return (
@@ -56,10 +78,38 @@ export function InboxList({ items }: { items: InboxItem[] }) {
     });
   }
 
+  function startEdit(item: InboxItem) {
+    setEditingId(item.id);
+    setDraft(item.body);
+  }
+
+  function saveEdit(id: number) {
+    setBusyId(id);
+    startTransition(async () => {
+      await updateInboxBody(id, draft);
+      router.refresh();
+      setEditingId(null);
+      setBusyId(null);
+    });
+  }
+
+  function toggleExpand(id: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   return (
     <div className="space-y-2.5">
       {items.map((item) => {
         const { icon: Icon, label } = sourceMeta(item.source);
+        const isEditing = editingId === item.id;
+        const isOpen = expanded.has(item.id);
+        const isBusy = pending && busyId === item.id;
+        const isLong = item.body.length > LONG;
+
         return (
           <div key={item.id} className="rounded-xl border border-border bg-bg-elev p-3.5 space-y-2">
             <div className="flex items-center gap-2 text-xs text-fg-muted">
@@ -71,7 +121,49 @@ export function InboxList({ items }: { items: InboxItem[] }) {
             </div>
 
             {item.subject && <p className="text-sm font-medium leading-snug">{item.subject}</p>}
-            <p className="text-sm text-fg-muted line-clamp-3 whitespace-pre-wrap">{item.body}</p>
+
+            {isEditing ? (
+              <div className="space-y-2">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  rows={Math.min(14, Math.max(4, draft.split("\n").length + 1))}
+                  className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => saveEdit(item.id)}
+                    disabled={isBusy || !draft.trim()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+                  >
+                    {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+                  >
+                    <X size={13} /> Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className={`text-sm text-fg-muted whitespace-pre-wrap ${isOpen ? "" : "line-clamp-3"}`}>
+                  {item.body}
+                </p>
+                {isLong && (
+                  <button
+                    type="button"
+                    onClick={() => toggleExpand(item.id)}
+                    className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
+                  >
+                    {isOpen ? <><ChevronUp size={12} /> Show less</> : <><ChevronDown size={12} /> Read full message</>}
+                  </button>
+                )}
+              </>
+            )}
 
             {item.attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -83,23 +175,33 @@ export function InboxList({ items }: { items: InboxItem[] }) {
               </div>
             )}
 
-            <div className="flex items-center gap-2 pt-0.5">
-              <button
-                type="button"
-                onClick={() => fileIt(item)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition-opacity"
-              >
-                <Sparkles size={13} /> File it
-              </button>
-              <button
-                type="button"
-                onClick={() => dismiss(item.id)}
-                disabled={pending && busyId === item.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
-              >
-                {pending && busyId === item.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Dismiss
-              </button>
-            </div>
+            {!isEditing && (
+              <div className="flex items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => fileIt(item)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition-opacity"
+                >
+                  <Sparkles size={13} /> File it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startEdit(item)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+                <CopyChip text={item.body} />
+                <button
+                  type="button"
+                  onClick={() => dismiss(item.id)}
+                  disabled={isBusy}
+                  className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
+                >
+                  {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Dismiss
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
