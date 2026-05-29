@@ -21,8 +21,8 @@ function relTime(iso: string): string {
 }
 
 function snippet(body: string): string {
-  const firstReal = body.split(/\n/).map((l) => l.trim()).filter(Boolean)[1] || "";
-  return firstReal || "No additional text";
+  const s = body.replace(/\s+/g, " ").trim();
+  return s || "No additional text";
 }
 
 export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note[]; companies: Company[] }) {
@@ -88,9 +88,9 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
   }, []);
 
   return (
-    <div className="lg:grid lg:grid-cols-[268px_1fr] lg:gap-4 rounded-2xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev">
+    <div className="md:grid md:grid-cols-[240px_1fr] rounded-2xl border border-border overflow-hidden min-h-[70vh] bg-bg-elev">
       {/* List pane */}
-      <div className={cn("flex flex-col border-border lg:border-r", selected ? "hidden lg:flex" : "flex")}>
+      <div className={cn("flex flex-col border-border md:border-r", selected ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">
           <button
             type="button"
@@ -127,12 +127,13 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
                   selectedId === n.id ? "bg-accent/10" : "hover:bg-bg-muted/50"
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium truncate flex-1">{n.title || "Untitled note"}</span>
-                  <span className="text-[10px] text-fg-subtle shrink-0">{relTime(n.updatedAt)}</span>
-                </div>
-                <p className="text-xs text-fg-muted truncate mt-0.5">{snippet(n.body)}</p>
-                {n.companyName && <span className="text-[10px] text-accent">{n.companyName}</span>}
+                <div className="text-sm font-medium truncate">{n.title || "Untitled note"}</div>
+                <p className="text-xs text-fg-muted line-clamp-1 mt-0.5">
+                  <span className="text-fg-subtle">{relTime(n.updatedAt)}</span>
+                  <span className="mx-1 text-fg-subtle">·</span>
+                  {snippet(n.body)}
+                </p>
+                {n.companyName && <span className="inline-block mt-1 text-[10px] text-accent">{n.companyName}</span>}
               </button>
             ))
           )}
@@ -140,14 +141,14 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
       </div>
 
       {/* Editor pane */}
-      <div className={cn("flex flex-col", selected ? "flex" : "hidden lg:flex")}>
+      <div className={cn("flex flex-col", selected ? "flex" : "hidden md:flex")}>
         {selected ? (
           <>
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
               <button
                 type="button"
                 onClick={() => setSelectedId(null)}
-                className="lg:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:bg-bg-muted"
+                className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:bg-bg-muted"
                 aria-label="Back to list"
               >
                 <ArrowLeft size={16} />
@@ -191,17 +192,18 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
               value={selected.title}
               onChange={(e) => { patchLocal(selected.id, { title: e.target.value }); scheduleSave(selected.id, { title: e.target.value }); }}
               placeholder="Title"
-              className="px-4 pt-4 pb-1 text-lg font-semibold bg-transparent outline-none placeholder:text-fg-subtle"
+              className="px-5 pt-5 pb-0.5 text-xl font-semibold tracking-tight bg-transparent outline-none placeholder:text-fg-subtle"
             />
+            <div className="px-5 pb-2 text-[11px] text-fg-subtle">Edited {relTime(selected.updatedAt)}</div>
             <textarea
               value={selected.body}
               onChange={(e) => { patchLocal(selected.id, { body: e.target.value }); scheduleSave(selected.id, { body: e.target.value }); }}
               placeholder="Start writing…"
-              className="flex-1 px-4 pb-4 pt-1 text-[15px] leading-relaxed bg-transparent outline-none resize-none placeholder:text-fg-subtle min-h-[40vh]"
+              className="flex-1 px-5 pb-5 pt-1 text-[15px] leading-relaxed bg-transparent outline-none resize-none placeholder:text-fg-subtle min-h-[40vh]"
             />
           </>
         ) : (
-          <div className="hidden lg:flex flex-1 flex-col items-center justify-center text-center p-8">
+          <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center p-8">
             <StickyNote size={28} className="text-fg-subtle mb-3" />
             <p className="text-sm text-fg-muted">Select a note, or create a new one.</p>
           </div>

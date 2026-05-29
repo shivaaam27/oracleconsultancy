@@ -245,9 +245,9 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
   const linkedTasks = createdTaskLinks.length ? createdTaskLinks : (meetingId ? meetingList.find(m => m.id === meetingId)?.tasks ?? [] : []);
 
   return (
-    <div className="lg:grid lg:grid-cols-[260px_1fr] lg:gap-4 rounded-2xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev">
+    <div className="md:grid md:grid-cols-[240px_1fr] rounded-2xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev">
       {/* History pane */}
-      <div className={cn("flex flex-col border-border lg:border-r", editing ? "hidden lg:flex" : "flex")}>
+      <div className={cn("flex flex-col border-border md:border-r", editing ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">
           <button type="button" onClick={startNewMeeting} className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent text-accent-fg text-sm font-medium px-3 py-2 hover:opacity-90 transition-opacity">
             <Plus size={14} /> New meeting
@@ -278,9 +278,9 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
       </div>
 
       {/* Editor pane */}
-      <div className={cn("flex flex-col", editing ? "flex" : "hidden lg:flex")}>
+      <div className={cn("flex flex-col", editing ? "flex" : "hidden md:flex")}>
         {!editing ? (
-          <div className="hidden lg:flex flex-1 flex-col items-center justify-center text-center p-8">
+          <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center p-8">
             <FileText size={28} className="text-fg-subtle mb-3" />
             <p className="text-sm text-fg-muted">Select a meeting, or start a new one.</p>
           </div>
@@ -288,7 +288,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
           <>
             {/* Header */}
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
-              <button type="button" onClick={() => setEditing(false)} className="lg:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:bg-bg-muted" aria-label="Back">
+              <button type="button" onClick={() => setEditing(false)} className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:bg-bg-muted" aria-label="Back">
                 <ArrowLeft size={16} />
               </button>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Meeting title" className="flex-1 min-w-0 bg-transparent text-base font-semibold outline-none placeholder:text-fg-subtle" />
