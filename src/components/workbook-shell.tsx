@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { NotebookPen, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -16,7 +17,20 @@ export function WorkbookShell({
   notesSlot: React.ReactNode;
   initialTab?: Tab;
 }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
+  const [tab, setTabState] = useState<Tab>(initialTab);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Keep the chosen tab in the URL so a refresh, the back button, and deep
+  // links (e.g. the Capture Wizard's "Save as note") all land on the right tab.
+  const setTab = useCallback((next: Tab) => {
+    setTabState(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "meetings") params.delete("tab");
+    else params.set("tab", next);
+    router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
+  }, [router, pathname, searchParams]);
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">

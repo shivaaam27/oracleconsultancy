@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Plus, Search, Trash2, ArrowLeft, Loader2, Check, StickyNote } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { Plus, Search, Trash2, ArrowLeft, Loader2, Check, StickyNote, Wand2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { listNotes, createNote, updateNote, deleteNote, type Note } from "@/app/notes/actions";
 
@@ -32,6 +33,8 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
   const [creating, setCreating] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const selected = notes.find((n) => n.id === selectedId) || null;
 
@@ -70,6 +73,13 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
     setNotes((prev) => prev.filter((n) => n.id !== id));
     if (selectedId === id) setSelectedId(null);
     await deleteNote(id);
+  }
+
+  // Open the Capture Wizard pre-filled with this note's content (note is kept).
+  function turnIntoTask(note: Note) {
+    const text = [note.title, note.body].filter(Boolean).join("\n");
+    const params = new URLSearchParams({ tab: "notes", capture: "open", text });
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   // Keep the server list fresh if notes were added elsewhere (e.g. Capture Wizard).
@@ -158,6 +168,14 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
                 {save === "saving" && <><Loader2 size={11} className="animate-spin" /> Saving…</>}
                 {save === "saved" && <><Check size={11} className="text-success" /> Saved</>}
               </span>
+              <button
+                type="button"
+                onClick={() => turnIntoTask(selected)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-accent hover:border-accent/50 transition-colors"
+                title="Turn this note into a task"
+              >
+                <Wand2 size={13} /> <span className="hidden sm:inline">Turn into task</span>
+              </button>
               <button
                 type="button"
                 onClick={() => handleDelete(selected.id)}
