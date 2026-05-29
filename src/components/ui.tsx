@@ -62,10 +62,10 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-end justify-between mb-6 gap-4">
+    <div className="flex items-end justify-between mb-4 gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {sub && <div className="text-sm text-fg-muted mt-1">{sub}</div>}
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        {sub && <div className="text-xs text-fg-muted mt-0.5">{sub}</div>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
