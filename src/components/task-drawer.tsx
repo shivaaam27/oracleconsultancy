@@ -223,7 +223,7 @@ export function TaskDrawer() {
           forceMount
           aria-describedby={undefined}
           className="fixed inset-0 m-auto z-[51] h-fit max-h-[88svh] w-[calc(100%-1.5rem)] max-w-[560px]
-            flex flex-col overflow-hidden vibrancy-strong rounded-2xl shadow-lg outline-none
+            flex flex-col overflow-hidden glass glass-refract rounded-2xl outline-none
             transition-all duration-200 ease-out
             data-[state=open]:opacity-100 data-[state=open]:scale-100
             data-[state=closed]:opacity-0 data-[state=closed]:scale-[0.97]

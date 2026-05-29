@@ -19,6 +19,7 @@ import { FloatingAssistant } from "@/components/floating-assistant";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
+import { LiquidGlassDefs } from "@/components/liquid-glass";
 
 export const metadata: Metadata = {
   title: "COS — Oracle Group Operations",
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <FloatingAssistant />
               <ServiceWorkerRegister />
               <IosResume />
+              <LiquidGlassDefs />
               <Suspense>
                 <CaptureWizardMount />
               </Suspense>
