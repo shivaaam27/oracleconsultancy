@@ -213,7 +213,7 @@ export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
   }, [pinnedRoutes, pathname]);
 
   return (
-    <div className="lg:hidden fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3 pointer-events-none">
+    <div className="md:hidden fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3 pointer-events-none">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

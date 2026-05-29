@@ -56,7 +56,7 @@ export function Sidebar({ companies }: { companies: Company[] }) {
   const onCompaniesIndex = pathname === "/companies" || (pathname === "/" && tab === "companies");
 
   return (
-    <aside className="hidden lg:flex flex-col w-60 shrink-0 border-r border-border bg-bg-subtle/40 lg:h-[100svh] lg:sticky lg:top-0">
+    <aside className="hidden md:flex flex-col w-56 lg:w-60 shrink-0 border-r border-border bg-bg-subtle/40 md:h-[100svh] md:sticky md:top-0">
       {/* Brand */}
       <Link href="/" className="flex items-center gap-2 px-3.5 h-12 border-b border-border shrink-0">
         <span className="w-6 h-6 rounded-md bg-accent flex items-center justify-center">
