@@ -118,6 +118,11 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
     setNotes(next);
   }, []);
 
+  // Live captions: show committed notes + interim in the field without committing it.
+  const showNotesInterim = useCallback((chunk: string) => {
+    setNotes(notesRef.current ? `${notesRef.current}\n${chunk}` : chunk);
+  }, []);
+
   function handleVoiceStop() {
     const raw = notesRef.current;
     if (!raw.trim()) return;
@@ -448,7 +453,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
               hint={<span className="text-fg-subtle">Saved notes can become minutes and tasks.</span>}
               actions={
                 <>
-                  <VoiceButton disabled={isParsing || isPolishingVoice} onResult={appendNotes} onStop={handleVoiceStop} lang={voiceLanguage} title="Dictate notes" />
+                  <VoiceButton disabled={isParsing || isPolishingVoice} onResult={appendNotes} onInterim={showNotesInterim} onStop={handleVoiceStop} lang={voiceLanguage} title="Dictate notes" />
                   <button onClick={handleExtract} disabled={!notes.trim() || isParsing} className="flex items-center gap-1.5 px-3 h-8 rounded-full bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity">
                     {isParsing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                     {isParsing ? "Extracting..." : "Actions"}

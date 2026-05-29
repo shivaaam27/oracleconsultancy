@@ -104,7 +104,6 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
   const [phase, setPhase] = useState<Phase>("idle");
   const [seconds, setSeconds] = useState(0);
   const [note, setNote] = useState<string | null>(null);
-  const [caption, setCaption] = useState("");
 
   // Always read the latest callbacks/lang from refs so memoised handlers never go stale.
   const cbRef = useRef({ onResult, onInterim, onStop, lang });
@@ -160,8 +159,6 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
 
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-
-    setCaption("");
   }, []);
 
   useEffect(() => {
@@ -192,7 +189,6 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
         else interim += r[0].transcript;
       }
       const live = `${finalText}${interim}`.trim();
-      setCaption(live);
       cbRef.current.onInterim?.(live);
     };
     rec.onerror = null;
@@ -354,13 +350,11 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
           interim += text;
         }
       }
-      setCaption(interim.trim());
       cbRef.current.onInterim?.(interim.trim());
     };
     rec.onerror = () => {};
     rec.onend = () => {
       fallbackRecRef.current = null;
-      setCaption("");
       setPhase("idle");
       cbRef.current.onInterim?.("");
       cbRef.current.onStop?.();
@@ -396,7 +390,6 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     // Stop captions now; let the recorder's onstop drive transcription.
     killRecogniser(captionRecRef.current);
     captionRecRef.current = null;
-    setCaption("");
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
       try {
         recorderRef.current.stop();
@@ -423,39 +416,36 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     );
   }
 
-  // Recording: pill with live level meter + timer + stop, plus a caption bubble.
+  // Recording: pill with live level meter + timer + stop. Live captions stream
+  // into the host text field via onInterim, not a bubble.
   if (phase === "recording") {
     return (
-      <span className={cn("relative inline-flex", className)}>
-        {caption && (
-          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 z-50 w-max max-w-[min(20rem,70vw)] rounded-lg bg-fg px-2.5 py-1.5 text-[11px] leading-snug text-bg shadow-lg">
-            {caption}
+      <button
+        type="button"
+        onClick={stop}
+        title="Stop dictation"
+        className={cn(
+          "inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-full bg-danger text-white text-xs font-medium",
+          className,
+        )}
+      >
+        {!usingFallbackRef.current && (
+          <span className="flex items-end gap-0.5 h-3.5" aria-hidden>
+            {[0, 1, 2, 3].map((i) => (
+              <span
+                key={i}
+                ref={(el) => {
+                  if (el) barsRef.current[i] = el;
+                }}
+                className="w-0.5 h-full origin-bottom rounded-full bg-white/90 transition-transform duration-75"
+                style={{ transform: "scaleY(0.2)" }}
+              />
+            ))}
           </span>
         )}
-        <button
-          type="button"
-          onClick={stop}
-          title="Stop dictation"
-          className="inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-full bg-danger text-white text-xs font-medium"
-        >
-          {!usingFallbackRef.current && (
-            <span className="flex items-end gap-0.5 h-3.5" aria-hidden>
-              {[0, 1, 2, 3].map((i) => (
-                <span
-                  key={i}
-                  ref={(el) => {
-                    if (el) barsRef.current[i] = el;
-                  }}
-                  className="w-0.5 h-full origin-bottom rounded-full bg-white/90 transition-transform duration-75"
-                  style={{ transform: "scaleY(0.2)" }}
-                />
-              ))}
-            </span>
-          )}
-          <Square size={11} className="fill-current" />
-          <span className="tabular-nums">{fmtTime(seconds)}</span>
-        </button>
-      </span>
+        <Square size={11} className="fill-current" />
+        <span className="tabular-nums">{fmtTime(seconds)}</span>
+      </button>
     );
   }
 

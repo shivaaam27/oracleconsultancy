@@ -27,7 +27,6 @@ export function QuickCapture({ companies, embedded = false }: Props) {
   const [saved, setSaved] = useState(false);
   const [polishState, setPolishState] = useState<"idle"|"loading"|"done">("idle");
   const [polishSource, setPolishSource] = useState<"ai"|"rules"|null>(null);
-  const [interim, setInterim] = useState("");
   const [voiceInfo, setVoiceInfo] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const rawRef = useRef("");
@@ -42,6 +41,11 @@ export function QuickCapture({ companies, embedded = false }: Props) {
     const next = rawRef.current ? `${rawRef.current} ${chunk}` : chunk;
     rawRef.current = next;
     setRaw(next);
+  }, []);
+
+  // Live captions: show committed text + interim in the field without committing it.
+  const showInterim = useCallback((chunk: string) => {
+    setRaw(rawRef.current ? `${rawRef.current} ${chunk}` : chunk);
   }, []);
 
   async function polishAndParseDictation() {
@@ -107,7 +111,6 @@ export function QuickCapture({ companies, embedded = false }: Props) {
 
   function handleClear() {
     updateRaw("");
-    setInterim("");
     setParsed(null);
     setError(null);
   }
@@ -174,15 +177,13 @@ export function QuickCapture({ companies, embedded = false }: Props) {
         disabled={isParsing}
         minHeight={72}
         placeholder={'Type or speak — e.g. "dar spices packaging delay shivam urgent end of month"'}
-        hint={interim ? <span className="text-accent italic">🎙 {interim}…</span> : undefined}
         actions={
           <>
             <VoiceButton
               disabled={isParsing}
               onResult={appendDictation}
-              onInterim={setInterim}
+              onInterim={showInterim}
               onStop={() => {
-                setInterim("");
                 void polishAndParseDictation();
               }}
               title="Dictate task"

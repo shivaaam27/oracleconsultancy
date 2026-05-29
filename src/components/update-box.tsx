@@ -37,6 +37,11 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
     updateBody(next);
   }
 
+  // Live captions: show committed text + interim in the field without committing it.
+  function showVoiceInterim(chunk: string) {
+    setBody(bodyRef.current ? `${bodyRef.current} ${chunk}` : chunk);
+  }
+
   function handleVoiceStop() {
     const raw = bodyRef.current;
     if (!raw.trim()) return;
@@ -102,6 +107,7 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
         <VoiceButton
           disabled={isPending || isPolishing}
           onResult={appendVoice}
+          onInterim={showVoiceInterim}
           onStop={handleVoiceStop}
           title="Dictate update"
           className="border border-border"
