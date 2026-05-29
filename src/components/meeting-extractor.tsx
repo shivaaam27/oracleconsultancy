@@ -137,7 +137,8 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
         context: `Meeting: ${title}. Company: ${companyName}. Attendees: ${attendees || "not specified"}. Date: ${meetingDate}.`,
       });
       updateNotes(result.polished);
-      if (result.source === "ai") setVoiceInfo("Dictation polished by COS.");
+      const tidied = result.changes ? ` Tidied ${result.changes} thing${result.changes === 1 ? "" : "s"}.` : "";
+      if (result.source === "ai") setVoiceInfo(`Dictation polished by COS.${tidied}`);
       else if (result.source === "no-key") setVoiceInfo("AI is off, so COS applied basic clean-up.");
       else if (result.source === "error") setVoiceInfo("AI clean-up failed, so COS applied basic clean-up.");
       else setVoiceInfo("Dictation cleaned.");

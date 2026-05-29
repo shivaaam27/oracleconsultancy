@@ -1,6 +1,7 @@
 "use server";
 
 import { getAppSettings, getGroqKey, saveAppSettings } from "@/lib/settings";
+import { loadContext } from "@/lib/ai-context";
 
 type VoiceMode = "note" | "minutes" | "task" | "update" | "ask" | "message";
 type VoiceSource = "ai" | "rules" | "no-key" | "error";
@@ -12,23 +13,20 @@ const LANGUAGE_LABELS: Record<string, string> = {
   "gu-IN": "Gujarati",
 };
 
-// Filler words and verbal tics that should never survive into polished text.
-const FILLERS = [
-  "um", "umm", "uh", "uhh", "er", "erm", "ah", "hmm",
-  "you know", "i mean", "like i said", "sort of", "kind of",
-  "basically", "literally", "actually you know",
-];
+// Pure verbal tics that are never legitimate content — safe to strip in the
+// rule fallback. Words like "actually"/"basically"/"literally" are deliberately
+// NOT here: they can be real content, so only the AI removes them in context.
+const FILLERS = ["um", "umm", "uh", "uhh", "er", "erm", "uhm", "hmm"];
 
-// Rule-based clean-up used when AI is off or fails. Strips fillers and obvious
-// self-corrections ("...no wait, X"), collapses whitespace, and capitalises.
+// Rule-based clean-up used when AI is off or fails. Conservative on purpose:
+// strips only unambiguous fillers, collapses whitespace, and capitalises.
+// It does NOT resolve self-corrections or remove discourse words, because
+// without the model it cannot tell a correction from real content — and the
+// guiding rule is "when unsure, keep it".
 function basicClean(text: string): string {
   let clean = text.replace(/\s+/g, " ").trim();
   if (!clean) return "";
 
-  // Drop a leading discourse marker after a "scratch that" cue, keeping the latest take.
-  clean = clean.replace(/\b(?:no wait|scratch that|i mean|sorry|let me rephrase|rather)\b[\s,]*/gi, " ");
-
-  // Remove standalone filler words/phrases.
   for (const filler of FILLERS) {
     const re = new RegExp(`(^|[\\s,.])${filler}(?=[\\s,.]|$)`, "gi");
     clean = clean.replace(re, "$1");
@@ -39,12 +37,20 @@ function basicClean(text: string): string {
   return clean.charAt(0).toUpperCase() + clean.slice(1);
 }
 
+// Word-level difference count so callers can show "tidied N things".
+function countChanges(raw: string, polished: string): number {
+  const norm = (s: string) => s.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+  const a = norm(raw);
+  const b = norm(polished);
+  return Math.abs(a.length - b.length) + a.filter((w, i) => b[i] !== undefined && b[i] !== w).length;
+}
+
 export async function polishDictation(input: {
   text: string;
   mode?: VoiceMode;
   context?: string;
   language?: string;
-}): Promise<{ raw: string; polished: string; source: VoiceSource; message?: string }> {
+}): Promise<{ raw: string; polished: string; source: VoiceSource; changes?: number; message?: string }> {
   const raw = input.text.trim();
   if (!raw) return { raw, polished: "", source: "rules" };
 
@@ -57,7 +63,30 @@ export async function polishDictation(input: {
     .filter(Boolean)
     .slice(0, 80);
 
-  if (!apiKey) return { raw, polished: basicClean(raw), source: "no-key" };
+  if (!apiKey) {
+    const polished = basicClean(raw);
+    return { raw, polished, source: "no-key", changes: countChanges(raw, polished) };
+  }
+
+  // Pull the real people + company names so misheard names auto-correct.
+  // Best-effort: a DB hiccup must not block dictation clean-up.
+  let knownNames: string[] = [];
+  try {
+    const ctx = await loadContext();
+    knownNames = [...ctx.companies.map((c) => c.name), ...ctx.people.map((p) => p.name)];
+  } catch {
+    /* names are a bonus; carry on without them */
+  }
+  // Merge dictionary terms first (operator-curated), then DB names, de-duped.
+  const seen = new Set<string>();
+  const protectedTerms = [...dictionary, ...knownNames]
+    .filter((t) => {
+      const key = t.toLowerCase();
+      if (!t || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 200);
 
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -79,14 +108,23 @@ Clean-up rules (apply before anything else):
 - Collapse restarts and stutters: "I think we should, we should call the supplier" -> "We should call the supplier".
 - Do NOT drop real information — only remove fillers, repetitions, and contradicted text. If unsure whether something is a correction, keep it.
 
+Name correction:
+- The following are the REAL names of companies and people in this system. If a word in the dictation is clearly a mis-transcription of one of them (sounds alike, e.g. "dar spaces" -> "Dar Spices", "ameena" -> "Amina"), correct it to the exact spelling below. Only correct when it is clearly the same name misheard — never force an unrelated word onto this list.
+- Known names: ${protectedTerms.join("; ") || "none"}.
+
+Number, date, and amount formatting:
+- Convert spoken numbers to digits: "five pm" -> "5pm", "twenty five" -> "25".
+- Normalise dates to a clear short form: "twenty fifth of march" -> "25 March", "next friday" -> keep as "next Friday" (do not guess a calendar date).
+- Format currency clearly with its code where stated: "ten thousand shillings" -> "TZS 10,000", "five hundred dollars" -> "USD 500". Do not invent a currency that was not spoken.
+- Keep times in a consistent form (e.g. "5pm", "09:30").
+
 Formatting rules:
 - Preserve meaning, names, numbers, dates, amounts, and commitments exactly (after resolving corrections).
 - Keep the output in ${languageName}.
 - Use British English spelling when the language is English.
 - If the text is a meeting note, keep useful bullet structure.
 - If the text is a task update or message, make it concise and professional.
-- Never invent facts.
-- Preserve these dictionary terms exactly when they appear or are clearly intended: ${dictionary.join("; ") || "none"}.`,
+- Never invent facts.`,
           },
           {
             role: "user",
@@ -101,15 +139,21 @@ Formatting rules:
         temperature: 0.1,
       }),
     });
-    if (!res.ok) return { raw, polished: basicClean(raw), source: "error", message: `AI returned HTTP ${res.status}` };
+    if (!res.ok) {
+      const polished = basicClean(raw);
+      return { raw, polished, source: "error", changes: countChanges(raw, polished), message: `AI returned HTTP ${res.status}` };
+    }
     const data = await res.json();
-    const polished = String(data?.choices?.[0]?.message?.content || "").trim();
-    return { raw, polished: polished || basicClean(raw), source: polished ? "ai" : "rules" };
+    const aiText = String(data?.choices?.[0]?.message?.content || "").trim();
+    const polished = aiText || basicClean(raw);
+    return { raw, polished, source: aiText ? "ai" : "rules", changes: countChanges(raw, polished) };
   } catch (err) {
+    const polished = basicClean(raw);
     return {
       raw,
-      polished: basicClean(raw),
+      polished,
       source: "error",
+      changes: countChanges(raw, polished),
       message: err instanceof Error ? err.message : String(err),
     };
   }

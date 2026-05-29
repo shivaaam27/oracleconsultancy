@@ -28,6 +28,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
   const [polishState, setPolishState] = useState<"idle"|"loading"|"done">("idle");
   const [polishSource, setPolishSource] = useState<"ai"|"rules"|null>(null);
   const [voiceInfo, setVoiceInfo] = useState<string | null>(null);
+  const [lastRawVoice, setLastRawVoice] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const rawRef = useRef("");
 
@@ -51,6 +52,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
   async function polishAndParseDictation() {
     const dictated = rawRef.current.trim();
     if (!dictated) return;
+    setLastRawVoice(dictated);
     setVoiceInfo("Cleaning dictated task...");
     const result = await polishDictation({
       text: dictated,
@@ -58,7 +60,8 @@ export function QuickCapture({ companies, embedded = false }: Props) {
       context: "Quick Capture task entry. Preserve company, person, priority, status, and deadline clues.",
     });
     updateRaw(result.polished);
-    setVoiceInfo(result.source === "ai" ? "Dictation polished by COS." : "Dictation cleaned.");
+    const tidied = result.changes ? ` Tidied ${result.changes} thing${result.changes === 1 ? "" : "s"}.` : "";
+    setVoiceInfo(result.source === "ai" ? `Dictation polished by COS.${tidied}` : "Dictation cleaned.");
     handleParse(result.polished);
   }
 
@@ -113,6 +116,8 @@ export function QuickCapture({ companies, embedded = false }: Props) {
     updateRaw("");
     setParsed(null);
     setError(null);
+    setVoiceInfo(null);
+    setLastRawVoice(null);
   }
 
   function handleSave() {
@@ -215,7 +220,16 @@ export function QuickCapture({ companies, embedded = false }: Props) {
         Tip: tap 🎙 to dictate, or type. Mention company name, person name, deadline (e.g. "end of month"), priority (urgent/high/critical), and status — the AI structures it for you.
       </p>
 
-      {voiceInfo && <p className="text-xs text-fg-muted -mt-2">{voiceInfo}</p>}
+      {(voiceInfo || lastRawVoice) && (
+        <div className="flex flex-wrap items-center gap-2 -mt-2 text-xs text-fg-muted">
+          {voiceInfo && <span>{voiceInfo}</span>}
+          {lastRawVoice && (
+            <button type="button" onClick={() => { updateRaw(lastRawVoice); handleParse(lastRawVoice); }} className="text-accent hover:underline">
+              Use raw
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Parsed preview */}
       {parsed && (
