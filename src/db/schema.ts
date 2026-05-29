@@ -216,3 +216,19 @@ export const undoTokens = pgTable("undo_tokens", {
   expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
   consumedAt: timestamp("consumed_at", { mode: "date" }),
 });
+
+// Inbound capture queue: forwarded emails and shared WhatsApp items land here as
+// "pending" until filed (into a task or a note) or dismissed via the Capture Wizard.
+export const inbox = pgTable("inbox", {
+  id: serial("id").primaryKey(),
+  source: text("source").notNull(),                    // "email" | "whatsapp" | "share" | "manual"
+  status: text("status").notNull().default("pending"), // "pending" | "filed" | "dismissed"
+  sender: text("sender"),                              // email address / contact name
+  subject: text("subject"),                            // email subject / short label
+  body: text("body").notNull(),                        // the captured text
+  attachments: text("attachments"),                    // JSON: [{name,url,type}]
+  filedKind: text("filed_kind"),                       // "task" | "note"
+  filedRef: text("filed_ref"),                         // task code or meeting id
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  filedAt: timestamp("filed_at", { mode: "date" }),
+});

@@ -3,6 +3,7 @@ import {
   Send,
   Settings,
   NotebookPen,
+  Inbox,
   type LucideIcon,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ export type NavRoute = {
  * the COS brand button in the pill, so it isn't listed as a pinnable route.
  */
 export const NAV_ROUTES: NavRoute[] = [
+  { id: "inbox",       href: "/inbox",       label: "Inbox",      icon: Inbox },
   { id: "meeting",     href: "/meeting",     label: "Meeting",    icon: NotebookPen },
   { id: "people",      href: "/people",      label: "People",     icon: Users },
   { id: "outbox",      href: "/outbox",      label: "Outbox",     icon: Send },
@@ -29,4 +31,4 @@ export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
   NAV_ROUTES.map((r) => [r.id, r])
 );
 
-export const DEFAULT_PINS = ["meeting", "outbox", "people"];
+export const DEFAULT_PINS = ["inbox", "meeting", "outbox"];

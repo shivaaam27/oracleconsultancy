@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/cn";
 import { parseRawCapture, createCaptureTask } from "@/app/capture/actions";
 import { saveMeeting } from "@/app/meeting/actions";
+import { markInboxFiled } from "@/app/inbox/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
 
 type Company = { id: number; name: string };
@@ -65,6 +66,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const open = searchParams.get("capture") === "open";
+  const inboxId = searchParams.get("inbox");
 
   const [step, setStep] = useState<Step>("intake");
   const [raw, setRaw] = useState("");
@@ -90,6 +92,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("capture");
     params.delete("text");
+    params.delete("inbox");
     router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
   }, [router, pathname, searchParams]);
 
@@ -168,6 +171,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
     });
     setSaving(false);
     if (res.ok && res.code) {
+      if (inboxId) await markInboxFiled(parseInt(inboxId, 10), "task", res.code).catch(() => {});
       setResult({ kind: "task", label: res.code, href: `/task/${res.code}` });
       setStep("done");
       router.refresh();
@@ -190,6 +194,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
         meetingDate: ymd(new Date()),
         rawNotes: raw,
       });
+      if (inboxId) await markInboxFiled(parseInt(inboxId, 10), "note", String(m.id)).catch(() => {});
       setResult({ kind: "note", label: m.title, href: "/meeting" });
       setStep("done");
       router.refresh();
