@@ -18,6 +18,10 @@ import { UpdateBox } from "./update-box";
 import { CodeLinkedText } from "./code-linked-text";
 import { AssigneeList } from "./assignee-list";
 import { Badge } from "./ui";
+import { useToast } from "./toast";
+import { callUndo } from "./undo-banner";
+import { inlineUpdateTask } from "@/app/task/actions";
+import { CheckCircle2, RotateCcw, AlertOctagon } from "lucide-react";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
@@ -143,6 +147,31 @@ export function TaskDrawer() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [acting, setActing] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  async function quickAction(kind: "complete" | "escalate") {
+    if (!data) return;
+    setActing(kind);
+    const isDone = data.task.status === "Completed" || data.task.status === "Closed";
+    const res = kind === "complete"
+      ? await inlineUpdateTask(data.task.code, "status", isDone ? "In Progress" : "Completed")
+      : await inlineUpdateTask(data.task.code, "escalation", "Yes");
+    setActing(null);
+    if (res.ok) {
+      toast(
+        kind === "complete" ? (isDone ? `${data.task.code} reopened` : `${data.task.code} completed`) : `${data.task.code} escalated`,
+        {
+          tone: "success", duration: 6000,
+          action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); setRefreshKey((k) => k + 1); router.refresh(); } } : undefined,
+        }
+      );
+      setRefreshKey((k) => k + 1);
+      router.refresh();
+    } else {
+      toast(res.error || "Could not update", { tone: "warn", duration: 3000 });
+    }
+  }
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -271,6 +300,35 @@ export function TaskDrawer() {
                     <Badge tone={statusTone(data.task.status)}>{data.task.status}</Badge>
                     <Badge tone={priorityTone(data.task.priority)}>{data.task.priority}</Badge>
                     {data.task.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
+                  </div>
+
+                  {/* Quick actions — one-click from the inspector */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {(() => {
+                      const isDone = data.task.status === "Completed" || data.task.status === "Closed";
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => quickAction("complete")}
+                          disabled={acting !== null}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium px-3 py-1.5 disabled:opacity-50 hover:opacity-90 transition-opacity"
+                        >
+                          {acting === "complete" ? <Loader2 size={13} className="animate-spin" /> : isDone ? <RotateCcw size={13} /> : <CheckCircle2 size={13} />}
+                          {isDone ? "Reopen" : "Complete"}
+                        </button>
+                      );
+                    })()}
+                    {data.task.escalation !== "Yes" && (
+                      <button
+                        type="button"
+                        onClick={() => quickAction("escalate")}
+                        disabled={acting !== null}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-danger hover:border-danger/50 px-3 py-1.5 disabled:opacity-50 transition-colors"
+                      >
+                        {acting === "escalate" ? <Loader2 size={13} className="animate-spin" /> : <AlertOctagon size={13} />}
+                        Escalate
+                      </button>
+                    )}
                   </div>
                 </div>
 

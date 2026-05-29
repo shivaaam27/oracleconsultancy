@@ -149,8 +149,8 @@ export default async function TaskPage({
     <div className="space-y-6 max-w-5xl">
       {/* Back */}
       <div>
-        <Link href="/registry" className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition-colors">
-          <ArrowLeft size={12} /> Registry
+        <Link href="/?tab=tasks" className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition-colors">
+          <ArrowLeft size={12} /> Tasks
         </Link>
       </div>
 
