@@ -1,9 +1,10 @@
 import { Card, PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
+import { NotificationSettings } from "@/components/notification-settings";
 import { getAppSettings } from "@/lib/settings";
 import { saveSettings } from "./actions";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2 } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -163,6 +164,21 @@ export default async function SettingsPage({
           </p>
         </div>
         <NavSettings />
+      </Card>
+
+      {/* Notifications — lives outside the form; subscribes per-device instantly */}
+      <Card className="p-5 space-y-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Bell size={14} className="text-accent" /> Notifications
+          </h2>
+          <p className="text-xs text-fg-muted mt-1">
+            Get alerts on this device — even when COS is closed — when tasks become overdue, are escalated,
+            or are due today. Enable it on each device you want alerts on. On iPhone, add COS to your Home
+            Screen first.
+          </p>
+        </div>
+        <NotificationSettings />
       </Card>
     </div>
   );
