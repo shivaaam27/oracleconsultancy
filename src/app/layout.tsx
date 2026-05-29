@@ -14,6 +14,7 @@ import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
 import { FloatingAssistant } from "@/components/floating-assistant";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { IosResume } from "@/components/ios-resume";
 
 export const metadata: Metadata = {
   title: "COS — Oracle Group Operations",
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Suspense>
               <FloatingAssistant />
               <ServiceWorkerRegister />
+              <IosResume />
             </CommandPaletteProvider>
           </ToastProvider>
         </ThemeProvider>
