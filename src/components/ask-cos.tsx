@@ -2,10 +2,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, Bot, User, Trash2, Mic, MicOff, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Sparkles, Send, Loader2, Bot, User, Trash2, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { LinkifiedAnswer } from "./linkified-answer";
 import { PromptBox } from "./prompt-box";
 import { CopyButton } from "./copy-button";
+import { VoiceButton } from "./voice-button";
+import type { PageContext } from "@/lib/page-context";
 
 type Message = {
   id: string;
@@ -50,50 +52,42 @@ function extractDigestCompany(text: string): string | null {
   return name;
 }
 
-export function AskCOS({ embedded = false, minimal = false }: { embedded?: boolean; minimal?: boolean } = {}) {
+export function AskCOS({
+  embedded = false,
+  minimal = false,
+  pageContext,
+}: { embedded?: boolean; minimal?: boolean; pageContext?: PageContext } = {}) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [listening, setListening] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
   const [focusedTask, setFocusedTask] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const recRef = useRef<any>(null);
+  const dictatedRef = useRef("");
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
+  // On a task page, focus that task so pronouns ("escalate it") work immediately.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    setVoiceSupported(!!SR);
-  }, []);
+    if (pageContext?.taskCode) setFocusedTask(pageContext.taskCode);
+  }, [pageContext?.taskCode]);
 
-  function toggleVoice() {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    if (listening && recRef.current) { recRef.current.stop(); return; }
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = true;
-    rec.lang = navigator.language || "en-GB";
-    rec.onstart = () => setListening(true);
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    rec.onresult = (e: any) => {
-      let transcript = "";
-      for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
-      setInput(transcript);
-      if (e.results[e.results.length - 1].isFinal) {
-        rec.stop();
-        setTimeout(() => submit(transcript), 100);
-      }
-    };
-    recRef.current = rec;
-    rec.start();
+  // Dictation: live captions stream into the box; the accurate transcript replaces
+  // it on stop, then auto-submits.
+  function handleVoiceInterim(text: string) {
+    setInput(dictatedRef.current ? `${dictatedRef.current} ${text}` : text);
+  }
+  function handleVoiceResult(text: string) {
+    dictatedRef.current = dictatedRef.current ? `${dictatedRef.current} ${text}` : text;
+    setInput(dictatedRef.current);
+  }
+  function handleVoiceStop() {
+    const final = dictatedRef.current.trim();
+    dictatedRef.current = "";
+    if (final) void submit(final);
   }
 
   async function runAction(command: string, confirm: boolean, intentMsgId?: string) {
@@ -110,7 +104,11 @@ export function AskCOS({ embedded = false, minimal = false }: { embedded?: boole
           command,
           confirm,
           history: recentHistory,
-          activeContext: focusedTask ? { taskCode: focusedTask } : undefined,
+          activeContext: focusedTask
+            ? { taskCode: focusedTask }
+            : pageContext?.taskCode
+              ? { taskCode: pageContext.taskCode }
+              : undefined,
         }),
       });
       const data = await res.json();
@@ -178,7 +176,7 @@ export function AskCOS({ embedded = false, minimal = false }: { embedded?: boole
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, history: recentHistory }),
+        body: JSON.stringify({ question, history: recentHistory, pageContext }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -459,24 +457,17 @@ export function AskCOS({ embedded = false, minimal = false }: { embedded?: boole
           onSubmit={() => submit(input)}
           disabled={loading}
           minHeight={72}
-          placeholder={listening ? "Listening…" : "Ask anything — or type a command"}
+          placeholder="Ask anything — or type a command"
           actions={
             <>
-              {voiceSupported && (
-                <button
-                  type="button"
-                  onClick={toggleVoice}
-                  disabled={loading}
-                  title={listening ? "Stop listening" : "Speak"}
-                  className={`inline-flex items-center justify-center w-8 h-8 rounded-full border transition-all ${
-                    listening
-                      ? "border-danger bg-danger/10 text-danger animate-pulse"
-                      : "border-border text-fg-muted hover:text-accent hover:border-accent/40"
-                  } disabled:opacity-50`}
-                >
-                  {listening ? <MicOff size={14} /> : <Mic size={14} />}
-                </button>
-              )}
+              <VoiceButton
+                disabled={loading}
+                onInterim={handleVoiceInterim}
+                onResult={handleVoiceResult}
+                onStop={handleVoiceStop}
+                title="Speak to COS"
+                className="border border-border"
+              />
               <button
                 type="button"
                 onClick={() => submit(input)}

@@ -85,6 +85,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
   const [phase, setPhase] = useState<Phase>("idle");
   const [seconds, setSeconds] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const [caption, setCaption] = useState("");
 
   // Recording plumbing.
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -100,6 +101,9 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
   // Browser-speech fallback.
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const usingFallbackRef = useRef(false);
+
+  // Parallel recogniser used only for live captions while Whisper records.
+  const captionRecRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     setAvailable(canRecord() || getRecognitionCtor() !== null);
@@ -121,7 +125,41 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     recorderRef.current = null;
     recRef.current?.abort();
     recRef.current = null;
+    captionRecRef.current?.abort();
+    captionRecRef.current = null;
+    setCaption("");
   }, []);
+
+  // Live captions: run the browser recogniser purely for instant on-screen text
+  // while Whisper records the authoritative audio. Its results are display-only.
+  const startCaptions = useCallback(() => {
+    const Ctor = getRecognitionCtor();
+    if (!Ctor) return;
+    const rec = new Ctor();
+    rec.lang = lang || (typeof navigator !== "undefined" ? navigator.language || "en-GB" : "en-GB");
+    rec.continuous = true;
+    rec.interimResults = true;
+    let finalText = "";
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += `${r[0].transcript} `;
+        else interim += r[0].transcript;
+      }
+      const live = `${finalText}${interim}`.trim();
+      setCaption(live);
+      onInterim?.(live);
+    };
+    rec.onerror = () => {};
+    rec.onend = () => {};
+    captionRecRef.current = rec;
+    try {
+      rec.start();
+    } catch {
+      /* captions are optional */
+    }
+  }, [lang, onInterim]);
 
   const runMeter = useCallback((analyser: AnalyserNode) => {
     const data = new Uint8Array(analyser.frequencyBinCount);
@@ -211,10 +249,11 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     }
 
     recorder.start();
+    startCaptions();
     setPhase("recording");
     setSeconds(0);
     timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-  }, [finishRecording, runMeter]);
+  }, [finishRecording, runMeter, startCaptions]);
 
   /* ---------------- Browser-speech fallback ---------------- */
   const startFallback = useCallback(() => {
@@ -238,6 +277,7 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
           interim += text;
         }
       }
+      setCaption(interim.trim());
       onInterim?.(interim.trim());
     };
     rec.onerror = () => setPhase("idle");
@@ -288,35 +328,40 @@ export function VoiceButton({ onResult, onInterim, onStop, disabled, lang, title
     );
   }
 
-  // Recording: expanded pill with live level meter + timer + stop.
+  // Recording: expanded pill with live level meter + timer + stop, plus a live
+  // caption bubble above when speech is detected.
   if (phase === "recording") {
     return (
-      <button
-        type="button"
-        onClick={stop}
-        title="Stop dictation"
-        className={cn(
-          "inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-full bg-danger text-white text-xs font-medium",
-          className,
-        )}
-      >
-        {!usingFallbackRef.current && (
-          <span className="flex items-end gap-0.5 h-3.5" aria-hidden>
-            {[0, 1, 2, 3].map((i) => (
-              <span
-                key={i}
-                ref={(el) => {
-                  if (el) barsRef.current[i] = el;
-                }}
-                className="w-0.5 h-full origin-bottom rounded-full bg-white/90 transition-transform duration-75"
-                style={{ transform: "scaleY(0.2)" }}
-              />
-            ))}
+      <span className={cn("relative inline-flex", className)}>
+        {caption && (
+          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 z-50 w-max max-w-[min(20rem,70vw)] rounded-lg bg-fg px-2.5 py-1.5 text-[11px] leading-snug text-bg shadow-lg">
+            {caption}
           </span>
         )}
-        <Square size={11} className="fill-current" />
-        <span className="tabular-nums">{fmtTime(seconds)}</span>
-      </button>
+        <button
+          type="button"
+          onClick={stop}
+          title="Stop dictation"
+          className="inline-flex items-center gap-2 h-8 pl-2.5 pr-3 rounded-full bg-danger text-white text-xs font-medium"
+        >
+          {!usingFallbackRef.current && (
+            <span className="flex items-end gap-0.5 h-3.5" aria-hidden>
+              {[0, 1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  ref={(el) => {
+                    if (el) barsRef.current[i] = el;
+                  }}
+                  className="w-0.5 h-full origin-bottom rounded-full bg-white/90 transition-transform duration-75"
+                  style={{ transform: "scaleY(0.2)" }}
+                />
+              ))}
+            </span>
+          )}
+          <Square size={11} className="fill-current" />
+          <span className="tabular-nums">{fmtTime(seconds)}</span>
+        </button>
+      </span>
     );
   }
 

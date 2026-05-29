@@ -69,7 +69,9 @@ function enrich(rows: RawTaskRow[], cMap: Map<number, string>): EnrichedTask[] {
   }));
 }
 
-async function buildContext(question: string) {
+type PageCtx = { label?: string; taskCode?: string; companyId?: number };
+
+async function buildContext(question: string, page?: PageCtx) {
   const tokens = question
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
@@ -89,6 +91,11 @@ async function buildContext(question: string) {
   const matchedCompanies = companies.filter(c =>
     tokens.some(t => c.name.toLowerCase().includes(t) || c.code.toLowerCase() === t)
   );
+  // The company whose page the operator is viewing counts as matched.
+  if (page?.companyId) {
+    const pc = companies.find(c => c.id === page.companyId);
+    if (pc && !matchedCompanies.some(c => c.id === pc.id)) matchedCompanies.push(pc);
+  }
   const matchedPeople = peopleAll.filter(p =>
     tokens.some(t => p.name.toLowerCase().split(/\s+/).some(w => w === t || w.startsWith(t)))
   );
@@ -149,6 +156,16 @@ async function buildContext(question: string) {
   }
   if (filtered.length === 0) filtered = allTasks;
   filtered = filtered.slice(0, 20);
+
+  // Always include the task whose page the operator is viewing.
+  if (page?.taskCode) {
+    const already = filtered.some(t => t.code.toLowerCase() === page.taskCode!.toLowerCase());
+    if (!already) {
+      const { data } = await sb.from("tasks").select(TASK_COLS).ilike("code", page.taskCode).limit(1);
+      const pageTask = enrich((data ?? []) as RawTaskRow[], cMap);
+      if (pageTask.length) filtered = [pageTask[0], ...filtered].slice(0, 20);
+    }
+  }
 
   // Pull assignees + recent updates for these tasks
   const taskIds = filtered.map((t) => t.id);
@@ -230,6 +247,13 @@ async function buildContext(question: string) {
 
   return {
     today: new Date().toISOString().slice(0, 10),
+    currentPage: page
+      ? {
+          label: page.label ?? null,
+          taskCode: page.taskCode ?? null,
+          company: page.companyId ? cMap.get(page.companyId) ?? null : null,
+        }
+      : null,
     companies: companies.map(c => c.name),
     people: peopleAll.map(p => p.name),
     matchedCompanies: matchedCompanies.map(c => c.name),
@@ -272,6 +296,7 @@ export async function POST(req: NextRequest) {
     const question: string = (body?.question ?? "").toString().trim();
     const history: { role: "user" | "assistant"; content: string }[] =
       Array.isArray(body?.history) ? body.history.slice(-6) : [];
+    const pageContext: PageCtx | undefined = body?.pageContext ?? undefined;
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
     const apiKey = await getGroqKey();
@@ -284,11 +309,15 @@ export async function POST(req: NextRequest) {
     const lastUserContent = [...history].reverse().find(m => m.role === "user")?.content || "";
     const retrievalQuery = `${lastUserContent} ${question}`.trim();
 
-    const context = await buildContext(retrievalQuery);
+    const context = await buildContext(retrievalQuery, pageContext);
+
+    const pageNote = context.currentPage
+      ? `\n\nThe principal is currently viewing: ${context.currentPage.label}${context.currentPage.taskCode ? ` (task ${context.currentPage.taskCode})` : ""}${context.currentPage.company ? ` (company ${context.currentPage.company})` : ""}. Interpret "this", "here", "this page", or "this task/company" as referring to it.`
+      : "";
 
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nUse this CONTEXT to answer follow-up questions. The conversation history is provided next.` },
+      { role: "user", content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nUse this CONTEXT to answer follow-up questions.${pageNote} The conversation history is provided next.` },
       ...history,
       { role: "user", content: question },
     ];

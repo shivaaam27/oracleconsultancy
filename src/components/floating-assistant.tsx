@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { AskCOS } from "./ask-cos";
+import { derivePageContext } from "@/lib/page-context";
 
 // The COS brand mark — accent rounded square with a sparkle, matching the nav brand.
 function CosMark({ size = 18 }: { size?: number }) {
@@ -21,6 +22,7 @@ function CosMark({ size = 18 }: { size?: number }) {
 export function FloatingAssistant() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const pageContext = derivePageContext(pathname);
 
   useEffect(() => {
     setOpen(false);
@@ -65,7 +67,10 @@ export function FloatingAssistant() {
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border">
                   <div className="flex items-center gap-2">
                     <CosMark size={14} />
-                    <span className="font-semibold text-sm tracking-tight">COS Assistant</span>
+                    <div className="flex flex-col leading-tight">
+                      <span className="font-semibold text-sm tracking-tight">COS Assistant</span>
+                      <span className="text-[10px] text-fg-muted">{pageContext.label}</span>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -78,7 +83,7 @@ export function FloatingAssistant() {
                 </div>
                 {/* Chat */}
                 <div className="overflow-y-auto pb-[env(safe-area-inset-bottom)]">
-                  <AskCOS embedded minimal />
+                  <AskCOS embedded minimal pageContext={pageContext} />
                 </div>
               </div>
             </motion.div>

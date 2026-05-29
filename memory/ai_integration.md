@@ -63,7 +63,12 @@ Context includes:
 - assignees;
 - recent updates;
 - matched companies and people;
-- relevant saved meetings, including title, company, date, attendees, minutes, raw notes, and linked task codes.
+- relevant saved meetings, including title, company, date, attendees, minutes, raw notes, and linked task codes;
+- `currentPage` — the page the operator is viewing (label, plus resolved task code / company), so "this", "here", "this task/company" resolve correctly. The current page's task/company is force-included in retrieval.
+
+Page context is supplied by the floating assistant via `src/lib/page-context.ts` (`derivePageContext(pathname)`) and passed in the request body as `pageContext`. `/api/action` also receives it as `activeContext` so pronoun commands ("escalate it") work on a task page.
+
+The Ask COS mic (`src/components/ask-cos.tsx`) now uses the shared `VoiceButton` (Groq Whisper engine with live captions), not its own browser recogniser.
 
 Intent filters include overdue, critical, escalated, and closed task requests. Meeting retrieval is triggered by matching keywords, company names, or meeting-oriented words such as meeting, minutes, notes, decision, risk, blocker, attendee, and follow-up.
 
