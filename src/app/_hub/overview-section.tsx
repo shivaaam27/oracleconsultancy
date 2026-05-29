@@ -123,12 +123,12 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
               key={label}
               href={href}
               className={cn(
-                "rounded-xl border px-3 py-2 transition-all hover:border-accent hover:shadow-sm",
+                "rounded-lg border px-2.5 py-1.5 flex items-baseline gap-1.5 sm:flex-col sm:items-start sm:gap-0 transition-colors hover:border-accent",
                 toneClass
               )}
             >
-              <div className="text-xl font-semibold tabular leading-none">{count}</div>
-              <div className="text-[11px] mt-1 text-fg-muted truncate">{label}</div>
+              <div className="text-lg font-semibold tabular leading-none">{count}</div>
+              <div className="text-[10px] sm:mt-1 text-fg-muted truncate">{label}</div>
             </Link>
           );
         })}

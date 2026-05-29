@@ -72,38 +72,33 @@ export function WelcomeHero({
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 28 }}
-      className="relative overflow-hidden rounded-2xl border border-border p-5 sm:p-6
-                 bg-gradient-to-br from-accent/10 via-bg-elev to-bg-elev"
+      transition={{ type: "spring", stiffness: 280, damping: 30 }}
+      className="rounded-xl border border-border bg-bg-elev px-4 py-3"
     >
-      {/* soft glow */}
-      <div className="pointer-events-none absolute -top-16 -right-16 w-56 h-56 rounded-full bg-accent/20 blur-3xl" />
-
-      <div className="relative flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0 space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wider text-fg-muted">{hello}</p>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-fg-muted">{date}</p>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold tracking-tight leading-tight">{hello}</h1>
+          <p className="text-xs text-fg-muted">{date}</p>
         </div>
 
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           {/* Clock */}
           <div className="text-right">
-            <div className="text-2xl sm:text-3xl font-semibold tabular leading-none">{time}</div>
-            <div className="mt-1 text-[11px] text-fg-muted inline-flex items-center gap-1 justify-end">
-              <MapPin size={11} /> {city}
+            <div className="text-lg font-semibold tabular leading-none">{time}</div>
+            <div className="mt-0.5 text-[10px] text-fg-muted inline-flex items-center gap-1 justify-end">
+              <MapPin size={10} /> {city}
             </div>
           </div>
 
           {/* Weather */}
           {weather && (
-            <div className="flex items-center gap-2 pl-4 border-l border-border">
-              <weather.Icon size={28} className="text-accent" />
+            <div className="flex items-center gap-1.5 pl-3 border-l border-border">
+              <weather.Icon size={20} className="text-accent" />
               <div className="leading-tight">
-                <div className="text-xl font-semibold tabular">{weather.temp}°C</div>
-                <div className="text-[11px] text-fg-muted">{weather.label}</div>
+                <div className="text-sm font-semibold tabular">{weather.temp}°C</div>
+                <div className="text-[10px] text-fg-muted">{weather.label}</div>
               </div>
             </div>
           )}
@@ -112,8 +107,8 @@ export function WelcomeHero({
 
       {/* COS pulse */}
       {pulse && (
-        <p className="relative mt-4 text-sm text-fg-muted">
-          <span className="text-accent font-medium">COS pulse · </span>{pulse}
+        <p className="mt-2 pt-2 border-t border-border/60 text-xs text-fg-muted">
+          <span className="text-accent font-medium">Pulse · </span>{pulse}
         </p>
       )}
     </motion.section>
