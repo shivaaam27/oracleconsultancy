@@ -57,30 +57,45 @@ function stripModelChrome(text: string): string {
   return out.trim();
 }
 
-// POST to Groq chat completions with a short retry on transient failures
-// (429 rate limit, 5xx). Reduces the "falls back to raw text" problem when
-// several dictations happen in quick succession.
-async function groqChat(
+// Models tried in order for dictation clean-up. The 70b model resolves
+// corrections best, but its per-model rate limit is tighter; when it is
+// throttled (429) we fall through to the faster 8b model — which still does a
+// solid job — before giving up to the raw transcript.
+const DICTATION_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+
+async function groqOnce(
   apiKey: string,
   body: Record<string, unknown>,
+): Promise<{ ok: true; content: string } | { ok: false; status: number; transient: boolean }> {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) {
+    const data = await res.json();
+    return { ok: true, content: String(data?.choices?.[0]?.message?.content || "").trim() };
+  }
+  return { ok: false, status: res.status, transient: res.status === 429 || res.status >= 500 };
+}
+
+// Try each model in turn. Within a model, retry transient failures briefly;
+// on a persistent transient failure, move to the next (less throttled) model.
+async function groqChat(
+  apiKey: string,
+  body: Omit<Record<string, unknown>, "model">,
+  models: string[],
 ): Promise<{ ok: true; content: string } | { ok: false; status: number }> {
   let lastStatus = 0;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      return { ok: true, content: String(data?.choices?.[0]?.message?.content || "").trim() };
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await groqOnce(apiKey, { ...body, model });
+      if (res.ok) return res;
+      lastStatus = res.status;
+      if (!res.transient) return { ok: false, status: res.status };
+      // Brief backoff before retrying this model, then fall through to next model.
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 350));
     }
-    lastStatus = res.status;
-    // Only retry transient failures.
-    if (res.status !== 429 && res.status < 500) break;
-    const retryAfter = Number(res.headers.get("retry-after"));
-    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 400 * (attempt + 1);
-    await new Promise((r) => setTimeout(r, Math.min(waitMs, 2000)));
   }
   return { ok: false, status: lastStatus };
 }
@@ -136,7 +151,9 @@ export async function polishDictation(input: {
    - "the red one, sorry the blue one" -> "The blue one"
    - "not this one, that one" -> "That one"
    - "call John, I mean call Mary" -> "Call Mary"
-   Correction cues: "no wait", "scratch that", "actually", "sorry", "I mean", "not X, Y", "or rather", "let me rephrase", "make it". Everything BEFORE the cue that it contradicts is removed.
+   - "meeting is with Pulin, no it's with Vishal" -> "Meeting is with Vishal"
+   - "due Monday no Tuesday" -> "Due Tuesday"
+   Correction cues: "no", "no wait", "no it's", "scratch that", "actually", "sorry", "I mean", "not X, Y", "or rather", "let me rephrase", "make it". Everything BEFORE the cue that it contradicts is removed. A bare "no" mid-sentence almost always signals a correction of the thing just said.
 
 2. FILLERS & RESTARTS. Remove um, uh, er, erm, "you know", "sort of", "kind of", and collapse stutters/repeats ("we should, we should call" -> "we should call").
 
@@ -150,15 +167,18 @@ export async function polishDictation(input: {
   const userPrompt = `Mode: ${input.mode ?? "note"}\n${contextLine}\nClean up this dictation and return only the result:\n\n${raw}`;
 
   try {
-    const result = await groqChat(apiKey, {
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 700,
-      temperature: 0,
-    });
+    const result = await groqChat(
+      apiKey,
+      {
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 700,
+        temperature: 0,
+      },
+      DICTATION_MODELS,
+    );
     if (!result.ok) {
       const polished = basicClean(raw);
       return { raw, polished, source: "error", changes: countChanges(raw, polished), message: `AI returned HTTP ${result.status}` };
