@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPill } from "@/components/top-pill";
+import { SidebarServer } from "@/components/sidebar-server";
 import { CompanyScopeServer } from "@/components/company-scope-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
@@ -57,9 +58,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <UndoBanner />
             <CommandPaletteProvider>
               <RecentsTracker />
-              <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 mx-auto max-w-[1080px]">
-                <PageTransition>{children}</PageTransition>
-              </main>
+              <div className="lg:flex lg:h-[100svh] lg:overflow-hidden">
+                <Suspense>
+                  <SidebarServer />
+                </Suspense>
+                <main className="flex-1 lg:overflow-y-auto pt-6 px-4 sm:px-6 lg:px-8 pb-28 lg:pb-10">
+                  <div className="mx-auto max-w-[1100px]">
+                    <PageTransition>{children}</PageTransition>
+                  </div>
+                </main>
+              </div>
               <TopPill scopeSlot={<CompanyScopeServer />} />
               <Suspense>
                 <TaskDrawer />
