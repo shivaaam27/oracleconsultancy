@@ -45,6 +45,46 @@ function countChanges(raw: string, polished: string): number {
   return Math.abs(a.length - b.length) + a.filter((w, i) => b[i] !== undefined && b[i] !== w).length;
 }
 
+// Strip the conversational wrapper small/large models sometimes add despite being
+// told not to: a leading "Here is the cleaned text:" preamble and surrounding quotes.
+function stripModelChrome(text: string): string {
+  let out = text.trim();
+  out = out.replace(/^(?:sure|certainly|here(?:'s| is)|here are|the (?:cleaned|polished|corrected)[^:]*)[^:]*:\s*/i, "");
+  // Remove a single pair of wrapping quotes/backticks.
+  const m = out.match(/^(["'`])([\s\S]*)\1$/);
+  if (m) out = m[2];
+  out = out.replace(/^```[a-z]*\s*/i, "").replace(/```$/, "");
+  return out.trim();
+}
+
+// POST to Groq chat completions with a short retry on transient failures
+// (429 rate limit, 5xx). Reduces the "falls back to raw text" problem when
+// several dictations happen in quick succession.
+async function groqChat(
+  apiKey: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: true; content: string } | { ok: false; status: number }> {
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { ok: true, content: String(data?.choices?.[0]?.message?.content || "").trim() };
+    }
+    lastStatus = res.status;
+    // Only retry transient failures.
+    if (res.status !== 429 && res.status < 500) break;
+    const retryAfter = Number(res.headers.get("retry-after"));
+    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 400 * (attempt + 1);
+    await new Promise((r) => setTimeout(r, Math.min(waitMs, 2000)));
+  }
+  return { ok: false, status: lastStatus };
+}
+
 export async function polishDictation(input: {
   text: string;
   mode?: VoiceMode;
@@ -88,63 +128,42 @@ export async function polishDictation(input: {
     })
     .slice(0, 200);
 
+  const systemPrompt = `You are a dictation cleaner for a Chief of Staff system. You receive raw speech-to-text and rewrite it into the clean text the speaker meant. You ALWAYS rewrite — you never echo the input unchanged unless it is already clean. Output ONLY the cleaned text. No preamble, no quotes, no explanation, no "Here is".
+
+1. SELF-CORRECTIONS (most important). When the speaker changes their mind, keep ONLY the final choice and delete the contradicted part and the cue word. Worked examples:
+   - "send it to Amina, no wait, to Shivam" -> "Send it to Shivam"
+   - "by 5pm, actually make it 6pm" -> "By 6pm"
+   - "the red one, sorry the blue one" -> "The blue one"
+   - "not this one, that one" -> "That one"
+   - "call John, I mean call Mary" -> "Call Mary"
+   Correction cues: "no wait", "scratch that", "actually", "sorry", "I mean", "not X, Y", "or rather", "let me rephrase", "make it". Everything BEFORE the cue that it contradicts is removed.
+
+2. FILLERS & RESTARTS. Remove um, uh, er, erm, "you know", "sort of", "kind of", and collapse stutters/repeats ("we should, we should call" -> "we should call").
+
+3. NAMES. These are the real companies/people: ${protectedTerms.join("; ") || "none"}. If a word clearly sounds like one of these misheard (e.g. "dar spaces" -> "Dar Spices", "ameena" -> "Amina"), fix it to the exact spelling. Never force an unrelated word onto this list.
+
+4. NUMBERS/DATES/MONEY. "five pm" -> "5pm"; "twenty fifth of march" -> "25 March"; "ten thousand shillings" -> "TZS 10,000". Keep "next Friday" as-is (don't guess a date). Never invent a currency that wasn't spoken.
+
+5. Keep meaning, real names, numbers, dates and commitments exact. Output in ${languageName}; British English spelling for English. Keep bullet structure for notes; be concise and professional for updates/messages. Never invent facts. If unsure whether something is a correction, keep it.`;
+
+  const contextLine = input.context ? `Context: ${input.context}\n` : "";
+  const userPrompt = `Mode: ${input.mode ?? "note"}\n${contextLine}\nClean up this dictation and return only the result:\n\n${raw}`;
+
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [
-          {
-            role: "system",
-            content: `You clean rough dictated speech for a Chief of Staff system. The input is raw speech-to-text: it contains fillers, false starts, repetitions, and the speaker changing their mind mid-sentence. Your job is to recover what the speaker finally meant to say.
-
-Return only the polished text, no explanation, no preamble.
-
-Clean-up rules (apply before anything else):
-- Honour self-corrections: when the speaker changes their mind, keep only the final value and silently drop the earlier one. Examples: "by 5pm, actually make it 6pm" -> "by 6pm"; "send it to Amina, no wait, to Shivam" -> "send it to Shivam"; "the red one, sorry the blue one" -> "the blue one".
-- Treat cues like "actually", "no wait", "scratch that", "I mean", "sorry", "let me rephrase", "or rather" as correction signals — keep the text after the cue, discard the contradicted text before it.
-- Remove filler words and verbal tics: um, uh, er, erm, "you know", "I mean" (when not a correction), "sort of", "kind of", "basically", "literally".
-- Collapse restarts and stutters: "I think we should, we should call the supplier" -> "We should call the supplier".
-- Do NOT drop real information — only remove fillers, repetitions, and contradicted text. If unsure whether something is a correction, keep it.
-
-Name correction:
-- The following are the REAL names of companies and people in this system. If a word in the dictation is clearly a mis-transcription of one of them (sounds alike, e.g. "dar spaces" -> "Dar Spices", "ameena" -> "Amina"), correct it to the exact spelling below. Only correct when it is clearly the same name misheard — never force an unrelated word onto this list.
-- Known names: ${protectedTerms.join("; ") || "none"}.
-
-Number, date, and amount formatting:
-- Convert spoken numbers to digits: "five pm" -> "5pm", "twenty five" -> "25".
-- Normalise dates to a clear short form: "twenty fifth of march" -> "25 March", "next friday" -> keep as "next Friday" (do not guess a calendar date).
-- Format currency clearly with its code where stated: "ten thousand shillings" -> "TZS 10,000", "five hundred dollars" -> "USD 500". Do not invent a currency that was not spoken.
-- Keep times in a consistent form (e.g. "5pm", "09:30").
-
-Formatting rules:
-- Preserve meaning, names, numbers, dates, amounts, and commitments exactly (after resolving corrections).
-- Keep the output in ${languageName}.
-- Use British English spelling when the language is English.
-- If the text is a meeting note, keep useful bullet structure.
-- If the text is a task update or message, make it concise and professional.
-- Never invent facts.`,
-          },
-          {
-            role: "user",
-            content: JSON.stringify({
-              mode: input.mode ?? "note",
-              context: input.context || null,
-              dictatedText: raw,
-            }),
-          },
-        ],
-        max_tokens: 700,
-        temperature: 0.1,
-      }),
+    const result = await groqChat(apiKey, {
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: 700,
+      temperature: 0,
     });
-    if (!res.ok) {
+    if (!result.ok) {
       const polished = basicClean(raw);
-      return { raw, polished, source: "error", changes: countChanges(raw, polished), message: `AI returned HTTP ${res.status}` };
+      return { raw, polished, source: "error", changes: countChanges(raw, polished), message: `AI returned HTTP ${result.status}` };
     }
-    const data = await res.json();
-    const aiText = String(data?.choices?.[0]?.message?.content || "").trim();
+    const aiText = stripModelChrome(result.content);
     const polished = aiText || basicClean(raw);
     return { raw, polished, source: aiText ? "ai" : "rules", changes: countChanges(raw, polished) };
   } catch (err) {

@@ -10,7 +10,7 @@ metadata:
 
 Provider: **Groq Cloud** via OpenAI-compatible chat completions.
 
-Model used in current code: `llama-3.1-8b-instant`.
+Model used in current code: `llama-3.1-8b-instant` for most routes. **Exception:** dictation clean-up (`polishDictation`) uses `llama-3.3-70b-versatile` — the 8b model was too weak to reliably resolve spoken self-corrections ("send it to Amina, no wait, to Shivam" -> "Send it to Shivam") and tended to add preamble. The dictated text is sent as plain labelled text (not a JSON blob), output is run through `stripModelChrome` to drop any "Here is…"/quote wrapper, and the call retries transient 429/5xx via `groqChat` so rapid successive dictations don't fall back to raw transcript.
 
 AI is optional. All AI features must respect `getGroqKey()` from `src/lib/settings.ts`, which is gated by the Settings AI master switch.
 
