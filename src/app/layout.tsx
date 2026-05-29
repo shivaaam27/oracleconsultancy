@@ -13,6 +13,7 @@ import { PageTransition } from "@/components/page-transition";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
 import { FloatingAssistant } from "@/components/floating-assistant";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 export const metadata: Metadata = {
   title: "COS — Oracle Group Operations",
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <PersonDrawer />
               </Suspense>
               <FloatingAssistant />
+              <ServiceWorkerRegister />
             </CommandPaletteProvider>
           </ToastProvider>
         </ThemeProvider>
