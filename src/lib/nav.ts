@@ -21,7 +21,7 @@ export type NavRoute = {
  */
 export const NAV_ROUTES: NavRoute[] = [
   { id: "inbox",       href: "/inbox",       label: "Inbox",      icon: Inbox },
-  { id: "meeting",     href: "/meeting",     label: "Meeting",    icon: NotebookPen },
+  { id: "meeting",     href: "/workbook",    label: "Workbook",   icon: NotebookPen },
   { id: "people",      href: "/people",      label: "People",     icon: Users },
   { id: "outbox",      href: "/outbox",      label: "Outbox",     icon: Send },
   { id: "settings",    href: "/settings",    label: "Settings",   icon: Settings },
