@@ -221,6 +221,21 @@ input:focus, select:focus, textarea:focus {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
+/* ---------- iOS PWA (installed to Home Screen) ---------- */
+@media (display-mode: standalone) {
+  /* Stop the rubber-band scroll from exposing a white gap behind the app. */
+  html { background: hsl(var(--bg)); }
+  body { overscroll-behavior-y: none; }
+
+  /* viewportFit:cover lets content run under the notch / Dynamic Island and
+     the landscape sensor housing — pad the main column out of those areas. */
+  main {
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
 /* ---------- Density (compact mode) ---------- */
 :root[data-density="compact"] .card { padding: 0.5rem !important; }
 :root[data-density="compact"] .card .text-sm { font-size: 0.8125rem; line-height: 1.15rem; }
