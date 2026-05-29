@@ -3,6 +3,7 @@ import { Card } from "@/components/ui";
 import { CosBar } from "@/components/cos-bar";
 import { AttentionPanel, type AttnItem } from "@/components/attention-panel";
 import { TodayMobile } from "@/components/today-mobile";
+import { DashboardGrid } from "@/components/dashboard-grid";
 import { sb } from "@/db/supabase";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -88,15 +89,26 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
     { label: "No Deadline", count: focus.noDeadline, href: "/?tab=tasks&flag=no-deadline", tone: "warn" as const },
   ];
 
-  return (
-    <div className="space-y-5">
-      {/* Phone-first Today stack — swipe to complete, tap to open. Mobile only. */}
-      <TodayMobile items={attnItems.slice(0, 12)} />
+  // Open tasks by company (with overdue count) for the "Open by company" widget.
+  const companyAgg = new Map<number, { name: string; open: number; overdue: number }>();
+  for (const r of rows) {
+    if (!isOpenRow(r)) continue;
+    const cur = companyAgg.get(r.companyId) ?? { name: r.companyName, open: 0, overdue: 0 };
+    cur.open += 1;
+    if (r.flag === "overdue" || r.flag === "escalate-now") cur.overdue += 1;
+    companyAgg.set(r.companyId, cur);
+  }
+  const companyRows = [...companyAgg.entries()]
+    .map(([id, v]) => ({ id, ...v }))
+    .sort((a, b) => b.open - a.open);
+  const maxCompanyOpen = Math.max(...companyRows.map((c) => c.open), 1);
 
-      {/* Metric strip — one compact, clickable row */}
-      <section className="space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">At a glance</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+  // --- Widget nodes (shared between the mobile stack and the desktop grid) ---
+
+  const metricsNode = (
+    <section className="space-y-2">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">At a glance</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
         {metrics.map(({ label, count, href, tone }) => {
           const dim = count === 0 && tone !== "neutral";
           const toneClass = dim
@@ -120,41 +132,95 @@ export async function OverviewSection({ rows }: { rows: TaskRow[] }) {
             </Link>
           );
         })}
-        </div>
-      </section>
+      </div>
+    </section>
+  );
 
-      {/* Needs Attention / Recent Updates — hidden on phones (Today stack covers it) */}
-      <div className="hidden sm:block">
-        <AttentionPanel needsAttention={attnItems} recentUpdates={recentItems} />
+  const attentionNode = <AttentionPanel needsAttention={attnItems} recentUpdates={recentItems} />;
+
+  const cosbarNode = <CosBar companies={companiesList} />;
+
+  const companiesNode = (
+    <section className="space-y-2">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Open by Company</p>
+      <Card className="p-4 space-y-2.5">
+        {companyRows.length === 0 ? (
+          <p className="text-sm text-fg-muted py-2">No open tasks. 🎉</p>
+        ) : (
+          companyRows.map((c) => (
+            <Link
+              key={c.id}
+              href={`/companies/${c.id}`}
+              className="grid grid-cols-[120px_1fr_auto] items-center gap-3 text-sm group"
+            >
+              <div className="truncate text-fg group-hover:text-accent transition-colors">{c.name}</div>
+              <Bar value={c.open} max={maxCompanyOpen} />
+              {c.overdue > 0 && (
+                <span className="text-[11px] font-medium text-red-600 dark:text-red-400 shrink-0">
+                  {c.overdue} overdue
+                </span>
+              )}
+            </Link>
+          ))
+        )}
+      </Card>
+    </section>
+  );
+
+  const statusNode = (
+    <section>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Status Distribution</p>
+      <Card className="p-4 space-y-2">
+        {statuses.map((s) => (
+          <div key={s.status} className="grid grid-cols-[92px_1fr] items-center gap-3 text-sm">
+            <div className="text-fg-muted truncate">{s.status}</div>
+            <Bar value={s.count} max={maxStatus} />
+          </div>
+        ))}
+      </Card>
+    </section>
+  );
+
+  const priorityNode = (
+    <section>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Priority Breakdown</p>
+      <Card className="p-4 space-y-2">
+        {priorities.map((p) => (
+          <div key={p.priority} className="grid grid-cols-[92px_1fr] items-center gap-3 text-sm">
+            <div className="text-fg-muted truncate">{p.priority}</div>
+            <Bar value={p.count} max={maxPrio} tone={p.priority === "Critical" ? "danger" : p.priority === "High" ? "warn" : "accent"} />
+          </div>
+        ))}
+      </Card>
+    </section>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Phone-first Today stack — swipe to complete, tap to open. Mobile only. */}
+      <TodayMobile items={attnItems.slice(0, 12)} />
+
+      {/* Mobile: simple fixed stack (attention is covered by the Today stack). */}
+      <div className="sm:hidden space-y-5">
+        {metricsNode}
+        {cosbarNode}
+        {companiesNode}
+        {statusNode}
+        {priorityNode}
       </div>
 
-      {/* Unified Ask / Capture bar */}
-      <CosBar companies={companiesList} />
-
-      {/* Status + Priority */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Status Distribution</p>
-          <Card className="p-4 space-y-2">
-            {statuses.map((s) => (
-              <div key={s.status} className="grid grid-cols-[92px_1fr] items-center gap-3 text-sm">
-                <div className="text-fg-muted truncate">{s.status}</div>
-                <Bar value={s.count} max={maxStatus} />
-              </div>
-            ))}
-          </Card>
-        </section>
-        <section>
-          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2">Priority Breakdown</p>
-          <Card className="p-4 space-y-2">
-            {priorities.map((p) => (
-              <div key={p.priority} className="grid grid-cols-[92px_1fr] items-center gap-3 text-sm">
-                <div className="text-fg-muted truncate">{p.priority}</div>
-                <Bar value={p.count} max={maxPrio} tone={p.priority === "Critical" ? "danger" : p.priority === "High" ? "warn" : "accent"} />
-              </div>
-            ))}
-          </Card>
-        </section>
+      {/* Desktop: customisable, reorderable cockpit. */}
+      <div className="hidden sm:block">
+        <DashboardGrid
+          widgets={[
+            { id: "metrics", node: metricsNode },
+            { id: "attention", node: attentionNode },
+            { id: "cosbar", node: cosbarNode },
+            { id: "companies", node: companiesNode },
+            { id: "status", node: statusNode },
+            { id: "priority", node: priorityNode },
+          ]}
+        />
       </div>
     </div>
   );
