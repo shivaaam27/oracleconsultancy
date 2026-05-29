@@ -54,15 +54,17 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Await the push so it actually goes out before the serverless function is
-  // frozen/terminated on response. The bridge (Shortcut/script) doesn't care
-  // about response speed, but the alert must reliably and promptly fire.
-  const label = subject || (text ? text.slice(0, 60) : "New item");
+  // Send the full message as the notification body so long-pressing / pulling
+  // down the notification reveals the whole thing (collapsed shows a preview).
+  // Capped to stay within the web-push ~4KB payload limit.
+  const full = text || "(no text — see attachment)";
+  const notifBody = (subject ? `${subject}\n${full}` : full).slice(0, 1500);
   await sendToAll({
     title: source === "email" ? "New email to file" : "New item to file",
-    body: label,
+    body: notifBody,
     url: "/inbox",
-    tag: "cos-inbox",
+    // Unique tag per item so multiple alerts stack instead of replacing each other.
+    tag: `cos-inbox-${data.id}`,
   }).catch(() => {});
 
   return NextResponse.json({ ok: true, id: data.id });
