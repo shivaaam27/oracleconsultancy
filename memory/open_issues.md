@@ -13,7 +13,8 @@ metadata:
 - **No real message dispatch.** Outbox records sends, but does not actually send WhatsApp/email/SMS. Planned Phase 5c.
 - **PWA not complete.** Layout has PWA-ready meta, but there is no manifest/service worker/icon set yet.
 - **Morning brief card missing.** Planned dashboard card: overdue, due today, newly escalated, closed yesterday.
-- **Daily snapshots need production verification.** `daily_snapshots` and `/api/cron/snapshots` exist, but scheduling/production execution should be confirmed.
+- **Daily snapshots need production verification.** `daily_snapshots` and `/api/cron/snapshots` exist, but scheduling/production execution should be confirmed. (Same applies to the new `/api/cron/notify` job.)
+- **Push notifications need prod env vars.** Code is complete, but production won't send alerts until `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and `CRON_SECRET` are added to Vercel. Keys are generated locally in `.env.local` (gitignored). Push also requires HTTPS (Vercel) — won't fully work in local dev. iOS requires the app be added to the Home Screen first.
 - **Corrections table has no UI.** Schema exists but no correction workflow is exposed.
 - **No auth.** This is single-operator. Add auth before exposing more broadly.
 

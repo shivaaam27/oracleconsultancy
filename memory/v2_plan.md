@@ -31,6 +31,9 @@ metadata:
 | Meeting Workspace | Done | Saved meeting notes, AI minutes, Clean notes, decisions/risks/follow-up intelligence, history search, linked tasks. |
 | Ask COS meeting memory | Done | `/api/ask` includes relevant saved meetings/minutes/raw notes and linked task codes in context. |
 | 5a. Installable app (PWA) | Pending | Manifest, icons, service worker, offline app shell. |
+| Phone-first home | Done | Mobile-only "Today" card stack on Overview: swipe-right to complete (deterministic `inlineUpdateTask`, works AI-off), tap to open, undo, refresh. `today-mobile.tsx`. |
+| Customisable dashboard | Done | Desktop Overview is a drag-to-reorder widget cockpit with show/hide + reset, persisted via `/api/prefs/dashboard` (settings key `dashboard.layout`). New "Open by Company" widget. `dashboard-grid.tsx`, `lib/dashboard.ts`, `lib/use-dashboard-layout.ts`. |
+| Push notifications | Done (needs prod env) | Web-push alerts for overdue/escalated/due-today. Per-device subscribe in Settings + test send; SW push/notificationclick handlers; de-duped `/api/cron/notify` scheduled daily 04:00 UTC. Stored in settings key `push.subscriptions`. REQUIRES VAPID + CRON_SECRET env vars set in Vercel. |
 | 5b. Morning brief card | Pending | Read-only dashboard brief: overdue, due today, newly escalated, closed yesterday. |
 | 5c. Real message sending | Pending | Outbox currently records sends only. Integrate one provider when ready. |
 | 5d. Per-company health trend | Partly built | `daily_snapshots` and `/api/cron/snapshots` exist. Scheduling/production verification still needs checking. |
