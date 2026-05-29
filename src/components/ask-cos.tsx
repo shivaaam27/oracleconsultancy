@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, Bot, User, Trash2, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Sparkles, Send, Loader2, Bot, User, Trash2, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight, Clock, Ban, Flame, ArrowUp, type LucideIcon } from "lucide-react";
 import { LinkifiedAnswer } from "./linkified-answer";
 import { IntentPreview } from "./intent-preview";
 import { PromptBox } from "./prompt-box";
@@ -26,11 +26,11 @@ type Message = {
   narrative?: string;
 };
 
-const SUGGESTIONS: { title: string; sub: string; q: string }[] = [
-  { title: "Weekly digest", sub: "for the group", q: "Give me this week's digest" },
-  { title: "What's overdue", sub: "this week?", q: "What's overdue this week?" },
-  { title: "What's blocking", sub: "Dar Spices?", q: "What's blocking Dar Spices?" },
-  { title: "Who has the most", sub: "critical tasks?", q: "Who has the most critical tasks?" },
+const SUGGESTIONS: { label: string; q: string; icon: LucideIcon }[] = [
+  { label: "Weekly digest for the group", q: "Give me this week's digest", icon: FileText },
+  { label: "What's overdue this week?", q: "What's overdue this week?", icon: Clock },
+  { label: "What's blocking Dar Spices?", q: "What's blocking Dar Spices?", icon: Ban },
+  { label: "Who has the most critical tasks?", q: "Who has the most critical tasks?", icon: Flame },
 ];
 
 // Detect if a message is a command vs a question
@@ -320,11 +320,23 @@ export function AskCOS({
         </div>
       )}
 
-      <div ref={scrollRef} className={`max-h-[420px] overflow-y-auto px-5 py-4 space-y-4 ${embedded ? "order-3" : ""}`}>
+      <div ref={scrollRef} className={`max-h-[420px] overflow-y-auto px-5 py-4 space-y-4 ${minimal ? "order-1" : embedded ? "order-3" : ""}`}>
         {messages.length === 0 && minimal && (
-          <p className="text-xs text-fg-subtle italic text-center py-2">
-            Ask a question or type a command.
-          </p>
+          <div className="-mx-2">
+            {SUGGESTIONS.map(s => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.q}
+                  onClick={() => submit(s.q)}
+                  className="w-full flex items-center gap-3.5 px-3 py-3 text-left rounded-xl hover:bg-bg-muted/60 active:bg-bg-muted transition-colors"
+                >
+                  <Icon size={19} className="text-fg-muted shrink-0" strokeWidth={1.75} />
+                  <span className="text-[15px] leading-snug">{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
         )}
 
         {messages.length === 0 && !minimal && (
@@ -449,37 +461,75 @@ export function AskCOS({
         </div>
       )}
 
-      <div className={`px-5 py-3 ${embedded ? "order-1 border-b border-border" : "border-t border-border bg-bg-subtle"}`}>
-        <PromptBox
-          value={input}
-          onChange={setInput}
-          onSubmit={() => submit(input)}
-          disabled={loading}
-          minHeight={72}
-          placeholder="Ask anything — or type a command"
-          actions={
-            <>
-              <VoiceButton
-                disabled={loading}
-                onInterim={handleVoiceInterim}
-                onResult={handleVoiceResult}
-                onStop={handleVoiceStop}
-                title="Speak to COS"
-                className="border border-border"
-              />
-              <button
-                type="button"
-                onClick={() => submit(input)}
-                disabled={loading || !input.trim()}
-                title="Send"
-                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 transition-opacity"
-              >
-                {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              </button>
-            </>
-          }
-        />
-      </div>
+      {minimal ? (
+        // ChatGPT-style pill: a single clean rounded bar, no boxed textarea.
+        <div className="px-3 py-3 order-3 border-t border-border">
+          <div className="flex items-end gap-2 rounded-[1.6rem] border border-border bg-bg-elev px-2 py-1.5 shadow-sm transition-colors focus-within:border-accent/50">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  submit(input);
+                }
+              }}
+              rows={1}
+              disabled={loading}
+              placeholder="Ask anything…"
+              className="flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] leading-snug outline-none placeholder:text-fg-muted max-h-32"
+            />
+            <VoiceButton
+              disabled={loading}
+              onInterim={handleVoiceInterim}
+              onResult={handleVoiceResult}
+              onStop={handleVoiceStop}
+              title="Speak to COS"
+            />
+            <button
+              type="button"
+              onClick={() => submit(input)}
+              disabled={loading || !input.trim()}
+              title="Send"
+              className="inline-flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 transition-opacity"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={18} />}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={`px-5 py-3 ${embedded ? "order-1 border-b border-border" : "border-t border-border bg-bg-subtle"}`}>
+          <PromptBox
+            value={input}
+            onChange={setInput}
+            onSubmit={() => submit(input)}
+            disabled={loading}
+            minHeight={72}
+            placeholder="Ask anything — or type a command"
+            actions={
+              <>
+                <VoiceButton
+                  disabled={loading}
+                  onInterim={handleVoiceInterim}
+                  onResult={handleVoiceResult}
+                  onStop={handleVoiceStop}
+                  title="Speak to COS"
+                  className="border border-border"
+                />
+                <button
+                  type="button"
+                  onClick={() => submit(input)}
+                  disabled={loading || !input.trim()}
+                  title="Send"
+                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 transition-opacity"
+                >
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                </button>
+              </>
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }
