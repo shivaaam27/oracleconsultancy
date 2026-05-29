@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Send, Loader2, Bot, User, Trash2, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { LinkifiedAnswer } from "./linkified-answer";
+import { IntentPreview } from "./intent-preview";
 import { PromptBox } from "./prompt-box";
 import { CopyButton } from "./copy-button";
 import { VoiceButton } from "./voice-button";
@@ -395,9 +396,7 @@ export function AskCOS({
                 </p>
                 {m.status === "preview" && m.intent && (
                   <>
-                    <pre className="text-xs bg-bg-subtle rounded px-2 py-1.5 overflow-auto font-mono">
-{JSON.stringify(m.intent, null, 2)}
-                    </pre>
+                    <IntentPreview intent={m.intent} />
                     <div className="flex gap-2">
                       <button
                         onClick={() => confirmAction(m)}

@@ -7,6 +7,7 @@ import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap,
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
+import { IntentPreview } from "./intent-preview";
 
 type Ctx = { open: () => void; close: () => void };
 const CommandCtx = createContext<Ctx>({ open: () => {}, close: () => {} });
@@ -257,9 +258,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                       <div className="flex items-center gap-2 text-xs font-medium text-warn">
                         <Zap size={12} /> Confirm action
                       </div>
-                      <pre className="text-xs bg-bg-subtle rounded px-2 py-1.5 overflow-auto font-mono">
-{JSON.stringify(actionIntent, null, 2)}
-                      </pre>
+                      <IntentPreview intent={actionIntent} />
                       <div className="flex gap-2">
                         <button
                           onClick={() => runAction(true)}
