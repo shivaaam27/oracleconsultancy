@@ -125,9 +125,16 @@ Panels/sheets = 16 → cards/tables = 12 → controls = 10/8.
 
 `src/app/design/page.tsx` (sidebar → **Design**) renders every token, surface,
 control and gesture on one page: colour swatches, the three surface tiers, the
-radius ladder, all button variants/sizes, badges, and live demos of `SwipeRow`,
-`PeekPreview` and `SnoozeSheet`. Use it to eyeball consistency and try ideas
-before rolling them across the app. Keep it in sync when primitives change.
+radius ladder, all button variants/sizes, badges, `FluidSelect`, and live demos
+of `SwipeRow`, `PeekPreview` and `SnoozeSheet`. Use it to eyeball consistency and
+try ideas before rolling them across the app. Keep it in sync when primitives change.
+
+### Dropdowns — `FluidSelect`
+`src/components/fluid-select.tsx` is the one fluid menu: a glass popover with a
+spring pop-in, check-marked selection, optional colour `dot`, and outside-click /
+Escape dismissal. `FilterSelect` wraps it to drive a URL search param (Tasks
+filters); the People filters and `InlineEdit` menus use the same look. Prefer it
+over native `<select>` everywhere.
 
 ### Touch hygiene (learned on real iPhones)
 - Long-press / swipe rows carry `select-none`; globally `.select-none` also sets

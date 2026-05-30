@@ -69,7 +69,7 @@ company renumbered from 001). **Build order starts with timed deadlines.**
 | Phase | Scope | State |
 | --- | --- | --- |
 | 1. Deadlines with time | Optional time on deadlines. No DB migration — the `deadline` column is already a timestamp. UTC-midnight = all-day; any other time = a timed to-do. Time-aware `Deadline` display, date+time inline editor, all-day fallback on the new-task form. | **Done** |
-| 2. Fluid dropdowns | One reusable popover primitive behind the filter bar (replacing native `<select>`/`AutoSubmitSelect`) and the inline-edit menus. | Planned |
+| 2. Fluid dropdowns | One reusable popover primitive (`FluidSelect`) behind the Tasks filter bar (via `FilterSelect`, URL-driven), the People filters, and the inline-edit menus — glass, spring pop-in, check-marked. `AutoSubmitSelect` removed. | **Done** |
 | 3. Quick-edit peek | Long-press popup gains inline status/priority/deadline+time/accountable controls + an Edit button. Detailed work still opens the full task. | Planned |
 | 4. Company-prefixed IDs | Rename to `DS-001` scheme: DB backup, rewrite `tasks.code` + every reference (`audit_log.task_code`, `outbox.filed_ref`), keep old `/task/<code>` URLs redirecting. Company prefixes: DS, CC, TG, OC, PE, ME, PP. | Planned |
 | 5. Board redesign | Drag-to-move Kanban on the new design system (glass/elevated cards, long-press peek, column counts). Replaces today's static board. | Planned |

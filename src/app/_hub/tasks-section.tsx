@@ -2,7 +2,7 @@ import { getAllTasks } from "@/lib/queries";
 import { getSavedViews } from "@/lib/task-views";
 import { Card, LinkButton, EmptyState } from "@/components/ui";
 import { SavedViewsBar } from "@/components/saved-views-bar";
-import { AutoSubmitSelect } from "@/components/auto-submit-select";
+import { FilterSelect } from "@/components/filter-select";
 import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
@@ -210,6 +210,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           {sp.closed && <input type="hidden" name="closed" value={sp.closed} />}
           {sp.view && sp.view !== "board" && <input type="hidden" name="view" value={sp.view} />}
           {sp.month && <input type="hidden" name="month" value={sp.month} />}
+          {/* Preserve the fluid-select filters when the search box is submitted. */}
+          {sp.company && <input type="hidden" name="company" value={sp.company} />}
+          {sp.priority && <input type="hidden" name="priority" value={sp.priority} />}
+          {sp.status && <input type="hidden" name="status" value={sp.status} />}
 
           {view === "table" && (
             <input
@@ -219,20 +223,24 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               className="flex-1 min-w-[200px] px-3 py-1.5 text-sm rounded-md"
             />
           )}
-          <AutoSubmitSelect name="company" defaultValue={sp.company || ""} className="px-3 py-1.5 text-sm rounded-md">
-            <option value="">All Companies</option>
-            {companies.map((c) => <option key={c}>{c}</option>)}
-          </AutoSubmitSelect>
-          <AutoSubmitSelect name="priority" defaultValue={sp.priority || ""} className="px-3 py-1.5 text-sm rounded-md">
-            <option value="">All Priorities</option>
-            {priorities.map((p) => <option key={p}>{p}</option>)}
-          </AutoSubmitSelect>
-          <AutoSubmitSelect name="status" defaultValue={sp.status || ""} className="px-3 py-1.5 text-sm rounded-md">
-            <option value="">All Statuses</option>
-            {["Not Started","In Progress","Under Review","Waiting External","Blocked","Escalated","Completed","Closed"].map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </AutoSubmitSelect>
+          <FilterSelect
+            param="company"
+            value={sp.company || ""}
+            placeholder="All Companies"
+            options={[{ value: "", label: "All Companies" }, ...companies.map((c) => ({ value: c, label: c }))]}
+          />
+          <FilterSelect
+            param="priority"
+            value={sp.priority || ""}
+            placeholder="All Priorities"
+            options={[{ value: "", label: "All Priorities" }, ...priorities.map((p) => ({ value: p, label: p }))]}
+          />
+          <FilterSelect
+            param="status"
+            value={sp.status || ""}
+            placeholder="All Statuses"
+            options={[{ value: "", label: "All Statuses" }, ...["Not Started","In Progress","Under Review","Waiting External","Blocked","Escalated","Completed","Closed"].map((s) => ({ value: s, label: s }))]}
+          />
           {hasFilters && (
             <Link href={resetHref} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">
               Reset

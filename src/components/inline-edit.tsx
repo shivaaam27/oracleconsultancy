@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { spring } from "@/lib/motion";
 import { inlineUpdateTask } from "@/app/task/actions";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
@@ -83,23 +85,32 @@ export function InlineEdit({ field, taskCode, value, options, className, childre
         {children}
         <ChevronDown size={10} className="opacity-50" />
       </button>
-      {open && (
-        <div
-          className="absolute z-50 mt-1 left-0 rounded-lg vibrancy-strong shadow-lg p-2 min-w-[180px]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {field === "deadline" ? (
-            <DeadlineInput initial={value} onSave={save} onCancel={() => setOpen(false)} />
-          ) : (
-            <OptionList
-              options={options ?? defaultOptions(field)}
-              current={value}
-              onPick={save}
-              allowClear={field === "category"}
-            />
-          )}
-        </div>
-      )}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: -2 }}
+            transition={spring}
+            style={{ transformOrigin: "top left" }}
+            className="absolute z-[70] mt-1.5 left-0 rounded-xl glass shadow-lg p-1.5 min-w-[190px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {field === "deadline" ? (
+              <div className="p-1">
+                <DeadlineInput initial={value} onSave={save} onCancel={() => setOpen(false)} />
+              </div>
+            ) : (
+              <OptionList
+                options={options ?? defaultOptions(field)}
+                current={value}
+                onPick={save}
+                allowClear={field === "category"}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </span>
   );
 }
@@ -131,24 +142,28 @@ function OptionList({
 }) {
   return (
     <div className="flex flex-col">
-      {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => onPick(opt)}
-          className={cn(
-            "text-left text-sm px-2 py-1.5 rounded hover:bg-bg-muted",
-            opt === current && "bg-bg-muted font-semibold"
-          )}
-        >
-          {opt}
-        </button>
-      ))}
+      {options.map((opt) => {
+        const active = opt === current;
+        return (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onPick(opt)}
+            className={cn(
+              "w-full flex items-center gap-2 text-left text-sm px-2.5 py-2 rounded-lg transition-colors",
+              active ? "bg-accent/12 text-fg font-medium" : "text-fg-muted hover:bg-bg-muted hover:text-fg"
+            )}
+          >
+            <span className="flex-1 truncate">{opt}</span>
+            {active && <Check size={14} className="text-accent shrink-0" />}
+          </button>
+        );
+      })}
       {allowClear && (
         <button
           type="button"
           onClick={() => onPick(null)}
-          className="text-left text-xs text-fg-muted px-2 py-1.5 rounded hover:bg-bg-muted mt-1 border-t border-border"
+          className="text-left text-xs text-fg-muted px-2.5 py-1.5 rounded-lg hover:bg-bg-muted mt-1 border-t border-border"
         >
           Clear
         </button>

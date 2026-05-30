@@ -9,6 +9,7 @@ import {
 import { TableShell, Th, Td, Badge } from "./ui";
 import { PersonDrawerLink } from "./person-drawer-link";
 import { PeekPreview, type PeekAction } from "./peek-preview";
+import { FluidSelect } from "./fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import type { PersonRow } from "@/lib/people-queries";
@@ -145,26 +146,21 @@ export function PeopleTable({ people, companies }: {
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-border bg-bg-subtle focus:outline-none focus:border-accent"
           />
         </div>
-        <select
+        <FluidSelect
           value={companyFilter === "all" ? "all" : String(companyFilter)}
-          onChange={(e) => setCompanyFilter(e.target.value === "all" ? "all" : parseInt(e.target.value, 10))}
-          className="px-3 py-1.5 text-sm rounded-md border border-border bg-bg-subtle"
-        >
-          <option value="all">All Companies</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        <select
+          onSelect={(v) => setCompanyFilter(v === "all" ? "all" : parseInt(v, 10))}
+          options={[{ value: "all", label: "All Companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+        />
+        <FluidSelect
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-          className="px-3 py-1.5 text-sm rounded-md border border-border bg-bg-subtle"
-        >
-          <option value="all">All Types</option>
-          <option value="internal">Internal</option>
-          <option value="external">External</option>
-          <option value="expat">Expat</option>
-        </select>
+          onSelect={(v) => setTypeFilter(v as typeof typeFilter)}
+          options={[
+            { value: "all", label: "All Types" },
+            { value: "internal", label: "Internal" },
+            { value: "external", label: "External" },
+            { value: "expat", label: "Expat" },
+          ]}
+        />
       </div>
 
       {/* Filter chips */}

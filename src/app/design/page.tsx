@@ -6,6 +6,7 @@ import { Button, Badge, Card } from "@/components/ui";
 import { SwipeRow } from "@/components/swipe-row";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { SnoozeSheet } from "@/components/snooze-sheet";
+import { FluidSelect } from "@/components/fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
 
 /**
@@ -42,6 +43,7 @@ function Swatch({ name, varName, fg }: { name: string; varName: string; fg?: boo
 export default function DesignPage() {
   const [peekOpen, setPeekOpen] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [pick, setPick] = useState("");
   const [log, setLog] = useState<string>("");
 
   const peekActions: PeekAction[] = [
@@ -138,6 +140,21 @@ export default function DesignPage() {
           <Badge tone="danger">Overdue</Badge>
           <Badge tone="info">In progress</Badge>
         </div>
+      </Section>
+
+      {/* Dropdowns */}
+      <Section title="Dropdowns" hint="One fluid glass popover behind filters and inline edits — check-marked, spring pop-in.">
+        <FluidSelect
+          value={pick}
+          onSelect={setPick}
+          placeholder="All Companies"
+          options={[
+            { value: "", label: "All Companies" },
+            { value: "DS", label: "Dar Spices", dot: "#e0533d" },
+            { value: "CC", label: "Cocozuri Chocolat", dot: "#b07a3b" },
+            { value: "TG", label: "Terra Green", dot: "#3fae6a" },
+          ]}
+        />
       </Section>
 
       {/* Interactions */}
