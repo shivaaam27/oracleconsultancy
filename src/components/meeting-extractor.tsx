@@ -245,7 +245,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
   const linkedTasks = createdTaskLinks.length ? createdTaskLinks : (meetingId ? meetingList.find(m => m.id === meetingId)?.tasks ?? [] : []);
 
   return (
-    <div className="md:grid md:grid-cols-[240px_1fr] rounded-2xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev">
+    <div className="md:grid md:grid-cols-[240px_1fr] rounded-xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev elevated">
       {/* History pane */}
       <div className={cn("flex flex-col border-border md:border-r", editing ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">

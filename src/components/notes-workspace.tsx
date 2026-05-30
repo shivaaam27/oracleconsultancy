@@ -88,7 +88,7 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
   }, []);
 
   return (
-    <div className="md:grid md:grid-cols-[240px_1fr] rounded-2xl border border-border overflow-hidden min-h-[70vh] bg-bg-elev">
+    <div className="md:grid md:grid-cols-[240px_1fr] rounded-xl border border-border overflow-hidden min-h-[70vh] bg-bg-elev elevated">
       {/* List pane */}
       <div className={cn("flex flex-col border-border md:border-r", selected ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">

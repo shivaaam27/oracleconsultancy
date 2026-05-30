@@ -48,7 +48,7 @@ export function PromptBox({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-bg-elev shadow-sm transition-all",
+        "rounded-xl border border-border bg-bg-elev shadow-sm transition-all",
         "focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/30",
         disabled && "opacity-60",
         className

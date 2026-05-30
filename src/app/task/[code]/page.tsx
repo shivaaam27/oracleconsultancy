@@ -212,7 +212,7 @@ export default async function TaskPage({
       )}
 
       {(sourceMeeting as any)?.meetings && (
-        <div className="rounded-2xl border border-border bg-bg-elev px-4 py-3 flex items-start gap-3">
+        <div className="rounded-xl border border-border bg-bg-elev px-4 py-3 flex items-start gap-3 elevated">
           <div className="mt-0.5 h-8 w-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
             <FileText size={15} />
           </div>
