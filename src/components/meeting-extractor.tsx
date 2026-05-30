@@ -17,6 +17,9 @@ import type { MeetingTask } from "@/lib/meeting-parse";
 import { polishActionItem } from "@/lib/smart-parse";
 import { VoiceButton } from "@/components/voice-button";
 import { polishDictation, teachVoiceDictionary } from "@/app/voice/actions";
+import { PeekPreview, type PeekAction } from "@/components/peek-preview";
+import { triggerHaptic } from "@/lib/use-long-press";
+import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const fieldCls = "w-full rounded-lg bg-bg-subtle border border-border/60 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-accent focus:bg-bg";
@@ -72,6 +75,25 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
   const [lastRawVoice, setLastRawVoice] = useState<string | null>(null);
   const [voiceTerm, setVoiceTerm] = useState("");
   const [showTeach, setShowTeach] = useState(false);
+
+  const [peekMeeting, setPeekMeeting] = useState<SavedMeeting | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
+  function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
+  function onMeetingPointerDown(m: SavedMeeting, e: React.PointerEvent) {
+    longPressed.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    clearPress();
+    pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeekMeeting(m); }, 400);
+  }
+  function onMeetingPointerMove(e: React.PointerEvent) {
+    if (!pressStart.current) return;
+    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
+  }
+  const meetingPeekActions = (m: SavedMeeting): PeekAction[] => [
+    { label: "Open meeting", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => loadMeeting(m) },
+  ];
 
   const [isParsing, startParse] = useTransition();
   const [isSaving, startSave] = useTransition();
@@ -265,7 +287,15 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
           {filteredMeetings.length === 0 ? (
             <div className="py-12 text-center text-sm text-fg-muted px-4">{meetingList.length === 0 ? "No meetings yet." : "No meetings match."}</div>
           ) : filteredMeetings.map(m => (
-            <button key={m.id} type="button" onClick={() => loadMeeting(m)} className={cn("w-full text-left px-3 py-2.5 border-b border-border/60 transition-colors", meetingId === m.id ? "bg-accent/10" : "hover:bg-bg-muted/50")}>
+            <button key={m.id} type="button"
+              onPointerDown={(e) => onMeetingPointerDown(m, e)}
+              onPointerMove={onMeetingPointerMove}
+              onPointerUp={clearPress}
+              onPointerLeave={clearPress}
+              onPointerCancel={clearPress}
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={() => { if (longPressed.current) { longPressed.current = false; return; } loadMeeting(m); }}
+              className={cn("w-full text-left px-3 py-2.5 border-b border-border/60 transition-colors select-none", meetingId === m.id ? "bg-accent/10" : "hover:bg-bg-muted/50")}>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium truncate flex-1">{m.title}</span>
                 {m.taskCount > 0 && <span className="text-[10px] rounded-full bg-bg-muted px-1.5 py-0.5 text-fg-muted shrink-0">{m.taskCount}</span>}
@@ -388,6 +418,16 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
         updateTask={updateTask} removeTask={removeTask} addBlank={addBlank}
         toggleAll={toggleAll} onSave={handleSave}
         linkedTasks={linkedTasks} saveFailures={saveFailures} error={error}
+      />
+
+      <PeekPreview
+        open={!!peekMeeting}
+        onClose={() => setPeekMeeting(null)}
+        onOpen={peekMeeting ? () => loadMeeting(peekMeeting) : undefined}
+        title={peekMeeting?.title}
+        subtitle={peekMeeting ? `${peekMeeting.companyName || "Group-wide"} · ${peekMeeting.meetingDate}${peekMeeting.taskCount ? ` · ${peekMeeting.taskCount} task${peekMeeting.taskCount === 1 ? "" : "s"}` : ""}` : undefined}
+        body={peekMeeting ? (peekMeeting.rawNotes || peekMeeting.minutes || "").slice(0, 180) || undefined : undefined}
+        actions={peekMeeting ? meetingPeekActions(peekMeeting) : []}
       />
     </div>
   );

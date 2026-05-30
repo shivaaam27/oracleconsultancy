@@ -2,9 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Plus, Search, Trash2, ArrowLeft, Loader2, Check, StickyNote, Wand2 } from "lucide-react";
+import { Plus, Search, Trash2, ArrowLeft, Loader2, Check, StickyNote, Wand2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { listNotes, createNote, updateNote, deleteNote, type Note } from "@/app/notes/actions";
+import { PeekPreview, type PeekAction } from "./peek-preview";
+import { triggerHaptic } from "@/lib/use-long-press";
 
 type Company = { id: number; name: string };
 type SaveState = "idle" | "saving" | "saved";
@@ -35,8 +37,29 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
   const titleRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const pathname = usePathname();
+  const [peek, setPeek] = useState<Note | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
 
   const selected = notes.find((n) => n.id === selectedId) || null;
+
+  function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
+  function onNotePointerDown(n: Note, e: React.PointerEvent) {
+    longPressed.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    clearPress();
+    pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeek(n); }, 400);
+  }
+  function onNotePointerMove(e: React.PointerEvent) {
+    if (!pressStart.current) return;
+    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
+  }
+  const peekActions = (n: Note): PeekAction[] => [
+    { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => setSelectedId(n.id) },
+    { label: "Turn into task", icon: <Wand2 size={15} />, onClick: () => turnIntoTask(n) },
+    { label: "Delete", icon: <Trash2 size={15} />, tone: "danger", onClick: () => handleDelete(n.id) },
+  ];
 
   const filtered = notes.filter((n) => {
     const q = query.trim().toLowerCase();
@@ -121,9 +144,15 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
               <button
                 key={n.id}
                 type="button"
-                onClick={() => setSelectedId(n.id)}
+                onPointerDown={(e) => onNotePointerDown(n, e)}
+                onPointerMove={onNotePointerMove}
+                onPointerUp={clearPress}
+                onPointerLeave={clearPress}
+                onPointerCancel={clearPress}
+                onContextMenu={(e) => e.preventDefault()}
+                onClick={() => { if (longPressed.current) { longPressed.current = false; return; } setSelectedId(n.id); }}
                 className={cn(
-                  "w-full text-left px-3 py-2.5 border-b border-border/60 transition-colors",
+                  "w-full text-left px-3 py-2.5 border-b border-border/60 transition-colors select-none",
                   selectedId === n.id ? "bg-accent/10" : "hover:bg-bg-muted/50"
                 )}
               >
@@ -209,6 +238,16 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
           </div>
         )}
       </div>
+
+      <PeekPreview
+        open={!!peek}
+        onClose={() => setPeek(null)}
+        onOpen={peek ? () => setSelectedId(peek.id) : undefined}
+        title={peek?.title || "Untitled note"}
+        subtitle={peek ? [peek.companyName, relTime(peek.updatedAt)].filter(Boolean).join(" · ") || undefined : undefined}
+        body={peek ? peek.body.slice(0, 180) || "No additional text" : undefined}
+        actions={peek ? peekActions(peek) : []}
+      />
     </div>
   );
 }
