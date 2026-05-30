@@ -46,18 +46,20 @@ export function SimilarTasks({ query, excludeId }: { query: string; excludeId?: 
   if (!loading && tasks.length === 0) return null;
 
   return (
-    <div className="border border-border rounded-xl p-4 bg-bg-subtle space-y-2">
-      <div className="flex items-center gap-2 text-xs font-medium text-fg-muted uppercase tracking-wider">
+    <details className="group glass elevated rounded-2xl overflow-hidden">
+      <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium text-fg-muted uppercase tracking-wider select-none">
         <GitBranch size={12} />
-        Similar Past Tasks
+        <span>Similar past tasks</span>
+        <span className="text-fg-subtle normal-case tracking-normal">· {tasks.length}</span>
         {loading && <Loader2 size={11} className="animate-spin" />}
-      </div>
-      <div className="space-y-1.5">
+        <span className="ml-auto text-fg-subtle text-base leading-none transition-transform group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="px-4 pb-4 space-y-1.5">
         {tasks.map(t => (
           <Link
             key={t.id}
             href={`/task/${t.code}`}
-            className="block bg-bg border border-border rounded-lg p-2.5 hover:border-accent/40 transition-colors group"
+            className="block bg-bg-subtle/60 border border-border rounded-xl p-2.5 hover:border-accent/40 transition-colors group/item"
           >
             <div className="flex items-center gap-2 text-xs text-fg-muted mb-0.5">
               <span className="font-mono">{t.code}</span>
@@ -67,14 +69,14 @@ export function SimilarTasks({ query, excludeId }: { query: string; excludeId?: 
                 <span className="text-fg-muted">· resolved in {t.resolvedInDays}d</span>
               )}
             </div>
-            <p className="text-sm group-hover:text-accent transition-colors">{t.actionItem}</p>
+            <p className="text-sm group-hover/item:text-accent transition-colors">{t.actionItem}</p>
             {t.latestUpdate && (
               <p className="text-xs text-fg-muted italic mt-1 line-clamp-2">→ {t.latestUpdate}</p>
             )}
           </Link>
         ))}
+        <p className="text-xs text-fg-subtle italic pt-1">Tap any to see how it was handled.</p>
       </div>
-      <p className="text-xs text-fg-subtle italic">Click any to view how it was handled.</p>
-    </div>
+    </details>
   );
 }

@@ -253,12 +253,14 @@ export default async function TaskPage({
       <SimilarTasks query={r.actionItem} excludeId={r.id} />
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left: Edit form */}
-        <div className="lg:col-span-3 space-y-4">
-          <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
-            <Pencil size={12} /> Edit Task
-          </h2>
-          <Card className="p-5 rounded-3xl">
+        {/* Left: Edit form (collapsible) */}
+        <details className="lg:col-span-3 group glass elevated rounded-3xl overflow-hidden" open>
+          <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+            <Pencil size={12} /> Edit task
+            <span className="ml-auto text-fg-subtle text-base leading-none transition-transform group-open:rotate-180 normal-case tracking-normal">⌄</span>
+          </summary>
+          <div className="px-5 pb-5 space-y-4">
+          <Card className="p-5 rounded-2xl">
             <form action={update} className="space-y-4">
               <div>
                 <FieldLabel>Action Item <span className="text-fg-subtle normal-case font-normal">— click ✦ to polish</span></FieldLabel>
@@ -327,15 +329,20 @@ export default async function TaskPage({
           <form action={remove} className="flex justify-end">
             <Button variant="danger" type="submit" className="rounded-full"><Trash2 size={13} /> Delete task</Button>
           </form>
-        </div>
+          </div>
+        </details>
 
         {/* Right: Updates + Timeline */}
         <div className="lg:col-span-2 space-y-4">
-          <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
-            <MessageSquarePlus size={12} /> Updates & History
-          </h2>
-
           <UpdateBox taskId={r.id} taskCode={r.code} currentStatus={r.status} />
+
+          <details className="group glass elevated rounded-2xl overflow-hidden" open>
+            <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+              <MessageSquarePlus size={12} /> History
+              <span className="text-fg-subtle normal-case tracking-normal">· {counts.all}</span>
+              <span className="ml-auto text-fg-subtle text-base leading-none transition-transform group-open:rotate-180 normal-case tracking-normal">⌄</span>
+            </summary>
+            <div className="px-4 pb-4 space-y-3">
 
           {/* Filter chips */}
           {counts.all > 0 && (
@@ -454,6 +461,8 @@ export default async function TaskPage({
               </div>
             )}
           </div>
+            </div>
+          </details>
         </div>
       </div>
     </div>

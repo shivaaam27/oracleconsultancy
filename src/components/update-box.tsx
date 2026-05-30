@@ -37,7 +37,6 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
     updateBody(next);
   }
 
-  // Live captions: show committed text + interim in the field without committing it.
   function showVoiceInterim(chunk: string) {
     setBody(bodyRef.current ? `${bodyRef.current} ${chunk}` : chunk);
   }
@@ -77,10 +76,10 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
   }
 
   return (
-    <div className="card p-4 space-y-3">
+    <div className="glass elevated rounded-2xl p-4 space-y-3">
       <div className="flex items-center gap-2">
         <MessageSquare size={14} className="text-accent" />
-        <span className="text-sm font-medium">Post Update</span>
+        <span className="text-sm font-medium">Post update</span>
       </div>
 
       <textarea
@@ -90,14 +89,15 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
         onChange={e => updateBody(e.target.value)}
         onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSubmit(); }}
         placeholder="What happened? e.g. Called supplier, confirmed delivery by Friday…"
-        className="w-full rounded-lg border border-border bg-bg-subtle px-3 py-2.5 text-sm placeholder:text-fg-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/50"
+        className="w-full rounded-xl border border-border bg-bg-subtle/60 px-3.5 py-2.5 text-sm placeholder:text-fg-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/50"
       />
 
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Controls row — uniform 40px height, left group flexes, post button right-aligned */}
+      <div className="flex items-center gap-2">
         <select
           value={status}
           onChange={e => setStatus(e.target.value)}
-          className="rounded-lg border border-border bg-bg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 text-fg-muted"
+          className="flex-1 min-w-0 h-10 rounded-full border border-border bg-bg-subtle/60 px-3.5 text-xs text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/50 truncate"
         >
           <option value="">Keep status ({currentStatus})</option>
           {STATUSES.filter(s => s !== currentStatus).map(s => (
@@ -111,18 +111,19 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
           onInterim={showVoiceInterim}
           onStop={handleVoiceStop}
           title="Dictate update"
-          className="border border-border"
+          className="h-10 w-10 rounded-full border border-border shrink-0"
         />
 
         <button
           onClick={handleSubmit}
           disabled={!body.trim() || isPending}
-          className="ml-auto flex items-center gap-2 px-4 py-1.5 rounded-lg bg-accent text-white text-sm font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
+          className="h-10 inline-flex items-center gap-2 px-4 rounded-full bg-accent text-white text-sm font-medium disabled:opacity-40 hover:opacity-90 transition-opacity shrink-0"
         >
           {isPending ? <Loader2 size={13} className="animate-spin" /> : success ? <CheckCircle2 size={13} /> : <Send size={13} />}
-          {isPending ? "Posting…" : success ? "Posted!" : "Post Update"}
+          <span className="hidden sm:inline">{isPending ? "Posting…" : success ? "Posted!" : "Post"}</span>
         </button>
       </div>
+
       {(voiceInfo || lastRawVoice) && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
           {isPolishing && <Loader2 size={12} className="animate-spin" />}
