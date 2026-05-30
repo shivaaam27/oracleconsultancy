@@ -1,31 +1,53 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, CalendarOff } from "lucide-react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight, CalendarOff, X, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { EmptyState } from "@/components/ui";
+import { hasTime } from "@/components/deadline";
+import { spring } from "@/lib/motion";
+import { triggerHaptic } from "@/lib/use-long-press";
+import { useToast } from "@/components/toast";
+import { callUndo } from "@/components/undo-banner";
+import { inlineUpdateTask } from "@/app/task/actions";
+
+const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
- * Month-grid calendar. Tasks are bucketed by deadline (YYYY-MM-DD).
- * Tasks without a deadline are listed in a "No deadline" rail above the grid.
- * `month` is YYYY-MM (defaults to current month).
+ * Month calendar, time-aware. Tasks are bucketed by deadline day; a pill shows
+ * the time when one is set. Tap a day to open its agenda sheet; drag a pill onto
+ * another day to reschedule (keeping the time of day). No-deadline tasks sit in a
+ * rail above the grid and can be dragged onto a day to give them one.
  */
 export function CalendarView({
-  rows,
-  month,
-  queryWithoutMonth,
+  rows, month, queryWithoutMonth,
 }: {
   rows: TaskRow[];
   month: string | undefined;
-  /** Current query string without the `month` param — used to build prev/next links. */
   queryWithoutMonth: string;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+
+  // Optimistic deadline overrides (code → Date|null) so a dropped pill moves now.
+  const [moved, setMoved] = useState<Record<string, Date | null>>({});
+  const [dragCode, setDragCode] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+  const [dayOpen, setDayOpen] = useState<string | null>(null);
+
+  const deadlineOf = (r: TaskRow) => (r.code in moved ? moved[r.code] : r.deadline);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
   const m = parseMonth(month) ?? { year: today.getFullYear(), monthIdx: today.getMonth() };
   const first = new Date(m.year, m.monthIdx, 1);
   const last = new Date(m.year, m.monthIdx + 1, 0);
 
-  // Build a 6x7 grid starting on Monday.
   const startWeekday = (first.getDay() + 6) % 7; // 0 = Monday
   const cells: { date: Date; inMonth: boolean }[] = [];
   for (let i = 0; i < 42; i++) {
@@ -34,20 +56,16 @@ export function CalendarView({
     cells.push({ date: d, inMonth: d.getMonth() === m.monthIdx });
   }
 
-  // Bucket rows by YYYY-MM-DD
   const byDay = new Map<string, TaskRow[]>();
   const noDeadline: TaskRow[] = [];
   for (const r of rows) {
-    if (!r.deadline) {
-      noDeadline.push(r);
-      continue;
-    }
-    const k = ymd(r.deadline);
+    const dl = deadlineOf(r);
+    if (!dl) { noDeadline.push(r); continue; }
+    const k = ymd(dl);
     const list = byDay.get(k) || [];
     list.push(r);
     byDay.set(k, list);
   }
-  // Sort each day by priority then code
   const ORDER = ["Critical", "High", "Medium", "Low"];
   for (const list of byDay.values()) {
     list.sort((a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority) || a.code.localeCompare(b.code));
@@ -70,70 +88,104 @@ export function CalendarView({
   const monthLabel = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+  function openTask(code: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("task", code);
+    params.delete("person");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  async function reschedule(code: string, day: Date) {
+    const r = rows.find((x) => x.code === code);
+    if (!r) return;
+    const cur = deadlineOf(r);
+    // Keep the time of day if the task had one; otherwise leave it all-day.
+    const next = new Date(day);
+    if (cur && hasTime(cur)) next.setHours(cur.getHours(), cur.getMinutes(), 0, 0);
+    else next.setHours(0, 0, 0, 0);
+    const value = cur && hasTime(cur)
+      ? `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}T${pad(next.getHours())}:${pad(next.getMinutes())}`
+      : `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+
+    setMoved((mm) => ({ ...mm, [code]: next }));
+    triggerHaptic();
+    const res = await inlineUpdateTask(code, "deadline", value);
+    if (res.ok) {
+      const when = next.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      toast(`${code} moved to ${when}`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); setMoved((mm) => { const n = { ...mm }; delete n[code]; return n; }); router.refresh(); } } : undefined });
+    } else {
+      setMoved((mm) => { const n = { ...mm }; delete n[code]; return n; });
+      toast(res.error || "Move failed", { tone: "warn", duration: 3000 });
+    }
+    router.refresh();
+  }
+
+  function Pill({ r }: { r: TaskRow }) {
+    const dl = deadlineOf(r);
+    return (
+      <button
+        type="button"
+        draggable
+        onDragStart={(e) => { setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
+        onDragEnd={() => { setDragCode(null); setOverKey(null); }}
+        onClick={(e) => { e.stopPropagation(); openTask(r.code); }}
+        className={"block w-full truncate text-left text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 hover:bg-bg-muted cursor-grab active:cursor-grabbing " + (dragCode === r.code ? "opacity-40" : "")}
+        style={{ borderLeftColor: pillColor(r) }}
+        title={`${r.code} · ${r.actionItem}`}
+      >
+        {dl && hasTime(dl) && <span className="font-mono text-fg-subtle mr-1">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
+        {r.actionItem}
+      </button>
+    );
+  }
+
+  const dayItems = dayOpen ? (byDay.get(dayOpen) || []) : [];
+  const dayLabel = dayOpen ? new Date(dayOpen + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : "";
+
   return (
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Link
-            href={buildHref(prev)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted"
-            aria-label="Previous month"
-          >
-            <ChevronLeft size={14} />
-          </Link>
-          <Link
-            href={buildHref(next)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted"
-            aria-label="Next month"
-          >
-            <ChevronRight size={14} />
-          </Link>
-          <Link
-            href={todayHref}
-            className="text-xs px-2 py-1 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted"
-          >
-            Today
-          </Link>
+          <Link href={buildHref(prev)} className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted" aria-label="Previous month"><ChevronLeft size={14} /></Link>
+          <Link href={buildHref(next)} className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted" aria-label="Next month"><ChevronRight size={14} /></Link>
+          <Link href={todayHref} className="text-xs px-2 py-1 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">Today</Link>
           <div className="ml-2 text-sm font-medium">{monthLabel}</div>
         </div>
         <div className="text-xs text-fg-subtle">
-          {rows.filter((r) => r.deadline && r.deadline >= first && r.deadline <= last).length} due this month
+          {rows.filter((r) => { const d = deadlineOf(r); return d && d >= first && d <= last; }).length} due this month
         </div>
       </div>
 
       {/* No-deadline rail */}
       {noDeadline.length > 0 && (
-        <div className="card p-3 border-dashed">
-          <div className="flex items-center gap-1.5 text-xs text-fg-muted mb-1.5">
-            <CalendarOff size={12} /> No deadline · {noDeadline.length}
-          </div>
+        <div className="elevated bg-bg-elev rounded-xl border border-dashed border-border p-3">
+          <div className="flex items-center gap-1.5 text-xs text-fg-muted mb-1.5"><CalendarOff size={12} /> No deadline · {noDeadline.length} <span className="text-fg-subtle">— drag onto a day to schedule</span></div>
           <div className="flex flex-wrap gap-1.5">
-            {noDeadline.slice(0, 20).map((r) => (
-              <Link
+            {noDeadline.slice(0, 24).map((r) => (
+              <button
                 key={r.id}
-                href={`/task/${r.code}`}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-bg-subtle hover:bg-bg-muted truncate max-w-[260px]"
+                type="button"
+                draggable
+                onDragStart={(e) => { setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
+                onDragEnd={() => { setDragCode(null); setOverKey(null); }}
+                onClick={() => openTask(r.code)}
+                className="text-[11px] px-2 py-0.5 rounded-md bg-bg-subtle hover:bg-bg-muted truncate max-w-[260px] cursor-grab active:cursor-grabbing"
                 title={r.actionItem}
               >
-                <span className="font-mono text-fg-muted mr-1">{r.code}</span>
-                {r.actionItem}
-              </Link>
+                <span className="font-mono text-fg-muted mr-1">{r.code}</span>{r.actionItem}
+              </button>
             ))}
-            {noDeadline.length > 20 && (
-              <span className="text-[11px] text-fg-subtle px-2 py-0.5">+{noDeadline.length - 20} more</span>
-            )}
+            {noDeadline.length > 24 && <span className="text-[11px] text-fg-subtle px-2 py-0.5">+{noDeadline.length - 24} more</span>}
           </div>
         </div>
       )}
 
       {/* Grid */}
-      <div className="card overflow-hidden">
+      <div className="elevated bg-bg-elev rounded-xl overflow-hidden">
         <div className="grid grid-cols-7 border-b border-border">
           {weekdayLabels.map((w) => (
-            <div key={w} className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-fg-subtle text-center">
-              {w}
-            </div>
+            <div key={w} className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-fg-subtle text-center">{w}</div>
           ))}
         </div>
         <div className="grid grid-cols-7">
@@ -141,40 +193,25 @@ export function CalendarView({
             const k = ymd(cell.date);
             const items = byDay.get(k) || [];
             const isToday = ymd(today) === k;
+            const isOver = overKey === k;
             return (
               <div
                 key={i}
+                onDragOver={(e) => { e.preventDefault(); setOverKey(k); }}
+                onDragLeave={() => setOverKey((s) => (s === k ? null : s))}
+                onDrop={(e) => { e.preventDefault(); if (dragCode) reschedule(dragCode, cell.date); setDragCode(null); setOverKey(null); }}
+                onClick={() => { if (items.length) setDayOpen(k); }}
                 className={
-                  "min-h-[100px] border-b border-r border-border last:border-r-0 p-1.5 space-y-1 " +
-                  (cell.inMonth ? "bg-bg" : "bg-bg-subtle/40")
+                  "min-h-[104px] border-b border-r border-border last:border-r-0 p-1.5 space-y-1 transition-colors " +
+                  (items.length ? "cursor-pointer " : "") +
+                  (isOver ? "bg-accent/10 ring-1 ring-accent/40 ring-inset " : cell.inMonth ? "bg-bg-elev" : "bg-bg-subtle/40")
                 }
               >
-                <div
-                  className={
-                    "text-[10px] tabular " +
-                    (isToday
-                      ? "text-accent font-semibold"
-                      : cell.inMonth
-                        ? "text-fg-muted"
-                        : "text-fg-subtle")
-                  }
-                >
+                <div className={"text-[10px] tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full " + (isToday ? "bg-accent text-accent-fg font-semibold" : cell.inMonth ? "text-fg-muted" : "text-fg-subtle")}>
                   {cell.date.getDate()}
                 </div>
-                {items.slice(0, 4).map((r) => (
-                  <Link
-                    key={r.id}
-                    href={`/task/${r.code}`}
-                    className="block truncate text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 hover:bg-bg-muted"
-                    style={{ borderLeftColor: pillColor(r) }}
-                    title={`${r.code} · ${r.actionItem}`}
-                  >
-                    {r.actionItem}
-                  </Link>
-                ))}
-                {items.length > 4 && (
-                  <div className="text-[10px] text-fg-subtle px-1">+{items.length - 4} more</div>
-                )}
+                {items.slice(0, 3).map((r) => <Pill key={r.id} r={r} />)}
+                {items.length > 3 && <div className="text-[10px] text-fg-subtle px-1 hover:text-accent">+{items.length - 3} more</div>}
               </div>
             );
           })}
@@ -182,21 +219,50 @@ export function CalendarView({
       </div>
 
       {rows.length === 0 && (
-        <EmptyState
-          icon={<CalendarOff size={28} />}
-          title="No tasks in scope."
-          hint="Adjust filters or pick a different view."
-        />
+        <EmptyState icon={<CalendarOff size={28} />} title="No tasks in scope." hint="Adjust filters or pick a different view." />
       )}
+
+      {/* Day agenda sheet */}
+      <AnimatePresence>
+        {dayOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setDayOpen(null)} className="fixed inset-0 z-[85] bg-black/45 backdrop-blur-[3px]" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={spring}
+              className="fixed z-[86] inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[420px] mx-auto max-h-[80svh] overflow-hidden flex flex-col glass glass-menu rounded-2xl"
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+                <div className="text-sm font-semibold">{dayLabel}<span className="text-fg-subtle font-normal"> · {dayItems.length}</span></div>
+                <button type="button" onClick={() => setDayOpen(null)} className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-fg-muted hover:bg-bg-muted"><X size={15} /></button>
+              </div>
+              <div className="overflow-y-auto divide-y divide-border/60">
+                {dayItems.map((r) => {
+                  const dl = deadlineOf(r);
+                  return (
+                    <button key={r.id} type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="w-full text-left px-4 py-3 hover:bg-bg-muted/60 transition-colors flex items-start gap-2.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: pillColor(r) }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-sm leading-snug line-clamp-2">{r.actionItem}</span>
+                        <span className="block text-xs text-fg-muted mt-0.5">
+                          {dl && hasTime(dl) && <span className="font-mono mr-1.5">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
+                          {r.code} · {r.companyName} · {r.status}
+                        </span>
+                      </span>
+                      <ExternalLink size={14} className="text-fg-subtle shrink-0 mt-0.5" />
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 function ymd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function parseMonth(s: string | undefined): { year: number; monthIdx: number } | null {
@@ -211,9 +277,7 @@ function parseMonth(s: string | undefined): { year: number; monthIdx: number } |
 
 function monthString(year: number, monthIdx: number): string {
   const d = new Date(year, monthIdx, 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 }
 
 function pillColor(r: TaskRow): string {
