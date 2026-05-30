@@ -20,8 +20,8 @@ import { AssigneeList } from "./assignee-list";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
-import { inlineUpdateTask } from "@/app/task/actions";
-import { CheckCircle2, RotateCcw, AlertOctagon } from "lucide-react";
+import { inlineUpdateTask, deleteTaskQuick } from "@/app/task/actions";
+import { CheckCircle2, RotateCcw, AlertOctagon, Trash2 } from "lucide-react";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
@@ -179,6 +179,22 @@ export function TaskDrawer() {
     const q = params.toString();
     router.push(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [pathname, router, searchParams]);
+
+  const [confirmDel, setConfirmDel] = useState(false);
+  async function handleDelete() {
+    if (!data) return;
+    setActing("delete");
+    const res = await deleteTaskQuick(data.task.code);
+    setActing(null);
+    if (res.ok) {
+      const code = data.task.code;
+      close();
+      toast(`${code} deleted`, { tone: "success", duration: 8000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
+      router.refresh();
+    } else {
+      toast(res.error || "Could not delete", { tone: "warn", duration: 3000 });
+    }
+  }
 
   // Fetch task data whenever code or refreshKey changes
   useEffect(() => {
@@ -377,16 +393,20 @@ export function TaskDrawer() {
                 )}
 
                 {data.sourceMeeting && (
-                  <div className="rounded-xl border border-border bg-bg-subtle px-3 py-2.5 flex items-start gap-2.5">
+                  <a
+                    href="/workbook?tab=meetings"
+                    className="group rounded-xl border border-border bg-bg-subtle px-3 py-2.5 flex items-start gap-2.5 hover:border-accent/50 transition-colors"
+                  >
                     <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
                       <FileText size={13} />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Source meeting</div>
-                      <p className="truncate text-sm font-medium">{data.sourceMeeting.title}</p>
+                      <p className="truncate text-sm font-medium group-hover:text-accent transition-colors">{data.sourceMeeting.title}</p>
                       <p className="text-xs text-fg-muted">{fmtDate(new Date(data.sourceMeeting.meeting_date))}</p>
                     </div>
-                  </div>
+                    <ExternalLink size={12} className="text-fg-subtle group-hover:text-accent shrink-0 mt-0.5" />
+                  </a>
                 )}
 
                 {/* Divider */}
@@ -421,6 +441,23 @@ export function TaskDrawer() {
                     </div>
                   </div>
                 )}
+
+                {/* Danger zone — delete (with Undo) */}
+                <div className="border-t border-border pt-3 flex items-center justify-end gap-2">
+                  {confirmDel ? (
+                    <>
+                      <span className="text-xs text-fg-muted mr-auto">Delete this task?</span>
+                      <button type="button" onClick={() => setConfirmDel(false)} className="text-xs px-2.5 py-1.5 rounded-lg border border-border text-fg-muted hover:text-fg transition-colors">Cancel</button>
+                      <button type="button" onClick={handleDelete} disabled={acting === "delete"} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-danger text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
+                        {acting === "delete" ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmDel(true)} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-danger px-2.5 py-1.5 rounded-lg hover:bg-danger-soft transition-colors">
+                      <Trash2 size={13} /> Delete task
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

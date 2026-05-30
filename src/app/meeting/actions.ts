@@ -151,6 +151,14 @@ export async function saveMeeting(input: {
   return saved;
 }
 
+/** Delete a saved meeting. Linked tasks remain (meeting_tasks cascades, tasks don't). */
+export async function deleteMeeting(id: number): Promise<void> {
+  const { error } = await sb.from("meetings").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/meeting");
+  revalidatePath("/workbook");
+}
+
 export async function generateMeetingMinutes(input: {
   title: string;
   companyName?: string | null;

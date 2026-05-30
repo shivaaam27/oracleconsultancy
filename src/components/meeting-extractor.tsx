@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import {
   bulkCreateTasks, generateMeetingInsight, generateMeetingMinutes, improveMeetingNotes,
-  listMeetings, parseMeetingNotes, saveMeeting, type BulkTaskInput, type SavedMeeting,
+  listMeetings, parseMeetingNotes, saveMeeting, deleteMeeting, type BulkTaskInput, type SavedMeeting,
 } from "@/app/meeting/actions";
 import type { MeetingTask } from "@/lib/meeting-parse";
 import { polishActionItem } from "@/lib/smart-parse";
@@ -98,6 +98,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
   const [isParsing, startParse] = useTransition();
   const [isSaving, startSave] = useTransition();
   const [isSavingMeeting, startSaveMeeting] = useTransition();
+  const [isDeletingMeeting, startDeleteMeeting] = useTransition();
   const [busyAssist, startAssist] = useTransition();
   const [isPolishingVoice, startVoicePolish] = useTransition();
   const [isTeachingVoice, startTeachVoice] = useTransition();
@@ -158,6 +159,21 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
 
   function upsertMeetingList(saved: SavedMeeting) {
     setMeetingList(prev => [saved, ...prev.filter(m => m.id !== saved.id)]);
+  }
+
+  function handleDeleteMeeting() {
+    if (!meetingId) return;
+    if (!window.confirm("Delete this meeting? Tasks created from it will remain.")) return;
+    const id = meetingId;
+    startDeleteMeeting(async () => {
+      try {
+        await deleteMeeting(id);
+        setMeetingList(prev => prev.filter(m => m.id !== id));
+        setMeetingId(null); resetEditorState(); setCreatedTaskLinks([]); setEditing(false);
+        flash("Meeting deleted.");
+        router.refresh();
+      } catch (err) { setError(err instanceof Error ? err.message : "Could not delete meeting."); }
+    });
   }
 
   function handleSaveMeeting() {
@@ -326,6 +342,11 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
                 onClean={assistCleanNotes} onMinutes={assistGenerateMinutes}
                 onDecisions={() => assistInsight("decisions")} onRisks={() => assistInsight("risks")}
                 onFollowUp={() => assistInsight("follow-up")} onExtract={handleExtract} />
+              {meetingId && (
+                <button type="button" onClick={handleDeleteMeeting} disabled={isDeletingMeeting} className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:text-danger hover:bg-danger-soft disabled:opacity-50 transition-colors" title="Delete meeting" aria-label="Delete meeting">
+                  {isDeletingMeeting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={15} />}
+                </button>
+              )}
               <button type="button" onClick={handleSaveMeeting} disabled={isSavingMeeting} className="inline-flex items-center gap-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium px-3 py-1.5 disabled:opacity-50 hover:opacity-90 transition-opacity">
                 {isSavingMeeting ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save
               </button>
