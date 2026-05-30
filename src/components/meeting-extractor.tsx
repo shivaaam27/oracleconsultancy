@@ -237,12 +237,13 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
 
   function handleExtract() {
     if (!notes.trim()) return;
-    setError(null); setSavedCount(null); setSaveFailures([]);
+    setError(null); setInfo(null); setSavedCount(null); setSaveFailures([]);
     setTasksOpen(true);
     startParse(async () => {
       const { tasks: parsed, source, aiError } = await parseMeetingNotes(notes, defaultCompany || undefined);
       setTasks(parsed.map((p, i) => taskFromParsed(p, i)));
-      if (parsed.length === 0) setError("No action items detected. Try bullet points like 'Amina to send invoice by Friday'.");
+      // "Nothing found" is a normal outcome, not an error — show it as a neutral hint.
+      if (parsed.length === 0) setInfo("No action items found yet. Try a line like ‘Amina to send invoice by Friday’.");
       if (source === "rules-no-key") flash("AI extraction is off — used the basic extractor.");
       else if (source === "rules-ai-error") flash(`AI extraction failed (${aiError || "unknown"}) — used the basic extractor.`);
       else if (source === "rules-empty-ai") flash("AI returned no items — tried the basic extractor.");

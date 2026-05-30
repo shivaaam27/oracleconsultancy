@@ -112,6 +112,9 @@ export const meetings = pgTable("meetings", {
   // "meeting" (default) or "note" — lets meetings and Apple-Notes-style notes
   // share this table while the Workbook shows them in separate tabs.
   kind: text("kind").notNull().default("meeting"),
+  // Notes: pin to top + optional folder for organisation.
+  pinnedAt: timestamp("pinned_at", { mode: "date" }),
+  folder: text("folder"),
 });
 
 export const meetingTasks = pgTable(

@@ -369,25 +369,34 @@ async function extractWithAI(notes: string, companyMap: { id: number; name: stri
     const cNames = (companies ?? []).map((c) => c.name as string);
     const pNames = (people ?? []).map((p) => p.name as string);
 
-    const systemPrompt = `You are the Chief of Staff for a multi-company portfolio. Extract every action item from raw meeting notes as JSON.
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const weekday = new Date().toLocaleDateString("en-GB", { weekday: "long" });
+    const systemPrompt = `You are the Chief of Staff for a multi-company portfolio. Extract the action items / commitments from raw meeting notes as JSON. Notes are often rough, casual, dictated, or in note form — read intent, not just grammar.
 
 KNOWN COMPANIES: ${cNames.join(", ") || "(none)"}
 KNOWN PEOPLE: ${pNames.join(", ") || "(none)"}
+Today is ${todayIso} (${weekday}).
 
 Output exactly: { "tasks": [ { "actionItem", "companyName", "assigneeNames", "priority", "status", "deadline", "deadlineLabel", "category", "escalation" } ] }
 
+What counts as an action item: anything someone needs to DO or follow up on — "X to send…", "need to…", "chase…", "follow up on…", "book…", "pay…", "fix…", "prepare…", "call…", a decision that creates work, or a clear next step. Capture these even when phrased loosely.
+NOT action items: greetings, small talk, opinions, facts/observations with no follow-up, or pure status with nothing to do. If the notes contain none, return { "tasks": [] } — do NOT invent tasks.
+
 Rules:
-- actionItem: imperative verb start, 4-14 words, capitalised names.
-- companyName: from KNOWN COMPANIES exactly, or null.
-- assigneeNames: array of names mentioned. Empty array if none.
-- priority: Critical | High | Medium | Low (Critical/High if urgent/asap/blocker).
-- status: Not Started | In Progress | Under Review | Blocked | Waiting External | Escalated.
-- deadline: ISO YYYY-MM-DD if inferable, else null. Today is ${new Date().toISOString().slice(0, 10)}.
-- deadlineLabel: human label like "End of Week", "15 June", else null.
+- actionItem: imperative verb start, 4-14 words, capitalise real names. Make rough phrasing into a clean instruction.
+- companyName: from KNOWN COMPANIES exactly (case-insensitive match), else null.
+- assigneeNames: names explicitly responsible. Prefer KNOWN PEOPLE spellings. "I"/"we"/"us" → [] (no named owner). [] if unclear.
+- priority: Critical | High | Medium | Low. Critical/High for urgent/asap/blocker/"today".
+- status: Not Started | In Progress | Under Review | Blocked | Waiting External | Escalated. Default Not Started.
+- deadline: resolve relative dates to ISO YYYY-MM-DD from today (${todayIso}, ${weekday}): "today"=${todayIso}; "tomorrow"=next day; a weekday name = the next such weekday; "end of week"/"EOW"/"by Friday"=this week's Friday; "next week"=next Monday; "end of month"=last day of this month. Else null.
+- deadlineLabel: the human phrase used ("by Friday", "EOW", "15 June"), else null.
 - category: Finance | Operations | Marketing | HR | Legal | Technology | Sales | Admin | Meetings | Strategy | Other | null.
-- escalation: "Yes" if escalate/principal/urgent attention, else "No".
-- Skip non-action sentences. One action = one task.
-- Return ONLY JSON. No prose.`;
+- escalation: "Yes" if escalate/principal/urgent attention needed, else "No".
+- One commitment = one task. Split lists like "do A and B" into separate tasks when they are distinct actions.
+- Return ONLY JSON. No prose.
+
+Example — notes: "caught up w/ dipto. he'll send the TRA invoice by fri. also need to chase gofiber re printer, urgent."
+→ { "tasks": [ { "actionItem": "Send the TRA invoice", "companyName": null, "assigneeNames": ["Dipto"], "priority": "Medium", "status": "Not Started", "deadline": null, "deadlineLabel": "by Friday", "category": "Finance", "escalation": "No" }, { "actionItem": "Chase Gofiber about the printer", "companyName": null, "assigneeNames": [], "priority": "High", "status": "Not Started", "deadline": null, "deadlineLabel": null, "category": "Operations", "escalation": "No" } ] }`;
 
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
