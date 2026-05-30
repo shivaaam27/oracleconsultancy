@@ -118,3 +118,22 @@ Panels/sheets = 16 → cards/tables = 12 → controls = 10/8.
 - New colour? Tint **only** primary actions (and per-company identity later).
 - New gesture? Reuse `SwipeRow` / `PeekPreview` / `useLongPress`.
 - Always re-test with Reduce Transparency / Contrast / Motion on.
+
+---
+
+## 9. The living gallery — `/design`
+
+`src/app/design/page.tsx` (sidebar → **Design**) renders every token, surface,
+control and gesture on one page: colour swatches, the three surface tiers, the
+radius ladder, all button variants/sizes, badges, and live demos of `SwipeRow`,
+`PeekPreview` and `SnoozeSheet`. Use it to eyeball consistency and try ideas
+before rolling them across the app. Keep it in sync when primitives change.
+
+### Touch hygiene (learned on real iPhones)
+- Long-press / swipe rows carry `select-none`; globally `.select-none` also sets
+  `-webkit-touch-callout: none` + `-webkit-user-select: none` so iOS doesn't
+  highlight text or pop the "Copy / Look Up" menu mid-gesture.
+- `SnoozeSheet` gives presets (Tomorrow / In 3 days / Next week) plus a date
+  picker; peek menus open it instead of a fixed "Snooze 1 week".
+- Inbox cards swipe (right = File it, left = Dismiss) only when not editing, so
+  the textarea keeps full touch.

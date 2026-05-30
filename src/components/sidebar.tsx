@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   Sparkles, Home, CheckSquare, Inbox, NotebookPen, BarChart3, Bot,
-  Users, Send, Settings, Search, ChevronRight,
+  Users, Send, Settings, Search, ChevronRight, Palette,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -25,6 +25,7 @@ const NAV_BELOW = [
   { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "People", href: "/people", icon: Users },
   { label: "Outbox", href: "/outbox", icon: Send },
+  { label: "Design", href: "/design", icon: Palette },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
