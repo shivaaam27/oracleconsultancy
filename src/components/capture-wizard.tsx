@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import {
   Sparkles, X, Loader2, ListTodo, NotebookPen, CheckCircle2, ArrowRight,
   ArrowLeft, Building2, CalendarDays, Flag, User, ExternalLink,
@@ -66,6 +66,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const open = searchParams.get("capture") === "open";
+  const dragControls = useDragControls();
   const inboxId = searchParams.get("inbox");
 
   const [step, setStep] = useState<Step>("intake");
@@ -223,11 +224,24 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 360, damping: 30 }}
+            drag="y"
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.6 }}
+            onDragEnd={(_, info) => { if (info.offset.y > 110 || info.velocity.y > 700) close(); }}
             className="fixed z-[81] inset-x-0 bottom-0 origin-bottom
               sm:inset-0 sm:m-auto sm:h-fit sm:max-w-lg sm:origin-center"
           >
             <div className="flex max-h-[88svh] flex-col overflow-hidden glass
               rounded-t-2xl sm:rounded-2xl pb-[env(safe-area-inset-bottom)]">
+              {/* Grabber — drag to dismiss (mobile sheet) */}
+              <div
+                onPointerDown={(e) => dragControls.start(e)}
+                className="sm:hidden flex justify-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none"
+              >
+                <span className="h-1 w-9 rounded-full bg-fg-subtle/40" />
+              </div>
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
