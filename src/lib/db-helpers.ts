@@ -135,6 +135,12 @@ export async function insertTaskWithUniqueCodeSb(
   codePrefix: string,
   values: TaskInsertValues
 ): Promise<{ id: number; code: string }> {
+  // Prefer the company's two-letter code_prefix (DS-001); the passed codePrefix
+  // (usually the legacy company code) is only a fallback. This keeps every
+  // creation path on the new scheme without each caller having to know it.
+  const { data: comp } = await sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle();
+  const prefix = (comp?.code_prefix as string | null) || codePrefix;
+
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: existing, error: e1 } = await sb
       .from("tasks")
@@ -148,7 +154,7 @@ export async function insertTaskWithUniqueCodeSb(
       const m = (row.code as string).match(/(\d+)$/);
       if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
     }
-    const newCode = `${codePrefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
+    const newCode = `${prefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
 
     const insertPayload = {
       code: newCode,

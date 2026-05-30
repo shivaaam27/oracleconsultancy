@@ -69,6 +69,22 @@ function toDate(s: string | null): Date | null {
   return s ? new Date(s) : null;
 }
 
+export type TaskSource = { meetingId: number; title: string; kind: string };
+
+/** Map of task_id → its source meeting/note (via meeting_tasks). For provenance. */
+export const getTaskSources = cache(async (): Promise<Record<number, TaskSource>> => {
+  const { data } = await sb
+    .from("meeting_tasks")
+    .select("task_id, meetings(id,title,kind)");
+  type Mtg = { id: number; title: string; kind: string | null };
+  const map: Record<number, TaskSource> = {};
+  for (const row of (data ?? []) as { task_id: number; meetings: Mtg | Mtg[] | null }[]) {
+    const m = Array.isArray(row.meetings) ? row.meetings[0] : row.meetings;
+    if (m) map[row.task_id] = { meetingId: m.id, title: m.title, kind: m.kind || "meeting" };
+  }
+  return map;
+});
+
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, settings] = await Promise.all([
     sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),

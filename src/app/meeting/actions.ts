@@ -495,15 +495,16 @@ export async function bulkCreateTasks(
 
           const { data: company, error: cErr } = await sb
             .from("companies")
-            .select("code")
+            .select("code, code_prefix")
             .eq("id", t.companyId)
             .maybeSingle();
           if (cErr) throw new Error(cErr.message);
           if (!company) { failures.push({ index: i, actionItem: t.actionItem, reason: "Company not found" }); continue; }
-          const code = company.code as string;
+          // Use the two-letter prefix (DS-001); fall back to the legacy company code.
+          const prefix = (company.code_prefix as string | null) || (company.code as string);
           const now = new Date();
 
-          const task = await insertTaskWithUniqueCodeSb(t.companyId, code, {
+          const task = await insertTaskWithUniqueCodeSb(t.companyId, prefix, {
             actionItem: t.actionItem,
             status: t.status || "Not Started",
             priority: t.priority || "Low",

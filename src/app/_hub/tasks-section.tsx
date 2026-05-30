@@ -1,4 +1,4 @@
-import { getAllTasks } from "@/lib/queries";
+import { getAllTasks, getTaskSources } from "@/lib/queries";
 import { getSavedViews } from "@/lib/task-views";
 import { Card, LinkButton, EmptyState } from "@/components/ui";
 import { SavedViewsBar } from "@/components/saved-views-bar";
@@ -7,6 +7,7 @@ import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
 import { CalendarView } from "@/app/task/_views/calendar-view";
+import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
 import { Plus, CheckSquare } from "lucide-react";
@@ -60,9 +61,10 @@ function queryWithoutView(sp: Sp): string {
 export async function TasksSection({ sp }: { sp: Sp }) {
   // Hub Tasks tab is always global — no scope filtering. The scope cookie
   // applies to /task (standalone) but the hub shows all companies by design.
-  const [all, savedViews] = await Promise.all([
+  const [all, savedViews, taskSources] = await Promise.all([
     getAllTasks(),
     getSavedViews(),
+    getTaskSources(),
   ]);
   const view = parseViewMode(sp.view);
   const showClosed = sp.closed === "1";
@@ -103,7 +105,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q);
 
-  const dayMode = !hasFilters && sp.all !== "1" && view !== "calendar";
+  const dayMode = !hasFilters && sp.all !== "1" && view !== "calendar" && view !== "timeline";
   if (dayMode) {
     rows = rows.filter(
       (r) =>
@@ -263,7 +265,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         extraQuery="tab=tasks"
       />
 
-      {total === 0 && view !== "calendar" ? (
+      {total === 0 && view !== "calendar" && view !== "timeline" ? (
         <Card className="p-8">
           <EmptyState
             icon={<CheckSquare size={32} />}
@@ -273,6 +275,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         </Card>
       ) : view === "calendar" ? (
         <CalendarView rows={rows} month={sp.month} queryWithoutMonth={queryWithoutView(sp)} />
+      ) : view === "timeline" ? (
+        <TimelineView rows={rows} sources={taskSources} />
       ) : (
         <SelectionProvider>
           {view === "board" ? (

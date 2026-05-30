@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, CalendarOff, X, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, X, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { EmptyState } from "@/components/ui";
 import { hasTime } from "@/components/deadline";
@@ -39,6 +39,17 @@ export function CalendarView({
   const [dragCode, setDragCode] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
+  const [railOpen, setRailOpen] = useState(false);
+  const railRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!railOpen) return;
+    const onDoc = (e: MouseEvent) => { if (railRef.current && !railRef.current.contains(e.target as Node)) setRailOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setRailOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [railOpen]);
 
   const deadlineOf = (r: TaskRow) => (r.code in moved ? moved[r.code] : r.deadline);
 
@@ -157,27 +168,44 @@ export function CalendarView({
         </div>
       </div>
 
-      {/* No-deadline rail */}
+      {/* No-deadline: compact button → hover/click popover (still drag-to-schedule) */}
       {noDeadline.length > 0 && (
-        <div className="elevated bg-bg-elev rounded-xl border border-dashed border-border p-3">
-          <div className="flex items-center gap-1.5 text-xs text-fg-muted mb-1.5"><CalendarOff size={12} /> No deadline · {noDeadline.length} <span className="text-fg-subtle">— drag onto a day to schedule</span></div>
-          <div className="flex flex-wrap gap-1.5">
-            {noDeadline.slice(0, 24).map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                draggable
-                onDragStart={(e) => { setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
-                onDragEnd={() => { setDragCode(null); setOverKey(null); }}
-                onClick={() => openTask(r.code)}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-bg-subtle hover:bg-bg-muted truncate max-w-[260px] cursor-grab active:cursor-grabbing"
-                title={r.actionItem}
+        <div ref={railRef} className="relative inline-block" onMouseEnter={() => setRailOpen(true)}>
+          <button
+            type="button"
+            onClick={() => setRailOpen((o) => !o)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border bg-bg-elev text-fg-muted hover:text-fg hover:bg-bg-muted btn-rim transition-colors"
+          >
+            <CalendarOff size={12} /> No deadline <span className="tabular text-fg-subtle">· {noDeadline.length}</span>
+            <ChevronDown size={12} className={"opacity-50 transition-transform " + (railOpen ? "rotate-180" : "")} />
+          </button>
+          <AnimatePresence>
+            {railOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.97, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: -2 }} transition={spring}
+                style={{ transformOrigin: "top left" }}
+                className="absolute z-[60] mt-1.5 left-0 w-[340px] max-h-[52vh] overflow-y-auto glass glass-menu rounded-xl p-2"
               >
-                <span className="font-mono text-fg-muted mr-1">{r.code}</span>{r.actionItem}
-              </button>
-            ))}
-            {noDeadline.length > 24 && <span className="text-[11px] text-fg-subtle px-2 py-0.5">+{noDeadline.length - 24} more</span>}
-          </div>
+                <div className="text-[11px] text-fg-subtle px-1 pb-1.5">Drag any onto a day to schedule.</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {noDeadline.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      draggable
+                      onDragStart={(e) => { setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
+                      onDragEnd={() => { setDragCode(null); setOverKey(null); setRailOpen(false); }}
+                      onClick={() => { setRailOpen(false); openTask(r.code); }}
+                      className="text-[11px] px-2 py-1 rounded-md bg-bg-subtle hover:bg-bg-muted truncate max-w-[300px] cursor-grab active:cursor-grabbing"
+                      title={r.actionItem}
+                    >
+                      <span className="font-mono text-fg-muted mr-1">{r.code}</span>{r.actionItem}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
