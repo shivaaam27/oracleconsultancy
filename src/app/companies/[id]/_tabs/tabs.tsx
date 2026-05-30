@@ -33,7 +33,7 @@ export function CompanyTabs({
   completedCount?: number;
 }) {
   return (
-    <div className="flex items-center gap-1 border-b border-border">
+    <div className="inline-flex items-center gap-1 p-1 rounded-full glass elevated">
       {COMPANY_TABS.map((t) => {
         const Icon = ICONS[t];
         const active = t === current;
@@ -43,16 +43,16 @@ export function CompanyTabs({
             key={t}
             href={href}
             className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 -mb-px transition-colors",
+              "inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all",
               active
-                ? "border-accent text-fg font-medium"
-                : "border-transparent text-fg-muted hover:text-fg"
+                ? "bg-accent text-accent-fg font-medium shadow-sm"
+                : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
             )}
           >
-            <Icon size={13} />
+            <Icon size={14} />
             {LABELS[t]}
             {t === "completed" && completedCount ? (
-              <span className="text-xs text-fg-subtle tabular">({completedCount})</span>
+              <span className={cn("text-xs tabular", active ? "text-accent-fg/80" : "text-fg-subtle")}>{completedCount}</span>
             ) : null}
           </Link>
         );

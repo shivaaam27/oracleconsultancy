@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { TaskRow } from "@/lib/queries";
+import { Clock, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, type LucideIcon } from "lucide-react";
 
 /**
  * KPI strip for the company page — mirrors the chips on /task so single-company
@@ -28,18 +29,18 @@ export function CompanyKpiStrip({
   // Deep-link into the hub Tasks tab pre-filtered by this company.
   const base = `/?tab=tasks&view=table&company=${enc}`;
 
-  const chips: Array<{ label: string; count: number; tone: "danger" | "warn" | "info"; href: string }> = [
-    { label: "Overdue", count: overdue, tone: "danger", href: `${base}&flag=overdue` },
-    { label: "Due Soon", count: dueSoon, tone: "warn", href: `${base}&flag=due-soon` },
-    { label: "Stalled", count: stalled, tone: "danger", href: `${base}&flag=stalled` },
-    { label: "Escalated", count: escalated, tone: "danger", href: `${base}&flag=escalated` },
-    { label: "No Deadline", count: noDeadline, tone: "warn", href: `${base}&flag=no-deadline` },
-    { label: "Critical", count: critical, tone: "danger", href: `${base}&priority=Critical` },
-    { label: "No Owner", count: noOwner, tone: "info", href: `${base}&noOwner=1` },
+  const chips: Array<{ label: string; count: number; tone: "danger" | "warn" | "info"; href: string; Icon: LucideIcon }> = [
+    { label: "Overdue", count: overdue, tone: "danger", href: `${base}&flag=overdue`, Icon: Clock },
+    { label: "Due Soon", count: dueSoon, tone: "warn", href: `${base}&flag=due-soon`, Icon: Hourglass },
+    { label: "Stalled", count: stalled, tone: "danger", href: `${base}&flag=stalled`, Icon: PauseCircle },
+    { label: "Escalated", count: escalated, tone: "danger", href: `${base}&flag=escalated`, Icon: AlertOctagon },
+    { label: "No Deadline", count: noDeadline, tone: "warn", href: `${base}&flag=no-deadline`, Icon: CalendarOff },
+    { label: "Critical", count: critical, tone: "danger", href: `${base}&priority=Critical`, Icon: Flame },
+    { label: "No Owner", count: noOwner, tone: "info", href: `${base}&noOwner=1`, Icon: UserMinus },
   ];
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {chips.map((c) => (
         <Chip key={c.label} {...c} />
       ))}
@@ -47,16 +48,22 @@ export function CompanyKpiStrip({
   );
 }
 
+/**
+ * Compact icon chip — icon + count always visible; the label slides open on
+ * hover (desktop). Intuitive icons carry the meaning where hover isn't available.
+ */
 function Chip({
   label,
   count,
   tone,
   href,
+  Icon,
 }: {
   label: string;
   count: number;
   tone: "danger" | "warn" | "info";
   href: string;
+  Icon: LucideIcon;
 }) {
   const dim = count === 0;
   const tint = dim
@@ -67,12 +74,15 @@ function Chip({
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
+      title={`${label}: ${count}`}
+      aria-label={`${label}: ${count}`}
+      className={`group inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
     >
-      <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
-        {count}
+      <Icon size={14} className="shrink-0" />
+      <span className="font-semibold tabular">{count}</span>
+      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-[90px] group-hover:opacity-100 group-hover:ml-0.5 font-medium">
+        {label}
       </span>
-      <span className="font-medium">{label}</span>
     </Link>
   );
 }

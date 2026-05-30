@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Users, CalendarDays } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
-import { flagLabel } from "@/lib/derive";
 import { Badge } from "@/components/ui";
 import { SelectCheckbox } from "@/app/task/_views/selection";
 import { AssigneeList } from "@/components/assignee-list";
@@ -21,23 +20,15 @@ function statusTone(s: string): "default" | "success" | "warn" | "danger" | "inf
   if (s === "In Progress") return "info";
   return "default";
 }
-function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "info" {
-  switch (f) {
-    case "closed": return "default";
-    case "escalated":
-    case "escalate-now":
-    case "overdue":
-    case "stalled": return "danger";
-    case "due-soon":
-    case "no-deadline":
-    case "aging": return "warn";
-    case "on-track": return "success";
-    default: return "default";
-  }
+function flagDot(f: string): string {
+  if (["escalated", "escalate-now", "overdue", "stalled"].includes(f)) return "bg-danger";
+  if (["due-soon", "no-deadline", "aging"].includes(f)) return "bg-warn";
+  if (f === "on-track") return "bg-success";
+  return "bg-fg-subtle";
 }
 
 function fmtDeadline(d: Date | null): string {
-  if (!d) return "No deadline";
+  if (!d) return "No date";
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
@@ -69,6 +60,10 @@ export function TaskCard({
 
   const dtdOverdue = typeof row.daysToDeadline === "number" && row.daysToDeadline < 0;
   const dtdSoon = typeof row.daysToDeadline === "number" && row.daysToDeadline >= 0 && row.daysToDeadline <= 7;
+  const deadlineCls = dtdOverdue
+    ? "text-danger"
+    : dtdSoon ? "text-warn"
+    : "text-fg-muted";
 
   return (
     <div
@@ -81,53 +76,50 @@ export function TaskCard({
       onClick={onOpen}
       className="glass elevated rounded-2xl p-3.5 select-none active:scale-[0.99] transition-transform cursor-pointer"
     >
-      {/* Top line: checkbox + code + company + flag */}
-      <div className="flex items-center gap-2 text-xs text-fg-muted">
+      {/* Header: identity left, deadline right (consistent anchor) */}
+      <div className="flex items-center gap-2">
         <span onClick={(e) => e.stopPropagation()} className="shrink-0">
           <SelectCheckbox code={row.code} />
         </span>
-        <span className="font-mono text-fg-muted">{row.code}</span>
+        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${flagDot(row.flag)}`} />
+        <span className="font-mono text-[11px] font-medium text-fg-muted px-1.5 py-0.5 rounded-md bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
+          {row.code}
+        </span>
         {!hideCompany && (
-          <span className="inline-flex items-center gap-1.5 truncate">
-            <span className="text-fg-subtle">·</span>
+          <span className="inline-flex items-center gap-1.5 truncate text-xs text-fg-muted min-w-0">
             <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: row.companyAccent || "transparent" }} />
             <span className="truncate">{row.companyName}</span>
           </span>
         )}
-        <span className="ml-auto shrink-0">
-          <Badge tone={flagBadgeTone(row.flag)}>{flagLabel[row.flag]}</Badge>
-        </span>
-      </div>
-
-      {/* Title */}
-      <h3 className="text-[15px] font-medium leading-snug mt-2 line-clamp-2">{row.actionItem}</h3>
-
-      {/* Pills row: status, priority, deadline */}
-      <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
-        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
-        <Badge tone={priorityTone(row.priority)}>{row.priority}</Badge>
-        <span
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-            dtdOverdue ? "bg-danger-soft text-danger" : dtdSoon ? "bg-warn-soft text-warn" : "bg-bg-subtle text-fg-muted"
-          }`}
-        >
+        <span className={`ml-auto inline-flex items-center gap-1 text-[11px] font-medium tabular shrink-0 ${deadlineCls}`}>
+          <CalendarDays size={12} className="opacity-70" />
           {fmtDeadline(row.deadline)}
-          {typeof row.daysToDeadline === "number" && (
-            <span className="tabular">· {row.daysToDeadline}d</span>
-          )}
+          {typeof row.daysToDeadline === "number" && <span>· {row.daysToDeadline}d</span>}
           {row.daysToDeadline === "done" && <span>· ✓</span>}
         </span>
       </div>
 
-      {/* Owner + latest-update toggle */}
-      <div className="flex items-center gap-2 mt-2.5 text-xs text-fg-muted">
-        {row.assignees.length > 0 ? (
-          <span onClick={(e) => e.stopPropagation()} className="truncate">
-            <AssigneeList names={row.assignees} ids={row.assigneeIds} />
-          </span>
-        ) : (
-          <span className="text-fg-subtle italic">No owner</span>
-        )}
+      {/* Title */}
+      <h3 className="text-[15px] font-medium leading-snug mt-2.5 line-clamp-2">{row.actionItem}</h3>
+
+      {/* Meta: status + priority — uniform pills */}
+      <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
+        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+        <Badge tone={priorityTone(row.priority)}>{row.priority}</Badge>
+      </div>
+
+      {/* Footer: accountable + latest-update toggle, divided */}
+      <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-border/60 text-xs text-fg-muted">
+        <span className="inline-flex items-center gap-1.5 min-w-0">
+          <Users size={13} className="text-fg-subtle shrink-0" />
+          {row.assignees.length > 0 ? (
+            <span onClick={(e) => e.stopPropagation()} className="truncate">
+              <AssigneeList names={row.assignees} ids={row.assigneeIds} />
+            </span>
+          ) : (
+            <span className="text-fg-subtle italic">No owner</span>
+          )}
+        </span>
         {row.latestUpdate && (
           <button
             type="button"

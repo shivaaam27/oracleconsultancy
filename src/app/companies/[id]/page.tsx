@@ -1,5 +1,5 @@
 import { getAllTasks } from "@/lib/queries";
-import { PageHeader, LinkButton } from "@/components/ui";
+import { LinkButton } from "@/components/ui";
 import { CompanySummary } from "@/components/company-summary";
 import { CompanyTabs, parseCompanyTab } from "./_tabs/tabs";
 import { TimelineTab } from "./_tabs/timeline-tab";
@@ -9,7 +9,7 @@ import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, ExternalLink, ChevronRight } from "lucide-react";
+import { Plus, ExternalLink, ChevronRight, Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,7 @@ export default async function CompanyPage({
   const rows = (await getAllTasks()).filter((r) => r.companyId === companyId);
   if (!rows.length) return notFound();
   const name = rows[0].companyName;
+  const accent = rows[0].companyAccent || "hsl(var(--accent))";
 
   const openRows = rows
     .filter((r) => r.status !== "Completed" && r.status !== "Closed")
@@ -36,15 +37,31 @@ export default async function CompanyPage({
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={name}
-        sub={`${openRows.length} open · ${rows.length} total`}
-        action={
-          <LinkButton href={`/task/new?companyId=${companyId}`}>
-            <Plus size={14} /> New Task
-          </LinkButton>
-        }
-      />
+      {/* Header — company accent identity, count chips, New Task pill */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <span
+            className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-sm shrink-0"
+            style={{ backgroundColor: accent }}
+          >
+            <Building2 size={19} />
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight truncate">{name}</h1>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-info-soft/60 ring-1 ring-info/30 text-info tabular">
+                {openRows.length} open
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-bg-subtle/70 ring-1 ring-border/60 text-fg-muted tabular">
+                {rows.length} total
+              </span>
+            </div>
+          </div>
+        </div>
+        <LinkButton href={`/task/new?companyId=${companyId}`} className="rounded-full">
+          <Plus size={14} /> New Task
+        </LinkButton>
+      </div>
 
       <CompanyTabs companyId={companyId} current={tab} completedCount={completedRows.length} />
 
@@ -54,14 +71,17 @@ export default async function CompanyPage({
           <CompanyKpiStrip rows={rows} companyName={name} />
 
           <div className="flex items-center justify-between pt-1">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">
-              Open tasks ({openRows.length})
+            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
+              Open tasks
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+                {openRows.length}
+              </span>
             </h2>
             <Link
               href={`/?tab=tasks&company=${encodeURIComponent(name)}`}
-              className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
             >
-              <ExternalLink size={11} /> Open in Tasks
+              <ExternalLink size={12} /> Open in Tasks
             </Link>
           </div>
           {openRows.length === 0 ? (
