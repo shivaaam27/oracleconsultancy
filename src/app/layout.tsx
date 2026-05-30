@@ -20,6 +20,7 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
 import { LiquidGlassDefs } from "@/components/liquid-glass";
+import { getAppSettings } from "@/lib/settings";
 
 export const metadata: Metadata = {
   title: "COS — Oracle Group Operations",
@@ -49,7 +50,8 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { operatorName } = await getAppSettings();
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -82,7 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Suspense>
                 <PersonDrawer />
               </Suspense>
-              <FloatingAssistant />
+              <FloatingAssistant operatorName={operatorName} />
               <ServiceWorkerRegister />
               <IosResume />
               <LiquidGlassDefs />

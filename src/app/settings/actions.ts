@@ -30,6 +30,7 @@ export async function saveSettings(fd: FormData): Promise<void> {
     voiceDictionary: (fd.get("voiceDictionary") as string | null)?.trim() || undefined,
     swipeRightAction: swipe(fd, "swipeRightAction"),
     swipeLeftAction: swipe(fd, "swipeLeftAction"),
+    operatorName: ((fd.get("operatorName") as string | null) ?? "").trim(),
   };
 
   await saveAppSettings(patch);

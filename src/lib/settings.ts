@@ -32,6 +32,7 @@ export type AppSettings = {
   voiceDictionary: string;
   swipeRightAction: SwipeAction;
   swipeLeftAction: SwipeAction;
+  operatorName: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -56,6 +57,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ].join("\n"),
   swipeRightAction: "complete",
   swipeLeftAction: "escalate",
+  operatorName: "",
 };
 
 /** Map of canonical setting field → storage key. */
@@ -71,6 +73,7 @@ const KEY: Record<keyof AppSettings, string> = {
   voiceDictionary: "v2.voiceDictionary",
   swipeRightAction: "v2.swipeRightAction",
   swipeLeftAction: "v2.swipeLeftAction",
+  operatorName: "v2.operatorName",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -106,6 +109,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     voiceDictionary: map.get(KEY.voiceDictionary) ?? d.voiceDictionary,
     swipeRightAction: (map.get(KEY.swipeRightAction) as AppSettings["swipeRightAction"]) ?? d.swipeRightAction,
     swipeLeftAction: (map.get(KEY.swipeLeftAction) as AppSettings["swipeLeftAction"]) ?? d.swipeLeftAction,
+    operatorName: map.get(KEY.operatorName) ?? d.operatorName,
   };
 });
 

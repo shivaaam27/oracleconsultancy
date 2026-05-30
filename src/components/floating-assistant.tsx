@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence, useDragControls, type PanInfo } from "framer-motion";
+import { motion, AnimatePresence, useDragControls, useMotionValue, animate, type PanInfo } from "framer-motion";
 import { Sparkles, X, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { AskCOS } from "./ask-cos";
@@ -28,15 +28,30 @@ function CosMark({ size = 18 }: { size?: number }) {
  * up to go full, down to dismiss. AskCOS stays mounted across sizes so the
  * conversation is preserved.
  */
-export function FloatingAssistant() {
+export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
   const pageContext = derivePageContext(pathname);
   const dragControls = useDragControls();
+  const y = useMotionValue(0);
+  const SNAP = { type: "spring" as const, stiffness: 420, damping: 38 };
 
   useEffect(() => { setOpen(false); setFull(false); }, [pathname]);
+
+  // Reset the sheet position whenever it closes.
+  useEffect(() => { if (!open) y.set(0); }, [open, y]);
+
+  // Lock background scroll while the assistant covers content (full, or the
+  // mobile bottom-sheet) so the page behind can't scroll/interact.
+  useEffect(() => {
+    const lock = open && (full || isMobile);
+    if (!lock) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open, full, isMobile]);
 
   useEffect(() => {
     if (!open) return;
@@ -60,12 +75,16 @@ export function FloatingAssistant() {
 
   function onDragEnd(_: unknown, info: PanInfo) {
     const { offset, velocity } = info;
+    const down = offset.y > 110 || velocity.y > 650;
+    const up = offset.y < -90 || velocity.y < -650;
     if (full) {
-      if (offset.y > 130 || velocity.y > 700) setFull(false);
+      if (down) setFull(false);            // minimise to half
+      animate(y, 0, SNAP);
       return;
     }
-    if (offset.y > 130 || velocity.y > 700) { setOpen(false); return; }
-    if (offset.y < -90 || velocity.y < -700) { setFull(true); return; }
+    if (down) { animate(y, 700, { duration: 0.2 }); setOpen(false); return; } // dismiss
+    if (up) { setFull(true); animate(y, 0, SNAP); return; }                   // expand
+    animate(y, 0, SNAP);                                                      // snap back
   }
 
   return (
@@ -84,17 +103,15 @@ export function FloatingAssistant() {
 
             <motion.div
               key="panel"
-              layout
+              style={{ y }}
               drag={isMobile ? "y" : false}
               dragControls={dragControls}
               dragListener={false}
-              dragConstraints={{ top: 0, bottom: 0 }}
-              dragElastic={{ top: 0.35, bottom: 0.7 }}
-              dragSnapToOrigin
+              dragMomentum={false}
               onDragEnd={onDragEnd}
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 16 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", stiffness: 360, damping: 32, mass: 0.7 }}
               className={cn(
                 "fixed z-[70] flex flex-col overflow-hidden glass glass-menu",
@@ -143,8 +160,8 @@ export function FloatingAssistant() {
 
               {/* Chat — AskCOS stays mounted; density follows the size */}
               <div className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
-                <div className={cn(full && "mx-auto w-full max-w-3xl")}>
-                  <AskCOS embedded minimal={!full} pageContext={pageContext} />
+                <div className={cn("h-full", full && "mx-auto w-full max-w-3xl")}>
+                  <AskCOS embedded minimal={!full} pageContext={pageContext} operatorName={operatorName} />
                 </div>
               </div>
             </motion.div>

@@ -2,10 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, Bot, User, Trash2, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight, Clock, Ban, Flame, ArrowUp, type LucideIcon } from "lucide-react";
+import { Sparkles, Loader2, Bot, User, Trash2, Zap, Check, X as XIcon, FileText, ChevronDown, ChevronRight, Clock, Ban, Flame, ArrowUp, Plus, StickyNote, type LucideIcon } from "lucide-react";
 import { LinkifiedAnswer } from "./linkified-answer";
 import { IntentPreview } from "./intent-preview";
-import { PromptBox } from "./prompt-box";
 import { CopyButton } from "./copy-button";
 import { VoiceButton } from "./voice-button";
 import type { PageContext } from "@/lib/page-context";
@@ -55,17 +54,45 @@ function extractDigestCompany(text: string): string | null {
 
 export function AskCOS({
   embedded = false,
-  minimal = false,
   pageContext,
-}: { embedded?: boolean; minimal?: boolean; pageContext?: PageContext } = {}) {
+  operatorName,
+}: { embedded?: boolean; minimal?: boolean; pageContext?: PageContext; operatorName?: string } = {}) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focusedTask, setFocusedTask] = useState<string | null>(null);
+  const [plusOpen, setPlusOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dictatedRef = useRef("");
+
+  // Greeting (name from Settings) — rotates a little so it feels alive.
+  const greeting = (() => {
+    const name = (operatorName || "").trim();
+    const lines = name
+      ? [`Good to see you, ${name}.`, `Hi ${name} — what's the plan?`, `Ready when you are, ${name}.`]
+      : ["How can I help?", "What shall we tackle?", "Ask me anything."];
+    return lines[new Date().getDate() % lines.length];
+  })();
+
+  // Page-aware suggestions: tailor the starter prompts to where the operator is.
+  const suggestions = (() => {
+    const code = pageContext?.taskCode;
+    if (code) return [
+      { label: `Summarise ${code}`, q: `Summarise ${code}`, icon: FileText },
+      { label: `Latest on ${code}`, q: `What's the latest update on ${code}?`, icon: Clock },
+      { label: `Who owns ${code}?`, q: `Who is accountable for ${code}?`, icon: User },
+      { label: `Draft a follow-up`, q: `Draft a follow-up message for ${code}`, icon: Sparkles },
+    ];
+    if (pageContext?.companyId) return [
+      { label: "What's blocking this company?", q: "What's blocking this company?", icon: Ban },
+      { label: "Overdue here", q: "What's overdue for this company?", icon: Clock },
+      { label: "Summarise this company", q: "Give me a summary of this company", icon: FileText },
+      { label: "Who's overloaded?", q: "Who has the most open tasks in this company?", icon: Flame },
+    ];
+    return SUGGESTIONS;
+  })();
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -266,6 +293,15 @@ export function AskCOS({
     setFocusedTask(null);
   }
 
+  // ＋ menu actions
+  function attachContext() {
+    setPlusOpen(false);
+    if (pageContext?.taskCode) setFocusedTask(pageContext.taskCode);
+    else if (pageContext?.companyId) setInput((v) => (v ? v : "About this company: "));
+  }
+  function goNewTask() { setPlusOpen(false); router.push("/task/new"); }
+  function goNewNote() { setPlusOpen(false); router.push("/workbook?tab=notes"); }
+
   async function confirmAction(msg: Message) {
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: "running" } : m));
     await runAction(msg.content, true, msg.id);
@@ -276,7 +312,7 @@ export function AskCOS({
   }
 
   return (
-    <div className={embedded ? "flex flex-col" : "card overflow-hidden"}>
+    <div className={embedded ? "flex flex-col h-full min-h-0" : "card overflow-hidden"}>
       {!embedded && (
         <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-bg-subtle">
           <div className="flex items-center gap-2">
@@ -302,62 +338,37 @@ export function AskCOS({
         </div>
       )}
 
-      {embedded && (focusedTask || messages.length > 0) && (
-        <div className="flex items-center justify-end gap-2 px-5 pt-3">
-          {focusedTask && (
-            <span className="text-[10px] font-mono bg-accent/10 text-accent rounded-full px-2 py-0.5">
-              focused: {focusedTask}
-            </span>
-          )}
-          {messages.length > 0 && (
-            <button
-              onClick={clear}
-              className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-danger transition-colors"
-            >
-              <Trash2 size={11} /> Clear
-            </button>
-          )}
+      {embedded && messages.length > 0 && (
+        <div className="flex items-center justify-end px-3 pt-2 shrink-0">
+          <button
+            onClick={clear}
+            className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
+          >
+            <Trash2 size={11} /> New chat
+          </button>
         </div>
       )}
 
-      <div ref={scrollRef} className={`max-h-[420px] overflow-y-auto px-5 py-4 space-y-4 ${minimal ? "order-1" : embedded ? "order-3" : ""}`}>
-        {messages.length === 0 && minimal && (
-          <div className="-mx-2">
-            {SUGGESTIONS.map(s => {
-              const Icon = s.icon;
-              return (
-                <button
-                  key={s.q}
-                  onClick={() => submit(s.q)}
-                  className="w-full flex items-center gap-3.5 px-3 py-3 text-left rounded-xl hover:bg-bg-muted/60 active:bg-bg-muted transition-colors"
-                >
-                  <Icon size={19} className="text-fg-muted shrink-0" strokeWidth={1.75} />
-                  <span className="text-[15px] leading-snug">{s.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {messages.length === 0 && !minimal && (
-          <div className="space-y-3">
-            <p className="text-xs text-fg-muted italic">
-              Ask questions, run commands, or use pronouns once a task is focused. Try:
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {SUGGESTIONS.map(s => (
-                <button
-                  key={s.q}
-                  onClick={() => submit(s.q)}
-                  className="inline-flex items-center text-xs bg-bg-elev hover:bg-accent/10 hover:text-accent hover:border-accent/40 border border-border rounded-full px-3 py-1.5 transition-colors"
-                >
-                  {s.q}
-                </button>
-              ))}
+      <div ref={scrollRef} className={`${embedded ? "flex-1 min-h-0" : "max-h-[420px]"} overflow-y-auto px-5 py-4 space-y-4`}>
+        {messages.length === 0 && (
+          // ChatGPT-style home: greeting, then suggestion pills below.
+          <div className="h-full flex flex-col items-center justify-center text-center gap-5 py-6">
+            <h2 className="text-xl sm:text-2xl font-semibold tracking-tight px-4">{greeting}</h2>
+            <div className="flex flex-wrap justify-center gap-2 max-w-md">
+              {suggestions.map(s => {
+                const Icon = s.icon;
+                return (
+                  <button
+                    key={s.q}
+                    onClick={() => submit(s.q)}
+                    className="inline-flex items-center gap-1.5 text-[13px] text-fg-muted bg-bg-elev hover:text-accent hover:border-accent/40 border border-border rounded-full px-3 py-1.5 transition-colors"
+                  >
+                    <Icon size={14} className="shrink-0" strokeWidth={1.9} />
+                    {s.label}
+                  </button>
+                );
+              })}
             </div>
-            <p className="text-[11px] text-fg-subtle italic pt-1">
-              Commands: <span className="font-mono">mark CO01-004 done</span>, <span className="font-mono">escalate it</span>, <span className="font-mono">add update to it: still waiting</span>, <span className="font-mono">open it</span>
-            </p>
           </div>
         )}
 
@@ -456,80 +467,62 @@ export function AskCOS({
       </div>
 
       {error && messages.length === 0 && (
-        <div className={`px-5 pb-2 ${embedded ? "order-2" : ""}`}>
+        <div className="px-5 pb-2 shrink-0">
           <p className="text-xs text-danger bg-danger/5 border border-danger/20 rounded-lg px-3 py-2">{error}</p>
         </div>
       )}
 
-      {minimal ? (
-        // ChatGPT-style pill: a single clean rounded bar, no boxed textarea.
-        <div className="px-3 py-3 order-3 border-t border-border">
-          <div className="flex items-end gap-2 rounded-[1.6rem] border border-border bg-bg-elev px-2 py-1.5 shadow-sm transition-colors focus-within:border-accent/50">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  submit(input);
-                }
-              }}
-              rows={1}
-              disabled={loading}
-              placeholder="Ask anything…"
-              className="flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] leading-snug outline-none placeholder:text-fg-muted max-h-32"
-            />
-            <VoiceButton
-              disabled={loading}
-              onInterim={handleVoiceInterim}
-              onResult={handleVoiceResult}
-              onStop={handleVoiceStop}
-              title="Speak to COS"
-            />
-            <button
-              type="button"
-              onClick={() => submit(input)}
-              disabled={loading || !input.trim()}
-              title="Send"
-              className="inline-flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 transition-opacity"
-            >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={18} />}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className={`px-5 py-3 ${embedded ? "order-1 border-b border-border" : "border-t border-border bg-bg-subtle"}`}>
-          <PromptBox
-            value={input}
-            onChange={setInput}
-            onSubmit={() => submit(input)}
-            disabled={loading}
-            minHeight={72}
-            placeholder="Ask anything — or type a command"
-            actions={
-              <>
-                <VoiceButton
-                  disabled={loading}
-                  onInterim={handleVoiceInterim}
-                  onResult={handleVoiceResult}
-                  onStop={handleVoiceStop}
-                  title="Speak to COS"
-                  className="border border-border"
-                />
-                <button
-                  type="button"
-                  onClick={() => submit(input)}
-                  disabled={loading || !input.trim()}
-                  title="Send"
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 transition-opacity"
-                >
-                  {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                </button>
-              </>
-            }
-          />
+      {/* Context chip — what the question is about, with a clear */}
+      {embedded && focusedTask && (
+        <div className="px-3 pb-1 shrink-0">
+          <span className="inline-flex items-center gap-1.5 text-[11px] bg-accent/10 text-accent rounded-full pl-2.5 pr-1 py-0.5">
+            Asking about {focusedTask}
+            <button type="button" onClick={() => setFocusedTask(null)} aria-label="Clear context" className="inline-flex items-center justify-center h-4 w-4 rounded-full hover:bg-accent/20"><XIcon size={11} /></button>
+          </span>
         </div>
       )}
+
+      {/* ChatGPT-style input pill, pinned to the bottom — ＋ · mic · send */}
+      <div className="px-3 py-3 border-t border-border shrink-0">
+        <div className="relative flex items-end gap-1 rounded-[1.6rem] border border-border bg-bg-elev px-1.5 py-1.5 shadow-sm transition-colors focus-within:border-accent/50">
+          <div className="relative shrink-0">
+            <button type="button" onClick={() => setPlusOpen((o) => !o)} aria-label="Quick actions" className="inline-flex items-center justify-center w-9 h-9 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors">
+              <Plus size={18} />
+            </button>
+            {plusOpen && (
+              <>
+                <button type="button" aria-hidden className="fixed inset-0 z-[1] cursor-default" onClick={() => setPlusOpen(false)} />
+                <div className="absolute bottom-full mb-2 left-0 z-[2] min-w-[190px] glass glass-menu rounded-xl p-1 shadow-lg">
+                  <button type="button" onClick={attachContext} className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm text-left rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors"><FileText size={15} /> Attach this page</button>
+                  <button type="button" onClick={goNewTask} className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm text-left rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors"><Plus size={15} /> New task</button>
+                  <button type="button" onClick={goNewNote} className="w-full flex items-center gap-2.5 px-2.5 py-2 text-sm text-left rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors"><StickyNote size={15} /> New note</button>
+                </div>
+              </>
+            )}
+          </div>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(input); }
+            }}
+            rows={1}
+            disabled={loading}
+            placeholder="Ask anything…"
+            className="flex-1 resize-none bg-transparent px-1 py-1.5 text-[15px] leading-snug outline-none placeholder:text-fg-muted max-h-32"
+          />
+          <VoiceButton disabled={loading} onInterim={handleVoiceInterim} onResult={handleVoiceResult} onStop={handleVoiceStop} title="Speak to COS" />
+          <button
+            type="button"
+            onClick={() => submit(input)}
+            disabled={loading || !input.trim()}
+            title="Send"
+            className="inline-flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 transition-opacity"
+          >
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={18} />}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

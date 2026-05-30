@@ -31,6 +31,20 @@ export default async function SettingsPage({
       )}
 
       <form action={saveSettings} className="space-y-5">
+        {/* About you */}
+        <Card className="p-5 space-y-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Sparkles size={14} className="text-accent" /> About you
+            </h2>
+            <p className="text-xs text-fg-muted mt-1">Your name — used to greet you in the COS assistant.</p>
+          </div>
+          <div className="max-w-xs">
+            <FieldLabel>Your name</FieldLabel>
+            <Input name="operatorName" defaultValue={s.operatorName} placeholder="e.g. Sunny" />
+          </div>
+        </Card>
+
         {/* Risk rules */}
         <Card className="p-5 space-y-4">
           <div>
