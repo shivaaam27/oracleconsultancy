@@ -105,13 +105,13 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
           {density === "compact" ? <Rows3 size={13} /> : <Rows2 size={13} />}
         </button>
         <div className="relative">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by name…"
-            className="pl-7 pr-7 py-1 text-xs rounded-md border border-border bg-bg-elev focus:outline-none focus:border-accent w-48"
+            className="pl-8 pr-7 py-1.5 text-xs rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50 w-48"
           />
           {q && (
             <button
@@ -181,23 +181,25 @@ function Chip({
   tone: "default" | "danger" | "warn";
 }) {
   const cls = active
-    ? tone === "danger"
-      ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/40"
-      : tone === "warn"
-        ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/40"
-        : "bg-accent/15 text-fg border-accent/40"
+    ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
+      : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
+      : "bg-accent-soft/70 ring-2 ring-accent/40 text-accent"
     : count === 0
-      ? "border-transparent text-fg-subtle cursor-not-allowed"
-      : "border-border text-fg-muted hover:text-fg hover:bg-bg-muted";
+      ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle cursor-not-allowed"
+      : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
+      : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
+      : "bg-bg-subtle/60 ring-1 ring-border/60 text-fg-muted hover:ring-2 hover:ring-border";
   return (
     <button
       type="button"
       onClick={count === 0 ? undefined : onClick}
       disabled={count === 0}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors ${cls}`}
+      className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${cls}`}
     >
-      <span className="font-semibold tabular">{count}</span>
-      <span>{label}</span>
+      <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
+        {count}
+      </span>
+      <span className="font-medium">{label}</span>
     </button>
   );
 }

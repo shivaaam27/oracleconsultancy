@@ -1,12 +1,12 @@
 import { generateDrafts } from "@/lib/outbox-gen";
 import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday } from "@/lib/outbox-history";
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
-import { PageHeader, Card, EmptyState, Badge } from "@/components/ui";
+import { PageHeader, EmptyState, Badge } from "@/components/ui";
 import { Globe2 } from "lucide-react";
 import { UnsnoozeButton } from "./outbox-card";
 import { PendingList, type PendingItem } from "./pending-list";
 import { SentLogDrawer } from "./sent-log-drawer";
-import { Send, Inbox, Check, Clock, BellOff } from "lucide-react";
+import { Send, Inbox, Check, Clock, BellOff, ChevronDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -101,8 +101,8 @@ export default async function OutboxPage() {
       />
 
       {scopeName && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-xs">
-          <Globe2 size={14} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <div className="glass elevated rounded-2xl flex items-start gap-3 px-4 py-3 text-xs">
+          <Globe2 size={14} className="text-warn mt-0.5 shrink-0" />
           <div className="flex-1 space-y-1">
             <div className="flex items-center gap-2">
               <Badge tone="warn">Scope ignored</Badge>
@@ -122,36 +122,36 @@ export default async function OutboxPage() {
 
       {/* Progress strip */}
       {totalToday > 0 && (
-        <Card className="p-4">
+        <div className="glass elevated rounded-2xl p-4">
           <div className="flex items-center justify-between mb-2 text-sm">
             <div className="flex items-center gap-2">
               <Clock size={13} className="text-fg-muted" />
               <span className="font-medium">{sentCount} of {totalToday} sent today</span>
             </div>
-            <div className="text-xs text-fg-muted">{progressPct}%</div>
+            <div className="text-xs text-fg-muted tabular">{progressPct}%</div>
           </div>
-          <div className="bg-bg-muted rounded-full h-1.5 overflow-hidden">
+          <div className="bg-bg-muted rounded-full h-2 overflow-hidden">
             <div
               className="bg-accent h-full rounded-full transition-all"
               style={{ width: `${progressPct}%` }}
             />
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Pending */}
       {totalToday === 0 ? (
-        <Card>
+        <div className="glass elevated rounded-2xl">
           <EmptyState
             icon={<Inbox size={32} />}
             title="No drafts to generate."
             hint="There are no open tasks assigned to anyone right now."
           />
-        </Card>
+        </div>
       ) : pending.length === 0 ? (
-        <Card className="p-6">
+        <div className="glass elevated rounded-2xl p-6">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-success/10 text-success mb-3">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-success-soft/70 ring-1 ring-success/30 text-success mb-3">
               <Check size={20} />
             </div>
             <div className="font-medium">All clear for today.</div>
@@ -159,30 +159,30 @@ export default async function OutboxPage() {
               {sentCount} {sentCount === 1 ? "reminder" : "reminders"} sent. Open the sent log to review.
             </div>
           </div>
-        </Card>
+        </div>
       ) : (
         <PendingList items={pending} scopeName={scopeName} />
       )}
 
       {/* Snoozed */}
       {snoozed.length > 0 && (
-        <details>
-          <summary className="cursor-pointer list-none">
-            <div className="text-xs font-semibold text-fg-muted uppercase tracking-wider flex items-center gap-1.5 hover:text-fg transition-colors">
-              <BellOff size={12} className="inline-block" />
-              Snoozed today · {snoozed.length}
-            </div>
+        <details className="group glass elevated rounded-2xl overflow-hidden">
+          <summary className="cursor-pointer list-none flex items-center gap-1.5 px-4 py-3 text-xs font-semibold text-fg-muted uppercase tracking-wider hover:text-fg transition-colors">
+            <BellOff size={12} />
+            Snoozed today
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-warn-soft/70 text-warn text-[11px] font-semibold tabular normal-case">
+              {snoozed.length}
+            </span>
+            <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
           </summary>
-          <Card className="mt-3 p-0 overflow-hidden">
-            <ul className="divide-y divide-border text-sm">
-              {snoozed.map((s) => (
-                <li key={s.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                  <span className="truncate font-medium">{s.name}</span>
-                  <UnsnoozeButton personId={s.id} name={s.name} />
-                </li>
-              ))}
-            </ul>
-          </Card>
+          <ul className="divide-y divide-border/60 text-sm border-t border-border/60">
+            {snoozed.map((s) => (
+              <li key={s.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                <span className="truncate font-medium">{s.name}</span>
+                <UnsnoozeButton personId={s.id} name={s.name} />
+              </li>
+            ))}
+          </ul>
         </details>
       )}
     </div>

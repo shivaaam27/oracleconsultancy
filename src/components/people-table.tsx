@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { TableShell, Th, Td, Badge } from "./ui";
 import { PersonDrawerLink } from "./person-drawer-link";
+import { PersonCard } from "./person-card";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
@@ -137,13 +138,13 @@ export function PeopleTable({ people, companies }: {
       {/* Search + filter chips */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[240px]">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, email, role, company…"
-            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-border bg-bg-subtle focus:outline-none focus:border-accent"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
         </div>
         <FluidSelect
@@ -174,21 +175,25 @@ export function PeopleTable({ people, companies }: {
           { key: "inactive", label: "Inactive", count: counts.inactive, tone: "default" as const },
         ].map(({ key, label, count, tone }) => {
           const active = filter === key;
-          const toneClass = active
-            ? tone === "danger" ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/40"
-              : tone === "warn" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/40"
-              : "bg-bg-elev text-fg border-border"
-            : count === 0 ? "border-transparent text-fg-subtle"
-            : "border-border text-fg-muted hover:text-fg hover:bg-bg-muted";
+          const tint = active
+            ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
+              : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
+              : "bg-accent-soft/70 ring-2 ring-accent/40 text-accent"
+            : count === 0 ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
+            : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
+            : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
+            : "bg-bg-subtle/60 ring-1 ring-border/60 text-fg-muted hover:ring-2 hover:ring-border";
           return (
             <button
               key={key}
               type="button"
               onClick={() => setFilter(key as FilterKind)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors ${toneClass}`}
+              className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
             >
-              <span className="font-semibold tabular">{count}</span>
-              <span>{label}</span>
+              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
+                {count}
+              </span>
+              <span className="font-medium">{label}</span>
             </button>
           );
         })}
@@ -203,8 +208,23 @@ export function PeopleTable({ people, companies }: {
         </label>
       </div>
 
-      {/* Table */}
-      <TableShell>
+      {/* Mobile: one card per person */}
+      <div className="sm:hidden space-y-2.5">
+        {filtered.map((p) => (
+          <PersonCard
+            key={p.id}
+            person={p}
+            onPointerDown={(e) => onRowPointerDown(p, e)}
+            onPointerMove={onRowPointerMove}
+            onPointerUp={clearPress}
+            onPointerLeave={clearPress}
+            onPointerCancel={clearPress}
+          />
+        ))}
+      </div>
+
+      {/* Desktop: the full table */}
+      <TableShell className="hidden sm:block">
         <table className="w-full min-w-[680px]">
           <thead>
             <tr>
