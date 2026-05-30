@@ -6,6 +6,10 @@ import { WelcomeHero } from "@/components/welcome-hero";
 import { AttentionList } from "@/components/attention-list";
 import type { AttnItem } from "@/components/attention-panel";
 
+/**
+ * One short, human insight — not a count dump (the stat chips already show
+ * the numbers). Points the operator at where to look first.
+ */
 function buildPulse(rows: TaskRow[]): string {
   const k = computeGlobalKpis(rows);
   const heat = new Map<string, number>();
@@ -15,12 +19,9 @@ function buildPulse(rows: TaskRow[]): string {
       heat.set(r.companyName, (heat.get(r.companyName) ?? 0) + 1);
   }
   const hotspot = [...heat.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  const parts = [`${k.open} open`];
-  if (k.overdue) parts.push(`${k.overdue} overdue`);
-  if (k.critical) parts.push(`${k.critical} critical`);
-  const stat = parts.join(" · ");
-  if (k.overdue === 0 && k.critical === 0) return `${stat} — everything's on track. 🎉`;
-  return `${stat}${hotspot ? ` — ${hotspot} needs the most attention today.` : "."}`;
+  if (k.overdue === 0 && k.critical === 0) return "Everything's on track today. 🎉";
+  if (hotspot) return `${hotspot} needs the most attention today.`;
+  return "A few items need a look today.";
 }
 
 const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];

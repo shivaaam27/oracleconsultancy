@@ -8,19 +8,20 @@ import {
   CloudSnow, CloudLightning, MapPin, type LucideIcon,
 } from "lucide-react";
 
-type Weather = { temp: number; label: string; Icon: LucideIcon };
+type WeatherKind = "sun" | "cloud" | "rain" | "snow" | "storm" | "fog";
+type Weather = { temp: number; label: string; Icon: LucideIcon; kind: WeatherKind };
 
-function wmo(code: number): { label: string; Icon: LucideIcon } {
-  if (code === 0) return { label: "Clear", Icon: Sun };
-  if (code <= 2) return { label: "Partly cloudy", Icon: CloudSun };
-  if (code === 3) return { label: "Overcast", Icon: Cloud };
-  if (code === 45 || code === 48) return { label: "Fog", Icon: CloudFog };
-  if (code >= 51 && code <= 57) return { label: "Drizzle", Icon: CloudDrizzle };
-  if (code >= 61 && code <= 67) return { label: "Rain", Icon: CloudRain };
-  if (code >= 71 && code <= 77) return { label: "Snow", Icon: CloudSnow };
-  if (code >= 80 && code <= 82) return { label: "Showers", Icon: CloudRain };
-  if (code >= 95) return { label: "Thunderstorm", Icon: CloudLightning };
-  return { label: "—", Icon: Cloud };
+function wmo(code: number): { label: string; Icon: LucideIcon; kind: WeatherKind } {
+  if (code === 0) return { label: "Clear", Icon: Sun, kind: "sun" };
+  if (code <= 2) return { label: "Partly cloudy", Icon: CloudSun, kind: "sun" };
+  if (code === 3) return { label: "Overcast", Icon: Cloud, kind: "cloud" };
+  if (code === 45 || code === 48) return { label: "Fog", Icon: CloudFog, kind: "fog" };
+  if (code >= 51 && code <= 57) return { label: "Drizzle", Icon: CloudDrizzle, kind: "rain" };
+  if (code >= 61 && code <= 67) return { label: "Rain", Icon: CloudRain, kind: "rain" };
+  if (code >= 71 && code <= 77) return { label: "Snow", Icon: CloudSnow, kind: "snow" };
+  if (code >= 80 && code <= 82) return { label: "Showers", Icon: CloudRain, kind: "rain" };
+  if (code >= 95) return { label: "Thunderstorm", Icon: CloudLightning, kind: "storm" };
+  return { label: "—", Icon: Cloud, kind: "cloud" };
 }
 
 function greeting(h: number): string {
@@ -28,6 +29,23 @@ function greeting(h: number): string {
   if (h < 17) return "Good afternoon";
   if (h < 21) return "Good evening";
   return "Working late";
+}
+
+/** Gentle, design-aligned motion per weather type (reduced-motion safe via MotionConfig). */
+function AnimatedWeatherIcon({ kind, Icon }: { kind: WeatherKind; Icon: LucideIcon }) {
+  const anim =
+    kind === "sun"
+      ? { animate: { rotate: 360 }, transition: { duration: 22, repeat: Infinity, ease: "linear" as const } }
+      : kind === "cloud" || kind === "fog"
+        ? { animate: { x: [0, 2.5, 0, -2.5, 0] }, transition: { duration: 6, repeat: Infinity, ease: "easeInOut" as const } }
+        : kind === "rain" || kind === "storm"
+          ? { animate: { y: [0, 1.5, 0] }, transition: { duration: 1.8, repeat: Infinity, ease: "easeInOut" as const } }
+          : { animate: { y: [0, -1.5, 0] }, transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const } };
+  return (
+    <motion.span className="text-accent inline-flex" {...anim}>
+      <Icon size={26} strokeWidth={1.9} />
+    </motion.span>
+  );
 }
 
 type Stat = { label: string; value: number; href: string; tone?: "neutral" | "warn" | "danger" };
@@ -60,16 +78,16 @@ export function WelcomeHero({
       .then((r) => r.json())
       .then((d) => {
         if (cancelled || !d?.current) return;
-        const { label, Icon } = wmo(Number(d.current.weather_code));
-        setWeather({ temp: Math.round(d.current.temperature_2m), label, Icon });
+        const { label, Icon, kind } = wmo(Number(d.current.weather_code));
+        setWeather({ temp: Math.round(d.current.temperature_2m), label, Icon, kind });
       })
       .catch(() => { /* weather is decorative — fail quietly */ });
     return () => { cancelled = true; };
   }, [lat, lon]);
 
-  const time = now
-    ? now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-    : "--:--:--";
+  const hh = now ? String(now.getHours()).padStart(2, "0") : "--";
+  const mm = now ? String(now.getMinutes()).padStart(2, "0") : "--";
+  const ss = now ? String(now.getSeconds()).padStart(2, "0") : "--";
   const date = now
     ? now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : "";
@@ -80,52 +98,61 @@ export function WelcomeHero({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 280, damping: 30 }}
-      className="glass elevated relative overflow-hidden rounded-3xl px-5 py-4"
+      className="glass elevated relative overflow-hidden rounded-3xl p-4 sm:p-5"
     >
       {/* soft accent glow */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-16 -right-12 h-44 w-44 rounded-full blur-3xl opacity-60"
+        className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full blur-3xl opacity-50"
         style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }}
       />
-      <div className="relative flex items-center justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
-          <h1 className="text-base font-semibold tracking-tight leading-tight">{hello}</h1>
-          <p className="text-xs text-fg-muted">{date}</p>
+
+      <div className="relative flex items-start justify-between gap-3">
+        {/* Greeting + pulse */}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-semibold tracking-tight leading-tight">{hello}</h1>
+          <p className="text-xs text-fg-muted mt-0.5">{date}</p>
+          {pulse && (
+            <p className="mt-3 inline-flex items-start gap-1.5 text-sm">
+              <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-accent shrink-0 animate-pulse" />
+              <span className="text-fg-muted leading-snug">{pulse}</span>
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          {/* Clock */}
-          <div className="text-right">
-            <div className="text-lg font-semibold tabular leading-none">{time}</div>
-            <div className="mt-0.5 text-[10px] text-fg-muted inline-flex items-center gap-1 justify-end">
-              <MapPin size={10} /> {city}
-            </div>
+        {/* Time + weather mini-card */}
+        <motion.div
+          whileHover={{ y: -2 }}
+          transition={{ type: "spring", stiffness: 400, damping: 28 }}
+          className="shrink-0 rounded-2xl bg-bg-subtle/60 ring-1 ring-border/70 backdrop-blur-md px-3.5 py-3 text-right select-none"
+        >
+          {/* Clock — seconds tick subtly */}
+          <div className="flex items-baseline justify-end gap-0.5 tabular leading-none">
+            <span className="text-2xl font-semibold">{hh}</span>
+            <span className="text-2xl font-semibold text-fg-muted animate-pulse">:</span>
+            <span className="text-2xl font-semibold">{mm}</span>
+            <span className="text-xs font-medium text-fg-subtle ml-1 w-6 text-left">{ss}</span>
+          </div>
+          <div className="mt-1 text-[10px] text-fg-muted inline-flex items-center gap-1 justify-end">
+            <MapPin size={10} /> {city}
           </div>
 
           {/* Weather */}
           {weather && (
-            <div className="flex items-center gap-1.5 pl-3 border-l border-border">
-              <weather.Icon size={20} className="text-accent" />
-              <div className="leading-tight">
-                <div className="text-sm font-semibold tabular">{weather.temp}°C</div>
+            <div className="mt-2.5 pt-2.5 border-t border-border/60 flex items-center justify-end gap-2">
+              <AnimatedWeatherIcon kind={weather.kind} Icon={weather.Icon} />
+              <div className="leading-tight text-right">
+                <div className="text-base font-semibold tabular">{weather.temp}°C</div>
                 <div className="text-[10px] text-fg-muted">{weather.label}</div>
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
 
-      {/* AUMIO pulse */}
-      {pulse && (
-        <p className="relative mt-2.5 pt-2.5 border-t border-border/60 text-xs text-fg-muted">
-          <span className="text-accent font-medium">Pulse · </span>{pulse}
-        </p>
-      )}
-
-      {/* Inline key counts — colour-tinted glass chips with count-in-circle */}
+      {/* Key counts — colour-tinted glass chips with count-in-circle */}
       {stats.length > 0 && (
-        <div className="relative mt-3 flex flex-wrap gap-2">
+        <div className="relative mt-4 flex flex-wrap gap-2">
           {stats.map((s) => {
             const dim = s.value === 0;
             const tint = dim
