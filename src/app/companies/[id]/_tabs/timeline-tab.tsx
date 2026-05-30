@@ -6,14 +6,13 @@ import {
   CheckCircle2,
   AlertOctagon,
   MessageSquare,
-  FilePlus2,
   GitCommitHorizontal,
   Layers,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui";
 import { CodeLinkedText } from "@/components/code-linked-text";
-import { TimelineFilters } from "@/components/timeline-filters";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
@@ -21,14 +20,10 @@ import {
   groupFieldEdits,
   suppressUpdateMetaAudits,
   cleanReason,
-  applyTimelineFilter,
-  parseTimelineFilter,
   type TimelineItem,
   type TimelineUpdate,
   type TimelineAudit,
   type TimelineBulk,
-  type TimelineEditGroup,
-  type TimelineFilter,
 } from "@/lib/timeline";
 import { UpdateMenu } from "@/components/update-menu";
 import { AuditMenu } from "@/components/audit-menu";
@@ -40,11 +35,10 @@ const ITEM_LIMIT = 200;
 export async function TimelineTab({
   companyTasks,
   companyId,
-  filterParam,
 }: {
   companyTasks: TaskRow[];
   companyId: number;
-  filterParam: string | undefined;
+  filterParam?: string | undefined;
 }) {
   if (companyTasks.length === 0) {
     return (
@@ -55,8 +49,6 @@ export async function TimelineTab({
       />
     );
   }
-
-  const filter = parseTimelineFilter(filterParam);
 
   const taskIds = companyTasks.map((t) => t.id);
   const taskCodes = companyTasks.map((t) => t.code);
@@ -125,83 +117,42 @@ export async function TimelineTab({
     )
   );
 
-  // Counts (post-merge, pre-filter) for the chip strip.
-  const counts: Record<TimelineFilter, number> = {
-    all: merged.length,
-    updates: merged.filter((i) => i.kind === "update").length,
-    status: merged.filter(
-      (i) =>
-        (i.kind === "update" && i.statusChange) ||
-        (i.kind === "audit" && i.field === "Status") ||
-        (i.kind === "bulk" && i.field === "Status")
-    ).length,
-    field: merged.filter(
-      (i) =>
-        i.kind === "editgroup" ||
-        (i.kind === "audit" && i.field !== "Status" && i.entryType !== "CREATE") ||
-        (i.kind === "bulk" && i.field !== "Status")
-    ).length,
-    escalation: merged.filter(
-      (i) =>
-        i.kind === "audit" &&
-        (i.entryType === "ESCALATION" || i.field === "Escalation" || i.newValue === "Escalated" || i.newValue === "Yes")
-    ).length,
-    bulk: merged.filter((i) => i.kind === "bulk").length,
-  };
-
-  const items = applyTimelineFilter(merged, filter);
-  const trimmed = items.slice(0, ITEM_LIMIT);
-
-  const buildHref = (f: TimelineFilter) => {
-    const params = new URLSearchParams();
-    params.set("tab", "timeline");
-    if (f !== "all") params.set("tl", f);
-    return `/companies/${companyId}?${params.toString()}`;
-  };
-
-  // Group by YYYY-MM-DD (already desc from sort)
-  const groups = new Map<string, TimelineItem[]>();
-  for (const it of trimmed) {
-    const k = ymd(it.createdAt);
-    const list = groups.get(k) || [];
+  // Group per task (merged is already desc by time). Order tasks by their most
+  // recent activity so the freshest threads sit on top.
+  const byTask = new Map<string, TimelineItem[]>();
+  for (const it of merged.slice(0, ITEM_LIMIT)) {
+    // Bulk runs span multiple tasks → bucket them under a shared thread.
+    const code = it.kind === "bulk" ? "—" : (it.taskCode ?? "—");
+    const list = byTask.get(code) || [];
     list.push(it);
-    groups.set(k, list);
+    byTask.set(code, list);
   }
-  const orderedDays = Array.from(groups.keys());
+  const orderedCodes = Array.from(byTask.keys()).sort((a, b) => {
+    const ta = byTask.get(a)![0].createdAt.getTime();
+    const tb = byTask.get(b)![0].createdAt.getTime();
+    return tb - ta;
+  });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <ActivitySummary items={merged} />
 
-      {counts.all > 0 && (
-        <TimelineFilters current={filter} counts={counts} buildHref={buildHref} />
-      )}
-
-      {trimmed.length === 0 ? (
+      {orderedCodes.length === 0 ? (
         <EmptyState
           icon={<Activity size={28} />}
-          title={counts.all === 0 ? "No activity yet." : "No items match this filter."}
-          hint={
-            counts.all === 0
-              ? "Updates and field changes on this company's tasks will appear here."
-              : "Try All, or a different filter."
-          }
+          title="No activity yet."
+          hint="Updates and field changes on this company's tasks will appear here."
         />
       ) : (
-        <div className="space-y-5">
-          {orderedDays.map((day) => (
-            <DayGroup
-              key={day}
-              day={day}
-              items={groups.get(day)!}
-              titleByCode={titleByCode}
+        <div className="space-y-2.5">
+          {orderedCodes.map((code) => (
+            <TaskThread
+              key={code}
+              code={code}
+              title={code === "—" ? "Bulk changes" : (titleByCode.get(code) ?? null)}
+              items={byTask.get(code)!}
             />
           ))}
-          {items.length > ITEM_LIMIT && (
-            <div className="text-xs text-fg-subtle text-center py-2">
-              Showing latest {ITEM_LIMIT} events.
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -209,7 +160,6 @@ export async function TimelineTab({
 }
 
 function ActivitySummary({ items }: { items: TimelineItem[] }) {
-  // Count from merged items so bulk-of-N counts as N actions, not 1 row.
   const expand = (arr: TimelineItem[]): Array<TimelineUpdate | TimelineAudit> => {
     const out: Array<TimelineUpdate | TimelineAudit> = [];
     for (const i of arr) {
@@ -236,250 +186,175 @@ function ActivitySummary({ items }: { items: TimelineItem[] }) {
         (i as TimelineAudit).newValue === "Yes")
   ).length;
 
+  const tiles = [
+    { label: "Updates", value: updates, Icon: MessageSquare, tone: "text-accent" },
+    { label: "Status", value: statusChanges, Icon: GitCommitHorizontal, tone: "text-fg" },
+    { label: "Completions", value: completions, Icon: CheckCircle2, tone: "text-success" },
+    { label: "Escalations", value: escalations, Icon: AlertOctagon, tone: "text-danger" },
+  ];
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-      {[
-        { label: "Updates", value: updates, icon: MessageSquare, tone: "text-accent" },
-        { label: "Status changes", value: statusChanges, icon: GitCommitHorizontal, tone: "text-fg" },
-        { label: "Completions", value: completions, icon: CheckCircle2, tone: "text-success" },
-        { label: "Escalations", value: escalations, icon: AlertOctagon, tone: "text-danger" },
-      ].map((s) => {
-        const Icon = s.icon;
-        return (
-          <div key={s.label} className="card p-3">
-            <div className="flex items-center gap-1.5 text-xs text-fg-muted">
-              <Icon size={11} /> {s.label}
-            </div>
-            <div className={`text-xl font-semibold tabular mt-0.5 ${s.tone}`}>{s.value}</div>
+    <div className="grid grid-cols-4 gap-2">
+      {tiles.map((s) => (
+        <div key={s.label} className="glass elevated rounded-xl px-3 py-2.5">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
+            <s.Icon size={11} /> <span className="truncate">{s.label}</span>
           </div>
-        );
-      })}
+          <div className={`text-lg font-semibold tabular mt-0.5 ${s.tone}`}>{s.value}</div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function DayGroup({
-  day,
+/** One collapsible thread per task — its events nested as a compact timeline. */
+function TaskThread({
+  code,
+  title,
   items,
-  titleByCode,
 }: {
-  day: string;
+  code: string;
+  title: string | null;
   items: TimelineItem[];
-  titleByCode: Map<string, string>;
 }) {
-  const label = formatDayLabel(day);
   return (
-    <section>
-      <div className="sticky top-16 z-10 -mx-1 px-1 mb-2 flex items-center gap-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted bg-bg/80 backdrop-blur px-2 py-0.5 rounded">
-          {label}
+    <details className="group glass elevated rounded-2xl overflow-hidden" open>
+      <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 select-none">
+        <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90 shrink-0" />
+        {code !== "—" && (
+          <Link
+            href={`/task/${code}`}
+            className="font-mono text-[11px] font-medium text-fg-muted px-1.5 py-0.5 rounded-md bg-bg-subtle/80 ring-1 ring-border/60 shrink-0 hover:text-accent"
+          >
+            {code}
+          </Link>
+        )}
+        <span className="text-sm font-medium truncate min-w-0 flex-1">{title ?? "Task"}</span>
+        <span className="text-[11px] text-fg-subtle tabular shrink-0">{items.length} event{items.length === 1 ? "" : "s"}</span>
+      </summary>
+
+      <div className="px-4 pb-4">
+        <div className="relative pl-4">
+          <div className="absolute left-1 top-1.5 bottom-1.5 w-px bg-border" />
+          <div className="space-y-2.5">
+            {items.map((it) => (
+              <EventRow key={`${it.kind}-${it.id}`} item={it} />
+            ))}
+          </div>
         </div>
-        <div className="text-[10px] text-fg-subtle">{items.length} event{items.length === 1 ? "" : "s"}</div>
-        <div className="flex-1 h-px bg-border" />
       </div>
-      <div className="relative pl-5">
-        <div className="absolute left-1.5 top-2 bottom-2 w-px bg-border" />
-        <div className="space-y-3">
-          {items.map((it) => (
-            <TimelineItemView
-              key={`${it.kind}-${it.id}`}
-              item={it}
-              titleByCode={titleByCode}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
+    </details>
   );
 }
 
-function TimelineItemView({
-  item,
-  titleByCode,
-}: {
-  item: TimelineItem;
-  titleByCode: Map<string, string>;
-}) {
-  if (item.kind === "bulk") return <BulkRow item={item} titleByCode={titleByCode} />;
-
-  if (item.kind === "editgroup") {
-    const code = item.taskCode ?? null;
-    const title = code ? titleByCode.get(code) ?? null : null;
-    return (
-      <div className="relative">
-        <div className="absolute -left-3.5 top-1.5 w-2 h-2 rounded-full border-2 border-bg bg-border" />
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-[11px] text-fg-muted">
-            {code && <Link href={`/task/${code}`} className="font-mono hover:text-accent">{code}</Link>}
-            {title && <span className="truncate max-w-[420px]">— {title}</span>}
-            <span className="text-fg-subtle ml-auto whitespace-nowrap">{fmtTime(item.createdAt)}</span>
-          </div>
-          <TimelineEditGroupView group={item} />
-        </div>
-      </div>
-    );
-  }
-
-  const code = item.kind === "update" ? item.taskCode ?? null : item.taskCode;
-  const title = code ? titleByCode.get(code) ?? null : null;
+/** A single event inside a task thread — no repeated code/title, just content + time. */
+function EventRow({ item }: { item: TimelineItem }) {
   const dot =
     item.kind === "update"
       ? "bg-accent"
-      : item.kind === "audit" && (item.newValue === "Completed" || item.newValue === "Closed")
-        ? "bg-success"
-        : item.kind === "audit" && (item.entryType === "ESCALATION" || item.newValue === "Escalated")
-          ? "bg-danger"
-          : "bg-border";
+      : item.kind === "bulk"
+        ? "bg-warn"
+        : item.kind === "audit" && (item.newValue === "Completed" || item.newValue === "Closed")
+          ? "bg-success"
+          : item.kind === "audit" && (item.entryType === "ESCALATION" || item.newValue === "Escalated")
+            ? "bg-danger"
+            : "bg-border";
 
   return (
     <div className="relative">
-      <div className={`absolute -left-3.5 top-1.5 w-2 h-2 rounded-full border-2 border-bg ${dot}`} />
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-[11px] text-fg-muted">
-          {code && (
-            <Link href={`/task/${code}`} className="font-mono hover:text-accent">{code}</Link>
-          )}
-          {title && <span className="truncate max-w-[420px]">— {title}</span>}
-          <span className="text-fg-subtle ml-auto whitespace-nowrap">{fmtTime(item.createdAt)}</span>
+      <div className={`absolute -left-[13px] top-2 w-2 h-2 rounded-full border-2 border-bg ${dot}`} />
+
+      {item.kind === "editgroup" ? (
+        <div className="flex items-start justify-between gap-2">
+          <TimelineEditGroupView group={item} />
+          <span className="text-[10px] text-fg-subtle tabular shrink-0 pt-0.5">{fmtTime(item.createdAt)}</span>
         </div>
-        {item.kind === "update" ? (
-          <div className="group bg-accent/5 border border-accent/20 rounded-lg p-2.5 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-fg-muted">
-                <FilePlus2 size={10} /> Update
-              </div>
-              <UpdateMenu
-                updateId={item.id}
-                body={item.body}
-                pinned={false}
-                showPin={false}
-              />
+      ) : item.kind === "bulk" ? (
+        <BulkRow item={item} />
+      ) : item.kind === "update" ? (
+        <div className="bg-accent/5 ring-1 ring-accent/15 rounded-xl p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-fg-muted">Update</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
+              <UpdateMenu updateId={item.id} body={item.body} pinned={false} showPin={false} />
             </div>
-            <p className="text-sm leading-relaxed">
-              <CodeLinkedText text={item.body} />
-            </p>
-            {item.editedAt && (
-              item.originalBody ? (
-                <details className="text-[11px] -mt-0.5">
-                  <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-fg-subtle hover:text-fg transition-colors w-fit">
-                    <Pencil size={9} />
-                    <span>edited · view original</span>
-                  </summary>
-                  <div className="mt-1.5 px-2.5 py-1.5 rounded bg-bg-subtle italic text-fg-muted leading-relaxed">
-                    &ldquo;{item.originalBody}&rdquo;
-                  </div>
-                </details>
-              ) : (
-                <span className="text-[11px] text-fg-subtle inline-flex items-center gap-1">
-                  <Pencil size={9} /> edited
-                </span>
-              )
-            )}
-            {item.statusChange && (
-              <div className="inline-flex items-center gap-1.5 text-[11px] bg-bg-subtle rounded px-2 py-0.5">
-                <GitCommitHorizontal size={10} className="text-fg-subtle" />
-                <span className="text-fg-subtle">Status</span>
-                {item.statusChange.from && <span className="text-fg-muted">{item.statusChange.from}</span>}
-                <span className="text-fg-subtle">→</span>
-                <span className="text-fg font-medium">{item.statusChange.to}</span>
-              </div>
-            )}
           </div>
-        ) : (
-          <div className="group rounded-lg px-3 py-2 bg-bg-subtle text-xs">
-            {item.entryType === "CREATE" ? (
-              <p className="text-fg-muted">Task created</p>
-            ) : (
-              <div className="space-y-0.5">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="font-medium text-fg">{item.field || item.entryType}</span>
+          <p className="text-sm leading-relaxed mt-1"><CodeLinkedText text={item.body} /></p>
+          {item.editedAt && item.originalBody && (
+            <details className="text-[11px] mt-1">
+              <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-fg-subtle hover:text-fg w-fit">
+                <Pencil size={9} /> edited · view original
+              </summary>
+              <div className="mt-1.5 px-2.5 py-1.5 rounded bg-bg-subtle italic text-fg-muted leading-relaxed">
+                &ldquo;{item.originalBody}&rdquo;
+              </div>
+            </details>
+          )}
+          {item.statusChange && (
+            <div className="inline-flex items-center gap-1.5 text-[11px] bg-bg-subtle rounded-full px-2 py-0.5 mt-1.5">
+              <GitCommitHorizontal size={10} className="text-fg-subtle" />
+              {item.statusChange.from && <span className="text-fg-muted">{item.statusChange.from}</span>}
+              <span className="text-fg-subtle">→</span>
+              <span className="text-fg font-medium">{item.statusChange.to}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="text-xs">
+          {item.entryType === "CREATE" ? (
+            <div className="flex items-center justify-between gap-2 py-0.5">
+              <span className="text-fg-muted">Task created</span>
+              <span className="text-[10px] text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-fg">{item.field || item.entryType}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] text-fg-subtle tabular">{fmtTime(item.createdAt)}</span>
                   <AuditMenu entryId={item.id} currentReason={item.changeReason} />
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {item.oldValue && <span className="text-fg-muted">{item.oldValue}</span>}
-                  {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}
-                  {item.newValue && <span className="text-fg font-medium">{item.newValue}</span>}
-                </div>
-                {cleanReason(item.changeReason) && (
-                  <p className="italic text-fg-muted">
-                    <CodeLinkedText text={cleanReason(item.changeReason)!} />
-                  </p>
-                )}
               </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function BulkRow({
-  item,
-  titleByCode,
-}: {
-  item: TimelineBulk;
-  titleByCode: Map<string, string>;
-}) {
-  const summary = `${item.changeReason} · ${item.items.length} tasks`;
-  return (
-    <div className="relative">
-      <div className="absolute -left-3.5 top-1.5 w-2 h-2 rounded-full border-2 border-bg bg-warn" />
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-[11px] text-fg-muted">
-          <Layers size={11} className="text-warn" />
-          <span className="font-medium text-fg">{summary}</span>
-          {item.field && item.newValue && (
-            <span className="text-fg-muted">— {item.field} → {item.newValue}</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {item.oldValue && <span className="text-fg-muted">{item.oldValue}</span>}
+                {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}
+                {item.newValue && <span className="text-fg font-medium">{item.newValue}</span>}
+              </div>
+              {cleanReason(item.changeReason) && (
+                <p className="italic text-fg-muted"><CodeLinkedText text={cleanReason(item.changeReason)!} /></p>
+              )}
+            </div>
           )}
-          <span className="text-fg-subtle ml-auto whitespace-nowrap">{fmtTime(item.createdAt)}</span>
         </div>
-        <details className="group rounded-lg bg-bg-subtle px-3 py-2 text-xs">
-          <summary className="cursor-pointer list-none flex items-center gap-1.5 text-fg-muted hover:text-fg">
-            <ChevronDown size={11} className="transition-transform group-open:rotate-180" />
-            View affected tasks
-          </summary>
-          <ul className="mt-2 space-y-0.5">
-            {item.items.map((a) => {
-              const c = a.taskCode;
-              const title = c ? titleByCode.get(c) ?? null : null;
-              return (
-                <li key={a.id} className="flex items-center gap-2">
-                  {c && (
-                    <Link href={`/task/${c}`} className="font-mono text-[10px] text-fg-muted hover:text-accent">
-                      {c}
-                    </Link>
-                  )}
-                  <span className="truncate text-fg-muted">{title}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      </div>
+      )}
     </div>
   );
 }
 
-function ymd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-
-function formatDayLabel(k: string): string {
-  const [y, m, d] = k.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((today.getTime() - dt.getTime()) / 86400000);
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return dt.toLocaleDateString("en-GB", { weekday: "long" });
-  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+function BulkRow({ item }: { item: TimelineBulk }) {
+  return (
+    <details className="group/bulk text-xs">
+      <summary className="cursor-pointer list-none flex items-center gap-1.5 text-fg-muted hover:text-fg">
+        <Layers size={11} className="text-warn shrink-0" />
+        <span className="font-medium text-fg truncate">{item.changeReason} · {item.items.length} tasks</span>
+        {item.field && item.newValue && <span className="text-fg-muted hidden sm:inline">— {item.field} → {item.newValue}</span>}
+        <ChevronDown size={11} className="ml-auto transition-transform group-open/bulk:rotate-180 shrink-0" />
+        <span className="text-[10px] text-fg-subtle tabular shrink-0">{fmtTime(item.createdAt)}</span>
+      </summary>
+      <ul className="mt-2 space-y-0.5 pl-4">
+        {item.items.map((a) => (
+          <li key={a.id} className="flex items-center gap-2">
+            {a.taskCode && (
+              <Link href={`/task/${a.taskCode}`} className="font-mono text-[10px] text-fg-muted hover:text-accent">{a.taskCode}</Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 function fmtTime(d: Date): string {
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
