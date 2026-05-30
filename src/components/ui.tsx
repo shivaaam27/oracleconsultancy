@@ -11,7 +11,7 @@ export function Card({ className, ...p }: ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "bg-bg-elev border border-border rounded-2xl elevated transition-shadow",
+        "bg-bg-elev border border-border rounded-xl elevated transition-shadow",
         className
       )}
       {...p}
@@ -29,7 +29,7 @@ export function Surface({
     elevation === "lg" ? "shadow-lg" : elevation === "sm" ? "shadow-sm" : "shadow-md";
   return (
     <div
-      className={cn("bg-bg-elev border border-border rounded-2xl", shadow, className)}
+      className={cn("bg-bg-elev border border-border rounded-xl", shadow, className)}
       {...p}
     />
   );
@@ -251,7 +251,7 @@ export function Stat({
   return (
     <div
       className={cn(
-        "relative bg-bg-elev border border-border rounded-2xl p-5 transition-all duration-200",
+        "relative bg-bg-elev border border-border rounded-xl p-4 transition-all duration-200",
         "hover:shadow-md hover:-translate-y-0.5",
         accent
       )}
@@ -273,7 +273,7 @@ export function Stat({
 
 export function TableShell({ children }: { children: ReactNode }) {
   return (
-    <div className="bg-bg-elev border border-border rounded-2xl overflow-x-auto elevated">
+    <div className="bg-bg-elev border border-border rounded-xl overflow-x-auto elevated">
       {children}
     </div>
   );
