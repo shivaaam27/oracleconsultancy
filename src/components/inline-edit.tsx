@@ -166,16 +166,38 @@ function DeadlineInput({
   onSave: (v: string | null) => void;
   onCancel: () => void;
 }) {
-  const initialIso = initial ? initial.slice(0, 10) : "";
-  const [val, setVal] = useState(initialIso);
+  const d0 = initial ? new Date(initial) : null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const localDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const initTimed = !!d0 && (d0.getUTCHours() !== 0 || d0.getUTCMinutes() !== 0);
+  const [date, setDate] = useState(d0 ? localDate(d0) : "");
+  const [time, setTime] = useState(initTimed && d0 ? `${pad(d0.getHours())}:${pad(d0.getMinutes())}` : "");
+
+  // Combine into a local datetime string (time optional → all-day).
+  const compose = () => (date ? (time ? `${date}T${time}` : date) : null);
+
   return (
-    <div className="flex flex-col gap-2 min-w-[200px]">
+    <div className="flex flex-col gap-2 min-w-[210px]">
       <input
         type="date"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
         className="px-2 py-1.5 text-sm rounded border border-border bg-bg"
       />
+      <div className="flex items-center gap-1.5">
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          disabled={!date}
+          className="flex-1 px-2 py-1.5 text-sm rounded border border-border bg-bg disabled:opacity-40"
+        />
+        {time && (
+          <button type="button" onClick={() => setTime("")} className="text-xs text-fg-muted hover:text-fg px-1.5 py-1" title="All day">
+            All day
+          </button>
+        )}
+      </div>
       <div className="flex gap-2 justify-end">
         <button
           type="button"
@@ -193,7 +215,7 @@ function DeadlineInput({
         </button>
         <button
           type="button"
-          onClick={() => onSave(val || null)}
+          onClick={() => onSave(compose())}
           className="text-xs px-2 py-1 rounded bg-accent text-accent-fg hover:opacity-90"
         >
           Save

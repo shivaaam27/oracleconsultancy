@@ -60,6 +60,26 @@ metadata:
 - **Voice should polish, not merely transcribe.** Dictation keeps rough capture fast, then cleans text with context and the COS vocabulary dictionary.
 - **One future "Messages" channel.** WhatsApp/Email/SMS are still schema concepts, but the product direction is a single Messages workflow once real dispatch exists.
 
+## Task System Overhaul (planned, May 2026)
+
+Owner-approved phased plan to improve the Tasks area. Decisions locked:
+**IDs = "DS-001" fresh start** (2-letter company prefix + dash + 3 digits, each
+company renumbered from 001). **Build order starts with timed deadlines.**
+
+| Phase | Scope | State |
+| --- | --- | --- |
+| 1. Deadlines with time | Optional time on deadlines. No DB migration — the `deadline` column is already a timestamp. UTC-midnight = all-day; any other time = a timed to-do. Time-aware `Deadline` display, date+time inline editor, all-day fallback on the new-task form. | **Done** |
+| 2. Fluid dropdowns | One reusable popover primitive behind the filter bar (replacing native `<select>`/`AutoSubmitSelect`) and the inline-edit menus. | Planned |
+| 3. Quick-edit peek | Long-press popup gains inline status/priority/deadline+time/accountable controls + an Edit button. Detailed work still opens the full task. | Planned |
+| 4. Company-prefixed IDs | Rename to `DS-001` scheme: DB backup, rewrite `tasks.code` + every reference (`audit_log.task_code`, `outbox.filed_ref`), keep old `/task/<code>` URLs redirecting. Company prefixes: DS, CC, TG, OC, PE, ME, PP. | Planned |
+| 5. Board redesign | Drag-to-move Kanban on the new design system (glass/elevated cards, long-press peek, column counts). Replaces today's static board. | Planned |
+| 6. Calendar redesign | Time-aware month grid, tap-a-day agenda sheet, cleaner cells, optional week view, drag-to-reschedule later. | Planned |
+| 7. Reminders + Today to-do | Reminders page and a Today agenda built on phase-1 timed deadlines. | Future |
+
+Notes: multi-person Accountable + outbox integration already works. Phase 1
+heuristic for "has a time" = `deadline` not at UTC midnight (legacy date-only
+deadlines are stored at `…T00:00:00Z`).
+
 ## How To Work Here
 
 - Preserve existing functionality in its new home.

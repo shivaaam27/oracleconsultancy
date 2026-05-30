@@ -18,6 +18,19 @@ function fmtShort(d: Date): string {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
+/**
+ * A deadline "has a time" when it isn't stored at UTC midnight. Legacy date-only
+ * deadlines are saved as `YYYY-MM-DDT00:00:00Z`, so we treat UTC-midnight as
+ * all-day; anything else carries a real clock time the operator chose.
+ */
+export function hasTime(d: Date): boolean {
+  return d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0;
+}
+
+function fmtTime(d: Date): string {
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 export function relativeDeadline(d: Date | null | undefined): {
   text: string;
   tone: Tone;
@@ -25,19 +38,22 @@ export function relativeDeadline(d: Date | null | undefined): {
 } {
   if (!d) return { text: "—", tone: "muted", title: "No deadline" };
   const days = diffDays(d);
-  const iso = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const timed = hasTime(d);
+  const iso = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    + (timed ? ` ${fmtTime(d)}` : "");
+  const t = timed ? ` · ${fmtTime(d)}` : "";
 
-  if (days < -1) return { text: `${-days}d overdue`, tone: "danger", title: iso };
-  if (days === -1) return { text: "Yesterday", tone: "danger", title: iso };
-  if (days === 0) return { text: "Today", tone: "warn", title: iso };
-  if (days === 1) return { text: "Tomorrow", tone: "warn", title: iso };
-  if (days <= 3) return { text: `in ${days}d`, tone: "warn", title: iso };
-  if (days <= 7) {
-    const weekday = d.toLocaleDateString("en-GB", { weekday: "short" });
-    return { text: weekday, tone: "default", title: iso };
-  }
-  if (days <= 30) return { text: fmtShort(d), tone: "default", title: iso };
-  return { text: fmtShort(d), tone: "muted", title: iso };
+  let text: string, tone: Tone;
+  if (days < -1) { text = `${-days}d overdue`; tone = "danger"; }
+  else if (days === -1) { text = "Yesterday"; tone = "danger"; }
+  else if (days === 0) { text = "Today"; tone = "warn"; }
+  else if (days === 1) { text = "Tomorrow"; tone = "warn"; }
+  else if (days <= 3) { text = `in ${days}d`; tone = "warn"; }
+  else if (days <= 7) { text = d.toLocaleDateString("en-GB", { weekday: "short" }); tone = "default"; }
+  else if (days <= 30) { text = fmtShort(d); tone = "default"; }
+  else { text = fmtShort(d); tone = "muted"; }
+
+  return { text: text + t, tone, title: iso };
 }
 
 const toneClass: Record<Tone, string> = {

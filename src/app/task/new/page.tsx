@@ -82,6 +82,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
             <div>
               <FieldLabel>Deadline</FieldLabel>
               <Input name="deadline" type="date" />
+              <p className="text-[11px] text-fg-subtle mt-1">Set an all-day date here; add a specific time later from the task or the quick-edit popup to make it a timed to-do.</p>
             </div>
             <div className="col-span-2">
               <FieldLabel>Accountable (comma-separated)</FieldLabel>
