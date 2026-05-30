@@ -271,9 +271,9 @@ export function Stat({
 /* Table                                                                  */
 /* --------------------------------------------------------------------- */
 
-export function TableShell({ children }: { children: ReactNode }) {
+export function TableShell({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="bg-bg-elev border border-border rounded-xl overflow-x-auto elevated">
+    <div className={cn("bg-bg-elev border border-border rounded-xl overflow-x-auto elevated", className)}>
       {children}
     </div>
   );

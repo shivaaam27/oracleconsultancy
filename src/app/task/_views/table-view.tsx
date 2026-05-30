@@ -12,7 +12,8 @@ import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { AssigneeList } from "@/components/assignee-list";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { SnoozeSheet } from "@/components/snooze-sheet";
-import { TaskQuickEdit } from "@/components/task-quick-edit";
+import { PeekQuickUpdate } from "@/components/peek-quick-update";
+import { TaskCard } from "@/components/task-card";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -123,7 +124,26 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
   return (
     <>
       <OrderRegistrar codes={rows.map((r) => r.code)} />
-      <TableShell>
+
+      {/* Mobile: one compiled card per task (no horizontal scroll) */}
+      <div className="sm:hidden space-y-2.5">
+        {rows.map((r) => (
+          <TaskCard
+            key={r.id}
+            row={r}
+            hideCompany={hideCompany}
+            onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
+            onPointerDown={(e) => onRowPointerDown(r, e)}
+            onPointerMove={onRowPointerMove}
+            onPointerUp={clearPress}
+            onPointerLeave={clearPress}
+            onPointerCancel={clearPress}
+          />
+        ))}
+      </div>
+
+      {/* Desktop: the full table */}
+      <TableShell className="hidden sm:block">
         <table className="w-full min-w-[760px]">
           <thead>
             <tr>
@@ -213,7 +233,7 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
         title={peek?.actionItem}
         subtitle={peek ? `${peek.code} · ${peek.companyName} · ${peek.status}` : undefined}
         body={peek?.latestUpdate || undefined}
-        editor={peek ? <TaskQuickEdit row={peek} onChanged={() => router.refresh()} /> : undefined}
+        editor={peek ? <PeekQuickUpdate row={peek} onPosted={() => { setPeek(null); router.refresh(); }} /> : undefined}
         actions={peek ? peekActions(peek) : []}
       />
 
