@@ -151,68 +151,89 @@ export default async function TaskPage({
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Back */}
-      <div>
-        <Link href="/?tab=tasks" className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-fg transition-colors">
-          <ArrowLeft size={12} /> Tasks
+    <div className="space-y-5 max-w-5xl pb-24 lg:pb-6">
+      {/* Top bar: circular back + breadcrumb (mobile-first iOS feel) */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/?tab=tasks"
+          aria-label="Back to tasks"
+          className="glass elevated h-10 w-10 rounded-full flex items-center justify-center text-fg-muted hover:text-fg transition-colors shrink-0"
+        >
+          <ArrowLeft size={16} />
         </Link>
-      </div>
-
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="font-mono text-xs text-fg-muted bg-bg-subtle px-2 py-0.5 rounded">{r.code}</span>
-            <Link href={`/companies/${r.companyId}`} className="text-xs text-fg-muted hover:text-accent transition-colors">{r.companyName}</Link>
-            <span className="text-fg-subtle">·</span>
-            <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
-            {r.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{r.actionItem}</h1>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted mt-2">
-            <span>Created <strong>{fmtDate(r.createdDate)}</strong></span>
-            {r.deadline && <span>Deadline <strong className={r.flag === "overdue" ? "text-danger" : ""}>{fmtDate(r.deadline)}</strong></span>}
-            <span>Days open <strong className="tabular">{r.daysOpen ?? "—"}</strong></span>
-            {r.daysToDeadline !== null && r.daysToDeadline !== "done" && (
-              <span>DTD <strong className={`tabular ${Number(r.daysToDeadline) < 0 ? "text-danger" : Number(r.daysToDeadline) <= 7 ? "text-warn" : ""}`}>{r.daysToDeadline}d</strong></span>
-            )}
-            {r.assignees.length > 0 && (
-              <span>
-                Assigned to <AssigneeList names={r.assignees} ids={r.assigneeIds} className="font-semibold text-fg" />
-              </span>
-            )}
-          </div>
+        <div className="flex items-center gap-2 text-xs text-fg-muted min-w-0">
+          <Link href={`/companies/${r.companyId}`} className="truncate hover:text-accent transition-colors">{r.companyName}</Link>
+          <span className="text-fg-subtle">·</span>
+          <span className="font-mono">{r.code}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <DraftEmailButton taskId={r.id} />
-          <form action={remove}>
-            <Button variant="danger" type="submit"><Trash2 size={13} /> Delete</Button>
-          </form>
         </div>
       </div>
 
-      {/* Quick stats row */}
-      <div className="flex gap-3 flex-wrap">
-        {[
-          { label: "Status", value: r.status },
-          { label: "Priority", value: r.priority, className: priorityColor[r.priority] },
-          { label: "Category", value: r.category || "—" },
-          { label: "Department", value: r.department || "—" },
-          { label: "Risk", value: r.risk || "—" },
-        ].map(item => (
-          <div key={item.label} className="bg-bg-subtle rounded-lg px-3 py-2 min-w-[100px]">
-            <div className="text-xs text-fg-muted">{item.label}</div>
-            <div className={`text-sm font-medium mt-0.5 ${(item as any).className || ""}`}>{item.value}</div>
-          </div>
-        ))}
+      {/* Hero card */}
+      <div className="glass elevated rounded-3xl p-5 sm:p-6 space-y-4 relative overflow-hidden">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
+          {r.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
+          <span className={`text-[11px] uppercase tracking-wider font-medium ${priorityColor[r.priority] || "text-fg-muted"}`}>
+            {r.priority}
+          </span>
+        </div>
+        <h1 className="text-[22px] sm:text-2xl font-semibold tracking-tight leading-snug">{r.actionItem}</h1>
+
+        {/* Inline meta row */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted">
+          <span>Created <strong className="text-fg">{fmtDate(r.createdDate)}</strong></span>
+          {r.deadline && (
+            <span>Deadline <strong className={r.flag === "overdue" ? "text-danger" : "text-fg"}>{fmtDate(r.deadline)}</strong></span>
+          )}
+          {r.assignees.length > 0 && (
+            <span>
+              Assigned <AssigneeList names={r.assignees} ids={r.assigneeIds} className="font-semibold text-fg" />
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Stat pills — horizontal scroll on mobile, wraps on desktop */}
+      <div className="-mx-1 px-1 overflow-x-auto scrollbar-none">
+        <div className="flex gap-2.5 sm:flex-wrap min-w-min">
+          {[
+            { label: "Status",     value: r.status, accent: true },
+            { label: "Priority",   value: r.priority, className: priorityColor[r.priority] },
+            { label: "Days open",  value: String(r.daysOpen ?? "—") },
+            { label: "DTD",        value: r.daysToDeadline !== null && r.daysToDeadline !== "done"
+              ? `${r.daysToDeadline}d`
+              : (r.daysToDeadline === "done" ? "done" : "—"),
+              className: r.daysToDeadline !== null && r.daysToDeadline !== "done"
+                ? (Number(r.daysToDeadline) < 0 ? "text-danger" : Number(r.daysToDeadline) <= 7 ? "text-warn" : "")
+                : "" },
+            { label: "Category",   value: r.category || "—" },
+            { label: "Department", value: r.department || "—" },
+            { label: "Risk",       value: r.risk || "—" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className={`glass elevated rounded-2xl px-4 py-3 min-w-[112px] shrink-0 ${item.accent ? "bg-accent-soft/40" : ""}`}
+            >
+              <div className="text-[10px] uppercase tracking-wider text-fg-muted">{item.label}</div>
+              <div className={`text-sm font-semibold mt-1 ${(item as any).className || ""}`}>{item.value}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Latest update callout */}
       {r.latestUpdate && (
-        <div className="border-l-2 border-accent pl-4 py-1">
-          <div className="text-xs text-fg-muted mb-0.5">Latest update · {fmt(r.lastUpdatedAt)}</div>
-          <p className="text-sm"><CodeLinkedText text={r.latestUpdate} /></p>
+        <div className="glass elevated rounded-2xl px-4 py-3 flex items-start gap-3">
+          <div className="mt-0.5 h-8 w-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
+            <MessageSquarePlus size={15} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-wider text-fg-muted mb-0.5">Latest update · {fmt(r.lastUpdatedAt)}</div>
+            <p className="text-sm leading-relaxed"><CodeLinkedText text={r.latestUpdate} /></p>
+          </div>
         </div>
       )}
 
@@ -237,7 +258,7 @@ export default async function TaskPage({
           <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
             <Pencil size={12} /> Edit Task
           </h2>
-          <Card className="p-5">
+          <Card className="p-5 rounded-3xl">
             <form action={update} className="space-y-4">
               <div>
                 <FieldLabel>Action Item <span className="text-fg-subtle normal-case font-normal">— click ✦ to polish</span></FieldLabel>
@@ -298,11 +319,14 @@ export default async function TaskPage({
                 <FieldLabel>Change Reason <span className="text-fg-subtle normal-case font-normal">(recorded in history)</span></FieldLabel>
                 <Input name="changeReason" placeholder="Why are you making this change?" />
               </div>
-              <div className="flex items-center justify-end pt-2 border-t border-border">
-                <Button type="submit"><Save size={13} /> Save Changes</Button>
+              <div className="flex items-center justify-between pt-2 border-t border-border gap-3">
+                <Button type="submit" className="rounded-full"><Save size={13} /> Save Changes</Button>
               </div>
             </form>
           </Card>
+          <form action={remove} className="flex justify-end">
+            <Button variant="danger" type="submit" className="rounded-full"><Trash2 size={13} /> Delete task</Button>
+          </form>
         </div>
 
         {/* Right: Updates + Timeline */}
