@@ -2,9 +2,11 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { CheckCircle2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Pill, type PillTone } from "./macos";
+import { spring } from "@/lib/motion";
 import type { AttnItem } from "./attention-panel";
 
 function startOfDay(ts: number) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
@@ -63,13 +65,17 @@ export function AttentionList({ items }: { items: AttnItem[] }) {
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-bg-elev overflow-hidden divide-y divide-border/60">
-          {items.map((t) => {
+          {items.map((t, i) => {
             const dl = deadlineLabel(t.deadlineTs);
             return (
-              <button
+              <motion.button
                 key={t.code}
                 type="button"
                 onClick={() => open(t.code)}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileTap={{ scale: 0.99 }}
+                transition={{ ...spring, delay: Math.min(i * 0.028, 0.36) }}
                 className="w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-bg-muted/50 transition-colors"
               >
                 <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColor(t.flag))} />
@@ -83,7 +89,7 @@ export function AttentionList({ items }: { items: AttnItem[] }) {
                   dl.tone === "danger" ? "text-red-600 dark:text-red-400" : dl.tone === "warn" ? "text-amber-600 dark:text-amber-400" : "text-fg-muted")}>
                   {dl.text}
                 </span>
-              </button>
+              </motion.button>
             );
           })}
         </div>
