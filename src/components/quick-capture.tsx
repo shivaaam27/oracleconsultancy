@@ -61,7 +61,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
     });
     updateRaw(result.polished);
     const tidied = result.changes ? ` Tidied ${result.changes} thing${result.changes === 1 ? "" : "s"}.` : "";
-    setVoiceInfo(result.source === "ai" ? `Dictation polished by COS.${tidied}` : "Dictation cleaned.");
+    setVoiceInfo(result.source === "ai" ? `Dictation polished by AUMIO.${tidied}` : "Dictation cleaned.");
     handleParse(result.polished);
   }
 

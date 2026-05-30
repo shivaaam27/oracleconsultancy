@@ -216,7 +216,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                           className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-accent/10"
                         >
                           <Sparkles size={14} className="text-accent" />
-                          <span className="flex-1 truncate">Ask COS: <span className="text-fg-muted italic">"{trimmed}"</span></span>
+                          <span className="flex-1 truncate">Ask AUMIO: <span className="text-fg-muted italic">"{trimmed}"</span></span>
                           <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
                         </Command.Item>
                       )}
@@ -245,7 +245,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                   {aiMode === "answer" && (
                     <div className="px-3 py-3 bg-accent/5 border border-accent/20 rounded-lg mx-1 mb-2">
                       <div className="flex items-center gap-2 mb-2 text-xs text-fg-muted">
-                        <Bot size={12} className="text-accent" /> Ask COS
+                        <Bot size={12} className="text-accent" /> Ask AUMIO
                         {aiTaskCount !== null && <span className="text-fg-subtle">· based on {aiTaskCount} task{aiTaskCount !== 1 ? "s" : ""}</span>}
                       </div>
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{aiAnswer}</p>

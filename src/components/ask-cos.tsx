@@ -317,7 +317,7 @@ export function AskCOS({
         <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-bg-subtle">
           <div className="flex items-center gap-2">
             <Bot size={16} className="text-accent" />
-            <span className="font-semibold text-sm">Ask COS</span>
+            <span className="font-semibold text-sm">Ask AUMIO</span>
             <span className="text-xs text-fg-muted ml-1">— ask or command, click results to navigate</span>
           </div>
           <div className="flex items-center gap-2">
@@ -511,7 +511,7 @@ export function AskCOS({
             placeholder="Ask anything…"
             className="flex-1 resize-none bg-transparent px-1 py-1.5 text-[15px] leading-snug outline-none placeholder:text-fg-muted max-h-32"
           />
-          <VoiceButton disabled={loading} onInterim={handleVoiceInterim} onResult={handleVoiceResult} onStop={handleVoiceStop} title="Speak to COS" />
+          <VoiceButton disabled={loading} onInterim={handleVoiceInterim} onResult={handleVoiceResult} onStop={handleVoiceStop} title="Speak to AUMIO" />
           <button
             type="button"
             onClick={() => submit(input)}

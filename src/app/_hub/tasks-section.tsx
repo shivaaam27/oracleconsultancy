@@ -145,7 +145,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       {/* Header row */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold">{dayMode ? "My Day" : "Tasks"}</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{dayMode ? "Task Management" : "Tasks"}</h2>
           <p className="text-xs text-fg-muted mt-0.5">
             {dayMode
               ? `${total} item${total === 1 ? "" : "s"} needing attention`
@@ -160,47 +160,59 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         </div>
       </div>
 
-      {/* My Day banner */}
+      {/* Focus banner */}
       {dayMode && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-xs">
-          <div className="text-fg-muted">
-            Focus mode — overdue, due-soon, escalated, and critical tasks across all companies.
+        <div className="glass elevated relative overflow-hidden rounded-2xl px-4 py-3 flex items-center justify-between gap-3 text-xs">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-12 -right-10 h-32 w-32 rounded-full blur-3xl opacity-60"
+            style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.35), transparent 70%)" }}
+          />
+          <div className="relative text-fg-muted">
+            <strong className="text-fg">Focus mode</strong> — overdue, due-soon, escalated, and critical tasks across all companies.
           </div>
-          <Link href="/?tab=tasks&all=1" className="text-accent hover:underline whitespace-nowrap">
+          <Link href="/?tab=tasks&all=1" className="relative text-accent hover:underline whitespace-nowrap font-medium">
             Show all tasks →
           </Link>
         </div>
       )}
 
-      {/* KPI chips */}
-      <Card className="p-3">
-        <div className="flex flex-wrap gap-2">
-          {[
-            { label: "Overdue", count: kpi.overdue, key: "overdue", filterKey: "flag" as const, tone: "danger" as const },
-            { label: "Due Soon", count: kpi.dueSoon, key: "due-soon", filterKey: "flag" as const, tone: "warn" as const },
-            { label: "Stalled", count: kpi.stalled, key: "stalled", filterKey: "flag" as const, tone: "danger" as const },
-            { label: "Escalated", count: kpi.escalated, key: "escalated", filterKey: "flag" as const, tone: "danger" as const },
-            { label: "No Deadline", count: kpi.noDeadline, key: "no-deadline", filterKey: "flag" as const, tone: "warn" as const },
-            { label: "Critical", count: kpi.critical, key: "Critical", filterKey: "priority" as const, tone: "danger" as const },
-            { label: "No Owner", count: kpi.noOwner, key: "1", filterKey: "noOwner" as const, tone: "info" as const },
-          ].map(({ label, count, key, filterKey, tone }) => {
-            const active = sp[filterKey] === key;
-            const href = buildHref(sp, { [filterKey]: active ? undefined : key });
-            const toneClass = active
-              ? tone === "danger" ? "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/40"
-                : tone === "warn" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/40"
-                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/40"
-              : count === 0 ? "border-transparent text-fg-subtle"
-              : "border-border text-fg-muted hover:text-fg hover:bg-bg-muted";
-            return (
-              <Link key={label} href={href} className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors ${toneClass}`}>
-                <span className="font-semibold tabular">{count}</span>
-                <span>{label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </Card>
+      {/* KPI chips — colour-tinted glass pills */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const },
+          { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const },
+          { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const },
+          { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const },
+          { label: "No Deadline", count: kpi.noDeadline,  key: "no-deadline", filterKey: "flag" as const,    tone: "warn" as const },
+          { label: "Critical",    count: kpi.critical,    key: "Critical",    filterKey: "priority" as const, tone: "danger" as const },
+          { label: "No Owner",    count: kpi.noOwner,     key: "1",           filterKey: "noOwner" as const,  tone: "info" as const },
+        ].map(({ label, count, key, filterKey, tone }) => {
+          const active = sp[filterKey] === key;
+          const href = buildHref(sp, { [filterKey]: active ? undefined : key });
+          const tint =
+            tone === "danger" ? "bg-danger-soft/60 ring-danger/30 text-danger"
+            : tone === "warn" ? "bg-warn-soft/60   ring-warn/30   text-warn"
+            : "bg-info-soft/60 ring-info/30 text-info";
+          const cls = active
+            ? `${tint} ring-2 shadow-sm`
+            : count === 0
+              ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
+              : `${tint} ring-1 hover:ring-2 hover:shadow-sm`;
+          return (
+            <Link
+              key={label}
+              href={href}
+              className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md ${cls}`}
+            >
+              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
+                {count}
+              </span>
+              <span className="font-medium">{label}</span>
+            </Link>
+          );
+        })}
+      </div>
 
       {/* Filters bar */}
       <Card className="p-3">

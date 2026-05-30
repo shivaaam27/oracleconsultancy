@@ -23,10 +23,10 @@ import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { getAppSettings } from "@/lib/settings";
 
 export const metadata: Metadata = {
-  title: "COS — Oracle Group Operations",
+  title: "AUMIO — Oracle Group Operations",
   description: "Chief of Staff Command Center",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "COS" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "AUMIO" },
   icons: {
     icon: [
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },

@@ -15,14 +15,18 @@ export function openAssistant(full = false) {
 
 function CosMark({ size = 18 }: { size?: number }) {
   return (
-    <span className="inline-flex items-center justify-center rounded-lg bg-accent" style={{ width: size + 10, height: size + 10 }}>
-      <Sparkles size={size} className="text-accent-fg" />
+    <span
+      className="relative inline-flex items-center justify-center rounded-xl bg-accent shadow-sm shadow-accent/30 ring-1 ring-white/10 overflow-hidden"
+      style={{ width: size + 10, height: size + 10 }}
+    >
+      <span aria-hidden className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/20" />
+      <Sparkles size={size} className="relative text-accent-fg" />
     </span>
   );
 }
 
 /**
- * App-wide COS assistant. A floating launcher opens a panel that reuses AskCOS.
+ * App-wide AUMIO assistant. A floating launcher opens a panel that reuses AskCOS.
  * Three sizes: desktop popover / mobile bottom-sheet (the "half" state) and a
  * full-screen page. Toggle with the expand icon; on mobile, drag the handle —
  * up to go full, down to dismiss. AskCOS stays mounted across sizes so the
@@ -133,7 +137,7 @@ export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
                 <div className="flex items-center gap-2">
                   <CosMark size={14} />
                   <div className="flex flex-col leading-tight">
-                    <span className="font-semibold text-sm tracking-tight">COS Assistant</span>
+                    <span className="font-semibold text-sm tracking-tight">AUMIO Assistant</span>
                     <span className="text-[10px] text-fg-muted">{pageContext.label}</span>
                   </div>
                 </div>
@@ -172,12 +176,12 @@ export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
       {/* Launcher */}
       <motion.button
         type="button"
-        aria-label={open ? "Close COS assistant" : "Open COS assistant"}
+        aria-label={open ? "Close AUMIO assistant" : "Open AUMIO assistant"}
         onClick={() => setOpen((o) => !o)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.92 }}
         className={cn(
-          "fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] inline-flex items-center justify-center h-14 w-14 rounded-full bg-accent text-accent-fg shadow-lg shadow-accent/25 ring-1 ring-black/5 hover:shadow-xl transition-shadow sm:right-5 sm:bottom-[calc(1rem+env(safe-area-inset-bottom))]",
+          "fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] inline-flex items-center justify-center h-14 w-14 rounded-full text-accent-fg shadow-xl shadow-accent/30 ring-1 ring-white/10 hover:shadow-2xl transition-all hover:shadow-accent/40 sm:right-5 sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-br from-accent via-accent to-accent-hover overflow-hidden",
           open && "hidden sm:inline-flex",
           full && "hidden"
         )}

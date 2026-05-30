@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     }
 
     const res = await sendToAll({
-      title: "COS — tasks need attention",
+      title: "AUMIO — tasks need attention",
       body: parts.join(" · "),
       url: "/?tab=tasks&flag=overdue",
       tag: "cos-attention",

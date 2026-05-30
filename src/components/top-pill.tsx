@@ -237,12 +237,12 @@ export function TopPill({ scopeSlot }: { scopeSlot?: React.ReactNode } = {}) {
           href="/"
           className="flex items-center gap-1.5 pl-1 pr-2.5 h-9 rounded-full hover:bg-bg-muted/60 transition-colors shrink-0"
           aria-label="Dashboard"
-          title="COS · Dashboard"
+          title="AUMIO · Dashboard"
         >
           <div className="w-6 h-6 rounded-md bg-accent flex items-center justify-center">
             <Sparkles size={13} className="text-accent-fg" />
           </div>
-          <span className="text-[14px] font-semibold tracking-tight hidden sm:inline">COS</span>
+          <span className="text-[14px] font-semibold tracking-tight hidden sm:inline">AUMIO</span>
         </Link>
 
         <span className="w-px h-6 bg-border mx-0.5 shrink-0" aria-hidden />

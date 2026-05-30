@@ -15,7 +15,7 @@ import { ThemeToggle } from "./theme-toggle";
 type Company = { id: number; name: string; code: string };
 
 const NAV = [
-  { label: "COS Home", href: "/", icon: Home, match: (p: string, tab: string | null) => p === "/" && tab !== "tasks" && tab !== "companies" },
+  { label: "Home", href: "/", icon: Home, match: (p: string, tab: string | null) => p === "/" && tab !== "tasks" && tab !== "companies" },
   { label: "Tasks", href: "/?tab=tasks", icon: CheckSquare, match: (p: string, tab: string | null) => p === "/" && tab === "tasks" },
 ];
 
@@ -37,12 +37,17 @@ function Item({
       href={href}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors",
-        indent && "pl-8",
-        active ? "bg-accent/15 text-accent font-medium glass-rim" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+        "group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition-all relative",
+        indent && "pl-9",
+        active
+          ? "bg-accent/15 text-accent font-medium ring-1 ring-accent/20"
+          : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
-      {Icon && <Icon size={15} className="shrink-0" />}
+      {active && !indent && (
+        <span aria-hidden className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-accent" />
+      )}
+      {Icon && <Icon size={15} className={cn("shrink-0 transition-transform", active && "scale-110")} />}
       <span className="truncate">{label}</span>
     </Link>
   );
@@ -61,11 +66,17 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
   return (
     <div className="flex flex-col h-full">
       {/* Brand */}
-      <Link href="/" onClick={onNavigate} className="flex items-center gap-2 px-3.5 h-12 border-b border-border shrink-0">
-        <span className="w-6 h-6 rounded-md bg-accent flex items-center justify-center">
-          <Sparkles size={13} className="text-accent-fg" />
+      <Link href="/" onClick={onNavigate} className="flex items-center gap-2.5 px-3.5 h-14 border-b border-border shrink-0">
+        <span
+          className="relative w-8 h-8 rounded-xl bg-accent flex items-center justify-center shadow-md shadow-accent/30 ring-1 ring-white/10 overflow-hidden"
+        >
+          <span aria-hidden className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/20" />
+          <Sparkles size={16} className="relative text-accent-fg" />
         </span>
-        <span className="text-sm font-semibold tracking-tight">COS</span>
+        <div className="flex flex-col leading-none">
+          <span className="text-sm font-semibold tracking-tight">AUMIO</span>
+          <span className="text-[10px] text-fg-subtle">Oracle Group</span>
+        </div>
       </Link>
 
       {/* Search — top of the rail */}
@@ -90,8 +101,8 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
           type="button"
           onClick={() => setCompaniesOpen((o) => !o)}
           className={cn(
-            "w-full flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors",
-            onCompaniesIndex ? "bg-accent/15 text-accent font-medium glass-rim" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+            "w-full flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] transition-colors",
+            onCompaniesIndex ? "bg-accent/15 text-accent font-medium ring-1 ring-accent/20" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
           )}
         >
           <Building2 size={15} className="shrink-0" />
@@ -145,7 +156,7 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
 /** Desktop sidebar rail (md+). */
 export function Sidebar({ companies }: { companies: Company[] }) {
   return (
-    <aside className="hidden md:block w-56 lg:w-60 shrink-0 border-r border-border bg-gradient-to-b from-bg-subtle/70 to-bg-subtle/30 md:h-[100svh] md:sticky md:top-0">
+    <aside className="hidden md:block w-56 lg:w-60 shrink-0 border-r border-border bg-gradient-to-b from-accent/5 via-bg-subtle/50 to-bg-subtle/20 md:h-[100svh] md:sticky md:top-0">
       <SidebarContent companies={companies} />
     </aside>
   );

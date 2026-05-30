@@ -208,8 +208,8 @@ export async function teachVoiceDictionary(term: string): Promise<{ saved: boole
     .map((item) => item.trim())
     .filter(Boolean);
   const seen = new Set(existing.map((item) => item.toLowerCase()));
-  if (seen.has(clean.toLowerCase())) return { saved: false, message: "COS already knows that phrase." };
+  if (seen.has(clean.toLowerCase())) return { saved: false, message: "AUMIO already knows that phrase." };
 
   await saveAppSettings({ voiceDictionary: [...existing, clean].join("\n") });
-  return { saved: true, message: "Added to the COS voice dictionary." };
+  return { saved: true, message: "Added to the AUMIO voice dictionary." };
 }
