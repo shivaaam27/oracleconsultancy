@@ -7,6 +7,19 @@ import { DUE_SOON_DAYS, AGING_CRITICAL_DAYS, BLOCKED_STALLED_DAYS } from "./deri
  * Stored as individual rows in the `settings` table under `v2.*` keys so they
  * never collide with the old Excel-era rows or the `nav.*` preference rows.
  */
+/** Actions a row swipe can trigger. Effective immediately when saved. */
+export type SwipeAction = "none" | "complete" | "escalate" | "delete" | "snooze" | "archive" | "open" | "update";
+export const SWIPE_ACTIONS: { value: SwipeAction; label: string }[] = [
+  { value: "none", label: "Nothing" },
+  { value: "complete", label: "Complete" },
+  { value: "escalate", label: "Escalate" },
+  { value: "snooze", label: "Snooze 1 week" },
+  { value: "archive", label: "Archive" },
+  { value: "delete", label: "Delete" },
+  { value: "open", label: "Open / Edit" },
+  { value: "update", label: "Add update" },
+];
+
 export type AppSettings = {
   dueSoonDays: number;
   stalledDays: number;
@@ -17,6 +30,8 @@ export type AppSettings = {
   aiEnabled: boolean;
   voiceLanguage: string;
   voiceDictionary: string;
+  swipeRightAction: SwipeAction;
+  swipeLeftAction: SwipeAction;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -39,6 +54,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     "Pamoja Plus",
     "Dar es Salaam",
   ].join("\n"),
+  swipeRightAction: "complete",
+  swipeLeftAction: "escalate",
 };
 
 /** Map of canonical setting field → storage key. */
@@ -52,6 +69,8 @@ const KEY: Record<keyof AppSettings, string> = {
   aiEnabled: "v2.aiEnabled",
   voiceLanguage: "v2.voiceLanguage",
   voiceDictionary: "v2.voiceDictionary",
+  swipeRightAction: "v2.swipeRightAction",
+  swipeLeftAction: "v2.swipeLeftAction",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -85,6 +104,8 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     aiEnabled: toBool(map.get(KEY.aiEnabled), d.aiEnabled),
     voiceLanguage: map.get(KEY.voiceLanguage) ?? d.voiceLanguage,
     voiceDictionary: map.get(KEY.voiceDictionary) ?? d.voiceDictionary,
+    swipeRightAction: (map.get(KEY.swipeRightAction) as AppSettings["swipeRightAction"]) ?? d.swipeRightAction,
+    swipeLeftAction: (map.get(KEY.swipeLeftAction) as AppSettings["swipeLeftAction"]) ?? d.swipeLeftAction,
   };
 });
 

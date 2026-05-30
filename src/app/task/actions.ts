@@ -844,3 +844,58 @@ export async function inlineUpdateTask(
   updateTag("tasks");
   return { ok: true, undoToken: result.undoToken };
 }
+
+/** Archive / unarchive a task. Undo is simply the inverse call (no token needed). */
+export async function setTaskArchived(code: string, archived: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { data: t, error } = await sb.from("tasks").select("id,company_id").eq("code", code).maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!t) return { ok: false, error: "Task not found" };
+  await sb.from("tasks").update({ archived, last_updated_at: new Date().toISOString() }).eq("id", t.id);
+  await sb.from("audit_log").insert({
+    task_id: t.id, task_code: code, company_id: t.company_id,
+    entry_type: "CHANGE", field: "Archived",
+    old_value: String(!archived), new_value: String(archived),
+    change_reason: null, created_at: new Date().toISOString(), created_by: "web-ui",
+  });
+  revalidatePath("/"); updateTag("tasks");
+  return { ok: true };
+}
+
+/** Delete a task and return an undo token (no redirect — for swipe/quick delete). */
+export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
+  const result = await mutate({
+    kind: "task.delete",
+    run: async () => {
+      const t = await findTaskByCode(code);
+      if (!t) return { result: null, undo: undefined };
+      const assignees = await loadAssignees(t.id);
+      await sb.from("audit_log").insert({
+        task_id: t.id, task_code: t.code, company_id: t.company_id,
+        entry_type: "CHANGE", field: "Task deleted",
+        old_value: t.action_item, new_value: "(deleted)",
+        change_reason: null, created_at: new Date().toISOString(), created_by: "web-ui",
+      });
+      await sb.from("tasks").delete().eq("id", t.id);
+      return {
+        result: { deleted: true },
+        undo: {
+          kind: "task.delete",
+          payload: {
+            task: {
+              code: t.code, companyId: t.company_id, departmentId: t.department_id,
+              meetingDate: t.meeting_date, actionItem: t.action_item, ownerId: t.owner_id,
+              createdDate: t.created_date, deadline: t.deadline, status: t.status,
+              priority: t.priority, category: t.category, risk: t.risk, escalation: t.escalation,
+              comments: t.comments, latestUpdate: t.latest_update, lastUpdatedAt: t.last_updated_at,
+              closedDate: t.closed_date, archived: t.archived,
+            },
+            assignees,
+          },
+        },
+      };
+    },
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath("/"); updateTag("tasks");
+  return { ok: true, undoToken: result.undoToken };
+}

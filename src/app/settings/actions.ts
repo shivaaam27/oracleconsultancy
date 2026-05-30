@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { saveAppSettings, type AppSettings } from "@/lib/settings";
+import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
+
+const SWIPE_VALUES: SwipeAction[] = ["none", "complete", "escalate", "snooze", "archive", "delete", "open", "update"];
+function swipe(fd: FormData, key: string): SwipeAction | undefined {
+  const v = fd.get(key) as string | null;
+  return v && SWIPE_VALUES.includes(v as SwipeAction) ? (v as SwipeAction) : undefined;
+}
 
 function num(fd: FormData, key: string): number | undefined {
   const v = fd.get(key);
@@ -22,6 +28,8 @@ export async function saveSettings(fd: FormData): Promise<void> {
     aiEnabled: fd.get("aiEnabled") === "on",
     voiceLanguage: (fd.get("voiceLanguage") as string | null)?.trim() || undefined,
     voiceDictionary: (fd.get("voiceDictionary") as string | null)?.trim() || undefined,
+    swipeRightAction: swipe(fd, "swipeRightAction"),
+    swipeLeftAction: swipe(fd, "swipeLeftAction"),
   };
 
   await saveAppSettings(patch);

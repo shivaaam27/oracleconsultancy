@@ -11,8 +11,14 @@ import { SwipeRow } from "./swipe-row";
 import { spring } from "@/lib/motion";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
-import { inlineUpdateTask } from "@/app/task/actions";
+import { inlineUpdateTask, setTaskArchived, deleteTaskQuick } from "@/app/task/actions";
+import type { SwipeAction } from "@/lib/settings";
 import type { AttnItem } from "./attention-panel";
+
+const SWIPE_LABEL: Record<SwipeAction, string> = {
+  none: "", complete: "Complete", escalate: "Escalate", snooze: "Snooze",
+  archive: "Archive", delete: "Delete", open: "Open", update: "Update",
+};
 
 function startOfDay(ts: number) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
 
@@ -40,7 +46,15 @@ function dotColor(flag: string): string {
   return "bg-fg-subtle";
 }
 
-export function AttentionList({ items: initial }: { items: AttnItem[] }) {
+export function AttentionList({
+  items: initial,
+  swipeRight = "complete",
+  swipeLeft = "escalate",
+}: {
+  items: AttnItem[];
+  swipeRight?: SwipeAction;
+  swipeLeft?: SwipeAction;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -58,29 +72,38 @@ export function AttentionList({ items: initial }: { items: AttnItem[] }) {
     setItems((prev) => prev.filter((x) => x.code !== code));
   }
 
-  async function complete(t: AttnItem) {
-    const res = await inlineUpdateTask(t.code, "status", "Completed");
-    if (res.ok) {
-      remove(t.code);
-      toast(`${t.code} completed`, {
-        tone: "success", duration: 6000,
-        action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined,
-      });
-    } else {
-      toast(res.error || "Could not complete", { tone: "warn", duration: 3000 });
-    }
+  function undoToast(msg: string, undo: () => Promise<unknown>) {
+    toast(msg, { tone: "success", duration: 6000, action: { label: "Undo", onClick: async () => { await undo(); router.refresh(); } } });
   }
 
-  async function escalate(t: AttnItem) {
-    const res = await inlineUpdateTask(t.code, "escalation", "Yes");
-    if (res.ok) {
-      toast(`${t.code} escalated`, {
-        tone: "success", duration: 6000,
-        action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined,
-      });
-      router.refresh();
-    } else {
-      toast(res.error || "Could not escalate", { tone: "warn", duration: 3000 });
+  // Runs the configured swipe action for a row. Effective per Settings.
+  async function runAction(action: SwipeAction, t: AttnItem) {
+    if (action === "open") { router.push(`/task/${t.code}`); return; }
+    if (action === "update") { open(t.code); return; }
+    if (action === "none") return;
+
+    if (action === "complete") {
+      const res = await inlineUpdateTask(t.code, "status", "Completed");
+      if (res.ok) { remove(t.code); if (res.undoToken) undoToast(`${t.code} completed`, () => callUndo(res.undoToken!)); }
+      else toast(res.error || "Failed", { tone: "warn", duration: 3000 });
+    } else if (action === "escalate") {
+      const res = await inlineUpdateTask(t.code, "escalation", "Yes");
+      if (res.ok) { if (res.undoToken) undoToast(`${t.code} escalated`, () => callUndo(res.undoToken!)); router.refresh(); }
+      else toast(res.error || "Failed", { tone: "warn", duration: 3000 });
+    } else if (action === "snooze") {
+      const base = t.deadlineTs ?? Date.now();
+      const next = new Date(base + 7 * 86400000).toISOString();
+      const res = await inlineUpdateTask(t.code, "deadline", next);
+      if (res.ok) { remove(t.code); if (res.undoToken) undoToast(`${t.code} snoozed 1 week`, () => callUndo(res.undoToken!)); }
+      else toast(res.error || "Failed", { tone: "warn", duration: 3000 });
+    } else if (action === "archive") {
+      const res = await setTaskArchived(t.code, true);
+      if (res.ok) { remove(t.code); undoToast(`${t.code} archived`, async () => { await setTaskArchived(t.code, false); }); }
+      else toast(res.error || "Failed", { tone: "warn", duration: 3000 });
+    } else if (action === "delete") {
+      const res = await deleteTaskQuick(t.code);
+      if (res.ok) { remove(t.code); if (res.undoToken) undoToast(`${t.code} deleted`, () => callUndo(res.undoToken!)); }
+      else toast(res.error || "Failed", { tone: "warn", duration: 3000 });
     }
   }
 
@@ -114,7 +137,13 @@ export function AttentionList({ items: initial }: { items: AttnItem[] }) {
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ ...spring, delay: Math.min(i * 0.028, 0.36) }}
                 >
-                  <SwipeRow onTap={() => open(t.code)} onSwipeRight={() => complete(t)} onSwipeLeft={() => escalate(t)}>
+                  <SwipeRow
+                    onTap={() => open(t.code)}
+                    onSwipeRight={swipeRight === "none" ? undefined : () => runAction(swipeRight, t)}
+                    onSwipeLeft={swipeLeft === "none" ? undefined : () => runAction(swipeLeft, t)}
+                    rightLabel={SWIPE_LABEL[swipeRight]}
+                    leftLabel={SWIPE_LABEL[swipeLeft]}
+                  >
                     <div className="w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-bg-muted/50 transition-colors cursor-pointer border-b border-border/60">
                       <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotColor(t.flag))} />
                       <span className="font-mono text-[11px] text-fg-muted w-[64px] shrink-0">{t.code}</span>
@@ -133,7 +162,11 @@ export function AttentionList({ items: initial }: { items: AttnItem[] }) {
               );
             })}
           </div>
-          <p className="text-center text-[11px] text-fg-subtle">Tap to open · swipe right to complete · left to escalate</p>
+          <p className="text-center text-[11px] text-fg-subtle">
+            Tap to open
+            {swipeRight !== "none" && <> · swipe right to {SWIPE_LABEL[swipeRight].toLowerCase()}</>}
+            {swipeLeft !== "none" && <> · left to {SWIPE_LABEL[swipeLeft].toLowerCase()}</>}
+          </p>
         </>
       )}
     </section>

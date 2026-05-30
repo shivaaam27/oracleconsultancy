@@ -73,7 +73,7 @@ export async function CosHome({ rows }: { rows: TaskRow[] }) {
         lon={settings.weatherLon}
         stats={stats}
       />
-      <AttentionList items={attnItems} />
+      <AttentionList items={attnItems} swipeRight={settings.swipeRightAction} swipeLeft={settings.swipeLeftAction} />
     </div>
   );
 }

@@ -2,9 +2,9 @@ import { Card, PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
-import { getAppSettings } from "@/lib/settings";
+import { getAppSettings, SWIPE_ACTIONS } from "@/lib/settings";
 import { saveSettings } from "./actions";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +132,32 @@ export default async function SettingsPage({
                 defaultValue={s.voiceDictionary}
                 placeholder="Add names, companies, places, acronyms, and phrases COS should preserve..."
               />
+            </div>
+          </div>
+        </Card>
+
+        {/* Swipe actions */}
+        <Card className="p-5 space-y-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Hand size={14} className="text-accent" /> Swipe actions
+            </h2>
+            <p className="text-xs text-fg-muted mt-1">
+              What a left or right swipe does on a task row (COS Home list). Applies as soon as you save.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <FieldLabel>Swipe right</FieldLabel>
+              <Select name="swipeRightAction" defaultValue={s.swipeRightAction}>
+                {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+              </Select>
+            </div>
+            <div>
+              <FieldLabel>Swipe left</FieldLabel>
+              <Select name="swipeLeftAction" defaultValue={s.swipeLeftAction}>
+                {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+              </Select>
             </div>
           </div>
         </Card>
