@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight, ChevronDown } from "lucide-react";
+import { useEffect } from "react";
 import { cn } from "@/lib/cn";
 import { Pill, type PillTone } from "./macos";
 import { SwipeRow } from "./swipe-row";
@@ -60,6 +61,19 @@ export function AttentionList({
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [items, setItems] = useState<AttnItem[]>(initial);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Remember the collapsed state across visits.
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem("aumio.attn.collapsed") === "1"); } catch { /* ignore */ }
+  }, []);
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c;
+      try { localStorage.setItem("aumio.attn.collapsed", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   function open(code: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -110,22 +124,36 @@ export function AttentionList({
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-sm font-semibold tracking-tight">
-          Attention today {items.length > 0 && <span className="text-fg-subtle font-normal">· {items.length}</span>}
-        </h2>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          disabled={items.length === 0}
+          aria-expanded={!collapsed}
+          className="group inline-flex items-center gap-1.5 text-sm font-semibold tracking-tight disabled:cursor-default"
+        >
+          Attention today
+          {items.length > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-danger-soft/70 text-danger text-[11px] font-semibold tabular">
+              {items.length}
+            </span>
+          )}
+          {items.length > 0 && (
+            <ChevronDown size={15} className={cn("text-fg-subtle transition-transform group-hover:text-fg", collapsed && "-rotate-90")} />
+          )}
+        </button>
         <Link href="/?tab=tasks&all=1" className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors">
           All tasks <ArrowRight size={12} />
         </Link>
       </div>
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-border bg-bg-elev py-12 text-center elevated">
+        <div className="glass elevated rounded-2xl py-12 text-center">
           <CheckCircle2 size={26} className="mx-auto text-emerald-500 mb-2" />
           <p className="text-sm text-fg-muted">Nothing needs you right now.</p>
         </div>
-      ) : (
+      ) : collapsed ? null : (
         <>
-          <div className="rounded-xl border border-border bg-bg-elev overflow-hidden elevated">
+          <div className="glass elevated rounded-2xl overflow-hidden">
             {items.map((t, i) => {
               const dl = deadlineLabel(t.deadlineTs);
               return (

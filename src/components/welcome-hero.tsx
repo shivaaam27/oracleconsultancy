@@ -80,8 +80,14 @@ export function WelcomeHero({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 280, damping: 30 }}
-      className="relative overflow-hidden rounded-2xl border border-border wash-accent elevated px-4 py-3.5"
+      className="glass elevated relative overflow-hidden rounded-3xl px-5 py-4"
     >
+      {/* soft accent glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-16 -right-12 h-44 w-44 rounded-full blur-3xl opacity-60"
+        style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }}
+      />
       <div className="relative flex items-center justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <h1 className="text-base font-semibold tracking-tight leading-tight">{hello}</h1>
@@ -110,27 +116,33 @@ export function WelcomeHero({
         </div>
       </div>
 
-      {/* COS pulse */}
+      {/* AUMIO pulse */}
       {pulse && (
-        <p className="mt-2 pt-2 border-t border-border/60 text-xs text-fg-muted">
+        <p className="relative mt-2.5 pt-2.5 border-t border-border/60 text-xs text-fg-muted">
           <span className="text-accent font-medium">Pulse · </span>{pulse}
         </p>
       )}
 
-      {/* Inline key counts — clickable, replaces the old "At a glance" slab */}
+      {/* Inline key counts — colour-tinted glass chips with count-in-circle */}
       {stats.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
+        <div className="relative mt-3 flex flex-wrap gap-2">
           {stats.map((s) => {
             const dim = s.value === 0;
-            const tone = dim
-              ? "border-border text-fg-subtle"
-              : s.tone === "danger" ? "border-red-500/40 text-red-700 dark:text-red-300 bg-red-500/[0.06]"
-              : s.tone === "warn" ? "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-500/[0.06]"
-              : "border-border text-fg hover:border-accent";
+            const tint = dim
+              ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
+              : s.tone === "danger" ? "bg-danger-soft/60 ring-1 ring-danger/30 text-danger"
+              : s.tone === "warn" ? "bg-warn-soft/60 ring-1 ring-warn/30 text-warn"
+              : "bg-info-soft/60 ring-1 ring-info/30 text-info";
             return (
-              <Link key={s.label} href={s.href} className={`inline-flex items-baseline gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${tone}`}>
-                <span className="font-semibold tabular">{s.value}</span>
-                <span className="text-fg-muted">{s.label}</span>
+              <Link
+                key={s.label}
+                href={s.href}
+                className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${dim ? "" : "hover:ring-2"} ${tint}`}
+              >
+                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
+                  {s.value}
+                </span>
+                <span className="font-medium">{s.label}</span>
               </Link>
             );
           })}
