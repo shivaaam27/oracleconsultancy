@@ -22,6 +22,7 @@ export function SwipeRow({
   onSwipeLeft,
   rightLabel = "Complete",
   leftLabel = "Escalate",
+  className = "",
 }: {
   children: ReactNode;
   onTap?: () => void;
@@ -29,6 +30,7 @@ export function SwipeRow({
   onSwipeLeft?: () => void | Promise<void>;
   rightLabel?: string;
   leftLabel?: string;
+  className?: string;
 }) {
   const x = useMotionValue(0);
   const dragged = useRef(false);
@@ -55,7 +57,7 @@ export function SwipeRow({
   }
 
   return (
-    <div className="relative overflow-hidden">
+    <div className={`relative overflow-hidden ${className}`}>
       {/* right-swipe reveal (complete) */}
       {onSwipeRight && (
         <motion.div style={{ opacity: rightReveal }} className="absolute inset-0 flex items-center gap-2 pl-5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-sm font-medium pointer-events-none">

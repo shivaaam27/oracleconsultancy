@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { dismissInboxItem, updateInboxBody, type InboxItem } from "./actions";
+import { SwipeRow } from "@/components/swipe-row";
 
 function CopyChip({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -110,8 +111,8 @@ export function InboxList({ items }: { items: InboxItem[] }) {
         const isBusy = pending && busyId === item.id;
         const isLong = item.body.length > LONG;
 
-        return (
-          <div key={item.id} className="rounded-xl border border-border bg-bg-elev p-3.5 space-y-2">
+        const card = (
+          <div className="border border-border bg-bg-elev p-3.5 space-y-2 rounded-xl h-full">
             <div className="flex items-center gap-2 text-xs text-fg-muted">
               <span className="inline-flex items-center gap-1 rounded-full bg-bg-muted px-2 py-0.5">
                 <Icon size={11} /> {label}
@@ -203,6 +204,22 @@ export function InboxList({ items }: { items: InboxItem[] }) {
               </div>
             )}
           </div>
+        );
+
+        // While editing, the textarea must own touch — no swipe. Otherwise the
+        // card swipes: right = File it, left = Dismiss.
+        if (isEditing) return <div key={item.id}>{card}</div>;
+        return (
+          <SwipeRow
+            key={item.id}
+            className="rounded-xl"
+            rightLabel="File it"
+            leftLabel="Dismiss"
+            onSwipeRight={() => fileIt(item)}
+            onSwipeLeft={() => dismiss(item.id)}
+          >
+            {card}
+          </SwipeRow>
         );
       })}
     </div>

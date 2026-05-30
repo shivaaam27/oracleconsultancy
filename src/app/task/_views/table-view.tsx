@@ -11,6 +11,7 @@ import { Deadline } from "@/components/deadline";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { AssigneeList } from "@/components/assignee-list";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
+import { SnoozeSheet } from "@/components/snooze-sheet";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -62,6 +63,7 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
   const { toast } = useToast();
 
   const [peek, setPeek] = useState<TaskRow | null>(null);
+  const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
@@ -86,17 +88,22 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
     if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
   }
 
-  async function runPeek(action: "complete" | "escalate" | "snooze", r: TaskRow) {
+  async function runPeek(action: "complete" | "escalate", r: TaskRow) {
     if (action === "complete") {
       const res = await inlineUpdateTask(r.code, "status", "Completed");
       if (res.ok) toast(`${r.code} completed`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
-    } else if (action === "escalate") {
+    } else {
       const res = await inlineUpdateTask(r.code, "escalation", "Yes");
       if (res.ok) toast(`${r.code} escalated`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
-    } else {
-      const base = r.deadline ? r.deadline.getTime() : Date.now();
-      const res = await inlineUpdateTask(r.code, "deadline", new Date(base + 7 * 86400000).toISOString());
-      if (res.ok) toast(`${r.code} snoozed 1 week`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
+    }
+    router.refresh();
+  }
+
+  async function doSnooze(r: TaskRow, iso: string) {
+    const res = await inlineUpdateTask(r.code, "deadline", iso);
+    if (res.ok) {
+      const when = new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+      toast(`${r.code} snoozed to ${when}`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
     }
     router.refresh();
   }
@@ -105,7 +112,7 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
     { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
     { label: "Complete", icon: <CheckCircle2 size={15} />, onClick: () => runPeek("complete", r) },
     ...(r.escalation !== "Yes" ? [{ label: "Escalate", icon: <AlertOctagon size={15} />, tone: "danger" as const, onClick: () => runPeek("escalate", r) }] : []),
-    { label: "Snooze 1 week", icon: <Clock size={15} />, onClick: () => runPeek("snooze", r) },
+    { label: "Snooze…", icon: <Clock size={15} />, onClick: () => setSnoozeRow(r) },
   ];
 
   return (
@@ -202,6 +209,13 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
         subtitle={peek ? `${peek.code} · ${peek.companyName} · ${peek.status}` : undefined}
         body={peek?.latestUpdate || undefined}
         actions={peek ? peekActions(peek) : []}
+      />
+
+      <SnoozeSheet
+        open={!!snoozeRow}
+        onClose={() => setSnoozeRow(null)}
+        onPick={(iso) => { if (snoozeRow) doSnooze(snoozeRow, iso); }}
+        label={snoozeRow ? `Snooze ${snoozeRow.code} until…` : undefined}
       />
     </>
   );
