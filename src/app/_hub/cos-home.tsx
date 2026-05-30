@@ -28,12 +28,7 @@ const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
 
 export async function CosHome({ rows }: { rows: TaskRow[] }) {
   const settings = await getAppSettings();
-  const k = computeGlobalKpis(rows);
   const isOpenRow = (r: TaskRow) => r.status !== "Completed" && r.status !== "Closed";
-
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
-  const dueToday = rows.filter((r) => isOpenRow(r) && r.deadline && r.deadline >= todayStart && r.deadline <= todayEnd).length;
 
   // The one focused list: anything genuinely needing attention, most urgent first.
   const attention = rows
@@ -58,13 +53,6 @@ export async function CosHome({ rows }: { rows: TaskRow[] }) {
     latestUpdate: r.latestUpdate,
   }));
 
-  const stats = [
-    { label: "Open", value: k.open, href: "/?tab=tasks&all=1" },
-    { label: "Due today", value: dueToday, href: "/?tab=tasks&flag=due-soon", tone: "warn" as const },
-    { label: "Overdue", value: k.overdue, href: "/?tab=tasks&flag=overdue", tone: "danger" as const },
-    { label: "Critical", value: k.critical, href: "/?tab=tasks&priority=Critical", tone: "danger" as const },
-  ];
-
   return (
     <div className="space-y-4">
       <WelcomeHero
@@ -72,7 +60,6 @@ export async function CosHome({ rows }: { rows: TaskRow[] }) {
         city={settings.weatherCity}
         lat={settings.weatherLat}
         lon={settings.weatherLon}
-        stats={stats}
       />
       <AttentionList items={attnItems} swipeRight={settings.swipeRightAction} swipeLeft={settings.swipeLeftAction} />
     </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Sun, CloudSun, Cloud, CloudFog, CloudDrizzle, CloudRain,
@@ -31,6 +30,19 @@ function greeting(h: number): string {
   return "Working late";
 }
 
+/** Weather-tinted glow colour for the ambient aurora. */
+function glowFor(kind: WeatherKind | null): string {
+  switch (kind) {
+    case "sun": return "hsl(38 95% 55% / 0.30)";
+    case "rain":
+    case "storm": return "hsl(212 90% 55% / 0.30)";
+    case "snow": return "hsl(190 80% 62% / 0.26)";
+    case "cloud":
+    case "fog": return "hsl(220 16% 60% / 0.24)";
+    default: return "hsl(var(--accent) / 0.26)";
+  }
+}
+
 /** Gentle, design-aligned motion per weather type (reduced-motion safe via MotionConfig). */
 function AnimatedWeatherIcon({ kind, Icon }: { kind: WeatherKind; Icon: LucideIcon }) {
   const anim =
@@ -42,26 +54,22 @@ function AnimatedWeatherIcon({ kind, Icon }: { kind: WeatherKind; Icon: LucideIc
           ? { animate: { y: [0, 1.5, 0] }, transition: { duration: 1.8, repeat: Infinity, ease: "easeInOut" as const } }
           : { animate: { y: [0, -1.5, 0] }, transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const } };
   return (
-    <motion.span className="text-accent inline-flex" {...anim}>
-      <Icon size={26} strokeWidth={1.9} />
+    <motion.span className="text-accent inline-flex shrink-0" {...anim}>
+      <Icon size={22} strokeWidth={1.9} />
     </motion.span>
   );
 }
-
-type Stat = { label: string; value: number; href: string; tone?: "neutral" | "warn" | "danger" };
 
 export function WelcomeHero({
   pulse,
   city = "Dar es Salaam",
   lat = -6.7924,
   lon = 39.2083,
-  stats = [],
 }: {
   pulse: string;
   city?: string;
   lat?: number;
   lon?: number;
-  stats?: Stat[];
 }) {
   const [now, setNow] = useState<Date | null>(null);
   const [weather, setWeather] = useState<Weather | null>(null);
@@ -93,6 +101,9 @@ export function WelcomeHero({
     : "";
   const hello = now ? greeting(now.getHours()) : "Welcome back";
 
+  const glow1 = glowFor(weather?.kind ?? null);
+  const glow2 = "hsl(var(--accent) / 0.22)";
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 8 }}
@@ -100,80 +111,56 @@ export function WelcomeHero({
       transition={{ type: "spring", stiffness: 280, damping: 30 }}
       className="glass elevated relative overflow-hidden rounded-3xl p-4 sm:p-5"
     >
-      {/* soft accent glow */}
-      <div
+      {/* Living aurora — two slow-drifting, weather-tinted glows breathe across the whole card */}
+      <motion.div
         aria-hidden
-        className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full blur-3xl opacity-50"
-        style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }}
+        className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full blur-3xl"
+        style={{ background: `radial-gradient(circle, ${glow1}, transparent 70%)` }}
+        animate={{ x: [0, 22, 0], y: [0, 14, 0], scale: [1, 1.12, 1] }}
+        transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-24 -left-20 h-56 w-56 rounded-full blur-3xl opacity-70"
+        style={{ background: `radial-gradient(circle, ${glow2}, transparent 70%)` }}
+        animate={{ x: [0, -18, 0], y: [0, -12, 0], scale: [1, 1.16, 1] }}
+        transition={{ duration: 21, repeat: Infinity, ease: "easeInOut" }}
       />
 
       <div className="relative flex items-start justify-between gap-3">
-        {/* Greeting + pulse */}
+        {/* Greeting */}
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold tracking-tight leading-tight">{hello}</h1>
           <p className="text-xs text-fg-muted mt-0.5">{date}</p>
-          {pulse && (
-            <p className="mt-3 inline-flex items-start gap-1.5 text-sm">
-              <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-accent shrink-0 animate-pulse" />
-              <span className="text-fg-muted leading-snug">{pulse}</span>
-            </p>
-          )}
         </div>
 
-        {/* Time + weather mini-card */}
-        <motion.div
-          whileHover={{ y: -2 }}
-          transition={{ type: "spring", stiffness: 400, damping: 28 }}
-          className="shrink-0 rounded-2xl bg-bg-subtle/60 ring-1 ring-border/70 backdrop-blur-md px-3.5 py-3 text-right select-none"
-        >
-          {/* Clock — seconds tick subtly */}
+        {/* Time + weather — floating directly on the card, no box */}
+        <div className="shrink-0 text-right">
           <div className="flex items-baseline justify-end gap-0.5 tabular leading-none">
             <span className="text-2xl font-semibold">{hh}</span>
             <span className="text-2xl font-semibold text-fg-muted animate-pulse">:</span>
             <span className="text-2xl font-semibold">{mm}</span>
-            <span className="text-xs font-medium text-fg-subtle ml-1 w-6 text-left">{ss}</span>
+            <span className="text-[11px] font-medium text-fg-subtle ml-1 w-5 text-left">{ss}</span>
           </div>
+          {weather && (
+            <div className="mt-1.5 flex items-center justify-end gap-1.5">
+              <AnimatedWeatherIcon kind={weather.kind} Icon={weather.Icon} />
+              <span className="text-sm font-semibold tabular">{weather.temp}°C</span>
+              <span className="text-[11px] text-fg-muted">{weather.label}</span>
+            </div>
+          )}
           <div className="mt-1 text-[10px] text-fg-muted inline-flex items-center gap-1 justify-end">
             <MapPin size={10} /> {city}
           </div>
-
-          {/* Weather */}
-          {weather && (
-            <div className="mt-2.5 pt-2.5 border-t border-border/60 flex items-center justify-end gap-2">
-              <AnimatedWeatherIcon kind={weather.kind} Icon={weather.Icon} />
-              <div className="leading-tight text-right">
-                <div className="text-base font-semibold tabular">{weather.temp}°C</div>
-                <div className="text-[10px] text-fg-muted">{weather.label}</div>
-              </div>
-            </div>
-          )}
-        </motion.div>
+        </div>
       </div>
 
-      {/* Key counts — colour-tinted glass chips with count-in-circle */}
-      {stats.length > 0 && (
-        <div className="relative mt-4 flex flex-wrap gap-2">
-          {stats.map((s) => {
-            const dim = s.value === 0;
-            const tint = dim
-              ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
-              : s.tone === "danger" ? "bg-danger-soft/60 ring-1 ring-danger/30 text-danger"
-              : s.tone === "warn" ? "bg-warn-soft/60 ring-1 ring-warn/30 text-warn"
-              : "bg-info-soft/60 ring-1 ring-info/30 text-info";
-            return (
-              <Link
-                key={s.label}
-                href={s.href}
-                className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${dim ? "" : "hover:ring-2"} ${tint}`}
-              >
-                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
-                  {s.value}
-                </span>
-                <span className="font-medium">{s.label}</span>
-              </Link>
-            );
-          })}
-        </div>
+      {/* Pulse — one human insight */}
+      {pulse && (
+        <p className="relative mt-3.5 inline-flex items-start gap-1.5 text-sm">
+          <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-accent shrink-0 animate-pulse" />
+          <span className="text-fg-muted leading-snug">{pulse}</span>
+        </p>
       )}
     </motion.section>
   );
