@@ -6,6 +6,7 @@ import { Plus, Search, Trash2, ArrowLeft, Loader2, Check, StickyNote, Wand2, Ext
 import { cn } from "@/lib/cn";
 import { listNotes, createNote, updateNote, deleteNote, type Note } from "@/app/notes/actions";
 import { PeekPreview, type PeekAction } from "./peek-preview";
+import { FluidSelect } from "./fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
 
 type Company = { id: number; name: string };
@@ -27,7 +28,7 @@ function snippet(body: string): string {
   return s || "No additional text";
 }
 
-export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note[]; companies: Company[] }) {
+export function NotesWorkspace({ initialNotes, companies, openId }: { initialNotes: Note[]; companies: Company[]; openId?: number }) {
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
@@ -101,7 +102,7 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
   // Open the Capture Wizard pre-filled with this note's content (note is kept).
   function turnIntoTask(note: Note) {
     const text = [note.title, note.body].filter(Boolean).join("\n");
-    const params = new URLSearchParams({ tab: "notes", capture: "open", text });
+    const params = new URLSearchParams({ tab: "notes", capture: "open", text, noteId: String(note.id) });
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
@@ -110,8 +111,14 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, []);
 
+  // Deep-link: open a specific note when arriving with ?open=<id>.
+  useEffect(() => {
+    if (openId && notes.some((n) => n.id === openId)) setSelectedId(openId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId]);
+
   return (
-    <div className="md:grid md:grid-cols-[240px_1fr] rounded-xl border border-border overflow-hidden min-h-[70vh] bg-bg-elev elevated">
+    <div className="md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] rounded-xl border border-border overflow-hidden min-h-[70vh] bg-bg-elev elevated">
       {/* List pane */}
       <div className={cn("flex flex-col border-border md:border-r", selected ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">
@@ -170,7 +177,7 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
       </div>
 
       {/* Editor pane */}
-      <div className={cn("flex flex-col", selected ? "flex" : "hidden md:flex")}>
+      <div className={cn("flex flex-col min-w-0", selected ? "flex" : "hidden md:flex")}>
         {selected ? (
           <>
             <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
@@ -182,18 +189,15 @@ export function NotesWorkspace({ initialNotes, companies }: { initialNotes: Note
               >
                 <ArrowLeft size={16} />
               </button>
-              <select
-                value={selected.companyId ?? ""}
-                onChange={(e) => {
-                  const companyId = e.target.value ? Number(e.target.value) : null;
+              <FluidSelect
+                value={selected.companyId ? String(selected.companyId) : ""}
+                onSelect={(v) => {
+                  const companyId = v ? Number(v) : null;
                   patchLocal(selected.id, { companyId });
                   scheduleSave(selected.id, { companyId });
                 }}
-                className="text-xs rounded-lg border border-border bg-bg px-2 py-1 text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
-              >
-                <option value="">No company</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+                options={[{ value: "", label: "No company" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
+              />
               <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-fg-subtle">
                 {save === "saving" && <><Loader2 size={11} className="animate-spin" /> Saving…</>}
                 {save === "saved" && <><Check size={11} className="text-success" /> Saved</>}

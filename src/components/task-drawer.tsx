@@ -394,7 +394,7 @@ export function TaskDrawer() {
 
                 {data.sourceMeeting && (
                   <a
-                    href="/workbook?tab=meetings"
+                    href={`/workbook?tab=meetings&open=${data.sourceMeeting.id}`}
                     className="group rounded-xl border border-border bg-bg-subtle px-3 py-2.5 flex items-start gap-2.5 hover:border-accent/50 transition-colors"
                   >
                     <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">

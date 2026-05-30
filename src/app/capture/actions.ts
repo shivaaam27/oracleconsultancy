@@ -29,6 +29,8 @@ export async function createCaptureTask(input: {
   assignees?: string;
   category?: string | null;
   escalation?: string;
+  /** When created from a note/meeting, link it back via meeting_tasks. */
+  sourceMeetingId?: number | null;
 }): Promise<{ ok: boolean; code?: string; error?: string }> {
   const actionItem = input.actionItem.trim();
   if (!input.companyId || !actionItem) {
@@ -77,6 +79,14 @@ export async function createCaptureTask(input: {
       created_at: now.toISOString(),
       created_by: "capture",
     });
+
+    if (input.sourceMeetingId) {
+      await sb.from("meeting_tasks").upsert(
+        { meeting_id: input.sourceMeetingId, task_id: task.id, created_at: now.toISOString() },
+        { ignoreDuplicates: true }
+      );
+      revalidatePath("/workbook");
+    }
 
     revalidatePath("/registry");
     revalidatePath("/");

@@ -68,6 +68,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
   const open = searchParams.get("capture") === "open";
   const dragControls = useDragControls();
   const inboxId = searchParams.get("inbox");
+  const noteId = searchParams.get("noteId");
 
   const [step, setStep] = useState<Step>("intake");
   const [raw, setRaw] = useState("");
@@ -169,6 +170,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
       priority,
       deadline: deadline || null,
       assignees,
+      sourceMeetingId: noteId ? parseInt(noteId, 10) : null,
     });
     setSaving(false);
     if (res.ok && res.code) {

@@ -75,7 +75,7 @@ export function TimelineView({ rows, sources }: { rows: TaskRow[]; sources: Reco
     const isNote = s.kind === "note";
     return (
       <Link
-        href={`/workbook?tab=${isNote ? "notes" : "meetings"}`}
+        href={`/workbook?tab=${isNote ? "notes" : "meetings"}&open=${s.meetingId}`}
         onClick={(e) => e.stopPropagation()}
         className="inline-flex items-center gap-1 max-w-[200px] text-[11px] text-fg-muted hover:text-accent transition-colors"
         title={`${isNote ? "From note" : "From meeting"}: ${s.title}`}

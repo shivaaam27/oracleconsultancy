@@ -240,3 +240,16 @@ export const inbox = pgTable("inbox", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   filedAt: timestamp("filed_at", { mode: "date" }),
 });
+
+// Personal checklist — lightweight to-dos the operator adds in the Workbook,
+// separate from company tasks. Optionally linked to a company and/or a task.
+export const todos = pgTable("todos", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  done: boolean("done").notNull().default(false),
+  dueAt: timestamp("due_at", { mode: "date" }),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  completedAt: timestamp("completed_at", { mode: "date" }),
+});

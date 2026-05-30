@@ -18,6 +18,7 @@ import { polishActionItem } from "@/lib/smart-parse";
 import { VoiceButton } from "@/components/voice-button";
 import { polishDictation, teachVoiceDictionary } from "@/app/voice/actions";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
+import { FluidSelect } from "@/components/fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -30,7 +31,7 @@ const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 
 type EditableTask = BulkTaskInput & { id: string; checked: boolean; deadlineLabel?: string | null };
-type Props = { companies: { id: number; name: string }[]; meetings: SavedMeeting[]; voiceLanguage?: string };
+type Props = { companies: { id: number; name: string }[]; meetings: SavedMeeting[]; voiceLanguage?: string; openId?: number };
 type Pane = "notes" | "minutes";
 
 function todayIso() { return new Date().toISOString().slice(0, 10); }
@@ -45,7 +46,7 @@ function taskFromParsed(p: MeetingTask, idx: number): EditableTask {
   };
 }
 
-export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" }: Props) {
+export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB", openId }: Props) {
   const router = useRouter();
 
   const [meetingList, setMeetingList] = useState<SavedMeeting[]>(meetings);
@@ -160,6 +161,14 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
   function upsertMeetingList(saved: SavedMeeting) {
     setMeetingList(prev => [saved, ...prev.filter(m => m.id !== saved.id)]);
   }
+
+  // Deep-link: open a specific meeting when arriving with ?open=<id>.
+  useEffect(() => {
+    if (!openId) return;
+    const m = meetingList.find(x => x.id === openId);
+    if (m) loadMeeting(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId]);
 
   function handleDeleteMeeting() {
     if (!meetingId) return;
@@ -283,7 +292,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
   const linkedTasks = createdTaskLinks.length ? createdTaskLinks : (meetingId ? meetingList.find(m => m.id === meetingId)?.tasks ?? [] : []);
 
   return (
-    <div className="md:grid md:grid-cols-[240px_1fr] rounded-xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev elevated">
+    <div className="md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] rounded-xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev elevated">
       {/* History pane */}
       <div className={cn("flex flex-col border-border md:border-r", editing ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">
@@ -294,10 +303,13 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
             <input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="Search meetings" className="w-full rounded-lg border border-border bg-bg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
           </div>
-          <select value={historyCompany} onChange={e => setHistoryCompany(Number(e.target.value))} className="w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40">
-            <option value={0}>All companies</option>
-            {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <FluidSelect
+            value={String(historyCompany)}
+            onSelect={(v) => setHistoryCompany(Number(v))}
+            options={[{ value: "0", label: "All companies" }, ...companies.map(c => ({ value: String(c.id), label: c.name }))]}
+            buttonClassName="w-full justify-between"
+            className="w-full"
+          />
         </div>
         <div className="flex-1 overflow-y-auto">
           {filteredMeetings.length === 0 ? (
@@ -324,7 +336,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
       </div>
 
       {/* Editor pane */}
-      <div className={cn("flex flex-col", editing ? "flex" : "hidden md:flex")}>
+      <div className={cn("flex flex-col min-w-0", editing ? "flex" : "hidden md:flex")}>
         {!editing ? (
           <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center p-8">
             <FileText size={28} className="text-fg-subtle mb-3" />
@@ -355,10 +367,11 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB" 
             {/* Meta row */}
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border/60 text-xs">
               <input type="date" value={meetingDate} onChange={e => setMeetingDate(e.target.value)} className="rounded-lg border border-border bg-bg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-accent/40" />
-              <select value={defaultCompany} onChange={e => setDefaultCompany(Number(e.target.value))} className="rounded-lg border border-border bg-bg px-2 py-1 text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40">
-                <option value={0}>Group-wide</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <FluidSelect
+                value={String(defaultCompany)}
+                onSelect={(v) => setDefaultCompany(Number(v))}
+                options={[{ value: "0", label: "Group-wide" }, ...companies.map(c => ({ value: String(c.id), label: c.name }))]}
+              />
               <input value={attendees} onChange={e => setAttendees(e.target.value)} placeholder="Attendees" className="flex-1 min-w-[120px] rounded-lg border border-border bg-bg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-accent/40" />
             </div>
 
