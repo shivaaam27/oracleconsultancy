@@ -238,7 +238,7 @@ export async function createTask(formData: FormData) {
     run: async () => {
       const { data: company, error: cErr } = await sb
         .from("companies")
-        .select("code")
+        .select("code, code_prefix")
         .eq("id", companyId)
         .maybeSingle();
       if (cErr) throw new Error(cErr.message);
@@ -247,7 +247,9 @@ export async function createTask(formData: FormData) {
       const departmentId = await getOrCreateDeptSb(departmentName);
       const now = new Date();
 
-      const task = await insertTaskWithUniqueCodeSb(companyId, company.code as string, {
+      // Prefer the two-letter prefix (DS-001); fall back to the legacy company code.
+      const prefix = (company.code_prefix as string | null) || (company.code as string);
+      const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
         departmentId,
         actionItem,
         status,

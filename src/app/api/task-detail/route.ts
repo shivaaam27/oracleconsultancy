@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
   if (!code) return NextResponse.json({ error: "Missing code" }, { status: 400 });
 
   const all = await getAllTasks();
-  const task = all.find((t) => t.code === code);
+  // Accept the current code or a legacy code (old links).
+  const task = all.find((t) => t.code === code) || all.find((t) => t.legacyCode === code);
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const [{ data: updates }, { data: audit }, { data: sourceMeeting }] = await Promise.all([
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
     sb
       .from("audit_log")
       .select("id,field,old_value,new_value,change_reason,entry_type,created_at,created_by")
-      .eq("task_code", code)
+      .eq("task_code", task.code)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(25),

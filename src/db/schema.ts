@@ -6,6 +6,8 @@ export const companies = pgTable("companies", {
   code: text("code").notNull().unique(),
   active: boolean("active").notNull().default(true),
   accentColor: text("accent_color"),
+  // Two-letter prefix for task codes, e.g. "DS" → DS-001 (see migrate-task-codes).
+  codePrefix: text("code_prefix"),
 });
 
 export const departments = pgTable("departments", {
@@ -66,6 +68,9 @@ export const tasks = pgTable("tasks", {
   lastUpdatedAt: timestamp("last_updated_at", { mode: "date" }),
   closedDate: timestamp("closed_date", { mode: "date" }),
   archived: boolean("archived").notNull().default(false),
+  // Previous task code (e.g. "CO01-008") kept after the DS-001 rename so old
+  // /task/<code> links still resolve. Null for tasks created after the rename.
+  legacyCode: text("legacy_code"),
 });
 
 export const taskAssignees = pgTable(

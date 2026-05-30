@@ -133,7 +133,7 @@ Voice is now a shared product layer, not only a microphone button:
 - Statuses: Not Started, In Progress, Under Review, Blocked, Waiting External, Escalated, Completed, Closed.
 - Open means anything except Completed/Closed.
 - Priorities/Risk: Critical, High, Medium, Low.
-- Task codes: `<COxx>-NNN`.
+- Task codes: `<PREFIX>-NNN`, where PREFIX is the company's two-letter `code_prefix` (e.g. `DS-001` for Dar Spices). Legacy `COxx-NNN` codes are kept in `tasks.legacy_code` so old links redirect.
 - Categories: Finance, Operations, Marketing, HR, Legal, Technology, Sales, Admin, Meetings, Strategy, Other.
 - Channels: WHATSAPP, EMAIL, SMS.
 

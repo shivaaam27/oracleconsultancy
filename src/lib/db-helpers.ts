@@ -144,7 +144,8 @@ export async function insertTaskWithUniqueCodeSb(
 
     let maxNum = 0;
     for (const row of existing ?? []) {
-      const m = (row.code as string).match(/^[A-Z]+\d+-(\d+)$/);
+      // Trailing number works for both legacy (CO01-008) and new (DS-001) codes.
+      const m = (row.code as string).match(/(\d+)$/);
       if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
     }
     const newCode = `${codePrefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;

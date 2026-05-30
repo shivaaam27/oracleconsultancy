@@ -6,6 +6,8 @@ import { getAppSettings } from "./settings";
 export type TaskRow = {
   id: number;
   code: string;
+  /** Previous code (e.g. CO01-008) after the DS-001 rename; null otherwise. */
+  legacyCode: string | null;
   companyId: number;
   companyName: string;
   companyAccent: string | null;
@@ -39,6 +41,7 @@ export type TaskRow = {
 type SbTask = {
   id: number;
   code: string;
+  legacy_code: string | null;
   company_id: number;
   department_id: number | null;
   meeting_date: string | null;
@@ -68,7 +71,7 @@ function toDate(s: string | null): Date | null {
 
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, settings] = await Promise.all([
-    sb.from("tasks").select("id,code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),
+    sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("departments").select("id,name"),
     sb.from("people").select("id,name"),
@@ -117,6 +120,7 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
     return {
       id: t.id,
       code: t.code,
+      legacyCode: t.legacy_code ?? null,
       companyId: t.company_id,
       companyName: cName.get(t.company_id) || "",
       companyAccent: cAccent.get(t.company_id) ?? null,

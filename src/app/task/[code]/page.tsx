@@ -7,7 +7,7 @@ import { PolishedInput } from "@/components/polished-input";
 import { DraftEmailButton } from "@/components/draft-email-button";
 import { SimilarTasks } from "@/components/similar-tasks";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
 import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, FileText } from "lucide-react";
@@ -68,7 +68,12 @@ export default async function TaskPage({
   const filter = parseTimelineFilter(sp.tl);
   const all = await getAllTasks();
   const r = all.find((t) => t.code === code);
-  if (!r) return notFound();
+  if (!r) {
+    // Old links: redirect a legacy code to its current canonical code.
+    const legacy = all.find((t) => t.legacyCode === code);
+    if (legacy) redirect(`/task/${legacy.code}${sp.tl ? `?tl=${sp.tl}` : ""}`);
+    return notFound();
+  }
 
   const [{ data: auditRaw }, { data: updateRaw }, { data: sourceMeeting }] = await Promise.all([
     sb
