@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Search, Mail, MessageCircle, Phone, AlertCircle, MoonStar, UserX,
-  ChevronUp, ChevronDown, Filter,
+  ChevronUp, ChevronDown, Filter, ExternalLink, ListTodo,
 } from "lucide-react";
 import { TableShell, Th, Td, Badge } from "./ui";
 import { PersonDrawerLink } from "./person-drawer-link";
+import { PeekPreview, type PeekAction } from "./peek-preview";
+import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import type { PersonRow } from "@/lib/people-queries";
 
@@ -30,6 +33,37 @@ export function PeopleTable({ people, companies }: {
   const [sortKey, setSortKey] = useState<SortKey>("workload");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showInactive, setShowInactive] = useState(false);
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [peek, setPeek] = useState<PersonRow | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
+
+  function openPerson(id: number) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("person", String(id));
+    params.delete("task");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+  function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
+  function onRowPointerDown(p: PersonRow, e: React.PointerEvent) {
+    longPressed.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    clearPress();
+    pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeek(p); }, 400);
+  }
+  function onRowPointerMove(e: React.PointerEvent) {
+    if (!pressStart.current) return;
+    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
+  }
+  const peekActions = (p: PersonRow): PeekAction[] => [
+    { label: "Open profile", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openPerson(p.id) },
+    { label: "View tasks", icon: <ListTodo size={15} />, onClick: () => router.push(`/?tab=tasks&all=1&q=${encodeURIComponent(p.name)}`) },
+    ...(p.whatsapp ? [{ label: "Message on WhatsApp", icon: <MessageCircle size={15} />, onClick: () => window.open(whatsappHref(p.whatsapp!), "_blank") }] : []),
+  ];
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -191,8 +225,14 @@ export function PeopleTable({ people, companies }: {
               return (
                 <tr
                   key={p.id}
+                  onPointerDown={(e) => onRowPointerDown(p, e)}
+                  onPointerMove={onRowPointerMove}
+                  onPointerUp={clearPress}
+                  onPointerLeave={clearPress}
+                  onPointerCancel={clearPress}
+                  onContextMenu={(e) => e.preventDefault()}
                   className={cn(
-                    "hover:bg-bg-subtle transition-colors group",
+                    "hover:bg-bg-subtle transition-colors group select-none",
                     dim && "opacity-60"
                   )}
                 >
@@ -298,6 +338,16 @@ export function PeopleTable({ people, companies }: {
           </tbody>
         </table>
       </TableShell>
+
+      <PeekPreview
+        open={!!peek}
+        onClose={() => setPeek(null)}
+        onOpen={peek ? () => openPerson(peek.id) : undefined}
+        title={peek?.name}
+        subtitle={peek ? [peek.companyName, peek.role].filter(Boolean).join(" · ") || undefined : undefined}
+        body={peek ? `${peek.workload.open} open task${peek.workload.open === 1 ? "" : "s"}${peek.workload.overdue ? ` · ${peek.workload.overdue} overdue` : ""}` : undefined}
+        actions={peek ? peekActions(peek) : []}
+      />
 
       {filtered.length === 0 && (
         <div className="text-center py-12 text-fg-muted text-sm">
