@@ -78,7 +78,7 @@ export function SwipeRow({
         onDragStart={() => { dragged.current = true; }}
         onDragEnd={handleDragEnd}
         onClick={() => { if (dragged.current) { dragged.current = false; return; } onTap?.(); }}
-        className="relative bg-bg-elev"
+        className="relative bg-bg-elev select-none"
       >
         {children}
         {busy && (

@@ -273,8 +273,9 @@ export function TaskDrawer() {
 
           {/* ── Body — scrollable ── */}
           <div className="flex-1 overflow-y-auto">
-            {/* Loading skeleton */}
-            {loading && !data && (
+            {/* Loading skeleton — also covers the brief pre-fetch frame so the
+                drawer never renders as a thin header-only bar. */}
+            {!data && !error && (
               <div className="flex flex-col items-center justify-center h-40 gap-2 text-fg-muted">
                 <Loader2 size={18} className="animate-spin" />
                 <span className="text-sm">Loading…</span>
