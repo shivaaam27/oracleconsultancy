@@ -178,6 +178,10 @@ h1, h2, h3 { letter-spacing: -0.015em; }
 
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* Lighter, more refined icon strokes (SF-Symbols-like). Inline strokeWidth on a
+   component still wins where a specific weight is intended. */
+svg.lucide { stroke-width: 1.75px; }
+
 /* ---------- Vibrancy (macOS translucent material) ---------- */
 .vibrancy {
   background: hsl(var(--vibrancy));
