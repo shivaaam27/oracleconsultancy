@@ -1,6 +1,8 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { ExternalLink, CheckCircle2, AlertOctagon, Clock } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { flagLabel } from "@/lib/derive";
 import { TableShell, Th, Td, Badge } from "@/components/ui";
@@ -8,6 +10,11 @@ import { InlineEdit } from "@/components/inline-edit";
 import { Deadline } from "@/components/deadline";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { AssigneeList } from "@/components/assignee-list";
+import { PeekPreview, type PeekAction } from "@/components/peek-preview";
+import { triggerHaptic } from "@/lib/use-long-press";
+import { useToast } from "@/components/toast";
+import { callUndo } from "@/components/undo-banner";
+import { inlineUpdateTask } from "@/app/task/actions";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -52,6 +59,12 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
+
+  const [peek, setPeek] = useState<TaskRow | null>(null);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
 
   function openTask(code: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -59,6 +72,41 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
     params.delete("person");
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
+
+  // Long-press → peek preview (without fighting clicks or scroll).
+  function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
+  function onRowPointerDown(r: TaskRow, e: React.PointerEvent) {
+    longPressed.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    clearPress();
+    pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeek(r); }, 400);
+  }
+  function onRowPointerMove(e: React.PointerEvent) {
+    if (!pressStart.current) return;
+    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
+  }
+
+  async function runPeek(action: "complete" | "escalate" | "snooze", r: TaskRow) {
+    if (action === "complete") {
+      const res = await inlineUpdateTask(r.code, "status", "Completed");
+      if (res.ok) toast(`${r.code} completed`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
+    } else if (action === "escalate") {
+      const res = await inlineUpdateTask(r.code, "escalation", "Yes");
+      if (res.ok) toast(`${r.code} escalated`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
+    } else {
+      const base = r.deadline ? r.deadline.getTime() : Date.now();
+      const res = await inlineUpdateTask(r.code, "deadline", new Date(base + 7 * 86400000).toISOString());
+      if (res.ok) toast(`${r.code} snoozed 1 week`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
+    }
+    router.refresh();
+  }
+
+  const peekActions = (r: TaskRow): PeekAction[] => [
+    { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
+    { label: "Complete", icon: <CheckCircle2 size={15} />, onClick: () => runPeek("complete", r) },
+    ...(r.escalation !== "Yes" ? [{ label: "Escalate", icon: <AlertOctagon size={15} />, tone: "danger" as const, onClick: () => runPeek("escalate", r) }] : []),
+    { label: "Snooze 1 week", icon: <Clock size={15} />, onClick: () => runPeek("snooze", r) },
+  ];
 
   return (
     <>
@@ -83,8 +131,14 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
             {rows.map((r) => (
               <tr
                 key={r.id}
-                onClick={() => openTask(r.code)}
-                className="hover:bg-bg-subtle transition-colors group cursor-pointer"
+                onPointerDown={(e) => onRowPointerDown(r, e)}
+                onPointerMove={onRowPointerMove}
+                onPointerUp={clearPress}
+                onPointerLeave={clearPress}
+                onPointerCancel={clearPress}
+                onContextMenu={(e) => e.preventDefault()}
+                onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
+                className="hover:bg-bg-subtle transition-colors group cursor-pointer select-none"
               >
                 <Td className="w-6 pr-0">
                   <Stop><SelectCheckbox code={r.code} /></Stop>
@@ -139,6 +193,16 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
           </tbody>
         </table>
       </TableShell>
+
+      <PeekPreview
+        open={!!peek}
+        onClose={() => setPeek(null)}
+        onOpen={peek ? () => openTask(peek.code) : undefined}
+        title={peek?.actionItem}
+        subtitle={peek ? `${peek.code} · ${peek.companyName} · ${peek.status}` : undefined}
+        body={peek?.latestUpdate || undefined}
+        actions={peek ? peekActions(peek) : []}
+      />
     </>
   );
 }
