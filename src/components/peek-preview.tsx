@@ -18,7 +18,7 @@ export type PeekAction = {
  * Tap the card → open fully; tap the backdrop → collapse.
  */
 export function PeekPreview({
-  open, onClose, onOpen, title, subtitle, body, actions = [],
+  open, onClose, onOpen, title, subtitle, body, actions = [], editor,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,6 +27,8 @@ export function PeekPreview({
   subtitle?: ReactNode;
   body?: ReactNode;
   actions?: PeekAction[];
+  /** Optional inline quick-edit panel shown between the preview and the actions. */
+  editor?: ReactNode;
 }) {
   return (
     <AnimatePresence>
@@ -55,6 +57,11 @@ export function PeekPreview({
               {subtitle && <div className="text-xs text-fg-muted mt-0.5">{subtitle}</div>}
               {body && <div className="text-sm text-fg-muted mt-2 leading-relaxed">{body}</div>}
             </button>
+
+            {/* Inline quick-edit panel */}
+            {editor && (
+              <div className="glass glass-menu rounded-2xl p-3">{editor}</div>
+            )}
 
             {/* Quick actions */}
             {actions.length > 0 && (

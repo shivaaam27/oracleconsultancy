@@ -12,6 +12,7 @@ import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { AssigneeList } from "@/components/assignee-list";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { SnoozeSheet } from "@/components/snooze-sheet";
+import { TaskQuickEdit } from "@/components/task-quick-edit";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -88,22 +89,26 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
     if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
   }
 
-  async function runPeek(action: "complete" | "escalate", r: TaskRow) {
-    if (action === "complete") {
-      const res = await inlineUpdateTask(r.code, "status", "Completed");
-      if (res.ok) toast(`${r.code} completed`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
-    } else {
-      const res = await inlineUpdateTask(r.code, "escalation", "Yes");
-      if (res.ok) toast(`${r.code} escalated`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
-    }
-    router.refresh();
-  }
-
   async function doSnooze(r: TaskRow, iso: string) {
     const res = await inlineUpdateTask(r.code, "deadline", iso);
     if (res.ok) {
       const when = new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
       toast(`${r.code} snoozed to ${when}`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
+    }
+    router.refresh();
+  }
+
+  async function runPeek(action: "complete" | "escalate", r: TaskRow) {
+    const field = action === "complete" ? "status" : "escalation";
+    const value = action === "complete" ? "Completed" : "Yes";
+    const res = await inlineUpdateTask(r.code, field, value);
+    if (res.ok) {
+      toast(`${r.code} ${action === "complete" ? "completed" : "escalated"}`, {
+        tone: "success",
+        duration: 6000,
+        action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined
+      });
+      setPeek(null);
     }
     router.refresh();
   }
@@ -208,6 +213,7 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
         title={peek?.actionItem}
         subtitle={peek ? `${peek.code} · ${peek.companyName} · ${peek.status}` : undefined}
         body={peek?.latestUpdate || undefined}
+        editor={peek ? <TaskQuickEdit row={peek} onChanged={() => router.refresh()} /> : undefined}
         actions={peek ? peekActions(peek) : []}
       />
 
