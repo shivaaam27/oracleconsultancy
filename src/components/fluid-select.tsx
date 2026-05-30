@@ -76,7 +76,7 @@ export function FluidSelect({
             role="listbox"
             className={cn(
               "absolute z-[70] mt-1.5 min-w-[200px] max-h-[60vh] overflow-y-auto p-1.5",
-              "glass rounded-xl shadow-lg",
+              "glass glass-menu rounded-xl shadow-lg",
               align === "right" ? "right-0" : "left-0"
             )}
           >

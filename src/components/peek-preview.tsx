@@ -58,7 +58,7 @@ export function PeekPreview({
 
             {/* Quick actions */}
             {actions.length > 0 && (
-              <div className="glass rounded-2xl overflow-hidden divide-y divide-border/60">
+              <div className="glass glass-menu rounded-2xl overflow-hidden divide-y divide-border/60">
                 {actions.map((a) => (
                   <button
                     key={a.label}

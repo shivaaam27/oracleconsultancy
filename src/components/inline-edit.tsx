@@ -93,7 +93,7 @@ export function InlineEdit({ field, taskCode, value, options, className, childre
             exit={{ opacity: 0, scale: 0.97, y: -2 }}
             transition={spring}
             style={{ transformOrigin: "top left" }}
-            className="absolute z-[70] mt-1.5 left-0 rounded-xl glass shadow-lg p-1.5 min-w-[190px]"
+            className="absolute z-[70] mt-1.5 left-0 rounded-xl glass glass-menu shadow-lg p-1.5 min-w-[190px]"
             onClick={(e) => e.stopPropagation()}
           >
             {field === "deadline" ? (

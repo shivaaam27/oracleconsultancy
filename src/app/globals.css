@@ -234,6 +234,19 @@ button, a, [role="button"], [role="tab"], td, th {
     linear-gradient(135deg, hsl(0 0% 100% / 0.12) 0%, hsl(0 0% 100% / 0.03) 24%, transparent 46%),
     hsl(var(--glass-tint));
 }
+/* Menu variant: a touch more opaque than chrome glass so option text stays
+   crisp on busy backgrounds (dropdowns, snooze sheet, peek menus). Keeps the
+   glass blur/rim/shadow; only the fill is firmer. */
+.glass-menu {
+  background:
+    linear-gradient(135deg, hsl(0 0% 100% / 0.10) 0%, hsl(0 0% 100% / 0.02) 24%, transparent 46%),
+    hsl(0 0% 100% / 0.82);
+}
+.dark .glass-menu {
+  background:
+    linear-gradient(135deg, hsl(0 0% 100% / 0.10) 0%, hsl(0 0% 100% / 0.02) 24%, transparent 46%),
+    hsl(240 8% 14% / 0.86);
+}
 /* Chrome-only edge refraction (progressive enhancement; gated by [data-refract]). */
 .glass-refract { /* base = identical to .glass via composition in markup */ }
 html[data-refract="1"] .glass-refract {

@@ -61,7 +61,7 @@ export function SnoozeSheet({
             transition={spring}
             className="fixed z-[89] inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[360px] mx-auto select-none"
           >
-            <div className="glass rounded-2xl overflow-hidden">
+            <div className="glass glass-menu rounded-2xl overflow-hidden">
               <div className="px-4 py-3 text-sm font-semibold border-b border-border/60">
                 {label || "Snooze until…"}
               </div>
