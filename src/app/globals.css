@@ -45,13 +45,13 @@
   --accent-ring:  214 88% 58%;
 
   /* ── Liquid glass material ── */
-  --glass-tint:   0 0% 100% / 0.55;   /* light: see-through, not milky */
+  --glass-tint:   0 0% 100% / 0.44;   /* light: clearly see-through, minimal frost */
   --glass-border: 240 10% 10% / 0.10; /* hairline edge (a touch stronger in light) */
-  --glass-rim:    0 0% 100% / 0.70;   /* bright top specular rim */
+  --glass-rim:    0 0% 100% / 0.72;   /* bright top specular rim */
   /* Apple Liquid Glass uses a gentle blur (clarity + refraction, not heavy frost) */
-  --blur-sm: 7px;
-  --blur-md: 11px;
-  --blur-lg: 18px;
+  --blur-sm: 6px;
+  --blur-md: 9px;
+  --blur-lg: 16px;
 
   /* ── Motion ── */
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
@@ -106,7 +106,7 @@
   --accent-ring:  213 94% 66%;
 
   /* ── Liquid glass material (dark) ── */
-  --glass-tint:   240 8% 13% / 0.60;
+  --glass-tint:   240 8% 13% / 0.55;
   --glass-border: 0 0% 100% / 0.08;
   --glass-rim:    0 0% 100% / 0.12;
 
@@ -234,8 +234,25 @@ html[data-refract="1"] .glass-refract {
 /* Tier 3 — atmospheric accent wash for headers (sits behind content). */
 .wash-accent {
   background:
-    radial-gradient(120% 140% at 0% 0%, hsl(var(--accent) / 0.16), transparent 55%),
-    linear-gradient(135deg, hsl(var(--accent) / 0.10), hsl(var(--bg-elev)) 60%);
+    radial-gradient(120% 140% at 0% 0%, hsl(var(--accent) / 0.12), transparent 55%),
+    linear-gradient(135deg, hsl(var(--accent) / 0.07), hsl(var(--bg-elev)) 60%);
+}
+
+/* ---------- Accessibility (Apple-mandated, non-negotiable) ----------
+   Reduce Transparency → make glass opaque (no blur). Increase Contrast →
+   strengthen edges. The system settings always win over the aesthetic. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .glass-refract, .vibrancy, .vibrancy-strong {
+    background: hsl(var(--bg-elev)) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+@media (prefers-contrast: more) {
+  .glass, .glass-refract, .vibrancy, .vibrancy-strong, .elevated {
+    border: 1px solid hsl(var(--border-strong)) !important;
+  }
+  .text-fg-muted { color: hsl(var(--fg)) !important; }
 }
 
 /* ---------- Apple-like controls ---------- */
@@ -334,6 +351,7 @@ input:focus, select:focus, textarea:focus {
 :root[data-density="compact"] .card .text-sm { font-size: 0.8125rem; line-height: 1.15rem; }
 :root[data-density="compact"] table th,
 :root[data-density="compact"] table td { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+
 
 
 
