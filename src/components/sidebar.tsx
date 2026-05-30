@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
+import { openAssistant } from "./floating-assistant";
 import { ThemeToggle } from "./theme-toggle";
 
 type Company = { id: number; name: string; code: string };
@@ -82,9 +83,22 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        {NAV.map((n) => (
-          <Item key={n.label} href={n.href} icon={n.icon} label={n.label} active={n.match(pathname, tab)} onNavigate={onNavigate} />
-        ))}
+        {NAV.map((n) =>
+          n.href === "/ask" ? (
+            // Ask COS lives in the floating assistant — open it instead of navigating.
+            <button
+              key={n.label}
+              type="button"
+              onClick={() => { onNavigate?.(); openAssistant(); }}
+              className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+            >
+              <n.icon size={15} className="shrink-0" />
+              <span className="truncate">{n.label}</span>
+            </button>
+          ) : (
+            <Item key={n.label} href={n.href} icon={n.icon} label={n.label} active={n.match(pathname, tab)} onNavigate={onNavigate} />
+          )
+        )}
 
         {/* Companies — a normal nav item that fluidly expands its list. */}
         <button
