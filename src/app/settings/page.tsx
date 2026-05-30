@@ -4,7 +4,8 @@ import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { getAppSettings, SWIPE_ACTIONS } from "@/lib/settings";
 import { saveSettings } from "./actions";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand } from "lucide-react";
+import Link from "next/link";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +206,21 @@ export default async function SettingsPage({
           </p>
         </div>
         <NotificationSettings />
+      </Card>
+
+      {/* Design system — the living gallery (moved here from the nav) */}
+      <Card className="p-5 space-y-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <Palette size={14} className="text-accent" /> Design
+          </h2>
+          <p className="text-xs text-fg-muted mt-1">
+            The living Liquid Glass gallery — every colour, surface, control and gesture in one place.
+          </p>
+        </div>
+        <Link href="/design" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-2 text-sm text-fg hover:bg-bg-muted btn-rim transition-colors">
+          <Palette size={14} /> Open the design gallery <ArrowRight size={14} className="text-fg-muted" />
+        </Link>
       </Card>
     </div>
   );

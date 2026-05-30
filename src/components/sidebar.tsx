@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles, Home, CheckSquare, Inbox, NotebookPen, BarChart3, Bot,
-  Users, Send, Settings, Search, ChevronRight, Palette,
+  Users, Send, Settings, Search, ChevronRight, Building2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -15,8 +16,8 @@ type Company = { id: number; name: string; code: string };
 
 const NAV = [
   { label: "COS Home", href: "/", icon: Home, match: (p: string, tab: string | null) => p === "/" && tab !== "tasks" && tab !== "companies" },
-  { label: "Tasks", href: "/?tab=tasks", icon: CheckSquare, match: (p: string, tab: string | null) => p === "/" && tab === "tasks" },
   { label: "Ask COS", href: "/ask", icon: Bot, match: (p: string, _tab: string | null) => p === "/ask" },
+  { label: "Tasks", href: "/?tab=tasks", icon: CheckSquare, match: (p: string, tab: string | null) => p === "/" && tab === "tasks" },
 ];
 
 const NAV_BELOW = [
@@ -25,8 +26,6 @@ const NAV_BELOW = [
   { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "People", href: "/people", icon: Users },
   { label: "Outbox", href: "/outbox", icon: Send },
-  { label: "Design", href: "/design", icon: Palette },
-  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 function Item({
@@ -70,34 +69,54 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
         <span className="text-sm font-semibold tracking-tight">COS</span>
       </Link>
 
+      {/* Search — top of the rail */}
+      <div className="px-2 pt-3">
+        <button
+          onClick={() => { onNavigate?.(); openPalette(); }}
+          className="w-full inline-flex items-center gap-2.5 rounded-md border border-border bg-bg-elev px-2.5 py-1.5 text-[13px] text-fg-muted hover:text-fg hover:bg-bg-muted/60 btn-rim transition-colors"
+        >
+          <Search size={15} className="shrink-0" /> Search
+          <kbd className="ml-auto text-[10px] font-mono text-fg-subtle border border-border rounded px-1 py-0.5">⌘K</kbd>
+        </button>
+      </div>
+
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
         {NAV.map((n) => (
           <Item key={n.label} href={n.href} icon={n.icon} label={n.label} active={n.match(pathname, tab)} onNavigate={onNavigate} />
         ))}
 
-        <div className="pt-2">
-          <div className="flex items-center">
-            <button
-              type="button"
-              onClick={() => setCompaniesOpen((o) => !o)}
-              className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-fg-subtle hover:text-fg-muted"
-            >
-              <ChevronRight size={12} className={cn("transition-transform", companiesOpen && "rotate-90")} />
-              Companies
-            </button>
-            <Link href="/companies" onClick={onNavigate} className={cn("ml-auto mr-1 text-[11px] px-1.5 py-0.5 rounded transition-colors", onCompaniesIndex ? "text-accent" : "text-fg-subtle hover:text-fg")}>
-              All
-            </Link>
-          </div>
-          {companiesOpen && (
-            <div className="mt-0.5 space-y-0.5">
-              {companies.map((c) => (
-                <Item key={c.id} href={`/companies/${c.id}`} label={c.name} indent active={pathname === `/companies/${c.id}`} onNavigate={onNavigate} />
-              ))}
-            </div>
+        {/* Companies — a normal nav item that fluidly expands its list. */}
+        <button
+          type="button"
+          onClick={() => setCompaniesOpen((o) => !o)}
+          className={cn(
+            "w-full flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors",
+            onCompaniesIndex ? "bg-accent/15 text-accent font-medium glass-rim" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
           )}
-        </div>
+        >
+          <Building2 size={15} className="shrink-0" />
+          <span className="truncate">Companies</span>
+          <ChevronRight size={14} className={cn("ml-auto transition-transform", companiesOpen && "rotate-90")} />
+        </button>
+        <AnimatePresence initial={false}>
+          {companiesOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="mt-0.5 space-y-0.5">
+                <Item href="/companies" label="All companies" indent active={onCompaniesIndex} onNavigate={onNavigate} />
+                {companies.map((c) => (
+                  <Item key={c.id} href={`/companies/${c.id}`} label={c.name} indent active={pathname === `/companies/${c.id}`} onNavigate={onNavigate} />
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="pt-2 mt-2 border-t border-border space-y-0.5">
           {NAV_BELOW.map((n) => (
@@ -106,15 +125,18 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
         </div>
       </nav>
 
-      {/* Footer: search + theme */}
+      {/* Footer: settings (where search used to be) + theme */}
       <div className="border-t border-border p-2 flex items-center gap-1 shrink-0">
-        <button
-          onClick={() => { onNavigate?.(); openPalette(); }}
-          className="flex-1 inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+        <Link
+          href="/settings"
+          onClick={onNavigate}
+          className={cn(
+            "flex-1 flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors",
+            pathname === "/settings" ? "bg-accent/15 text-accent font-medium glass-rim" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+          )}
         >
-          <Search size={15} /> Search
-          <kbd className="ml-auto text-[10px] font-mono text-fg-subtle border border-border rounded px-1 py-0.5">⌘K</kbd>
-        </button>
+          <Settings size={15} className="shrink-0" /> Settings
+        </Link>
         <ThemeToggle />
       </div>
     </div>

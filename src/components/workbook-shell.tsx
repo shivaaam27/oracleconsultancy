@@ -3,18 +3,20 @@
 import { useState, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { NotebookPen, StickyNote } from "lucide-react";
+import { NotebookPen, StickyNote, ListTodo } from "lucide-react";
 import { Segmented } from "@/components/macos";
 
-type Tab = "meetings" | "notes";
+type Tab = "meetings" | "notes" | "todo";
 
 export function WorkbookShell({
   meetingsSlot,
   notesSlot,
+  todoSlot,
   initialTab = "meetings",
 }: {
   meetingsSlot: React.ReactNode;
   notesSlot: React.ReactNode;
+  todoSlot: React.ReactNode;
   initialTab?: Tab;
 }) {
   const [tab, setTabState] = useState<Tab>(initialTab);
@@ -32,6 +34,8 @@ export function WorkbookShell({
     router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
   }, [router, pathname, searchParams]);
 
+  const slot = tab === "meetings" ? meetingsSlot : tab === "notes" ? notesSlot : todoSlot;
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-3">
@@ -42,6 +46,7 @@ export function WorkbookShell({
           options={[
             { value: "meetings", label: "Meetings", icon: <NotebookPen size={14} /> },
             { value: "notes", label: "Notes", icon: <StickyNote size={14} /> },
+            { value: "todo", label: "To-do", icon: <ListTodo size={14} /> },
           ]}
         />
       </div>
@@ -54,7 +59,7 @@ export function WorkbookShell({
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.16 }}
         >
-          {tab === "meetings" ? meetingsSlot : notesSlot}
+          {slot}
         </motion.div>
       </AnimatePresence>
     </div>
