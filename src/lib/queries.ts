@@ -179,6 +179,7 @@ export type CompanyKpi = {
   closed: number;
   aging: number;
   riskScore: number;
+  accent: string | null;
 };
 
 export function computeCompanyKpis(rows: TaskRow[]): CompanyKpi[] {
@@ -215,6 +216,7 @@ export function computeCompanyKpis(rows: TaskRow[]): CompanyKpi[] {
       closed,
       aging,
       riskScore,
+      accent: list[0].companyAccent ?? null,
     });
   }
   return out.sort((a, b) => b.riskScore - a.riskScore);

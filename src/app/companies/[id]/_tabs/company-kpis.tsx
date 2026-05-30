@@ -39,12 +39,10 @@ export function CompanyKpiStrip({
   ];
 
   return (
-    <div className="card p-3">
-      <div className="flex flex-wrap gap-2">
-        {chips.map((c) => (
-          <Chip key={c.label} {...c} />
-        ))}
-      </div>
+    <div className="flex flex-wrap gap-2">
+      {chips.map((c) => (
+        <Chip key={c.label} {...c} />
+      ))}
     </div>
   );
 }
@@ -60,21 +58,21 @@ function Chip({
   tone: "danger" | "warn" | "info";
   href: string;
 }) {
-  const cls =
-    count === 0
-      ? "border-transparent text-fg-subtle pointer-events-none"
-      : tone === "danger"
-        ? "border-border text-fg-muted hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/40"
-        : tone === "warn"
-          ? "border-border text-fg-muted hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-500/10 hover:border-amber-500/40"
-          : "border-border text-fg-muted hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-500/10 hover:border-blue-500/40";
+  const dim = count === 0;
+  const tint = dim
+    ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle pointer-events-none"
+    : tone === "danger" ? "bg-danger-soft/60 ring-1 ring-danger/30 text-danger hover:ring-2"
+    : tone === "warn" ? "bg-warn-soft/60 ring-1 ring-warn/30 text-warn hover:ring-2"
+    : "bg-info-soft/60 ring-1 ring-info/30 text-info hover:ring-2";
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors ${cls}`}
+      className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
     >
-      <span className="font-semibold tabular">{count}</span>
-      <span>{label}</span>
+      <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
+        {count}
+      </span>
+      <span className="font-medium">{label}</span>
     </Link>
   );
 }

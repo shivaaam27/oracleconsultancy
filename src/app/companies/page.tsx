@@ -1,49 +1,76 @@
 import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
-import { PageHeader, Card, Badge } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import Link from "next/link";
-import { Building2, AlertOctagon, CheckCircle2, Clock } from "lucide-react";
+import { Building2, AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+function riskTint(score: number): { label: string; cls: string } {
+  if (score > 50) return { label: "High risk", cls: "bg-danger-soft/70 ring-1 ring-danger/30 text-danger" };
+  if (score > 20) return { label: "Watch", cls: "bg-warn-soft/70 ring-1 ring-warn/30 text-warn" };
+  return { label: "Healthy", cls: "bg-success-soft/70 ring-1 ring-success/30 text-success" };
+}
 
 export default async function CompaniesPage() {
   const rows = await getAllTasks();
   const companies = computeCompanyKpis(rows);
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader title="Companies" sub={`${companies.length} companies tracked`} />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {companies.map((c) => (
-          <Link key={c.id} href={`/companies/${c.id}`} className="group">
-            <Card className="p-5 hover:border-accent transition-all hover:shadow-md">
-              <div className="flex items-start justify-between">
-                <div className="w-11 h-11 rounded-xl bg-accent-soft text-fg flex items-center justify-center">
-                  <Building2 size={18} />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {companies.map((c) => {
+          const accent = c.accent || "hsl(var(--accent))";
+          const risk = riskTint(c.riskScore);
+          return (
+            <Link key={c.id} href={`/companies/${c.id}`} className="group">
+              <div className="glass elevated relative overflow-hidden rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
+                {/* accent wash keyed to the company colour */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -top-12 -right-10 h-28 w-28 rounded-full blur-2xl opacity-50"
+                  style={{ background: `radial-gradient(circle, ${accent}, transparent 70%)` }}
+                />
+                <div className="relative flex items-start justify-between gap-2">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0"
+                    style={{ backgroundColor: accent }}
+                  >
+                    <Building2 size={17} />
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md ${risk.cls}`}>
+                    {risk.label}
+                    <span className="tabular opacity-70">{c.riskScore}</span>
+                  </span>
                 </div>
-                <Badge tone={c.riskScore > 50 ? "danger" : c.riskScore > 20 ? "warn" : "success"}>
-                  Risk {c.riskScore}
-                </Badge>
+
+                <div className="relative mt-3 flex items-center gap-1">
+                  <div className="min-w-0">
+                    <div className="font-semibold tracking-tight truncate group-hover:text-accent transition-colors">{c.name}</div>
+                    <div className="text-xs text-fg-muted mt-0.5">{c.total} total tasks</div>
+                  </div>
+                  <ChevronRight size={16} className="ml-auto text-fg-subtle group-hover:text-accent group-hover:translate-x-0.5 transition-all shrink-0" />
+                </div>
+
+                {/* Mini stat strip */}
+                <div className="relative grid grid-cols-3 gap-2 mt-3.5 pt-3.5 border-t border-border/60 text-xs">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-fg-subtle inline-flex items-center gap-1"><Clock size={11} /> Open</span>
+                    <span className="font-semibold tabular text-sm">{c.open}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-fg-subtle inline-flex items-center gap-1"><AlertOctagon size={11} /> Overdue</span>
+                    <span className={`font-semibold tabular text-sm ${c.overdue ? "text-danger" : ""}`}>{c.overdue}</span>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-fg-subtle inline-flex items-center gap-1"><CheckCircle2 size={11} /> Done</span>
+                    <span className="font-semibold tabular text-sm">{c.completed}</span>
+                  </div>
+                </div>
               </div>
-              <div className="mt-4">
-                <div className="font-semibold tracking-tight group-hover:text-accent transition-colors">{c.name}</div>
-                <div className="text-xs text-fg-muted mt-0.5">{c.total} total tasks</div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border text-xs">
-                <div className="flex flex-col items-start gap-1">
-                  <div className="text-fg-subtle flex items-center gap-1"><Clock size={11} /> Open</div>
-                  <div className="font-semibold tabular text-sm">{c.open}</div>
-                </div>
-                <div className="flex flex-col items-start gap-1">
-                  <div className="text-fg-subtle flex items-center gap-1"><AlertOctagon size={11} /> Overdue</div>
-                  <div className={`font-semibold tabular text-sm ${c.overdue ? "text-danger" : ""}`}>{c.overdue}</div>
-                </div>
-                <div className="flex flex-col items-start gap-1">
-                  <div className="text-fg-subtle flex items-center gap-1"><CheckCircle2 size={11} /> Done</div>
-                  <div className="font-semibold tabular text-sm">{c.completed}</div>
-                </div>
-              </div>
-            </Card>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

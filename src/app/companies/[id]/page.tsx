@@ -74,8 +74,8 @@ export default async function CompanyPage({
           )}
 
           {/* Insights — available but collapsed so they never block the tasks. */}
-          <details className="group rounded-xl border border-border bg-bg-subtle/40 mt-2">
-            <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-2.5 text-sm font-medium list-none">
+          <details className="group glass elevated rounded-2xl overflow-hidden mt-2">
+            <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-medium list-none">
               <ChevronRight size={14} className="text-fg-muted transition-transform group-open:rotate-90" />
               Company insights
               <span className="text-xs text-fg-subtle font-normal">momentum &amp; AI briefing</span>
