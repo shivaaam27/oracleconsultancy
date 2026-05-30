@@ -1,7 +1,7 @@
 import { GitCommitHorizontal, Pencil, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { CodeLinkedText } from "./code-linked-text";
-import { cleanReason, summariseEditGroup, type TimelineEditGroup } from "@/lib/timeline";
+import { cleanReason, formatAuditValue, summariseEditGroup, type TimelineEditGroup } from "@/lib/timeline";
 
 function fmtTime(d: Date) {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -45,9 +45,9 @@ export function TimelineEditGroupView({
                   </Link>
                 )}
                 <span className="font-medium text-fg">{a.field}</span>
-                {a.oldValue && <span className="text-fg-muted">{a.oldValue}</span>}
+                {a.oldValue && <span className="text-fg-muted">{formatAuditValue(a.field, a.oldValue)}</span>}
                 {a.oldValue && a.newValue && <GitCommitHorizontal size={9} className="text-fg-subtle" />}
-                {a.newValue && <span className="text-fg font-medium">{a.newValue}</span>}
+                {a.newValue && <span className="text-fg font-medium">{formatAuditValue(a.field, a.newValue)}</span>}
               </div>
               {reason && (
                 <p className="italic text-fg-muted pl-1">

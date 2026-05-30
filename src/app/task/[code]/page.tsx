@@ -18,6 +18,7 @@ import {
   suppressUpdateMetaAudits,
   groupFieldEdits,
   cleanReason,
+  formatAuditValue,
   applyTimelineFilter,
   parseTimelineFilter,
   type TimelineItem,
@@ -475,9 +476,9 @@ export default async function TaskPage({
                                 <AuditMenu entryId={item.id} currentReason={item.changeReason} />
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                {item.oldValue && <span className="text-fg-muted">{item.oldValue}</span>}
+                                {item.oldValue && <span className="text-fg-muted">{formatAuditValue(item.field, item.oldValue)}</span>}
                                 {item.oldValue && item.newValue && <GitCommitHorizontal size={10} className="text-fg-subtle" />}
-                                {item.newValue && <span className="text-fg font-medium">{item.newValue}</span>}
+                                {item.newValue && <span className="text-fg font-medium">{formatAuditValue(item.field, item.newValue)}</span>}
                               </div>
                               {cleanReason(item.changeReason) && (
                                 <p className="italic text-fg-muted">

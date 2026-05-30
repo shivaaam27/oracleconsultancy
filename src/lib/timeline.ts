@@ -86,6 +86,31 @@ export function cleanReason(r: string | null | undefined): string | null {
   return t;
 }
 
+const DATE_FIELDS = new Set(["Meeting Date", "Deadline", "Created Date", "Closed Date", "Due Date"]);
+
+/**
+ * Audit values for date fields were imported as Excel serial numbers (e.g.
+ * "46143") or ISO strings. Render them as friendly dates so the timeline reads
+ * naturally instead of showing raw serials.
+ */
+export function formatAuditValue(field: string | null | undefined, value: string | null | undefined): string | null {
+  if (value == null || value === "") return value ?? null;
+  if (field && DATE_FIELDS.has(field)) {
+    const n = Number(value);
+    // Excel serial date (days since 1899-12-30; 25569 = 1970-01-01).
+    if (Number.isFinite(n) && n > 20000 && n < 100000) {
+      const d = new Date((n - 25569) * 86400000);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    }
+    // ISO / parseable date string.
+    if (/\d{4}-\d{2}-\d{2}/.test(value)) {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    }
+  }
+  return value;
+}
+
 /* ----------------------------------------------------------------------
  * Sort
  * ---------------------------------------------------------------------- */
