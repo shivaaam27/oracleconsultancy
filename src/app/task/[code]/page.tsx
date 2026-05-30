@@ -150,6 +150,29 @@ export default async function TaskPage({
     Critical: "text-danger", High: "text-warn", Medium: "text-info", Low: "text-fg-muted",
   };
 
+  // Coloured pill tints — gives each stat a distinct hue rather than uniform glass.
+  const priorityTint: Record<string, string> = {
+    Critical: "bg-danger-soft/60 ring-1 ring-danger/25",
+    High:     "bg-warn-soft/60   ring-1 ring-warn/25",
+    Medium:   "bg-info-soft/60   ring-1 ring-info/25",
+    Low:      "bg-bg-subtle/60   ring-1 ring-border",
+  };
+  const statusTint: Record<string, string> = {
+    "Not Started":      "bg-bg-subtle/60   ring-1 ring-border",
+    "In Progress":      "bg-info-soft/60   ring-1 ring-info/25    text-info",
+    "Under Review":     "bg-accent-soft/60 ring-1 ring-accent/25  text-accent",
+    "Blocked":          "bg-danger-soft/60 ring-1 ring-danger/25  text-danger",
+    "Waiting External": "bg-warn-soft/60   ring-1 ring-warn/25    text-warn",
+    "Escalated":        "bg-danger-soft/60 ring-1 ring-danger/30  text-danger",
+    "Completed":        "bg-success-soft/60 ring-1 ring-success/25 text-success",
+    "Closed":           "bg-bg-subtle/60   ring-1 ring-border     text-fg-muted",
+  };
+  const dtdTone =
+    r.daysToDeadline === "done" ? "bg-success-soft/60 ring-1 ring-success/25 text-success"
+    : r.daysToDeadline !== null && Number(r.daysToDeadline) < 0 ? "bg-danger-soft/60 ring-1 ring-danger/30 text-danger"
+    : r.daysToDeadline !== null && Number(r.daysToDeadline) <= 7 ? "bg-warn-soft/60 ring-1 ring-warn/25 text-warn"
+    : "bg-bg-subtle/60 ring-1 ring-border";
+
   return (
     <div className="space-y-5 max-w-5xl pb-24 lg:pb-6">
       {/* Top bar: circular back + breadcrumb (mobile-first iOS feel) */}
@@ -173,10 +196,23 @@ export default async function TaskPage({
 
       {/* Hero card */}
       <div className="glass elevated rounded-3xl p-5 sm:p-6 space-y-4 relative overflow-hidden">
-        <div className="flex items-center gap-2 flex-wrap">
+        {/* soft colour wash so the hero feels alive */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full blur-3xl opacity-60"
+          style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.35), transparent 70%)" }}
+        />
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full blur-3xl opacity-50 ${
+            r.flag === "overdue" || r.escalation === "Yes" ? "" : "hidden"
+          }`}
+          style={{ background: "radial-gradient(circle, hsl(var(--danger) / 0.35), transparent 70%)" }}
+        />
+        <div className="relative flex items-center gap-2 flex-wrap">
           <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
           {r.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
-          <span className={`text-[11px] uppercase tracking-wider font-medium ${priorityColor[r.priority] || "text-fg-muted"}`}>
+          <span className={`px-2 py-0.5 rounded-full text-[11px] uppercase tracking-wider font-medium ${priorityTint[r.priority] || ""} ${priorityColor[r.priority] || "text-fg-muted"}`}>
             {r.priority}
           </span>
         </div>
@@ -196,29 +232,27 @@ export default async function TaskPage({
         </div>
       </div>
 
-      {/* Stat pills — horizontal scroll on mobile, wraps on desktop */}
+      {/* Stat pills — colour-tinted per status / priority / DTD severity */}
       <div className="-mx-1 px-1 overflow-x-auto scrollbar-none">
         <div className="flex gap-2.5 sm:flex-wrap min-w-min">
           {[
-            { label: "Status",     value: r.status, accent: true },
-            { label: "Priority",   value: r.priority, className: priorityColor[r.priority] },
-            { label: "Days open",  value: String(r.daysOpen ?? "—") },
+            { label: "Status",     value: r.status,   tint: statusTint[r.status] ?? "" },
+            { label: "Priority",   value: r.priority, tint: priorityTint[r.priority] ?? "" },
+            { label: "Days open",  value: String(r.daysOpen ?? "—"), tint: "bg-bg-subtle/60 ring-1 ring-border" },
             { label: "DTD",        value: r.daysToDeadline !== null && r.daysToDeadline !== "done"
               ? `${r.daysToDeadline}d`
               : (r.daysToDeadline === "done" ? "done" : "—"),
-              className: r.daysToDeadline !== null && r.daysToDeadline !== "done"
-                ? (Number(r.daysToDeadline) < 0 ? "text-danger" : Number(r.daysToDeadline) <= 7 ? "text-warn" : "")
-                : "" },
-            { label: "Category",   value: r.category || "—" },
-            { label: "Department", value: r.department || "—" },
-            { label: "Risk",       value: r.risk || "—" },
+              tint: dtdTone },
+            { label: "Risk",       value: r.risk || "—",       tint: priorityTint[r.risk || ""] ?? "bg-bg-subtle/60 ring-1 ring-border" },
+            { label: "Category",   value: r.category || "—",   tint: "bg-bg-subtle/60 ring-1 ring-border" },
+            { label: "Department", value: r.department || "—", tint: "bg-bg-subtle/60 ring-1 ring-border" },
           ].map((item) => (
             <div
               key={item.label}
-              className={`glass elevated rounded-2xl px-4 py-3 min-w-[112px] shrink-0 ${item.accent ? "bg-accent-soft/40" : ""}`}
+              className={`rounded-2xl px-4 py-3 min-w-[112px] shrink-0 elevated backdrop-blur-md ${item.tint}`}
             >
               <div className="text-[10px] uppercase tracking-wider text-fg-muted">{item.label}</div>
-              <div className={`text-sm font-semibold mt-1 ${(item as any).className || ""}`}>{item.value}</div>
+              <div className="text-sm font-semibold mt-1 tabular">{item.value}</div>
             </div>
           ))}
         </div>
