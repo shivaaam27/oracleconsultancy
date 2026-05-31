@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Users, CalendarDays } from "lucide-react";
+import { ChevronDown, Users } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { Badge } from "@/components/ui";
 import { SelectCheckbox } from "@/app/task/_views/selection";
 import { AssigneeList } from "@/components/assignee-list";
+import { DeadlineEditor } from "@/components/deadline-editor";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -25,11 +26,6 @@ function flagDot(f: string): string {
   if (["due-soon", "no-deadline", "aging"].includes(f)) return "bg-warn";
   if (f === "on-track") return "bg-success";
   return "bg-fg-subtle";
-}
-
-function fmtDeadline(d: Date | null): string {
-  if (!d) return "No date";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
 /**
@@ -58,13 +54,6 @@ export function TaskCard({
 }) {
   const [showUpdate, setShowUpdate] = useState(false);
 
-  const dtdOverdue = typeof row.daysToDeadline === "number" && row.daysToDeadline < 0;
-  const dtdSoon = typeof row.daysToDeadline === "number" && row.daysToDeadline >= 0 && row.daysToDeadline <= 7;
-  const deadlineCls = dtdOverdue
-    ? "text-danger"
-    : dtdSoon ? "text-warn"
-    : "text-fg-muted";
-
   return (
     <div
       onPointerDown={onPointerDown}
@@ -76,13 +65,13 @@ export function TaskCard({
       onClick={onOpen}
       className="glass elevated rounded-2xl p-3.5 select-none active:scale-[0.99] transition-transform cursor-pointer"
     >
-      {/* Header: identity left, deadline right (consistent anchor) */}
+      {/* Header: checkbox + code chip (with flag dot) + company · deadline (interactive) */}
       <div className="flex items-center gap-2">
         <span onClick={(e) => e.stopPropagation()} className="shrink-0">
           <SelectCheckbox code={row.code} />
         </span>
-        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${flagDot(row.flag)}`} />
-        <span className="font-mono text-[11px] font-medium text-fg-muted px-1.5 py-0.5 rounded-md bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-fg-muted pl-1.5 pr-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
+          <span className={`h-1.5 w-1.5 rounded-full ${flagDot(row.flag)}`} />
           {row.code}
         </span>
         {!hideCompany && (
@@ -91,11 +80,8 @@ export function TaskCard({
             <span className="truncate">{row.companyName}</span>
           </span>
         )}
-        <span className={`ml-auto inline-flex items-center gap-1 text-[11px] font-medium tabular shrink-0 ${deadlineCls}`}>
-          <CalendarDays size={12} className="opacity-70" />
-          {fmtDeadline(row.deadline)}
-          {typeof row.daysToDeadline === "number" && <span>· {row.daysToDeadline}d</span>}
-          {row.daysToDeadline === "done" && <span>· ✓</span>}
+        <span className="ml-auto shrink-0">
+          <DeadlineEditor code={row.code} deadline={row.deadline} daysToDeadline={row.daysToDeadline} />
         </span>
       </div>
 

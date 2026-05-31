@@ -11,7 +11,7 @@ import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
-import { Plus, CheckSquare, Sparkles } from "lucide-react";
+import { Plus, CheckSquare, Sparkles, Clock, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus } from "lucide-react";
 
 type Sp = {
   company?: string;
@@ -187,38 +187,39 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         </div>
       )}
 
-      {/* KPI chips — colour-tinted glass pills */}
-      <div className="flex flex-wrap gap-2">
+      {/* KPI chips — compact icon chips; label slides open on hover (unified) */}
+      <div className="flex flex-wrap gap-1.5">
         {[
-          { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const },
-          { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const },
-          { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const },
-          { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const },
-          { label: "No Deadline", count: kpi.noDeadline,  key: "no-deadline", filterKey: "flag" as const,    tone: "warn" as const },
-          { label: "Critical",    count: kpi.critical,    key: "Critical",    filterKey: "priority" as const, tone: "danger" as const },
-          { label: "No Owner",    count: kpi.noOwner,     key: "1",           filterKey: "noOwner" as const,  tone: "info" as const },
-        ].map(({ label, count, key, filterKey, tone }) => {
+          { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: Clock },
+          { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
+          { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const, Icon: PauseCircle },
+          { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
+          { label: "No Deadline", count: kpi.noDeadline,  key: "no-deadline", filterKey: "flag" as const,    tone: "warn" as const,   Icon: CalendarOff },
+          { label: "Critical",    count: kpi.critical,    key: "Critical",    filterKey: "priority" as const, tone: "danger" as const, Icon: Flame },
+          { label: "No Owner",    count: kpi.noOwner,     key: "1",           filterKey: "noOwner" as const,  tone: "info" as const,   Icon: UserMinus },
+        ].map(({ label, count, key, filterKey, tone, Icon }) => {
           const active = sp[filterKey] === key;
           const href = buildHref(sp, { [filterKey]: active ? undefined : key });
-          const tint =
-            tone === "danger" ? "bg-danger-soft/60 ring-danger/30 text-danger"
-            : tone === "warn" ? "bg-warn-soft/60   ring-warn/30   text-warn"
-            : "bg-info-soft/60 ring-info/30 text-info";
-          const cls = active
-            ? `${tint} ring-2 shadow-sm`
+          const tint = active
+            ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
+              : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
+              : "bg-info-soft/70 ring-2 ring-info/40 text-info"
             : count === 0
               ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
-              : `${tint} ring-1 hover:ring-2 hover:shadow-sm`;
+              : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
+              : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
+              : "bg-info-soft/50 ring-1 ring-info/25 text-info hover:ring-2";
           return (
             <Link
               key={label}
               href={href}
-              className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md ${cls}`}
+              title={`${label}: ${count}`}
+              aria-label={`${label}: ${count}`}
+              className={`group inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
             >
-              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
-                {count}
-              </span>
-              <span className="font-medium">{label}</span>
+              <Icon size={14} className="shrink-0" />
+              <span className="font-semibold tabular">{count}</span>
+              <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-[90px] group-hover:opacity-100 group-hover:ml-0.5 font-medium">{label}</span>
             </Link>
           );
         })}

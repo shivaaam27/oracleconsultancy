@@ -4,11 +4,9 @@ import { useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ExternalLink, Clock } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
-import { flagLabel } from "@/lib/derive";
 import { Badge } from "@/components/ui";
 import { InlineEdit } from "@/components/inline-edit";
-import { Deadline } from "@/components/deadline";
-import { AssigneeList } from "@/components/assignee-list";
+import { DeadlineEditor } from "@/components/deadline-editor";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { PeekQuickUpdate } from "@/components/peek-quick-update";
 import { SnoozeSheet } from "@/components/snooze-sheet";
@@ -36,16 +34,6 @@ function statusTone(s: string): "default" | "success" | "warn" | "danger" | "inf
   if (s === "Waiting External" || s === "Under Review") return "warn";
   if (s === "In Progress") return "info";
   return "default";
-}
-
-function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "info" {
-  switch (f) {
-    case "closed": return "default";
-    case "escalated": case "escalate-now": case "overdue": case "stalled": return "danger";
-    case "due-soon": case "no-deadline": case "aging": return "warn";
-    case "on-track": return "success";
-    default: return "default";
-  }
 }
 
 const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
@@ -144,16 +132,16 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
               setDragCode(null); setOverStatus(null);
             }}
             className={
-              "w-[268px] shrink-0 rounded-xl transition-colors " +
+              "w-[230px] sm:w-[256px] shrink-0 rounded-2xl transition-colors " +
               (overStatus === col.status ? "bg-accent/8 ring-1 ring-accent/40" : "")
             }
           >
-            <div className="flex items-center justify-between px-2.5 py-1.5 sticky top-0">
-              <div className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{col.status}</div>
-              <div className="text-xs text-fg-subtle tabular">{col.items.length}</div>
+            <div className="flex items-center gap-2 px-2 py-1.5 sticky top-0">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted truncate">{col.status}</div>
+              <div className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-subtle text-fg-muted text-[10px] font-semibold tabular">{col.items.length}</div>
             </div>
 
-            <div className="space-y-2 min-h-[60px] px-0.5 pb-1">
+            <div className="space-y-1.5 min-h-[60px] px-0.5 pb-1">
               {col.items.map((r) => (
                 <div
                   key={r.id}
@@ -168,12 +156,12 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                   onContextMenu={(e) => e.preventDefault()}
                   onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
                   className={
-                    "elevated bg-bg-elev rounded-xl p-3 border-l-[3px] cursor-grab active:cursor-grabbing select-none " +
+                    "glass elevated rounded-xl p-2.5 border-l-[3px] cursor-grab active:cursor-grabbing select-none " +
                     "transition-shadow hover:shadow-md " + (dragCode === r.code ? "opacity-40" : "")
                   }
                   style={{ borderLeftColor: r.companyAccent || "transparent" }}
                 >
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-1.5 min-w-0" onClick={(e) => e.stopPropagation()}>
                       <SelectCheckbox code={r.code} />
                       <span className="font-mono text-[10px] text-fg-muted">{r.code}</span>
@@ -185,28 +173,16 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                     </span>
                   </div>
 
-                  <div className="text-sm leading-snug mb-2 line-clamp-3 group-hover:text-accent">{r.actionItem}</div>
+                  <div className="text-[13px] leading-snug mb-2 line-clamp-2">{r.actionItem}</div>
 
-                  <div className="flex items-center justify-between text-xs text-fg-muted gap-2">
-                    <span className="truncate inline-flex items-center gap-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-fg-muted gap-2">
+                    <span className="truncate inline-flex items-center gap-1.5 min-w-0">
                       <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.companyAccent || "transparent" }} />
-                      {r.companyName}
+                      <span className="truncate">{r.companyName}</span>
                     </span>
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <InlineEdit field="deadline" taskCode={r.code} value={r.deadline ? r.deadline.toISOString() : null} className="whitespace-nowrap">
-                        <Deadline date={r.deadline} />
-                      </InlineEdit>
+                    <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+                      <DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} />
                     </span>
-                  </div>
-
-                  {r.assignees.length > 0 && (
-                    <div className="text-xs text-fg-subtle mt-1.5 truncate" onClick={(e) => e.stopPropagation()}>
-                      <AssigneeList names={r.assignees} ids={r.assigneeIds} />
-                    </div>
-                  )}
-
-                  <div className="mt-2">
-                    <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
                   </div>
                 </div>
               ))}

@@ -163,6 +163,11 @@
 
 html, body { height: 100%; }
 
+/* Lock the document to vertical scrolling only — inner regions (e.g. the board
+   columns) still scroll horizontally via their own overflow containers. Stops
+   the whole page rubber-banding sideways on mobile. */
+html, body { overflow-x: hidden; max-width: 100%; }
+
 body {
   background: hsl(var(--bg));
   color: hsl(var(--fg));
