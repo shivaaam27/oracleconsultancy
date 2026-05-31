@@ -123,11 +123,6 @@ export function PeopleTable({ people, companies }: {
     };
   }, [people]);
 
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir(key === "workload" ? "desc" : "asc"); }
-  };
-
   return (
     <div className="space-y-4">
       {/* Search + filter chips */}

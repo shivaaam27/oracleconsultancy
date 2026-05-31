@@ -172,31 +172,20 @@ export function AttentionList({
                     rightLabel={SWIPE_LABEL[swipeRight]}
                     leftLabel={SWIPE_LABEL[swipeLeft]}
                   >
-                    <div className="w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-bg-muted/50 transition-colors cursor-pointer border-b border-border/60">
-                      {/* Left cluster: dot + (code over company) */}
-                      <span className="flex items-center gap-2 shrink-0">
-                        <span className={cn("w-1.5 h-1.5 rounded-full", dotColor(t.flag))} />
-                        <span className="flex flex-col leading-tight min-w-0 w-[80px] sm:w-auto">
-                          <span className="font-mono text-[11px] text-fg-muted truncate">{t.code}</span>
-                          <span className="text-[10px] text-fg-subtle truncate sm:hidden">{t.companyName}</span>
-                        </span>
-                        {/* Status pill inline on desktop */}
-                        <Pill tone={statusTone(t.status)} className="hidden sm:inline-flex">{t.status}</Pill>
+                    <div className="w-full text-left flex items-center gap-3 px-3.5 py-2.5 hover:bg-bg-muted/50 transition-colors cursor-pointer border-b border-border/60">
+                      {/* urgency dot */}
+                      <span className={cn("w-2 h-2 rounded-full shrink-0", dotColor(t.flag))} />
+
+                      {/* Title + company — the glance content */}
+                      <span className="flex-1 min-w-0">
+                        <span className="block truncate text-sm">{t.actionItem}</span>
+                        <span className="block truncate text-[11px] text-fg-muted">{t.companyName}</span>
                       </span>
 
-                      {/* Title fills the row */}
-                      <span className="flex-1 min-w-0 truncate text-sm">{t.actionItem}</span>
-
-                      {/* Company — inline on wider screens */}
-                      <span className="hidden md:block truncate text-[11px] text-fg-muted max-w-[140px] shrink-0">{t.companyName}</span>
-
-                      {/* Right cluster: deadline over status (mobile) */}
-                      <span className="flex flex-col items-end leading-tight shrink-0">
-                        <span className={cn("text-[11px] font-medium tabular",
-                          dl.tone === "danger" ? "text-red-600 dark:text-red-400" : dl.tone === "warn" ? "text-amber-600 dark:text-amber-400" : "text-fg-muted")}>
-                          {dl.text}
-                        </span>
-                        <span className="text-[10px] text-fg-subtle sm:hidden">{t.status}</span>
+                      {/* Deadline — the only number that matters at a glance */}
+                      <span className={cn("text-[11px] font-medium tabular shrink-0 text-right",
+                        dl.tone === "danger" ? "text-red-600 dark:text-red-400" : dl.tone === "warn" ? "text-amber-600 dark:text-amber-400" : "text-fg-muted")}>
+                        {dl.text}
                       </span>
                     </div>
                   </SwipeRow>

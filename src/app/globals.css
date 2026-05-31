@@ -183,6 +183,29 @@ h1, h2, h3 { letter-spacing: -0.015em; }
 
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* AUMIO wordmark — tighter, confident brand lettering with a subtle accent
+   gradient. Used in the sidebar + bottom-nav brand. */
+.wordmark {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, hsl(var(--fg)) 30%, hsl(var(--accent)) 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── iOS-style touch feel ──────────────────────────────────────────────
+   Kill the grey tap flash, make taps feel instant, and respect touch on
+   interactive elements. */
+* { -webkit-tap-highlight-color: transparent; }
+button, a, [role="button"], summary, label { touch-action: manipulation; }
+@media (hover: none) {
+  /* On touch devices, give pressable surfaces a quick, springy press. */
+  button:active, a:active, [role="button"]:active, summary:active {
+    transition: transform 0.06s ease;
+  }
+}
+
 /* Lighter, more refined icon strokes (SF-Symbols-like). Inline strokeWidth on a
    component still wins where a specific weight is intended. */
 svg.lucide { stroke-width: 1.75px; }

@@ -74,7 +74,7 @@ export function SidebarContent({ companies, onNavigate }: { companies: Company[]
           <Sparkles size={16} className="relative text-accent-fg" />
         </span>
         <div className="flex flex-col leading-none">
-          <span className="text-sm font-semibold tracking-tight">AUMIO</span>
+          <span className="text-[15px] wordmark">AUMIO</span>
           <span className="text-[10px] text-fg-subtle">Oracle Group</span>
         </div>
       </Link>
