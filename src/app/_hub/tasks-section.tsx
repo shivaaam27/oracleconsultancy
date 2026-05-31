@@ -3,6 +3,7 @@ import { getSavedViews } from "@/lib/task-views";
 import { Card, LinkButton, EmptyState } from "@/components/ui";
 import { SavedViewsBar } from "@/components/saved-views-bar";
 import { FilterSelect } from "@/components/filter-select";
+import { CompanyJump } from "@/components/company-jump";
 import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
@@ -10,7 +11,7 @@ import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
-import { Plus, CheckSquare } from "lucide-react";
+import { Plus, CheckSquare, Sparkles } from "lucide-react";
 
 type Sp = {
   company?: string;
@@ -86,7 +87,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     );
   }
 
-  const companies = [...new Set(all.map((r) => r.companyName))].filter(Boolean).sort();
+  // Unique companies with ids — used by the jump-to-company picker.
+  const companyList = [...new Map(all.map((r) => [r.companyId, r.companyName])).entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const priorities = ["Critical", "High", "Medium", "Low"];
 
   const baseForKpis = (showClosed ? all : all.filter((r) => r.status !== "Closed")).filter(
@@ -145,10 +149,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       {/* Header row */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">{dayMode ? "Task Management" : "Tasks"}</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Task Management</h2>
           <p className="text-xs text-fg-muted mt-0.5">
             {dayMode
-              ? `${total} item${total === 1 ? "" : "s"} needing attention`
+              ? `${total} item${total === 1 ? "" : "s"} need attention`
               : `${total} ${showClosed ? "task" : "open task"}${total === 1 ? "" : "s"}`}
           </p>
         </div>
@@ -160,20 +164,26 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         </div>
       </div>
 
-      {/* Focus banner */}
-      {dayMode && (
-        <div className="glass elevated relative overflow-hidden rounded-2xl px-4 py-3 flex items-center justify-between gap-3 text-xs">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-12 -right-10 h-32 w-32 rounded-full blur-3xl opacity-60"
-            style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.35), transparent 70%)" }}
-          />
-          <div className="relative text-fg-muted">
-            <strong className="text-fg">Focus mode</strong> — overdue, due-soon, escalated, and critical tasks across all companies.
+      {/* Focus / All toggle — segmented pill (matches the rest of the system) */}
+      {!hasFilters && (view === "table" || view === "board") && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="inline-flex items-center gap-1 p-1 rounded-full glass elevated text-xs">
+            <Link
+              href="/?tab=tasks"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${dayMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+            >
+              <Sparkles size={13} /> Focus
+            </Link>
+            <Link
+              href="/?tab=tasks&all=1"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${!dayMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+            >
+              All tasks
+            </Link>
           </div>
-          <Link href="/?tab=tasks&all=1" className="relative text-accent hover:underline whitespace-nowrap font-medium">
-            Show all tasks →
-          </Link>
+          {dayMode && (
+            <span className="text-[11px] text-fg-muted">Overdue, due-soon, escalated &amp; critical across all companies.</span>
+          )}
         </div>
       )}
 
@@ -237,12 +247,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               className="flex-1 min-w-[200px] px-3 py-1.5 text-sm rounded-md"
             />
           )}
-          <FilterSelect
-            param="company"
-            value={sp.company || ""}
-            placeholder="All Companies"
-            options={[{ value: "", label: "All Companies" }, ...companies.map((c) => ({ value: c, label: c }))]}
-          />
+          <CompanyJump value="" companies={companyList} />
           <FilterSelect
             param="priority"
             value={sp.priority || ""}
@@ -291,12 +296,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         <TimelineView rows={rows} sources={taskSources} />
       ) : (
         <SelectionProvider>
+          <BulkBar />
           {view === "board" ? (
             <BoardView rows={rows} showClosed={showClosed} />
           ) : (
             <TableView rows={rows} />
           )}
-          <BulkBar />
         </SelectionProvider>
       )}
     </div>

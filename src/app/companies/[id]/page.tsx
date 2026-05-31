@@ -88,8 +88,8 @@ export default async function CompanyPage({
             <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
           ) : (
             <SelectionProvider>
-              <TableView rows={openRows} hideCompany />
               <BulkBar />
+              <TableView rows={openRows} hideCompany />
             </SelectionProvider>
           )}
 
@@ -121,8 +121,8 @@ export default async function CompanyPage({
             </div>
           ) : (
             <SelectionProvider>
-              <TableView rows={completedRows} hideCompany />
               <BulkBar />
+              <TableView rows={completedRows} hideCompany />
             </SelectionProvider>
           )}
         </>

@@ -644,6 +644,7 @@ export type BulkAction =
   | { kind: "postpone"; days: number }
   | { kind: "escalate" }
   | { kind: "close" }
+  | { kind: "delete" }
   | { kind: "update"; body: string };
 
 export type BulkResult = {
@@ -667,6 +668,19 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
       const t = await findTaskByCode(code);
       if (!t) {
         errors.push({ code, error: "Not found" });
+        continue;
+      }
+
+      // Permanent delete — log an audit trail row, then remove the task.
+      if (action.kind === "delete") {
+        await sb.from("audit_log").insert({
+          task_id: t.id, task_code: t.code, company_id: t.company_id,
+          entry_type: "CHANGE", field: "Task deleted",
+          old_value: t.action_item, new_value: "(deleted)",
+          change_reason: "Bulk: deleted", created_at: new Date().toISOString(), created_by: "web-ui",
+        });
+        await sb.from("tasks").delete().eq("id", t.id);
+        applied++;
         continue;
       }
 

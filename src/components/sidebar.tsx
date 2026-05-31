@@ -16,7 +16,7 @@ type Company = { id: number; name: string; code: string };
 
 const NAV = [
   { label: "Home", href: "/", icon: Home, match: (p: string, tab: string | null) => p === "/" && tab !== "tasks" && tab !== "companies" },
-  { label: "Tasks", href: "/?tab=tasks", icon: CheckSquare, match: (p: string, tab: string | null) => p === "/" && tab === "tasks" },
+  { label: "Task Management", href: "/?tab=tasks", icon: CheckSquare, match: (p: string, tab: string | null) => p === "/" && tab === "tasks" },
 ];
 
 const NAV_BELOW = [

@@ -23,6 +23,7 @@ import {
   CheckCheck,
   MessageSquarePlus,
   ListChecks,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { bulkUpdateTasks, type BulkAction } from "@/app/task/actions";
@@ -146,8 +147,7 @@ const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 export function BulkBar() {
   const { selected, clear, selectAll } = useSelection();
   const [pending, start] = useTransition();
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<null | "status" | "priority" | "postpone" | "update">(null);
+  const [mode, setMode] = useState<null | "status" | "priority" | "postpone" | "update" | "delete">(null);
   const [value, setValue] = useState("");
   const [days, setDays] = useState(7);
   const router = useRouter();
@@ -195,53 +195,46 @@ export function BulkBar() {
   };
 
   return (
-    <div className="fixed inset-x-0 top-4 z-50 flex justify-center pointer-events-none px-3">
+    <div className="sticky top-2 z-30 mb-2">
       <motion.div
-        initial={{ y: -20, opacity: 0 }}
+        initial={{ y: -12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto glass rounded-2xl shadow-pill border border-border w-full max-w-[760px] overflow-hidden"
+        className="glass elevated rounded-2xl overflow-hidden"
       >
         {/* Top row: count + actions */}
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex items-center gap-1.5 px-2.5 py-2 overflow-x-auto scrollbar-none">
           <button
             onClick={clear}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0"
             aria-label="Clear selection"
           >
-            <X size={14} />
+            <X size={15} />
           </button>
-          <div className="text-sm font-medium tabular">
-            {count} selected
-          </div>
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium shrink-0 pr-1">
+            <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-accent-fg text-xs font-semibold tabular">{count}</span>
+            <span>selected</span>
+          </span>
           <button
             onClick={selectAll}
-            className="text-xs px-2 py-1 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted inline-flex items-center gap-1"
+            title="Select all visible"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0"
           >
-            <ListChecks size={12} /> Select all visible
+            <ListChecks size={14} />
           </button>
-          <div className="flex-1" />
-          {pending && <Loader2 size={14} className="animate-spin text-fg-muted" />}
+          <div className="w-px h-5 bg-border mx-0.5 shrink-0" />
+          {pending && <Loader2 size={14} className="animate-spin text-fg-muted shrink-0" />}
           <BulkButton icon={ChevronUp} label="Status" onClick={() => { setMode(mode === "status" ? null : "status"); setValue(""); }} active={mode === "status"} />
           <BulkButton icon={Flag} label="Priority" onClick={() => { setMode(mode === "priority" ? null : "priority"); setValue(""); }} active={mode === "priority"} />
           <BulkButton icon={CalendarClock} label="Postpone" onClick={() => { setMode(mode === "postpone" ? null : "postpone"); }} active={mode === "postpone"} />
           <BulkButton icon={MessageSquarePlus} label="Update" onClick={() => { setMode(mode === "update" ? null : "update"); setValue(""); }} active={mode === "update"} />
-          <BulkButton
-            icon={AlertOctagon}
-            label="Escalate"
-            tone="danger"
-            onClick={() => run({ kind: "escalate" }, "Escalated")}
-          />
-          <BulkButton
-            icon={CheckCheck}
-            label="Close"
-            tone="success"
-            onClick={() => run({ kind: "close" }, "Closed")}
-          />
+          <BulkButton icon={AlertOctagon} label="Escalate" tone="danger" onClick={() => run({ kind: "escalate" }, "Escalated")} />
+          <BulkButton icon={CheckCheck} label="Close" tone="success" onClick={() => run({ kind: "close" }, "Closed")} />
+          <BulkButton icon={Trash2} label="Delete" tone="danger" onClick={() => setMode(mode === "delete" ? null : "delete")} active={mode === "delete"} />
         </div>
 
         {/* Inline confirmation panel for actions needing a value */}
-        {mode && (
+        {mode && mode !== "delete" && (
           <div className="border-t border-border px-3 py-2 flex items-center gap-2 bg-bg-subtle">
             {mode === "status" && (
               <select
@@ -305,6 +298,29 @@ export function BulkBar() {
             </button>
           </div>
         )}
+
+        {/* Delete confirmation — permanent, no undo */}
+        {mode === "delete" && (
+          <div className="border-t border-danger/20 px-3 py-2.5 flex items-center gap-2 bg-danger-soft/40">
+            <Trash2 size={15} className="text-danger shrink-0" />
+            <span className="flex-1 text-sm text-danger min-w-0">
+              Permanently delete {count} task{count === 1 ? "" : "s"}? This cannot be undone.
+            </span>
+            <button
+              onClick={() => run({ kind: "delete" }, "Deleted")}
+              disabled={pending}
+              className="px-3 py-1.5 text-sm font-medium rounded-md bg-danger text-white hover:opacity-90 disabled:opacity-40 shrink-0"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setMode(null)}
+              className="px-2 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </motion.div>
     </div>
   );
@@ -332,12 +348,13 @@ function BulkButton({
   return (
     <button
       onClick={onClick}
+      title={label}
       className={cn(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full transition-colors",
+        "inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 text-xs rounded-full transition-colors shrink-0",
         active ? "bg-bg-muted text-fg" : toneClass
       )}
     >
-      <Icon size={12} /> {label}
+      <Icon size={13} /> <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }
