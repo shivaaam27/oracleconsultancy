@@ -208,198 +208,22 @@ export function PeopleTable({ people, companies }: {
         </label>
       </div>
 
-      {/* Mobile: one card per person */}
-      <div className="sm:hidden space-y-2.5">
+      {/* Card grid — same on mobile + desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
         {filtered.map((p) => (
-          <PersonCard
-            key={p.id}
-            person={p}
-            onPointerDown={(e) => onRowPointerDown(p, e)}
-            onPointerMove={onRowPointerMove}
-            onPointerUp={clearPress}
-            onPointerLeave={clearPress}
-            onPointerCancel={clearPress}
-          />
+          <PersonCard key={p.id} person={p} onOpen={() => openPerson(p.id)} />
         ))}
       </div>
 
-      {/* Desktop: the full table */}
-      <TableShell className="hidden sm:block">
-        <table className="w-full min-w-[680px]">
-          <thead>
-            <tr>
-              <SortableTh label="Name" active={sortKey === "name"} dir={sortDir} onClick={() => toggleSort("name")} />
-              <SortableTh label="Company" active={sortKey === "company"} dir={sortDir} onClick={() => toggleSort("company")} />
-              <Th>Role</Th>
-              <Th>Contact</Th>
-              <SortableTh label="Workload" active={sortKey === "workload"} dir={sortDir} onClick={() => toggleSort("workload")} align="right" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p) => {
-              const dim = !p.active || (p.snoozedUntil && p.snoozedUntil > new Date());
-              return (
-                <tr
-                  key={p.id}
-                  onPointerDown={(e) => onRowPointerDown(p, e)}
-                  onPointerMove={onRowPointerMove}
-                  onPointerUp={clearPress}
-                  onPointerLeave={clearPress}
-                  onPointerCancel={clearPress}
-                  onContextMenu={(e) => e.preventDefault()}
-                  className={cn(
-                    "hover:bg-bg-subtle transition-colors group select-none",
-                    dim && "opacity-60"
-                  )}
-                >
-                  <Td className="font-medium">
-                    <div className="flex items-center gap-1.5">
-                      <PersonDrawerLink
-                        id={p.id}
-                        name={p.name}
-                        className="text-left hover:text-accent transition-colors"
-                      />
-                      {p.personType !== "internal" && (
-                        <Badge tone={p.personType === "expat" ? "info" : "default"}>
-                          {p.personType === "expat" ? "Expat" : "External"}
-                        </Badge>
-                      )}
-                      {!p.active && (
-                        <span title="Inactive" className="text-fg-subtle shrink-0">
-                          <UserX size={12} />
-                        </span>
-                      )}
-                      {p.snoozedUntil && p.snoozedUntil > new Date() && (
-                        <span title={`Snoozed until ${p.snoozedUntil.toLocaleDateString("en-GB")}`} className="text-warn shrink-0">
-                          <MoonStar size={12} />
-                        </span>
-                      )}
-                    </div>
-                  </Td>
-                  <Td className="text-fg-muted">
-                    <span>{p.companyName ?? "—"}</span>
-                    {p.associations.length > 0 && (
-                      <span
-                        className="ml-1 text-xs text-fg-subtle"
-                        title={p.associations
-                          .map((a) => `${a.companyName ?? "?"}${a.relationship ? ` (${a.relationship})` : ""}`)
-                          .join(", ")}
-                      >
-                        +{p.associations.length}
-                      </span>
-                    )}
-                  </Td>
-                  <Td className="text-fg-muted text-xs">{p.role ?? "—"}</Td>
-                  <Td>
-                    <div className="flex items-center gap-2">
-                      {p.preferredChannel && (
-                        <Badge tone="info">{p.preferredChannel}</Badge>
-                      )}
-                      <div className="flex items-center gap-1.5">
-                      {p.email && (
-                        <a
-                          href={`mailto:${p.email}`}
-                          title={p.email}
-                          className="text-fg-subtle hover:text-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Mail size={13} />
-                        </a>
-                      )}
-                      {p.whatsapp && (
-                        <a
-                          href={whatsappHref(p.whatsapp)}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={p.whatsapp}
-                          className="text-fg-subtle hover:text-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MessageCircle size={13} />
-                        </a>
-                      )}
-                      {p.phone && (
-                        <a
-                          href={`tel:${p.phone}`}
-                          title={p.phone}
-                          className="text-fg-subtle hover:text-accent transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Phone size={13} />
-                        </a>
-                      )}
-                      {!p.hasContact && (
-                        <span title="No contact info on file" className="text-danger">
-                          <AlertCircle size={13} />
-                        </span>
-                      )}
-                      </div>
-                    </div>
-                  </Td>
-                  <Td align="right">
-                    <PersonDrawerLink
-                      id={p.id}
-                      name={`${p.workload.open}${p.workload.overdue ? ` · ${p.workload.overdue}↓` : ""}`}
-                      className={cn(
-                        "tabular font-medium text-sm hover:text-accent transition-colors",
-                        p.workload.overdue > 0 ? "text-danger" :
-                        p.workload.open >= 5 ? "text-warn" :
-                        p.workload.open === 0 ? "text-fg-subtle" : "text-fg"
-                      )}
-                    />
-                  </Td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </TableShell>
-
-      <PeekPreview
-        open={!!peek}
-        onClose={() => setPeek(null)}
-        onOpen={peek ? () => openPerson(peek.id) : undefined}
-        title={peek?.name}
-        subtitle={peek ? [peek.companyName, peek.role].filter(Boolean).join(" · ") || undefined : undefined}
-        body={peek ? `${peek.workload.open} open task${peek.workload.open === 1 ? "" : "s"}${peek.workload.overdue ? ` · ${peek.workload.overdue} overdue` : ""}` : undefined}
-        actions={peek ? peekActions(peek) : []}
-      />
-
       {filtered.length === 0 && (
-        <div className="text-center py-12 text-fg-muted text-sm">
+        <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           No people match these filters.
         </div>
       )}
 
-      <p className="text-xs text-fg-subtle">
-        Showing {filtered.length} of {people.length} · Workload column shows open tasks (overdue ↓ if any) · Click a name or workload number for full detail.
+      <p className="text-xs text-fg-subtle px-1">
+        Showing {filtered.length} of {people.length} · tap a card for full detail · hover to preview workload.
       </p>
     </div>
-  );
-}
-
-function SortableTh({
-  label, active, dir, onClick, align,
-}: {
-  label: string;
-  active: boolean;
-  dir: SortDir;
-  onClick: () => void;
-  align?: "left" | "right";
-}) {
-  return (
-    <Th align={align}>
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          "inline-flex items-center gap-1 hover:text-fg transition-colors",
-          active ? "text-fg" : "text-fg-muted"
-        )}
-      >
-        {label}
-        {active && (dir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
-      </button>
-    </Th>
   );
 }

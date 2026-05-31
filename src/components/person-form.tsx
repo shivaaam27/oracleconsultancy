@@ -95,18 +95,18 @@ export function PersonForm({
   );
 
   const inputCls = cn(
-    "w-full rounded-md border border-border bg-bg-subtle text-sm",
+    "w-full rounded-lg border border-border bg-bg-subtle/60 text-sm transition-all",
     compact ? "px-2.5 py-1.5" : "px-3 py-2",
-    "focus:outline-none focus:border-accent"
+    "focus:outline-none focus:ring-2 focus:ring-accent/40"
   );
-  const labelCls = "block text-[11px] uppercase tracking-wider text-fg-muted mb-1";
-  const gap = compact ? "space-y-3" : "space-y-4";
+  const labelCls = "block text-[10px] uppercase tracking-wider text-fg-subtle mb-1";
+  const gap = compact ? "space-y-2.5" : "space-y-4";
 
   return (
     <form action={action} className={gap}>
-      <div className={cn("grid gap-3", compact ? "grid-cols-1" : "grid-cols-2")}>
+      <div className="grid gap-2.5 grid-cols-2">
         {/* Name (required, full width) */}
-        <div className={compact ? "" : "col-span-2"}>
+        <div className="col-span-2">
           <label className={labelCls}>Name <span className="text-danger">*</span></label>
           <input
             name="name"
@@ -119,7 +119,7 @@ export function PersonForm({
         </div>
 
         {/* Person type — drives whether this is an employee or an external/expat contact */}
-        <div className={compact ? "" : "col-span-2"}>
+        <div className="col-span-2">
           <label className={labelCls}>Type</label>
           <input type="hidden" name="personType" value={pType} />
           <div className="grid grid-cols-3 gap-1.5">
@@ -213,7 +213,7 @@ export function PersonForm({
           </select>
         </div>
 
-        <div className={compact ? "" : "col-span-2"}>
+        <div className="col-span-2">
           <label className={labelCls}>Manager</label>
           <select
             name="managerId"
@@ -228,7 +228,7 @@ export function PersonForm({
         </div>
 
         {/* Related person — e.g. an immigration agent ↔ the expat they're helping */}
-        <div className={compact ? "" : "col-span-2"}>
+        <div className="col-span-2">
           <label className={labelCls}>Related person</label>
           <select
             name="relatedPersonId"
@@ -243,7 +243,7 @@ export function PersonForm({
         </div>
 
         {/* Associated companies — extra company links with a relationship label */}
-        <div className={compact ? "" : "col-span-2"}>
+        <div className="col-span-2">
           <label className={labelCls}>Associated companies</label>
           <div className="space-y-2">
             {associations.length === 0 && (
@@ -289,7 +289,7 @@ export function PersonForm({
           </div>
         </div>
 
-        <div className={compact ? "" : "col-span-2"}>
+        <div className="col-span-2">
           <label className={labelCls}>Notes</label>
           <textarea
             name="notes"

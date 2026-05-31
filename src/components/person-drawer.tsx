@@ -175,7 +175,7 @@ export function PersonDrawer() {
       <Dialog.Portal>
         <Dialog.Overlay
           forceMount
-          className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
             transition-opacity duration-200
             data-[state=open]:opacity-100
             data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none"
@@ -183,11 +183,12 @@ export function PersonDrawer() {
         <Dialog.Content
           forceMount
           aria-describedby={undefined}
-          className="fixed right-0 top-0 bottom-0 z-[51] w-full max-w-[520px] flex flex-col
-            bg-bg border-l border-border shadow-2xl outline-none
-            transition-transform duration-300 ease-out
-            data-[state=open]:translate-x-0
-            data-[state=closed]:translate-x-full"
+          className="fixed inset-0 m-auto z-[51] h-fit max-h-[88svh] w-[calc(100%-1.5rem)] max-w-[560px]
+            flex flex-col overflow-hidden glass glass-refract rounded-2xl outline-none
+            transition-all duration-200 ease-out
+            data-[state=open]:opacity-100 data-[state=open]:scale-100
+            data-[state=closed]:opacity-0 data-[state=closed]:scale-[0.97]
+            data-[state=closed]:pointer-events-none"
         >
           {/* Header */}
           <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border shrink-0">
