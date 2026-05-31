@@ -38,8 +38,8 @@ export function WorkbookShell({
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-semibold tracking-tight">Workbook</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-xl font-semibold tracking-tight">Workbook</h1>
         <Segmented
           value={tab}
           onChange={setTab}

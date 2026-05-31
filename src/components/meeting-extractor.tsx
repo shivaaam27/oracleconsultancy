@@ -23,8 +23,8 @@ import { triggerHaptic } from "@/lib/use-long-press";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-const fieldCls = "w-full rounded-lg bg-bg-subtle border border-border/60 px-3 py-2 text-sm transition-colors focus:outline-none focus:border-accent focus:bg-bg";
-const labelCls = "text-[11px] uppercase tracking-wide text-fg-subtle";
+const fieldCls = "w-full rounded-xl bg-bg-subtle/60 border border-border px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-accent/50 backdrop-blur-md";
+const labelCls = "text-[10px] uppercase tracking-wider text-fg-subtle";
 
 const STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
@@ -293,7 +293,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
   const linkedTasks = createdTaskLinks.length ? createdTaskLinks : (meetingId ? meetingList.find(m => m.id === meetingId)?.tasks ?? [] : []);
 
   return (
-    <div className="md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] rounded-xl border border-border overflow-hidden min-h-[68vh] bg-bg-elev elevated">
+    <div className="md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] rounded-2xl overflow-hidden min-h-[68vh] glass elevated">
       {/* History pane */}
       <div className={cn("flex flex-col border-border md:border-r", editing ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">

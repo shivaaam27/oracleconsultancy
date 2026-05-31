@@ -287,9 +287,12 @@ export default async function TaskPage({
 
       <SimilarTasks query={r.actionItem} excludeId={r.id} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left: Edit form (collapsible) */}
-        <details className="lg:col-span-3 group glass elevated rounded-3xl overflow-hidden" open>
+      <div className="space-y-4">
+        {/* Post update — primary action, above the edit form */}
+        <UpdateBox taskId={r.id} taskCode={r.code} currentStatus={r.status} />
+
+        {/* Edit form (collapsible, full width) */}
+        <details className="group glass elevated rounded-3xl overflow-hidden">
           <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
             <Pencil size={12} /> Edit task
             <span className="ml-auto text-fg-subtle text-base leading-none transition-transform group-open:rotate-180 normal-case tracking-normal">⌄</span>
@@ -352,10 +355,6 @@ export default async function TaskPage({
                 <FieldLabel>Comments</FieldLabel>
                 <Textarea name="comments" defaultValue={r.comments || ""} rows={2} />
               </div>
-              <div>
-                <FieldLabel>Change Reason <span className="text-fg-subtle normal-case font-normal">(recorded in history)</span></FieldLabel>
-                <Input name="changeReason" placeholder="Why are you making this change?" />
-              </div>
               <div className="flex items-center justify-between pt-2 border-t border-border gap-3">
                 <Button type="submit" className="rounded-full"><Save size={13} /> Save Changes</Button>
               </div>
@@ -367,11 +366,8 @@ export default async function TaskPage({
           </div>
         </details>
 
-        {/* Right: Updates + Timeline */}
-        <div className="lg:col-span-2 space-y-4">
-          <UpdateBox taskId={r.id} taskCode={r.code} currentStatus={r.status} />
-
-          <details className="group glass elevated rounded-2xl overflow-hidden" open>
+        {/* History */}
+        <details className="group glass elevated rounded-2xl overflow-hidden" open>
             <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
               <MessageSquarePlus size={12} /> History
               <span className="text-fg-subtle normal-case tracking-normal">· {counts.all}</span>
@@ -498,7 +494,6 @@ export default async function TaskPage({
           </div>
             </div>
           </details>
-        </div>
       </div>
     </div>
   );

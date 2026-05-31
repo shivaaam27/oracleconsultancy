@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 /* --------------------------------------------------------------------- */
@@ -369,12 +369,21 @@ export function Input(p: ComponentProps<"input">) {
   );
 }
 
-export function Select(p: ComponentProps<"select">) {
+export function Select({ className, ...p }: ComponentProps<"select">) {
   return (
-    <select
-      {...p}
-      className={cn("w-full px-3 py-1.5 text-sm h-9 rounded-lg", p.className)}
-    />
+    <div className="relative">
+      <select
+        {...p}
+        className={cn(
+          "w-full pl-3 pr-8 py-1.5 text-sm h-9 rounded-lg appearance-none cursor-pointer",
+          className
+        )}
+      />
+      <ChevronDown
+        size={14}
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle"
+      />
+    </div>
   );
 }
 
