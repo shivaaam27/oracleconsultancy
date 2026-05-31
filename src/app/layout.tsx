@@ -3,10 +3,8 @@ import { Suspense } from "react";
 import { MotionConfig } from "framer-motion";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { TopPill } from "@/components/top-pill";
+import { TopPillServer } from "@/components/top-pill-server";
 import { SidebarServer } from "@/components/sidebar-server";
-import { MobileSidebarServer } from "@/components/mobile-sidebar-server";
-import { CompanyScopeServer } from "@/components/company-scope-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
 import { ToastProvider } from "@/components/toast";
@@ -74,9 +72,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </div>
                 </main>
               </div>
-              <TopPill scopeSlot={<CompanyScopeServer />} />
               <Suspense>
-                <MobileSidebarServer />
+                <TopPillServer />
               </Suspense>
               <Suspense>
                 <TaskDrawer />
