@@ -152,7 +152,7 @@ export function NotesWorkspace({ initialNotes, companies, openId }: { initialNot
   useEffect(() => { if (openId && notes.some((n) => n.id === openId)) setSelectedId(openId); /* eslint-disable-next-line */ }, [openId]);
 
   return (
-    <div className="md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] rounded-xl border border-border overflow-hidden min-h-[70vh] bg-bg-elev elevated">
+    <div className="md:grid md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] rounded-2xl overflow-hidden min-h-[70vh] glass elevated">
       {/* List pane */}
       <div className={cn("flex flex-col border-border md:border-r", selected ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">

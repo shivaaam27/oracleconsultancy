@@ -185,7 +185,7 @@ export function WorkbookTodo({
         <div className="space-y-3">
           {/* Composer */}
           {composerOpen ? (
-            <div className="elevated bg-bg-elev rounded-xl border border-border p-3 space-y-2.5">
+            <div className="glass elevated rounded-2xl p-3 space-y-2.5">
               <input autoFocus value={fTitle} onChange={(e) => setFTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitComposer(); if (e.key === "Escape") setComposerOpen(false); }} placeholder="What needs doing?" className="w-full bg-transparent text-sm outline-none placeholder:text-fg-subtle" />
               <div className="flex items-center gap-2 flex-wrap">
                 <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg" />
@@ -207,7 +207,7 @@ export function WorkbookTodo({
 
           {/* Open to-dos */}
           {open.length > 0 && (
-            <div className="elevated bg-bg-elev rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
+            <div className="glass elevated rounded-2xl divide-y divide-border/60 overflow-hidden">
               <AnimatePresence initial={false}>{open.map((t) => <TodoRow key={t.id} t={t} />)}</AnimatePresence>
             </div>
           )}
@@ -224,7 +224,7 @@ export function WorkbookTodo({
               <AnimatePresence initial={false}>
                 {showCompleted && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                    <div className="elevated bg-bg-elev rounded-xl border border-border divide-y divide-border/60 overflow-hidden mt-1.5">
+                    <div className="glass elevated rounded-2xl divide-y divide-border/60 overflow-hidden mt-1.5">
                       {completed.map((t) => <TodoRow key={t.id} t={t} />)}
                     </div>
                   </motion.div>
@@ -250,7 +250,7 @@ export function WorkbookTodo({
                 <AnimatePresence initial={false}>
                   {!isCollapsed && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                      <div className="elevated bg-bg-elev rounded-xl border border-border divide-y divide-border/60 overflow-hidden">
+                      <div className="glass elevated rounded-2xl divide-y divide-border/60 overflow-hidden">
                         {g.items.map((t) => (
                           <div key={t.code} className="flex items-center gap-3 px-3 py-2.5 hover:bg-bg-muted/40 transition-colors">
                             <button type="button" onClick={() => completeTask(t)} className="shrink-0 h-5 w-5 rounded-full border-2 border-border hover:border-accent flex items-center justify-center text-transparent hover:text-accent transition-colors" aria-label="Mark complete"><Check size={12} /></button>
