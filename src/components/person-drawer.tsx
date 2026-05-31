@@ -184,7 +184,7 @@ export function PersonDrawer() {
         <Dialog.Content
           forceMount
           aria-describedby={undefined}
-          className="fixed inset-0 m-auto z-[51] h-fit max-h-[88svh] w-[calc(100%-1.5rem)] max-w-[560px]
+          className="fixed inset-0 m-auto z-[51] h-fit max-h-[88svh] w-[calc(100%-1.5rem)] max-w-[640px]
             flex flex-col overflow-hidden glass glass-refract rounded-2xl outline-none
             transition-all duration-200 ease-out
             data-[state=open]:opacity-100 data-[state=open]:scale-100
@@ -391,8 +391,11 @@ export function PersonDrawer() {
                   </div>
                 )}
 
+                {/* Tasks + activity — two columns on wider screens */}
+                {data && (data.assignedTasks.length > 0 || data.recentUpdates.length > 0) && (
+                <div className="grid sm:grid-cols-2 gap-3 items-start">
                 {/* Assigned tasks — collapsible glass card */}
-                {data && data.assignedTasks.length > 0 && (
+                {data.assignedTasks.length > 0 && (
                   <details className="group glass elevated rounded-2xl overflow-hidden" open>
                     <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
                       <ListTodo size={12} /> Assigned tasks
@@ -409,7 +412,7 @@ export function PersonDrawer() {
                             <TaskDrawerLink
                               key={t.id}
                               code={t.code}
-                              className="flex items-center gap-2.5 px-2.5 py-2 hover:bg-bg-muted/50 transition-colors"
+                              className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left hover:bg-bg-muted/50 transition-colors"
                             >
                               <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
                               <span className="min-w-0 flex-1">
@@ -418,7 +421,7 @@ export function PersonDrawer() {
                                   <span className="font-mono">{t.code}</span> · {t.companyName} · <span className={urgent ? "text-danger" : ""}>{t.status}</span>
                                 </span>
                               </span>
-                              <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
+                              <Badge tone={priorityTone(t.priority)} className="shrink-0">{t.priority}</Badge>
                             </TaskDrawerLink>
                           );
                         })}
@@ -431,7 +434,7 @@ export function PersonDrawer() {
                 )}
 
                 {/* Recent activity — collapsible glass card */}
-                {data && data.recentUpdates.length > 0 && (
+                {data.recentUpdates.length > 0 && (
                   <details className="group glass elevated rounded-2xl overflow-hidden" open>
                     <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
                       <Activity size={12} /> Recent activity
@@ -458,6 +461,8 @@ export function PersonDrawer() {
                       </div>
                     </div>
                   </details>
+                )}
+                </div>
                 )}
 
                 {/* Empty state — no involvement */}
