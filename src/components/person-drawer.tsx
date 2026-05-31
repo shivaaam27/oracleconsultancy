@@ -292,7 +292,8 @@ export function PersonDrawer() {
                       <>
                         <span className="text-fg-subtle">·</span>
                         <Link
-                          href={`/?tab=companies&co=${person.companyId}`}
+                          href={`/companies/${person.companyId}`}
+                          onClick={close}
                           className="inline-flex items-center gap-1 text-fg-muted hover:text-accent transition-colors"
                         >
                           <Building2 size={11} /> {person.companyName}

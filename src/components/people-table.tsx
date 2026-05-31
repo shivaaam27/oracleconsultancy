@@ -2,12 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import {
-  Search, Mail, MessageCircle, Phone, AlertCircle, MoonStar, UserX,
-  ChevronUp, ChevronDown, Filter, ExternalLink, ListTodo,
-} from "lucide-react";
-import { TableShell, Th, Td, Badge } from "./ui";
-import { PersonDrawerLink } from "./person-drawer-link";
+import { Search, MessageCircle, Filter, ExternalLink, ListTodo } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
