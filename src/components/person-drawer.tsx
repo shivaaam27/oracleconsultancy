@@ -6,9 +6,10 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, Loader2, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
-  RotateCcw, Clock,
+  RotateCcw, Clock, ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/cn";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { Badge } from "./ui";
@@ -390,70 +391,73 @@ export function PersonDrawer() {
                   </div>
                 )}
 
-                {/* Assigned tasks */}
+                {/* Assigned tasks — collapsible glass card */}
                 {data && data.assignedTasks.length > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-                        <ListTodo size={11} /> Assigned tasks ({data.assignedTasks.length})
+                  <details className="group glass elevated rounded-2xl overflow-hidden" open>
+                    <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+                      <ListTodo size={12} /> Assigned tasks
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.assignedTasks.length}</span>
+                      <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="px-2 pb-2">
+                      <div className="rounded-xl overflow-hidden divide-y divide-border/60">
+                        {data.assignedTasks.slice(0, 12).map((t) => {
+                          const urgent = t.flag === "overdue" || t.flag === "escalate-now";
+                          const done = t.status === "Completed" || t.status === "Closed";
+                          const dot = urgent ? "bg-danger" : done ? "bg-success" : t.flag === "due-soon" ? "bg-warn" : "bg-fg-subtle";
+                          return (
+                            <TaskDrawerLink
+                              key={t.id}
+                              code={t.code}
+                              className="flex items-center gap-2.5 px-2.5 py-2 hover:bg-bg-muted/50 transition-colors"
+                            >
+                              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-xs font-medium truncate">{t.actionItem}</span>
+                                <span className="block text-[10px] text-fg-muted truncate">
+                                  <span className="font-mono">{t.code}</span> · {t.companyName} · <span className={urgent ? "text-danger" : ""}>{t.status}</span>
+                                </span>
+                              </span>
+                              <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
+                            </TaskDrawerLink>
+                          );
+                        })}
                       </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      {data.assignedTasks.slice(0, 10).map((t) => (
-                        <TaskDrawerLink
-                          key={t.id}
-                          code={t.code}
-                          className="block w-full text-left card p-2.5 hover:border-accent transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium line-clamp-2">{t.actionItem}</p>
-                              <p className="text-[10px] text-fg-muted mt-0.5">
-                                {t.code} · {t.companyName} · <span className={t.flag === "overdue" || t.flag === "escalate-now" ? "text-danger" : ""}>{t.status}</span>
-                              </p>
-                            </div>
-                            <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
-                          </div>
-                        </TaskDrawerLink>
-                      ))}
-                      {data.assignedTasks.length > 10 && (
-                        <p className="text-[10px] text-fg-subtle text-center py-1">
-                          + {data.assignedTasks.length - 10} more
-                        </p>
+                      {data.assignedTasks.length > 12 && (
+                        <p className="text-[10px] text-fg-subtle text-center pt-2">+ {data.assignedTasks.length - 12} more</p>
                       )}
                     </div>
-                  </div>
+                  </details>
                 )}
 
-                {/* Recent activity */}
+                {/* Recent activity — collapsible glass card */}
                 {data && data.recentUpdates.length > 0 && (
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-2 inline-flex items-center gap-1.5">
-                      <Activity size={11} /> Recent activity
-                    </div>
-                    <div className="relative pl-4">
-                      <div className="absolute left-1 top-1 bottom-1 w-px bg-border" />
-                      <div className="space-y-2">
-                        {data.recentUpdates.slice(0, 10).map((u) => (
-                          <div key={u.id} className="relative">
-                            <div className="absolute -left-2.5 top-1.5 w-1.5 h-1.5 rounded-full bg-accent" />
-                            <div className="bg-accent/5 border border-accent/20 rounded-lg px-3 py-2 space-y-0.5">
-                              <p className="text-xs leading-relaxed">{u.body}</p>
-                              <div className="flex items-center justify-between gap-2 text-[10px] text-fg-subtle">
-                                <Link
-                                  href={`/task/${u.taskCode}`}
-                                  className="font-mono hover:text-accent transition-colors"
-                                >
-                                  {u.taskCode}
-                                </Link>
-                                <span>{fmtTime(new Date(u.createdAt))}</span>
+                  <details className="group glass elevated rounded-2xl overflow-hidden" open>
+                    <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+                      <Activity size={12} /> Recent activity
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.recentUpdates.length}</span>
+                      <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="px-4 pb-4">
+                      <div className="relative pl-4">
+                        <div className="absolute left-1 top-1.5 bottom-1.5 w-px bg-border" />
+                        <div className="space-y-2">
+                          {data.recentUpdates.slice(0, 10).map((u) => (
+                            <div key={u.id} className="relative">
+                              <div className="absolute -left-[13px] top-2 w-2 h-2 rounded-full border-2 border-bg bg-accent" />
+                              <div className="bg-accent/5 ring-1 ring-accent/15 rounded-xl px-3 py-2 space-y-1">
+                                <p className="text-xs leading-relaxed">{u.body}</p>
+                                <div className="flex items-center justify-between gap-2 text-[10px] text-fg-subtle">
+                                  <Link href={`/task/${u.taskCode}`} className="font-mono hover:text-accent transition-colors">{u.taskCode}</Link>
+                                  <span className="tabular">{fmtTime(new Date(u.createdAt))}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </details>
                 )}
 
                 {/* Empty state — no involvement */}
