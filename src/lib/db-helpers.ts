@@ -16,10 +16,11 @@ export async function getOrCreatePersonSb(
   name: string,
   companyId: number | null
 ): Promise<number> {
+  // Case-insensitive exact match so "Jitesh" / "jitesh" never duplicate.
   const { data: existing, error: e1 } = await sb
     .from("people")
     .select("id")
-    .eq("name", name)
+    .ilike("name", name)
     .maybeSingle();
   if (e1) throw new Error(e1.message);
   if (existing) return existing.id as number;
