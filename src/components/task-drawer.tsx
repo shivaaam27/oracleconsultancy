@@ -16,7 +16,8 @@ import {
   FileText,
   ChevronDown,
 } from "lucide-react";
-import { UpdateBox } from "./update-box";
+import { PeekQuickUpdate } from "./peek-quick-update";
+import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
 import { AssigneeList } from "./assignee-list";
 import { Badge } from "./ui";
@@ -30,6 +31,7 @@ import {
   suppressUpdateMetaAudits,
   groupFieldEdits,
   cleanReason,
+  formatAuditValue,
   liftPinnedUpdates,
   summariseEditGroup,
   type TimelineItem,
@@ -255,9 +257,9 @@ export function TaskDrawer() {
           </Dialog.Title>
 
           {/* ── Header ── */}
-          <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border shrink-0">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/60 shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="font-mono text-xs text-fg-muted bg-bg-subtle px-2 py-0.5 rounded shrink-0">
+              <span className="font-mono text-[11px] font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
                 {code}
               </span>
               {data?.task && (
@@ -270,7 +272,7 @@ export function TaskDrawer() {
                 </Link>
               )}
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               {code && (
                 <Link
                   href={`/task/${code}`}
@@ -284,9 +286,9 @@ export function TaskDrawer() {
                 <button
                   type="button"
                   aria-label="Close"
-                  className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors"
+                  className="h-8 w-8 inline-flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors"
                 >
-                  <X size={14} />
+                  <X size={15} />
                 </button>
               </Dialog.Close>
             </div>
@@ -313,87 +315,121 @@ export function TaskDrawer() {
 
             {/* Content */}
             {data?.task && (
-              <div className="p-5 space-y-5">
-                {/* Title */}
-                <div className="space-y-2.5">
-                  <h2 className="text-base font-semibold leading-snug">
-                    {data.task.actionItem}
-                  </h2>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge tone={statusTone(data.task.status)}>{data.task.status}</Badge>
-                    <Badge tone={priorityTone(data.task.priority)}>{data.task.priority}</Badge>
-                    {data.task.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
+              <div className="p-4 space-y-3">
+                {/* Info card — mirrors the long-press peek */}
+                <div className="glass elevated rounded-2xl p-4 space-y-3.5">
+                  <div className="space-y-2">
+                    <h2 className="text-[15px] font-semibold leading-snug">{data.task.actionItem}</h2>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge tone={statusTone(data.task.status)}>{data.task.status}</Badge>
+                      <Badge tone={priorityTone(data.task.priority)}>{data.task.priority}</Badge>
+                      {data.task.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
+                    </div>
                   </div>
 
-                  {/* Quick actions — one-click from the inspector */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {(() => {
-                      const isDone = data.task.status === "Completed" || data.task.status === "Closed";
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => quickAction("complete")}
-                          disabled={acting !== null}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium px-3 py-1.5 disabled:opacity-50 hover:opacity-90 transition-opacity"
-                        >
-                          {acting === "complete" ? <Loader2 size={13} className="animate-spin" /> : isDone ? <RotateCcw size={13} /> : <CheckCircle2 size={13} />}
-                          {isDone ? "Reopen" : "Complete"}
-                        </button>
-                      );
-                    })()}
-                    {data.task.escalation !== "Yes" && (
+                  {/* Meta — interactive deadline, consistent typography */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Deadline</span>
+                      <DeadlineEditor
+                        code={data.task.code}
+                        deadline={data.task.deadline ? new Date(data.task.deadline) : null}
+                        daysToDeadline={data.task.daysToDeadline}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Accountable</span>
+                      {data.task.assignees.length ? (
+                        <AssigneeList names={data.task.assignees} ids={data.task.assigneeIds} className="font-medium text-fg text-[13px] truncate" />
+                      ) : (
+                        <span className="font-medium text-fg text-[13px]">—</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Department</span>
+                      <span className="font-medium text-fg text-[13px] truncate">{data.task.department || "—"}</span>
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Category</span>
+                      <span className="font-medium text-fg text-[13px] truncate">{data.task.category || "—"}</span>
+                    </div>
+                  </div>
+
+                  {/* Latest update */}
+                  {data.task.latestUpdate && (
+                    <div className="rounded-xl bg-bg-subtle/60 px-3 py-2.5">
+                      <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">Latest update</div>
+                      <p className="text-sm leading-relaxed"><CodeLinkedText text={data.task.latestUpdate} /></p>
+                    </div>
+                  )}
+
+                  {/* Quick update — collapsible, minimal (no nested box) */}
+                  <div className="-mx-4 px-4 pt-0.5 border-t border-border/60">
+                    <button
+                      type="button"
+                      onClick={() => setShowUpdate((s) => !s)}
+                      aria-expanded={showUpdate}
+                      className="w-full flex items-center gap-2 py-2 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
+                    >
+                      <MessageSquarePlus size={13} className="text-accent" /> Quick update
+                      <ChevronDown size={14} className={`ml-auto transition-transform ${showUpdate ? "rotate-180" : ""}`} />
+                    </button>
+                    {showUpdate && (
+                      <div className="pb-1">
+                        <PeekQuickUpdate
+                          row={data.task}
+                          onPosted={() => { setRefreshKey((k) => k + 1); setShowUpdate(false); }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions — single horizontal row */}
+                <div className="glass elevated rounded-2xl p-1.5 flex items-stretch gap-1">
+                  {(() => {
+                    const isDone = data.task.status === "Completed" || data.task.status === "Closed";
+                    return (
                       <button
                         type="button"
-                        onClick={() => quickAction("escalate")}
+                        onClick={() => quickAction("complete")}
                         disabled={acting !== null}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-danger hover:border-danger/50 px-3 py-1.5 disabled:opacity-50 transition-colors"
+                        className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium text-accent hover:bg-accent-soft/50 active:scale-95 transition-all disabled:opacity-50"
                       >
-                        {acting === "escalate" ? <Loader2 size={13} className="animate-spin" /> : <AlertOctagon size={13} />}
-                        Escalate
+                        {acting === "complete" ? <Loader2 size={15} className="animate-spin" /> : isDone ? <RotateCcw size={15} /> : <CheckCircle2 size={15} />}
+                        {isDone ? "Reopen" : "Complete"}
                       </button>
-                    )}
-                  </div>
+                    );
+                  })()}
+                  {data.task.escalation !== "Yes" && (
+                    <button
+                      type="button"
+                      onClick={() => quickAction("escalate")}
+                      disabled={acting !== null}
+                      className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium text-danger hover:bg-danger-soft/50 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      {acting === "escalate" ? <Loader2 size={15} className="animate-spin" /> : <AlertOctagon size={15} />}
+                      Escalate
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDel((v) => !v)}
+                    className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium active:scale-95 transition-all ${confirmDel ? "bg-danger-soft/60 text-danger" : "text-fg-muted hover:bg-bg-muted/60"}`}
+                  >
+                    <Trash2 size={15} /> Delete
+                  </button>
                 </div>
 
-                {/* Meta grid */}
-                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-fg-muted">Deadline</span>
-                    <span className="font-medium text-fg">
-                      {data.task.deadline ? fmtDate(new Date(data.task.deadline)) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-fg-muted">Accountable</span>
-                    {data.task.assignees.length ? (
-                      <AssigneeList
-                        names={data.task.assignees}
-                        ids={data.task.assigneeIds}
-                        className="font-medium text-fg"
-                      />
-                    ) : (
-                      <span className="font-medium text-fg">—</span>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-fg-muted">Department</span>
-                    <span className="font-medium text-fg">{data.task.department || "—"}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-fg-muted">Category</span>
-                    <span className="font-medium text-fg">{data.task.category || "—"}</span>
-                  </div>
-                </div>
-
-                {/* Latest update callout */}
-                {data.task.latestUpdate && (
-                  <div className="border-l-2 border-accent pl-3 py-0.5">
-                    <div className="text-[10px] text-fg-muted mb-0.5 uppercase tracking-wider">
-                      Latest update
-                    </div>
-                    <p className="text-sm leading-relaxed">
-                      <CodeLinkedText text={data.task.latestUpdate} />
-                    </p>
+                {/* Delete confirm */}
+                {confirmDel && (
+                  <div className="glass elevated rounded-2xl px-4 py-2.5 flex items-center gap-2 bg-danger-soft/40">
+                    <Trash2 size={14} className="text-danger shrink-0" />
+                    <span className="flex-1 text-sm text-danger min-w-0">Delete this task permanently?</span>
+                    <button type="button" onClick={() => setConfirmDel(false)} className="px-2 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg">Cancel</button>
+                    <button type="button" onClick={handleDelete} disabled={acting === "delete"} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-danger text-white hover:opacity-90 disabled:opacity-50">
+                      {acting === "delete" ? <Loader2 size={13} className="animate-spin" /> : "Delete"}
+                    </button>
                   </div>
                 )}
 
@@ -401,7 +437,7 @@ export function TaskDrawer() {
                   <Link
                     href={`/workbook?tab=meetings&open=${data.sourceMeeting.id}`}
                     onClick={close}
-                    className="group rounded-xl border border-border bg-bg-subtle px-3 py-2.5 flex items-start gap-2.5 hover:border-accent/50 transition-colors"
+                    className="group glass elevated rounded-2xl px-3 py-2.5 flex items-start gap-2.5 hover:ring-1 hover:ring-accent/40 transition-all"
                   >
                     <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
                       <FileText size={13} />
@@ -415,65 +451,26 @@ export function TaskDrawer() {
                   </Link>
                 )}
 
-                {/* Divider */}
-                <div className="border-t border-border" />
-
-                {/* Post update — collapsible, mirrors the peek */}
-                <div className="glass elevated rounded-2xl overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowUpdate((s) => !s)}
-                    aria-expanded={showUpdate}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
-                  >
-                    <MessageSquarePlus size={13} className="text-accent" /> Post update
-                    <ChevronDown size={14} className={`ml-auto transition-transform ${showUpdate ? "rotate-180" : ""}`} />
-                  </button>
-                  {showUpdate && (
-                    <div className="px-4 pb-4">
-                      <UpdateBox
-                        taskId={data.task.id}
-                        taskCode={data.task.code}
-                        currentStatus={data.task.status}
-                        onSuccess={() => setRefreshKey((k) => k + 1)}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Mini timeline */}
+                {/* History — collapsible */}
                 {timeline.length > 0 && (
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-3">
+                  <details className="group glass elevated rounded-2xl overflow-hidden" open>
+                    <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
                       History
-                    </div>
-                    <div className="relative pl-4">
-                      <div className="absolute left-1 top-1 bottom-1 w-px bg-border" />
-                      <div className="space-y-2.5">
-                        {timeline.map((item) => (
-                          <MiniTimelineItem key={`${item.kind}-${item.id}`} item={item} />
-                        ))}
+                      <span className="text-fg-subtle normal-case tracking-normal">· {timeline.length}</span>
+                      <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="px-4 pb-4">
+                      <div className="relative pl-4">
+                        <div className="absolute left-1 top-1 bottom-1 w-px bg-border" />
+                        <div className="space-y-2.5">
+                          {timeline.map((item) => (
+                            <MiniTimelineItem key={`${item.kind}-${item.id}`} item={item} />
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </details>
                 )}
-
-                {/* Danger zone — delete (with Undo) */}
-                <div className="border-t border-border pt-3 flex items-center justify-end gap-2">
-                  {confirmDel ? (
-                    <>
-                      <span className="text-xs text-fg-muted mr-auto">Delete this task?</span>
-                      <button type="button" onClick={() => setConfirmDel(false)} className="text-xs px-2.5 py-1.5 rounded-lg border border-border text-fg-muted hover:text-fg transition-colors">Cancel</button>
-                      <button type="button" onClick={handleDelete} disabled={acting === "delete"} className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-danger text-white hover:opacity-90 disabled:opacity-50 transition-opacity">
-                        {acting === "delete" ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" onClick={() => setConfirmDel(true)} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-danger px-2.5 py-1.5 rounded-lg hover:bg-danger-soft transition-colors">
-                      <Trash2 size={13} /> Delete task
-                    </button>
-                  )}
-                </div>
               </div>
             )}
           </div>
@@ -504,9 +501,9 @@ function MiniTimelineItem({ item }: { item: TimelineItem }) {
             {item.items.map((a) => (
               <li key={a.id} className="flex items-center gap-1 flex-wrap text-[11px]">
                 <span className="font-medium text-fg">{a.field}</span>
-                {a.oldValue && <span className="text-fg-muted">{a.oldValue}</span>}
+                {a.oldValue && <span className="text-fg-muted">{formatAuditValue(a.field, a.oldValue)}</span>}
                 {a.oldValue && a.newValue && <GitCommitHorizontal size={8} className="text-fg-subtle" />}
-                {a.newValue && <span className="text-fg font-medium">{a.newValue}</span>}
+                {a.newValue && <span className="text-fg font-medium">{formatAuditValue(a.field, a.newValue)}</span>}
               </li>
             ))}
           </ul>
@@ -567,13 +564,13 @@ function MiniTimelineItem({ item }: { item: TimelineItem }) {
             <span>
               <span className="font-medium text-fg">{item.field || item.entryType}</span>
               {item.oldValue && (
-                <span className="text-fg-muted"> {item.oldValue}</span>
+                <span className="text-fg-muted"> {formatAuditValue(item.field, item.oldValue)}</span>
               )}
               {item.oldValue && item.newValue && (
                 <GitCommitHorizontal size={9} className="inline mx-0.5 text-fg-subtle" />
               )}
               {item.newValue && (
-                <span className="font-medium text-fg"> {item.newValue}</span>
+                <span className="font-medium text-fg"> {formatAuditValue(item.field, item.newValue)}</span>
               )}
             </span>
           )}
