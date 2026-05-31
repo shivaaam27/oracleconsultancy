@@ -28,13 +28,23 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
 
       <form action={createTask} className="space-y-4">
         {/* Primary card */}
-        <div className="glass elevated rounded-3xl p-5 space-y-4">
-          <div>
+        <div className="glass elevated relative overflow-hidden rounded-3xl p-5 space-y-4">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full blur-3xl opacity-50"
+            style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-24 -left-20 h-56 w-56 rounded-full blur-3xl opacity-40"
+            style={{ background: "radial-gradient(circle, hsl(142 60% 45% / 0.22), transparent 70%)" }}
+          />
+          <div className="relative">
             <FieldLabel>Action Item <span className="text-fg-subtle normal-case font-normal">— click ✦ to polish</span></FieldLabel>
             <ActionItemField name="actionItem" required placeholder="What needs to happen?" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <FieldLabel>Company</FieldLabel>
               <Select name="companyId" defaultValue={presetCompany} required>

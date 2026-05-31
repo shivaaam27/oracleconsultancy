@@ -1,4 +1,4 @@
-import { Card, PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
@@ -32,7 +32,7 @@ export default async function SettingsPage({
 
       <form action={saveSettings} className="space-y-5">
         {/* About you */}
-        <Card className="p-5 space-y-4">
+        <div className="glass elevated rounded-2xl p-5 space-y-4">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Sparkles size={14} className="text-accent" /> About you
@@ -43,10 +43,10 @@ export default async function SettingsPage({
             <FieldLabel>Your name</FieldLabel>
             <Input name="operatorName" defaultValue={s.operatorName} placeholder="e.g. Sunny" />
           </div>
-        </Card>
+        </div>
 
         {/* Risk rules */}
-        <Card className="p-5 space-y-4">
+        <div className="glass elevated rounded-2xl p-5 space-y-4">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <SlidersHorizontal size={14} className="text-accent" /> Risk rules
@@ -69,10 +69,10 @@ export default async function SettingsPage({
               <Input name="agingDays" type="number" min={0} defaultValue={s.agingDays} />
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* Location & weather */}
-        <Card className="p-5 space-y-4">
+        <div className="glass elevated rounded-2xl p-5 space-y-4">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <MapPin size={14} className="text-accent" /> Location & weather
@@ -95,10 +95,10 @@ export default async function SettingsPage({
               <Input name="weatherLon" type="number" step="any" defaultValue={s.weatherLon} />
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* AI */}
-        <Card className="p-5 space-y-4">
+        <div className="glass elevated rounded-2xl p-5 space-y-4">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Sparkles size={14} className="text-accent" /> AI assistance
@@ -117,10 +117,10 @@ export default async function SettingsPage({
             />
             <span className="text-sm">Enable AI features</span>
           </label>
-        </Card>
+        </div>
 
         {/* Voice */}
-        <Card className="p-5 space-y-4">
+        <div className="glass elevated rounded-2xl p-5 space-y-4">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Mic2 size={14} className="text-accent" /> Voice intelligence
@@ -149,10 +149,10 @@ export default async function SettingsPage({
               />
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* Swipe actions */}
-        <Card className="p-5 space-y-4">
+        <div className="glass elevated rounded-2xl p-5 space-y-4">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Hand size={14} className="text-accent" /> Swipe actions
@@ -175,10 +175,10 @@ export default async function SettingsPage({
               </Select>
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* Reminders (informational for now) */}
-        <Card className="p-5 space-y-2">
+        <div className="glass elevated rounded-2xl p-5 space-y-2">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <MessageCircle size={14} className="text-accent" /> Reminders
           </h2>
@@ -186,7 +186,7 @@ export default async function SettingsPage({
             Reminders go out on a single channel — <strong className="text-fg">Messages</strong>. Real sending
             (WhatsApp / email via API) will be added later; for now the Outbox prepares copy-ready drafts.
           </p>
-        </Card>
+        </div>
 
         <div className="flex justify-end">
           <Button type="submit"><Save size={13} /> Save changes</Button>
@@ -194,7 +194,7 @@ export default async function SettingsPage({
       </form>
 
       {/* Navigation — lives outside the form; saves instantly on change */}
-      <Card className="p-5 space-y-4">
+      <div className="glass elevated rounded-2xl p-5 space-y-4">
         <div>
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <LayoutGrid size={14} className="text-accent" /> Navigation
@@ -205,10 +205,10 @@ export default async function SettingsPage({
           </p>
         </div>
         <NavSettings />
-      </Card>
+      </div>
 
       {/* Notifications — lives outside the form; subscribes per-device instantly */}
-      <Card className="p-5 space-y-4">
+      <div className="glass elevated rounded-2xl p-5 space-y-4">
         <div>
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <Bell size={14} className="text-accent" /> Notifications
@@ -220,10 +220,10 @@ export default async function SettingsPage({
           </p>
         </div>
         <NotificationSettings />
-      </Card>
+      </div>
 
       {/* Design system — the living gallery (moved here from the nav) */}
-      <Card className="p-5 space-y-4">
+      <div className="glass elevated rounded-2xl p-5 space-y-4">
         <div>
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <Palette size={14} className="text-accent" /> Design
@@ -235,7 +235,7 @@ export default async function SettingsPage({
         <Link href="/design" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-2 text-sm text-fg hover:bg-bg-muted btn-rim transition-colors">
           <Palette size={14} /> Open the design gallery <ArrowRight size={14} className="text-fg-muted" />
         </Link>
-      </Card>
+      </div>
     </div>
   );
 }

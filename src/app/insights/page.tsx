@@ -1,20 +1,28 @@
 import { getAllTasks, statusBreakdown, priorityBreakdown, type TaskRow } from "@/lib/queries";
-import { PageHeader, Card } from "@/components/ui";
+import { PageHeader } from "@/components/ui";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-function Bar({ value, max, tone = "accent" }: { value: number; max: number; tone?: "accent" | "danger" | "warn" }) {
+function Bar({ value, max, tone = "accent" }: { value: number; max: number; tone?: "accent" | "danger" | "warn" | "success" | "info" }) {
   const pct = max === 0 ? 0 : Math.round((value / max) * 100);
-  const bg = tone === "danger" ? "bg-danger" : tone === "warn" ? "bg-warn" : "bg-accent";
+  const bg = tone === "danger" ? "bg-danger" : tone === "warn" ? "bg-warn" : tone === "success" ? "bg-success" : tone === "info" ? "bg-info" : "bg-accent";
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 bg-bg-muted rounded-full h-1.5 overflow-hidden">
-        <div className={`${bg} h-full rounded-full`} style={{ width: `${pct}%` }} />
+      <div className="flex-1 bg-bg-muted rounded-full h-2 overflow-hidden">
+        <div className={`${bg} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>
       <div className="text-xs text-fg-muted w-8 text-right tabular">{value}</div>
     </div>
   );
+}
+
+function statusTone(s: string): "accent" | "danger" | "warn" | "success" | "info" {
+  if (s === "Completed" || s === "Closed") return "success";
+  if (s === "Blocked" || s === "Escalated") return "danger";
+  if (s === "Waiting External" || s === "Under Review") return "warn";
+  if (s === "In Progress") return "info";
+  return "accent";
 }
 
 export default async function InsightsPage() {
@@ -43,41 +51,41 @@ export default async function InsightsPage() {
 
       <section className="space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">Open by company</p>
-        <Card className="p-4 space-y-2.5">
+        <div className="glass elevated rounded-2xl p-4 space-y-2.5">
           {companyRows.length === 0 ? (
             <p className="text-sm text-fg-muted py-2">No open tasks. 🎉</p>
           ) : companyRows.map((c) => (
             <Link key={c.id} href={`/companies/${c.id}`} className="grid grid-cols-[140px_1fr_auto] items-center gap-3 text-sm group">
               <div className="truncate text-fg group-hover:text-accent transition-colors">{c.name}</div>
               <Bar value={c.open} max={maxCompanyOpen} />
-              {c.overdue > 0 && <span className="text-[11px] font-medium text-red-600 dark:text-red-400 shrink-0">{c.overdue} overdue</span>}
+              {c.overdue > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger shrink-0">{c.overdue} overdue</span>}
             </Link>
           ))}
-        </Card>
+        </div>
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section>
           <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2 px-1">Status distribution</p>
-          <Card className="p-4 space-y-2">
+          <div className="glass elevated rounded-2xl p-4 space-y-2.5">
             {statuses.map((s) => (
               <div key={s.status} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
                 <div className="text-fg-muted truncate">{s.status}</div>
-                <Bar value={s.count} max={maxStatus} />
+                <Bar value={s.count} max={maxStatus} tone={statusTone(s.status)} />
               </div>
             ))}
-          </Card>
+          </div>
         </section>
         <section>
           <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted mb-2 px-1">Priority breakdown</p>
-          <Card className="p-4 space-y-2">
+          <div className="glass elevated rounded-2xl p-4 space-y-2.5">
             {priorities.map((p) => (
               <div key={p.priority} className="grid grid-cols-[110px_1fr] items-center gap-3 text-sm">
                 <div className="text-fg-muted truncate">{p.priority}</div>
-                <Bar value={p.count} max={maxPrio} tone={p.priority === "Critical" ? "danger" : p.priority === "High" ? "warn" : "accent"} />
+                <Bar value={p.count} max={maxPrio} tone={p.priority === "Critical" ? "danger" : p.priority === "High" ? "warn" : p.priority === "Medium" ? "info" : "accent"} />
               </div>
             ))}
-          </Card>
+          </div>
         </section>
       </div>
     </div>

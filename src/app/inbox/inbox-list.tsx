@@ -54,7 +54,7 @@ export function InboxList({ items }: { items: InboxItem[] }) {
 
   if (items.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-bg-subtle py-12 text-center">
+      <div className="glass elevated rounded-2xl py-12 text-center">
         <InboxIcon size={26} className="mx-auto text-fg-subtle mb-2" />
         <p className="text-sm text-fg-muted">Your inbox is empty.</p>
         <p className="text-xs text-fg-subtle mt-1">Forward an email or share a message to AUMIO and it appears here.</p>
@@ -112,9 +112,9 @@ export function InboxList({ items }: { items: InboxItem[] }) {
         const isLong = item.body.length > LONG;
 
         const card = (
-          <div className="border border-border bg-bg-elev p-3.5 space-y-2 rounded-xl h-full">
+          <div className="glass elevated p-3.5 space-y-2 rounded-2xl h-full">
             <div className="flex items-center gap-2 text-xs text-fg-muted">
-              <span className="inline-flex items-center gap-1 rounded-full bg-bg-muted px-2 py-0.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft/60 ring-1 ring-accent/20 text-accent px-2 py-0.5 font-medium">
                 <Icon size={11} /> {label}
               </span>
               {item.sender && <span className="truncate">{item.sender}</span>}
