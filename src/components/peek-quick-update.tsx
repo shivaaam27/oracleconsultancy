@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Send, Loader2, MessageSquarePlus } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { addTaskUpdate } from "@/app/task/actions";
 import { useToast } from "./toast";
@@ -34,11 +34,7 @@ export function PeekQuickUpdate({
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-fg-muted">
-        <MessageSquarePlus size={12} /> Quick update
-      </div>
-      <div className="flex items-end gap-2">
+    <div className="flex items-end gap-2">
         <textarea
           rows={2}
           value={body}
@@ -56,7 +52,6 @@ export function PeekQuickUpdate({
         >
           {isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
         </button>
-      </div>
     </div>
   );
 }

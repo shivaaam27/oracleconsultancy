@@ -231,10 +231,17 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
         onClose={() => setPeek(null)}
         onOpen={peek ? () => openTask(peek.code) : undefined}
         title={peek?.actionItem}
-        subtitle={peek ? `${peek.code} · ${peek.companyName} · ${peek.status}` : undefined}
+        subtitle={peek ? `${peek.code} · ${peek.companyName}` : undefined}
+        pills={peek ? (
+          <>
+            <Badge tone={statusTone(peek.status)}>{peek.status}</Badge>
+            <Badge tone={priorityTone(peek.priority)}>{peek.priority}</Badge>
+          </>
+        ) : undefined}
         body={peek?.latestUpdate || undefined}
-        editor={peek ? <PeekQuickUpdate row={peek} onPosted={() => { setPeek(null); router.refresh(); }} /> : undefined}
+        quickUpdate={peek ? <PeekQuickUpdate row={peek} onPosted={() => { setPeek(null); router.refresh(); }} /> : undefined}
         actions={peek ? peekActions(peek) : []}
+        actionsLayout="row"
       />
 
       <SnoozeSheet

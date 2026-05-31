@@ -1,7 +1,8 @@
 "use client";
 
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   X,
@@ -13,6 +14,7 @@ import {
   Loader2,
   AlertCircle,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 import { UpdateBox } from "./update-box";
 import { CodeLinkedText } from "./code-linked-text";
@@ -181,6 +183,7 @@ export function TaskDrawer() {
   }, [pathname, router, searchParams]);
 
   const [confirmDel, setConfirmDel] = useState(false);
+  const [showUpdate, setShowUpdate] = useState(false);
   async function handleDelete() {
     if (!data) return;
     setActing("delete");
@@ -258,22 +261,24 @@ export function TaskDrawer() {
                 {code}
               </span>
               {data?.task && (
-                <a
+                <Link
                   href={`/companies/${data.task.companyId}`}
+                  onClick={close}
                   className="text-xs text-fg-muted hover:text-accent truncate transition-colors"
                 >
                   {data.task.companyName}
-                </a>
+                </Link>
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {code && (
-                <a
+                <Link
                   href={`/task/${code}`}
-                  className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2 py-1 rounded hover:bg-bg-subtle transition-colors"
+                  onClick={close}
+                  className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2.5 py-1.5 rounded-full hover:bg-bg-subtle transition-colors"
                 >
                   <ExternalLink size={11} /> Full page
-                </a>
+                </Link>
               )}
               <Dialog.Close asChild>
                 <button
@@ -393,8 +398,9 @@ export function TaskDrawer() {
                 )}
 
                 {data.sourceMeeting && (
-                  <a
+                  <Link
                     href={`/workbook?tab=meetings&open=${data.sourceMeeting.id}`}
+                    onClick={close}
                     className="group rounded-xl border border-border bg-bg-subtle px-3 py-2.5 flex items-start gap-2.5 hover:border-accent/50 transition-colors"
                   >
                     <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
@@ -406,23 +412,33 @@ export function TaskDrawer() {
                       <p className="text-xs text-fg-muted">{fmtDate(new Date(data.sourceMeeting.meeting_date))}</p>
                     </div>
                     <ExternalLink size={12} className="text-fg-subtle group-hover:text-accent shrink-0 mt-0.5" />
-                  </a>
+                  </Link>
                 )}
 
                 {/* Divider */}
                 <div className="border-t border-border" />
 
-                {/* Post update */}
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted mb-3">
-                    <MessageSquarePlus size={11} /> Post update
-                  </div>
-                  <UpdateBox
-                    taskId={data.task.id}
-                    taskCode={data.task.code}
-                    currentStatus={data.task.status}
-                    onSuccess={() => setRefreshKey((k) => k + 1)}
-                  />
+                {/* Post update — collapsible, mirrors the peek */}
+                <div className="glass elevated rounded-2xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowUpdate((s) => !s)}
+                    aria-expanded={showUpdate}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
+                  >
+                    <MessageSquarePlus size={13} className="text-accent" /> Post update
+                    <ChevronDown size={14} className={`ml-auto transition-transform ${showUpdate ? "rotate-180" : ""}`} />
+                  </button>
+                  {showUpdate && (
+                    <div className="px-4 pb-4">
+                      <UpdateBox
+                        taskId={data.task.id}
+                        taskCode={data.task.code}
+                        currentStatus={data.task.status}
+                        onSuccess={() => setRefreshKey((k) => k + 1)}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Mini timeline */}

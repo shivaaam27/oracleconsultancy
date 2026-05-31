@@ -10,7 +10,7 @@ import { InlineEdit } from "@/components/inline-edit";
 import { Deadline } from "@/components/deadline";
 import { AssigneeList } from "@/components/assignee-list";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
-import { TaskQuickEdit } from "@/components/task-quick-edit";
+import { PeekQuickUpdate } from "@/components/peek-quick-update";
 import { SnoozeSheet } from "@/components/snooze-sheet";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
@@ -27,6 +27,14 @@ function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "i
   if (p === "Critical") return "danger";
   if (p === "High") return "warn";
   if (p === "Medium") return "info";
+  return "default";
+}
+
+function statusTone(s: string): "default" | "success" | "warn" | "danger" | "info" {
+  if (s === "Completed" || s === "Closed") return "success";
+  if (s === "Blocked" || s === "Escalated") return "danger";
+  if (s === "Waiting External" || s === "Under Review") return "warn";
+  if (s === "In Progress") return "info";
   return "default";
 }
 
@@ -218,10 +226,17 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
         onClose={() => setPeek(null)}
         onOpen={peek ? () => openTask(peek.code) : undefined}
         title={peek?.actionItem}
-        subtitle={peek ? `${peek.code} · ${peek.companyName} · ${peek.status}` : undefined}
+        subtitle={peek ? `${peek.code} · ${peek.companyName}` : undefined}
+        pills={peek ? (
+          <>
+            <Badge tone={statusTone(peek.status)}>{peek.status}</Badge>
+            <Badge tone={priorityTone(peek.priority)}>{peek.priority}</Badge>
+          </>
+        ) : undefined}
         body={peek?.latestUpdate || undefined}
-        editor={peek ? <TaskQuickEdit row={peek} onChanged={() => router.refresh()} /> : undefined}
+        quickUpdate={peek ? <PeekQuickUpdate row={peek} onPosted={() => { setPeek(null); router.refresh(); }} /> : undefined}
         actions={peek ? peekActions(peek) : []}
+        actionsLayout="row"
       />
 
       <SnoozeSheet

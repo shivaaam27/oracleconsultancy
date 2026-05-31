@@ -9,7 +9,7 @@ import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, ExternalLink, ChevronRight, Building2 } from "lucide-react";
+import { Plus, ExternalLink, ChevronRight, Building2, ChevronLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,14 @@ export default async function CompanyPage({
 
   return (
     <div className="space-y-4">
+      {/* Back to Task Management */}
+      <Link
+        href="/?tab=tasks"
+        className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-fg transition-colors"
+      >
+        <ChevronLeft size={14} /> Task Management
+      </Link>
+
       {/* Header — company accent identity, count chips, New Task pill */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">

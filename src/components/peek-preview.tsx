@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { MessageSquarePlus, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
 import type { ReactNode } from "react";
@@ -14,11 +16,13 @@ export type PeekAction = {
 
 /**
  * iOS "peek & pop" preview. Opened by a long-press; shows a floating glass
- * preview card over a dimmed/lifted background, with quick actions beneath.
- * Tap the card → open fully; tap the backdrop → collapse.
+ * preview card over a dimmed background. The info card surfaces the best
+ * read-only context; a quick-update editor expands inline behind an icon, and
+ * the actions sit in a single minimal row.
  */
 export function PeekPreview({
-  open, onClose, onOpen, title, subtitle, body, actions = [], editor,
+  open, onClose, onOpen, title, subtitle, body, pills, quickUpdate,
+  actions = [], actionsLayout = "list",
 }: {
   open: boolean;
   onClose: () => void;
@@ -26,12 +30,17 @@ export function PeekPreview({
   title: ReactNode;
   subtitle?: ReactNode;
   body?: ReactNode;
+  /** Status/priority badges shown under the subtitle. */
+  pills?: ReactNode;
+  /** Optional quick-update editor revealed inline behind the update icon. */
+  quickUpdate?: ReactNode;
   actions?: PeekAction[];
-  /** Optional inline quick-edit panel shown between the preview and the actions. */
-  editor?: ReactNode;
+  actionsLayout?: "list" | "row";
 }) {
+  const [showUpdate, setShowUpdate] = useState(false);
+
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={() => setShowUpdate(false)}>
       {open && (
         <>
           <motion.div
@@ -41,46 +50,96 @@ export function PeekPreview({
             className="fixed inset-0 z-[85] bg-black/45 backdrop-blur-[3px]"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.86, y: 10 }}
+            initial={{ opacity: 0, scale: 0.9, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 8 }}
+            exit={{ opacity: 0, scale: 0.92, y: 8 }}
             transition={spring}
             className="fixed z-[86] inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[420px] mx-auto flex flex-col gap-2 select-none"
           >
-            {/* Preview card — tap to open */}
-            <button
-              type="button"
-              onClick={() => { onClose(); onOpen?.(); }}
-              className="glass rounded-2xl p-4 text-left w-full active:scale-[0.99] transition-transform"
-            >
-              <div className="text-[15px] font-semibold leading-snug">{title}</div>
-              {subtitle && <div className="text-xs text-fg-muted mt-0.5">{subtitle}</div>}
-              {body && <div className="text-sm text-fg-muted mt-2 leading-relaxed">{body}</div>}
-            </button>
+            {/* Info card */}
+            <div className="glass glass-menu elevated rounded-2xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => { onClose(); onOpen?.(); }}
+                className="block text-left w-full p-4 active:bg-bg-muted/40 transition-colors"
+              >
+                {subtitle && <div className="text-xs text-fg-muted mb-1.5">{subtitle}</div>}
+                <div className="text-[15px] font-semibold leading-snug">{title}</div>
+                {pills && <div className="flex flex-wrap gap-1.5 mt-2">{pills}</div>}
+                {body && (
+                  <div className="text-sm text-fg-muted mt-2.5 leading-relaxed line-clamp-3">{body}</div>
+                )}
+              </button>
 
-            {/* Inline quick-edit panel */}
-            {editor && (
-              <div className="glass glass-menu rounded-2xl p-3">{editor}</div>
-            )}
-
-            {/* Quick actions */}
-            {actions.length > 0 && (
-              <div className="glass glass-menu rounded-2xl overflow-hidden divide-y divide-border/60">
-                {actions.map((a) => (
+              {/* Collapsible quick update */}
+              {quickUpdate && (
+                <div className="border-t border-border/60">
                   <button
-                    key={a.label}
                     type="button"
-                    onClick={() => { onClose(); a.onClick(); }}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 text-sm text-left active:bg-bg-muted/60 transition-colors",
-                      a.tone === "danger" ? "text-danger" : a.tone === "accent" ? "text-accent font-medium" : "text-fg"
-                    )}
+                    onClick={() => setShowUpdate((s) => !s)}
+                    aria-expanded={showUpdate}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
                   >
-                    {a.icon}
-                    {a.label}
+                    <MessageSquarePlus size={13} className="text-accent" />
+                    Quick update
+                    <ChevronDown size={14} className={cn("ml-auto transition-transform", showUpdate && "rotate-180")} />
                   </button>
-                ))}
-              </div>
+                  <AnimatePresence initial={false}>
+                    {showUpdate && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-4 pb-4">{quickUpdate}</div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            {actions.length > 0 && (
+              actionsLayout === "row" ? (
+                <div className="glass glass-menu elevated rounded-2xl p-1.5 flex items-stretch gap-1">
+                  {actions.map((a) => (
+                    <button
+                      key={a.label}
+                      type="button"
+                      onClick={() => { onClose(); a.onClick(); }}
+                      className={cn(
+                        "flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium active:scale-95 transition-all",
+                        a.tone === "danger" ? "text-danger hover:bg-danger-soft/50"
+                          : a.tone === "accent" ? "text-accent hover:bg-accent-soft/50"
+                          : "text-fg hover:bg-bg-muted/60"
+                      )}
+                    >
+                      {a.icon}
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="glass glass-menu elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+                  {actions.map((a) => (
+                    <button
+                      key={a.label}
+                      type="button"
+                      onClick={() => { onClose(); a.onClick(); }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 text-sm text-left active:bg-bg-muted/60 transition-colors",
+                        a.tone === "danger" ? "text-danger" : a.tone === "accent" ? "text-accent font-medium" : "text-fg"
+                      )}
+                    >
+                      {a.icon}
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )
             )}
           </motion.div>
         </>
