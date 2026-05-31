@@ -56,20 +56,24 @@ export function PeekPreview({
             transition={spring}
             className="fixed z-[86] inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[420px] mx-auto flex flex-col gap-2 select-none"
           >
-            {/* Info card */}
+            {/* Info card — tappable region is a div (not a button) so interactive
+                pills/body inside don't create invalid nested buttons. */}
             <div className="glass glass-menu elevated rounded-2xl overflow-hidden">
-              <button
-                type="button"
-                onClick={() => { onClose(); onOpen?.(); }}
-                className="block text-left w-full p-4 active:bg-bg-muted/40 transition-colors"
-              >
-                {subtitle && <div className="text-xs text-fg-muted mb-1.5">{subtitle}</div>}
-                <div className="text-[15px] font-semibold leading-snug">{title}</div>
+              <div className="p-4">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { onClose(); onOpen?.(); }}
+                  className="block text-left w-full cursor-pointer"
+                >
+                  {subtitle && <div className="text-xs text-fg-muted mb-1.5">{subtitle}</div>}
+                  <div className="text-[15px] font-semibold leading-snug">{title}</div>
+                </div>
                 {pills && <div className="flex flex-wrap gap-1.5 mt-2">{pills}</div>}
                 {body && (
-                  <div className="text-sm text-fg-muted mt-2.5 leading-relaxed line-clamp-3">{body}</div>
+                  <div className="text-sm mt-2.5 leading-relaxed">{body}</div>
                 )}
-              </button>
+              </div>
 
               {/* Collapsible quick update */}
               {quickUpdate && (

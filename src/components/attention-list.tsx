@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { CheckCircle2, ArrowRight, ChevronDown } from "lucide-react";
-import { useEffect } from "react";
+import { CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Pill, type PillTone } from "./macos";
+import { type PillTone } from "./macos";
 import { SwipeRow } from "./swipe-row";
 import { spring } from "@/lib/motion";
 import { useToast } from "./toast";
@@ -31,14 +29,6 @@ function deadlineLabel(ts: number | null): { text: string; tone: PillTone } {
   if (days === 1) return { text: "Tomorrow", tone: "warn" };
   if (days <= 7) return { text: `${days}d`, tone: "warn" };
   return { text: new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" }), tone: "neutral" };
-}
-
-function statusTone(s: string): PillTone {
-  if (s === "Completed" || s === "Closed") return "success";
-  if (s === "Blocked" || s === "Escalated") return "danger";
-  if (s === "Waiting External" || s === "Under Review") return "warn";
-  if (s === "In Progress") return "info";
-  return "neutral";
 }
 
 function dotColor(flag: string): string {
@@ -122,38 +112,34 @@ export function AttentionList({
   }
 
   return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between px-1">
+    <section>
+      <div className="glass elevated rounded-2xl overflow-hidden">
+        {/* Header — matches the Companies widget */}
         <button
           type="button"
           onClick={toggleCollapsed}
           disabled={items.length === 0}
           aria-expanded={!collapsed}
-          className="group inline-flex items-center gap-1.5 text-sm font-semibold tracking-tight disabled:cursor-default"
+          className="w-full flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none disabled:cursor-default"
         >
-          Attention today
+          <Sparkles size={12} /> Attention today
           {items.length > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-danger-soft/70 text-danger text-[11px] font-semibold tabular">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-danger-soft/70 text-danger text-[11px] font-semibold tabular normal-case">
               {items.length}
             </span>
           )}
           {items.length > 0 && (
-            <ChevronDown size={15} className={cn("text-fg-subtle transition-transform group-hover:text-fg", collapsed && "-rotate-90")} />
+            <ChevronDown size={14} className={cn("ml-auto text-fg-subtle transition-transform", collapsed && "-rotate-90")} />
           )}
         </button>
-        <Link href="/?tab=tasks&all=1" className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors">
-          All tasks <ArrowRight size={12} />
-        </Link>
-      </div>
 
-      {items.length === 0 ? (
-        <div className="glass elevated rounded-2xl py-12 text-center">
-          <CheckCircle2 size={26} className="mx-auto text-emerald-500 mb-2" />
-          <p className="text-sm text-fg-muted">Nothing needs you right now.</p>
-        </div>
-      ) : collapsed ? null : (
-        <>
-          <div className="glass elevated rounded-2xl overflow-hidden">
+        {items.length === 0 ? (
+          <div className="py-10 text-center border-t border-border/60">
+            <CheckCircle2 size={24} className="mx-auto text-emerald-500 mb-2" />
+            <p className="text-sm text-fg-muted">Nothing needs you right now.</p>
+          </div>
+        ) : collapsed ? null : (
+          <div className="border-t border-border/60">
             {items.map((t, i) => {
               const dl = deadlineLabel(t.deadlineTs);
               return (
@@ -192,14 +178,14 @@ export function AttentionList({
                 </motion.div>
               );
             })}
+            <p className="text-center text-[11px] text-fg-subtle py-2">
+              Tap to open
+              {swipeRight !== "none" && <> · swipe right to {SWIPE_LABEL[swipeRight].toLowerCase()}</>}
+              {swipeLeft !== "none" && <> · left to {SWIPE_LABEL[swipeLeft].toLowerCase()}</>}
+            </p>
           </div>
-          <p className="text-center text-[11px] text-fg-subtle">
-            Tap to open
-            {swipeRight !== "none" && <> · swipe right to {SWIPE_LABEL[swipeRight].toLowerCase()}</>}
-            {swipeLeft !== "none" && <> · left to {SWIPE_LABEL[swipeLeft].toLowerCase()}</>}
-          </p>
-        </>
-      )}
+        )}
+      </div>
     </section>
   );
 }

@@ -58,10 +58,11 @@ export async function CosHome({ rows }: { rows: TaskRow[] }) {
   const byCompany = new Map<number, CompanyGlance>();
   for (const r of rows) {
     const g = byCompany.get(r.companyId) ?? {
-      id: r.companyId, name: r.companyName, accent: r.companyAccent, open: 0, closed: 0, openTitles: [] as string[],
+      id: r.companyId, name: r.companyName, accent: r.companyAccent, open: 0, closed: 0,
+      openTitles: [] as string[], closedTitles: [] as string[],
     };
-    if (isOpenRow(r)) { g.open += 1; if (g.openTitles.length < 8) g.openTitles.push(r.actionItem); }
-    else g.closed += 1;
+    if (isOpenRow(r)) { g.open += 1; if (g.openTitles.length < 12) g.openTitles.push(r.actionItem); }
+    else { g.closed += 1; if (g.closedTitles.length < 12) g.closedTitles.push(r.actionItem); }
     byCompany.set(r.companyId, g);
   }
   const companyGlances = [...byCompany.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name));
