@@ -22,11 +22,27 @@ const TYPE_TINT: Record<string, string> = {
 };
 
 /**
- * Square person card for the directory grid. Front shows identity + contact;
- * hovering lifts the card and reveals a footer with companies + workload — no
- * layout shift (the panel is an absolute overlay).
+ * Square person card for the directory grid. Tap opens the full popup;
+ * long-press is handled by the parent (peek preview). No hover overlay — just a
+ * subtle lift — so cards never overlap their neighbours.
  */
-export function PersonCard({ person: p, onOpen }: { person: PersonRow; onOpen: () => void }) {
+export function PersonCard({
+  person: p,
+  onOpen,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerLeave,
+  onPointerCancel,
+}: {
+  person: PersonRow;
+  onOpen: () => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
+  onPointerMove?: (e: React.PointerEvent) => void;
+  onPointerUp?: (e: React.PointerEvent) => void;
+  onPointerLeave?: (e: React.PointerEvent) => void;
+  onPointerCancel?: (e: React.PointerEvent) => void;
+}) {
   const snoozed = !!(p.snoozedUntil && p.snoozedUntil > new Date());
   const dim = !p.active || snoozed;
   const wl = p.workload;
@@ -40,11 +56,16 @@ export function PersonCard({ person: p, onOpen }: { person: PersonRow; onOpen: (
   const companyLine = [p.companyName, p.associations.length ? `+${p.associations.length}` : null].filter(Boolean).join(" ");
 
   return (
-    <button
-      type="button"
+    <div
       onClick={onOpen}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+      onPointerCancel={onPointerCancel}
+      onContextMenu={(e) => e.preventDefault()}
       className={cn(
-        "group relative overflow-hidden glass elevated rounded-2xl p-4 text-left w-full transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]",
+        "group glass elevated rounded-2xl p-4 text-left w-full cursor-pointer select-none transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]",
         dim && "opacity-70"
       )}
     >
@@ -62,7 +83,7 @@ export function PersonCard({ person: p, onOpen }: { person: PersonRow; onOpen: (
         </div>
       </div>
 
-      {/* Contact + workload (always visible) */}
+      {/* Contact + workload */}
       <div className="flex items-center justify-between mt-3.5">
         <div className="flex items-center gap-2.5 text-fg-subtle" onClick={(e) => e.stopPropagation()}>
           {p.email && <a href={`mailto:${p.email}`} title={p.email} className="hover:text-accent transition-colors"><Mail size={14} /></a>}
@@ -74,17 +95,6 @@ export function PersonCard({ person: p, onOpen }: { person: PersonRow; onOpen: (
           {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}
         </span>
       </div>
-
-      {/* Hover footer — companies + workload breakdown (absolute, no reflow) */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-200 ease-out bg-bg-elev/95 backdrop-blur-md border-t border-border px-4 py-2.5 space-y-1.5">
-        <div className="text-[10px] uppercase tracking-wider text-fg-subtle truncate">{companyLine || "No company"}</div>
-        <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-          <span className="px-1.5 py-0.5 rounded-full bg-bg-subtle text-fg-muted">{wl.open} open</span>
-          {wl.overdue > 0 && <span className="px-1.5 py-0.5 rounded-full bg-danger-soft/70 text-danger">{wl.overdue} overdue</span>}
-          {wl.dueSoon > 0 && <span className="px-1.5 py-0.5 rounded-full bg-warn-soft/70 text-warn">{wl.dueSoon} soon</span>}
-          {wl.blocked > 0 && <span className="px-1.5 py-0.5 rounded-full bg-bg-subtle text-fg-muted">{wl.blocked} blocked</span>}
-        </div>
-      </div>
-    </button>
+    </div>
   );
 }

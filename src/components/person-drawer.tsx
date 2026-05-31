@@ -351,31 +351,31 @@ export function PersonDrawer() {
                   )}
                 </div>
 
-                {/* Workload strip */}
+                {/* Workload — compact tinted chips */}
                 {data && (
                   <div>
-                    <div className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-2">
-                      Workload
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle mb-2">Workload</div>
+                    <div className="flex flex-wrap gap-1.5">
                       {[
-                        { label: "Open", value: data.workload.open, tone: "default" },
-                        { label: "Overdue", value: data.workload.overdue, tone: "danger" },
-                        { label: "Due Soon", value: data.workload.dueSoon, tone: "warn" },
-                        { label: "Blocked", value: data.workload.blocked, tone: "warn" },
-                        { label: "Escalated", value: data.workload.escalated, tone: "danger" },
-                        { label: "Done · mo", value: data.workload.completedThisMonth, tone: "success" },
+                        { label: "Open", value: data.workload.open, tone: "info" as const },
+                        { label: "Overdue", value: data.workload.overdue, tone: "danger" as const },
+                        { label: "Due soon", value: data.workload.dueSoon, tone: "warn" as const },
+                        { label: "Blocked", value: data.workload.blocked, tone: "warn" as const },
+                        { label: "Escalated", value: data.workload.escalated, tone: "danger" as const },
+                        { label: "Done · mo", value: data.workload.completedThisMonth, tone: "success" as const },
                       ].map(({ label, value, tone }) => {
-                        const color =
-                          value === 0 ? "text-fg-subtle" :
-                          tone === "danger" ? "text-danger" :
-                          tone === "warn" ? "text-warn" :
-                          tone === "success" ? "text-success" : "text-fg";
+                        const dim = value === 0;
+                        const tint = dim
+                          ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
+                          : tone === "danger" ? "bg-danger-soft/60 ring-1 ring-danger/30 text-danger"
+                          : tone === "warn" ? "bg-warn-soft/60 ring-1 ring-warn/30 text-warn"
+                          : tone === "success" ? "bg-success-soft/60 ring-1 ring-success/30 text-success"
+                          : "bg-info-soft/60 ring-1 ring-info/30 text-info";
                         return (
-                          <div key={label} className="card p-2.5">
-                            <div className="text-[10px] uppercase tracking-wider text-fg-muted">{label}</div>
-                            <div className={`text-lg font-semibold tabular mt-0.5 ${color}`}>{value}</div>
-                          </div>
+                          <span key={label} className={`inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md ${tint}`}>
+                            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">{value}</span>
+                            {label}
+                          </span>
                         );
                       })}
                     </div>

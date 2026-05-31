@@ -211,9 +211,37 @@ export function PeopleTable({ people, companies }: {
       {/* Card grid — same on mobile + desktop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
         {filtered.map((p) => (
-          <PersonCard key={p.id} person={p} onOpen={() => openPerson(p.id)} />
+          <PersonCard
+            key={p.id}
+            person={p}
+            onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openPerson(p.id); }}
+            onPointerDown={(e) => onRowPointerDown(p, e)}
+            onPointerMove={onRowPointerMove}
+            onPointerUp={clearPress}
+            onPointerLeave={clearPress}
+            onPointerCancel={clearPress}
+          />
         ))}
       </div>
+
+      {/* Long-press peek — limited details */}
+      <PeekPreview
+        open={!!peek}
+        onClose={() => setPeek(null)}
+        onOpen={peek ? () => openPerson(peek.id) : undefined}
+        title={peek?.name}
+        subtitle={peek ? [peek.companyName, peek.role].filter(Boolean).join(" · ") || undefined : undefined}
+        pills={peek ? (
+          <>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-info-soft/60 ring-1 ring-info/25 text-info tabular">{peek.workload.open} open</span>
+            {peek.workload.overdue > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger tabular">{peek.workload.overdue} overdue</span>}
+            {peek.workload.dueSoon > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-warn-soft/60 ring-1 ring-warn/25 text-warn tabular">{peek.workload.dueSoon} due soon</span>}
+            {!peek.hasContact && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">No contact</span>}
+          </>
+        ) : undefined}
+        actions={peek ? peekActions(peek) : []}
+        actionsLayout="row"
+      />
 
       {filtered.length === 0 && (
         <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">

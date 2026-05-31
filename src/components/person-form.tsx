@@ -213,7 +213,7 @@ export function PersonForm({
           </select>
         </div>
 
-        <div className="col-span-2">
+        <div>
           <label className={labelCls}>Manager</label>
           <select
             name="managerId"
@@ -228,7 +228,7 @@ export function PersonForm({
         </div>
 
         {/* Related person — e.g. an immigration agent ↔ the expat they're helping */}
-        <div className="col-span-2">
+        <div>
           <label className={labelCls}>Related person</label>
           <select
             name="relatedPersonId"
