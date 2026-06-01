@@ -31,5 +31,5 @@ async function ModalFormLoader({ searchParams }: { searchParams: SP }) {
   const { data: rows } = await sb.from("companies").select("id,name").order("name");
   const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const presetCompany = sp.companyId ? parseInt(sp.companyId, 10) : companies[0]?.id;
-  return <NewTaskForm companies={companies} presetCompany={presetCompany} returnTo={sp.returnTo} />;
+  return <NewTaskForm companies={companies} presetCompany={presetCompany} returnTo={sp.returnTo} variant="modal" />;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { X } from "lucide-react";
 import { spring } from "@/lib/motion";
 
@@ -10,17 +10,21 @@ import { spring } from "@/lib/motion";
  * A route-driven modal used by intercepting routes: the page underneath stays
  * mounted (parallel @modal slot), so opening this feels like an overlay rather
  * than a navigation. Closing pops the history entry (router.back), revealing the
- * originating section exactly as it was. Centered card on desktop, bottom sheet
- * on mobile.
+ * originating section exactly as it was.
+ *
+ * Mobile: an iOS-style bottom sheet you can drag down to dismiss (drag is
+ * initiated from the grab handle so it never fights the scrollable body or
+ * inputs). Desktop: a centered card. The body is flush — children own their
+ * scroll area and any sticky footer.
  */
 export function RouteModal({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   const router = useRouter();
   const close = () => router.back();
+  const dragControls = useDragControls();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     document.addEventListener("keydown", onKey);
-    // Lock background scroll while the modal is open.
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -41,15 +45,29 @@ export function RouteModal({ title, subtitle, children }: { title: string; subti
       />
       <motion.div
         key="panel"
-        // Bottom sheet on mobile, centered card on desktop.
-        initial={{ opacity: 0, y: 24, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 24, scale: 0.98 }}
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
         transition={spring}
+        drag="y"
+        dragControls={dragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.6 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 110 || info.velocity.y > 600) close(); }}
         className="fixed z-[96] inset-x-0 bottom-0 sm:inset-0 sm:m-auto sm:h-fit sm:max-w-2xl sm:w-[calc(100vw-2rem)] flex flex-col max-h-[92svh] sm:max-h-[88vh]"
       >
-        <div className="glass glass-menu elevated rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col max-h-[92svh] sm:max-h-[88vh]">
-          <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border/60 shrink-0">
+        <div className="glass glass-menu elevated rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col flex-1 min-h-0">
+          {/* Grab handle (mobile) — the drag affordance. */}
+          <div
+            onPointerDown={(e) => dragControls.start(e)}
+            className="sm:hidden pt-2.5 pb-1.5 flex justify-center shrink-0 cursor-grab active:cursor-grabbing touch-none"
+          >
+            <span className="h-1.5 w-10 rounded-full bg-fg-subtle/40" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between gap-3 px-5 py-2.5 sm:py-3.5 border-b border-border/60 shrink-0">
             <div className="min-w-0">
               <h2 className="text-base font-semibold tracking-tight truncate">{title}</h2>
               {subtitle && <p className="text-xs text-fg-muted mt-0.5 truncate">{subtitle}</p>}
@@ -63,7 +81,9 @@ export function RouteModal({ title, subtitle, children }: { title: string; subti
               <X size={18} />
             </button>
           </div>
-          <div className="overflow-y-auto px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+
+          {/* Body — children own scroll + any sticky footer. */}
+          <div className="flex-1 min-h-0 flex flex-col">
             {children}
           </div>
         </div>
