@@ -114,6 +114,14 @@ export function NotesWorkspace({ initialNotes, companies, openId }: { initialNot
     setTimeout(() => titleRef.current?.focus(), 50);
   }
 
+  // Lets the global context action bar trigger "New note".
+  useEffect(() => {
+    const h = () => { handleNew(); };
+    window.addEventListener("workbook:new-note", h);
+    return () => window.removeEventListener("workbook:new-note", h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleDelete(id: number) {
     setNotes((prev) => prev.filter((n) => n.id !== id));
     if (selectedId === id) setSelectedId(null);

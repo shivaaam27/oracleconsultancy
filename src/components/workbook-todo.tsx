@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2 } from "lucide-react";
@@ -58,6 +58,13 @@ export function WorkbookTodo({
   function openAdd() {
     setEditId(null); setFTitle(""); setFDate(""); setFTime(""); setFCompany(""); setComposerOpen(true);
   }
+
+  // Lets the global context action bar trigger "New to-do".
+  useEffect(() => {
+    const h = () => openAdd();
+    window.addEventListener("workbook:new-todo", h);
+    return () => window.removeEventListener("workbook:new-todo", h);
+  }, []);
   function openEdit(t: Todo) {
     setEditId(t.id); setFTitle(t.title);
     const d = t.dueAt ? new Date(t.dueAt) : null;

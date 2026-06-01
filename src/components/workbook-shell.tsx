@@ -3,8 +3,9 @@
 import { useState, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { NotebookPen, StickyNote, ListTodo } from "lucide-react";
+import { NotebookPen, StickyNote, ListTodo, Plus } from "lucide-react";
 import { Segmented } from "@/components/macos";
+import { useContextActions } from "@/components/context-actions";
 
 type Tab = "meetings" | "notes" | "todo";
 
@@ -35,6 +36,16 @@ export function WorkbookShell({
   }, [router, pathname, searchParams]);
 
   const slot = tab === "meetings" ? meetingsSlot : tab === "notes" ? notesSlot : todoSlot;
+
+  // Tab-aware "New" in the global action bar — dispatches an event the active
+  // workspace listens for, so the bar mirrors the current section.
+  const newLabel = tab === "meetings" ? "New meeting" : tab === "notes" ? "New note" : "New to-do";
+  const newEvent = tab === "meetings" ? "workbook:new-meeting" : tab === "notes" ? "workbook:new-note" : "workbook:new-todo";
+  useContextActions(
+    "workbook",
+    [{ id: "new", label: newLabel, icon: <Plus size={16} />, onClick: () => window.dispatchEvent(new CustomEvent(newEvent)), primary: true, tone: "accent" }],
+    [tab]
+  );
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">

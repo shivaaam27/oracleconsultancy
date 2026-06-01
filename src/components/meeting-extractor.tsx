@@ -162,6 +162,13 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
     setMeetingList(prev => [saved, ...prev.filter(m => m.id !== saved.id)]);
   }
 
+  // Lets the global context action bar trigger "New meeting".
+  useEffect(() => {
+    const h = () => startNewMeeting();
+    window.addEventListener("workbook:new-meeting", h);
+    return () => window.removeEventListener("workbook:new-meeting", h);
+  }, []);
+
   // Deep-link: open a specific meeting when arriving with ?open=<id>.
   useEffect(() => {
     if (!openId) return;
