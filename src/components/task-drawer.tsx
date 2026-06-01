@@ -15,6 +15,7 @@ import {
   AlertCircle,
   FileText,
   ChevronDown,
+  History,
 } from "lucide-react";
 import { PeekQuickUpdate } from "./peek-quick-update";
 import { DeadlineEditor } from "./deadline-editor";
@@ -316,10 +317,22 @@ export function TaskDrawer() {
             {/* Content */}
             {data?.task && (
               <div className="p-4 space-y-3">
-                {/* Info card — mirrors the long-press peek */}
-                <div className="glass elevated rounded-2xl p-4 space-y-3.5">
-                  <div className="space-y-2">
-                    <h2 className="text-[15px] font-semibold leading-snug">{data.task.actionItem}</h2>
+                {/* Info card — mirrors the system hero: glass + soft colour wash */}
+                <div className="glass elevated rounded-3xl p-4 sm:p-5 space-y-3.5 relative overflow-hidden">
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute -top-16 -right-16 h-44 w-44 rounded-full blur-3xl opacity-60"
+                    style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }}
+                  />
+                  <div
+                    aria-hidden
+                    className={`pointer-events-none absolute -bottom-20 -left-20 h-52 w-52 rounded-full blur-3xl opacity-50 ${
+                      data.task.flag === "overdue" || data.task.escalation === "Yes" || (typeof data.task.daysToDeadline === "number" && data.task.daysToDeadline < 0) ? "" : "hidden"
+                    }`}
+                    style={{ background: "radial-gradient(circle, hsl(var(--danger) / 0.28), transparent 70%)" }}
+                  />
+                  <div className="relative space-y-2">
+                    <h2 className="text-base font-semibold leading-snug">{data.task.actionItem}</h2>
                     <div className="flex flex-wrap gap-1.5">
                       <Badge tone={statusTone(data.task.status)}>{data.task.status}</Badge>
                       <Badge tone={priorityTone(data.task.priority)}>{data.task.priority}</Badge>
@@ -328,7 +341,7 @@ export function TaskDrawer() {
                   </div>
 
                   {/* Meta — interactive deadline, consistent typography */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                  <div className="relative grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
                     <div className="flex flex-col gap-1 min-w-0">
                       <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Deadline</span>
                       <DeadlineEditor
@@ -357,14 +370,14 @@ export function TaskDrawer() {
 
                   {/* Latest update */}
                   {data.task.latestUpdate && (
-                    <div className="rounded-xl bg-bg-subtle/60 px-3 py-2.5">
+                    <div className="relative rounded-xl bg-bg-subtle/60 px-3 py-2.5">
                       <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">Latest update</div>
                       <p className="text-sm leading-relaxed"><CodeLinkedText text={data.task.latestUpdate} /></p>
                     </div>
                   )}
 
                   {/* Quick update — collapsible, minimal (no nested box) */}
-                  <div className="-mx-4 px-4 pt-0.5 border-t border-border/60">
+                  <div className="relative -mx-4 sm:-mx-5 px-4 sm:px-5 pt-0.5 border-t border-border/60">
                     <button
                       type="button"
                       onClick={() => setShowUpdate((s) => !s)}
@@ -455,6 +468,7 @@ export function TaskDrawer() {
                 {timeline.length > 0 && (
                   <details className="group glass elevated rounded-2xl overflow-hidden" open>
                     <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+                      <History size={13} className="text-fg-subtle" />
                       History
                       <span className="text-fg-subtle normal-case tracking-normal">· {timeline.length}</span>
                       <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
@@ -557,7 +571,7 @@ function MiniTimelineItem({ item }: { item: TimelineItem }) {
           <p className="text-[10px] text-fg-subtle">{fmtTime(item.createdAt)}</p>
         </div>
       ) : (
-        <div className="px-3 py-1.5 bg-bg-subtle rounded-lg text-xs">
+        <div className="px-3 py-1.5 bg-bg-subtle/70 ring-1 ring-border/50 rounded-lg text-xs">
           {item.entryType === "CREATE" ? (
             <span className="text-fg-muted">Task created</span>
           ) : (
