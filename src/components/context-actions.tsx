@@ -108,12 +108,14 @@ export function ContextActionBar() {
 
   return (
     <>
-      {/* ---------- Desktop: sticky action row at top of content ---------- */}
-      <div className="hidden md:flex sticky top-0 z-30 justify-end items-center gap-1.5 py-2 mb-1 bg-bg/80 backdrop-blur-md">
-        {secondary.map((a) => (
-          <ActionControl key={a.id} action={a} variant="desktop" />
-        ))}
-        <ActionControl action={primary} variant="desktop" />
+      {/* ---------- Desktop: a single glass pill, matching the floating nav ---------- */}
+      <div className="hidden md:flex sticky top-2 z-30 justify-end mb-1 pointer-events-none">
+        <div className="pointer-events-auto glass elevated shadow-pill rounded-full flex items-center gap-1 px-2 py-1.5">
+          <ActionControl action={primary} variant="desktop" />
+          {secondary.map((a) => (
+            <ActionControl key={a.id} action={a} variant="desktop" />
+          ))}
+        </div>
       </div>
 
       {/* ---------- Mobile: floating pill above the nav ---------- */}
@@ -176,10 +178,12 @@ export function ContextActionBar() {
 function ActionControl({ action, variant }: { action: ContextAction; variant: "desktop" | "mobile" }) {
   const { label, icon, href, onClick, tone = "default", primary, compact } = action;
 
-  const base = "group/act inline-flex items-center gap-1.5 rounded-full transition-all active:scale-[0.97] whitespace-nowrap shrink-0";
-  const size = variant === "desktop" ? "px-3 py-1.5 text-[13px]" : "px-3 py-1.5 text-[13px]";
+  const base = "group/act inline-flex items-center gap-1.5 rounded-full transition-colors active:scale-[0.97] whitespace-nowrap shrink-0";
+  const size = "px-3 py-1.5 text-[13px]";
+  // Ghost items inside a single glass pill — matches the main floating nav bar.
+  // The accent-tinted icon (below) is what marks the primary action.
   const skin = primary
-    ? "bg-bg-elev text-fg font-medium ring-1 ring-border shadow-sm hover:bg-bg-muted"
+    ? "text-fg font-medium hover:bg-bg-muted/60"
     : "text-fg-muted hover:text-fg hover:bg-bg-muted/60";
   // The icon carries the colour accent (red for destructive, brand otherwise)
   // instead of flooding the whole pill with a fill.
