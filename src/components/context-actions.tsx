@@ -35,14 +35,16 @@ type Ctx = {
   unregister: (sourceId: string) => void;
   actions: ContextAction[];
   suppressed: boolean;
-  setSuppressed: (v: boolean) => void;
+  pushSuppress: () => void;
+  popSuppress: () => void;
 };
 
 const ActionsContext = createContext<Ctx | null>(null);
 
 export function ContextActionsProvider({ children }: { children: React.ReactNode }) {
   const [sources, setSources] = useState<Record<string, ContextAction[]>>({});
-  const [suppressed, setSuppressed] = useState(false);
+  // Count of open overlays asking to hide the bar (robust to several at once).
+  const [suppressCount, setSuppressCount] = useState(0);
 
   const register = useCallback((sourceId: string, actions: ContextAction[]) => {
     setSources((s) => ({ ...s, [sourceId]: actions }));
@@ -55,27 +57,30 @@ export function ContextActionsProvider({ children }: { children: React.ReactNode
       return next;
     });
   }, []);
+  const pushSuppress = useCallback(() => setSuppressCount((c) => c + 1), []);
+  const popSuppress = useCallback(() => setSuppressCount((c) => Math.max(0, c - 1)), []);
 
   const actions = Object.values(sources).flat();
 
   return (
-    <ActionsContext.Provider value={{ register, unregister, actions, suppressed, setSuppressed }}>
+    <ActionsContext.Provider value={{ register, unregister, actions, suppressed: suppressCount > 0, pushSuppress, popSuppress }}>
       {children}
     </ActionsContext.Provider>
   );
 }
 
 /**
- * Hide the context action bar while mounted — used by route modals so the
- * page's "New Task" (etc.) button doesn't sit behind the very form it opened.
+ * Hide the context action bar while `active` — used by overlays/modals so a
+ * page's "New Task" (etc.) button doesn't sit behind the very surface it opened.
  */
-export function useSuppressContextActions() {
+export function useContextBarSuppressed(active: boolean) {
   const ctx = useContext(ActionsContext);
   useEffect(() => {
-    ctx?.setSuppressed(true);
-    return () => ctx?.setSuppressed(false);
+    if (!active || !ctx) return;
+    ctx.pushSuppress();
+    return () => ctx.popSuppress();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 }
 
 /**

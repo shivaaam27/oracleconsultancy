@@ -3,9 +3,8 @@
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import * as Dialog from "@radix-ui/react-dialog";
+import { ModalShell } from "./modal-shell";
 import {
-  X,
   ExternalLink,
   MessageSquarePlus,
   GitCommitHorizontal,
@@ -226,77 +225,41 @@ export function TaskDrawer() {
   const timeline = data ? buildTimeline(data) : [];
 
   return (
-    <Dialog.Root
+    <ModalShell
       open={open}
-      onOpenChange={(o) => { if (!o) close(); }}
+      onClose={close}
+      ariaLabel={data?.task ? data.task.actionItem : code ? `Task ${code}` : "Task"}
+      maxWidthClass="sm:max-w-[560px]"
+      headerLeading={
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-mono text-[11px] font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
+            {code}
+          </span>
+          {data?.task && (
+            <Link
+              href={`/companies/${data.task.companyId}`}
+              onClick={close}
+              className="text-xs text-fg-muted hover:text-accent truncate transition-colors"
+            >
+              {data.task.companyName}
+            </Link>
+          )}
+        </div>
+      }
+      headerTrailing={
+        code ? (
+          <Link
+            href={`/task/${code}`}
+            onClick={close}
+            className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2.5 py-1.5 rounded-full hover:bg-bg-muted transition-colors"
+          >
+            <ExternalLink size={11} /> Full page
+          </Link>
+        ) : undefined
+      }
     >
-      <Dialog.Portal>
-        {/* Overlay — forceMount so exit transition plays */}
-        <Dialog.Overlay
-          forceMount
-          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm
-            transition-opacity duration-200
-            data-[state=open]:opacity-100
-            data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none"
-        />
-
-        {/* Centred pop-up — vibrancy material, fade + scale in */}
-        <Dialog.Content
-          forceMount
-          aria-describedby={undefined}
-          className="fixed inset-0 m-auto z-[51] h-fit max-h-[88svh] w-[calc(100%-1.5rem)] max-w-[560px]
-            flex flex-col overflow-hidden glass glass-refract rounded-2xl outline-none
-            transition-all duration-200 ease-out
-            data-[state=open]:opacity-100 data-[state=open]:scale-100
-            data-[state=closed]:opacity-0 data-[state=closed]:scale-[0.97]
-            data-[state=closed]:pointer-events-none"
-        >
-          {/* Always-present accessible name — exists from the moment the panel
-              opens, before task data loads, so screen readers can announce it. */}
-          <Dialog.Title className="sr-only">
-            {data?.task ? data.task.actionItem : code ? `Task ${code}` : "Task"}
-          </Dialog.Title>
-
-          {/* ── Header ── */}
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/60 shrink-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="font-mono text-[11px] font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
-                {code}
-              </span>
-              {data?.task && (
-                <Link
-                  href={`/companies/${data.task.companyId}`}
-                  onClick={close}
-                  className="text-xs text-fg-muted hover:text-accent truncate transition-colors"
-                >
-                  {data.task.companyName}
-                </Link>
-              )}
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              {code && (
-                <Link
-                  href={`/task/${code}`}
-                  onClick={close}
-                  className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2.5 py-1.5 rounded-full hover:bg-bg-subtle transition-colors"
-                >
-                  <ExternalLink size={11} /> Full page
-                </Link>
-              )}
-              <Dialog.Close asChild>
-                <button
-                  type="button"
-                  aria-label="Close"
-                  className="h-8 w-8 inline-flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors"
-                >
-                  <X size={15} />
-                </button>
-              </Dialog.Close>
-            </div>
-          </div>
-
-          {/* ── Body — scrollable ── */}
-          <div className="flex-1 overflow-y-auto">
+      {/* ── Body — scrollable ── */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
             {/* Loading skeleton — also covers the brief pre-fetch frame so the
                 drawer never renders as a thin header-only bar. */}
             {!data && !error && (
@@ -487,10 +450,8 @@ export function TaskDrawer() {
                 )}
               </div>
             )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+      </div>
+    </ModalShell>
   );
 }
 
