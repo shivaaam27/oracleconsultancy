@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { X } from "lucide-react";
 import { spring } from "@/lib/motion";
+import { useSuppressContextActions } from "./context-actions";
 
 /**
  * A route-driven modal used by intercepting routes: the page underneath stays
@@ -21,6 +22,7 @@ export function RouteModal({ title, subtitle, children }: { title: string; subti
   const router = useRouter();
   const close = () => router.back();
   const dragControls = useDragControls();
+  useSuppressContextActions();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };

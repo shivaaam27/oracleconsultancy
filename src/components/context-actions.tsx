@@ -34,12 +34,15 @@ type Ctx = {
   register: (sourceId: string, actions: ContextAction[]) => void;
   unregister: (sourceId: string) => void;
   actions: ContextAction[];
+  suppressed: boolean;
+  setSuppressed: (v: boolean) => void;
 };
 
 const ActionsContext = createContext<Ctx | null>(null);
 
 export function ContextActionsProvider({ children }: { children: React.ReactNode }) {
   const [sources, setSources] = useState<Record<string, ContextAction[]>>({});
+  const [suppressed, setSuppressed] = useState(false);
 
   const register = useCallback((sourceId: string, actions: ContextAction[]) => {
     setSources((s) => ({ ...s, [sourceId]: actions }));
@@ -56,10 +59,23 @@ export function ContextActionsProvider({ children }: { children: React.ReactNode
   const actions = Object.values(sources).flat();
 
   return (
-    <ActionsContext.Provider value={{ register, unregister, actions }}>
+    <ActionsContext.Provider value={{ register, unregister, actions, suppressed, setSuppressed }}>
       {children}
     </ActionsContext.Provider>
   );
+}
+
+/**
+ * Hide the context action bar while mounted — used by route modals so the
+ * page's "New Task" (etc.) button doesn't sit behind the very form it opened.
+ */
+export function useSuppressContextActions() {
+  const ctx = useContext(ActionsContext);
+  useEffect(() => {
+    ctx?.setSuppressed(true);
+    return () => ctx?.setSuppressed(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }
 
 /**
@@ -84,6 +100,7 @@ export function useContextActions(sourceId: string, actions: ContextAction[], de
 export function ContextActionBar() {
   const ctx = useContext(ActionsContext);
   const actions = ctx?.actions ?? [];
+  const suppressed = ctx?.suppressed ?? false;
   const [collapsed, setCollapsed] = useState(false);
   const lastY = useRef(0);
 
@@ -100,7 +117,7 @@ export function ContextActionBar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  if (actions.length === 0) return null;
+  if (actions.length === 0 || suppressed) return null;
 
   const primary = actions.find((a) => a.primary) ?? actions[0];
   const secondary = actions.filter((a) => a !== primary);

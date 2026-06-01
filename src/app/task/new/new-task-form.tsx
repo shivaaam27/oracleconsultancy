@@ -47,13 +47,23 @@ export function NewTaskForm({
           <ActionItemField name="actionItem" required placeholder="What needs to happen?" />
         </div>
 
+        {/* Description (stored as the task's comments). Sits up top, by the action. */}
+        <div className="relative">
+          <FieldLabel>Description</FieldLabel>
+          <Textarea name="comments" rows={2} placeholder="Add any context or detail…" />
+        </div>
+
         {/* Short fields sit two-per-row; full-width fields span both columns. */}
         <div className="relative grid grid-cols-2 gap-2.5 sm:gap-3">
-          <div className="col-span-2">
+          <div>
             <FieldLabel>Company</FieldLabel>
             <Select name="companyId" defaultValue={presetCompany} required>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
+          </div>
+          <div>
+            <FieldLabel>Meeting Date</FieldLabel>
+            <Input name="meetingDate" type="date" />
           </div>
           <div>
             <FieldLabel>Priority</FieldLabel>
@@ -77,7 +87,7 @@ export function NewTaskForm({
         <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
           <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90" />
           More details
-          <span className="text-fg-subtle normal-case tracking-normal font-normal">status, category, risk &amp; notes</span>
+          <span className="text-fg-subtle normal-case tracking-normal font-normal">status, risk, category &amp; department</span>
         </summary>
         <div className="px-5 pb-5 space-y-3 sm:space-y-4">
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
@@ -109,18 +119,6 @@ export function NewTaskForm({
               <FieldLabel>Category</FieldLabel>
               <Input name="category" />
             </div>
-            <div>
-              <FieldLabel>Meeting Date</FieldLabel>
-              <Input name="meetingDate" type="date" />
-            </div>
-          </div>
-          <div>
-            <FieldLabel>Latest Update</FieldLabel>
-            <Input name="latestUpdate" placeholder="Optional opening note" />
-          </div>
-          <div>
-            <FieldLabel>Comments</FieldLabel>
-            <Textarea name="comments" rows={3} />
           </div>
         </div>
       </details>
