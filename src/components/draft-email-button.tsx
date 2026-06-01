@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Mail, Loader2, Send, X, Copy, Check } from "lucide-react";
 import { recordSent } from "@/app/outbox/actions";
+import { useContextActions } from "./context-actions";
 
 type Draft = {
   subject: string;
@@ -73,18 +74,14 @@ export function DraftEmailButton({ taskId }: { taskId: number }) {
     });
   }
 
+  useContextActions(
+    "draft-email",
+    [{ id: "draft-email", label: loading ? "Drafting…" : "Draft email", icon: loading ? <Loader2 size={15} className="animate-spin" /> : <Mail size={15} />, onClick: () => { if (!loading) generate(); } }],
+    [loading]
+  );
+
   return (
     <>
-      <button
-        type="button"
-        onClick={generate}
-        disabled={loading}
-        className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent border border-border rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50"
-      >
-        {loading ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
-        {loading ? "Drafting…" : "Draft Email"}
-      </button>
-
       {(draft || error) && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => { setDraft(null); setError(null); }}>
           <div className="bg-bg border border-border rounded-2xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-auto" onClick={e => e.stopPropagation()}>

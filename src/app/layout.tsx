@@ -11,6 +11,7 @@ import { ToastProvider } from "@/components/toast";
 import { UndoBanner } from "@/components/undo-banner";
 import { DensityScript } from "@/components/density-toggle";
 import { PageTransition } from "@/components/page-transition";
+import { ContextActionsProvider, ContextActionBar } from "@/components/context-actions";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
 import { FloatingAssistant } from "@/components/floating-assistant";
@@ -62,16 +63,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <UndoBanner />
             <CommandPaletteProvider>
               <RecentsTracker />
-              <div className="md:flex md:h-[100svh] md:overflow-hidden">
-                <Suspense>
-                  <SidebarServer />
-                </Suspense>
-                <main className="flex-1 md:overflow-y-auto pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-10">
-                  <div className="mx-auto max-w-[1100px]">
-                    <PageTransition>{children}</PageTransition>
-                  </div>
-                </main>
-              </div>
+              <ContextActionsProvider>
+                <div className="md:flex md:h-[100svh] md:overflow-hidden">
+                  <Suspense>
+                    <SidebarServer />
+                  </Suspense>
+                  <main className="flex-1 md:overflow-y-auto pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-10">
+                    <div className="mx-auto max-w-[1100px]">
+                      <ContextActionBar />
+                      <PageTransition>{children}</PageTransition>
+                    </div>
+                  </main>
+                </div>
+              </ContextActionsProvider>
               <Suspense>
                 <TopPillServer />
               </Suspense>

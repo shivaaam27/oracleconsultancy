@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Plus, X } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 import { PersonForm } from "./person-form";
 import { useToast } from "./toast";
+import { useContextActions } from "./context-actions";
 
 export function NewPersonButton({
   companies,
@@ -20,16 +21,14 @@ export function NewPersonButton({
   const pathname = usePathname();
   const { toast } = useToast();
 
+  useContextActions(
+    "people",
+    [{ id: "add-person", label: "Add person", icon: <UserPlus size={16} />, onClick: () => setOpen(true), primary: true, tone: "accent" }],
+    []
+  );
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity"
-        >
-          <Plus size={14} /> New Person
-        </button>
-      </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm
           data-[state=open]:animate-in data-[state=open]:fade-in-0

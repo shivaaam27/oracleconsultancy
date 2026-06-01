@@ -40,7 +40,7 @@ export function CompanyKpiStrip({
   ];
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
       {chips.map((c) => (
         <Chip key={c.label} {...c} />
       ))}
@@ -76,13 +76,11 @@ function Chip({
       href={href}
       title={`${label}: ${count}`}
       aria-label={`${label}: ${count}`}
-      className={`group inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
+      className={`group shrink-0 inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
     >
       <Icon size={14} className="shrink-0" />
+      <span className="font-medium whitespace-nowrap">{label}</span>
       <span className="font-semibold tabular">{count}</span>
-      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-[90px] group-hover:opacity-100 group-hover:ml-0.5 font-medium">
-        {label}
-      </span>
     </Link>
   );
 }

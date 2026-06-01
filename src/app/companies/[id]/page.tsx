@@ -1,6 +1,6 @@
 import { getAllTasks } from "@/lib/queries";
-import { LinkButton } from "@/components/ui";
 import { CompanySummary } from "@/components/company-summary";
+import { CompanyActions } from "./_tabs/company-actions";
 import { CompanyTabs, parseCompanyTab } from "./_tabs/tabs";
 import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
@@ -9,7 +9,7 @@ import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, ExternalLink, ChevronRight, Building2, ChevronLeft } from "lucide-react";
+import { ExternalLink, ChevronRight, Building2, ChevronLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -66,10 +66,8 @@ export default async function CompanyPage({
             </div>
           </div>
         </div>
-        <LinkButton href={`/task/new?companyId=${companyId}`} className="rounded-full">
-          <Plus size={14} /> New Task
-        </LinkButton>
       </div>
+      <CompanyActions companyId={companyId} companyName={name} />
 
       <CompanyTabs companyId={companyId} current={tab} completedCount={completedRows.length} />
 

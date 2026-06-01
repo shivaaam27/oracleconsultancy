@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { spring } from "@/lib/motion";
@@ -24,12 +25,46 @@ export function InlineEdit({ field, taskCode, value, options, className, childre
   const [pending, startTransition] = useTransition();
   const { toast } = useToast();
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Position the portalled menu just below the trigger, flipping/clamping to
+  // stay on-screen. Runs on open and on scroll/resize so it tracks the anchor.
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const btn = wrapRef.current?.querySelector("button");
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const menuW = menuRef.current?.offsetWidth ?? 200;
+      const menuH = menuRef.current?.offsetHeight ?? 0;
+      const margin = 8;
+      let left = r.left;
+      if (left + menuW > window.innerWidth - margin) left = window.innerWidth - menuW - margin;
+      if (left < margin) left = margin;
+      let top = r.bottom + 6;
+      // Flip above if it would overflow the bottom edge.
+      if (menuH && top + menuH > window.innerHeight - margin) top = Math.max(margin, r.top - menuH - 6);
+      setPos({ top, left });
+    };
+    place();
+    // Re-place once after the menu has measured its real size.
+    const raf = requestAnimationFrame(place);
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -85,32 +120,37 @@ export function InlineEdit({ field, taskCode, value, options, className, childre
         {children}
         <ChevronDown size={10} className="opacity-50" />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: -2 }}
-            transition={spring}
-            style={{ transformOrigin: "top left" }}
-            className="absolute z-[70] mt-1.5 left-0 rounded-xl glass glass-menu shadow-lg p-1.5 min-w-[190px]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {field === "deadline" ? (
-              <div className="p-1">
-                <DeadlineInput initial={value} onSave={save} onCancel={() => setOpen(false)} />
-              </div>
-            ) : (
-              <OptionList
-                options={options ?? defaultOptions(field)}
-                current={value}
-                onPick={save}
-                allowClear={field === "category"}
-              />
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              ref={menuRef}
+              initial={{ opacity: 0, scale: 0.96, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: -2 }}
+              transition={spring}
+              style={{ transformOrigin: "top left", top: pos?.top ?? -9999, left: pos?.left ?? -9999, visibility: pos ? "visible" : "hidden" }}
+              className="fixed z-[120] rounded-xl glass glass-menu shadow-lg p-1.5 min-w-[190px]"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {field === "deadline" ? (
+                <div className="p-1">
+                  <DeadlineInput initial={value} onSave={save} onCancel={() => setOpen(false)} />
+                </div>
+              ) : (
+                <OptionList
+                  options={options ?? defaultOptions(field)}
+                  current={value}
+                  onPick={save}
+                  allowClear={field === "category"}
+                />
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </span>
   );
 }

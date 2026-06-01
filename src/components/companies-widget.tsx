@@ -62,7 +62,7 @@ export function CompaniesWidget({ companies }: { companies: CompanyGlance[] }) {
           <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
         </summary>
         <div className="px-2 pb-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-0.5">
+          <div className="grid grid-cols-1 gap-0.5">
             {companies.map((c) => (
               <div
                 key={c.id}

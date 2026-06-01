@@ -37,7 +37,7 @@ export function ViewSwitcher({
   basePath?: string;
 }) {
   return (
-    <div className="inline-flex items-center rounded-full bg-bg-subtle p-0.5 text-xs">
+    <div className="inline-flex items-center rounded-full bg-bg-subtle p-0.5 text-xs shrink-0">
       {VIEW_MODES.map((m) => {
         const Icon = ICONS[m];
         const active = m === current;
@@ -50,15 +50,17 @@ export function ViewSwitcher({
           <Link
             key={m}
             href={href}
+            aria-label={LABELS[m]}
+            title={LABELS[m]}
             className={cn(
-              "inline-flex items-center gap-1.5 px-3 py-1 rounded-full transition-colors",
+              "inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-1 rounded-full transition-colors",
               active
                 ? "bg-bg-elev text-fg shadow-sm"
                 : "text-fg-muted hover:text-fg"
             )}
           >
-            <Icon size={12} />
-            <span>{LABELS[m]}</span>
+            <Icon size={13} />
+            <span className="hidden sm:inline">{LABELS[m]}</span>
           </Link>
         );
       })}

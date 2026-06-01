@@ -1,9 +1,9 @@
 import { getAllTasks, getTaskSources } from "@/lib/queries";
 import { getSavedViews } from "@/lib/task-views";
-import { Card, LinkButton, EmptyState } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
+import { TaskActions } from "./task-actions";
 import { SavedViewsBar } from "@/components/saved-views-bar";
-import { FilterSelect } from "@/components/filter-select";
-import { CompanyJump } from "@/components/company-jump";
+import { TaskFilters } from "@/components/task-filters";
 import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
@@ -11,7 +11,7 @@ import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
-import { Plus, CheckSquare, Sparkles, Clock, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus } from "lucide-react";
+import { CheckSquare, Sparkles, Clock, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X } from "lucide-react";
 
 type Sp = {
   company?: string;
@@ -146,9 +146,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   return (
     <div className="space-y-4">
+      <TaskActions />
       {/* Header row */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold tracking-tight">Task Management</h2>
           <p className="text-xs text-fg-muted mt-0.5">
             {dayMode
@@ -156,11 +157,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               : `${total} ${showClosed ? "task" : "open task"}${total === 1 ? "" : "s"}`}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 sm:justify-end">
           <ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />
-          <LinkButton href="/task/new">
-            <Plus size={14} /> New Task
-          </LinkButton>
         </div>
       </div>
 
@@ -182,13 +180,13 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             </Link>
           </div>
           {dayMode && (
-            <span className="text-[11px] text-fg-muted">Overdue, due-soon, escalated &amp; critical across all companies.</span>
+            <span className="hidden sm:inline text-[11px] text-fg-muted">Overdue, due-soon, escalated &amp; critical across all companies.</span>
           )}
         </div>
       )}
 
-      {/* KPI chips — compact icon chips; label slides open on hover (unified) */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* KPI chips — one horizontal-scroll row on mobile, wraps on desktop */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {[
           { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: Clock },
           { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
@@ -213,67 +211,40 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             <Link
               key={label}
               href={href}
-              title={`${label}: ${count}`}
+              title={active ? `${label}: ${count} — tap to clear` : `${label}: ${count}`}
               aria-label={`${label}: ${count}`}
-              className={`group inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
+              aria-pressed={active}
+              className={`group shrink-0 inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
             >
               <Icon size={14} className="shrink-0" />
+              <span className="font-medium whitespace-nowrap">{label}</span>
               <span className="font-semibold tabular">{count}</span>
-              <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-[90px] group-hover:opacity-100 group-hover:ml-0.5 font-medium">{label}</span>
+              {active && <X size={12} className="shrink-0 opacity-70" />}
             </Link>
           );
         })}
       </div>
 
-      {/* Filters bar */}
-      <Card className="p-3">
-        <form className="flex flex-wrap gap-2 items-center">
-          {/* Anchor to tasks tab */}
-          <input type="hidden" name="tab" value="tasks" />
-          {sp.flag && <input type="hidden" name="flag" value={sp.flag} />}
-          {sp.noOwner && <input type="hidden" name="noOwner" value={sp.noOwner} />}
-          {sp.closed && <input type="hidden" name="closed" value={sp.closed} />}
-          {sp.view && sp.view !== "board" && <input type="hidden" name="view" value={sp.view} />}
-          {sp.month && <input type="hidden" name="month" value={sp.month} />}
-          {/* Preserve the fluid-select filters when the search box is submitted. */}
-          {sp.company && <input type="hidden" name="company" value={sp.company} />}
-          {sp.priority && <input type="hidden" name="priority" value={sp.priority} />}
-          {sp.status && <input type="hidden" name="status" value={sp.status} />}
-
-          {view === "table" && (
-            <input
-              name="q"
-              defaultValue={sp.q || ""}
-              placeholder="Search action item, code, or person…"
-              className="flex-1 min-w-[200px] px-3 py-1.5 text-sm rounded-md"
-            />
-          )}
-          <CompanyJump value="" companies={companyList} />
-          <FilterSelect
-            param="priority"
-            value={sp.priority || ""}
-            placeholder="All Priorities"
-            options={[{ value: "", label: "All Priorities" }, ...priorities.map((p) => ({ value: p, label: p }))]}
-          />
-          <FilterSelect
-            param="status"
-            value={sp.status || ""}
-            placeholder="All Statuses"
-            options={[{ value: "", label: "All Statuses" }, ...["Not Started","In Progress","Under Review","Waiting External","Blocked","Escalated","Completed","Closed"].map((s) => ({ value: s, label: s }))]}
-          />
-          {hasFilters && (
-            <Link href={resetHref} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">
-              Reset
-            </Link>
-          )}
-          <Link
-            href={buildHref(sp, { closed: showClosed ? undefined : "1" })}
-            className={`px-2 py-1 rounded-md text-xs ${showClosed ? "bg-bg-muted text-fg" : "text-fg-muted hover:bg-bg-muted"}`}
-          >
-            {showClosed ? "✓ " : ""}Show closed ({closedCount})
-          </Link>
-        </form>
-      </Card>
+      {/* Filters bar — inline on desktop, collapses to a sheet on mobile */}
+      <TaskFilters
+        view={view}
+        q={sp.q || ""}
+        company={sp.company}
+        priority={sp.priority}
+        status={sp.status}
+        flag={sp.flag}
+        noOwner={sp.noOwner}
+        closed={sp.closed}
+        month={sp.month}
+        companies={companyList}
+        priorities={priorities}
+        statuses={["Not Started","In Progress","Under Review","Waiting External","Blocked","Escalated","Completed","Closed"]}
+        showClosed={showClosed}
+        closedCount={closedCount}
+        resetHref={resetHref}
+        toggleClosedHref={buildHref(sp, { closed: showClosed ? undefined : "1" })}
+        activeCount={[sp.company, sp.priority, sp.status, sp.q, sp.flag, sp.noOwner].filter(Boolean).length}
+      />
 
       <SavedViewsBar
         initialViews={savedViews}
