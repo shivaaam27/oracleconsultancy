@@ -8,7 +8,7 @@ export function CompanyActions({ companyId, companyName }: { companyId: number; 
   useContextActions(
     "company",
     [
-      { id: "new-task", label: "New Task", icon: <Plus size={16} />, href: `/task/new?companyId=${companyId}`, primary: true, tone: "accent" },
+      { id: "new-task", label: "New Task", icon: <Plus size={16} />, href: `/task/new?companyId=${companyId}&returnTo=${encodeURIComponent(`/companies/${companyId}`)}`, primary: true, tone: "accent" },
       { id: "open-tasks", label: "Open in Tasks", icon: <ExternalLink size={16} />, href: `/?tab=tasks&company=${encodeURIComponent(companyName)}`, compact: true },
     ],
     [companyId, companyName]

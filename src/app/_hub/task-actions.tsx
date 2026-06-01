@@ -8,7 +8,7 @@ export function TaskActions() {
   useContextActions(
     "tasks",
     [
-      { id: "new-task", label: "New Task", icon: <Plus size={16} />, href: "/task/new", primary: true, tone: "accent" },
+      { id: "new-task", label: "New Task", icon: <Plus size={16} />, href: `/task/new?returnTo=${encodeURIComponent("/?tab=tasks")}`, primary: true, tone: "accent" },
     ],
     []
   );

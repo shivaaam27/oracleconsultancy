@@ -299,6 +299,14 @@ export async function createTask(formData: FormData) {
   revalidatePath("/registry");
   revalidatePath("/");
   updateTag("tasks");
+  // When created from the modal flow, return to the originating section (tasks
+  // list / company page) instead of the standalone task page — keeps the user
+  // in context. Falls back to the task detail page for the full-page form.
+  const returnTo = str(formData.get("returnTo"));
+  if (returnTo && returnTo.startsWith("/")) {
+    revalidatePath(returnTo);
+    redirect(returnTo);
+  }
   redirect(`/task/${result.result.code}`);
 }
 

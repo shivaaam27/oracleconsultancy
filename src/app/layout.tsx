@@ -49,7 +49,7 @@ export const viewport: Viewport = {
   ],
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
   const { operatorName } = await getAppSettings();
   return (
     <html lang="en" suppressHydrationWarning>
@@ -75,6 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     </div>
                   </main>
                 </div>
+                {modal}
               </ContextActionsProvider>
               <Suspense>
                 <TopPillServer />
