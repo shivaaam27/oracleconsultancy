@@ -69,6 +69,12 @@ export function ContextActionsProvider({ children }: { children: React.ReactNode
   );
 }
 
+/** Read the currently-registered actions + suppression state (for the AI-pill extrusion). */
+export function useRegisteredActions() {
+  const ctx = useContext(ActionsContext);
+  return { actions: ctx?.actions ?? [], suppressed: ctx?.suppressed ?? false };
+}
+
 /**
  * Hide the context action bar while `active` — used by overlays/modals so a
  * page's "New Task" (etc.) button doesn't sit behind the very surface it opened.
@@ -197,7 +203,7 @@ export function ContextActionBar() {
 /* A single action — renders as a Link or a button.                       */
 /* --------------------------------------------------------------------- */
 
-function ActionControl({ action, variant }: { action: ContextAction; variant: "desktop" | "mobile" }) {
+export function ActionControl({ action, variant }: { action: ContextAction; variant: "desktop" | "mobile" }) {
   const { label, icon, href, onClick, tone = "default", primary, compact } = action;
 
   const base = "group/act inline-flex items-center gap-1.5 rounded-full transition-colors active:scale-[0.97] whitespace-nowrap shrink-0";

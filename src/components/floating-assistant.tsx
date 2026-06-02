@@ -13,6 +13,14 @@ export function openAssistant(full = false) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("cos:assistant", { detail: { full } }));
 }
 
+/** Open the assistant and immediately run a prompt (used by the suggestion reveal). */
+export function askAssistant(q: string) {
+  if (typeof window === "undefined") return;
+  openAssistant(false);
+  // Let the panel mount/listener attach before the question lands.
+  setTimeout(() => window.dispatchEvent(new CustomEvent("cos:ask", { detail: { q } })), 60);
+}
+
 function CosMark({ size = 18 }: { size?: number }) {
   return (
     <span
@@ -44,6 +52,11 @@ export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
   const SNAP = { type: "spring" as const, stiffness: 420, damping: 38 };
 
   useEffect(() => { setOpen(false); setFull(false); }, [pathname]);
+
+  // Broadcast open-state so the floating suggestion reveal can hide behind the panel.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("cos:assistant-state", { detail: { open } }));
+  }, [open]);
 
   // Reset the sheet position whenever it closes.
   useEffect(() => { if (!open) y.set(0); }, [open, y]);

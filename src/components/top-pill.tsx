@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { cloneElement, isValidElement, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, Building2, NotebookPen, LayoutGrid, Search,
-  Users, Send, Inbox, BarChart3, Settings, type LucideIcon,
+  Users, Send, Inbox, BarChart3, Settings, Plus, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
+import { useRegisteredActions, type ContextAction } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
 
 type Company = { id: number; name: string; accent: string | null };
@@ -33,7 +34,7 @@ function NavTab({
       aria-label={label}
       title={label}
       className={cn(
-        "relative inline-flex items-center justify-center h-11 w-11 rounded-full shrink-0 transition-colors",
+        "relative inline-flex items-center justify-center h-10 w-10 rounded-full shrink-0 transition-colors",
         active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
@@ -109,7 +110,7 @@ function CompaniesNavTab({ companies, active }: { companies: Company[]; active: 
         onPointerCancel={clear}
         onContextMenu={(e) => e.preventDefault()}
         className={cn(
-          "relative inline-flex items-center justify-center h-11 w-11 rounded-full transition-colors select-none touch-none",
+          "relative inline-flex items-center justify-center h-10 w-10 rounded-full transition-colors select-none touch-none",
           active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
         )}
       >
@@ -176,7 +177,7 @@ function MoreSheet({ pathname }: { pathname: string }) {
           aria-label="More"
           title="More"
           className={cn(
-            "relative inline-flex items-center justify-center h-11 w-11 rounded-full shrink-0 transition-colors outline-none",
+            "relative inline-flex items-center justify-center h-10 w-10 rounded-full shrink-0 transition-colors outline-none",
             active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
           )}
         >
@@ -221,6 +222,74 @@ function MoreSheet({ pathname }: { pathname: string }) {
 }
 
 /* --------------------------------------------------------------------- */
+/* Page action — the current page's primary contextual action, surfaced as */
+/* a single icon in the nav pill. Mirrors the action's own icon; fires it   */
+/* directly when there's one, opens a small popover when there are several. */
+/* --------------------------------------------------------------------- */
+
+function navIcon(action: ContextAction) {
+  return isValidElement(action.icon)
+    ? cloneElement(action.icon as React.ReactElement<{ size?: number }>, { size: 19 })
+    : <Plus size={19} />;
+}
+
+function NavActionButton() {
+  const { actions, suppressed } = useRegisteredActions();
+  const [open, setOpen] = useState(false);
+
+  // No action registered for this page (or hidden behind an overlay) → nothing.
+  if (actions.length === 0 || suppressed) return null;
+
+  const primary = actions.find((a) => a.primary) ?? actions[0];
+  const btn = "shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full text-accent hover:bg-bg-muted/60 transition-colors";
+
+  // Single action → fire directly.
+  if (actions.length === 1) {
+    if (primary.href) {
+      return <Link href={primary.href} aria-label={primary.label} title={primary.label} className={btn}>{navIcon(primary)}</Link>;
+    }
+    return (
+      <button type="button" onClick={primary.onClick} aria-label={primary.label} title={primary.label} className={btn}>
+        {navIcon(primary)}
+      </button>
+    );
+  }
+
+  // Several actions → popover above the pill.
+  return (
+    <div className="relative shrink-0">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Page actions" title={primary.label} className={btn}>
+        {navIcon(primary)}
+      </button>
+      {open && (
+        <>
+          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
+          <div className="absolute z-[56] bottom-full mb-3 right-0 w-56 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
+            <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">Actions</div>
+            {actions.map((a) => {
+              const row = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left text-fg hover:bg-bg-muted/60 transition-colors";
+              const inner = (
+                <>
+                  <span className={cn("shrink-0", a.tone === "danger" ? "text-danger" : a.primary ? "text-accent" : "text-fg-muted")}>
+                    {isValidElement(a.icon) ? cloneElement(a.icon as React.ReactElement<{ size?: number }>, { size: 15 }) : <Plus size={15} />}
+                  </span>
+                  <span className="truncate">{a.label}</span>
+                </>
+              );
+              return a.href ? (
+                <Link key={a.id} href={a.href} onClick={() => setOpen(false)} className={row}>{inner}</Link>
+              ) : (
+                <button key={a.id} type="button" onClick={() => { setOpen(false); a.onClick?.(); }} className={row}>{inner}</button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------------- */
 /* The bottom-floating pill (mobile only)                                 */
 /* --------------------------------------------------------------------- */
 
@@ -237,12 +306,12 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
   const workbookActive = pathname.startsWith("/workbook");
 
   return (
-    <div className="md:hidden fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-3 pointer-events-none">
+    <div className="md:hidden fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-2 pointer-events-none">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-1 px-2 h-14"
+        className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-1.5 h-14"
       >
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
@@ -252,9 +321,11 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
 
         <span className="w-px h-6 bg-border mx-0.5 shrink-0" aria-hidden />
 
+        <NavActionButton />
+
         <button
           onClick={openPalette}
-          className="shrink-0 inline-flex items-center justify-center h-11 w-11 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+          className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
           aria-label="Search"
           title="Search (⌘K)"
         >

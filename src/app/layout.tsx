@@ -11,10 +11,11 @@ import { ToastProvider } from "@/components/toast";
 import { UndoBanner } from "@/components/undo-banner";
 import { DensityScript } from "@/components/density-toggle";
 import { PageTransition } from "@/components/page-transition";
-import { ContextActionsProvider, ContextActionBar } from "@/components/context-actions";
+import { ContextActionsProvider } from "@/components/context-actions";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
 import { FloatingAssistant } from "@/components/floating-assistant";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
@@ -70,16 +71,15 @@ export default async function RootLayout({ children, modal }: { children: React.
                   </Suspense>
                   <main className="flex-1 md:overflow-y-auto pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-10">
                     <div className="mx-auto max-w-[1100px]">
-                      <ContextActionBar />
                       <PageTransition>{children}</PageTransition>
                     </div>
                   </main>
                 </div>
                 {modal}
+                <Suspense>
+                  <TopPillServer />
+                </Suspense>
               </ContextActionsProvider>
-              <Suspense>
-                <TopPillServer />
-              </Suspense>
               <Suspense>
                 <TaskDrawer />
               </Suspense>
@@ -88,6 +88,9 @@ export default async function RootLayout({ children, modal }: { children: React.
               </Suspense>
               <Suspense>
                 <FloatingAssistant operatorName={operatorName} />
+              </Suspense>
+              <Suspense>
+                <AssistantSuggestions />
               </Suspense>
               <ServiceWorkerRegister />
               <IosResume />
