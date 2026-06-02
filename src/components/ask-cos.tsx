@@ -9,6 +9,7 @@ import { CopyButton } from "./copy-button";
 import { VoiceButton } from "./voice-button";
 import type { PageContext } from "@/lib/page-context";
 import { useCurrentView } from "@/lib/current-view";
+import { TodayBrief } from "./today-brief";
 
 type Message = {
   id: string;
@@ -396,6 +397,10 @@ export function AskCOS({
           // ChatGPT-style home: greeting, then suggestion pills below.
           <div className="h-full flex flex-col items-center justify-center text-center gap-5 py-6">
             <h2 className="text-xl sm:text-2xl font-semibold tracking-tight px-4">{greeting}</h2>
+
+            {/* Proactive: what needs a decision today. */}
+            <TodayBrief onAsk={(q) => submit(q)} />
+
 
             {/* Agentic quick actions on the focused task — fire real commands
                 through the same confirm pipeline as typed commands. */}
