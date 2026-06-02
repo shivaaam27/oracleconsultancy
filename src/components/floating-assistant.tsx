@@ -16,11 +16,11 @@ export function openAssistant(full = false) {
 function CosMark({ size = 18 }: { size?: number }) {
   return (
     <span
-      className="relative inline-flex items-center justify-center rounded-xl bg-accent shadow-sm shadow-accent/30 ring-1 ring-white/10 overflow-hidden"
+      className="relative inline-flex items-center justify-center rounded-xl bg-bg-subtle/80 ring-1 ring-border/70 overflow-hidden"
       style={{ width: size + 10, height: size + 10 }}
     >
-      <span aria-hidden className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-black/20" />
-      <Sparkles size={size} className="relative text-accent-fg" />
+      <span aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 35%, hsl(var(--accent) / 0.22), transparent 70%)" }} />
+      <Sparkles size={size} className="relative text-accent" />
     </span>
   );
 }
@@ -173,24 +173,35 @@ export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
         )}
       </AnimatePresence>
 
-      {/* Launcher */}
+      {/* Launcher — glass, accent icon, a breathing aura (no flat blue fill) */}
       <motion.button
         type="button"
         aria-label={open ? "Close AUMIO assistant" : "Open AUMIO assistant"}
         onClick={() => setOpen((o) => !o)}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.92 }}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 460, damping: 28 }}
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.9 }}
         className={cn(
-          "fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] inline-flex items-center justify-center h-14 w-14 rounded-full text-accent-fg shadow-xl shadow-accent/30 ring-1 ring-white/10 hover:shadow-2xl transition-all hover:shadow-accent/40 sm:right-5 sm:bottom-[calc(1rem+env(safe-area-inset-bottom))] bg-gradient-to-br from-accent via-accent to-accent-hover overflow-hidden",
+          "group fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[60] inline-flex items-center justify-center h-14 w-14 rounded-full glass elevated shadow-pill text-accent ring-1 ring-border/60 overflow-hidden sm:right-5 sm:bottom-[calc(1rem+env(safe-area-inset-bottom))]",
           open && "hidden sm:inline-flex",
           full && "hidden"
         )}
       >
+        {/* Breathing accent aura — alive, on-theme, not a solid blue blob */}
+        <motion.span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-full"
+          style={{ background: "radial-gradient(circle at 50% 38%, hsl(var(--accent) / 0.30), transparent 70%)" }}
+          animate={{ opacity: [0.45, 0.85, 0.45], scale: [1, 1.12, 1] }}
+          transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
+        />
         <AnimatePresence mode="wait" initial={false}>
           {open ? (
-            <motion.span key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}><X size={24} /></motion.span>
+            <motion.span key="close" className="relative" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}><X size={23} /></motion.span>
           ) : (
-            <motion.span key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}><Sparkles size={24} /></motion.span>
+            <motion.span key="open" className="relative" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}><Sparkles size={23} className="group-hover:scale-110 transition-transform" /></motion.span>
           )}
         </AnimatePresence>
       </motion.button>
