@@ -131,7 +131,7 @@ While any `ModalShell` is open the **context action bar is suppressed**
 actions via `useContextActions(...)`; one `ContextActionBar` renders them — a
 sticky right-aligned glass pill on desktop, a floating pill above the nav on
 mobile (scroll-aware + tap collapse), styled to match the floating nav. Wired on
-Tasks, Company, People, Task detail, and Workbook.
+Home (Quick capture → ?capture=open), Tasks, Company, People, Task detail, and Workbook.
 
 ## Timeline
 

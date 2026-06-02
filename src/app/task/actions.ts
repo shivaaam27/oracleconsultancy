@@ -661,14 +661,9 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
         continue;
       }
 
-      // Permanent delete — log an audit trail row, then remove the task.
+      // Permanent, total wipe — purge history (no cascade), then the task. No tombstone.
       if (action.kind === "delete") {
-        await sb.from("audit_log").insert({
-          task_id: t.id, task_code: t.code, company_id: t.company_id,
-          entry_type: "CHANGE", field: "Task deleted",
-          old_value: t.action_item, new_value: "(deleted)",
-          change_reason: "Bulk: deleted", created_at: new Date().toISOString(), created_by: "web-ui",
-        });
+        await purgeTaskHistory(t.id, t.code);
         await sb.from("tasks").delete().eq("id", t.id);
         applied++;
         continue;

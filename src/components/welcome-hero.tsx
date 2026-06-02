@@ -76,7 +76,7 @@ export function WelcomeHero({
 
   useEffect(() => {
     setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000);
+    const id = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(id);
   }, []);
 
@@ -95,7 +95,6 @@ export function WelcomeHero({
 
   const hh = now ? String(now.getHours()).padStart(2, "0") : "--";
   const mm = now ? String(now.getMinutes()).padStart(2, "0") : "--";
-  const ss = now ? String(now.getSeconds()).padStart(2, "0") : "--";
   const date = now
     ? now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
     : "";
@@ -140,7 +139,6 @@ export function WelcomeHero({
             <span className="text-2xl font-semibold">{hh}</span>
             <span className="text-2xl font-semibold text-fg-muted animate-pulse">:</span>
             <span className="text-2xl font-semibold">{mm}</span>
-            <span className="text-[11px] font-medium text-fg-subtle ml-1 w-5 text-left">{ss}</span>
           </div>
           {weather && (
             <div className="mt-1.5 flex items-center justify-end gap-1.5">

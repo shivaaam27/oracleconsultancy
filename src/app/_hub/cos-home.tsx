@@ -3,6 +3,7 @@ import { computeGlobalKpis } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { getAppSettings } from "@/lib/settings";
 import { WelcomeHero } from "@/components/welcome-hero";
+import { HomeActions } from "./home-actions";
 import { AttentionList } from "@/components/attention-list";
 import { CompaniesWidget, type CompanyGlance } from "@/components/companies-widget";
 import type { AttnItem } from "@/components/attention-panel";
@@ -69,6 +70,7 @@ export async function CosHome({ rows }: { rows: TaskRow[] }) {
 
   return (
     <div className="space-y-4">
+      <HomeActions />
       <WelcomeHero
         pulse={buildPulse(rows)}
         city={settings.weatherCity}
