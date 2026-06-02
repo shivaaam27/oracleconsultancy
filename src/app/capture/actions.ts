@@ -29,6 +29,7 @@ export async function createCaptureTask(input: {
   assignees?: string;
   category?: string | null;
   escalation?: string;
+  comments?: string | null;
   /** When created from a note/meeting, link it back via meeting_tasks. */
   sourceMeetingId?: number | null;
 }): Promise<{ ok: boolean; code?: string; error?: string }> {
@@ -52,6 +53,7 @@ export async function createCaptureTask(input: {
       priority: input.priority || "Low",
       escalation: input.escalation || "No",
       category: input.category ?? null,
+      comments: input.comments ?? null,
       deadline: input.deadline ? new Date(input.deadline) : null,
       createdDate: now,
       lastUpdatedAt: now,

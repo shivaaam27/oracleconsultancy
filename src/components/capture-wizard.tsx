@@ -5,17 +5,19 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import {
   Sparkles, X, Loader2, ListTodo, NotebookPen, CheckCircle2, ArrowRight,
-  ArrowLeft, Building2, CalendarDays, Flag, User, ExternalLink,
+  ArrowLeft, Building2, CalendarDays, Flag, User, ExternalLink, CheckSquare, CalendarClock, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { parseRawCapture, createCaptureTask } from "@/app/capture/actions";
 import { createNote } from "@/app/notes/actions";
+import { createTodo } from "@/app/todos/actions";
+import { saveMeeting } from "@/app/meeting/actions";
 import { markInboxFiled } from "@/app/inbox/actions";
 import type { ParsedCapture } from "@/lib/smart-parse";
 
 type Company = { id: number; name: string };
-type Kind = "task" | "note";
-type Step = "intake" | "task" | "note" | "done";
+type Kind = "task" | "note" | "meeting" | "todo";
+type Step = "intake" | "task" | "note" | "meeting" | "todo" | "done";
 
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 
@@ -81,12 +83,23 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
   // Task fields
   const [companyId, setCompanyId] = useState("");
   const [actionItem, setActionItem] = useState("");
+  const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("Low");
   const [deadline, setDeadline] = useState("");
   const [assignees, setAssignees] = useState("");
   // Note fields
   const [noteTitle, setNoteTitle] = useState("");
   const [noteCompanyId, setNoteCompanyId] = useState("");
+  // Meeting fields
+  const [mtgTitle, setMtgTitle] = useState("");
+  const [mtgCompanyId, setMtgCompanyId] = useState("");
+  const [mtgDate, setMtgDate] = useState(ymd(new Date()));
+  const [mtgAttendees, setMtgAttendees] = useState("");
+  const [mtgNotes, setMtgNotes] = useState("");
+  // To-do fields
+  const [todoTitle, setTodoTitle] = useState("");
+  const [todoDate, setTodoDate] = useState("");
+  const [todoCompanyId, setTodoCompanyId] = useState("");
 
   const initialised = useRef(false);
 
@@ -95,6 +108,8 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
     params.delete("capture");
     params.delete("text");
     params.delete("inbox");
+    params.delete("create");
+    params.delete("companyId");
     router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ""}`, { scroll: false });
   }, [router, pathname, searchParams]);
 
@@ -108,11 +123,21 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
     initialised.current = true;
 
     const seed = cleanShared(searchParams.get("text") || "");
-    setStep("intake");
     setError(null);
     setResult(null);
     setRaw(seed);
     setParsed(null);
+
+    // ?create=task|note|meeting|todo jumps straight to that form (with optional
+    // ?companyId=). Otherwise land on the chooser/intake.
+    const create = searchParams.get("create");
+    const cid = searchParams.get("companyId") || "";
+    if (cid) { setCompanyId(cid); setNoteCompanyId(cid); setMtgCompanyId(cid); setTodoCompanyId(cid); }
+    if (create === "task" || create === "note" || create === "meeting" || create === "todo") {
+      setStep(create);
+    } else {
+      setStep("intake");
+    }
     if (seed) void runParse(seed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -170,6 +195,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
       priority,
       deadline: deadline || null,
       assignees,
+      comments: description.trim() || null,
       sourceMeetingId: noteId ? parseInt(noteId, 10) : null,
     });
     setSaving(false);
@@ -181,6 +207,42 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
     } else {
       setError(res.error || "Could not create the task.");
     }
+  }
+
+  async function saveMeetingNow() {
+    if (!mtgTitle.trim()) { setError("Give the meeting a title."); return; }
+    setSaving(true); setError(null);
+    try {
+      const m = await saveMeeting({
+        title: mtgTitle.trim(),
+        companyId: mtgCompanyId ? parseInt(mtgCompanyId, 10) : null,
+        meetingDate: mtgDate,
+        attendees: mtgAttendees.trim() || null,
+        rawNotes: mtgNotes,
+      });
+      setResult({ kind: "meeting", label: m.title, href: `/workbook?tab=meetings&open=${m.id}` });
+      setStep("done");
+      router.refresh();
+    } catch {
+      setError("Could not create the meeting.");
+    } finally { setSaving(false); }
+  }
+
+  async function saveTodoNow() {
+    if (!todoTitle.trim()) { setError("What needs doing?"); return; }
+    setSaving(true); setError(null);
+    try {
+      await createTodo({
+        title: todoTitle.trim(),
+        dueAt: todoDate ? new Date(`${todoDate}T00:00:00`).toISOString() : null,
+        companyId: todoCompanyId ? parseInt(todoCompanyId, 10) : null,
+      });
+      setResult({ kind: "todo", label: todoTitle.trim(), href: "/workbook?tab=todo" });
+      setStep("done");
+      router.refresh();
+    } catch {
+      setError("Could not create the to-do.");
+    } finally { setSaving(false); }
   }
 
   async function saveNote() {
@@ -250,7 +312,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
                   <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-accent">
                     <Sparkles size={15} className="text-accent-fg" />
                   </span>
-                  <span className="font-semibold text-sm">Capture</span>
+                  <span className="font-semibold text-sm">Create</span>
                   {parsing && <Loader2 size={13} className="animate-spin text-fg-muted" />}
                 </div>
                 <button onClick={close} aria-label="Close" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted">
@@ -275,6 +337,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
                     companies={companies}
                     companyId={companyId} setCompanyId={setCompanyId}
                     actionItem={actionItem} setActionItem={setActionItem}
+                    description={description} setDescription={setDescription}
                     priority={priority} setPriority={setPriority}
                     deadline={deadline} setDeadline={setDeadline}
                     assignees={assignees} setAssignees={setAssignees}
@@ -282,6 +345,28 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
                     onSave={saveTask}
                     saving={saving}
                     error={error}
+                  />
+                )}
+
+                {step === "meeting" && (
+                  <MeetingStep
+                    companies={companies}
+                    title={mtgTitle} setTitle={setMtgTitle}
+                    companyId={mtgCompanyId} setCompanyId={setMtgCompanyId}
+                    date={mtgDate} setDate={setMtgDate}
+                    attendees={mtgAttendees} setAttendees={setMtgAttendees}
+                    notes={mtgNotes} setNotes={setMtgNotes}
+                    onBack={() => setStep("intake")} onSave={saveMeetingNow} saving={saving} error={error}
+                  />
+                )}
+
+                {step === "todo" && (
+                  <TodoStep
+                    companies={companies}
+                    title={todoTitle} setTitle={setTodoTitle}
+                    date={todoDate} setDate={setTodoDate}
+                    companyId={todoCompanyId} setCompanyId={setTodoCompanyId}
+                    onBack={() => setStep("intake")} onSave={saveTodoNow} saving={saving} error={error}
                   />
                 )}
 
@@ -333,13 +418,28 @@ function IntakeStep({
 
   return (
     <div className="space-y-4">
+      {/* Start something new — the four create types */}
+      <div>
+        <p className="text-xs font-medium text-fg-muted mb-2">Create something new</p>
+        <div className="grid grid-cols-2 gap-2.5">
+          <CreateTile icon={ListTodo} title="Task" sub="An action to track" onClick={() => onChoose("task")} />
+          <CreateTile icon={NotebookPen} title="Meeting" sub="Notes & minutes" onClick={() => onChoose("meeting")} />
+          <CreateTile icon={CheckSquare} title="To-do" sub="A quick reminder" onClick={() => onChoose("todo")} />
+          <CreateTile icon={Sparkles} title="Note" sub="Business memory" onClick={() => onChoose("note")} />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-[11px] text-fg-subtle">
+        <span className="h-px flex-1 bg-border" /> or capture something <span className="h-px flex-1 bg-border" />
+      </div>
+
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-fg-muted">What came in?</label>
         <textarea
           value={raw}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onReparse}
-          rows={4}
+          rows={3}
           placeholder="Paste or type — a message, an email, a thought…"
           className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2.5 text-[15px] leading-relaxed outline-none focus:ring-2 focus:ring-accent/40"
         />
@@ -405,16 +505,35 @@ function KindCard({
   );
 }
 
+function CreateTile({ icon: Icon, title, sub, onClick }: { icon: typeof ListTodo; title: string; sub: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex items-center gap-3 rounded-xl border border-border bg-bg-elev p-3 text-left transition-all hover:border-accent/50 hover:bg-accent/5 active:scale-[0.98]"
+    >
+      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bg-subtle text-fg-muted group-hover:bg-accent-soft group-hover:text-accent transition-colors">
+        <Icon size={17} />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-[11px] text-fg-muted truncate">{sub}</span>
+      </span>
+    </button>
+  );
+}
+
 /* ── Task step ────────────────────────────────────────────────────────── */
 
 function TaskStep({
-  companies, companyId, setCompanyId, actionItem, setActionItem,
+  companies, companyId, setCompanyId, actionItem, setActionItem, description, setDescription,
   priority, setPriority, deadline, setDeadline, assignees, setAssignees,
   onBack, onSave, saving, error,
 }: {
   companies: Company[];
   companyId: string; setCompanyId: (v: string) => void;
   actionItem: string; setActionItem: (v: string) => void;
+  description: string; setDescription: (v: string) => void;
   priority: string; setPriority: (v: string) => void;
   deadline: string; setDeadline: (v: string) => void;
   assignees: string; setAssignees: (v: string) => void;
@@ -427,7 +546,19 @@ function TaskStep({
         <input
           value={actionItem}
           onChange={(e) => setActionItem(e.target.value)}
+          placeholder="What needs to happen?"
           className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted">Description (optional)</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Add any context or detail…"
+          className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
       </div>
 
@@ -562,6 +693,100 @@ function NoteStep({
   );
 }
 
+/* ── Meeting step ─────────────────────────────────────────────────────── */
+
+function MeetingStep({
+  companies, title, setTitle, companyId, setCompanyId, date, setDate, attendees, setAttendees, notes, setNotes,
+  onBack, onSave, saving, error,
+}: {
+  companies: Company[];
+  title: string; setTitle: (v: string) => void;
+  companyId: string; setCompanyId: (v: string) => void;
+  date: string; setDate: (v: string) => void;
+  attendees: string; setAttendees: (v: string) => void;
+  notes: string; setNotes: (v: string) => void;
+  onBack: () => void; onSave: () => void; saving: boolean; error: string | null;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted">Meeting title</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekly ops review" className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-fg-muted">Company</label>
+          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40">
+            <option value="">Group-wide</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-fg-muted">Date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted">Attendees (optional)</label>
+        <input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="e.g. Jitesh, Jigna" className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted">Notes (optional)</label>
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Jot the raw notes — polish & minutes come later in the Workbook." className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40" />
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      <StepFooter onBack={onBack} onSave={onSave} saving={saving} saveLabel="Create meeting" />
+    </div>
+  );
+}
+
+/* ── To-do step ───────────────────────────────────────────────────────── */
+
+function TodoStep({
+  companies, title, setTitle, date, setDate, companyId, setCompanyId,
+  onBack, onSave, saving, error,
+}: {
+  companies: Company[];
+  title: string; setTitle: (v: string) => void;
+  date: string; setDate: (v: string) => void;
+  companyId: string; setCompanyId: (v: string) => void;
+  onBack: () => void; onSave: () => void; saving: boolean; error: string | null;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted">What needs doing?</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Renew TRA certificate" className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted">When?</label>
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            { label: "Today", val: quickDate("today") },
+            { label: "This week", val: quickDate("week") },
+            { label: "Next week", val: quickDate("nextweek") },
+            { label: "No date", val: "" },
+          ].map((q) => (
+            <button key={q.label} type="button" onClick={() => setDate(q.val)} className={cn("text-xs rounded-full border px-3 py-1.5 transition-colors", date === q.val ? "border-accent bg-accent/10 text-accent" : "border-border text-fg-muted hover:border-accent/50")}>
+              {q.label}
+            </button>
+          ))}
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="text-xs rounded-full border border-border bg-bg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-fg-muted">Company (optional)</label>
+        <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40">
+          <option value="">No company</option>
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      <StepFooter onBack={onBack} onSave={onSave} saving={saving} saveLabel="Create to-do" />
+    </div>
+  );
+}
+
 function StepFooter({ onBack, onSave, saving, saveLabel }: { onBack: () => void; onSave: () => void; saving: boolean; saveLabel: string }) {
   return (
     <div className="flex items-center gap-2 pt-1">
@@ -599,7 +824,10 @@ function DoneStep({
       </div>
       <div>
         <p className="text-sm font-medium">
-          {result.kind === "task" ? "Task created" : "Note saved"}
+          {result.kind === "task" ? "Task created"
+            : result.kind === "meeting" ? "Meeting created"
+            : result.kind === "todo" ? "To-do created"
+            : "Note saved"}
         </p>
         <p className="text-xs text-fg-muted mt-0.5">{result.label}</p>
       </div>

@@ -131,7 +131,20 @@ While any `ModalShell` is open the **context action bar is suppressed**
 actions via `useContextActions(...)`; one `ContextActionBar` renders them — a
 sticky right-aligned glass pill on desktop, a floating pill above the nav on
 mobile (scroll-aware + tap collapse), styled to match the floating nav. Wired on
-Home (Quick capture → ?capture=open), Tasks, Company, People, Task detail, and Workbook.
+Home (Create), Tasks (New Task), Company (New Task + Open in Tasks), People, Task
+detail, and Workbook.
+
+## Create launcher
+
+`src/components/capture-wizard.tsx` (mounted globally via `CaptureWizardMount`,
+opened with `?capture=open`) is the universal **Create** launcher — a bottom-sheet
+that creates a **Task, Meeting, Note, or To-do**, plus the original AI paste-capture
+("what came in?" → suggested task/note). Deep-link straight to a form with
+`?capture=open&create=task|meeting|note|todo` (+ optional `&companyId=`); the
+Home / Tasks / Company action-bar buttons use this. Each form posts via its own
+action (`createCaptureTask`, `saveMeeting`, `createNote`, `createTodo`) and ends on
+a "done" step with an Open link. The full `/task/new` route modal still exists for
+deep links / detailed task creation.
 
 ## Timeline
 
