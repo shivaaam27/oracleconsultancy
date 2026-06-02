@@ -433,7 +433,7 @@ export function TaskDrawer() {
                     <div className="px-4 pb-4">
                       <ol className="mt-1">
                         {timeline.map((item, i) => (
-                          <TimelineEntry key={`${item.kind}-${item.id}`} item={item} isLast={i === timeline.length - 1} />
+                          <TimelineEntry key={`${item.kind}-${item.id}`} item={item} isLast={i === timeline.length - 1} onChanged={() => setRefreshKey((k) => k + 1)} />
                         ))}
                       </ol>
                     </div>

@@ -611,6 +611,21 @@ export async function deleteTaskUpdate(
   return { ok: true };
 }
 
+export async function restoreTaskUpdate(updateId: number): Promise<{ ok: boolean; error?: string }> {
+  const u = await loadUpdate(updateId);
+  if (!u) return { ok: false, error: "Update not found." };
+  const t = await findTaskMeta(u.task_id);
+  if (!t) return { ok: false, error: "Task not found." };
+
+  await sb.from("task_updates").update({ deleted_at: null }).eq("id", updateId);
+  await recomputeLatestUpdateMirror(u.task_id);
+  revalidatePath(`/task/${t.code}`);
+  revalidatePath(`/companies/${t.company_id}`);
+  revalidatePath("/");
+  updateTag("tasks");
+  return { ok: true };
+}
+
 export async function toggleUpdatePin(updateId: number): Promise<{ ok: boolean; pinned?: boolean; error?: string }> {
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };

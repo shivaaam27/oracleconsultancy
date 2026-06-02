@@ -3,10 +3,13 @@
 import { useState } from "react";
 import {
   MessageSquare, Plus, GitCommitHorizontal, CheckCircle2, AlertOctagon,
-  Pencil, CalendarClock, Layers, Pin, ChevronDown, Trash2,
+  Pencil, CalendarClock, Layers, Pin, ChevronDown, Trash2, MoreHorizontal, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CodeLinkedText } from "./code-linked-text";
+import { useToast } from "./toast";
+import { deleteTaskUpdate, restoreTaskUpdate } from "@/app/task/actions";
+import { deleteAuditEntry, restoreAuditEntry } from "@/app/audit/actions";
 import {
   formatAuditValue, summariseEditGroup,
   type TimelineItem, type TimelineUpdate,
@@ -82,22 +85,85 @@ export type TimelineTask = { code: string; companyName?: string; companyAccent?:
 /* The unified entry                                                       */
 /* --------------------------------------------------------------------- */
 
+/** Update / audit ids this entry would soft-delete. CREATE is not deletable. */
+function entryIds(item: TimelineItem): { kind: "update" | "audit"; id: number }[] {
+  if (item.kind === "update") return [{ kind: "update", id: item.id }];
+  if (item.kind === "editgroup") return item.items.map((a) => ({ kind: "audit" as const, id: a.id }));
+  if (item.kind === "audit" && item.entryType !== "CREATE") return [{ kind: "audit", id: item.id }];
+  return [];
+}
+
 export function TimelineEntry({
   item,
   task,
   onOpenTask,
+  onChanged,
+  deletable = true,
   isLast = false,
 }: {
   item: TimelineItem;
   /** When provided, shows a clickable task chip (global / per-company scope). */
   task?: TimelineTask;
   onOpenTask?: (code: string) => void;
+  /** Called after a soft-delete / undo so the host can refresh. */
+  onChanged?: () => void;
+  deletable?: boolean;
   isLast?: boolean;
 }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
   if (item.kind === "bulk") return null;
   const { Icon, tone } = visual(item);
   const t = TONE[tone];
   const actor = actorLabel(item.createdBy);
+
+  const ids = entryIds(item);
+  const canDelete = deletable && ids.length > 0;
+
+  async function doDelete() {
+    setMenuOpen(false);
+    setBusy(true);
+    await Promise.all(ids.map((x) => (x.kind === "update" ? deleteTaskUpdate(x.id) : deleteAuditEntry(x.id))));
+    setBusy(false);
+    onChanged?.();
+    toast("Removed from timeline", {
+      tone: "success",
+      duration: 7000,
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          await Promise.all(ids.map((x) => (x.kind === "update" ? restoreTaskUpdate(x.id) : restoreAuditEntry(x.id))));
+          onChanged?.();
+        },
+      },
+    });
+  }
+
+  const menu = canDelete ? (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setMenuOpen((o) => !o)}
+        disabled={busy}
+        aria-label="Entry options"
+        className="h-6 w-6 -mr-1 inline-flex items-center justify-center rounded-full text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors"
+      >
+        {busy ? <Loader2 size={12} className="animate-spin" /> : <MoreHorizontal size={13} />}
+      </button>
+      {menuOpen && (
+        <>
+          <button type="button" aria-hidden tabIndex={-1} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[60] cursor-default" />
+          <div className="absolute right-0 top-full mt-1 z-[61] glass glass-menu rounded-lg p-1 min-w-[130px] shadow-lg">
+            <button type="button" onClick={doDelete} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-danger hover:bg-danger-soft/50 transition-colors">
+              <Trash2 size={12} /> Delete entry
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  ) : null;
 
   const taskChip = task ? (
     <button
@@ -114,6 +180,7 @@ export function TimelineEntry({
     <div className="flex items-center gap-1.5 text-[10px] text-fg-subtle shrink-0">
       {actor && <span className="px-1.5 py-0.5 rounded-full bg-bg-subtle/60 text-fg-muted font-medium">{actor}</span>}
       <span title={exactTime(item.createdAt)}>{relTime(item.createdAt)}</span>
+      {menu}
     </div>
   );
 

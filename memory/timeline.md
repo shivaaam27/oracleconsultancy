@@ -61,6 +61,25 @@ language**:
   per-task scope omits it. Falls back to a code-only chip for orphaned/legacy events
   so the feed stays traceable. `relTime()` is exported for reuse.
 
+## Controls
+
+- **Company filter** (Activity feed): an "All companies" select narrows events to
+  one company. The list is derived from tasks that have activity; orphaned/legacy
+  events (no resolvable task) only appear under "All".
+- **Per-entry delete**: `TimelineEntry` has a ⋯ menu (drawer + global feed) that
+  soft-deletes the underlying row(s) with an Undo toast — updates via
+  `deleteTaskUpdate`/`restoreTaskUpdate`, audits via `deleteAuditEntry`/
+  `restoreAuditEntry`. "Task created" (CREATE) is not deletable. Edit-groups
+  delete all the audit rows they fold.
+
+## Data hygiene
+
+`scripts/tidy-audit-noise.ts` can soft-delete reason-less field-change residue
+(matches `suppressNoReasonAudits`). It is **dry-run by default and intentionally
+not applied** — those rows are real per-task field-change history (the drawer /
+task page show them as "Edited N fields"); the global feed already hides them.
+Only run `--apply` if you deliberately want to prune that history.
+
 ## Global feed data
 
 `getRecentActivity(limit)` in `src/lib/queries.ts` returns recent `task_updates` +

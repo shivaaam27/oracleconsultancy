@@ -7,6 +7,7 @@ import { NotebookPen, StickyNote, CalendarOff, Activity, CalendarRange } from "l
 import type { TaskRow, TaskSource, RawActivity } from "@/lib/queries";
 import { Badge, EmptyState } from "@/components/ui";
 import { Deadline } from "@/components/deadline";
+import { FluidSelect } from "@/components/fluid-select";
 import { TimelineEntry, type TimelineTask } from "@/components/timeline-entry";
 import {
   sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
@@ -67,6 +68,7 @@ export function TimelineView({
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("activity");
   const [groupBy, setGroupBy] = useState<GroupBy>("origin");
+  const [companyFilter, setCompanyFilter] = useState("");
 
   function openTask(code: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -75,7 +77,37 @@ export function TimelineView({
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
-  /* ---- Activity feed: build + day-group the event stream ---- */
+  const metaByCode = useMemo(() => {
+    const m: Record<string, TaskMeta[number]> = {};
+    for (const v of Object.values(taskMeta)) {
+      m[v.code] = v;
+      if (v.legacyCode) m[v.legacyCode] = v; // audit rows may store the old code
+    }
+    return m;
+  }, [taskMeta]);
+
+  function resolveMeta(item: TimelineItem): TaskMeta[number] | undefined {
+    if (item.kind === "bulk") return undefined;
+    const byId = item.taskId != null ? taskMeta[item.taskId] : undefined;
+    return byId ?? (item.taskCode ? metaByCode[item.taskCode] : undefined);
+  }
+
+  function metaFor(item: TimelineItem): TimelineTask | undefined {
+    const m = resolveMeta(item);
+    if (m) return { code: m.code, companyName: m.companyName, companyAccent: m.companyAccent, actionItem: m.actionItem };
+    // Orphaned / legacy event — still show its code so the feed stays traceable.
+    if (item.kind !== "bulk" && item.taskCode) return { code: item.taskCode };
+    return undefined;
+  }
+
+  // Companies that actually have activity — drives the company filter.
+  const companies = useMemo(() => {
+    const set = new Set<string>();
+    for (const v of Object.values(taskMeta)) if (v.companyName) set.add(v.companyName);
+    return [...set].sort();
+  }, [taskMeta]);
+
+  /* ---- Activity feed: build, filter by company, day-group ---- */
   const activityDays = useMemo(() => {
     if (!activity) return [];
     const raw: TimelineItem[] = [
@@ -92,7 +124,8 @@ export function TimelineView({
         createdAt: new Date(a.created_at), createdBy: a.created_by,
       })),
     ];
-    const items = groupFieldEdits(suppressNoReasonAudits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))));
+    let items = groupFieldEdits(suppressNoReasonAudits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))));
+    if (companyFilter) items = items.filter((it) => resolveMeta(it)?.companyName === companyFilter);
     const byDay = new Map<number, { label: string; items: TimelineItem[] }>();
     for (const it of items) {
       const { key, label } = dayInfo(it.createdAt);
@@ -100,26 +133,8 @@ export function TimelineView({
       byDay.get(key)!.items.push(it);
     }
     return [...byDay.entries()].sort((a, b) => b[0] - a[0]).map(([, v]) => v);
-  }, [activity, taskMeta]);
-
-  const metaByCode = useMemo(() => {
-    const m: Record<string, TaskMeta[number]> = {};
-    for (const v of Object.values(taskMeta)) {
-      m[v.code] = v;
-      if (v.legacyCode) m[v.legacyCode] = v; // audit rows may store the old code
-    }
-    return m;
-  }, [taskMeta]);
-
-  function metaFor(item: TimelineItem): TimelineTask | undefined {
-    if (item.kind === "bulk") return undefined;
-    const byId = item.taskId != null ? taskMeta[item.taskId] : undefined;
-    const m = byId ?? (item.taskCode ? metaByCode[item.taskCode] : undefined);
-    if (m) return { code: m.code, companyName: m.companyName, companyAccent: m.companyAccent, actionItem: m.actionItem };
-    // Orphaned / legacy event — still show its code so the feed stays traceable.
-    if (item.taskCode) return { code: item.taskCode };
-    return undefined;
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity, taskMeta, metaByCode, companyFilter]);
 
   const ModeToggle = (
     <div className="inline-flex items-center rounded-full bg-bg-subtle p-0.5 text-xs">
@@ -136,8 +151,13 @@ export function TimelineView({
   if (mode === "activity") {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-fg-subtle">Everything that&apos;s happened across the portfolio</div>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <FluidSelect
+            value={companyFilter}
+            onSelect={setCompanyFilter}
+            placeholder="All companies"
+            options={[{ value: "", label: "All companies" }, ...companies.map((c) => ({ value: c, label: c }))]}
+          />
           {ModeToggle}
         </div>
 
@@ -156,6 +176,7 @@ export function TimelineView({
                     item={item}
                     task={metaFor(item)}
                     onOpenTask={openTask}
+                    onChanged={() => router.refresh()}
                     isLast={i === day.items.length - 1}
                   />
                 ))}
