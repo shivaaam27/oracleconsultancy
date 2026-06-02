@@ -70,6 +70,8 @@ Page context is supplied by the floating assistant via `src/lib/page-context.ts`
 
 `derivePageContext` is **subsection-aware**: it reads search params too, so it knows the active tab (company Overview/Completed/Timeline, Workbook Meetings/Notes/To-do), the live task filters (flag/priority/status/company/search → `filterSummary`), and an open task drawer (`?task=`, which focuses that task anywhere). The assistant's header subtitle and starter prompts adapt to this — e.g. an "overdue" filter offers "Summarise these / Draft follow-ups / Who owns these?".
 
+When a task is focused (task page or open drawer), the assistant also shows **agentic quick-action chips** (Complete / Escalate / Mark blocked) that submit real commands through the same `/api/action` parse → confirm → execute pipeline as typed commands. (Bulk actions over a whole filtered view are a planned next step — they need a "current view" store so "these" resolves to the visible task codes, especially for derived flags like overdue.)
+
 The Ask COS mic (`src/components/ask-cos.tsx`) now uses the shared `VoiceButton` (Groq Whisper engine with live captions), not its own browser recogniser.
 
 Intent filters include overdue, critical, escalated, and closed task requests. Meeting retrieval is triggered by matching keywords, company names, or meeting-oriented words such as meeting, minutes, notes, decision, risk, blocker, attendee, and follow-up.

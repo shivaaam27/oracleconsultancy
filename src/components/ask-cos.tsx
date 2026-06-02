@@ -391,6 +391,34 @@ export function AskCOS({
           // ChatGPT-style home: greeting, then suggestion pills below.
           <div className="h-full flex flex-col items-center justify-center text-center gap-5 py-6">
             <h2 className="text-xl sm:text-2xl font-semibold tracking-tight px-4">{greeting}</h2>
+
+            {/* Agentic quick actions on the focused task — fire real commands
+                through the same confirm pipeline as typed commands. */}
+            {pageContext?.taskCode && (
+              <div className="w-full max-w-md space-y-2">
+                <p className="text-[11px] uppercase tracking-wider text-fg-subtle">Quick actions · {pageContext.taskCode}</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {[
+                    { label: "Complete", cmd: `complete ${pageContext.taskCode}`, icon: Check },
+                    { label: "Escalate", cmd: `escalate ${pageContext.taskCode}`, icon: Flame },
+                    { label: "Mark blocked", cmd: `set ${pageContext.taskCode} to Blocked`, icon: Ban },
+                  ].map((a) => {
+                    const Icon = a.icon;
+                    return (
+                      <button
+                        key={a.label}
+                        onClick={() => submit(a.cmd)}
+                        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent bg-accent-soft/60 ring-1 ring-accent/30 hover:bg-accent-soft rounded-full px-3 py-1.5 transition-colors"
+                      >
+                        <Icon size={14} className="shrink-0" strokeWidth={2} />
+                        {a.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap justify-center gap-2 max-w-md">
               {suggestions.map(s => {
                 const Icon = s.icon;
