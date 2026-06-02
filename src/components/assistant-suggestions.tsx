@@ -95,7 +95,7 @@ export function AssistantSuggestions() {
       data-suggest-reveal
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      className="fixed z-[58] right-4 sm:right-5 bottom-[calc(8.6rem+env(safe-area-inset-bottom))] sm:bottom-[calc(4.6rem+env(safe-area-inset-bottom))] flex flex-col items-end pointer-events-none"
+      className="fixed z-[58] right-4 sm:right-5 bottom-[calc(8.6rem+env(safe-area-inset-bottom))] sm:bottom-[calc(4.6rem+env(safe-area-inset-bottom))] w-[min(17rem,calc(100vw-2rem))] flex flex-col items-end pointer-events-none"
     >
       <AnimatePresence mode="popLayout" initial={false}>
         {state === "open" ? (
@@ -110,7 +110,7 @@ export function AssistantSuggestions() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             transition={spring}
-            className="pointer-events-auto flex flex-col items-end gap-2 w-[min(17rem,calc(100vw-2rem))] touch-pan-x"
+            className="pointer-events-auto flex flex-col items-end gap-2 w-full touch-pan-x"
           >
             {isMobile && (
               <span className="mb-0.5 h-1 w-9 rounded-full bg-fg-subtle/40 self-center" aria-hidden />
