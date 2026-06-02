@@ -1,6 +1,7 @@
 import { getAllTasks } from "@/lib/queries";
 import { CompanySummary } from "@/components/company-summary";
 import { CompanyActions } from "./_tabs/company-actions";
+import { ViewPublisher } from "@/components/view-publisher";
 import { CompanyTabs, parseCompanyTab } from "./_tabs/tabs";
 import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
@@ -73,6 +74,8 @@ export default async function CompanyPage({
 
       {tab === "overview" && (
         <>
+          {/* Publish this company's open tasks so the assistant can bulk-act on "these". */}
+          <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />
           {/* Compact KPI pills, then the tasks table immediately — data first. */}
           <CompanyKpiStrip rows={rows} companyName={name} />
 
