@@ -81,40 +81,45 @@ export function AssistantSuggestions() {
     if (down) setState("peek");
   }
   function onPeekDragEnd(_: unknown, info: PanInfo) {
-    // Swipe the chevron up → reveal the prompts.
+    // Swipe the chevron up → reveal; swipe it down → collapse.
     const up = info.offset.y < -40 || info.velocity.y < -450;
+    const down = info.offset.y > 40 || info.velocity.y > 450;
     if (up) setState("open");
+    else if (down) setState("peek");
   }
 
   function pick(q: string) { askAssistant(q); setState("peek"); }
 
   if (panelOpen || suggestions.length === 0) return null;
 
+  const open = state === "open";
+
   return (
     <div
       data-suggest-reveal
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      className="fixed z-[58] right-4 sm:right-5 bottom-[calc(8.6rem+env(safe-area-inset-bottom))] sm:bottom-[calc(4.6rem+env(safe-area-inset-bottom))] w-[min(17rem,calc(100vw-2rem))] flex flex-col items-end pointer-events-none"
+      className="fixed z-[58] right-4 sm:right-5 bottom-[calc(8.6rem+env(safe-area-inset-bottom))] sm:bottom-[calc(4.6rem+env(safe-area-inset-bottom))] w-[min(17.5rem,calc(100vw-2rem))] flex flex-col items-end pointer-events-none"
     >
-      <AnimatePresence mode="popLayout" initial={false}>
-        {state === "open" ? (
+      {/* Cards genie out of — and retract into — the chevron below them. The
+          chevron stays pinned (container is bottom-anchored), so the stack only
+          ever grows upward from / collapses down toward the chevron. */}
+      <AnimatePresence initial={false}>
+        {open && (
           <motion.div
-            key="open"
+            key="cards"
             drag={isMobile ? "y" : false}
             dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.05, bottom: 0.6 }}
+            dragElastic={{ top: 0.04, bottom: 0.6 }}
             dragMomentum={false}
             onDragEnd={onStackDragEnd}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={spring}
-            className="pointer-events-auto flex flex-col items-end gap-2 w-full touch-pan-x"
+            initial={{ opacity: 0, scale: 0.5, y: 14 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 14 }}
+            transition={{ type: "spring", stiffness: 460, damping: 36, mass: 0.8 }}
+            style={{ transformOrigin: "bottom right" }}
+            className="pointer-events-auto mb-3 w-full flex flex-col items-stretch gap-1.5 touch-pan-x"
           >
-            {isMobile && (
-              <span className="mb-0.5 h-1 w-9 rounded-full bg-fg-subtle/40 self-center" aria-hidden />
-            )}
             {suggestions.map((s, i) => {
               const Icon = s.icon;
               return (
@@ -122,46 +127,48 @@ export function AssistantSuggestions() {
                   key={s.label}
                   type="button"
                   onClick={() => pick(s.q)}
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ ...springSnappy, delay: i * 0.035 }}
-                  className="group w-full inline-flex items-center gap-2.5 glass glass-menu elevated shadow-pill rounded-2xl px-3.5 py-2.5 text-left text-[13px] text-fg hover:bg-bg-muted/60 transition-colors active:scale-[0.98]"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ ...springSnappy, delay: 0.03 + i * 0.045 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="group w-full flex items-center gap-2.5 glass glass-menu elevated rounded-2xl py-2.5 pl-2.5 pr-3.5 text-left hover:bg-bg-muted/50 transition-colors"
                 >
-                  <Icon size={15} className="shrink-0 text-accent" />
-                  <span className="truncate">{s.label}</span>
+                  <span className="flex items-center justify-center h-7 w-7 rounded-full bg-accent-soft text-accent shrink-0 group-hover:scale-105 transition-transform">
+                    <Icon size={14} strokeWidth={2.2} />
+                  </span>
+                  <span className="text-[13px] font-medium leading-snug text-fg">{s.label}</span>
                 </motion.button>
               );
             })}
           </motion.div>
-        ) : state === "peek" ? (
-          // Idle hint — a small circular chevron that invites a swipe-up / hover.
-          <motion.button
-            key="peek"
-            type="button"
-            drag={isMobile ? "y" : false}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0.6, bottom: 0.2 }}
-            dragMomentum={false}
-            onDragEnd={onPeekDragEnd}
-            onClick={() => setState("open")}
-            initial={{ opacity: 0, y: 8, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.8 }}
-            transition={spring}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.9 }}
-            aria-label="Show AI suggestions"
-            className="pointer-events-auto mr-[0.6rem] sm:mr-[0.7rem] inline-flex items-center justify-center h-9 w-9 rounded-full glass elevated shadow-pill text-accent ring-1 ring-border/60 touch-pan-x"
-          >
-            <motion.span
-              animate={{ y: [0, -1.5, 0] }}
-              transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <ChevronUp size={16} />
-            </motion.span>
-          </motion.button>
-        ) : null}
+        )}
       </AnimatePresence>
+
+      {/* The chevron — always present; it is the origin/destination of the reveal. */}
+      <motion.button
+        type="button"
+        drag={isMobile ? "y" : false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0.6, bottom: 0.6 }}
+        dragMomentum={false}
+        onDragEnd={onPeekDragEnd}
+        onClick={() => setState(open ? "peek" : "open")}
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={spring}
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.9 }}
+        aria-label={open ? "Hide AI suggestions" : "Show AI suggestions"}
+        aria-expanded={open}
+        className="pointer-events-auto mr-[0.6rem] sm:mr-[0.7rem] inline-flex items-center justify-center h-9 w-9 rounded-full glass elevated shadow-pill text-accent ring-1 ring-border/60 touch-pan-x"
+      >
+        <motion.span
+          animate={open ? { rotate: 180, y: 0 } : { rotate: 0, y: [0, -1.5, 0] }}
+          transition={open ? { type: "spring", stiffness: 400, damping: 30 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <ChevronUp size={16} />
+        </motion.span>
+      </motion.button>
     </div>
   );
 }
