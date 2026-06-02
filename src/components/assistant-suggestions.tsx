@@ -22,7 +22,7 @@ import { askAssistant } from "./floating-assistant";
 /* Desktop: hover the hint/stack to reveal; click away to settle back.     */
 /* --------------------------------------------------------------------- */
 
-type RevealState = "peek" | "open" | "hidden";
+type RevealState = "peek" | "open";
 
 export function AssistantSuggestions() {
   const pathname = usePathname() || "/";
@@ -53,14 +53,22 @@ export function AssistantSuggestions() {
     return () => window.removeEventListener("cos:assistant-state", h);
   }, []);
 
-  // Desktop: settle back to peek when clicking anywhere outside the reveal.
+  // Settle back to the peek chevron when tapping/clicking anywhere outside the
+  // reveal (both mobile and desktop).
   useEffect(() => {
-    if (isMobile || state !== "open") return;
+    if (state !== "open") return;
     const onDown = (e: PointerEvent) => {
       if (!(e.target as HTMLElement)?.closest("[data-suggest-reveal]")) setState("peek");
     };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
+  }, [state]);
+
+  // Mobile: if left untouched, ease back to the peek chevron on its own.
+  useEffect(() => {
+    if (!isMobile || state !== "open") return;
+    const t = setTimeout(() => setState("peek"), 5000);
+    return () => clearTimeout(t);
   }, [isMobile, state]);
 
   function clearHover() { if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; } }
@@ -68,14 +76,14 @@ export function AssistantSuggestions() {
   function onLeave() { if (isMobile) return; clearHover(); hoverTimer.current = setTimeout(() => setState("peek"), 250); }
 
   function onStackDragEnd(_: unknown, info: PanInfo) {
+    // Swipe the open stack down → tuck it back into the peek chevron.
     const down = info.offset.y > 60 || info.velocity.y > 500;
-    if (down) setState("hidden");
+    if (down) setState("peek");
   }
   function onPeekDragEnd(_: unknown, info: PanInfo) {
+    // Swipe the chevron up → reveal the prompts.
     const up = info.offset.y < -40 || info.velocity.y < -450;
-    const down = info.offset.y > 40 || info.velocity.y > 450;
     if (up) setState("open");
-    else if (down) setState("hidden");
   }
 
   function pick(q: string) { askAssistant(q); setState("peek"); }
