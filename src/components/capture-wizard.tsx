@@ -5,7 +5,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import {
   Sparkles, X, Loader2, ListTodo, NotebookPen, CheckCircle2, ArrowRight,
-  ArrowLeft, Building2, CalendarDays, Flag, User, ExternalLink, CheckSquare, CalendarClock, Plus,
+  ArrowLeft, Building2, CalendarDays, Flag, User, ExternalLink, CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { parseRawCapture, createCaptureTask } from "@/app/capture/actions";
@@ -17,7 +17,17 @@ import type { ParsedCapture } from "@/lib/smart-parse";
 
 type Company = { id: number; name: string };
 type Kind = "task" | "note" | "meeting" | "todo";
-type Step = "intake" | "task" | "note" | "meeting" | "todo" | "done";
+type Step = "intake" | "capture" | "task" | "note" | "meeting" | "todo" | "done";
+
+const STEP_TITLES: Record<Step, string> = {
+  intake: "Create",
+  capture: "Capture",
+  task: "New task",
+  note: "New note",
+  meeting: "New meeting",
+  todo: "New to-do",
+  done: "Create",
+};
 
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
 
@@ -135,6 +145,8 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
     if (cid) { setCompanyId(cid); setNoteCompanyId(cid); setMtgCompanyId(cid); setTodoCompanyId(cid); }
     if (create === "task" || create === "note" || create === "meeting" || create === "todo") {
       setStep(create);
+    } else if (seed) {
+      setStep("capture"); // share / inbox deep-link with text → AI capture
     } else {
       setStep("intake");
     }
@@ -308,21 +320,33 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
               </div>
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-accent">
-                    <Sparkles size={15} className="text-accent-fg" />
-                  </span>
-                  <span className="font-semibold text-sm">Create</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {step !== "intake" && step !== "done" ? (
+                    <button
+                      onClick={() => { setError(null); setStep("intake"); }}
+                      aria-label="Back"
+                      className="h-7 w-7 inline-flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0"
+                    >
+                      <ArrowLeft size={16} />
+                    </button>
+                  ) : (
+                    <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-accent shrink-0">
+                      <Sparkles size={15} className="text-accent-fg" />
+                    </span>
+                  )}
+                  <span className="font-semibold text-sm truncate">{STEP_TITLES[step]}</span>
                   {parsing && <Loader2 size={13} className="animate-spin text-fg-muted" />}
                 </div>
-                <button onClick={close} aria-label="Close" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted">
+                <button onClick={close} aria-label="Close" className="h-7 w-7 inline-flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0">
                   <X size={16} />
                 </button>
               </div>
 
               <div className="overflow-y-auto px-4 py-4">
-                {step === "intake" && (
-                  <IntakeStep
+                {step === "intake" && <IntakeStep onChoose={chooseKind} />}
+
+                {step === "capture" && (
+                  <CaptureStep
                     raw={raw}
                     onChange={setRaw}
                     onReparse={() => runParse(raw)}
@@ -397,9 +421,25 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
   );
 }
 
-/* ── Intake ───────────────────────────────────────────────────────────── */
+/* ── Intake — the Create chooser (four tiles) ─────────────────────────── */
 
-function IntakeStep({
+function IntakeStep({ onChoose }: { onChoose: (k: Kind) => void }) {
+  return (
+    <div className="space-y-2.5">
+      <p className="text-xs font-medium text-fg-muted">Create something new</p>
+      <div className="grid grid-cols-2 gap-2.5">
+        <CreateTile icon={ListTodo} title="Task" sub="An action to track" onClick={() => onChoose("task")} />
+        <CreateTile icon={NotebookPen} title="Meeting" sub="Notes & minutes" onClick={() => onChoose("meeting")} />
+        <CreateTile icon={CheckSquare} title="To-do" sub="A quick reminder" onClick={() => onChoose("todo")} />
+        <CreateTile icon={Sparkles} title="Note" sub="Business memory" onClick={() => onChoose("note")} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Capture — AI paste flow (share / inbox deep-link) ────────────────── */
+
+function CaptureStep({
   raw, onChange, onReparse, suggestion, onChoose, detected,
 }: {
   raw: string;
@@ -418,28 +458,13 @@ function IntakeStep({
 
   return (
     <div className="space-y-4">
-      {/* Start something new — the four create types */}
-      <div>
-        <p className="text-xs font-medium text-fg-muted mb-2">Create something new</p>
-        <div className="grid grid-cols-2 gap-2.5">
-          <CreateTile icon={ListTodo} title="Task" sub="An action to track" onClick={() => onChoose("task")} />
-          <CreateTile icon={NotebookPen} title="Meeting" sub="Notes & minutes" onClick={() => onChoose("meeting")} />
-          <CreateTile icon={CheckSquare} title="To-do" sub="A quick reminder" onClick={() => onChoose("todo")} />
-          <CreateTile icon={Sparkles} title="Note" sub="Business memory" onClick={() => onChoose("note")} />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 text-[11px] text-fg-subtle">
-        <span className="h-px flex-1 bg-border" /> or capture something <span className="h-px flex-1 bg-border" />
-      </div>
-
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-fg-muted">What came in?</label>
         <textarea
           value={raw}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onReparse}
-          rows={3}
+          rows={4}
           placeholder="Paste or type — a message, an email, a thought…"
           className="w-full resize-none rounded-xl border border-border bg-bg px-3 py-2.5 text-[15px] leading-relaxed outline-none focus:ring-2 focus:ring-accent/40"
         />
@@ -458,22 +483,8 @@ function IntakeStep({
       <div>
         <p className="text-xs font-medium text-fg-muted mb-2">What would you like to do with it?</p>
         <div className="grid grid-cols-2 gap-2.5">
-          <KindCard
-            icon={ListTodo}
-            title="Make a task"
-            sub="Track it as an action"
-            suggested={suggestion === "task"}
-            disabled={!raw.trim()}
-            onClick={() => onChoose("task")}
-          />
-          <KindCard
-            icon={NotebookPen}
-            title="Save as note"
-            sub="Keep it as memory"
-            suggested={suggestion === "note"}
-            disabled={!raw.trim()}
-            onClick={() => onChoose("note")}
-          />
+          <KindCard icon={ListTodo} title="Make a task" sub="Track it as an action" suggested={suggestion === "task"} disabled={!raw.trim()} onClick={() => onChoose("task")} />
+          <KindCard icon={NotebookPen} title="Save as note" sub="Keep it as memory" suggested={suggestion === "note"} disabled={!raw.trim()} onClick={() => onChoose("note")} />
         </div>
       </div>
     </div>
@@ -635,7 +646,7 @@ function TaskStep({
 
       {error && <p className="text-xs text-danger">{error}</p>}
 
-      <StepFooter onBack={onBack} onSave={onSave} saving={saving} saveLabel="Create task" />
+      <StepFooter onSave={onSave} saving={saving} saveLabel="Create task" />
     </div>
   );
 }
@@ -688,7 +699,7 @@ function NoteStep({
 
       {error && <p className="text-xs text-danger">{error}</p>}
 
-      <StepFooter onBack={onBack} onSave={onSave} saving={saving} saveLabel="Save note" />
+      <StepFooter onSave={onSave} saving={saving} saveLabel="Save note" />
     </div>
   );
 }
@@ -735,7 +746,7 @@ function MeetingStep({
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Jot the raw notes — polish & minutes come later in the Workbook." className="w-full resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40" />
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
-      <StepFooter onBack={onBack} onSave={onSave} saving={saving} saveLabel="Create meeting" />
+      <StepFooter onSave={onSave} saving={saving} saveLabel="Create meeting" />
     </div>
   );
 }
@@ -782,26 +793,19 @@ function TodoStep({
         </select>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
-      <StepFooter onBack={onBack} onSave={onSave} saving={saving} saveLabel="Create to-do" />
+      <StepFooter onSave={onSave} saving={saving} saveLabel="Create to-do" />
     </div>
   );
 }
 
-function StepFooter({ onBack, onSave, saving, saveLabel }: { onBack: () => void; onSave: () => void; saving: boolean; saveLabel: string }) {
+function StepFooter({ onSave, saving, saveLabel }: { onSave: () => void; saving: boolean; saveLabel: string }) {
   return (
-    <div className="flex items-center gap-2 pt-1">
-      <button
-        type="button"
-        onClick={onBack}
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm text-fg-muted hover:text-fg transition-colors"
-      >
-        <ArrowLeft size={14} /> Back
-      </button>
+    <div className="pt-1">
       <button
         type="button"
         onClick={onSave}
         disabled={saving}
-        className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-accent text-accent-fg text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-accent text-accent-fg text-sm font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
       >
         {saving ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />} {saveLabel}
       </button>
