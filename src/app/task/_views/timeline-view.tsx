@@ -1,13 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { NotebookPen, StickyNote, CalendarOff } from "lucide-react";
-import type { TaskRow, TaskSource } from "@/lib/queries";
+import { NotebookPen, StickyNote, CalendarOff, Activity, CalendarRange } from "lucide-react";
+import type { TaskRow, TaskSource, RawActivity } from "@/lib/queries";
 import { Badge, EmptyState } from "@/components/ui";
 import { Deadline } from "@/components/deadline";
+import { TimelineEntry, type TimelineTask } from "@/components/timeline-entry";
+import {
+  sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
+  suppressNoReasonAudits, groupFieldEdits, type TimelineItem,
+} from "@/lib/timeline";
 
+type Mode = "activity" | "schedule";
 type GroupBy = "origin" | "deadline" | "activity";
 
 const GROUPS: { value: GroupBy; label: string }[] = [
@@ -15,6 +21,8 @@ const GROUPS: { value: GroupBy; label: string }[] = [
   { value: "deadline", label: "Deadline" },
   { value: "activity", label: "Last activity" },
 ];
+
+export type TaskMeta = Record<number, { code: string; legacyCode?: string | null; companyName: string; companyAccent: string | null; actionItem: string }>;
 
 function statusTone(s: string): "default" | "success" | "warn" | "danger" | "info" {
   if (s === "Completed" || s === "Closed") return "success";
@@ -28,22 +36,37 @@ const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).pad
 const monthLabel = (d: Date) => d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 const dayLabel = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
+/** Today / Yesterday / weekday-date label for the activity feed day headers. */
+function dayInfo(d: Date): { key: number; label: string } {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const t = new Date(d); t.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - t.getTime()) / 86400000);
+  const label = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  return { key: t.getTime(), label };
+}
+
 /**
- * Unified, minimal activity timeline of every task across all companies — the
- * single place to track work, whoever created it (manual, meeting, or note).
- * Date axis is configurable: origin (meeting/created), deadline, or last activity.
+ * The portfolio timeline. Two complementary lenses:
+ *  - Activity: a true chronological feed of what happened (created, status,
+ *    updates, escalations, completions, edits) across every task — grouped by day.
+ *  - Schedule: tasks placed on a date axis (origin / deadline / last activity).
  */
-export function TimelineView({ rows, sources }: { rows: TaskRow[]; sources: Record<number, TaskSource> }) {
+export function TimelineView({
+  rows,
+  sources,
+  activity,
+  taskMeta = {},
+}: {
+  rows: TaskRow[];
+  sources: Record<number, TaskSource>;
+  activity?: RawActivity | null;
+  taskMeta?: TaskMeta;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [mode, setMode] = useState<Mode>("activity");
   const [groupBy, setGroupBy] = useState<GroupBy>("origin");
-
-  function dateOf(r: TaskRow): Date | null {
-    if (groupBy === "deadline") return r.deadline;
-    if (groupBy === "activity") return r.lastUpdatedAt ?? r.createdDate;
-    return r.meetingDate ?? r.createdDate; // origin
-  }
 
   function openTask(code: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -52,7 +75,105 @@ export function TimelineView({ rows, sources }: { rows: TaskRow[]; sources: Reco
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
-  // Group by month (newest first); undated items collected separately.
+  /* ---- Activity feed: build + day-group the event stream ---- */
+  const activityDays = useMemo(() => {
+    if (!activity) return [];
+    const raw: TimelineItem[] = [
+      ...activity.updates.map<TimelineItem>((u) => ({
+        kind: "update", id: u.id, taskId: u.task_id, taskCode: taskMeta[u.task_id]?.code ?? null,
+        body: u.body, createdAt: new Date(u.created_at), createdBy: u.created_by,
+        editedAt: u.edited_at ? new Date(u.edited_at) : null, originalBody: u.original_body,
+        pinnedAt: u.pinned_at ? new Date(u.pinned_at) : null,
+      })),
+      ...activity.audit.map<TimelineItem>((a) => ({
+        kind: "audit", id: a.id, taskId: a.task_id, taskCode: a.task_code,
+        field: a.field, oldValue: a.old_value, newValue: a.new_value,
+        changeReason: a.change_reason, entryType: a.entry_type,
+        createdAt: new Date(a.created_at), createdBy: a.created_by,
+      })),
+    ];
+    const items = groupFieldEdits(suppressNoReasonAudits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))));
+    const byDay = new Map<number, { label: string; items: TimelineItem[] }>();
+    for (const it of items) {
+      const { key, label } = dayInfo(it.createdAt);
+      if (!byDay.has(key)) byDay.set(key, { label, items: [] });
+      byDay.get(key)!.items.push(it);
+    }
+    return [...byDay.entries()].sort((a, b) => b[0] - a[0]).map(([, v]) => v);
+  }, [activity, taskMeta]);
+
+  const metaByCode = useMemo(() => {
+    const m: Record<string, TaskMeta[number]> = {};
+    for (const v of Object.values(taskMeta)) {
+      m[v.code] = v;
+      if (v.legacyCode) m[v.legacyCode] = v; // audit rows may store the old code
+    }
+    return m;
+  }, [taskMeta]);
+
+  function metaFor(item: TimelineItem): TimelineTask | undefined {
+    if (item.kind === "bulk") return undefined;
+    const byId = item.taskId != null ? taskMeta[item.taskId] : undefined;
+    const m = byId ?? (item.taskCode ? metaByCode[item.taskCode] : undefined);
+    if (m) return { code: m.code, companyName: m.companyName, companyAccent: m.companyAccent, actionItem: m.actionItem };
+    // Orphaned / legacy event — still show its code so the feed stays traceable.
+    if (item.taskCode) return { code: item.taskCode };
+    return undefined;
+  }
+
+  const ModeToggle = (
+    <div className="inline-flex items-center rounded-full bg-bg-subtle p-0.5 text-xs">
+      <button type="button" onClick={() => setMode("activity")} className={"inline-flex items-center gap-1.5 px-3 py-1 rounded-full transition-colors " + (mode === "activity" ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+        <Activity size={12} /> Activity
+      </button>
+      <button type="button" onClick={() => setMode("schedule")} className={"inline-flex items-center gap-1.5 px-3 py-1 rounded-full transition-colors " + (mode === "schedule" ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
+        <CalendarRange size={12} /> Schedule
+      </button>
+    </div>
+  );
+
+  /* ============================ ACTIVITY ============================ */
+  if (mode === "activity") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs text-fg-subtle">Everything that&apos;s happened across the portfolio</div>
+          {ModeToggle}
+        </div>
+
+        {activityDays.length === 0 ? (
+          <EmptyState icon={<Activity size={28} />} title="No activity yet." hint="Updates, status changes and edits will appear here." />
+        ) : (
+          activityDays.map((day) => (
+            <section key={day.label}>
+              <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-bg/80 backdrop-blur-sm">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{day.label} <span className="text-fg-subtle font-normal">· {day.items.length}</span></h3>
+              </div>
+              <ol className="mt-1">
+                {day.items.map((item, i) => (
+                  <TimelineEntry
+                    key={`${item.kind}-${item.id}`}
+                    item={item}
+                    task={metaFor(item)}
+                    onOpenTask={openTask}
+                    isLast={i === day.items.length - 1}
+                  />
+                ))}
+              </ol>
+            </section>
+          ))
+        )}
+      </div>
+    );
+  }
+
+  /* ============================ SCHEDULE ============================ */
+  function dateOf(r: TaskRow): Date | null {
+    if (groupBy === "deadline") return r.deadline;
+    if (groupBy === "activity") return r.lastUpdatedAt ?? r.createdDate;
+    return r.meetingDate ?? r.createdDate; // origin
+  }
+
   const dated = rows.map((r) => ({ r, d: dateOf(r) }));
   const undated = dated.filter((x) => !x.d).map((x) => x.r);
   const byMonth = new Map<string, { label: string; sortD: number; items: { r: TaskRow; d: Date }[] }>();
@@ -64,10 +185,6 @@ export function TimelineView({ rows, sources }: { rows: TaskRow[]; sources: Reco
   }
   const months = [...byMonth.values()].sort((a, b) => b.sortD - a.sortD);
   for (const m of months) m.items.sort((a, b) => b.d.getTime() - a.d.getTime());
-
-  if (rows.length === 0) {
-    return <EmptyState icon={<CalendarOff size={28} />} title="No tasks in scope." hint="Adjust filters or pick a different view." />;
-  }
 
   function SourceChip({ r }: { r: TaskRow }) {
     const s = sources[r.id];
@@ -89,13 +206,8 @@ export function TimelineView({ rows, sources }: { rows: TaskRow[]; sources: Reco
   function Entry({ r, d }: { r: TaskRow; d: Date | null }) {
     return (
       <div className="relative pl-6">
-        {/* node */}
         <span className="absolute left-[3px] top-[14px] w-[9px] h-[9px] rounded-full ring-2 ring-bg" style={{ backgroundColor: r.companyAccent || "var(--accent)" }} />
-        <button
-          type="button"
-          onClick={() => openTask(r.code)}
-          className="w-full text-left elevated bg-bg-elev rounded-xl p-3 mb-2 hover:shadow-md transition-shadow"
-        >
+        <button type="button" onClick={() => openTask(r.code)} className="w-full text-left elevated bg-bg-elev rounded-xl p-3 mb-2 hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-xs text-fg-muted mb-0.5">
@@ -119,43 +231,43 @@ export function TimelineView({ rows, sources }: { rows: TaskRow[]; sources: Reco
 
   return (
     <div className="space-y-4">
-      {/* Group-by toggle */}
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-fg-subtle">{rows.length} task{rows.length === 1 ? "" : "s"} · all companies</div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {ModeToggle}
         <div className="inline-flex items-center rounded-full bg-bg-subtle p-0.5 text-xs">
           {GROUPS.map((g) => (
-            <button
-              key={g.value}
-              type="button"
-              onClick={() => setGroupBy(g.value)}
-              className={"px-3 py-1 rounded-full transition-colors " + (groupBy === g.value ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg")}
-            >
+            <button key={g.value} type="button" onClick={() => setGroupBy(g.value)} className={"px-3 py-1 rounded-full transition-colors " + (groupBy === g.value ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg")}>
               {g.label}
             </button>
           ))}
         </div>
       </div>
 
-      {months.map((m) => (
-        <section key={m.label}>
-          <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-bg/80 backdrop-blur-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{m.label} <span className="text-fg-subtle font-normal">· {m.items.length}</span></h3>
-          </div>
-          <div className="relative">
-            <span className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
-            {m.items.map(({ r, d }) => <Entry key={r.id} r={r} d={d} />)}
-          </div>
-        </section>
-      ))}
+      {rows.length === 0 ? (
+        <EmptyState icon={<CalendarOff size={28} />} title="No tasks in scope." hint="Adjust filters or pick a different view." />
+      ) : (
+        <>
+          {months.map((m) => (
+            <section key={m.label}>
+              <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-bg/80 backdrop-blur-sm">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{m.label} <span className="text-fg-subtle font-normal">· {m.items.length}</span></h3>
+              </div>
+              <div className="relative">
+                <span className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+                {m.items.map(({ r, d }) => <Entry key={r.id} r={r} d={d} />)}
+              </div>
+            </section>
+          ))}
 
-      {undated.length > 0 && (
-        <section>
-          <div className="py-1.5"><h3 className="text-xs font-semibold uppercase tracking-wider text-fg-subtle inline-flex items-center gap-1.5"><CalendarOff size={12} /> Undated · {undated.length}</h3></div>
-          <div className="relative">
-            <span className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
-            {undated.map((r) => <Entry key={r.id} r={r} d={null} />)}
-          </div>
-        </section>
+          {undated.length > 0 && (
+            <section>
+              <div className="py-1.5"><h3 className="text-xs font-semibold uppercase tracking-wider text-fg-subtle inline-flex items-center gap-1.5"><CalendarOff size={12} /> Undated · {undated.length}</h3></div>
+              <div className="relative">
+                <span className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+                {undated.map((r) => <Entry key={r.id} r={r} d={null} />)}
+              </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

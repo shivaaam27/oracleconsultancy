@@ -104,6 +104,40 @@ Mobile-specific behaviour:
 
 The assistant reuses `AskCOS` in embedded/minimal mode.
 
+## Pop-ups (unified shell)
+
+All overlays share one design via `src/components/modal-shell.tsx` (`ModalShell`):
+
+- mobile: an iOS-style **bottom sheet** with a grab handle and drag-to-dismiss;
+- desktop: a centred glass card;
+- consistent `glass-menu` surface, `rounded-3xl`, header (leading slot or
+  title/subtitle · trailing actions · close), blurred scroll-locked backdrop;
+- Esc / backdrop / drag all close.
+
+Users:
+
+- **New Task** modal — `RouteModal` (intercepting route `@modal/(.)task/new`)
+  wraps `ModalShell`; the page underneath stays mounted, and `returnTo` sends the
+  user back to their section on submit. The modal frame renders synchronously and
+  streams the form via Suspense (no page-skeleton flash).
+- **Task drawer** — `task-drawer.tsx` uses `ModalShell` too (opened via `?task=`).
+
+While any `ModalShell` is open the **context action bar is suppressed**
+(`useContextBarSuppressed`, counter-based in `ContextActionsProvider`).
+
+## Context action bar
+
+`src/components/context-actions.tsx` is a route-aware action bar: pages register
+actions via `useContextActions(...)`; one `ContextActionBar` renders them — a
+sticky right-aligned glass pill on desktop, a floating pill above the nav on
+mobile (scroll-aware + tap collapse), styled to match the floating nav. Wired on
+Tasks, Company, People, Task detail, and Workbook.
+
+## Timeline
+
+See `timeline.md`. The task drawer and the hub Timeline view's Activity feed share
+the `TimelineEntry` component (icon node, actor, relative time, optional task chip).
+
 ## Responsive Rules
 
 - Tables should scroll horizontally on phones rather than squish.

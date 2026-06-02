@@ -1,4 +1,4 @@
-import { getAllTasks, getTaskSources } from "@/lib/queries";
+import { getAllTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
 import { getSavedViews } from "@/lib/task-views";
 import { Card, EmptyState } from "@/components/ui";
 import { TaskActions } from "./task-actions";
@@ -68,6 +68,11 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     getTaskSources(),
   ]);
   const view = parseViewMode(sp.view);
+  // The global activity feed only needs loading for the Timeline view.
+  const activity = view === "timeline" ? await getRecentActivity() : null;
+  const taskMeta = view === "timeline"
+    ? Object.fromEntries(all.map((r) => [r.id, { code: r.code, legacyCode: r.legacyCode, companyName: r.companyName, companyAccent: r.companyAccent, actionItem: r.actionItem }]))
+    : {};
   const showClosed = sp.closed === "1";
   const statusOverridesClosed = sp.status === "Closed" || sp.status === "Completed";
 
@@ -265,7 +270,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       ) : view === "calendar" ? (
         <CalendarView rows={rows} month={sp.month} queryWithoutMonth={queryWithoutView(sp)} />
       ) : view === "timeline" ? (
-        <TimelineView rows={rows} sources={taskSources} />
+        <TimelineView rows={rows} sources={taskSources} activity={activity} taskMeta={taskMeta} />
       ) : (
         <SelectionProvider>
           <BulkBar />

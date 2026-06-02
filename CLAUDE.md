@@ -19,7 +19,7 @@ Single operator, no auth. `createdBy` is normally `"web-ui"`; AI command mutatio
 The system replaces an Excel workbook with:
 
 - task capture and tracking;
-- per-task timeline and audit history;
+- per-task timeline and audit history, plus a portfolio-wide activity feed (hub Timeline view);
 - company and portfolio risk views;
 - saved meeting notes and minutes;
 - AI-assisted meeting intelligence;

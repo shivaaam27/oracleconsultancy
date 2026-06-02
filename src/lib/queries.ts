@@ -85,6 +85,30 @@ export const getTaskSources = cache(async (): Promise<Record<number, TaskSource>
   return map;
 });
 
+/* Raw recent activity (updates + audit) across all tasks — powers the global
+ * activity timeline. The client enriches with task meta and groups by day. */
+export type RawActivityUpdate = {
+  id: number; task_id: number; body: string; created_at: string;
+  created_by: string | null; edited_at: string | null; original_body: string | null; pinned_at: string | null;
+};
+export type RawActivityAudit = {
+  id: number; task_id: number | null; task_code: string | null; company_id: number | null;
+  field: string | null; old_value: string | null; new_value: string | null;
+  change_reason: string | null; entry_type: string | null; created_at: string; created_by: string | null;
+};
+export type RawActivity = { updates: RawActivityUpdate[]; audit: RawActivityAudit[] };
+
+export const getRecentActivity = cache(async (limit = 160): Promise<RawActivity> => {
+  const [updRes, audRes] = await Promise.all([
+    sb.from("task_updates").select("id,task_id,body,created_at,created_by,edited_at,original_body,pinned_at").is("deleted_at", null).order("created_at", { ascending: false }).limit(limit),
+    sb.from("audit_log").select("id,task_id,task_code,company_id,field,old_value,new_value,change_reason,entry_type,created_at,created_by").is("deleted_at", null).order("created_at", { ascending: false }).limit(limit),
+  ]);
+  return {
+    updates: (updRes.data ?? []) as RawActivityUpdate[],
+    audit: (audRes.data ?? []) as RawActivityAudit[],
+  };
+});
+
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, settings] = await Promise.all([
     sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),

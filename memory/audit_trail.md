@@ -55,7 +55,13 @@ Timeline rendering combines:
 - grouping bursts of field edits;
 - hoisting pinned updates.
 
-Task detail pages and task drawers both use this model.
+Task detail pages, the task drawer, and the global activity feed all use this
+model. The drawer + global feed render through the shared `TimelineEntry`
+component (icon node + actor + relative time + optional task chip). The global
+feed (`getRecentActivity`) aggregates updates + audit across all tasks.
+
+See `memory/timeline.md` for the full picture (three scopes, event model, the
+shared component, and the activity-feed query).
 
 ## Corrections
 

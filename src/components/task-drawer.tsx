@@ -4,12 +4,10 @@ import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { ModalShell } from "./modal-shell";
+import { TimelineEntry } from "./timeline-entry";
 import {
   ExternalLink,
   MessageSquarePlus,
-  GitCommitHorizontal,
-  Pin,
-  Pencil,
   Loader2,
   AlertCircle,
   FileText,
@@ -30,12 +28,8 @@ import {
   mergeStatusIntoUpdates,
   suppressUpdateMetaAudits,
   groupFieldEdits,
-  cleanReason,
-  formatAuditValue,
   liftPinnedUpdates,
-  summariseEditGroup,
   type TimelineItem,
-  type TimelineUpdate,
 } from "@/lib/timeline";
 import type { TaskRow } from "@/lib/queries";
 
@@ -437,14 +431,11 @@ export function TaskDrawer() {
                       <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
                     </summary>
                     <div className="px-4 pb-4">
-                      <div className="relative pl-4">
-                        <div className="absolute left-1 top-1 bottom-1 w-px bg-border" />
-                        <div className="space-y-2.5">
-                          {timeline.map((item) => (
-                            <MiniTimelineItem key={`${item.kind}-${item.id}`} item={item} />
-                          ))}
-                        </div>
-                      </div>
+                      <ol className="mt-1">
+                        {timeline.map((item, i) => (
+                          <TimelineEntry key={`${item.kind}-${item.id}`} item={item} isLast={i === timeline.length - 1} />
+                        ))}
+                      </ol>
                     </div>
                   </details>
                 )}
@@ -452,106 +443,5 @@ export function TaskDrawer() {
             )}
       </div>
     </ModalShell>
-  );
-}
-
-/* -------------------------------------------------------------------------
- * Compact timeline item for the drawer (no edit menu, no filter chips)
- * ---------------------------------------------------------------------- */
-function MiniTimelineItem({ item }: { item: TimelineItem }) {
-  if (item.kind === "bulk") return null; // bulk runs don't appear in the mini view
-
-  if (item.kind === "editgroup") {
-    const { label } = summariseEditGroup(item);
-    return (
-      <div className="relative">
-        <div className="absolute -left-2.5 top-1.5 w-1.5 h-1.5 rounded-full bg-border" />
-        <details className="group/edit px-3 py-1.5 bg-bg-subtle rounded-lg text-xs">
-          <summary className="cursor-pointer list-none flex items-center gap-1 text-fg-muted hover:text-fg">
-            <Pencil size={9} />
-            <span className="font-medium text-fg">{label}</span>
-            <span className="ml-auto text-[10px] text-fg-subtle">{fmtTime(item.createdAt)}</span>
-          </summary>
-          <ul className="mt-1.5 space-y-1">
-            {item.items.map((a) => (
-              <li key={a.id} className="flex items-center gap-1 flex-wrap text-[11px]">
-                <span className="font-medium text-fg">{a.field}</span>
-                {a.oldValue && <span className="text-fg-muted">{formatAuditValue(a.field, a.oldValue)}</span>}
-                {a.oldValue && a.newValue && <GitCommitHorizontal size={8} className="text-fg-subtle" />}
-                {a.newValue && <span className="text-fg font-medium">{formatAuditValue(a.field, a.newValue)}</span>}
-              </li>
-            ))}
-          </ul>
-        </details>
-      </div>
-    );
-  }
-
-  const dot =
-    item.kind === "update"
-      ? "bg-accent"
-      : item.kind === "audit" &&
-          (item.newValue === "Completed" || item.newValue === "Closed")
-        ? "bg-success"
-        : item.kind === "audit" &&
-            (item.entryType === "ESCALATION" || item.newValue === "Escalated")
-          ? "bg-danger"
-          : "bg-border";
-
-  return (
-    <div className="relative">
-      <div className={`absolute -left-2.5 top-1.5 w-1.5 h-1.5 rounded-full ${dot}`} />
-
-      {item.kind === "update" ? (
-        <div className="bg-accent/5 border border-accent/20 rounded-lg px-3 py-2 space-y-1">
-          {item.pinnedAt && (
-            <div className="flex items-center gap-1 text-[10px] text-accent">
-              <Pin size={8} className="fill-accent" /> Pinned
-            </div>
-          )}
-          <p className="text-xs leading-relaxed">
-            <CodeLinkedText text={item.body} />
-          </p>
-          {item.editedAt && (
-            <span className="inline-flex items-center gap-0.5 text-[10px] text-fg-subtle">
-              <Pencil size={8} /> edited
-            </span>
-          )}
-          {(item as TimelineUpdate).statusChange && (
-            <div className="inline-flex items-center gap-1 text-[10px] text-fg-muted">
-              <GitCommitHorizontal size={9} />
-              {(item as TimelineUpdate).statusChange!.from && (
-                <span>{(item as TimelineUpdate).statusChange!.from}</span>
-              )}
-              <span>→</span>
-              <span className="font-medium text-fg">
-                {(item as TimelineUpdate).statusChange!.to}
-              </span>
-            </div>
-          )}
-          <p className="text-[10px] text-fg-subtle">{fmtTime(item.createdAt)}</p>
-        </div>
-      ) : (
-        <div className="px-3 py-1.5 bg-bg-subtle/70 ring-1 ring-border/50 rounded-lg text-xs">
-          {item.entryType === "CREATE" ? (
-            <span className="text-fg-muted">Task created</span>
-          ) : (
-            <span>
-              <span className="font-medium text-fg">{item.field || item.entryType}</span>
-              {item.oldValue && (
-                <span className="text-fg-muted"> {formatAuditValue(item.field, item.oldValue)}</span>
-              )}
-              {item.oldValue && item.newValue && (
-                <GitCommitHorizontal size={9} className="inline mx-0.5 text-fg-subtle" />
-              )}
-              {item.newValue && (
-                <span className="font-medium text-fg"> {formatAuditValue(item.field, item.newValue)}</span>
-              )}
-            </span>
-          )}
-          <span className="ml-2 text-fg-subtle">{fmtTime(item.createdAt)}</span>
-        </div>
-      )}
-    </div>
   );
 }
