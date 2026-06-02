@@ -9,6 +9,7 @@ import {
   Flag,
   ArrowRight,
   HelpCircle,
+  Layers,
 } from "lucide-react";
 
 // Mirrors the ParsedIntent union in /api/action. Kept loose (`any`) because the
@@ -91,6 +92,17 @@ function describe(intent: Intent): {
           { label: "New priority", value: s("priority") },
         ].filter((r) => r.value),
       };
+    case "bulk": {
+      const codes = Array.isArray(intent["taskCodes"]) ? (intent["taskCodes"] as string[]) : [];
+      const op = s("op");
+      const opLabel = op === "complete" ? "Complete" : op === "escalate" ? "Escalate"
+        : op === "set_status" ? `Set status → ${s("status")}` : op === "set_priority" ? `Set priority → ${s("priority")}` : "Update";
+      return {
+        icon: <Layers size={15} className="text-accent" />,
+        title: `${opLabel} · ${codes.length} task${codes.length === 1 ? "" : "s"}`,
+        rows: [{ label: "Tasks", value: codes.join(", ") }].filter((r) => r.value),
+      };
+    }
     case "navigate":
       return {
         icon: <ArrowRight size={15} className="text-accent" />,

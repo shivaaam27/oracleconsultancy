@@ -8,6 +8,7 @@ import { IntentPreview } from "./intent-preview";
 import { CopyButton } from "./copy-button";
 import { VoiceButton } from "./voice-button";
 import type { PageContext } from "@/lib/page-context";
+import { useCurrentView } from "@/lib/current-view";
 
 type Message = {
   id: string;
@@ -66,6 +67,7 @@ export function AskCOS({
   const [plusOpen, setPlusOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dictatedRef = useRef("");
+  const currentView = useCurrentView();
 
   // Greeting (name from Settings) — rotates a little so it feels alive.
   const greeting = (() => {
@@ -169,11 +171,10 @@ export function AskCOS({
           command,
           confirm,
           history: recentHistory,
-          activeContext: focusedTask
-            ? { taskCode: focusedTask }
-            : pageContext?.taskCode
-              ? { taskCode: pageContext.taskCode }
-              : undefined,
+          activeContext: {
+            ...(focusedTask ? { taskCode: focusedTask } : pageContext?.taskCode ? { taskCode: pageContext.taskCode } : {}),
+            ...(currentView.codes.length ? { viewCodes: currentView.codes, viewLabel: currentView.label } : {}),
+          },
         }),
       });
       const data = await res.json();

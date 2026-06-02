@@ -4,6 +4,7 @@ import { Card, EmptyState } from "@/components/ui";
 import { TaskActions } from "./task-actions";
 import { SavedViewsBar } from "@/components/saved-views-bar";
 import { TaskFilters } from "@/components/task-filters";
+import { ViewPublisher } from "@/components/view-publisher";
 import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
@@ -149,9 +150,17 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   const resetHref = view === "table" ? "/?tab=tasks" : `/?tab=tasks&view=${view}`;
 
+  const viewLabel = dayMode
+    ? "needing attention"
+    : (() => {
+        const bits = [sp.flag, sp.priority, sp.status, sp.company, sp.noOwner === "1" ? "no owner" : null].filter(Boolean);
+        return bits.length ? bits.join(" · ") : (showClosed ? "all tasks" : "open tasks");
+      })();
+
   return (
     <div className="space-y-4">
       <TaskActions />
+      <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
       {/* Header row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">

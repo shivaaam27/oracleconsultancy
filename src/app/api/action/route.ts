@@ -19,6 +19,7 @@ type ParsedIntent =
   | { type: "create";   companyName?: string; actionItem: string; priority?: string; deadline?: string; assignee?: string }
   | { type: "set_status"; taskCode: string; status: string }
   | { type: "set_priority"; taskCode: string; priority: string }
+  | { type: "bulk"; op: "complete" | "escalate" | "set_status" | "set_priority"; status?: string; priority?: string; taskCodes?: string[] }
   | { type: "navigate"; target: string; query?: string }
   | { type: "unknown"; reason: string };
 
@@ -31,6 +32,7 @@ Possible intents (output ONLY the JSON, no prose):
 - Change status: {"type":"set_status","taskCode":"DAR-007","status":"Blocked"}
 - Change priority: {"type":"set_priority","taskCode":"DAR-007","priority":"Critical"}
 - Create a new task: {"type":"create","companyName":"Dar Spices","actionItem":"Send invoice","priority":"High","deadline":"2026-06-15","assignee":"Shivam"}
+- Apply ONE action to ALL tasks in the current view ("escalate these", "complete these", "mark these blocked", "make these high"): {"type":"bulk","op":"escalate"} | {"type":"bulk","op":"complete"} | {"type":"bulk","op":"set_status","status":"Blocked"} | {"type":"bulk","op":"set_priority","priority":"High"}. Use bulk when the command refers to the visible set ("these", "them", "all of them", "the ones shown", "the overdue ones") rather than a single task code.
 - Navigate / open: {"type":"navigate","target":"task","query":"DAR-007"} or {"type":"navigate","target":"company","query":"Dar Spices"} or {"type":"navigate","target":"escalations"}
 - Anything else / unclear: {"type":"unknown","reason":"short reason"}
 
@@ -51,15 +53,20 @@ RULES:
 async function parseCommand(
   command: string,
   history: { role: "user" | "assistant"; content: string }[] = [],
-  activeContext?: { taskCode?: string; companyName?: string },
+  activeContext?: { taskCode?: string; companyName?: string; viewCodes?: string[]; viewLabel?: string },
 ): Promise<ParsedIntent> {
   const apiKey = await getGroqKey();
   if (!apiKey) return { type: "unknown", reason: "AI not configured" };
 
-  // Inject pronoun resolution context
-  const contextHint = activeContext?.taskCode || activeContext?.companyName
-    ? `\n\nACTIVE CONTEXT (resolve pronouns like "it", "this", "that one" using this):\n${JSON.stringify(activeContext)}`
-    : "";
+  // Inject pronoun + current-view resolution context.
+  const parts: string[] = [];
+  if (activeContext?.taskCode || activeContext?.companyName) {
+    parts.push(`ACTIVE CONTEXT (resolve "it", "this", "that one"):\n${JSON.stringify({ taskCode: activeContext.taskCode, companyName: activeContext.companyName })}`);
+  }
+  if (activeContext?.viewCodes?.length) {
+    parts.push(`CURRENT VIEW (${activeContext.viewCodes.length} task(s)${activeContext.viewLabel ? `, ${activeContext.viewLabel}` : ""}). "these"/"them"/"all of them"/"the ones shown" refer to ALL of these — use a bulk intent: ${activeContext.viewCodes.join(", ")}`);
+  }
+  const contextHint = parts.length ? `\n\n${parts.join("\n\n")}` : "";
 
   const messages: any[] = [
     { role: "system", content: SYSTEM_PROMPT + contextHint },
@@ -237,6 +244,36 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     return { ok: true, message: `✨ Created ${newCode}: ${intent.actionItem}`, redirect: `/task/${newCode}` };
   }
 
+  if (intent.type === "bulk") {
+    const codes = (intent.taskCodes ?? []).slice(0, 50);
+    if (codes.length === 0) return { ok: false, message: "No tasks in the current view to act on." };
+    const done: string[] = [];
+    for (const code of codes) {
+      const t = await findTaskByCode(code);
+      if (!t) continue;
+      if (intent.op === "complete") {
+        await sb.from("tasks").update({ status: "Completed", closed_date: nowIso, last_updated_at: nowIso }).eq("id", t.id);
+        await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, "Completed", "Bulk complete via command");
+      } else if (intent.op === "escalate") {
+        await sb.from("tasks").update({ escalation: "Yes", status: "Escalated", last_updated_at: nowIso }).eq("id", t.id);
+        await audit(t.id, t.code, t.company_id, "ESCALATION", "escalation", t.escalation, "Yes", "Bulk escalate via command");
+      } else if (intent.op === "set_status" && intent.status) {
+        const patch: Record<string, unknown> = { status: intent.status, last_updated_at: nowIso };
+        if (["Completed", "Closed"].includes(intent.status)) patch.closed_date = nowIso;
+        await sb.from("tasks").update(patch).eq("id", t.id);
+        await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, intent.status, "Bulk status via command");
+      } else if (intent.op === "set_priority" && intent.priority) {
+        await sb.from("tasks").update({ priority: intent.priority, last_updated_at: nowIso }).eq("id", t.id);
+        await audit(t.id, t.code, t.company_id, "PRIORITY", "priority", t.priority, intent.priority, "Bulk priority via command");
+      }
+      done.push(t.code);
+    }
+    revalidatePath("/registry"); revalidatePath("/");
+    const verb = intent.op === "complete" ? "Completed" : intent.op === "escalate" ? "Escalated"
+      : intent.op === "set_status" ? `Set to ${intent.status}` : `Set priority ${intent.priority}`;
+    return { ok: done.length > 0, message: `${verb} ${done.length} task${done.length === 1 ? "" : "s"}: ${done.join(", ")}` };
+  }
+
   return { ok: false, message: "Action could not be executed" };
 }
 
@@ -277,6 +314,15 @@ export async function POST(req: NextRequest) {
 
     if (intent.type === "unknown") {
       return NextResponse.json({ intent, ok: false, message: intent.reason || "Couldn't understand the command" });
+    }
+
+    // Bulk targets the current view — resolve "these" to the visible codes.
+    if (intent.type === "bulk") {
+      const viewCodes: string[] = Array.isArray(activeContext?.viewCodes) ? activeContext.viewCodes : [];
+      if (viewCodes.length === 0) {
+        return NextResponse.json({ intent: { type: "unknown", reason: "No tasks in the current view. Open a task list first." }, ok: false, message: "No tasks in the current view to act on." });
+      }
+      intent.taskCodes = viewCodes.slice(0, 50);
     }
 
     // For destructive/mutation intents, require explicit confirm

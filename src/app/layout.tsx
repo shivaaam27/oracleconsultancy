@@ -86,7 +86,9 @@ export default async function RootLayout({ children, modal }: { children: React.
               <Suspense>
                 <PersonDrawer />
               </Suspense>
-              <FloatingAssistant operatorName={operatorName} />
+              <Suspense>
+                <FloatingAssistant operatorName={operatorName} />
+              </Suspense>
               <ServiceWorkerRegister />
               <IosResume />
               <LiquidGlassDefs />
