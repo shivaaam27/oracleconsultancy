@@ -66,19 +66,33 @@ language**:
 - **Company filter** (Activity feed): an "All companies" select narrows events to
   one company. The list is derived from tasks that have activity; orphaned/legacy
   events (no resolvable task) only appear under "All".
-- **Per-entry delete**: `TimelineEntry` has a ⋯ menu (drawer + global feed) that
-  soft-deletes the underlying row(s) with an Undo toast — updates via
-  `deleteTaskUpdate`/`restoreTaskUpdate`, audits via `deleteAuditEntry`/
-  `restoreAuditEntry`. "Task created" (CREATE) is not deletable. Edit-groups
-  delete all the audit rows they fold.
+- **Per-entry delete (permanent)**: `TimelineEntry` has a ⋯ menu (drawer + global
+  feed) that **hard-deletes** the underlying row(s) — updates via
+  `deleteTaskUpdate`, audits via `deleteAuditEntry` (which also clears any
+  `corrections` referencing them). Instant, no undo. "Task created" (CREATE) is not
+  deletable. Edit-groups delete all the audit rows they fold.
+
+## Delete model — permanent
+
+Deletes are **permanent wipes** (not soft-delete), reflected everywhere:
+
+- **Task delete** (`deleteTask` / `deleteTaskQuick`) calls `purgeTaskHistory` to
+  remove the task's `audit_log` rows (these do *not* cascade — the FK only nulls
+  `task_id`) plus referencing `corrections`, then deletes the task (updates,
+  assignees, meeting-links cascade). No tombstone, no undo. A confirm guards the
+  task-level delete; single timeline entries delete instantly.
+- The legacy `deleted_at` columns and `restore*` actions remain in the codebase
+  but are no longer the delete path.
 
 ## Data hygiene
 
-`scripts/tidy-audit-noise.ts` can soft-delete reason-less field-change residue
-(matches `suppressNoReasonAudits`). It is **dry-run by default and intentionally
-not applied** — those rows are real per-task field-change history (the drawer /
-task page show them as "Edited N fields"); the global feed already hides them.
-Only run `--apply` if you deliberately want to prune that history.
+- `scripts/purge-orphan-history.ts --apply` permanently deletes orphaned history
+  (audit/update rows whose task no longer exists) — the phantom "multiple
+  companies" in the timeline. Run once after switching to permanent delete; with
+  `purgeTaskHistory` in place no new orphans are created.
+- `scripts/tidy-audit-noise.ts` (dry-run only, **not applied**) could prune
+  reason-less field-change residue, but those are real per-task history shown as
+  "Edited N fields"; leave unless you deliberately want to prune.
 
 ## Global feed data
 

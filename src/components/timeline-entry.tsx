@@ -8,8 +8,8 @@ import {
 import { cn } from "@/lib/cn";
 import { CodeLinkedText } from "./code-linked-text";
 import { useToast } from "./toast";
-import { deleteTaskUpdate, restoreTaskUpdate } from "@/app/task/actions";
-import { deleteAuditEntry, restoreAuditEntry } from "@/app/audit/actions";
+import { deleteTaskUpdate } from "@/app/task/actions";
+import { deleteAuditEntry } from "@/app/audit/actions";
 import {
   formatAuditValue, summariseEditGroup,
   type TimelineItem, type TimelineUpdate,
@@ -128,17 +128,7 @@ export function TimelineEntry({
     await Promise.all(ids.map((x) => (x.kind === "update" ? deleteTaskUpdate(x.id) : deleteAuditEntry(x.id))));
     setBusy(false);
     onChanged?.();
-    toast("Removed from timeline", {
-      tone: "success",
-      duration: 7000,
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          await Promise.all(ids.map((x) => (x.kind === "update" ? restoreTaskUpdate(x.id) : restoreAuditEntry(x.id))));
-          onChanged?.();
-        },
-      },
-    });
+    toast("Deleted permanently", { tone: "success", duration: 3000 });
   }
 
   const menu = canDelete ? (

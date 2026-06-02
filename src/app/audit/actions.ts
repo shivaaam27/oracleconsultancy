@@ -49,12 +49,13 @@ export async function deleteAuditEntry(id: number): Promise<ActionResult> {
     .select("id,task_code,company_id")
     .eq("id", id)
     .maybeSingle();
-  if (!row) return { ok: false, error: "Audit entry not found." };
+  if (!row) return { ok: true }; // already gone
 
-  const { error } = await sb
-    .from("audit_log")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", id);
+  // Permanent delete. Clear any corrections referencing this entry first (FK),
+  // then wipe the row — no soft-delete.
+  await sb.from("corrections").delete().eq("audit_log_id", id);
+  await sb.from("corrections").delete().eq("corrected_by_entry_id", id);
+  const { error } = await sb.from("audit_log").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
 
   invalidate(row.task_code as string | null, row.company_id as number | null);

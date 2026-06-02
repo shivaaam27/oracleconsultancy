@@ -310,6 +310,26 @@ export async function createTask(formData: FormData) {
   redirect(`/task/${result.result.code}`);
 }
 
+/**
+ * Permanently wipe a task's audit history (audit_log doesn't cascade on task
+ * delete — the FK only nulls task_id — so we remove it explicitly, along with any
+ * corrections that reference those entries). Updates/assignees/meeting-links DO
+ * cascade when the task row is deleted.
+ */
+async function purgeTaskHistory(taskId: number, code: string) {
+  const [r1, r2] = await Promise.all([
+    sb.from("audit_log").select("id").eq("task_id", taskId),
+    sb.from("audit_log").select("id").eq("task_code", code),
+  ]);
+  const ids = [...new Set([...(r1.data ?? []), ...(r2.data ?? [])].map((r) => r.id as number))];
+  if (ids.length) {
+    await sb.from("corrections").delete().in("audit_log_id", ids);
+    await sb.from("corrections").delete().in("corrected_by_entry_id", ids);
+  }
+  await sb.from("audit_log").delete().eq("task_id", taskId);
+  await sb.from("audit_log").delete().eq("task_code", code);
+}
+
 export async function deleteTask(code: string) {
   const result = await mutate({
     kind: "task.delete",
@@ -318,59 +338,18 @@ export async function deleteTask(code: string) {
       if (!t) return { result: null, undo: undefined };
       const assignees = await loadAssignees(t.id);
 
-      // Record the deletion in the audit log BEFORE removing the row, so a
-      // deleted task always leaves a trace on /audit even after the undo
-      // window expires. task_id will null out via the FK on delete, but
-      // task_code (text) persists so the entry stays attributable.
-      await sb.from("audit_log").insert({
-        task_id: t.id,
-        task_code: t.code,
-        company_id: t.company_id,
-        entry_type: "CHANGE",
-        field: "Task deleted",
-        old_value: t.action_item,
-        new_value: "(deleted)",
-        change_reason: null,
-        created_at: new Date().toISOString(),
-        created_by: "web-ui",
-      });
-
+      // Permanent, total wipe: remove the task's audit history first (it does not
+      // cascade), then the task row (updates/assignees/meeting-links cascade).
+      // No tombstone, no undo — delete means gone, everywhere.
+      await purgeTaskHistory(t.id, t.code);
       await sb.from("tasks").delete().eq("id", t.id);
 
-      return {
-        result: { deleted: true },
-        undo: {
-          kind: "task.delete",
-          payload: {
-            task: {
-              code: t.code,
-              companyId: t.company_id,
-              departmentId: t.department_id,
-              meetingDate: t.meeting_date,
-              actionItem: t.action_item,
-              ownerId: t.owner_id,
-              createdDate: t.created_date,
-              deadline: t.deadline,
-              status: t.status,
-              priority: t.priority,
-              category: t.category,
-              risk: t.risk,
-              escalation: t.escalation,
-              comments: t.comments,
-              latestUpdate: t.latest_update,
-              lastUpdatedAt: t.last_updated_at,
-              closedDate: t.closed_date,
-              archived: t.archived,
-            },
-            assignees,
-          },
-        },
-      };
+      void assignees;
+      return { result: { deleted: true }, undo: undefined };
     },
   });
 
   if (!result.ok) throw new Error(result.error);
-  if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
 
   revalidatePath("/registry");
   revalidatePath("/");
@@ -580,32 +559,20 @@ export async function deleteTaskUpdate(
   updateId: number,
   reason?: string
 ): Promise<{ ok: boolean; error?: string }> {
+  void reason;
   const u = await loadUpdate(updateId);
-  if (!u) return { ok: false, error: "Update not found." };
-  if (u.deleted_at) return { ok: true };
+  if (!u) return { ok: true }; // already gone
 
   const t = await findTaskMeta(u.task_id);
-  if (!t) return { ok: false, error: "Task not found." };
 
-  const now = new Date().toISOString();
-  await sb.from("task_updates").update({ deleted_at: now }).eq("id", updateId);
-
-  await sb.from("audit_log").insert({
-    task_id: u.task_id,
-    task_code: t.code,
-    company_id: t.company_id,
-    entry_type: "CHANGE",
-    field: "Update deleted",
-    old_value: u.body,
-    new_value: "(deleted)",
-    change_reason: reason ?? null,
-    created_at: now,
-    created_by: "web-ui",
-  });
+  // Permanent delete — no tombstone, no soft-delete. The update is wiped.
+  await sb.from("task_updates").delete().eq("id", updateId);
 
   await recomputeLatestUpdateMirror(u.task_id);
-  revalidatePath(`/task/${t.code}`);
-  revalidatePath(`/companies/${t.company_id}`);
+  if (t) {
+    revalidatePath(`/task/${t.code}`);
+    revalidatePath(`/companies/${t.company_id}`);
+  }
   revalidatePath("/");
   updateTag("tasks");
   return { ok: true };
@@ -907,34 +874,13 @@ export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undo
     run: async () => {
       const t = await findTaskByCode(code);
       if (!t) return { result: null, undo: undefined };
-      const assignees = await loadAssignees(t.id);
-      await sb.from("audit_log").insert({
-        task_id: t.id, task_code: t.code, company_id: t.company_id,
-        entry_type: "CHANGE", field: "Task deleted",
-        old_value: t.action_item, new_value: "(deleted)",
-        change_reason: null, created_at: new Date().toISOString(), created_by: "web-ui",
-      });
+      // Permanent, total wipe — history first (no cascade), then the task row.
+      await purgeTaskHistory(t.id, t.code);
       await sb.from("tasks").delete().eq("id", t.id);
-      return {
-        result: { deleted: true },
-        undo: {
-          kind: "task.delete",
-          payload: {
-            task: {
-              code: t.code, companyId: t.company_id, departmentId: t.department_id,
-              meetingDate: t.meeting_date, actionItem: t.action_item, ownerId: t.owner_id,
-              createdDate: t.created_date, deadline: t.deadline, status: t.status,
-              priority: t.priority, category: t.category, risk: t.risk, escalation: t.escalation,
-              comments: t.comments, latestUpdate: t.latest_update, lastUpdatedAt: t.last_updated_at,
-              closedDate: t.closed_date, archived: t.archived,
-            },
-            assignees,
-          },
-        },
-      };
+      return { result: { deleted: true }, undo: undefined };
     },
   });
   if (!result.ok) return { ok: false, error: result.error };
   revalidatePath("/"); updateTag("tasks");
-  return { ok: true, undoToken: result.undoToken };
+  return { ok: true };
 }

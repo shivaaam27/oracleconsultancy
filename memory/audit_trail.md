@@ -63,6 +63,23 @@ feed (`getRecentActivity`) aggregates updates + audit across all tasks.
 See `memory/timeline.md` for the full picture (three scopes, event model, the
 shared component, and the activity-feed query).
 
+## Deletion is permanent
+
+Deletes are **hard deletes**, not soft-deletes (the operator wants a delete to
+wipe a thing entirely, everywhere):
+
+- Deleting a **task** runs `purgeTaskHistory` — removes its `audit_log` rows
+  (which don't cascade; the FK only nulls `task_id`) and referencing
+  `corrections`, then deletes the task (updates/assignees/meeting-links cascade).
+  No "Task deleted" tombstone, no undo.
+- Deleting a single **update** or **audit entry** from a timeline hard-deletes
+  that row immediately.
+- `scripts/purge-orphan-history.ts` cleans pre-existing orphans (tombstones from
+  older deletes that left audit rows behind as phantom timeline events).
+
+The `deleted_at` columns and `restore*` actions still exist but are off the
+current delete path.
+
 ## Corrections
 
 `corrections` links an erroneous audit entry to the entry that corrected it. No UI writes this table yet.
