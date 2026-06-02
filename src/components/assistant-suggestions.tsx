@@ -163,8 +163,8 @@ export function AssistantSuggestions() {
         className="pointer-events-auto mr-[0.6rem] sm:mr-[0.7rem] inline-flex items-center justify-center h-9 w-9 rounded-full glass elevated shadow-pill text-accent ring-1 ring-border/60 touch-pan-x"
       >
         <motion.span
-          animate={open ? { rotate: 180, y: 0 } : { rotate: 0, y: [0, -1.5, 0] }}
-          transition={open ? { type: "spring", stiffness: 400, damping: 30 } : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
         >
           <ChevronUp size={16} />
         </motion.span>
