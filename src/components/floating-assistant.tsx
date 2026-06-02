@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence, useDragControls, useMotionValue, animate, type PanInfo } from "framer-motion";
 import { Sparkles, X, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -37,7 +37,8 @@ export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
   const [full, setFull] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
-  const pageContext = derivePageContext(pathname);
+  const searchParams = useSearchParams();
+  const pageContext = derivePageContext(pathname, searchParams);
   const dragControls = useDragControls();
   const y = useMotionValue(0);
   const SNAP = { type: "spring" as const, stiffness: 420, damping: 38 };
@@ -108,6 +109,7 @@ export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
             <motion.div
               key="panel"
               style={{ y }}
+              layout={!isMobile}
               drag={isMobile ? "y" : false}
               dragControls={dragControls}
               dragListener={false}
