@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { cloneElement, isValidElement, useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObject } from "react";
+import { motion, useMotionValue, animate, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, Building2, NotebookPen, LayoutGrid, Search,
@@ -295,14 +295,136 @@ function NavActionButton() {
 }
 
 /* --------------------------------------------------------------------- */
+/* Liquid lens — a draggable glass capsule over the nav slots. Drag it     */
+/* across the tabs (Home → Search) and release to select. Only deliberate  */
+/* horizontal drags are claimed, so taps / long-press / popovers still     */
+/* work untouched.                                                         */
+/* --------------------------------------------------------------------- */
+
+const LENS_SLOTS = ["Home", "Task Management", "Companies", "Workbook", "Search"] as const;
+
+function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
+  const x = useMotionValue(0);
+  const scaleX = useMotionValue(1);
+  const scaleY = useMotionValue(1);
+  const [visible, setVisible] = useState(false);
+  const [box, setBox] = useState({ w: 44, h: 40, top: 0 });
+  const SPRING = { type: "spring" as const, stiffness: 520, damping: 30, mass: 0.7 };
+
+  useEffect(() => {
+    const c = containerRef.current;
+    if (!c) return;
+
+    type Slot = { label: string; center: number; w: number; h: number; top: number };
+    const s = { dragging: false, startX: 0, lastX: 0, lastT: 0, pid: -1, slots: [] as Slot[] };
+
+    const readSlots = (): Slot[] => {
+      const cr = c.getBoundingClientRect();
+      return LENS_SLOTS.map((label) => {
+        const el = c.querySelector(`[aria-label="${label}"]`) as HTMLElement | null;
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { label, center: r.left - cr.left + r.width / 2, w: r.width, h: r.height, top: r.top - cr.top };
+      }).filter(Boolean) as Slot[];
+    };
+
+    const place = (centerX: number, vx = 0) => {
+      const stretch = Math.min(0.42, Math.abs(vx) * 0.018);
+      x.set(centerX);
+      scaleX.set(1 + stretch);
+      scaleY.set(1 - stretch * 0.5);
+    };
+
+    const onDown = (e: PointerEvent) => {
+      s.slots = readSlots();
+      s.startX = e.clientX; s.lastX = e.clientX; s.lastT = performance.now(); s.dragging = false; s.pid = e.pointerId;
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!s.slots.length || e.pointerId !== s.pid) return;
+      const dx = e.clientX - s.startX;
+      const cr = c.getBoundingClientRect();
+      if (!s.dragging) {
+        if (Math.abs(dx) < 8) return;
+        s.dragging = true;
+        try { c.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+        const first = s.slots[0];
+        setBox({ w: first.w + 6, h: first.h, top: first.top });
+        const px = Math.max(s.slots[0].center, Math.min(s.slots[s.slots.length - 1].center, e.clientX - cr.left));
+        x.jump?.(px); x.set(px);
+        setVisible(true);
+      }
+      e.preventDefault();
+      const now = performance.now();
+      const vx = (e.clientX - s.lastX) / Math.max(1, now - s.lastT);
+      s.lastX = e.clientX; s.lastT = now;
+      const px = Math.max(s.slots[0].center, Math.min(s.slots[s.slots.length - 1].center, e.clientX - cr.left));
+      place(px, vx);
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (s.dragging) {
+        const cr = c.getBoundingClientRect();
+        const px = e.clientX - cr.left;
+        const nearest = s.slots.reduce((a, b) => (Math.abs(b.center - px) < Math.abs(a.center - px) ? b : a), s.slots[0]);
+        animate(x, nearest.center, SPRING);
+        animate(scaleX, 1, SPRING);
+        animate(scaleY, 1, SPRING);
+        onSelect(nearest.label);
+        window.setTimeout(() => setVisible(false), 320);
+      }
+      if (s.pid >= 0) { try { c.releasePointerCapture(s.pid); } catch { /* ignore */ } }
+      s.dragging = false; s.pid = -1;
+    };
+
+    c.addEventListener("pointerdown", onDown);
+    c.addEventListener("pointermove", onMove, { passive: false });
+    c.addEventListener("pointerup", onUp);
+    c.addEventListener("pointercancel", onUp);
+    return () => {
+      c.removeEventListener("pointerdown", onDown);
+      c.removeEventListener("pointermove", onMove);
+      c.removeEventListener("pointerup", onUp);
+      c.removeEventListener("pointercancel", onUp);
+    };
+  }, [containerRef, x, scaleX, scaleY]);
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}
+          style={{ x, scaleX, scaleY, left: -box.w / 2, top: box.top, width: box.w, height: box.h, originX: 0.5, originY: 0.5 }}
+          className="pointer-events-none absolute z-20 rounded-[1.1rem] bg-white/12 dark:bg-white/10 ring-1 ring-white/40 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_4px_14px_-4px_rgba(0,0,0,0.35)] backdrop-blur-[1px]"
+        />
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* --------------------------------------------------------------------- */
 /* The bottom-floating pill (mobile only)                                 */
 /* --------------------------------------------------------------------- */
 
 export function TopPill({ companies = [] }: { companies?: Company[] }) {
   const pathname = usePathname() || "/";
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tab = searchParams.get("tab");
   const { open: openPalette } = useCommandPalette();
+  const pillRef = useRef<HTMLDivElement>(null);
+
+  function selectSlot(label: string) {
+    if (label === "Home") router.push("/");
+    else if (label === "Task Management") router.push("/?tab=tasks");
+    else if (label === "Companies") router.push("/companies");
+    else if (label === "Workbook") router.push("/workbook");
+    else if (label === "Search") openPalette();
+  }
 
   const onHub = pathname === "/";
   const homeActive = onHub && tab !== "tasks";
@@ -313,11 +435,14 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
   return (
     <div className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 flex justify-center px-2 pointer-events-none">
       <motion.div
+        ref={pillRef}
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2.5 h-14 md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
+        style={{ touchAction: "pan-y" }}
+        className="relative pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2.5 h-14 md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
+        <NavLens containerRef={pillRef} onSelect={selectSlot} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
         <CompaniesNavTab companies={companies} active={companiesActive} />
