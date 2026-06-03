@@ -99,6 +99,13 @@
       "when": 1780512235121,
       "tag": "0013_curly_captain_america",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1780513143523,
+      "tag": "0014_thick_naoko",
+      "breakpoints": true
     }
   ]
 }

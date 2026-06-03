@@ -28,7 +28,7 @@ export const people = pgTable("people", {
   contactStatus: text("contact_status"),
   active: boolean("active").notNull().default(true),
   notes: text("notes"),
-  snoozedUntil: timestamp("snoozed_until", { mode: "date" }),
+  snoozedUntil: timestamp("snoozed_until", { mode: "date", withTimezone: true }),
   // "internal" (employed) | "external" (broker, agent, vendor) | "expat" (person being processed).
   personType: text("person_type").notNull().default("internal"),
   // Soft self-reference: e.g. an immigration agent → the expat they are helping, or vice-versa.
@@ -53,11 +53,11 @@ export const tasks = pgTable("tasks", {
   code: text("code").notNull().unique(),
   companyId: integer("company_id").notNull().references(() => companies.id),
   departmentId: integer("department_id").references(() => departments.id),
-  meetingDate: timestamp("meeting_date", { mode: "date" }),
+  meetingDate: timestamp("meeting_date", { mode: "date", withTimezone: true }),
   actionItem: text("action_item").notNull(),
   ownerId: integer("owner_id").references(() => people.id),
-  createdDate: timestamp("created_date", { mode: "date" }),
-  deadline: timestamp("deadline", { mode: "date" }),
+  createdDate: timestamp("created_date", { mode: "date", withTimezone: true }),
+  deadline: timestamp("deadline", { mode: "date", withTimezone: true }),
   status: text("status").notNull().default("Not Started"),
   priority: text("priority").notNull().default("Low"),
   category: text("category"),
@@ -65,8 +65,8 @@ export const tasks = pgTable("tasks", {
   escalation: text("escalation").default("No"),
   comments: text("comments"),
   latestUpdate: text("latest_update"),
-  lastUpdatedAt: timestamp("last_updated_at", { mode: "date" }),
-  closedDate: timestamp("closed_date", { mode: "date" }),
+  lastUpdatedAt: timestamp("last_updated_at", { mode: "date", withTimezone: true }),
+  closedDate: timestamp("closed_date", { mode: "date", withTimezone: true }),
   archived: boolean("archived").notNull().default(false),
   // Previous task code (e.g. "CO01-008") kept after the DS-001 rename so old
   // /task/<code> links still resolve. Null for tasks created after the rename.
@@ -86,34 +86,34 @@ export const taskUpdates = pgTable("task_updates", {
   id: serial("id").primaryKey(),
   taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
   body: text("body").notNull(),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by"),
   /** Set on first edit; preserves the original text for history. */
   originalBody: text("original_body"),
   /** Timestamp of most recent edit (null = never edited). */
-  editedAt: timestamp("edited_at", { mode: "date" }),
+  editedAt: timestamp("edited_at", { mode: "date", withTimezone: true }),
   /** Soft-delete marker; rows with this set are hidden from timelines. */
-  deletedAt: timestamp("deleted_at", { mode: "date" }),
+  deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
   /** When set, sort this update to the top of its task's timeline. */
-  pinnedAt: timestamp("pinned_at", { mode: "date" }),
+  pinnedAt: timestamp("pinned_at", { mode: "date", withTimezone: true }),
 });
 
 export const meetings = pgTable("meetings", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
-  meetingDate: timestamp("meeting_date", { mode: "date" }).notNull(),
+  meetingDate: timestamp("meeting_date", { mode: "date", withTimezone: true }).notNull(),
   attendees: text("attendees"),
   rawNotes: text("raw_notes").notNull().default(""),
   minutes: text("minutes"),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
-  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
   // "meeting" (default) or "note" — lets meetings and Apple-Notes-style notes
   // share this table while the Workbook shows them in separate tabs.
   kind: text("kind").notNull().default("meeting"),
   // Notes: pin to top + optional folder for organisation.
-  pinnedAt: timestamp("pinned_at", { mode: "date" }),
+  pinnedAt: timestamp("pinned_at", { mode: "date", withTimezone: true }),
   folder: text("folder"),
 });
 
@@ -122,7 +122,7 @@ export const meetingTasks = pgTable(
   {
     meetingId: integer("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
     taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.meetingId, t.taskId] })]
 );
@@ -138,10 +138,10 @@ export const auditLog = pgTable("audit_log", {
   oldValue: text("old_value"),
   newValue: text("new_value"),
   changeReason: text("change_reason"),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by"),
   /** Soft-delete marker. Hidden from timelines + /audit by default; toggleable. */
-  deletedAt: timestamp("deleted_at", { mode: "date" }),
+  deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
 });
 
 export const corrections = pgTable("corrections", {
@@ -149,7 +149,7 @@ export const corrections = pgTable("corrections", {
   auditLogId: integer("audit_log_id").references(() => auditLog.id),
   correctedByEntryId: integer("corrected_by_entry_id").references(() => auditLog.id),
   status: text("status").notNull().default("Open"),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
 });
 
 export const reminders = pgTable(
@@ -161,9 +161,9 @@ export const reminders = pgTable(
     channel: text("channel").notNull(),
     messageType: text("message_type"),
     escalationLevel: text("escalation_level"),
-    sentAt: timestamp("sent_at", { mode: "date" }),
+    sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }),
     dedupeKey: text("dedupe_key").notNull(),
-    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   },
   (t) => [uniqueIndex("reminders_dedupe_idx").on(t.dedupeKey)]
 );
@@ -180,15 +180,15 @@ export const outbox = pgTable("outbox", {
   status: text("status").notNull().default("Ready"),
   contactStatus: text("contact_status"),
   notes: text("notes"),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
-  sentAt: timestamp("sent_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }),
 });
 
 export const dailySnapshots = pgTable(
   "daily_snapshots",
   {
     id: serial("id").primaryKey(),
-    snapshotDate: timestamp("snapshot_date", { mode: "date" }).notNull(),
+    snapshotDate: timestamp("snapshot_date", { mode: "date", withTimezone: true }).notNull(),
     companyId: integer("company_id").references(() => companies.id),
     total: integer("total").notNull().default(0),
     open: integer("open").notNull().default(0),
@@ -214,7 +214,7 @@ export const systemEvents = pgTable("system_events", {
   kind: text("kind").notNull(),         // "cron.snapshots" | "cron.cleanup" | "dispatch" | "error" | "heartbeat"
   status: text("status").notNull(),     // "ok" | "error" | "skip"
   details: text("details"),             // JSON string, free-form
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
 });
 
 export const undoTokens = pgTable("undo_tokens", {
@@ -223,9 +223,9 @@ export const undoTokens = pgTable("undo_tokens", {
   payload: text("payload").notNull(),
   taskId: integer("task_id"),
   createdBy: text("created_by").notNull(),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
-  expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
-  consumedAt: timestamp("consumed_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { mode: "date", withTimezone: true }),
 });
 
 // Inbound capture queue: forwarded emails and shared WhatsApp items land here as
@@ -240,8 +240,8 @@ export const inbox = pgTable("inbox", {
   attachments: text("attachments"),                    // JSON: [{name,url,type}]
   filedKind: text("filed_kind"),                       // "task" | "note"
   filedRef: text("filed_ref"),                         // task code or meeting id
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
-  filedAt: timestamp("filed_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  filedAt: timestamp("filed_at", { mode: "date", withTimezone: true }),
 });
 
 // Personal checklist — lightweight to-dos the operator adds in the Workbook,
@@ -251,9 +251,9 @@ export const todos = pgTable("todos", {
   title: text("title").notNull(),
   done: boolean("done").notNull().default(false),
   important: boolean("important").notNull().default(false),
-  dueAt: timestamp("due_at", { mode: "date" }),
+  dueAt: timestamp("due_at", { mode: "date", withTimezone: true }),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
-  completedAt: timestamp("completed_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
 });
