@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2, Star, UserRound } from "lucide-react";
+import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2, Star, UserRound, ArrowUpRight } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import type { Todo } from "@/app/todos/actions";
-import { createTodo, updateTodo, toggleTodo, deleteTodo } from "@/app/todos/actions";
+import { createTodo, updateTodo, toggleTodo, deleteTodo, promoteTodoToTask } from "@/app/todos/actions";
 import { Deadline, hasTime } from "@/components/deadline";
 import { FluidSelect } from "@/components/fluid-select";
 import { SnoozeSheet } from "@/components/snooze-sheet";
@@ -199,6 +199,15 @@ export function WorkbookTodo({
     catch { toast("Could not reschedule", { tone: "warn", duration: 3000 }); }
   }
 
+  async function promote(t: Todo) {
+    const res = await promoteTodoToTask(t.id);
+    if (!res.ok) { toast(res.error, { tone: "warn", duration: 4000 }); return; }
+    // It's now a tracked task — mark the to-do done and show the new code.
+    setItems((arr) => arr.map((x) => (x.id === t.id ? { ...x, done: true, completedAt: new Date().toISOString(), taskCode: res.code } : x)));
+    toast(`Promoted to ${res.code}`, { tone: "success", duration: 6000, action: { label: "Open", onClick: () => openTask(res.code) } });
+    router.refresh();
+  }
+
   // If we unmount with deletes still pending, persist them straight away so a
   // delete isn't silently lost when navigating away inside the undo window.
   useEffect(() => {
@@ -318,6 +327,9 @@ export function WorkbookTodo({
     return (
       <motion.div layout exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-bg-muted/40 transition-colors group">
         {cells}
+        {!t.done && (
+          <button type="button" onClick={() => promote(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Promote to task" title="Promote to a tracked task"><ArrowUpRight size={13} /></button>
+        )}
         {!t.done && (
           <button type="button" onClick={() => setSnoozeTodo(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Snooze"><Clock size={13} /></button>
         )}

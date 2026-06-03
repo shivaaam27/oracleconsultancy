@@ -2,6 +2,7 @@
 
 import { sb } from "@/db/supabase";
 import { revalidatePath } from "next/cache";
+import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 export type Todo = {
   id: number;
@@ -89,4 +90,51 @@ export async function deleteTodo(id: number): Promise<void> {
   const { error } = await sb.from("todos").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/workbook");
+}
+
+/**
+ * Promote a to-do into a tracked task: creates a real task (company code,
+ * deadline, assignee, priority from the star), links the to-do to it and marks
+ * the to-do done so it leaves the open list but stays as a record.
+ */
+export async function promoteTodoToTask(todoId: number): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  const { data: t, error } = await sb
+    .from("todos")
+    .select("id,title,due_at,company_id,person_id,important")
+    .eq("id", todoId)
+    .single();
+  if (error || !t) return { ok: false, error: "To-do not found" };
+  if (!t.company_id) return { ok: false, error: "Add a company to this to-do first" };
+
+  const { data: comp } = await sb.from("companies").select("code,code_prefix").eq("id", t.company_id).maybeSingle();
+  const prefix = (comp?.code_prefix as string | null) || (comp?.code as string | null) || "T";
+  const now = new Date();
+
+  let task: { id: number; code: string };
+  try {
+    task = await insertTaskWithUniqueCodeSb(t.company_id as number, prefix, {
+      actionItem: t.title as string,
+      status: "Not Started",
+      priority: t.important ? "High" : "Medium",
+      deadline: t.due_at ? new Date(t.due_at as string) : null,
+      createdDate: now,
+      lastUpdatedAt: now,
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not create task" };
+  }
+
+  if (t.person_id) {
+    await sb.from("task_assignees").upsert({ task_id: task.id, person_id: t.person_id }, { ignoreDuplicates: true });
+  }
+  await sb.from("audit_log").insert({
+    task_id: task.id, task_code: task.code, company_id: t.company_id,
+    entry_type: "CREATE", field: "Task", old_value: null, new_value: t.title,
+    change_reason: "Promoted from to-do", created_at: now.toISOString(), created_by: "web-ui",
+  });
+  await sb.from("todos").update({ task_id: task.id, done: true, completed_at: now.toISOString() }).eq("id", todoId);
+
+  revalidatePath("/workbook");
+  revalidatePath("/");
+  return { ok: true, code: task.code };
 }
