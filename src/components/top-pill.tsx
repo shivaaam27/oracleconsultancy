@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObject } from "react";
-import { motion, useMotionValue, animate, AnimatePresence } from "framer-motion";
+import { motion, useMotionValue, useTransform, animate, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, Building2, NotebookPen, LayoutGrid, Search,
@@ -302,12 +302,19 @@ function NavActionButton() {
 /* --------------------------------------------------------------------- */
 
 const LENS_SLOTS = ["Home", "Task Management", "Companies", "Workbook", "Search"] as const;
+const LENS_ICON: Record<string, LucideIcon> = {
+  Home, "Task Management": CheckSquare, Companies: Building2, Workbook: NotebookPen, Search,
+};
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
   const scaleX = useMotionValue(1);
   const scaleY = useMotionValue(1);
+  // Counter-scale so the magnified icon stays crisp while the glass squishes.
+  const invX = useTransform(scaleX, (v) => 1 / v);
+  const invY = useTransform(scaleY, (v) => 1 / v);
   const [visible, setVisible] = useState(false);
+  const [activeLabel, setActiveLabel] = useState<string>("Home");
   const [box, setBox] = useState({ w: 44, h: 40, top: 0 });
   const SPRING = { type: "spring" as const, stiffness: 520, damping: 30, mass: 0.7 };
 
@@ -360,6 +367,8 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
       s.lastX = e.clientX; s.lastT = now;
       const px = Math.max(s.slots[0].center, Math.min(s.slots[s.slots.length - 1].center, e.clientX - cr.left));
       place(px, vx);
+      const near = s.slots.reduce((a, b) => (Math.abs(b.center - px) < Math.abs(a.center - px) ? b : a), s.slots[0]);
+      setActiveLabel(near.label);
     };
 
     const onUp = (e: PointerEvent) => {
@@ -399,8 +408,29 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
           exit={{ opacity: 0 }}
           transition={{ duration: 0.16 }}
           style={{ x, scaleX, scaleY, left: -box.w / 2, top: box.top, width: box.w, height: box.h, originX: 0.5, originY: 0.5 }}
-          className="pointer-events-none absolute z-20 rounded-[1.1rem] bg-white/12 dark:bg-white/10 ring-1 ring-white/40 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_4px_14px_-4px_rgba(0,0,0,0.35)] backdrop-blur-[1px]"
-        />
+          className="glass-refract pointer-events-none absolute z-20 flex items-center justify-center overflow-hidden rounded-[1.1rem] bg-white/14 dark:bg-white/10 ring-1 ring-white/45 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_5px_16px_-5px_rgba(0,0,0,0.4)] backdrop-blur-[2px] backdrop-saturate-[1.6]"
+        >
+          {/* Magnified "loupe" of the icon beneath — the lens content (Safari-safe). */}
+          <motion.span style={{ scaleX: invX, scaleY: invY }} className="relative flex items-center justify-center">
+            <AnimatePresence mode="popLayout" initial={false}>
+              {(() => {
+                const Icon = LENS_ICON[activeLabel] ?? Home;
+                return (
+                  <motion.span
+                    key={activeLabel}
+                    initial={{ opacity: 0, scale: 0.6 }}
+                    animate={{ opacity: 1, scale: 1.42 }}
+                    exit={{ opacity: 0, scale: 0.6 }}
+                    transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                    className="text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
+                  >
+                    <Icon size={20} strokeWidth={2.2} />
+                  </motion.span>
+                );
+              })()}
+            </AnimatePresence>
+          </motion.span>
+        </motion.div>
       )}
     </AnimatePresence>
   );
