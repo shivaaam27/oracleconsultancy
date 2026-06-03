@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { cloneElement, isValidElement, useRef, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
@@ -34,7 +34,7 @@ function NavTab({
       aria-label={label}
       title={label}
       className={cn(
-        "relative inline-flex items-center justify-center h-10 w-10 rounded-full shrink-0 transition-colors",
+        "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full shrink-0 transition-colors",
         active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
@@ -110,7 +110,7 @@ function CompaniesNavTab({ companies, active }: { companies: Company[]; active: 
         onPointerCancel={clear}
         onContextMenu={(e) => e.preventDefault()}
         className={cn(
-          "relative inline-flex items-center justify-center h-10 w-10 rounded-full transition-colors select-none touch-none",
+          "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full transition-colors select-none touch-none",
           active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
         )}
       >
@@ -177,7 +177,7 @@ function MoreSheet({ pathname }: { pathname: string }) {
           aria-label="More"
           title="More"
           className={cn(
-            "relative inline-flex items-center justify-center h-10 w-10 rounded-full shrink-0 transition-colors outline-none",
+            "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full shrink-0 transition-colors outline-none",
             active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
           )}
         >
@@ -236,12 +236,17 @@ function navIcon(action: ContextAction) {
 function NavActionButton() {
   const { actions, suppressed } = useRegisteredActions();
   const [open, setOpen] = useState(false);
+  // Actions are registered by pages via effects (client-only), so the server
+  // renders none. Render nothing until mounted so the server HTML and the first
+  // client render agree — otherwise the streamed nav pill fails to hydrate.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // No action registered for this page (or hidden behind an overlay) → nothing.
-  if (actions.length === 0 || suppressed) return null;
+  if (!mounted || actions.length === 0 || suppressed) return null;
 
   const primary = actions.find((a) => a.primary) ?? actions[0];
-  const btn = "shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full text-accent hover:bg-bg-muted/60 transition-colors";
+  const btn = "shrink-0 inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full text-accent hover:bg-bg-muted/60 transition-colors";
 
   // Single action → fire directly.
   if (actions.length === 1) {
@@ -306,12 +311,12 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
   const workbookActive = pathname.startsWith("/workbook");
 
   return (
-    <div className="md:hidden fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-2 pointer-events-none">
+    <div className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 flex justify-center px-2 pointer-events-none">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-1.5 h-14"
+        className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2.5 h-14 md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
@@ -319,20 +324,20 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
         <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
         <MoreSheet pathname={pathname} />
 
-        <span className="w-px h-6 bg-border mx-0.5 shrink-0" aria-hidden />
+        <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
 
         <NavActionButton />
 
         <button
           onClick={openPalette}
-          className="shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+          className="shrink-0 inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
           aria-label="Search"
           title="Search (⌘K)"
         >
           <Search size={19} />
         </button>
 
-        <div className="shrink-0 flex items-center">
+        <div className="shrink-0 flex items-center md:[&_button]:h-11 md:[&_button]:w-11">
           <ThemeToggle />
         </div>
       </motion.div>

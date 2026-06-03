@@ -4,7 +4,6 @@ import { MotionConfig } from "framer-motion";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPillServer } from "@/components/top-pill-server";
-import { SidebarServer } from "@/components/sidebar-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { RecentsTracker } from "@/components/recents-tracker";
 import { ToastProvider } from "@/components/toast";
@@ -65,16 +64,11 @@ export default async function RootLayout({ children, modal }: { children: React.
             <CommandPaletteProvider>
               <RecentsTracker />
               <ContextActionsProvider>
-                <div className="md:flex md:h-[100svh] md:overflow-hidden">
-                  <Suspense>
-                    <SidebarServer />
-                  </Suspense>
-                  <main className="flex-1 md:overflow-y-auto pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-10">
-                    <div className="mx-auto max-w-[1100px]">
-                      <PageTransition>{children}</PageTransition>
-                    </div>
-                  </main>
-                </div>
+                <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-32">
+                  <div className="mx-auto max-w-[1100px]">
+                    <PageTransition>{children}</PageTransition>
+                  </div>
+                </main>
                 {modal}
                 <Suspense>
                   <TopPillServer />
