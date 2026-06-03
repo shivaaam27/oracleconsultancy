@@ -317,7 +317,14 @@ export function WorkbookTodo({
             rightLabel="Done"
             leftLabel="Delete"
           >
-            <div className="flex items-center gap-2.5 px-3 py-2.5">{cells}</div>
+            <div className="flex items-center gap-2.5 px-3 py-2.5">
+              {cells}
+              {!t.done && (
+                <button type="button" onClick={stop(() => promote(t))} aria-label="Promote to task" className="shrink-0 h-8 w-8 -mr-1 rounded-lg text-fg-muted active:text-accent active:bg-bg-muted inline-flex items-center justify-center transition-colors">
+                  <ArrowUpRight size={16} />
+                </button>
+              )}
+            </div>
           </SwipeRow>
         </motion.div>
       );
