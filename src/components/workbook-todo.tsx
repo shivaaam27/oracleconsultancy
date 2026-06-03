@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2 } from "lucide-react";
@@ -18,6 +18,39 @@ const pad = (n: number) => String(n).padStart(2, "0");
 type Mode = "personal" | "company";
 
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+/** Midnight next Monday — the boundary between "this week" and "later". */
+function startOfNextWeek(base: number) {
+  const d = new Date(base);
+  const day = d.getDay(); // 0 Sun … 6 Sat
+  d.setDate(d.getDate() + (day === 0 ? 1 : 8 - day));
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+type Section = { key: string; label: string; tone?: "danger" };
+const SECTION_ORDER: Section[] = [
+  { key: "overdue", label: "Overdue", tone: "danger" },
+  { key: "today", label: "Today" },
+  { key: "tomorrow", label: "Tomorrow" },
+  { key: "week", label: "This week" },
+  { key: "later", label: "Later" },
+  { key: "none", label: "No date" },
+];
+
+/** Which dated bucket a to-do falls into, relative to now. */
+function bucketOf(dueAt: string | null): string {
+  if (!dueAt) return "none";
+  const due = new Date(dueAt).getTime();
+  const today = startOfDay(new Date()).getTime();
+  const tomorrow = today + 86400000;
+  const dayAfter = today + 2 * 86400000;
+  const nextWeek = startOfNextWeek(today);
+  if (due < today) return "overdue";
+  if (due < tomorrow) return "today";
+  if (due < dayAfter) return "tomorrow";
+  if (due < nextWeek) return "week";
+  return "later";
+}
 const byDeadline = (a: TaskRow, b: TaskRow) => a.deadline!.getTime() - b.deadline!.getTime();
 const localDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const isTimed = (d: Date) => d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0;
@@ -45,6 +78,10 @@ export function WorkbookTodo({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showCompleted, setShowCompleted] = useState(false);
   const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
+  const [snoozeTodo, setSnoozeTodo] = useState<Todo | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  // Deletes are deferred so "Undo" can cancel them before they hit the server.
+  const pendingDeletes = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
   // Composer (shared by add + edit)
   const [composerOpen, setComposerOpen] = useState(false);
@@ -84,11 +121,14 @@ export function WorkbookTodo({
         await updateTodo({ id: editId, title: fTitle, dueAt, companyId });
         const cName = companies.find((c) => c.id === companyId)?.name ?? null;
         setItems((arr) => arr.map((t) => (t.id === editId ? { ...t, title: fTitle.trim(), dueAt, companyId, companyName: cName } : t)));
+        setComposerOpen(false);
       } else {
         const created = await createTodo({ title: fTitle, dueAt, companyId });
         setItems((arr) => [created, ...arr]);
+        // Rapid entry: stay open, keep the date/company, clear the title and refocus.
+        setFTitle("");
+        titleRef.current?.focus();
       }
-      setComposerOpen(false);
     } catch {
       toast("Could not save to-do", { tone: "warn", duration: 3000 });
     }
@@ -98,13 +138,51 @@ export function WorkbookTodo({
   async function toggle(t: Todo) {
     const next = !t.done;
     setItems((arr) => arr.map((x) => (x.id === t.id ? { ...x, done: next, completedAt: next ? new Date().toISOString() : null } : x)));
-    try { await toggleTodo(t.id, next); } catch { toast("Could not update", { tone: "warn", duration: 3000 }); }
+    try { await toggleTodo(t.id, next); } catch { toast("Could not update", { tone: "warn", duration: 3000 }); return; }
+    if (next) {
+      toast("Marked done", {
+        tone: "success", duration: 5000,
+        action: { label: "Undo", onClick: async () => {
+          setItems((arr) => arr.map((x) => (x.id === t.id ? { ...x, done: false, completedAt: null } : x)));
+          try { await toggleTodo(t.id, false); } catch { /* best-effort */ }
+        } },
+      });
+    }
   }
 
-  async function remove(t: Todo) {
+  function remove(t: Todo) {
     setItems((arr) => arr.filter((x) => x.id !== t.id));
-    try { await deleteTodo(t.id); } catch { toast("Could not delete", { tone: "warn", duration: 3000 }); }
+    // Defer the server delete; "Undo" cancels it and restores the row.
+    const timer = setTimeout(async () => {
+      pendingDeletes.current.delete(t.id);
+      try { await deleteTodo(t.id); } catch { toast("Could not delete", { tone: "warn", duration: 3000 }); }
+    }, 5200);
+    pendingDeletes.current.set(t.id, timer);
+    toast("To-do deleted", {
+      tone: "default", duration: 5000,
+      action: { label: "Undo", onClick: () => {
+        const tm = pendingDeletes.current.get(t.id);
+        if (tm) { clearTimeout(tm); pendingDeletes.current.delete(t.id); }
+        setItems((arr) => [t, ...arr]);
+      } },
+    });
   }
+
+  async function snoozeTodoTo(t: Todo, iso: string) {
+    setItems((arr) => arr.map((x) => (x.id === t.id ? { ...x, dueAt: iso } : x)));
+    try { await updateTodo({ id: t.id, dueAt: iso }); }
+    catch { toast("Could not reschedule", { tone: "warn", duration: 3000 }); }
+  }
+
+  // If we unmount with deletes still pending, persist them straight away so a
+  // delete isn't silently lost when navigating away inside the undo window.
+  useEffect(() => {
+    const map = pendingDeletes.current;
+    return () => {
+      map.forEach((tm, id) => { clearTimeout(tm); void deleteTodo(id); });
+      map.clear();
+    };
+  }, []);
 
   // ---- Personal lists ----
   const open = items.filter((t) => !t.done).sort((a, b) => {
@@ -113,6 +191,11 @@ export function WorkbookTodo({
     return ad - bd || b.createdAt.localeCompare(a.createdAt);
   });
   const completed = items.filter((t) => t.done).sort((a, b) => (b.completedAt || "").localeCompare(a.completedAt || ""));
+
+  // Bucket the open list into Overdue / Today / Tomorrow / This week / Later / No date.
+  const grouped = SECTION_ORDER
+    .map((s) => ({ ...s, rows: open.filter((t) => bucketOf(t.dueAt) === s.key) }))
+    .filter((s) => s.rows.length > 0);
 
   // ---- Company task reminders (open dated tasks) ----
   async function completeTask(t: TaskRow) {
@@ -169,6 +252,9 @@ export function WorkbookTodo({
         </div>
         {due && <span className="shrink-0"><Deadline date={due} className="text-xs" /></span>}
         {!t.done && (
+          <button type="button" onClick={() => setSnoozeTodo(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Snooze"><Clock size={13} /></button>
+        )}
+        {!t.done && (
           <button type="button" onClick={() => openEdit(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Edit"><Pencil size={13} /></button>
         )}
         <button type="button" onClick={() => remove(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-danger hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Delete"><Trash2 size={13} /></button>
@@ -193,7 +279,7 @@ export function WorkbookTodo({
           {/* Composer */}
           {composerOpen ? (
             <div className="glass elevated rounded-2xl p-3 space-y-2.5">
-              <input autoFocus value={fTitle} onChange={(e) => setFTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitComposer(); if (e.key === "Escape") setComposerOpen(false); }} placeholder="What needs doing?" className="w-full bg-transparent text-sm outline-none placeholder:text-fg-subtle" />
+              <input ref={titleRef} autoFocus value={fTitle} onChange={(e) => setFTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitComposer(); if (e.key === "Escape") setComposerOpen(false); }} placeholder="What needs doing?" className="w-full bg-transparent text-sm outline-none placeholder:text-fg-subtle" />
               <div className="flex items-center gap-2 flex-wrap">
                 <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg" />
                 <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg disabled:opacity-40" />
@@ -212,12 +298,18 @@ export function WorkbookTodo({
             </button>
           )}
 
-          {/* Open to-dos */}
-          {open.length > 0 && (
-            <div className="glass elevated rounded-2xl divide-y divide-border/60 overflow-hidden">
-              <AnimatePresence initial={false}>{open.map((t) => <TodoRow key={t.id} t={t} />)}</AnimatePresence>
-            </div>
-          )}
+          {/* Open to-dos — grouped by when they're due */}
+          {grouped.map((s) => (
+            <section key={s.key} className="space-y-1.5">
+              <div className="flex items-center gap-2 px-1">
+                <span className={"text-xs font-semibold uppercase tracking-wider " + (s.tone === "danger" ? "text-danger" : "text-fg-muted")}>{s.label}</span>
+                <span className="text-xs text-fg-subtle">· {s.rows.length}</span>
+              </div>
+              <div className="glass elevated rounded-2xl divide-y divide-border/60 overflow-hidden">
+                <AnimatePresence initial={false}>{s.rows.map((t) => <TodoRow key={t.id} t={t} />)}</AnimatePresence>
+              </div>
+            </section>
+          ))}
           {open.length === 0 && !composerOpen && (
             <div className="text-center text-sm text-fg-subtle py-8">No personal to-dos. Add one above.</div>
           )}
@@ -280,6 +372,7 @@ export function WorkbookTodo({
       )}
 
       <SnoozeSheet open={!!snoozeRow} onClose={() => setSnoozeRow(null)} onPick={(iso) => { if (snoozeRow) doSnooze(snoozeRow, iso); }} label={snoozeRow ? `Snooze ${snoozeRow.code} until…` : undefined} />
+      <SnoozeSheet open={!!snoozeTodo} onClose={() => setSnoozeTodo(null)} onPick={(iso) => { if (snoozeTodo) snoozeTodoTo(snoozeTodo, iso); }} label={snoozeTodo ? "Reschedule to…" : undefined} />
     </div>
   );
 }
