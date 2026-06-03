@@ -16,7 +16,7 @@ const WEEKDAYS: Record<string, number> = {
   friday: 5, fri: 5, saturday: 6, sat: 6,
 };
 
-export type ParsedTodo = { title: string; date: string | null; time: string | null; companyId: number | null };
+export type ParsedTodo = { title: string; date: string | null; time: string | null; companyId: number | null; personId: number | null };
 
 /** Next occurrence of `weekday` (0–6). `forceNext` skips today even if it matches. */
 function nextWeekday(weekday: number, forceNext: boolean): Date {
@@ -28,14 +28,26 @@ function nextWeekday(weekday: number, forceNext: boolean): Date {
   return d;
 }
 
-export function parseTodo(raw: string, companies: { id: number; name: string }[]): ParsedTodo {
+export function parseTodo(raw: string, companies: { id: number; name: string }[], people: { id: number; name: string }[] = []): ParsedTodo {
   let text = ` ${raw} `;
   let date: string | null = null;
   let time: string | null = null;
   let companyId: number | null = null;
+  let personId: number | null = null;
 
-  // --- Company: a "#name" / "@name" tag, matched against the company list. ---
-  const tagMatch = text.match(/[#@]\s*([A-Za-z0-9'’&.\- ]+?)\s*$/);
+  // --- Person: an "@name" token (single word), matched against the people list. ---
+  const personMatch = text.match(/(?:^|\s)@([A-Za-z][A-Za-z'’.\-]*)\b/);
+  if (personMatch) {
+    const q = personMatch[1].toLowerCase();
+    const hit = people.find((p) => {
+      const n = p.name.toLowerCase();
+      return n.split(/\s+/).some((w) => w === q) || n.startsWith(q) || n.includes(q);
+    });
+    if (hit) { personId = hit.id; text = text.replace(personMatch[0], " "); }
+  }
+
+  // --- Company: a "#name" tag, matched against the company list. ---
+  const tagMatch = text.match(/#\s*([A-Za-z0-9'’&.\- ]+?)\s*$/);
   if (tagMatch) {
     const phrase = tagMatch[1].trim().toLowerCase();
     const hit = companies.find((c) => c.name.toLowerCase().includes(phrase) || phrase.includes(c.name.toLowerCase()));
@@ -71,5 +83,5 @@ export function parseTodo(raw: string, companies: { id: number; name: string }[]
   }
 
   const title = text.replace(/\s{2,}/g, " ").trim().replace(/[#@\s]+$/, "").trim();
-  return { title: title || raw.trim(), date, time, companyId };
+  return { title: title || raw.trim(), date, time, companyId, personId };
 }

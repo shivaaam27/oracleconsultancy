@@ -253,6 +253,7 @@ export const todos = pgTable("todos", {
   important: boolean("important").notNull().default(false),
   dueAt: timestamp("due_at", { mode: "date", withTimezone: true }),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),

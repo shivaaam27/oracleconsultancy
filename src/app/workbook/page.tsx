@@ -16,8 +16,9 @@ export default async function WorkbookPage({
 }: {
   searchParams: Promise<{ tab?: string; open?: string }>;
 }) {
-  const [{ data: rows }, meetings, notes, todos, settings, allTasks, sp] = await Promise.all([
+  const [{ data: rows }, { data: peopleRows }, meetings, notes, todos, settings, allTasks, sp] = await Promise.all([
     sb.from("companies").select("id,name").order("name"),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
     listMeetings(),
     listNotes(),
     listTodos(),
@@ -26,6 +27,7 @@ export default async function WorkbookPage({
     searchParams,
   ]);
   const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  const people = (peopleRows ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
   const initialTab = sp.tab === "notes" ? "notes" : sp.tab === "todo" ? "todo" : "meetings";
   const openId = sp.open ? Number(sp.open) : undefined;
 
@@ -39,7 +41,7 @@ export default async function WorkbookPage({
         <MeetingExtractor companies={companies} meetings={meetings} voiceLanguage={settings.voiceLanguage} openId={initialTab === "meetings" ? openId : undefined} />
       }
       notesSlot={<NotesWorkspace initialNotes={notes} companies={companies} openId={initialTab === "notes" ? openId : undefined} />}
-      todoSlot={<WorkbookTodo companyTasks={companyTasks} todos={todos} companies={companies} voiceLanguage={settings.voiceLanguage} />}
+      todoSlot={<WorkbookTodo companyTasks={companyTasks} todos={todos} companies={companies} people={people} voiceLanguage={settings.voiceLanguage} />}
     />
   );
 }

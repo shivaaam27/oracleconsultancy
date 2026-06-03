@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2, Star } from "lucide-react";
+import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2, Star, UserRound } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import type { Todo } from "@/app/todos/actions";
 import { createTodo, updateTodo, toggleTodo, deleteTodo } from "@/app/todos/actions";
@@ -66,11 +66,12 @@ function composeDue(date: string, time: string): string | null {
 }
 
 export function WorkbookTodo({
-  companyTasks, todos, companies, voiceLanguage,
+  companyTasks, todos, companies, people = [], voiceLanguage,
 }: {
   companyTasks: TaskRow[];
   todos: Todo[];
   companies: { id: number; name: string }[];
+  people?: { id: number; name: string }[];
   voiceLanguage?: string;
 }) {
   const router = useRouter();
@@ -103,10 +104,11 @@ export function WorkbookTodo({
   const [fDate, setFDate] = useState("");
   const [fTime, setFTime] = useState("");
   const [fCompany, setFCompany] = useState("");
+  const [fPerson, setFPerson] = useState("");
   const [saving, setSaving] = useState(false);
 
   function openAdd() {
-    setEditId(null); setFTitle(""); setFDate(""); setFTime(""); setFCompany(""); setComposerOpen(true);
+    setEditId(null); setFTitle(""); setFDate(""); setFTime(""); setFCompany(""); setFPerson(""); setComposerOpen(true);
   }
 
   // Lets the global context action bar trigger "New to-do".
@@ -121,6 +123,7 @@ export function WorkbookTodo({
     setFDate(d ? localDate(d) : "");
     setFTime(d && isTimed(d) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "");
     setFCompany(t.companyId ? String(t.companyId) : "");
+    setFPerson(t.personId ? String(t.personId) : "");
     setComposerOpen(true);
   }
 
@@ -131,18 +134,21 @@ export function WorkbookTodo({
       if (editId) {
         const dueAt = composeDue(fDate, fTime);
         const companyId = fCompany ? Number(fCompany) : null;
-        await updateTodo({ id: editId, title: fTitle, dueAt, companyId });
+        const personId = fPerson ? Number(fPerson) : null;
+        await updateTodo({ id: editId, title: fTitle, dueAt, companyId, personId });
         const cName = companies.find((c) => c.id === companyId)?.name ?? null;
-        setItems((arr) => arr.map((t) => (t.id === editId ? { ...t, title: fTitle.trim(), dueAt, companyId, companyName: cName } : t)));
+        const pName = people.find((p) => p.id === personId)?.name ?? null;
+        setItems((arr) => arr.map((t) => (t.id === editId ? { ...t, title: fTitle.trim(), dueAt, companyId, companyName: cName, personId, personName: pName } : t)));
         setComposerOpen(false);
       } else {
-        // Natural-language quick-add: parse the title for date/time/company.
+        // Natural-language quick-add: parse the title for date/time/company/person.
         // Anything the operator typed explicitly into a field wins over the text.
-        const p = parseTodo(fTitle, companies);
+        const p = parseTodo(fTitle, companies, people);
         const date = fDate || p.date || "";
         const time = fTime || p.time || "";
         const companyId = fCompany ? Number(fCompany) : p.companyId;
-        const created = await createTodo({ title: p.title, dueAt: composeDue(date, time), companyId });
+        const personId = fPerson ? Number(fPerson) : p.personId;
+        const created = await createTodo({ title: p.title, dueAt: composeDue(date, time), companyId, personId });
         setItems((arr) => [created, ...arr]);
         // Rapid entry: stay open, keep the date/company, clear the title and refocus.
         setFTitle("");
@@ -278,10 +284,11 @@ export function WorkbookTodo({
         )}
         <div className="min-w-0 flex-1">
           <div className={"text-sm leading-snug " + (t.done ? "line-through text-fg-subtle" : "")}>{t.title}</div>
-          {(due || t.companyName || t.taskCode) && (
+          {(due || t.companyName || t.personName || t.taskCode) && (
             <div className="text-xs text-fg-muted mt-0.5 flex items-center gap-1.5 flex-wrap">
               {due && hasTime(due) && <span className="font-mono text-fg-subtle">{pad(due.getHours())}:{pad(due.getMinutes())}</span>}
               {t.companyName && <span className="truncate max-w-[160px]">{t.companyName}</span>}
+              {t.personName && <span className="inline-flex items-center gap-1 text-accent"><UserRound size={11} className="shrink-0" />{t.personName}</span>}
               {t.taskCode && <button type="button" onClick={stop(() => openTask(t.taskCode!))} className="font-mono text-accent hover:underline">{t.taskCode}</button>}
             </div>
           )}
@@ -347,6 +354,9 @@ export function WorkbookTodo({
                 <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg" />
                 <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg disabled:opacity-40" />
                 <FluidSelect value={fCompany} onSelect={setFCompany} placeholder="No company" options={[{ value: "", label: "No company" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]} />
+                {people.length > 0 && (
+                  <FluidSelect value={fPerson} onSelect={setFPerson} placeholder="No one" options={[{ value: "", label: "No one" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
+                )}
                 <div className="ml-auto flex items-center gap-2">
                   <button type="button" onClick={() => setComposerOpen(false)} className="text-xs px-2.5 py-1.5 rounded-lg text-fg-muted hover:text-fg">Cancel</button>
                   <button type="button" onClick={submitComposer} disabled={saving || !fTitle.trim()} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent text-accent-fg font-medium disabled:opacity-50 hover:opacity-90">
