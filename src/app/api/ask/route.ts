@@ -105,6 +105,35 @@ async function buildContext(question: string, page?: PageCtx) {
   const wantsEscalated = /escalat/.test(question.toLowerCase());
   const wantsClosed = /complet|done|closed|finished/.test(question.toLowerCase());
   const wantsMeetings = /meeting|minutes|notes|decision|decided|discussion|discussed|attendee|risk|blocker|follow.up|followup/.test(question.toLowerCase());
+  const wantsPlanDay = /\bplan (my|the) day\b|organi[sz]e my day|what should i (do|focus|tackle|work on)( today)?|today'?s plan|\bmy day\b/.test(question.toLowerCase());
+
+  // Personal to-dos due today (and anything overdue) — the heart of "plan my day".
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+  const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+  const { data: todoRows } = await sb
+    .from("todos")
+    .select("id,title,due_at,important, companies(name), people(name)")
+    .eq("done", false)
+    .not("due_at", "is", null)
+    .lte("due_at", endToday.toISOString())
+    .order("due_at", { ascending: true })
+    .limit(40);
+  const todos = (todoRows ?? []).map((r: any) => {
+    const due = r.due_at ? new Date(r.due_at as string) : null;
+    const company = Array.isArray(r.companies) ? r.companies[0] : r.companies;
+    const person = Array.isArray(r.people) ? r.people[0] : r.people;
+    const timed = !!due && (due.getHours() !== 0 || due.getMinutes() !== 0);
+    return {
+      title: r.title as string,
+      due: due ? due.toISOString().slice(0, 10) : null,
+      time: timed && due ? `${pad2(due.getHours())}:${pad2(due.getMinutes())}` : null,
+      company: company?.name ?? null,
+      for: person?.name ?? null,
+      important: !!r.important,
+      overdue: !!due && due.getTime() < startToday.getTime(),
+    };
+  });
 
   // Build OR-of-ilikes for keyword retrieval; optional company-id constraint.
   const orFilters: string[] = [];
@@ -165,6 +194,21 @@ async function buildContext(question: string, page?: PageCtx) {
       const pageTask = enrich((data ?? []) as RawTaskRow[], cMap);
       if (pageTask.length) filtered = [pageTask[0], ...filtered].slice(0, 20);
     }
+  }
+
+  // When planning the day, make sure tasks due today / overdue are in scope.
+  if (wantsPlanDay) {
+    const { data: dueRows } = await sb
+      .from("tasks")
+      .select(TASK_COLS)
+      .not("deadline", "is", null)
+      .lte("deadline", endToday.toISOString())
+      .not("status", "in", '("Completed","Closed")')
+      .order("deadline", { ascending: true })
+      .limit(15);
+    const dueTasks = enrich((dueRows ?? []) as RawTaskRow[], cMap);
+    const have = new Set(filtered.map((t) => t.id));
+    filtered = [...dueTasks.filter((t) => !have.has(t.id)), ...filtered].slice(0, 25);
   }
 
   // Pull assignees + recent updates for these tasks
@@ -229,6 +273,18 @@ async function buildContext(question: string, page?: PageCtx) {
     const seenMeetings = new Set(meetingRows.map((m) => m.id));
     meetingRows = [...meetingRows, ...(data ?? []).filter((m: any) => !seenMeetings.has(m.id))];
   }
+  // Today's meetings are essential when planning the day.
+  if (wantsPlanDay) {
+    const { data } = await sb
+      .from("meetings")
+      .select("id,title,company_id,meeting_date,attendees,raw_notes,minutes,updated_at")
+      .gte("meeting_date", startToday.toISOString())
+      .lte("meeting_date", endToday.toISOString())
+      .order("meeting_date", { ascending: true })
+      .limit(10);
+    const seenMeetings = new Set(meetingRows.map((m) => m.id));
+    meetingRows = [...meetingRows, ...(data ?? []).filter((m: any) => !seenMeetings.has(m.id))];
+  }
 
   const meetingIds = meetingRows.map((m) => m.id as number);
   const tasksByMeeting: Record<number, string[]> = {};
@@ -247,6 +303,8 @@ async function buildContext(question: string, page?: PageCtx) {
 
   return {
     today: new Date().toISOString().slice(0, 10),
+    planDay: wantsPlanDay,
+    todos,
     currentPage: page
       ? {
           label: page.label ?? null,
@@ -315,9 +373,13 @@ export async function POST(req: NextRequest) {
       ? `\n\nThe principal is currently viewing: ${context.currentPage.label}${context.currentPage.taskCode ? ` (task ${context.currentPage.taskCode})` : ""}${context.currentPage.company ? ` (company ${context.currentPage.company})` : ""}. Interpret "this", "here", "this page", or "this task/company" as referring to it.`
       : "";
 
+    const planNote = context.planDay
+      ? `\n\nPLANNING MODE: Build a realistic running order for TODAY. Draw on CONTEXT.todos (respect their "time" and "important"; surface "overdue" ones first), today's meetings (CONTEXT.meetings dated today — schedule around them, don't double-book), and tasks due today/overdue. Output a compact, time-ordered list: use the given times where present, otherwise sensible morning/afternoon blocks; lead with overdue/important items; note who each to-do is "for" if set. End with a one-line focus suggestion. Under 180 words. If there's nothing due, say the day looks clear and suggest one proactive priority.`
+      : "";
+
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nUse this CONTEXT to answer follow-up questions.${pageNote} The conversation history is provided next.` },
+      { role: "user", content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nUse this CONTEXT to answer follow-up questions.${pageNote}${planNote} The conversation history is provided next.` },
       ...history,
       { role: "user", content: question },
     ];

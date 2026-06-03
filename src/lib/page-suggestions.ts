@@ -5,9 +5,9 @@ export type Suggestion = { label: string; q: string; icon: LucideIcon };
 
 /** Group-wide default prompts when no page-specific context applies. */
 export const DEFAULT_SUGGESTIONS: Suggestion[] = [
-  { label: "Weekly digest for the group", q: "Give me this week's digest", icon: FileText },
+  { label: "Plan my day", q: "Plan my day", icon: Sparkles },
   { label: "What's overdue this week?", q: "What's overdue this week?", icon: Clock },
-  { label: "What's blocking Dar Spices?", q: "What's blocking Dar Spices?", icon: Ban },
+  { label: "Weekly digest for the group", q: "Give me this week's digest", icon: FileText },
   { label: "Who has the most critical tasks?", q: "Who has the most critical tasks?", icon: Flame },
 ];
 
