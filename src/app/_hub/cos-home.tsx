@@ -6,7 +6,9 @@ import { WelcomeHero } from "@/components/welcome-hero";
 import { HomeActions } from "./home-actions";
 import { AttentionList } from "@/components/attention-list";
 import { CompaniesWidget, type CompanyGlance } from "@/components/companies-widget";
+import { TodayTodos } from "@/components/today-todos";
 import type { AttnItem } from "@/components/attention-panel";
+import type { Todo } from "@/app/todos/actions";
 
 /**
  * One short, human insight — not a count dump (the stat chips already show
@@ -28,9 +30,15 @@ function buildPulse(rows: TaskRow[]): string {
 
 const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
 
-export async function CosHome({ rows }: { rows: TaskRow[] }) {
+export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const settings = await getAppSettings();
   const isOpenRow = (r: TaskRow) => r.status !== "Completed" && r.status !== "Closed";
+
+  // Personal to-dos due today (and anything overdue), most urgent first.
+  const endOfToday = (() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d.getTime(); })();
+  const todayTodos = todos
+    .filter((t) => !t.done && t.dueAt && new Date(t.dueAt).getTime() <= endOfToday)
+    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
 
   // The one focused list: anything genuinely needing attention, most urgent first.
   const attention = rows
@@ -77,6 +85,7 @@ export async function CosHome({ rows }: { rows: TaskRow[] }) {
         lat={settings.weatherLat}
         lon={settings.weatherLon}
       />
+      <TodayTodos todos={todayTodos} />
       <AttentionList items={attnItems} swipeRight={settings.swipeRightAction} swipeLeft={settings.swipeLeftAction} />
       <CompaniesWidget companies={companyGlances} />
     </div>

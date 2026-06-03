@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAllTasks } from "@/lib/queries";
+import { listTodos } from "./todos/actions";
 import { CosHome } from "./_hub/cos-home";
 import { TasksSection } from "./_hub/tasks-section";
 
@@ -38,6 +39,6 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
   }
 
   // COS Home — the calm landing page.
-  const rows = await getAllTasks();
-  return <CosHome rows={rows} />;
+  const [rows, todos] = await Promise.all([getAllTasks(), listTodos()]);
+  return <CosHome rows={rows} todos={todos} />;
 }
