@@ -3,13 +3,17 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2 } from "lucide-react";
+import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2, Star } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import type { Todo } from "@/app/todos/actions";
 import { createTodo, updateTodo, toggleTodo, deleteTodo } from "@/app/todos/actions";
 import { Deadline, hasTime } from "@/components/deadline";
 import { FluidSelect } from "@/components/fluid-select";
 import { SnoozeSheet } from "@/components/snooze-sheet";
+import { SwipeRow } from "@/components/swipe-row";
+import { VoiceButton } from "@/components/voice-button";
+import { parseTodo } from "@/lib/todo-parse";
+import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
@@ -62,11 +66,12 @@ function composeDue(date: string, time: string): string | null {
 }
 
 export function WorkbookTodo({
-  companyTasks, todos, companies,
+  companyTasks, todos, companies, voiceLanguage,
 }: {
   companyTasks: TaskRow[];
   todos: Todo[];
   companies: { id: number; name: string }[];
+  voiceLanguage?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,7 +84,15 @@ export function WorkbookTodo({
   const [showCompleted, setShowCompleted] = useState(false);
   const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
   const [snoozeTodo, setSnoozeTodo] = useState<Todo | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const m = window.matchMedia("(max-width: 639px)");
+    const u = () => setIsMobile(m.matches);
+    u(); m.addEventListener("change", u);
+    return () => m.removeEventListener("change", u);
+  }, []);
   // Deletes are deferred so "Undo" can cancel them before they hit the server.
   const pendingDeletes = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -114,16 +127,22 @@ export function WorkbookTodo({
   async function submitComposer() {
     if (!fTitle.trim()) return;
     setSaving(true);
-    const dueAt = composeDue(fDate, fTime);
-    const companyId = fCompany ? Number(fCompany) : null;
     try {
       if (editId) {
+        const dueAt = composeDue(fDate, fTime);
+        const companyId = fCompany ? Number(fCompany) : null;
         await updateTodo({ id: editId, title: fTitle, dueAt, companyId });
         const cName = companies.find((c) => c.id === companyId)?.name ?? null;
         setItems((arr) => arr.map((t) => (t.id === editId ? { ...t, title: fTitle.trim(), dueAt, companyId, companyName: cName } : t)));
         setComposerOpen(false);
       } else {
-        const created = await createTodo({ title: fTitle, dueAt, companyId });
+        // Natural-language quick-add: parse the title for date/time/company.
+        // Anything the operator typed explicitly into a field wins over the text.
+        const p = parseTodo(fTitle, companies);
+        const date = fDate || p.date || "";
+        const time = fTime || p.time || "";
+        const companyId = fCompany ? Number(fCompany) : p.companyId;
+        const created = await createTodo({ title: p.title, dueAt: composeDue(date, time), companyId });
         setItems((arr) => [created, ...arr]);
         // Rapid entry: stay open, keep the date/company, clear the title and refocus.
         setFTitle("");
@@ -185,11 +204,20 @@ export function WorkbookTodo({
   }, []);
 
   // ---- Personal lists ----
+  // Within each date bucket, starred items float to the top.
   const open = items.filter((t) => !t.done).sort((a, b) => {
+    if (a.important !== b.important) return a.important ? -1 : 1;
     const ad = a.dueAt ? new Date(a.dueAt).getTime() : Infinity;
     const bd = b.dueAt ? new Date(b.dueAt).getTime() : Infinity;
     return ad - bd || b.createdAt.localeCompare(a.createdAt);
   });
+
+  async function toggleImportant(t: Todo) {
+    const next = !t.important;
+    setItems((arr) => arr.map((x) => (x.id === t.id ? { ...x, important: next } : x)));
+    try { await updateTodo({ id: t.id, important: next }); }
+    catch { toast("Could not update", { tone: "warn", duration: 3000 }); }
+  }
   const completed = items.filter((t) => t.done).sort((a, b) => (b.completedAt || "").localeCompare(a.completedAt || ""));
 
   // Bucket the open list into Overdue / Today / Tomorrow / This week / Later / No date.
@@ -235,22 +263,54 @@ export function WorkbookTodo({
 
   function TodoRow({ t }: { t: Todo }) {
     const due = t.dueAt ? new Date(t.dueAt) : null;
-    return (
-      <motion.div layout exit={{ opacity: 0, height: 0 }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-bg-muted/40 transition-colors group">
-        <button type="button" onClick={() => toggle(t)} className={"shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors " + (t.done ? "bg-accent border-accent text-accent-fg" : "border-border hover:border-accent text-transparent hover:text-accent")} aria-label={t.done ? "Mark not done" : "Mark complete"}>
+    const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
+
+    // Shared cells: checkbox, star, title/meta, deadline.
+    const cells = (
+      <>
+        <button type="button" onClick={stop(() => toggle(t))} className={"shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors " + (t.done ? "bg-accent border-accent text-accent-fg" : "border-border hover:border-accent text-transparent hover:text-accent")} aria-label={t.done ? "Mark not done" : "Mark complete"}>
           <Check size={12} />
         </button>
+        {!t.done && (
+          <button type="button" onClick={stop(() => toggleImportant(t))} aria-label={t.important ? "Remove star" : "Star"} className={cn("shrink-0 h-6 w-6 rounded-md inline-flex items-center justify-center transition-colors", t.important ? "text-amber-500" : "text-fg-subtle/40 hover:text-amber-500")}>
+            <Star size={14} className={t.important ? "fill-amber-500" : ""} />
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           <div className={"text-sm leading-snug " + (t.done ? "line-through text-fg-subtle" : "")}>{t.title}</div>
           {(due || t.companyName || t.taskCode) && (
             <div className="text-xs text-fg-muted mt-0.5 flex items-center gap-1.5 flex-wrap">
               {due && hasTime(due) && <span className="font-mono text-fg-subtle">{pad(due.getHours())}:{pad(due.getMinutes())}</span>}
               {t.companyName && <span className="truncate max-w-[160px]">{t.companyName}</span>}
-              {t.taskCode && <button type="button" onClick={() => openTask(t.taskCode!)} className="font-mono text-accent hover:underline">{t.taskCode}</button>}
+              {t.taskCode && <button type="button" onClick={stop(() => openTask(t.taskCode!))} className="font-mono text-accent hover:underline">{t.taskCode}</button>}
             </div>
           )}
         </div>
         {due && <span className="shrink-0"><Deadline date={due} className="text-xs" /></span>}
+      </>
+    );
+
+    // Mobile: swipe right → done, swipe left → delete; tap → edit.
+    if (isMobile) {
+      return (
+        <motion.div layout exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+          <SwipeRow
+            onTap={t.done ? undefined : () => openEdit(t)}
+            onSwipeRight={() => toggle(t)}
+            onSwipeLeft={() => remove(t)}
+            rightLabel="Done"
+            leftLabel="Delete"
+          >
+            <div className="flex items-center gap-2.5 px-3 py-2.5">{cells}</div>
+          </SwipeRow>
+        </motion.div>
+      );
+    }
+
+    // Desktop: hover reveals snooze / edit / delete.
+    return (
+      <motion.div layout exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-bg-muted/40 transition-colors group">
+        {cells}
         {!t.done && (
           <button type="button" onClick={() => setSnoozeTodo(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Snooze"><Clock size={13} /></button>
         )}
@@ -279,7 +339,10 @@ export function WorkbookTodo({
           {/* Composer */}
           {composerOpen ? (
             <div className="glass elevated rounded-2xl p-3 space-y-2.5">
-              <input ref={titleRef} autoFocus value={fTitle} onChange={(e) => setFTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitComposer(); if (e.key === "Escape") setComposerOpen(false); }} placeholder="What needs doing?" className="w-full bg-transparent text-sm outline-none placeholder:text-fg-subtle" />
+              <div className="flex items-center gap-2">
+                <input ref={titleRef} autoFocus value={fTitle} onChange={(e) => setFTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitComposer(); if (e.key === "Escape") setComposerOpen(false); }} placeholder="e.g. Pay VAT friday 2pm #Dar Spices" className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-fg-subtle" />
+                <VoiceButton lang={voiceLanguage} title="Dictate a to-do" onResult={(text) => setFTitle((v) => (v.trim() ? `${v.trim()} ${text}` : text))} />
+              </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg" />
                 <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg disabled:opacity-40" />

@@ -250,6 +250,7 @@ export const todos = pgTable("todos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
   done: boolean("done").notNull().default(false),
+  important: boolean("important").notNull().default(false),
   dueAt: timestamp("due_at", { mode: "date" }),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),

@@ -1,0 +1,1 @@
+ALTER TABLE "todos" ADD COLUMN "important" boolean DEFAULT false NOT NULL;

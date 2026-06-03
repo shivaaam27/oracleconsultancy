@@ -39,7 +39,7 @@ export default async function WorkbookPage({
         <MeetingExtractor companies={companies} meetings={meetings} voiceLanguage={settings.voiceLanguage} openId={initialTab === "meetings" ? openId : undefined} />
       }
       notesSlot={<NotesWorkspace initialNotes={notes} companies={companies} openId={initialTab === "notes" ? openId : undefined} />}
-      todoSlot={<WorkbookTodo companyTasks={companyTasks} todos={todos} companies={companies} />}
+      todoSlot={<WorkbookTodo companyTasks={companyTasks} todos={todos} companies={companies} voiceLanguage={settings.voiceLanguage} />}
     />
   );
 }
