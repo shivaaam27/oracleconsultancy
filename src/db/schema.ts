@@ -180,6 +180,11 @@ export const outbox = pgTable("outbox", {
   status: text("status").notNull().default("Ready"),
   contactStatus: text("contact_status"),
   notes: text("notes"),
+  // Persisted-draft support: where the message came from + links back to source.
+  source: text("source"), // "task" | "todo" | "adhoc"
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  todoId: integer("todo_id").references(() => todos.id, { onDelete: "set null" }),
+  scheduledFor: timestamp("scheduled_for", { mode: "date", withTimezone: true }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }),
 });

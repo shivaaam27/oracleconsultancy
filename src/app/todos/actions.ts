@@ -3,6 +3,7 @@
 import { sb } from "@/db/supabase";
 import { revalidatePath } from "next/cache";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import { pickChannel, contactForChannel, buildTodoReminderMessage, linkFor, type Channel } from "@/lib/outbox-links";
 
 export type Todo = {
   id: number;
@@ -137,4 +138,55 @@ export async function promoteTodoToTask(todoId: number): Promise<{ ok: true; cod
   revalidatePath("/workbook");
   revalidatePath("/");
   return { ok: true, code: task.code };
+}
+
+export type TodoReminderResult =
+  | { ok: true; draftId: number; channel: Channel; personName: string; subject: string; body: string; link: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Create a reminder draft in the Outbox for the to-do's assigned person, and
+ * return a deep-link so the operator can also send it in one tap.
+ */
+export async function createTodoReminderDraft(todoId: number, channelOverride?: Channel): Promise<TodoReminderResult> {
+  const { data: t, error } = await sb
+    .from("todos")
+    .select("id,title,due_at, companies(name), people(id,name,whatsapp,email,phone,preferred_channel)")
+    .eq("id", todoId)
+    .single();
+  if (error || !t) return { ok: false, error: "To-do not found" };
+  const person = Array.isArray(t.people) ? t.people[0] : t.people;
+  if (!person) return { ok: false, error: "Assign someone to this to-do first" };
+  const company = Array.isArray(t.companies) ? t.companies[0] : t.companies;
+
+  const contactInfo = {
+    whatsapp: (person.whatsapp as string | null) ?? null,
+    email: (person.email as string | null) ?? null,
+    phone: (person.phone as string | null) ?? null,
+    preferredChannel: (person.preferred_channel as string | null) ?? null,
+  };
+  const channel = channelOverride || pickChannel(contactInfo);
+  const { subject, body } = buildTodoReminderMessage(channel, {
+    personName: person.name as string,
+    title: t.title as string,
+    dueAt: (t.due_at as string | null) ?? null,
+    company: (company?.name as string | null) ?? null,
+  });
+  const contact = contactForChannel(contactInfo, channel);
+  const now = new Date().toISOString();
+
+  const { data: row, error: iErr } = await sb
+    .from("outbox")
+    .insert({
+      channel, recipient_name: person.name, recipient_contact: contact,
+      company: company?.name ?? null, subject: channel === "EMAIL" ? subject : null, body,
+      message_type: "TODO REMINDER", status: "Draft", source: "todo",
+      person_id: person.id, todo_id: t.id, created_at: now,
+    })
+    .select("id")
+    .single();
+  if (iErr) return { ok: false, error: iErr.message };
+
+  revalidatePath("/outbox");
+  return { ok: true, draftId: row.id as number, channel, personName: person.name as string, subject, body, link: linkFor(channel, contact, subject, body) };
 }

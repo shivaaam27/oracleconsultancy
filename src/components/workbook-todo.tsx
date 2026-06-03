@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2, Star, UserRound, ArrowUpRight } from "lucide-react";
+import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert, Loader2, Star, UserRound, ArrowUpRight, Send } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import type { Todo } from "@/app/todos/actions";
-import { createTodo, updateTodo, toggleTodo, deleteTodo, promoteTodoToTask } from "@/app/todos/actions";
+import { createTodo, updateTodo, toggleTodo, deleteTodo, promoteTodoToTask, createTodoReminderDraft } from "@/app/todos/actions";
+import { channelLabel } from "@/lib/outbox-links";
 import { Deadline, hasTime } from "@/components/deadline";
 import { FluidSelect } from "@/components/fluid-select";
 import { SnoozeSheet } from "@/components/snooze-sheet";
@@ -199,6 +200,17 @@ export function WorkbookTodo({
     catch { toast("Could not reschedule", { tone: "warn", duration: 3000 }); }
   }
 
+  async function remind(t: Todo) {
+    const res = await createTodoReminderDraft(t.id);
+    if (!res.ok) { toast(res.error, { tone: "warn", duration: 4000 }); return; }
+    toast(`Reminder drafted for ${res.personName}`, {
+      tone: "success", duration: 8000,
+      action: res.link
+        ? { label: `Open ${channelLabel(res.channel)}`, onClick: () => window.open(res.link!, "_blank", "noopener") }
+        : { label: "Open Outbox", onClick: () => router.push("/outbox") },
+    });
+  }
+
   async function promote(t: Todo) {
     const res = await promoteTodoToTask(t.id);
     if (!res.ok) { toast(res.error, { tone: "warn", duration: 4000 }); return; }
@@ -317,8 +329,13 @@ export function WorkbookTodo({
             rightLabel="Done"
             leftLabel="Delete"
           >
-            <div className="flex items-center gap-2.5 px-3 py-2.5">
+            <div className="flex items-center gap-1 px-3 py-2.5">
               {cells}
+              {!t.done && t.personName && (
+                <button type="button" onClick={stop(() => remind(t))} aria-label={`Remind ${t.personName}`} className="shrink-0 h-8 w-8 rounded-lg text-fg-muted active:text-accent active:bg-bg-muted inline-flex items-center justify-center transition-colors">
+                  <Send size={15} />
+                </button>
+              )}
               {!t.done && (
                 <button type="button" onClick={stop(() => promote(t))} aria-label="Promote to task" className="shrink-0 h-8 w-8 -mr-1 rounded-lg text-fg-muted active:text-accent active:bg-bg-muted inline-flex items-center justify-center transition-colors">
                   <ArrowUpRight size={16} />
@@ -334,6 +351,9 @@ export function WorkbookTodo({
     return (
       <motion.div layout exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-bg-muted/40 transition-colors group">
         {cells}
+        {!t.done && t.personName && (
+          <button type="button" onClick={() => remind(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label={`Remind ${t.personName}`} title={`Draft a reminder for ${t.personName}`}><Send size={13} /></button>
+        )}
         {!t.done && (
           <button type="button" onClick={() => promote(t)} className="shrink-0 h-7 w-7 rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Promote to task" title="Promote to a tracked task"><ArrowUpRight size={13} /></button>
         )}

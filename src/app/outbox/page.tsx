@@ -1,4 +1,6 @@
 import { generateDrafts } from "@/lib/outbox-gen";
+import { listOutboxDrafts } from "@/lib/outbox-drafts";
+import { DraftsList } from "./drafts-list";
 import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday } from "@/lib/outbox-history";
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
 import { PageHeader, EmptyState, Badge } from "@/components/ui";
@@ -11,8 +13,9 @@ import { Send, Inbox, Check, Clock, BellOff, ChevronDown } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 export default async function OutboxPage() {
-  const [drafts, sentByName, history, snoozed, scopedId, scopeOptions] = await Promise.all([
+  const [drafts, savedDrafts, sentByName, history, snoozed, scopedId, scopeOptions] = await Promise.all([
     generateDrafts(),
+    listOutboxDrafts(),
     todaysSentChannelsByName(),
     historyByDay(7),
     snoozedToday(),
@@ -119,6 +122,9 @@ export default async function OutboxPage() {
           </div>
         </div>
       )}
+
+      {/* One-off drafts (to-do reminders, ad-hoc) */}
+      <DraftsList drafts={savedDrafts} />
 
       {/* Progress strip */}
       {totalToday > 0 && (

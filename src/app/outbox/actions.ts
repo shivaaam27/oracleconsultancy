@@ -89,3 +89,35 @@ export async function unsnoozePerson(personId: number): Promise<{ ok: boolean; e
   updateTag("people");
   return { ok: true };
 }
+
+/* ------------------------------------------------------------------ *
+ * Persisted draft lifecycle (to-do / ad-hoc reminders).
+ * ------------------------------------------------------------------ */
+
+/** Mark a saved draft as sent. */
+export async function sendDraft(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await sb.from("outbox").update({ status: "Sent", sent_at: new Date().toISOString() }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/outbox");
+  updateTag("outbox");
+  return { ok: true };
+}
+
+/** Edit a draft's body (and email subject). */
+export async function updateDraft(id: number, body: string, subject?: string | null): Promise<{ ok: boolean; error?: string }> {
+  const patch: Record<string, unknown> = { body };
+  if (subject !== undefined) patch.subject = subject;
+  const { error } = await sb.from("outbox").update(patch).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/outbox");
+  return { ok: true };
+}
+
+/** Discard a draft. */
+export async function deleteDraft(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await sb.from("outbox").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/outbox");
+  updateTag("outbox");
+  return { ok: true };
+}
