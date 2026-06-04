@@ -73,7 +73,10 @@ export function InboxList({ items }: { items: InboxItem[] }) {
   function fileAsDoc(item: InboxItem) {
     const params = new URLSearchParams();
     params.set("newdoc", "1");
-    params.set("text", item.subject ? `${item.subject}\n${item.body}` : item.body);
+    // Cap length so the URL stays well within browser limits; extraction only
+    // needs the key lines (dates, reference, issuer) which sit near the top.
+    const full = item.subject ? `${item.subject}\n${item.body}` : item.body;
+    params.set("text", full.slice(0, 1500));
     router.push(`/documents?${params.toString()}`);
   }
 

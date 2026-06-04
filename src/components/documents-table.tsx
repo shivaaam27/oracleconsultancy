@@ -28,11 +28,12 @@ function fmtDate(d: Date | null): string {
 }
 
 export function DocumentsTable({
-  documents, companies, people,
+  documents, companies, people, linkedTasks = {},
 }: {
   documents: DocumentRow[];
   companies: Array<{ id: number; name: string; accentColor?: string | null }>;
   people: Array<{ id: number; name: string }>;
+  linkedTasks?: Record<number, Array<{ code: string; status: string }>>;
 }) {
   const { toast } = useToast();
   const [, startAction] = useTransition();
@@ -231,6 +232,7 @@ export function DocumentsTable({
             return (
               <div key={doc.id} role="button" tabIndex={0}
                 onClick={() => { if (longPressed.current) { longPressed.current = false; return; } setEditDoc(doc); }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditDoc(doc); } }}
                 onPointerDown={(e) => onRowPointerDown(doc, e)}
                 onPointerMove={onRowPointerMove}
                 onPointerUp={clearPress} onPointerLeave={clearPress} onPointerCancel={clearPress}
@@ -248,10 +250,13 @@ export function DocumentsTable({
                     {personName(doc.personId) && <span className="inline-flex items-center gap-1 truncate"><UserIcon size={11} />{personName(doc.personId)}</span>}
                   </div>
                 </div>
-                <div className="hidden sm:block text-right shrink-0">
-                  <div className="text-xs text-fg-muted">{fmtDate(doc.expiryDate)}</div>
-                  {expiryLabel(doc) && (
+                <div className="text-right shrink-0">
+                  {/* Full date on larger screens; the countdown shows on all sizes. */}
+                  <div className="hidden sm:block text-xs text-fg-muted">{fmtDate(doc.expiryDate)}</div>
+                  {expiryLabel(doc) ? (
                     <div className={cn("text-[11px]", urgent ? "text-danger font-medium" : soon ? "text-warn" : "text-fg-subtle")}>{expiryLabel(doc)}</div>
+                  ) : (
+                    <div className="text-[11px] text-fg-subtle">No expiry</div>
                   )}
                 </div>
                 <div className="shrink-0">{statusBadge(doc)}</div>
@@ -259,15 +264,29 @@ export function DocumentsTable({
             );
           })}
         </div>
+      ) : documents.length === 0 ? (
+        <div className="glass elevated rounded-2xl text-center py-14 px-6">
+          <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-bg-muted/60 flex items-center justify-center text-fg-subtle">
+            <FileText size={22} />
+          </div>
+          <div className="text-sm font-medium">No documents yet</div>
+          <div className="text-xs text-fg-muted mt-1 max-w-sm mx-auto">Track licences, contracts, certificates, insurance, leases and visas — with expiry dates and reminders.</div>
+          <button type="button" onClick={() => setCreateOpen(true)}
+            className="mt-5 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+            <FilePlus size={15} /> Add your first document
+          </button>
+        </div>
       ) : (
         <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           No documents match these filters.
         </div>
       )}
 
-      <p className="text-xs text-fg-subtle px-1">
-        Showing {filtered.length} of {documents.filter((d) => showArchived || !d.archived).length} · tap to edit · long-press for quick actions.
-      </p>
+      {documents.length > 0 && (
+        <p className="text-xs text-fg-subtle px-1">
+          Showing {filtered.length} of {documents.filter((d) => showArchived || !d.archived).length} · tap to edit · long-press for quick actions.
+        </p>
+      )}
 
       {/* Peek */}
       <PeekPreview
@@ -282,11 +301,23 @@ export function DocumentsTable({
             {peek.expiryDate && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-bg-muted text-fg-muted">{fmtDate(peek.expiryDate)}{expiryLabel(peek) ? ` · ${expiryLabel(peek)}` : ""}</span>}
           </>
         ) : undefined}
-        body={peek && (peek.issuer || peek.referenceNo || peek.notes) ? (
+        body={peek && (peek.issuer || peek.referenceNo || peek.notes || (linkedTasks[peek.id]?.length)) ? (
           <div className="space-y-1 text-[13px] text-fg-muted">
             {peek.issuer && <div><span className="text-fg-subtle">Issuer:</span> {peek.issuer}</div>}
             {peek.referenceNo && <div><span className="text-fg-subtle">Ref:</span> {peek.referenceNo}</div>}
             {peek.notes && <div className="line-clamp-3">{peek.notes}</div>}
+            {linkedTasks[peek.id]?.length ? (
+              <div className="pt-0.5">
+                <span className="text-fg-subtle">Renewal task{linkedTasks[peek.id].length > 1 ? "s" : ""}: </span>
+                {linkedTasks[peek.id].map((t, i) => (
+                  <span key={t.code}>
+                    {i > 0 && ", "}
+                    <a href={`/task/${t.code}`} className="font-mono text-accent hover:underline">{t.code}</a>
+                    <span className="text-fg-subtle"> ({t.status})</span>
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : undefined}
         actions={peek ? peekActions(peek) : []}

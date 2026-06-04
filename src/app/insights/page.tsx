@@ -95,7 +95,7 @@ export default async function InsightsPage() {
             {docCompanyRows.map((c) => (
               <Link key={c.id} href="/documents" className="grid grid-cols-[140px_1fr_auto] items-center gap-3 text-sm group">
                 <div className="truncate text-fg group-hover:text-accent transition-colors">{c.name}</div>
-                <div className="flex items-center gap-1.5 h-2.5 rounded-full overflow-hidden bg-bg-muted">
+                <div className="flex items-center h-2.5 rounded-full overflow-hidden bg-bg-muted">
                   {c.expired > 0 && <div className="h-full bg-danger" style={{ width: `${(c.expired / c.total) * 100}%` }} title={`${c.expired} expired`} />}
                   {c.expiring > 0 && <div className="h-full bg-warn" style={{ width: `${(c.expiring / c.total) * 100}%` }} title={`${c.expiring} expiring`} />}
                   {c.valid > 0 && <div className="h-full bg-success" style={{ width: `${(c.valid / c.total) * 100}%` }} title={`${c.valid} valid`} />}
