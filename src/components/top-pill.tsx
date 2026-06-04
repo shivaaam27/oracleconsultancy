@@ -7,12 +7,13 @@ import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresen
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search,
-  Send, Inbox, BarChart3, Settings, Plus, type LucideIcon,
+  Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { useRegisteredActions } from "./context-actions";
+import { triggerHaptic } from "@/lib/use-long-press";
 
 /* --------------------------------------------------------------------- */
 
@@ -44,6 +45,123 @@ function NavTab({
       )}
       <Icon size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
     </Link>
+  );
+}
+
+/* --------------------------------------------------------------------- */
+/* HRMS tab — tap opens the dashboard; press-and-hold or hover reveals a    */
+/* popup of the registries (release-to-select on touch, or just tap one).   */
+/* --------------------------------------------------------------------- */
+
+const HRMS_LINKS: Array<{ href: string; label: string; icon: LucideIcon }> = [
+  { href: "/hrms/oecr", label: "OECR", icon: Package },
+  { href: "/hrms/ocr", label: "OCR", icon: Sparkles },
+  { href: "/companies", label: "Companies", icon: Building2 },
+  { href: "/people", label: "People", icon: Users },
+  { href: "/documents", label: "Documents", icon: FileText },
+];
+
+function HrmsNavTab({ active }: { active: boolean }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+
+  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+
+  function go(href: string) { setOpen(false); setHighlight(null); router.push(href); }
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.pointerType === "mouse") return; // mouse uses hover + click, not long-press
+    held.current = false;
+    start.current = { x: e.clientX, y: e.clientY };
+    clear();
+    timer.current = setTimeout(() => { held.current = true; triggerHaptic(); setOpen(true); }, 300);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!open || e.pointerType === "mouse") {
+      if (start.current && (Math.abs(e.clientX - start.current.x) > 8 || Math.abs(e.clientY - start.current.y) > 8)) clear();
+      return;
+    }
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const item = el?.closest("[data-hrms-href]");
+    setHighlight(item ? item.getAttribute("data-hrms-href") : null);
+  }
+  function onPointerUp(e: React.PointerEvent) {
+    clear();
+    if (e.pointerType === "mouse") return;
+    if (open && held.current) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const item = el?.closest("[data-hrms-href]");
+      if (item) { go(item.getAttribute("data-hrms-href")!); return; }
+      return; // released elsewhere → keep open so they can tap
+    }
+    if (!held.current) { setOpen(false); router.push("/hrms"); } // quick tap → dashboard
+  }
+
+  // Desktop hover reveals the popup; a click still goes straight to the dashboard.
+  function onMouseEnter() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setOpen(true), 180);
+  }
+  function onMouseLeave() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setOpen(false), 160);
+  }
+
+  return (
+    <div className="relative shrink-0" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <Link
+        href="/hrms"
+        aria-label="HRMS"
+        title="HRMS — hold or hover for registries"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={clear}
+        onPointerCancel={clear}
+        onClick={(e) => { if (held.current) e.preventDefault(); }}
+        onContextMenu={(e) => e.preventDefault()}
+        className={cn(
+          "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full transition-colors select-none touch-none",
+          active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+        )}
+      >
+        {active && (
+          <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
+        )}
+        <Briefcase size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
+      </Link>
+
+      {open && (
+        <>
+          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
+          <div className="absolute z-[56] bottom-full mb-3 left-1/2 -translate-x-1/2 w-56 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
+            <Link href="/hrms" onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors">
+              <LayoutGrid size={15} className="shrink-0" /> Dashboard
+            </Link>
+            <div className="my-1 h-px bg-border/60" />
+            {HRMS_LINKS.map((r) => {
+              const Icon = r.icon;
+              return (
+                <button key={r.href} type="button" data-hrms-href={r.href} onClick={() => go(r.href)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-colors",
+                    highlight === r.href ? "bg-accent-soft text-fg" : "text-fg hover:bg-bg-muted/60"
+                  )}>
+                  <Icon size={15} className="shrink-0 text-fg-subtle" />
+                  <span className="truncate">{r.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -384,7 +502,7 @@ export function TopPill() {
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
         <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
-        <NavTab href="/hrms" icon={Briefcase} label="HRMS" active={hrmsActive} />
+        <HrmsNavTab active={hrmsActive} />
         <MoreSheet pathname={pathname} />
 
         <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />

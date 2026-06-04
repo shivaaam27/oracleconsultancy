@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload } from "lucide-react";
+import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type } from "lucide-react";
 import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, type ExtractedFields } from "@/app/documents/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
+import { Segmented } from "@/components/macos";
 import { cn } from "@/lib/cn";
+
+type CaptureMode = "upload" | "link" | "text";
 
 // Downscale large images client-side so they fit Groq's 4 MB base64 limit.
 async function downscaleImage(file: File): Promise<File> {
@@ -58,7 +61,10 @@ export function DocumentForm({
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState(doc?.category ?? "");
   const formRef = useRef<HTMLFormElement>(null);
-  const [showExtract, setShowExtract] = useState(!!initialExtractText);
+  // Unified capture: Upload · Link · Paste text. Default depends on what's there.
+  const [capMode, setCapMode] = useState<CaptureMode>(
+    initialExtractText ? "text" : doc?.fileUrl && !doc?.storagePath ? "link" : "upload"
+  );
   const [extractText, setExtractText] = useState(initialExtractText ?? "");
   const [extracting, setExtracting] = useState(false);
   const [extractNote, setExtractNote] = useState<string | null>(null);
@@ -69,7 +75,6 @@ export function DocumentForm({
   const [lead, setLead] = useState<string>(doc ? String(doc.reminderLeadDays) : "30");
   // File upload state.
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const extractFileRef = useRef<HTMLInputElement>(null);
   const [chosenFile, setChosenFile] = useState<string | null>(null);
   const [removeExisting, setRemoveExisting] = useState(false);
   const hasExistingFile = !!doc?.storagePath && !removeExisting;
@@ -169,37 +174,77 @@ export function DocumentForm({
 
   return (
     <form ref={formRef} action={action} className="space-y-4">
-      {/* AI auto-fill from pasted text (renewal email, certificate text). */}
-      <div className="rounded-lg border border-dashed border-border bg-bg-subtle/40">
-        <button type="button" onClick={() => setShowExtract((s) => !s)}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-fg-muted hover:text-fg transition-colors">
+      {/* Unified capture — Upload · Link · Paste text. Upload and Paste text are
+          read by AI to auto-fill the fields below; Link is just a reference. The
+          actual form inputs (file, fileUrl) stay mounted so switching tabs never
+          loses what you've added. */}
+      <div className="rounded-xl border border-border bg-bg-subtle/40 p-3 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <Sparkles size={14} className="text-accent" />
-          <span>Auto-fill from text</span>
-          <span className="ml-auto text-xs text-fg-subtle">{showExtract ? "Hide" : "Paste an email or certificate"}</span>
-        </button>
-        {showExtract && (
-          <div className="px-3 pb-3 space-y-2">
-            {/* Upload a PDF or photo — read by AI (vision for images). */}
-            <input ref={extractFileRef} type="file" accept=".pdf,image/*" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) runExtractFile(f); e.target.value = ""; }} />
-            <button type="button" onClick={() => extractFileRef.current?.click()} disabled={extracting}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md border border-dashed border-accent/50 text-accent hover:bg-accent/10 disabled:opacity-50 transition-colors">
-              <Upload size={14} /> Upload a PDF or photo to read automatically
-            </button>
-            <div className="flex items-center gap-2 text-[11px] text-fg-subtle">
-              <span className="h-px flex-1 bg-border/60" /> or paste text <span className="h-px flex-1 bg-border/60" />
-            </div>
-            <textarea value={extractText} onChange={(e) => setExtractText(e.target.value)} rows={3}
-              className={inputCls} placeholder="Paste the renewal email or the text from the document…" />
-            <div className="flex items-center gap-2 flex-wrap">
-              <button type="button" onClick={runExtract} disabled={extracting || !extractText.trim()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
-                {extracting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                {extracting ? "Reading…" : "Extract from text"}
-              </button>
-              {extractNote && <span className="text-xs text-fg-muted">{extractNote}</span>}
-            </div>
+          <span className="text-sm font-medium">Add the document</span>
+          <div className="ml-auto">
+            <Segmented<CaptureMode> size="sm" value={capMode} onChange={setCapMode}
+              options={[
+                { value: "upload", label: "Upload", icon: <Upload size={13} /> },
+                { value: "link", label: "Link", icon: <Link2 size={13} /> },
+                { value: "text", label: "Paste text", icon: <Type size={13} /> },
+              ]} />
           </div>
+        </div>
+
+        {/* Upload — the file is stored AND read automatically (PDF, photo, scan). */}
+        <div className={capMode === "upload" ? "" : "hidden"}>
+          {removeExisting && <input type="hidden" name="removeFile" value="1" />}
+          <input ref={fileInputRef} name="file" type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) { setChosenFile(f.name); setRemoveExisting(false); runExtractFile(f); } }}
+            className="hidden" />
+          {chosenFile ? (
+            <div className="flex items-center gap-2 text-sm rounded-lg border border-border bg-bg-subtle/60 px-3 py-2">
+              <Paperclip size={14} className="text-accent shrink-0" />
+              <span className="truncate flex-1">{chosenFile}</span>
+              <button type="button" onClick={() => { setChosenFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                className="text-fg-muted hover:text-danger" title="Clear"><X size={14} /></button>
+            </div>
+          ) : hasExistingFile ? (
+            <div className="flex items-center gap-2 text-sm rounded-lg border border-border bg-bg-subtle/60 px-3 py-2">
+              <Paperclip size={14} className="text-fg-subtle shrink-0" />
+              <span className="truncate flex-1">{doc?.fileName ?? "Attached file"}</span>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs text-accent hover:opacity-80">Replace</button>
+              <button type="button" onClick={() => setRemoveExisting(true)} className="text-fg-muted hover:text-danger" title="Remove file"><X size={14} /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => { setRemoveExisting(false); fileInputRef.current?.click(); }}
+              className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-accent/50 px-3 py-3 text-sm text-accent hover:bg-accent/10 transition-colors">
+              <Upload size={15} /> Choose a PDF, photo or scan — read automatically
+            </button>
+          )}
+          <p className="text-[11px] text-fg-subtle mt-1.5">Max 20 MB. Scans, photos and handwritten notes are fine.</p>
+        </div>
+
+        {/* Link — a reference to where the file lives (not read by AI). */}
+        <div className={capMode === "link" ? "" : "hidden"}>
+          <input name="fileUrl" type="url" defaultValue={doc?.fileUrl ?? ""} className={inputCls}
+            placeholder="https:// link to Drive, email, etc." />
+          <p className="text-[11px] text-fg-subtle mt-1.5">A link to where the file is kept. Not read automatically.</p>
+        </div>
+
+        {/* Paste text — read by AI to fill the fields. */}
+        <div className={capMode === "text" ? "" : "hidden"}>
+          <textarea value={extractText} onChange={(e) => setExtractText(e.target.value)} rows={3}
+            className={inputCls} placeholder="Paste the renewal email or the text from the document…" />
+          <button type="button" onClick={runExtract} disabled={extracting || !extractText.trim()}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
+            {extracting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {extracting ? "Reading…" : "Read & fill"}
+          </button>
+        </div>
+
+        {(extracting || extractNote) && (
+          <p className="text-xs text-fg-muted flex items-center gap-1.5">
+            {extracting && <Loader2 size={12} className="animate-spin" />}
+            {extracting ? "Reading…" : extractNote}
+          </p>
         )}
       </div>
 
@@ -273,44 +318,6 @@ export function DocumentForm({
           <input name="reminderLeadDays" type="number" min={0} value={lead}
             onChange={(e) => { setLead(e.target.value); setLeadTouched(true); }}
             className={inputCls} />
-        </div>
-
-        <div>
-          <label className={labelCls}>File link (optional)</label>
-          <input name="fileUrl" type="url" defaultValue={doc?.fileUrl ?? ""} className={inputCls}
-            placeholder="Link to Drive / email" />
-        </div>
-
-        {/* Upload the actual file (PDF, photo, Word/Excel) into private storage. */}
-        <div className="col-span-2">
-          <label className={labelCls}>Upload file (optional)</label>
-          {removeExisting && <input type="hidden" name="removeFile" value="1" />}
-          <input ref={fileInputRef} name="file" type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx"
-            onChange={(e) => setChosenFile(e.target.files?.[0]?.name ?? null)}
-            className="hidden" />
-          {chosenFile ? (
-            <div className="flex items-center gap-2 text-sm rounded-lg border border-border bg-bg-subtle/60 px-3 py-2">
-              <Paperclip size={14} className="text-accent shrink-0" />
-              <span className="truncate flex-1">{chosenFile}</span>
-              <button type="button" onClick={() => { setChosenFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                className="text-fg-muted hover:text-danger" title="Clear"><X size={14} /></button>
-            </div>
-          ) : hasExistingFile ? (
-            <div className="flex items-center gap-2 text-sm rounded-lg border border-border bg-bg-subtle/60 px-3 py-2">
-              <Paperclip size={14} className="text-fg-subtle shrink-0" />
-              <span className="truncate flex-1">{doc?.fileName ?? "Attached file"}</span>
-              <button type="button" onClick={() => fileInputRef.current?.click()}
-                className="text-xs text-accent hover:opacity-80">Replace</button>
-              <button type="button" onClick={() => setRemoveExisting(true)}
-                className="text-fg-muted hover:text-danger" title="Remove file"><X size={14} /></button>
-            </div>
-          ) : (
-            <button type="button" onClick={() => { setRemoveExisting(false); fileInputRef.current?.click(); }}
-              className="inline-flex items-center gap-1.5 text-sm rounded-lg border border-dashed border-border px-3 py-2 text-fg-muted hover:text-fg hover:border-accent/60 transition-colors w-full">
-              <Paperclip size={14} /> Choose a file (max 20 MB)
-            </button>
-          )}
         </div>
 
         <div className="col-span-2">
