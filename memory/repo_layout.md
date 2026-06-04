@@ -96,7 +96,14 @@ cos-system/
 - `src/app/voice/actions.ts` - shared dictation polish and voice dictionary teaching.
 - `src/components/meeting-extractor.tsx` - Meeting Workspace UI.
 - `src/components/voice-button.tsx` - reusable Web Speech microphone control.
-- `src/app/api/ask/route.ts` - Ask COS RAG over tasks and meetings.
+- `src/components/top-pill.tsx` - the single bottom nav pill (all breakpoints): nav tabs, page-action `+` (`NavActionButton`), Search/Theme, and the draggable `NavLens` liquid-glass lens. Sidebar removed.
+- `src/components/liquid-glass.tsx` - SVG displacement/chromatic filters for the lens (`#cos-liquid-glass`, `#cos-lens-refract`).
+- `src/components/assistant-suggestions.tsx` - floating AI suggestion reveal above the assistant pill.
+- `src/components/workbook-todo.tsx` + `src/app/todos/actions.ts` + `src/lib/todo-parse.ts` - the personal to-do list (see `todos.md`).
+- `src/components/today-todos.tsx` - Overview "to-dos for today" widget.
+- `src/lib/outbox-drafts.ts` / `src/lib/outbox-links.ts` / `src/app/outbox/drafts-list.tsx` - persisted outbox drafts + channel deep-links.
+- `src/lib/page-suggestions.ts` - shared per-page AI prompt set (chat home + suggestion reveal).
+- `src/app/api/ask/route.ts` - Ask COS RAG over tasks, meetings, and to-dos (incl. "Plan my day").
 - `src/db/schema.ts` - database schema.
 - `src/db/index.ts` - Drizzle/postgres.js pooler client. Do not remove `prepare: false` or `max: 1`.
 - `src/db/supabase.ts` - server Supabase client used by newer server actions/routes.

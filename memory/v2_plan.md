@@ -19,6 +19,13 @@ metadata:
 - **Risk view** - dashboard and company health.
 - **Meeting memory** - saved notes, minutes, decisions, risks, and tasks created from meetings.
 
+**Recent work (this build):**
+
+- **Navigation unified** — desktop sidebar removed; one bottom-floating pill on all breakpoints, carrying the page-action `+` and a draggable **liquid-glass lens** (`liquid_lens.md`). AI suggestion reveal added above the assistant pill.
+- **To-dos levelled up** (`todos.md`) — date grouping, star, undo, snooze, natural-language + voice capture, mobile swipe, **assign-to-person**, **promote-to-task**, Overview surfacing, and AI **"Plan my day"**.
+- **Outbox** — persisted **draft lifecycle** + **to-do reminders** with channel deep-links (`outbox_and_reminders.md`).
+- **Timezone fixed app-wide** — all wall-clock columns are now `timestamptz`; times render correctly in Dar es Salaam (`database_schema.md`).
+
 ## Current Phase Status
 
 | Phase | Status | Summary |

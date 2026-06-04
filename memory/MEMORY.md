@@ -7,7 +7,9 @@
 - [Routes and Pages](routes_and_pages.md) - current page routes, removed routes, server actions, and API routes.
 - [Meeting Workspace](meeting_workspace.md) - saved notes, AI minutes, linked tasks, compact mobile layout, voice polish, and meeting intelligence.
 - [AI Integration](ai_integration.md) - Groq routes, Ask COS RAG, meeting intelligence, voice intelligence, fallbacks, and AI master switch.
-- [Outbox and Reminders](outbox_and_reminders.md) - per-person reminder drafts and sent-record ledger.
+- [To-dos](todos.md) - the personal to-do list: grouping, star, NL/voice capture, assign-person, promote-to-task, Overview surfacing, Plan my day.
+- [Outbox and Reminders](outbox_and_reminders.md) - live task reminders, persisted drafts, to-do reminders, and channel deep-links.
+- [Liquid Lens](liquid_lens.md) - the draggable liquid-glass lens on the nav pill (drag-to-select + refraction optics).
 - [Audit Trail](audit_trail.md) - task audit logging, timeline behaviour, and entry types.
 - [Timeline & Activity](timeline.md) - the three timeline scopes, shared event model, the unified TimelineEntry, and the global activity feed.
 - [Import Pipeline](import_pipeline.md) - Excel workbook import flow.

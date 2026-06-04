@@ -17,13 +17,13 @@ metadata:
 - `UndoBanner`
 - `CommandPaletteProvider`
 - `RecentsTracker`
-- centred main content
-- bottom `TopPill`
+- full-width main content (`max-w-[1100px]`, bottom-padded for the pill)
+- bottom `TopPill` (the single nav, all breakpoints)
 - task drawer
 - person drawer
-- floating COS assistant
+- floating COS assistant + `AssistantSuggestions`
 
-The app uses a bottom-floating navigation pill and safe-area spacing for mobile.
+**The desktop sidebar was removed.** Navigation is now the **one bottom-floating pill on every breakpoint** (`top-pill.tsx`) — larger on `md+`. `sidebar.tsx` / `sidebar-server.tsx` are deleted. The pill is `relative` so the liquid lens overlay can sit inside it. Safe-area spacing for mobile.
 
 ## Navigation
 
@@ -125,14 +125,30 @@ Users:
 While any `ModalShell` is open the **context action bar is suppressed**
 (`useContextBarSuppressed`, counter-based in `ContextActionsProvider`).
 
-## Context action bar
+## Context action — the nav-pill "+"
 
-`src/components/context-actions.tsx` is a route-aware action bar: pages register
-actions via `useContextActions(...)`; one `ContextActionBar` renders them — a
-sticky right-aligned glass pill on desktop, a floating pill above the nav on
-mobile (scroll-aware + tap collapse), styled to match the floating nav. Wired on
-Home (Create), Tasks (New Task), Company (New Task + Open in Tasks), People, Task
-detail, and Workbook.
+Pages still register their primary action via `useContextActions(...)` in
+`src/components/context-actions.tsx` (the provider + `useRegisteredActions` /
+`useContextBarSuppressed` are unchanged). **The standalone `ContextActionBar` is
+no longer rendered** — instead `NavActionButton` (in `top-pill.tsx`) surfaces the
+page's primary action as a single `+`/icon inside the nav pill, next to Search.
+It mirrors the action's own icon; multiple actions open a small popover. The
+wrapper is **always mounted** and springs its width 0↔auto, so it never
+"disappears"/flashes and the pill resizes smoothly. Hidden via the same
+suppression while a `ModalShell` is open.
+
+## AI suggestion reveal
+
+`src/components/assistant-suggestions.tsx` floats page-aware AI prompts above the
+AUMIO pill without opening the panel: an idle circular chevron that, on **hover**
+(desktop) or **swipe-up** (mobile), reveals ~4 context suggestions which genie
+out of and retract into the chevron; tapping one runs it in the assistant. The
+prompt set is shared with the chat home via `src/lib/page-suggestions.ts`.
+
+## Liquid lens
+
+The nav pill carries a draggable liquid-glass lens (drag a tab → release to
+navigate, with refraction/chromatic-border optics). See `liquid_lens.md`.
 
 ## Create launcher
 

@@ -10,7 +10,9 @@ metadata:
 
 ## Product Gaps
 
-- **No real message dispatch.** Outbox records sends, but does not actually send WhatsApp/email/SMS. Planned Phase 5c.
+- **No real server-side dispatch.** Outbox now creates persisted drafts and sends via channel **deep-links** (`wa.me`/`mailto:`/`sms:`) + manual "Mark sent". A real provider integration is still future (Phase 5c).
+- **iPhone liquid lens has no live-backdrop refraction.** WebKit can't apply SVG filters as `backdrop-filter`, so on iOS the nav lens is frosted glass + chromatic morphing border (no pixel-bending of the live content). True refraction works on desktop Chromium. See `liquid_lens.md`. Don't re-add an in-lens icon/clone to "fix" this — it caused doubling.
+- **Company detail page 404s in the local dev DB.** `/companies/[id]` calls `notFound()` when no row matches; the local dev data lacks those ids, so it 404s in preview (not a code bug). Test company-page actions against real data.
 - **PWA not complete.** Layout has PWA-ready meta, but there is no manifest/service worker/icon set yet.
 - **Morning brief card missing.** Planned dashboard card: overdue, due today, newly escalated, closed yesterday.
 - **Daily snapshots need production verification.** `daily_snapshots` and `/api/cron/snapshots` exist, but scheduling/production execution should be confirmed. (Same applies to the new `/api/cron/notify` job.)
@@ -38,6 +40,9 @@ metadata:
 ## Things Not To Surprise-Fix
 
 - Do not re-create removed routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`.
+- Do not re-add the desktop **sidebar** — navigation is intentionally the one bottom pill on all breakpoints.
+- Do not revert timestamp columns from **`timestamptz`** back to plain `timestamp` (see `database_schema.md`).
+- Do not paint an icon/clone inside the **liquid lens** without first solving icon doubling.
 - Do not alter `src/db/index.ts` pooler settings.
 - Do not add real message dispatch without choosing and configuring a provider.
 - Do not add web search into app answers without explicit source handling and user-visible control.

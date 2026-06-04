@@ -42,6 +42,8 @@ The system replaces an Excel workbook with:
 - `DATABASE_URL` must use the Supabase pooler on port `6543`.
 - Baseline migration `0000_flaky_amphibian.sql` was applied manually; `scripts/baseline-migrations.ts` marks it applied.
 - Newer write paths often use `src/db/supabase.ts` and helpers in `src/lib/db-helpers.ts`.
+- All wall-clock columns are `timestamptz` (migration `0014`); writes use `.toISOString()` (UTC) and times render in the viewer's local zone (Dar es Salaam, UTC+3). Do not revert to plain `timestamp`.
+- Navigation is one bottom-floating pill on **all** breakpoints (`top-pill.tsx`); the desktop sidebar was removed. The pill carries the page action `+` and a draggable liquid-glass lens.
 
 ## Current Schema Areas
 
@@ -60,10 +62,14 @@ Governance:
 - audit_log
 - corrections
 
+To-dos:
+
+- todos (personal to-do list; see `memory/todos.md`)
+
 Outreach:
 
 - reminders
-- outbox
+- outbox (now also persisted drafts: `source`/`person_id`/`todo_id`/`scheduled_for`)
 
 Analytics/config/system:
 
@@ -81,11 +87,16 @@ See `memory/database_schema.md`.
 - `/task/[code]`
 - `/registry` - redirects to hub Tasks table
 - `/meeting` - Meeting Workspace
+- `/workbook` - Meetings / Notes / To-do (see `memory/todos.md`)
 - `/companies`
 - `/companies/[id]`
 - `/people`
 - `/outbox`
+- `/inbox`
+- `/insights`
 - `/settings`
+
+Navigation: one bottom-floating pill on all breakpoints (sidebar removed).
 
 Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`.
 

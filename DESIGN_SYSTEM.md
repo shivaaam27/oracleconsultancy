@@ -79,8 +79,8 @@ Panels/sheets = 16 → cards/tables = 12 → controls = 10/8.
 | `Button` / `LinkButton` / `IconButton` | `components/ui.tsx` | All buttons. Press compression, focus ring, `loading`, rim materials. |
 | `Card`, `Surface`, `TableShell`, `Badge`, `Stat`, `PageHeader`, `EmptyState`, inputs | `components/ui.tsx` | Tier-2 content surfaces + form bits. |
 | `Segmented`, `Pill`, `SearchField`, `Toolbar`, `ListRow`, `Sheet` | `components/macos.tsx` | macOS primitives. Segmented has a `layoutId` morph indicator. |
-| `Sidebar` / `SidebarContent` | `components/sidebar.tsx` | Desktop rail + (reused) mobile drawer. |
-| `LiquidGlassDefs` | `components/liquid-glass.tsx` | Generates the squircle displacement map + SVG filter; flips `data-refract` on Chromium. |
+| `TopPill` / `NavLens` | `components/top-pill.tsx` | The single bottom nav pill (all breakpoints; sidebar removed): tabs, page-action `+`, Search/Theme, and a draggable liquid-glass lens. |
+| `LiquidGlassDefs` | `components/liquid-glass.tsx` | Squircle displacement map + SVG filters (`#cos-liquid-glass` backdrop, `#cos-lens-refract` element); flips `data-refract` on Chromium. |
 | `SwipeRow` | `components/swipe-row.tsx` | iOS swipe actions (configurable). Used by `AttentionList`. |
 | `PeekPreview` + `useLongPress` | `components/peek-preview.tsx`, `lib/use-long-press.ts` | Long-press peek & pop. Used by the Tasks table; reusable for People/Notes/Meetings. |
 | `WelcomeHero` | `components/welcome-hero.tsx` | COS Home Tier-3 wash header + inline KPIs. |

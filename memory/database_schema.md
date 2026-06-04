@@ -8,7 +8,7 @@ metadata:
 
 # Database Schema
 
-Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; latest Meeting Workspace migration is `drizzle/0008_meeting_workspace.sql`.
+Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; latest is `drizzle/0016_nice_zombie.sql`. Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns).
 
 ## Core
 
@@ -83,9 +83,16 @@ Schema exists, but no UI flow writes corrections yet.
 `dedupe_key` has a unique index for idempotency.
 
 ### outbox
-`id, channel, recipient_name, recipient_contact, company, subject, body, message_type, status, contact_status, notes, created_at, sent_at`.
+`id, channel, recipient_name, recipient_contact, company, subject, body, message_type, status, contact_status, notes, source, person_id, todo_id, scheduled_for, created_at, sent_at`.
 
-Human-readable send history. Real WhatsApp/email/SMS dispatch is not implemented yet.
+Now backs **two** flows: (1) the legacy human-readable send record (`status` "Sent"); (2) **persisted drafts** (`status` "Draft", `source` of `task`/`todo`/`adhoc`, optional `person_id`/`todo_id`, optional `scheduled_for`). The Outbox page renders a Drafts section above the live task reminders. See `outbox_and_reminders.md`. Real WhatsApp/email/SMS dispatch is still not server-side — sending is via channel deep-links (`wa.me`/`mailto:`/`sms:`) plus manual "Mark sent".
+
+## To-dos
+
+### todos
+`id, title, done, important, due_at, company_id, person_id, task_id, created_at, completed_at`.
+
+The personal to-do list (Workbook → To-do). `important` is the star flag; `person_id` is the assignee (feeds Outbox reminders); `task_id` links a to-do that was **promoted to a tracked task**. See `todos.md`.
 
 ## Analytics and System
 
@@ -113,7 +120,7 @@ Supports undo flows. `/api/cron/cleanup` removes expired tokens.
 
 ## Conventions
 
-- Timestamps use Postgres `timestamp` with Drizzle `mode: "date"`.
+- **Timestamps are `timestamptz`** (Drizzle `mode: "date", withTimezone: true`) as of migration `0014`. Previously they were `timestamp without time zone`, which lost the offset on read and showed times ~3h off for the UTC+3 (Dar es Salaam) operator. All writes use `.toISOString()` (UTC); both read paths (Drizzle/postgres.js and the Supabase JS client) now return offset-aware instants, and the browser renders them in the viewer's local zone. Do not revert columns to plain `timestamp`.
 - Soft delete: `tasks.archived`, `people.active`, `companies.active`, `task_updates.deleted_at`, `audit_log.deleted_at`.
 - Supabase pooler transaction mode requires `prepare: false` and `max: 1` in `src/db/index.ts`.
 - Newer write paths often use the server-side Supabase client in `src/db/supabase.ts`.
