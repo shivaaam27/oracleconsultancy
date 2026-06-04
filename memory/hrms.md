@@ -18,7 +18,12 @@ HRMS (hub) ─┬─ [Card] OECR · Office Equipment Control Registry → /hrms/
             └─ [Card] Documents → /documents   (moved into HRMS)
 ```
 
-**Nav move (owner decision):** Companies, People and Documents now live **only** under HRMS as cards (live stats). They were removed from the bottom nav pill — the dedicated **Companies tab** (and its long-press company switcher, `CompaniesNavTab`) was deleted from `top-pill.tsx`, and **People + Documents** were removed from the "More" sheet. The pages/routes themselves (`/companies`, `/people`, `/documents`) are unchanged — only the way in moved. Main nav pill is now: Home · Task Management · Workbook · More · Search. `TopPillServer` no longer fetches companies.
+**Nav move (owner decision):** Companies, People and Documents now live **only** under HRMS as cards (live stats). They were removed from the bottom nav pill — the dedicated **Companies tab** (and its long-press company switcher, `CompaniesNavTab`) was deleted from `top-pill.tsx`, and **People + Documents** were removed from the "More" sheet. The pages/routes themselves (`/companies`, `/people`, `/documents`) are unchanged — only the way in moved. `TopPillServer` no longer fetches companies.
+
+**HRMS promoted to a primary nav tab** (briefcase icon) — main pill is now: Home · Task Management · Workbook · **HRMS** · More · Search (HRMS also a lens slot). HRMS removed from the More sheet. The nav-pill page "+" action icon is now **unified system-wide** (`navIcon()` always renders `Plus`, regardless of each page's own action icon); per-action icons still show in the multi-action dropdown.
+
+### Improvements plan (in progress)
+Agreed phased plan after the nav move: **1 (DONE)** HRMS nav tab + briefcase icon + unified "+". **2** Smart breadcrumbs on Companies/People/Documents (always "‹ HRMS"; context "‹ DS-001" via `?from=task:CODE`). **3** People deactivate — individual + **bulk** (decision: deactivate only, no hard delete; built on `people.active`). **4** Documents capture unified into one panel keeping all three inputs (Upload · Link · Paste text). **5** Documents smarter AI reading (scanned/photographed PDFs, images, handwriting, dirty docs → vision model) + **overflow-to-Notes** (unmapped extracted info auto-appended to Notes). Honour `getGroqKey()`.
 
 Shared bits: `src/components/hrms/hrms-dialog.tsx` (drawer), design uses the standard `ui.tsx` primitives + tokens (no Excel styling). British English. Currency = **TZS** (`fmtMoney` in `stock-shared.ts`).
 

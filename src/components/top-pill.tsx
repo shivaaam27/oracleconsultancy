@@ -6,13 +6,13 @@ import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObje
 import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
-  Home, CheckSquare, NotebookPen, LayoutGrid, Search,
-  Send, Inbox, BarChart3, Settings, Plus, Package, type LucideIcon,
+  Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search,
+  Send, Inbox, BarChart3, Settings, Plus, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
-import { useRegisteredActions, type ContextAction } from "./context-actions";
+import { useRegisteredActions } from "./context-actions";
 
 /* --------------------------------------------------------------------- */
 
@@ -52,7 +52,6 @@ function NavTab({
 /* --------------------------------------------------------------------- */
 
 const MORE: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/hrms", label: "HRMS", icon: Package },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },
@@ -119,10 +118,12 @@ function MoreSheet({ pathname }: { pathname: string }) {
 /* directly when there's one, opens a small popover when there are several. */
 /* --------------------------------------------------------------------- */
 
-function navIcon(action: ContextAction) {
-  return isValidElement(action.icon)
-    ? cloneElement(action.icon as React.ReactElement<{ size?: number }>, { size: 19 })
-    : <Plus size={19} />;
+// Unified system-wide "add" glyph in the nav pill — every page's primary action
+// surfaces as the same "+", regardless of the action's own icon. The label/title
+// still describes the specific action for accessibility; per-action icons remain
+// in the multi-action dropdown list.
+function navIcon() {
+  return <Plus size={19} />;
 }
 
 function NavActionButton() {
@@ -148,14 +149,14 @@ function NavActionButton() {
     >
       {primary && !multi && (
         primary.href ? (
-          <Link href={primary.href} aria-label={primary.label} title={primary.label} className={btn}>{navIcon(primary)}</Link>
+          <Link href={primary.href} aria-label={primary.label} title={primary.label} className={btn}>{navIcon()}</Link>
         ) : (
-          <button type="button" onClick={primary.onClick} aria-label={primary.label} title={primary.label} className={btn}>{navIcon(primary)}</button>
+          <button type="button" onClick={primary.onClick} aria-label={primary.label} title={primary.label} className={btn}>{navIcon()}</button>
         )
       )}
       {primary && multi && (
         <div className="relative shrink-0">
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Page actions" title={primary.label} className={btn}>{navIcon(primary)}</button>
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Page actions" title={primary.label} className={btn}>{navIcon()}</button>
           {open && (
             <>
               <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
@@ -193,7 +194,7 @@ function NavActionButton() {
 /* work untouched.                                                         */
 /* --------------------------------------------------------------------- */
 
-const LENS_SLOTS = ["Home", "Task Management", "Workbook", "Search"] as const;
+const LENS_SLOTS = ["Home", "Task Management", "Workbook", "HRMS", "Search"] as const;
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
@@ -359,6 +360,7 @@ export function TopPill() {
     if (label === "Home") router.push("/");
     else if (label === "Task Management") router.push("/?tab=tasks");
     else if (label === "Workbook") router.push("/workbook");
+    else if (label === "HRMS") router.push("/hrms");
     else if (label === "Search") openPalette();
   }
 
@@ -366,6 +368,7 @@ export function TopPill() {
   const homeActive = onHub && tab !== "tasks";
   const tasksActive = onHub && tab === "tasks";
   const workbookActive = pathname.startsWith("/workbook");
+  const hrmsActive = pathname.startsWith("/hrms");
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 flex justify-center px-2 pointer-events-none">
@@ -381,6 +384,7 @@ export function TopPill() {
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
         <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
+        <NavTab href="/hrms" icon={Briefcase} label="HRMS" active={hrmsActive} />
         <MoreSheet pathname={pathname} />
 
         <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
