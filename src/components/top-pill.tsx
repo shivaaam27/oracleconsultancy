@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObject } from "react";
-import { motion, useMotionValue, useTransform, animate, AnimatePresence } from "framer-motion";
+import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, Building2, NotebookPen, LayoutGrid, Search,
@@ -313,6 +313,12 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
   // Counter-scale so the magnified icon stays crisp while the glass squishes.
   const invX = useTransform(scaleX, (v) => 1 / v);
   const invY = useTransform(scaleY, (v) => 1 / v);
+  // Velocity-driven chromatic split + specular glare (springy so they ease back).
+  const rawShift = useMotionValue(0);
+  const shift = useSpring(rawShift, { stiffness: 300, damping: 22, mass: 0.4 });
+  const redX = useTransform(shift, (v) => -v);
+  const cyanX = useTransform(shift, (v) => v);
+  const glareX = useTransform(shift, (v) => -v * 1.4);
   const [visible, setVisible] = useState(false);
   const [activeLabel, setActiveLabel] = useState<string>("Home");
   const [box, setBox] = useState({ w: 44, h: 40, top: 0 });
@@ -336,10 +342,11 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
     };
 
     const place = (centerX: number, vx = 0) => {
-      const stretch = Math.min(0.42, Math.abs(vx) * 0.018);
+      const stretch = Math.min(0.5, Math.abs(vx) * 0.022);
       x.set(centerX);
       scaleX.set(1 + stretch);
       scaleY.set(1 - stretch * 0.5);
+      rawShift.set(Math.max(-7, Math.min(7, vx * 0.6))); // chromatic + glare offset
     };
 
     const onDown = (e: PointerEvent) => {
@@ -379,6 +386,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
         animate(x, nearest.center, SPRING);
         animate(scaleX, 1, SPRING);
         animate(scaleY, 1, SPRING);
+        rawShift.set(0);
         onSelect(nearest.label);
         window.setTimeout(() => setVisible(false), 320);
       }
@@ -396,6 +404,8 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
       c.removeEventListener("pointerup", onUp);
       c.removeEventListener("pointercancel", onUp);
     };
+    // rawShift is a stable motion value; intentionally not in deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerRef, x, scaleX, scaleY]);
 
   return (
@@ -410,7 +420,10 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
           style={{ x, scaleX, scaleY, left: -box.w / 2, top: box.top, width: box.w, height: box.h, originX: 0.5, originY: 0.5 }}
           className="glass-refract pointer-events-none absolute z-20 flex items-center justify-center overflow-hidden rounded-[1.1rem] bg-white/14 dark:bg-white/10 ring-1 ring-white/45 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_5px_16px_-5px_rgba(0,0,0,0.4)] backdrop-blur-[2px] backdrop-saturate-[1.6]"
         >
-          {/* Magnified "loupe" of the icon beneath — the lens content (Safari-safe). */}
+          {/* Specular glare — a soft highlight that lags the motion. */}
+          <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/45 blur-[3px]" />
+
+          {/* Magnified "loupe" of the icon beneath, with velocity chromatic split. */}
           <motion.span style={{ scaleX: invX, scaleY: invY }} className="relative flex items-center justify-center">
             <AnimatePresence mode="popLayout" initial={false}>
               {(() => {
@@ -422,9 +435,11 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
                     animate={{ opacity: 1, scale: 1.42 }}
                     exit={{ opacity: 0, scale: 0.6 }}
                     transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                    className="text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"
+                    className="relative inline-flex"
                   >
-                    <Icon size={20} strokeWidth={2.2} />
+                    <motion.span aria-hidden style={{ x: redX }} className="absolute inset-0 inline-flex items-center justify-center text-red-500/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
+                    <motion.span aria-hidden style={{ x: cyanX }} className="absolute inset-0 inline-flex items-center justify-center text-cyan-400/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
+                    <span className="relative text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"><Icon size={20} strokeWidth={2.2} /></span>
                   </motion.span>
                 );
               })()}
