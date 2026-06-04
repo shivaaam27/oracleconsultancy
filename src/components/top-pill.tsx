@@ -322,17 +322,28 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
   const [visible, setVisible] = useState(false);
   const [activeLabel, setActiveLabel] = useState<string>("Home");
   const [box, setBox] = useState({ w: 44, h: 40, top: 0 });
+  // Reduce Motion / Reduce Transparency → a plain solid highlight, no optics.
+  const [plain, setPlain] = useState(false);
+  const plainRef = useRef(false);
   const SPRING = { type: "spring" as const, stiffness: 520, damping: 30, mass: 0.7 };
+
+  useEffect(() => {
+    const mm = window.matchMedia("(prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce)");
+    const u = () => { setPlain(mm.matches); plainRef.current = mm.matches; };
+    u(); mm.addEventListener("change", u);
+    return () => mm.removeEventListener("change", u);
+  }, []);
 
   useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
 
     type Slot = { label: string; center: number; w: number; h: number; top: number };
-    const s = { dragging: false, startX: 0, lastX: 0, lastT: 0, pid: -1, slots: [] as Slot[] };
+    const s = { dragging: false, startX: 0, lastX: 0, lastT: 0, pid: -1, left: 0, slots: [] as Slot[] };
 
     const readSlots = (): Slot[] => {
       const cr = c.getBoundingClientRect();
+      s.left = cr.left; // cache: the pill is fixed, so no per-move layout reads
       return LENS_SLOTS.map((label) => {
         const el = c.querySelector(`[aria-label="${label}"]`) as HTMLElement | null;
         if (!el) return null;
@@ -342,12 +353,15 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
     };
 
     const place = (centerX: number, vx = 0) => {
-      const stretch = Math.min(0.5, Math.abs(vx) * 0.022);
       x.set(centerX);
+      if (plainRef.current) { scaleX.set(1); scaleY.set(1); rawShift.set(0); return; }
+      const stretch = Math.min(0.5, Math.abs(vx) * 0.022);
       scaleX.set(1 + stretch);
       scaleY.set(1 - stretch * 0.5);
       rawShift.set(Math.max(-7, Math.min(7, vx * 0.6))); // chromatic + glare offset
     };
+
+    const clampPx = (raw: number) => Math.max(s.slots[0].center, Math.min(s.slots[s.slots.length - 1].center, raw));
 
     const onDown = (e: PointerEvent) => {
       s.slots = readSlots();
@@ -357,22 +371,20 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
     const onMove = (e: PointerEvent) => {
       if (!s.slots.length || e.pointerId !== s.pid) return;
       const dx = e.clientX - s.startX;
-      const cr = c.getBoundingClientRect();
       if (!s.dragging) {
         if (Math.abs(dx) < 8) return;
         s.dragging = true;
         try { c.setPointerCapture(e.pointerId); } catch { /* ignore */ }
         const first = s.slots[0];
         setBox({ w: first.w + 6, h: first.h, top: first.top });
-        const px = Math.max(s.slots[0].center, Math.min(s.slots[s.slots.length - 1].center, e.clientX - cr.left));
-        x.jump?.(px); x.set(px);
+        x.set(clampPx(e.clientX - s.left));
         setVisible(true);
       }
       e.preventDefault();
       const now = performance.now();
       const vx = (e.clientX - s.lastX) / Math.max(1, now - s.lastT);
       s.lastX = e.clientX; s.lastT = now;
-      const px = Math.max(s.slots[0].center, Math.min(s.slots[s.slots.length - 1].center, e.clientX - cr.left));
+      const px = clampPx(e.clientX - s.left);
       place(px, vx);
       const near = s.slots.reduce((a, b) => (Math.abs(b.center - px) < Math.abs(a.center - px) ? b : a), s.slots[0]);
       setActiveLabel(near.label);
@@ -380,12 +392,15 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
 
     const onUp = (e: PointerEvent) => {
       if (s.dragging) {
-        const cr = c.getBoundingClientRect();
-        const px = e.clientX - cr.left;
+        const px = e.clientX - s.left;
         const nearest = s.slots.reduce((a, b) => (Math.abs(b.center - px) < Math.abs(a.center - px) ? b : a), s.slots[0]);
-        animate(x, nearest.center, SPRING);
-        animate(scaleX, 1, SPRING);
-        animate(scaleY, 1, SPRING);
+        if (plainRef.current) {
+          x.set(nearest.center); scaleX.set(1); scaleY.set(1);
+        } else {
+          animate(x, nearest.center, SPRING);
+          animate(scaleX, 1, SPRING);
+          animate(scaleY, 1, SPRING);
+        }
         rawShift.set(0);
         onSelect(nearest.label);
         window.setTimeout(() => setVisible(false), 320);
@@ -417,34 +432,43 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.16 }}
-          style={{ x, scaleX, scaleY, left: -box.w / 2, top: box.top, width: box.w, height: box.h, originX: 0.5, originY: 0.5 }}
-          className="glass-refract pointer-events-none absolute z-20 flex items-center justify-center overflow-hidden rounded-[1.1rem] bg-white/14 dark:bg-white/10 ring-1 ring-white/45 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_5px_16px_-5px_rgba(0,0,0,0.4)] backdrop-blur-[2px] backdrop-saturate-[1.6]"
+          style={{ x, scaleX, scaleY, left: -box.w / 2, top: box.top, width: box.w, height: box.h, originX: 0.5, originY: 0.5, willChange: "transform" }}
+          className={cn(
+            "pointer-events-none absolute z-20 flex items-center justify-center overflow-hidden rounded-[1.1rem]",
+            plain
+              ? "bg-accent-soft ring-1 ring-accent/30"
+              : "glass-refract bg-white/14 dark:bg-white/10 ring-1 ring-white/45 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_5px_16px_-5px_rgba(0,0,0,0.4)] backdrop-blur-[2px] backdrop-saturate-[1.6]"
+          )}
         >
-          {/* Specular glare — a soft highlight that lags the motion. */}
-          <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/45 blur-[3px]" />
+          {!plain && (
+            <>
+              {/* Specular glare — a soft highlight that lags the motion. */}
+              <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/45 blur-[3px]" />
 
-          {/* Magnified "loupe" of the icon beneath, with velocity chromatic split. */}
-          <motion.span style={{ scaleX: invX, scaleY: invY }} className="relative flex items-center justify-center">
-            <AnimatePresence mode="popLayout" initial={false}>
-              {(() => {
-                const Icon = LENS_ICON[activeLabel] ?? Home;
-                return (
-                  <motion.span
-                    key={activeLabel}
-                    initial={{ opacity: 0, scale: 0.6 }}
-                    animate={{ opacity: 1, scale: 1.42 }}
-                    exit={{ opacity: 0, scale: 0.6 }}
-                    transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                    className="relative inline-flex"
-                  >
-                    <motion.span aria-hidden style={{ x: redX }} className="absolute inset-0 inline-flex items-center justify-center text-red-500/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
-                    <motion.span aria-hidden style={{ x: cyanX }} className="absolute inset-0 inline-flex items-center justify-center text-cyan-400/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
-                    <span className="relative text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"><Icon size={20} strokeWidth={2.2} /></span>
-                  </motion.span>
-                );
-              })()}
-            </AnimatePresence>
-          </motion.span>
+              {/* Magnified "loupe" of the icon beneath, with velocity chromatic split. */}
+              <motion.span style={{ scaleX: invX, scaleY: invY }} className="relative flex items-center justify-center">
+                <AnimatePresence mode="popLayout" initial={false}>
+                  {(() => {
+                    const Icon = LENS_ICON[activeLabel] ?? Home;
+                    return (
+                      <motion.span
+                        key={activeLabel}
+                        initial={{ opacity: 0, scale: 0.6 }}
+                        animate={{ opacity: 1, scale: 1.42 }}
+                        exit={{ opacity: 0, scale: 0.6 }}
+                        transition={{ type: "spring", stiffness: 480, damping: 26 }}
+                        className="relative inline-flex"
+                      >
+                        <motion.span aria-hidden style={{ x: redX }} className="absolute inset-0 inline-flex items-center justify-center text-red-500/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
+                        <motion.span aria-hidden style={{ x: cyanX }} className="absolute inset-0 inline-flex items-center justify-center text-cyan-400/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
+                        <span className="relative text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"><Icon size={20} strokeWidth={2.2} /></span>
+                      </motion.span>
+                    );
+                  })()}
+                </AnimatePresence>
+              </motion.span>
+            </>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
