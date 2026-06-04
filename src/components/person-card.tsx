@@ -53,7 +53,7 @@ export function PersonCard({
     : wl.open === 0 ? "bg-bg-subtle/60 ring-1 ring-border/60 text-fg-subtle"
     : "bg-info-soft/70 ring-1 ring-info/30 text-info";
 
-  const companyLine = [p.companyName, p.associations.length ? `+${p.associations.length}` : null].filter(Boolean).join(" ");
+  const metaLine = [p.role, p.companyName, p.associations.length ? `+${p.associations.length}` : null].filter(Boolean).join(" · ") || "—";
 
   return (
     <div
@@ -65,36 +65,34 @@ export function PersonCard({
       onPointerCancel={onPointerCancel}
       onContextMenu={(e) => e.preventDefault()}
       className={cn(
-        "group glass elevated rounded-2xl p-4 text-left w-full cursor-pointer select-none transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.99]",
-        dim && "opacity-70"
+        "group flex items-center gap-3 px-3.5 py-2.5 cursor-pointer select-none hover:bg-bg-muted/40 transition-colors",
+        dim && "opacity-60"
       )}
     >
-      <div className="flex items-start gap-3">
-        <span className={cn("h-10 w-10 rounded-full ring-1 flex items-center justify-center text-sm font-semibold shrink-0", TYPE_TINT[p.personType] ?? TYPE_TINT.external)}>
-          {initials(p.name)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="font-medium text-sm leading-tight truncate group-hover:text-accent transition-colors">{p.name}</span>
-            {!p.active && <UserX size={12} className="text-fg-subtle shrink-0" />}
-            {snoozed && <MoonStar size={12} className="text-warn shrink-0" />}
-          </div>
-          <div className="text-xs text-fg-muted truncate mt-0.5">{p.role || companyLine || "—"}</div>
+      <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-[13px] font-semibold shrink-0", TYPE_TINT[p.personType] ?? TYPE_TINT.external)}>
+        {initials(p.name)}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-sm leading-tight truncate group-hover:text-accent transition-colors">{p.name}</span>
+          {!p.active && <UserX size={12} className="text-fg-subtle shrink-0" />}
+          {snoozed && <MoonStar size={12} className="text-warn shrink-0" />}
         </div>
+        <div className="text-xs text-fg-muted truncate mt-0.5">{metaLine}</div>
       </div>
 
-      {/* Contact + workload */}
-      <div className="flex items-center justify-between mt-3.5">
-        <div className="flex items-center gap-2.5 text-fg-subtle" onClick={(e) => e.stopPropagation()}>
-          {p.email && <a href={`mailto:${p.email}`} title={p.email} className="hover:text-accent transition-colors"><Mail size={14} /></a>}
-          {p.whatsapp && <a href={whatsappHref(p.whatsapp)} target="_blank" rel="noreferrer" title={p.whatsapp} className="hover:text-accent transition-colors"><MessageCircle size={14} /></a>}
-          {p.phone && <a href={`tel:${p.phone}`} title={p.phone} className="hover:text-accent transition-colors"><Phone size={14} /></a>}
-          {!p.hasContact && <span title="No contact info" className="text-danger"><AlertCircle size={14} /></span>}
-        </div>
-        <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium tabular backdrop-blur-md", workloadTint)}>
-          {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}
-        </span>
+      {/* Contact channels (actionable) */}
+      <div className="flex items-center gap-2 text-fg-subtle shrink-0" onClick={(e) => e.stopPropagation()}>
+        {p.email && <a href={`mailto:${p.email}`} title={p.email} className="hover:text-accent transition-colors"><Mail size={14} /></a>}
+        {p.whatsapp && <a href={whatsappHref(p.whatsapp)} target="_blank" rel="noreferrer" title={p.whatsapp} className="hover:text-accent transition-colors"><MessageCircle size={14} /></a>}
+        {p.phone && <a href={`tel:${p.phone}`} title={p.phone} className="hover:text-accent transition-colors"><Phone size={14} /></a>}
+        {!p.hasContact && <span title="No contact info" className="text-danger"><AlertCircle size={14} /></span>}
       </div>
+
+      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium tabular shrink-0", workloadTint)}>
+        {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}
+      </span>
     </div>
   );
 }

@@ -41,10 +41,26 @@ export type PersonWorkload = {
   completedThisMonth: number;
 };
 
+export type PersonTopTask = { code: string; actionItem: string; status: string; flag: string | null; companyName: string };
+
 export type PersonRow = Person & {
   workload: PersonWorkload;
   hasContact: boolean;
+  /** A few of this person's most urgent open tasks, for the long-press peek. */
+  topTasks: PersonTopTask[];
 };
+
+const FLAG_RANK = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track"];
+function topTasksFor(person: Person, tasks: TaskRow[]): PersonTopTask[] {
+  return tasks
+    .filter((t) => isInvolved(person, t) && isOpen(t.status))
+    .sort((a, b) => {
+      const ra = FLAG_RANK.indexOf(a.flag ?? ""); const rb = FLAG_RANK.indexOf(b.flag ?? "");
+      return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+    })
+    .slice(0, 3)
+    .map((t) => ({ code: t.code, actionItem: t.actionItem, status: t.status, flag: t.flag, companyName: t.companyName }));
+}
 
 /** Returns true if this person is involved in the task (as assignee or owner). */
 function isInvolved(p: Person, t: TaskRow): boolean {
@@ -122,6 +138,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     ...p,
     workload: computeWorkload(p, tasks),
     hasContact: Boolean(p.email || p.phone || p.whatsapp),
+    topTasks: topTasksFor(p, tasks),
   }));
 }
 

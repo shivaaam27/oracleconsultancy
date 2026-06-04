@@ -1,14 +1,24 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Search, MessageCircle, Filter, ExternalLink, ListTodo } from "lucide-react";
+import { Search, MessageCircle, Filter, ExternalLink, ListTodo, Clock, Copy, UserPlus } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
+import { useToast } from "./toast";
+import { snoozePerson } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
+
+/** A short WhatsApp reminder built from the person's most urgent tasks. */
+function quickReminderText(p: PersonRow): string {
+  const lines = [`Hi ${p.name}, a quick reminder:`, ""];
+  p.topTasks.forEach((t) => lines.push(`• ${t.actionItem} (${t.code})`));
+  lines.push("", "Please update the tracker when you can. Thanks.");
+  return lines.join("\n");
+}
 
 type SortKey = "name" | "company" | "workload";
 type SortDir = "asc" | "desc";
@@ -34,6 +44,8 @@ export function PeopleTable({ people, companies }: {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const [, startSnooze] = useTransition();
   const [peek, setPeek] = useState<PersonRow | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -44,6 +56,18 @@ export function PeopleTable({ people, companies }: {
     params.set("person", String(id));
     params.delete("task");
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+  function doSnooze(p: PersonRow) {
+    startSnooze(async () => {
+      const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const res = await snoozePerson(p.id, tomorrow);
+      toast(res.ok ? `Snoozed ${p.name} for today` : (res.error || "Couldn't snooze"), { tone: res.ok ? "success" : "warn", duration: 4000 });
+    });
+  }
+  async function copyContact(p: PersonRow) {
+    const value = p.whatsapp || p.phone || p.email || "";
+    if (!value) return;
+    try { await navigator.clipboard.writeText(value); toast(`Copied ${value}`, { tone: "success", duration: 3000 }); } catch { /* ignore */ }
   }
   function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
   function onRowPointerDown(p: PersonRow, e: React.PointerEvent) {
@@ -56,11 +80,19 @@ export function PeopleTable({ people, companies }: {
     if (!pressStart.current) return;
     if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
   }
-  const peekActions = (p: PersonRow): PeekAction[] => [
-    { label: "Open profile", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openPerson(p.id) },
-    { label: "View tasks", icon: <ListTodo size={15} />, onClick: () => router.push(`/?tab=tasks&all=1&q=${encodeURIComponent(p.name)}`) },
-    ...(p.whatsapp ? [{ label: "Message on WhatsApp", icon: <MessageCircle size={15} />, onClick: () => window.open(whatsappHref(p.whatsapp!), "_blank") }] : []),
-  ];
+  // Fast actions in the peek — primary one adapts: message if reachable, else add contact.
+  const peekActions = (p: PersonRow): PeekAction[] => {
+    const a: PeekAction[] = [];
+    if (p.whatsapp) {
+      a.push({ label: "Message", icon: <MessageCircle size={16} />, tone: "accent", onClick: () => window.open(`${whatsappHref(p.whatsapp!)}?text=${encodeURIComponent(quickReminderText(p))}`, "_blank") });
+    } else {
+      a.push({ label: "Add contact", icon: <UserPlus size={16} />, tone: "accent", onClick: () => openPerson(p.id) });
+    }
+    a.push({ label: "Snooze", icon: <Clock size={16} />, onClick: () => doSnooze(p) });
+    if (p.whatsapp || p.phone || p.email) a.push({ label: "Copy", icon: <Copy size={16} />, onClick: () => copyContact(p) });
+    a.push({ label: "Tasks", icon: <ListTodo size={16} />, onClick: () => router.push(`/?tab=tasks&all=1&q=${encodeURIComponent(p.name)}`) });
+    return a;
+  };
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -198,21 +230,23 @@ export function PeopleTable({ people, companies }: {
         </label>
       </div>
 
-      {/* Card grid — same on mobile + desktop */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-        {filtered.map((p) => (
-          <PersonCard
-            key={p.id}
-            person={p}
-            onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openPerson(p.id); }}
-            onPointerDown={(e) => onRowPointerDown(p, e)}
-            onPointerMove={onRowPointerMove}
-            onPointerUp={clearPress}
-            onPointerLeave={clearPress}
-            onPointerCancel={clearPress}
-          />
-        ))}
-      </div>
+      {/* Compact list — one elevated container, divided rows */}
+      {filtered.length > 0 && (
+        <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+          {filtered.map((p) => (
+            <PersonCard
+              key={p.id}
+              person={p}
+              onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openPerson(p.id); }}
+              onPointerDown={(e) => onRowPointerDown(p, e)}
+              onPointerMove={onRowPointerMove}
+              onPointerUp={clearPress}
+              onPointerLeave={clearPress}
+              onPointerCancel={clearPress}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Long-press peek — limited details */}
       <PeekPreview
@@ -228,6 +262,17 @@ export function PeopleTable({ people, companies }: {
             {peek.workload.dueSoon > 0 && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-warn-soft/60 ring-1 ring-warn/25 text-warn tabular">{peek.workload.dueSoon} due soon</span>}
             {!peek.hasContact && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">No contact</span>}
           </>
+        ) : undefined}
+        body={peek && peek.topTasks.length > 0 ? (
+          <div className="-mx-1 rounded-xl border border-border/60 divide-y divide-border/50 overflow-hidden">
+            {peek.topTasks.map((t) => (
+              <div key={t.code} className="flex items-center gap-2 px-2.5 py-1.5">
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", t.flag === "overdue" || t.flag === "escalate-now" ? "bg-danger" : t.flag === "due-soon" ? "bg-warn" : "bg-fg-subtle/40")} />
+                <span className="min-w-0 flex-1 truncate text-[13px]">{t.actionItem}</span>
+                <span className="font-mono text-[10px] text-fg-subtle shrink-0">{t.code}</span>
+              </div>
+            ))}
+          </div>
         ) : undefined}
         actions={peek ? peekActions(peek) : []}
         actionsLayout="row"
