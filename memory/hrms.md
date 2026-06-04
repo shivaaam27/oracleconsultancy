@@ -12,8 +12,13 @@ metadata:
 
 ```
 HRMS (hub) ─┬─ [Card] OECR · Office Equipment Control Registry → /hrms/oecr
-            └─ [Card] OCR  · Office Cleaning Registry          → /hrms/ocr
+            ├─ [Card] OCR  · Office Cleaning Registry          → /hrms/ocr
+            ├─ [Card] Companies → /companies   (moved into HRMS)
+            ├─ [Card] People    → /people      (moved into HRMS)
+            └─ [Card] Documents → /documents   (moved into HRMS)
 ```
+
+**Nav move (owner decision):** Companies, People and Documents now live **only** under HRMS as cards (live stats). They were removed from the bottom nav pill — the dedicated **Companies tab** (and its long-press company switcher, `CompaniesNavTab`) was deleted from `top-pill.tsx`, and **People + Documents** were removed from the "More" sheet. The pages/routes themselves (`/companies`, `/people`, `/documents`) are unchanged — only the way in moved. Main nav pill is now: Home · Task Management · Workbook · More · Search. `TopPillServer` no longer fetches companies.
 
 Shared bits: `src/components/hrms/hrms-dialog.tsx` (drawer), design uses the standard `ui.tsx` primitives + tokens (no Excel styling). British English. Currency = **TZS** (`fmtMoney` in `stock-shared.ts`).
 

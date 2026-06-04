@@ -6,16 +6,13 @@ import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObje
 import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
-  Home, CheckSquare, Building2, NotebookPen, LayoutGrid, Search,
-  Users, Send, Inbox, BarChart3, Settings, Plus, FileText, Package, type LucideIcon,
+  Home, CheckSquare, NotebookPen, LayoutGrid, Search,
+  Send, Inbox, BarChart3, Settings, Plus, Package, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { useRegisteredActions, type ContextAction } from "./context-actions";
-import { triggerHaptic } from "@/lib/use-long-press";
-
-type Company = { id: number; name: string; accent: string | null };
 
 /* --------------------------------------------------------------------- */
 
@@ -51,118 +48,11 @@ function NavTab({
 }
 
 /* --------------------------------------------------------------------- */
-/* Companies tab — tap opens the index; press-and-hold opens a popup of    */
-/* companies that you can release-to-select or tap.                        */
-/* --------------------------------------------------------------------- */
-
-function CompaniesNavTab({ companies, active }: { companies: Company[]; active: boolean }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [highlight, setHighlight] = useState<number | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const held = useRef(false);
-  const start = useRef<{ x: number; y: number } | null>(null);
-
-  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
-
-  function go(id: number) { setOpen(false); setHighlight(null); router.push(`/companies/${id}`); }
-
-  function onPointerDown(e: React.PointerEvent) {
-    held.current = false;
-    start.current = { x: e.clientX, y: e.clientY };
-    clear();
-    timer.current = setTimeout(() => { held.current = true; triggerHaptic(); setOpen(true); }, 300);
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!open) {
-      // cancel the long-press if the finger drifts before it fires
-      if (start.current && (Math.abs(e.clientX - start.current.x) > 8 || Math.abs(e.clientY - start.current.y) > 8)) clear();
-      return;
-    }
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const item = el?.closest("[data-company-id]");
-    setHighlight(item ? Number(item.getAttribute("data-company-id")) : null);
-  }
-  function onPointerUp(e: React.PointerEvent) {
-    clear();
-    if (open && held.current) {
-      // release-to-select
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const item = el?.closest("[data-company-id]");
-      if (item) { go(Number(item.getAttribute("data-company-id"))); return; }
-      // released elsewhere → keep the popup open so they can tap
-      return;
-    }
-    // quick tap → company index
-    if (!held.current) { setOpen(false); router.push("/companies"); }
-  }
-
-  return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        aria-label="Companies"
-        title="Companies — hold for list"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={clear}
-        onPointerCancel={clear}
-        onContextMenu={(e) => e.preventDefault()}
-        className={cn(
-          "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full transition-colors select-none touch-none",
-          active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-        )}
-      >
-        {active && (
-          <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
-        )}
-        <Building2 size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
-      </button>
-
-      {open && (
-        <>
-          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute z-[56] bottom-full mb-3 left-1/2 -translate-x-1/2 w-60 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 max-h-[58vh] overflow-y-auto shadow-lg">
-            <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">Companies</div>
-            <Link
-              href="/companies"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
-            >
-              <LayoutGrid size={14} className="shrink-0" /> All companies
-            </Link>
-            <div className="my-1 h-px bg-border/60" />
-            {companies.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                data-company-id={c.id}
-                onClick={() => go(c.id)}
-                className={cn(
-                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-colors",
-                  highlight === c.id ? "bg-accent-soft text-fg" : "text-fg hover:bg-bg-muted/60"
-                )}
-              >
-                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: c.accent || "hsl(var(--fg-subtle))" }} />
-                <span className="truncate">{c.name}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/* --------------------------------------------------------------------- */
 /* "More" sheet — the secondary destinations                              */
 /* --------------------------------------------------------------------- */
 
 const MORE: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/people", label: "People", icon: Users },
   { href: "/hrms", label: "HRMS", icon: Package },
-  { href: "/documents", label: "Documents", icon: FileText },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },
@@ -303,7 +193,7 @@ function NavActionButton() {
 /* work untouched.                                                         */
 /* --------------------------------------------------------------------- */
 
-const LENS_SLOTS = ["Home", "Task Management", "Companies", "Workbook", "Search"] as const;
+const LENS_SLOTS = ["Home", "Task Management", "Workbook", "Search"] as const;
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
@@ -457,7 +347,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
 /* The bottom-floating pill (mobile only)                                 */
 /* --------------------------------------------------------------------- */
 
-export function TopPill({ companies = [] }: { companies?: Company[] }) {
+export function TopPill() {
   const pathname = usePathname() || "/";
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -468,7 +358,6 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
   function selectSlot(label: string) {
     if (label === "Home") router.push("/");
     else if (label === "Task Management") router.push("/?tab=tasks");
-    else if (label === "Companies") router.push("/companies");
     else if (label === "Workbook") router.push("/workbook");
     else if (label === "Search") openPalette();
   }
@@ -476,7 +365,6 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
   const onHub = pathname === "/";
   const homeActive = onHub && tab !== "tasks";
   const tasksActive = onHub && tab === "tasks";
-  const companiesActive = pathname.startsWith("/companies");
   const workbookActive = pathname.startsWith("/workbook");
 
   return (
@@ -492,7 +380,6 @@ export function TopPill({ companies = [] }: { companies?: Company[] }) {
         <NavLens containerRef={pillRef} onSelect={selectSlot} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
-        <CompaniesNavTab companies={companies} active={companiesActive} />
         <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
         <MoreSheet pathname={pathname} />
 

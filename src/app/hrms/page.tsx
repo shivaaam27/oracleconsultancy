@@ -1,15 +1,29 @@
-import { Package, Sparkles } from "lucide-react";
+import { Package, Sparkles, Building2, Users, FileText } from "lucide-react";
 import { RegistryCard, type RegistryStat } from "@/components/hrms/registry-card";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
 import { listAreas } from "@/lib/cleaning";
+import { listDocuments, deriveDocStatus } from "@/lib/documents";
+import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
 
 export default async function HrmsHubPage() {
   // Live snapshots for the cards.
-  const [{ items, purchases, issues }, areas] = await Promise.all([loadStock(), listAreas()]);
-  const m = dashboardMetrics(items, purchases, issues);
+  const [
+    { items, purchases, issues },
+    areas,
+    documents,
+    { count: companyCount },
+    { count: peopleCount },
+  ] = await Promise.all([
+    loadStock(),
+    listAreas(),
+    listDocuments(),
+    sb.from("companies").select("*", { count: "exact", head: true }).eq("active", true),
+    sb.from("people").select("*", { count: "exact", head: true }).eq("active", true),
+  ]);
 
+  const m = dashboardMetrics(items, purchases, issues);
   const oecrStats: RegistryStat[] = [
     { label: `${m.totalItems} item${m.totalItems === 1 ? "" : "s"}` },
     ...(m.reorder > 0 ? [{ label: `${m.reorder} to reorder`, tone: "warn" as const }] : []),
@@ -17,6 +31,14 @@ export default async function HrmsHubPage() {
     ...(m.reorder === 0 && m.outOfStock === 0 && m.totalItems > 0
       ? [{ label: "all in good stock", tone: "success" as const }]
       : []),
+  ];
+
+  const docExpired = documents.filter((d) => deriveDocStatus(d) === "Expired").length;
+  const docExpiring = documents.filter((d) => deriveDocStatus(d) === "Expiring").length;
+  const docStats: RegistryStat[] = [
+    { label: `${documents.length} tracked` },
+    ...(docExpired > 0 ? [{ label: `${docExpired} expired`, tone: "danger" as const }] : []),
+    ...(docExpiring > 0 ? [{ label: `${docExpiring} expiring`, tone: "warn" as const }] : []),
   ];
 
   return (
@@ -43,6 +65,30 @@ export default async function HrmsHubPage() {
           description="Daily cleaning checklist — tick each area as it's done, add comments, and sign off the day."
           icon={Sparkles}
           stats={[{ label: `${areas.length} area${areas.length === 1 ? "" : "s"}` }]}
+        />
+        <RegistryCard
+          href="/companies"
+          abbr="Companies"
+          title="Portfolio companies"
+          description="The 7 portfolio companies — open one for its tasks, people, risk and activity."
+          icon={Building2}
+          stats={[{ label: `${companyCount ?? 0} compan${(companyCount ?? 0) === 1 ? "y" : "ies"}` }]}
+        />
+        <RegistryCard
+          href="/people"
+          abbr="People"
+          title="People & contacts"
+          description="Staff, expats and external contacts — roles, companies, channels and reminder drafts."
+          icon={Users}
+          stats={[{ label: `${peopleCount ?? 0} ${(peopleCount ?? 0) === 1 ? "person" : "people"}` }]}
+        />
+        <RegistryCard
+          href="/documents"
+          abbr="Documents"
+          title="Documents & Compliance"
+          description="Licences, contracts, certificates, insurance, leases and visas — with expiry dates and reminders."
+          icon={FileText}
+          stats={docStats}
         />
       </div>
     </div>
