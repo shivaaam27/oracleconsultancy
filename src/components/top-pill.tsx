@@ -310,18 +310,17 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
   const x = useMotionValue(0);
   const scaleX = useMotionValue(1);
   const scaleY = useMotionValue(1);
-  // Counter-scale so the magnified icon stays crisp while the glass squishes.
-  const invX = useTransform(scaleX, (v) => 1 / v);
-  const invY = useTransform(scaleY, (v) => 1 / v);
-  // Velocity-driven chromatic split + specular glare (springy so they ease back).
+  // Velocity-driven specular glare (springy so it eases back at rest).
   const rawShift = useMotionValue(0);
   const shift = useSpring(rawShift, { stiffness: 300, damping: 22, mass: 0.4 });
-  const redX = useTransform(shift, (v) => -v);
-  const cyanX = useTransform(shift, (v) => v);
   const glareX = useTransform(shift, (v) => -v * 1.4);
   const [visible, setVisible] = useState(false);
   const [activeLabel, setActiveLabel] = useState<string>("Home");
   const [box, setBox] = useState({ w: 44, h: 40, top: 0 });
+  // Measured slot centres for the in-lens clone of the real icons.
+  const [slots, setSlots] = useState<{ label: string; center: number }[]>([]);
+  // Shift the clone so the slice under the lens overlays the real nav exactly.
+  const cloneShift = useTransform(x, (v) => box.w / 2 - v);
   // Reduce Motion / Reduce Transparency → a plain solid highlight, no optics.
   const [plain, setPlain] = useState(false);
   const plainRef = useRef(false);
@@ -377,6 +376,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
         try { c.setPointerCapture(e.pointerId); } catch { /* ignore */ }
         const first = s.slots[0];
         setBox({ w: first.w + 6, h: first.h, top: first.top });
+        setSlots(s.slots.map((sl) => ({ label: sl.label, center: sl.center })));
         x.set(clampPx(e.clientX - s.left));
         setVisible(true);
       }
@@ -437,36 +437,34 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
             "pointer-events-none absolute z-20 flex items-center justify-center overflow-hidden rounded-[1.1rem]",
             plain
               ? "bg-accent-soft ring-1 ring-accent/30"
-              : "glass-refract bg-white/14 dark:bg-white/10 ring-1 ring-white/45 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_5px_16px_-5px_rgba(0,0,0,0.4)] backdrop-blur-[2px] backdrop-saturate-[1.6]"
+              : "glass-refract bg-white/8 dark:bg-white/[0.07] ring-1 ring-white/45 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_5px_16px_-5px_rgba(0,0,0,0.4)] backdrop-blur-[3px] backdrop-saturate-[1.5]"
           )}
         >
           {!plain && (
             <>
-              {/* Specular glare — a soft highlight that lags the motion. */}
-              <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/45 blur-[3px]" />
-
-              {/* Magnified "loupe" of the icon beneath, with velocity chromatic split. */}
-              <motion.span style={{ scaleX: invX, scaleY: invY }} className="relative flex items-center justify-center">
-                <AnimatePresence mode="popLayout" initial={false}>
-                  {(() => {
-                    const Icon = LENS_ICON[activeLabel] ?? Home;
+              {/* Refracted clone of the REAL icons beneath — magnified, edge-bent
+                  and chromatically aberrated via an SVG element filter (Safari-safe).
+                  No injected icon: the active tab shows accent because it's the
+                  real content. */}
+              <motion.div style={{ x: cloneShift, scale: 1.14 }} className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-0" style={{ filter: "url(#cos-lens-refract)" }}>
+                  {slots.map((sl) => {
+                    const Icon = LENS_ICON[sl.label] ?? Home;
                     return (
-                      <motion.span
-                        key={activeLabel}
-                        initial={{ opacity: 0, scale: 0.6 }}
-                        animate={{ opacity: 1, scale: 1.42 }}
-                        exit={{ opacity: 0, scale: 0.6 }}
-                        transition={{ type: "spring", stiffness: 480, damping: 26 }}
-                        className="relative inline-flex"
+                      <span
+                        key={sl.label}
+                        style={{ left: sl.center, top: "50%", transform: "translate(-50%,-50%)" }}
+                        className={cn("absolute", sl.label === activeLabel ? "text-accent" : "text-fg-muted")}
                       >
-                        <motion.span aria-hidden style={{ x: redX }} className="absolute inset-0 inline-flex items-center justify-center text-red-500/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
-                        <motion.span aria-hidden style={{ x: cyanX }} className="absolute inset-0 inline-flex items-center justify-center text-cyan-400/70 mix-blend-screen"><Icon size={20} strokeWidth={2.2} /></motion.span>
-                        <span className="relative text-accent drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]"><Icon size={20} strokeWidth={2.2} /></span>
-                      </motion.span>
+                        <Icon size={20} strokeWidth={2.2} />
+                      </span>
                     );
-                  })()}
-                </AnimatePresence>
-              </motion.span>
+                  })}
+                </div>
+              </motion.div>
+
+              {/* Specular glare — a soft highlight that lags the motion. */}
+              <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/40 blur-[3px]" />
             </>
           )}
         </motion.div>

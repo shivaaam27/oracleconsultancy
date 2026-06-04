@@ -64,31 +64,39 @@ export function LiquidGlassDefs() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const supported = isChromium() && "CSS" in window;
-    if (!supported) {
-      document.documentElement.dataset.refract = "0";
-      return;
-    }
+    // The displacement map is needed for element `filter` too (works in Safari),
+    // so generate it everywhere. `data-refract` still gates the Chromium-only
+    // backdrop-filter usage on `.glass-refract`.
+    document.documentElement.dataset.refract = isChromium() && "CSS" in window ? "1" : "0";
     try {
       const url = buildDisplacementMap();
-      if (url) {
-        setMapUrl(url);
-        document.documentElement.dataset.refract = "1";
-      } else {
-        document.documentElement.dataset.refract = "0";
-      }
-    } catch {
-      document.documentElement.dataset.refract = "0";
-    }
+      if (url) setMapUrl(url);
+    } catch { /* fall back to plain glass */ }
   }, []);
 
   if (!mapUrl) return null;
   return (
     <svg width="0" height="0" aria-hidden style={{ position: "absolute", pointerEvents: "none" }}>
       <defs>
+        {/* Backdrop lens (Chromium only — used by .glass-refract as backdrop-filter). */}
         <filter id="cos-liquid-glass" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
           <feImage href={mapUrl} result="map" preserveAspectRatio="none" />
           <feDisplacementMap in="SourceGraphic" in2="map" scale="14" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+
+        {/* Element lens (works in Safari via `filter:`): edge refraction + chromatic
+            aberration — the R/G/B channels are displaced by different amounts so the
+            content fringes at the curved edges, like real glass. */}
+        <filter id="cos-lens-refract" x="-25%" y="-25%" width="150%" height="150%" colorInterpolationFilters="sRGB">
+          <feImage href={mapUrl} result="map" preserveAspectRatio="none" />
+          <feDisplacementMap in="SourceGraphic" in2="map" scale="22" xChannelSelector="R" yChannelSelector="G" result="dR" />
+          <feColorMatrix in="dR" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cR" />
+          <feDisplacementMap in="SourceGraphic" in2="map" scale="15" xChannelSelector="R" yChannelSelector="G" result="dG" />
+          <feColorMatrix in="dG" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cG" />
+          <feDisplacementMap in="SourceGraphic" in2="map" scale="9" xChannelSelector="R" yChannelSelector="G" result="dB" />
+          <feColorMatrix in="dB" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cB" />
+          <feBlend in="cR" in2="cG" mode="screen" result="rg" />
+          <feBlend in="rg" in2="cB" mode="screen" />
         </filter>
       </defs>
     </svg>
