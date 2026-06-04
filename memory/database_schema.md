@@ -8,7 +8,9 @@ metadata:
 
 # Database Schema
 
-Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; latest is `drizzle/0018_document_files.sql`. Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns), `0017` (documents + document_links), `0018` (documents.storage_path/file_name).
+Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; latest is `drizzle/0017_yummy_mad_thinker.sql` (HRMS stock tables — see note below). Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns), `0017` (documents + document_links), `0018` (documents.storage_path/file_name).
+
+> Migration-numbering note: `0017_documents_compliance` and `0018_document_files` were applied manually (outside the Drizzle journal, like the `0000` baseline), so the journal's last entry was `0016`. When the HRMS stock tables were generated, drizzle-kit numbered them `0017_yummy_mad_thinker` and re-emitted the (already-existing) documents tables; that file was trimmed by hand to the three new `stock_*` tables only before `db:migrate`. Future `db:generate` runs see a clean snapshot.
 
 ## Core
 
@@ -103,6 +105,19 @@ Tracks licences, contracts, certificates, registrations, insurance, leases, perm
 
 ### document_links
 `document_id, task_id, created_at`. Composite PK `(document_id, task_id)`. Links a renewal/action task back to its document; mirrors `meeting_tasks`.
+
+## HRMS — Stock Control
+
+First module of the HRMS page (Phase 1: data layer only). Mirrors the Excel stock workbook. Pure maths (source of truth) lives in `src/lib/stock-shared.ts` (client-safe); Supabase helpers in `src/lib/stock.ts`. **Current stock is never stored** — it is derived at read time: `currentStock = openingStock + Σ purchases − Σ issues` (same pattern as `deriveDocStatus`). `stockStatus` → `OK` / `Reorder` (≤ reorderLevel) / `Out of Stock` (≤ 0).
+
+### stock_items
+`id, code (unique, e.g. ST-001), name, category, unit, opening_stock, reorder_level, unit_cost, archived, created_at, updated_at, created_by`. Soft-delete via `archived`.
+
+### stock_purchases
+Stock IN. `id, date, item_code (FK→stock_items.code, cascade), qty, unit_cost, supplier, ref (invoice/PO), created_at, created_by`. Each row raises the item's current stock.
+
+### stock_issues
+Stock OUT. `id, date, item_code (FK→stock_items.code, cascade), qty, issued_to, company_id (FK→companies, set null — tags the issue to one of the 7 portfolio companies, replaces the demo's free-text "entity"), notes, created_at, created_by`. `recordIssue` blocks taking stock negative by default (`InsufficientStockError`); pass `{ allowNegative: true }` to override.
 
 ## Analytics and System
 

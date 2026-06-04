@@ -120,6 +120,13 @@
       "when": 1780516188880,
       "tag": "0016_nice_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1780599018955,
+      "tag": "0017_yummy_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

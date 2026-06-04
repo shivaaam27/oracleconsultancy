@@ -311,3 +311,51 @@ export const documentLinks = pgTable(
   },
   (t) => [primaryKey({ columns: [t.documentId, t.taskId] })]
 );
+
+// HRMS — Stock Control module. Mirrors the Excel stock workbook: an item
+// register plus two movement ledgers (purchases IN, issues OUT). Current stock
+// is never stored — it is DERIVED (opening + purchased − issued) at read time
+// in src/lib/stock-shared.ts, the same way document/task status is derived.
+export const stockItems = pgTable("stock_items", {
+  id: serial("id").primaryKey(),
+  // Human code, e.g. "ST-001". Movements link to this, so it is unique.
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  category: text("category"),
+  unit: text("unit"),
+  openingStock: integer("opening_stock").notNull().default(0),
+  reorderLevel: integer("reorder_level").notNull().default(0),
+  unitCost: doublePrecision("unit_cost").notNull().default(0),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// Stock IN. Each row raises the linked item's current stock automatically.
+export const stockPurchases = pgTable("stock_purchases", {
+  id: serial("id").primaryKey(),
+  date: timestamp("date", { mode: "date", withTimezone: true }).notNull(),
+  itemCode: text("item_code").notNull().references(() => stockItems.code, { onDelete: "cascade" }),
+  qty: integer("qty").notNull(),
+  unitCost: doublePrecision("unit_cost").notNull().default(0),
+  supplier: text("supplier"),
+  ref: text("ref"), // invoice / PO number
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// Stock OUT. Each row lowers the linked item's current stock automatically.
+// `companyId` tags the issue to one of the 7 portfolio companies (replaces the
+// reference UI's free-text "entity"), so stock can be filtered per company.
+export const stockIssues = pgTable("stock_issues", {
+  id: serial("id").primaryKey(),
+  date: timestamp("date", { mode: "date", withTimezone: true }).notNull(),
+  itemCode: text("item_code").notNull().references(() => stockItems.code, { onDelete: "cascade" }),
+  qty: integer("qty").notNull(),
+  issuedTo: text("issued_to"),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
