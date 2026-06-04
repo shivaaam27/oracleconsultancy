@@ -186,7 +186,7 @@ export default async function TaskPage({
           <ArrowLeft size={16} />
         </Link>
         <div className="flex items-center gap-2 text-xs text-fg-muted min-w-0">
-          <Link href={`/companies/${r.companyId}`} className="truncate hover:text-accent transition-colors">{r.companyName}</Link>
+          <Link href={`/companies/${r.companyId}?from=task:${r.code}`} className="truncate hover:text-accent transition-colors">{r.companyName}</Link>
           <span className="text-fg-subtle">·</span>
           <span className="font-mono">{r.code}</span>
         </div>

@@ -1,5 +1,6 @@
 import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
 import { PageHeader } from "@/components/ui";
+import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import Link from "next/link";
 import { Building2, AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
 
@@ -11,11 +12,17 @@ function riskTint(score: number): { label: string; cls: string } {
   return { label: "Healthy", cls: "bg-success-soft/70 ring-1 ring-success/30 text-success" };
 }
 
-export default async function CompaniesPage() {
+export default async function CompaniesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
   const rows = await getAllTasks();
   const companies = computeCompanyKpis(rows);
   return (
     <div className="space-y-5">
+      <HrmsCrumbs from={from} />
       <PageHeader title="Companies" sub={`${companies.length} companies tracked`} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

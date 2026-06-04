@@ -1,12 +1,18 @@
 import { PageHeader } from "@/components/ui";
 import { PeopleTable } from "@/components/people-table";
 import { NewPersonButton } from "@/components/new-person-button";
+import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
 
-export default async function PeoplePage() {
+export default async function PeoplePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
   const [people, { data: companiesRaw }] = await Promise.all([
     getAllPeopleWithWorkload(),
     sb.from("companies").select("id,name").order("name"),
@@ -25,6 +31,7 @@ export default async function PeoplePage() {
 
   return (
     <div className="space-y-4 max-w-4xl">
+      <HrmsCrumbs from={from} />
       <PageHeader
         title="People Directory"
         sub={`${activeCount} active · ${overdueLoad} carrying overdue work`}

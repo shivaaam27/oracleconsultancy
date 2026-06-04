@@ -1,11 +1,17 @@
 import { PageHeader } from "@/components/ui";
 import { DocumentsTable } from "@/components/documents-table";
+import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
 
-export default async function DocumentsPage() {
+export default async function DocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
   const [documents, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments({ includeArchived: true }),
     sb.from("companies").select("id,name,accent_color").order("name"),
@@ -36,6 +42,7 @@ export default async function DocumentsPage() {
 
   return (
     <div className="space-y-4 max-w-4xl">
+      <HrmsCrumbs from={from} />
       <PageHeader title="Documents & Compliance" sub={sub} />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>
