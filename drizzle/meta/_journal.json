@@ -127,6 +127,13 @@
       "when": 1780599018955,
       "tag": "0017_yummy_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780607455000,
+      "tag": "0018_glamorous_lady_vermin",
+      "breakpoints": true
     }
   ]
 }

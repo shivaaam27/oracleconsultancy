@@ -359,3 +359,49 @@ export const stockIssues = pgTable("stock_issues", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
 });
+
+// HRMS — OCR (Office Cleaning Registry). Digital version of the paper daily
+// cleaning checklist: one shared "Oracle Office" register. The areas are the
+// "columns" of the sheet (editable); each day has one row; each area gets a
+// tick + time + optional comment for that day. Completion % is DERIVED.
+
+// The cleaning "columns" (Reception, Kitchen, …). Editable/orderable/retirable.
+export const cleaningAreas = pgTable("cleaning_areas", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+});
+
+// One row per calendar date. `date` is stored at UTC midnight (all-day), unique.
+// Attendance + sign-off reference People; signedAt locks the day.
+export const cleaningDays = pgTable(
+  "cleaning_days",
+  {
+    id: serial("id").primaryKey(),
+    date: timestamp("date", { mode: "date", withTimezone: true }).notNull(),
+    attendancePersonId: integer("attendance_person_id").references(() => people.id, { onDelete: "set null" }),
+    note: text("note"),
+    signedByPersonId: integer("signed_by_person_id").references(() => people.id, { onDelete: "set null" }),
+    signedByName: text("signed_by_name"),
+    signedAt: timestamp("signed_at", { mode: "date", withTimezone: true }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("cleaning_days_date_idx").on(t.date)]
+);
+
+// One tick per (day, area): done + when + optional comment.
+export const cleaningChecks = pgTable(
+  "cleaning_checks",
+  {
+    id: serial("id").primaryKey(),
+    dayId: integer("day_id").notNull().references(() => cleaningDays.id, { onDelete: "cascade" }),
+    areaId: integer("area_id").notNull().references(() => cleaningAreas.id, { onDelete: "cascade" }),
+    done: boolean("done").notNull().default(false),
+    doneAt: timestamp("done_at", { mode: "date", withTimezone: true }),
+    comment: text("comment"),
+  },
+  (t) => [uniqueIndex("cleaning_checks_day_area_idx").on(t.dayId, t.areaId)]
+);

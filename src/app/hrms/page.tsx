@@ -1,12 +1,13 @@
 import { Package, Sparkles } from "lucide-react";
 import { RegistryCard, type RegistryStat } from "@/components/hrms/registry-card";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
+import { listAreas } from "@/lib/cleaning";
 
 export const dynamic = "force-dynamic";
 
 export default async function HrmsHubPage() {
-  // Live snapshot for the OECR card.
-  const { items, purchases, issues } = await loadStock();
+  // Live snapshots for the cards.
+  const [{ items, purchases, issues }, areas] = await Promise.all([loadStock(), listAreas()]);
   const m = dashboardMetrics(items, purchases, issues);
 
   const oecrStats: RegistryStat[] = [
@@ -39,9 +40,9 @@ export default async function HrmsHubPage() {
           href="/hrms/ocr"
           abbr="OCR"
           title="Office Cleaning Registry"
-          description="Keep cleaning records in one place. This registry is being set up."
+          description="Daily cleaning checklist — tick each area as it's done, add comments, and sign off the day."
           icon={Sparkles}
-          comingSoon
+          stats={[{ label: `${areas.length} area${areas.length === 1 ? "" : "s"}` }]}
         />
       </div>
     </div>

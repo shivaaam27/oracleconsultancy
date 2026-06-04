@@ -119,6 +119,19 @@ Stock IN. `id, date, item_code (FK→stock_items.code, cascade), qty, unit_cost,
 ### stock_issues
 Stock OUT. `id, date, item_code (FK→stock_items.code, cascade), qty, issued_to, company_id (FK→companies, set null — tags the issue to one of the 7 portfolio companies, replaces the demo's free-text "entity"), notes, created_at, created_by`. `recordIssue` blocks taking stock negative by default (`InsufficientStockError`); pass `{ allowNegative: true }` to override.
 
+## HRMS — OCR (Office Cleaning Registry)
+
+Second registry under `/hrms`, at `/hrms/ocr`. Digital version of the paper daily cleaning checklist — **one shared "Oracle Office" register**. Pure helpers/types in `src/lib/cleaning-shared.ts`; Supabase helpers in `src/lib/cleaning.ts`. Completion % is **derived** (done ticks ÷ active areas), never stored. Phase 1 = data layer + areas list page; the daily checklist UI is Phase 2.
+
+### cleaning_areas
+The editable "columns" of the register. `id, name, sort_order, active, created_at`. Seeded on first run with `DEFAULT_CLEANING_AREAS` (Reception, Directors Office, Staff Working Area, Board Room 1/2, "Daniel, Ashit and Jitesh Office", Admin Office, Kitchen, Office/Staff Washroom, Bathing Area, Outside Area) via `ensureDefaultAreas()` (no-op once any area exists). Retire via `active=false`.
+
+### cleaning_days
+One row per calendar date (unique index on `date`, stored at UTC midnight). `id, date, attendance_person_id (FK people, set null), note, signed_by_person_id (FK people, set null), signed_by_name, signed_at, created_at, updated_at`. Sign-off = tap-to-confirm + name; `signed_at` locks the day. `ensureDay(date)` creates the day plus blank checks for every active area.
+
+### cleaning_checks
+One tick per (day, area). `id, day_id (FK cleaning_days, cascade), area_id (FK cleaning_areas, cascade), done, done_at, comment`. Unique index `(day_id, area_id)`. `setCheck` upserts a tick + timestamps `done_at`.
+
 ## Analytics and System
 
 ### daily_snapshots
