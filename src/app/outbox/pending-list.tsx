@@ -138,7 +138,7 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
           No drafts match these filters.
         </Card>
       ) : density === "compact" ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {visible.map((a) => (
             <OutboxCard
               key={a.draft.recipientName}

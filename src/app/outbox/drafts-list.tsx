@@ -68,7 +68,7 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
   }
 
   return (
-    <div className="card border-l-4 border-l-accent/60 px-3 py-2.5 space-y-2">
+    <div className="bg-bg-elev border border-border border-l-[3px] border-l-accent/70 rounded-xl elevated px-3 py-2.5 space-y-2">
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-accent-soft text-accent shrink-0"><Icon size={13} /></span>
         <span className="font-medium text-sm truncate">{draft.recipientName}</span>

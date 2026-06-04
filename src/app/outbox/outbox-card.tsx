@@ -212,7 +212,7 @@ export function OutboxCard({
     return (
       <div
         className={cn(
-          "card border-l-[3px] pl-2.5 pr-2 py-2 flex items-center gap-2.5 hover:border-accent transition-colors",
+          "bg-bg-elev border border-border border-l-[3px] rounded-xl elevated pl-2.5 pr-2 py-2.5 flex items-center gap-2.5 hover:border-accent/60 hover:bg-bg-muted/30 transition-colors",
           stripeClass[u.level],
           hasScoped && "ring-1 ring-accent/30",
           sent && "opacity-60"
