@@ -6,7 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, Loader2, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
-  RotateCcw, Clock, ChevronDown,
+  RotateCcw, Clock, ChevronDown, Send,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -87,6 +87,15 @@ function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "i
 function whatsappHref(num: string) {
   // strip non-digits then prefix wa.me
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
+}
+
+/** Quick reminder text built from a person's open tasks. */
+function buildPersonReminder(name: string, tasks: { code: string; actionItem: string; status: string }[]): string {
+  const open = tasks.filter((t) => t.status !== "Completed" && t.status !== "Closed").slice(0, 8);
+  const lines = [`Hi ${name}, a quick reminder on your open items:`, ""];
+  open.forEach((t) => lines.push(`• ${t.actionItem} (${t.code})`));
+  lines.push("", "Please update the tracker when you can. Thanks.");
+  return lines.join("\n");
 }
 
 /* -------------------------------------------------------------------------
@@ -279,9 +288,9 @@ export function PersonDrawer() {
 
             {/* View mode — read-only profile + workload + tasks + activity */}
             {person && mode === "view" && (
-              <div className="p-5 space-y-5">
+              <div className="p-4 space-y-3.5">
                 {/* Role + Company + status */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-1.5 text-xs">
                     {person.role && (
                       <span className="inline-flex items-center gap-1 text-fg-muted">
@@ -351,12 +360,25 @@ export function PersonDrawer() {
                       <AlertCircle size={11} /> No contact info on file
                     </span>
                   )}
+                  {data && data.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const text = buildPersonReminder(person.name, data.assignedTasks);
+                        if (person.whatsapp) window.open(`${whatsappHref(person.whatsapp)}?text=${encodeURIComponent(text)}`, "_blank");
+                        else router.push("/outbox");
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity"
+                    >
+                      <Send size={12} /> Remind
+                    </button>
+                  )}
                 </div>
 
                 {/* Workload — compact tinted chips */}
                 {data && (
                   <div>
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle mb-2">Workload</div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Workload</div>
                     <div className="flex flex-wrap gap-1.5">
                       {[
                         { label: "Open", value: data.workload.open, tone: "info" as const },
@@ -387,8 +409,8 @@ export function PersonDrawer() {
                 {/* Notes */}
                 {person.notes && (
                   <div>
-                    <div className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-2">Notes</div>
-                    <p className="text-sm text-fg-muted leading-relaxed whitespace-pre-wrap">{person.notes}</p>
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Notes</div>
+                    <p className="text-xs text-fg-muted leading-relaxed whitespace-pre-wrap">{person.notes}</p>
                   </div>
                 )}
 
