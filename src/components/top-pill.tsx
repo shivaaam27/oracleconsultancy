@@ -7,7 +7,7 @@ import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresen
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, Building2, NotebookPen, LayoutGrid, Search,
-  Users, Send, Inbox, BarChart3, Settings, Plus, type LucideIcon,
+  Users, Send, Inbox, BarChart3, Settings, Plus, FileText, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -161,6 +161,7 @@ function CompaniesNavTab({ companies, active }: { companies: Company[]; active: 
 
 const MORE: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/people", label: "People", icon: Users },
+  { href: "/documents", label: "Documents", icon: FileText },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },

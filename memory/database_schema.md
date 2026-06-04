@@ -8,7 +8,7 @@ metadata:
 
 # Database Schema
 
-Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; latest is `drizzle/0016_nice_zombie.sql`. Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns).
+Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; latest is `drizzle/0018_document_files.sql`. Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns), `0017` (documents + document_links), `0018` (documents.storage_path/file_name).
 
 ## Core
 
@@ -93,6 +93,16 @@ Now backs **two** flows: (1) the legacy human-readable send record (`status` "Se
 `id, title, done, important, due_at, company_id, person_id, task_id, created_at, completed_at`.
 
 The personal to-do list (Workbook → To-do). `important` is the star flag; `person_id` is the assignee (feeds Outbox reminders); `task_id` links a to-do that was **promoted to a tracked task**. See `todos.md`.
+
+## Compliance & Documents
+
+### documents
+`id, title, company_id?, person_id?, category, doc_type, issuer, reference_no, issue_date, expiry_date, reminder_lead_days, file_url?, storage_path?, file_name?, notes, archived, created_at, updated_at, created_by`.
+
+Tracks licences, contracts, certificates, registrations, insurance, leases, permits, immigration/visas, tax filings. `file_url` is an optional external link (Drive/email). **In-app uploads** (Phase 4, migration `0018`): `storage_path` is the object key in the private Supabase Storage bucket **`documents`** (created via `scripts/create-documents-bucket.ts`, 20 MB limit) and `file_name` is the original name. Files are served via short-lived signed URLs (`signDocumentFile` / `getDocumentFileLinkAction`). Uploads ride server actions, so `next.config.ts` sets `serverActions.bodySizeLimit: "25mb"`. Owned by a company and/or a person (both `set null` on delete). Lifecycle status (Valid / Expiring / Expired / No expiry / Archived) is **derived** at read time in `src/lib/documents.ts` (`deriveDocStatus`), never stored — mirrors `derive.ts` for tasks. `reminder_lead_days` (default 30, category defaults in `DEFAULT_LEAD_DAYS`) drives expiry reminders. Soft-delete via `archived`. Indexes on `expiry_date` and `company_id`.
+
+### document_links
+`document_id, task_id, created_at`. Composite PK `(document_id, task_id)`. Links a renewal/action task back to its document; mirrors `meeting_tasks`.
 
 ## Analytics and System
 

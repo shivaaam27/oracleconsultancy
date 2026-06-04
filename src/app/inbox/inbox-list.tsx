@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy, FileText } from "lucide-react";
 import { dismissInboxItem, updateInboxBody, type InboxItem } from "./actions";
 import { SwipeRow } from "@/components/swipe-row";
 
@@ -68,6 +68,13 @@ export function InboxList({ items }: { items: InboxItem[] }) {
     params.set("text", item.body);
     params.set("inbox", String(item.id));
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  function fileAsDoc(item: InboxItem) {
+    const params = new URLSearchParams();
+    params.set("newdoc", "1");
+    params.set("text", item.subject ? `${item.subject}\n${item.body}` : item.body);
+    router.push(`/documents?${params.toString()}`);
   }
 
   function dismiss(id: number) {
@@ -184,6 +191,14 @@ export function InboxList({ items }: { items: InboxItem[] }) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition-opacity"
                 >
                   <Sparkles size={13} /> File it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileAsDoc(item)}
+                  title="File as a compliance document"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+                >
+                  <FileText size={13} /> As document
                 </button>
                 <button
                   type="button"

@@ -7,6 +7,9 @@ import { HomeActions } from "./home-actions";
 import { AttentionList } from "@/components/attention-list";
 import { CompaniesWidget, type CompanyGlance } from "@/components/companies-widget";
 import { TodayTodos } from "@/components/today-todos";
+import { ExpiringDocs, type ExpiringDocItem } from "@/components/expiring-docs";
+import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
+import { sb } from "@/db/supabase";
 import type { AttnItem } from "@/components/attention-panel";
 import type { Todo } from "@/app/todos/actions";
 
@@ -76,6 +79,26 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   }
   const companyGlances = [...byCompany.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name));
 
+  // Documents that are expired or inside their reminder window — soonest first.
+  const [documents, { data: companyRows }] = await Promise.all([
+    listDocuments(),
+    sb.from("companies").select("id,name"),
+  ]);
+  const companyNameById = new Map<number, string>((companyRows ?? []).map((c) => [c.id as number, c.name as string]));
+  const expiringDocs: ExpiringDocItem[] = documents
+    .map((d) => ({ d, status: deriveDocStatus(d), dte: daysToExpiry(d) }))
+    .filter((x) => x.status === "Expired" || x.status === "Expiring")
+    .sort((a, b) => (a.dte ?? Infinity) - (b.dte ?? Infinity))
+    .slice(0, 6)
+    .map(({ d, status }) => ({
+      id: d.id,
+      title: d.title,
+      companyName: d.companyId ? companyNameById.get(d.companyId) ?? null : null,
+      expiryLabel: expiryLabel(d),
+      status,
+      urgent: status === "Expired",
+    }));
+
   return (
     <div className="space-y-4">
       <HomeActions />
@@ -86,6 +109,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         lon={settings.weatherLon}
       />
       <TodayTodos todos={todayTodos} />
+      <ExpiringDocs items={expiringDocs} />
       <AttentionList items={attnItems} swipeRight={settings.swipeRightAction} swipeLeft={settings.swipeLeftAction} />
       <CompaniesWidget companies={companyGlances} />
     </div>

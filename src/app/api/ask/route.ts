@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
+import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
 
@@ -15,6 +16,7 @@ STYLE:
 - British English.
 - Use task codes in brackets, e.g. [DAR-007].
 - If using meeting notes or minutes, name the meeting and date.
+- For compliance questions, use CONTEXT.documents: name the document, its company, status (Valid/Expiring/Expired) and expiry date. Flag anything expired or expiring soon first.
 - If the answer is a list, use compact bullet points (one line each, no nested bullets).
 - If the answer is a recommendation or summary, use 2-4 sentence prose.
 - If the data doesn't contain enough information, say so plainly: "Not enough data — try X."
@@ -105,6 +107,7 @@ async function buildContext(question: string, page?: PageCtx) {
   const wantsEscalated = /escalat/.test(question.toLowerCase());
   const wantsClosed = /complet|done|closed|finished/.test(question.toLowerCase());
   const wantsMeetings = /meeting|minutes|notes|decision|decided|discussion|discussed|attendee|risk|blocker|follow.up|followup/.test(question.toLowerCase());
+  const wantsDocuments = /document|licen[cs]e|certificate|permit|registration|insurance|lease|visa|passport|expir|renew|complian|contract|tax|tin/.test(question.toLowerCase());
   const wantsPlanDay = /\bplan (my|the) day\b|organi[sz]e my day|what should i (do|focus|tackle|work on)( today)?|today'?s plan|\bmy day\b/.test(question.toLowerCase());
 
   // Personal to-dos due today (and anything overdue) — the heart of "plan my day".
@@ -301,10 +304,50 @@ async function buildContext(question: string, page?: PageCtx) {
     }
   }
 
+  // Documents: always surface anything expired/expiring (compliance is always
+  // relevant); when the question is document-related, include valid ones too,
+  // and match by keyword/company.
+  let documentCtx: Array<{
+    title: string; company: string | null; category: string | null;
+    status: string; expiry: string | null; daysToExpiry: number | null;
+    issuer: string | null; reference: string | null;
+  }> = [];
+  try {
+    const allDocs = await listDocuments();
+    const matchedCompanyIds = new Set(matchedCompanies.map((c) => c.id));
+    const scored = allDocs.map((d) => {
+      const status = deriveDocStatus(d);
+      const urgent = status === "Expired" || status === "Expiring";
+      const kwHit = tokens.some(
+        (t) => d.title.toLowerCase().includes(t) || (d.category?.toLowerCase().includes(t) ?? false) ||
+          (d.docType?.toLowerCase().includes(t) ?? false) || (d.issuer?.toLowerCase().includes(t) ?? false)
+      );
+      const companyHit = d.companyId != null && matchedCompanyIds.has(d.companyId);
+      return { d, status, include: urgent || (wantsDocuments && (kwHit || companyHit || true)) };
+    });
+    documentCtx = scored
+      .filter((x) => x.include)
+      .sort((a, b) => (daysToExpiry(a.d) ?? Infinity) - (daysToExpiry(b.d) ?? Infinity))
+      .slice(0, 20)
+      .map(({ d, status }) => ({
+        title: d.title,
+        company: d.companyId ? cMap.get(d.companyId) ?? null : null,
+        category: d.category,
+        status,
+        expiry: d.expiryDate ? d.expiryDate.toISOString().slice(0, 10) : null,
+        daysToExpiry: daysToExpiry(d),
+        issuer: d.issuer,
+        reference: d.referenceNo,
+      }));
+  } catch {
+    /* documents are best-effort context */
+  }
+
   return {
     today: new Date().toISOString().slice(0, 10),
     planDay: wantsPlanDay,
     todos,
+    documents: documentCtx,
     currentPage: page
       ? {
           label: page.label ?? null,

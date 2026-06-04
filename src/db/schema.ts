@@ -263,3 +263,51 @@ export const todos = pgTable("todos", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
 });
+
+// Compliance & Documents centre — tracks licences, contracts, certificates,
+// registrations, insurance, leases, permits, immigration/visas, tax filings, etc.
+// Owner decision: track details only (file_url is an optional link to where the
+// file lives, e.g. Drive/email); company + optional person ownership. Status is
+// DERIVED at read time (Valid / Expiring soon / Expired / No expiry), never stored.
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  // Most documents belong to a company; some also (or instead) to a person
+  // (e.g. an expat's passport/visa). Either or both may be set.
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  // Licence | Contract | Certificate | Registration | Insurance | Lease | Permit
+  // | Immigration | Tax | Other.
+  category: text("category"),
+  // Free-text specific type, e.g. "Trade Licence", "Work Permit", "TIN".
+  docType: text("doc_type"),
+  issuer: text("issuer"),
+  referenceNo: text("reference_no"),
+  issueDate: timestamp("issue_date", { mode: "date", withTimezone: true }),
+  expiryDate: timestamp("expiry_date", { mode: "date", withTimezone: true }),
+  // How many days before expiry the reminder engine should start nudging.
+  reminderLeadDays: integer("reminder_lead_days").notNull().default(30),
+  // Optional link to where the actual file lives (Drive/email).
+  fileUrl: text("file_url"),
+  // In-app uploaded file (Supabase Storage, private "documents" bucket):
+  // storagePath is the object key; fileName is the original name for display.
+  storagePath: text("storage_path"),
+  fileName: text("file_name"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// Links a renewal/action task back to the document it concerns. Mirrors
+// meeting_tasks so a document can show its created tasks and vice-versa.
+export const documentLinks = pgTable(
+  "document_links",
+  {
+    documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.documentId, t.taskId] })]
+);

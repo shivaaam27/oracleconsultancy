@@ -1,5 +1,7 @@
 import { getAllTasks, statusBreakdown, priorityBreakdown, type TaskRow } from "@/lib/queries";
 import { PageHeader } from "@/components/ui";
+import { listDocuments, deriveDocStatus } from "@/lib/documents";
+import { sb } from "@/db/supabase";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +47,28 @@ export default async function InsightsPage() {
   const companyRows = [...companyAgg.entries()].map(([id, v]) => ({ id, ...v })).sort((a, b) => b.open - a.open);
   const maxCompanyOpen = Math.max(...companyRows.map((c) => c.open), 1);
 
+  // Compliance health: per-company document status roll-up.
+  const [documents, { data: compRows }] = await Promise.all([
+    listDocuments(),
+    sb.from("companies").select("id,name"),
+  ]);
+  const compNameById = new Map<number, string>((compRows ?? []).map((c) => [c.id as number, c.name as string]));
+  type DocAgg = { id: number; name: string; total: number; valid: number; expiring: number; expired: number };
+  const docAgg = new Map<number, DocAgg>();
+  let unassignedDocs = 0;
+  for (const d of documents) {
+    if (!d.companyId) { unassignedDocs += 1; continue; }
+    const cur = docAgg.get(d.companyId) ?? { id: d.companyId, name: compNameById.get(d.companyId) ?? "—", total: 0, valid: 0, expiring: 0, expired: 0 };
+    cur.total += 1;
+    const s = deriveDocStatus(d);
+    if (s === "Expired") cur.expired += 1;
+    else if (s === "Expiring") cur.expiring += 1;
+    else cur.valid += 1;
+    docAgg.set(d.companyId, cur);
+  }
+  const docCompanyRows = [...docAgg.values()].sort((a, b) => (b.expired - a.expired) || (b.expiring - a.expiring) || b.total - a.total);
+  const totalDocs = documents.length;
+
   return (
     <div className="space-y-5 max-w-3xl">
       <PageHeader title="Insights" sub="Portfolio distribution across companies, status, and priority." />
@@ -63,6 +87,35 @@ export default async function InsightsPage() {
           ))}
         </div>
       </section>
+
+      {totalDocs > 0 && (
+        <section className="space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">Compliance by company</p>
+          <div className="glass elevated rounded-2xl p-4 space-y-2.5">
+            {docCompanyRows.map((c) => (
+              <Link key={c.id} href="/documents" className="grid grid-cols-[140px_1fr_auto] items-center gap-3 text-sm group">
+                <div className="truncate text-fg group-hover:text-accent transition-colors">{c.name}</div>
+                <div className="flex items-center gap-1.5 h-2.5 rounded-full overflow-hidden bg-bg-muted">
+                  {c.expired > 0 && <div className="h-full bg-danger" style={{ width: `${(c.expired / c.total) * 100}%` }} title={`${c.expired} expired`} />}
+                  {c.expiring > 0 && <div className="h-full bg-warn" style={{ width: `${(c.expiring / c.total) * 100}%` }} title={`${c.expiring} expiring`} />}
+                  {c.valid > 0 && <div className="h-full bg-success" style={{ width: `${(c.valid / c.total) * 100}%` }} title={`${c.valid} valid`} />}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {c.expired > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-danger-soft/60 text-danger">{c.expired}</span>}
+                  {c.expiring > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-warn-soft/60 text-warn">{c.expiring}</span>}
+                  <span className="text-[11px] text-fg-subtle tabular w-6 text-right">{c.total}</span>
+                </div>
+              </Link>
+            ))}
+            <p className="text-[11px] text-fg-subtle pt-1 flex items-center gap-3">
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-danger" /> expired</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warn" /> expiring</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success" /> valid</span>
+              {unassignedDocs > 0 && <span className="ml-auto">{unassignedDocs} not linked to a company</span>}
+            </p>
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section>

@@ -4,6 +4,7 @@ import {
   Settings,
   NotebookPen,
   Inbox,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "inbox",       href: "/inbox",       label: "Inbox",      icon: Inbox },
   { id: "meeting",     href: "/workbook",    label: "Workbook",   icon: NotebookPen },
   { id: "people",      href: "/people",      label: "People",     icon: Users },
+  { id: "documents",   href: "/documents",   label: "Documents",  icon: FileText },
   { id: "outbox",      href: "/outbox",      label: "Outbox",     icon: Send },
   { id: "settings",    href: "/settings",    label: "Settings",   icon: Settings },
 ];
