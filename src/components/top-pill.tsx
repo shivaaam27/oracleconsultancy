@@ -236,61 +236,61 @@ function navIcon(action: ContextAction) {
 function NavActionButton() {
   const { actions, suppressed } = useRegisteredActions();
   const [open, setOpen] = useState(false);
-  // Actions are registered by pages via effects (client-only), so the server
-  // renders none. Render nothing until mounted so the server HTML and the first
-  // client render agree — otherwise the streamed nav pill fails to hydrate.
+  // Actions register via client effects, so the server renders none. The
+  // wrapper is ALWAYS present (never unmounts) and collapses its width to 0
+  // when there's no action — so it animates smoothly and can't "disappear".
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // No action registered for this page (or hidden behind an overlay) → nothing.
-  if (!mounted || actions.length === 0 || suppressed) return null;
-
-  const primary = actions.find((a) => a.primary) ?? actions[0];
+  const show = mounted && actions.length > 0 && !suppressed;
+  const primary = show ? (actions.find((a) => a.primary) ?? actions[0]) : null;
+  const multi = show && actions.length > 1;
   const btn = "shrink-0 inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full text-accent hover:bg-bg-muted/60 transition-colors";
 
-  // Single action → fire directly.
-  if (actions.length === 1) {
-    if (primary.href) {
-      return <Link href={primary.href} aria-label={primary.label} title={primary.label} className={btn}>{navIcon(primary)}</Link>;
-    }
-    return (
-      <button type="button" onClick={primary.onClick} aria-label={primary.label} title={primary.label} className={btn}>
-        {navIcon(primary)}
-      </button>
-    );
-  }
-
-  // Several actions → popover above the pill.
   return (
-    <div className="relative shrink-0">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Page actions" title={primary.label} className={btn}>
-        {navIcon(primary)}
-      </button>
-      {open && (
-        <>
-          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute z-[56] bottom-full mb-3 right-0 w-56 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
-            <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">Actions</div>
-            {actions.map((a) => {
-              const row = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left text-fg hover:bg-bg-muted/60 transition-colors";
-              const inner = (
-                <>
-                  <span className={cn("shrink-0", a.tone === "danger" ? "text-danger" : a.primary ? "text-accent" : "text-fg-muted")}>
-                    {isValidElement(a.icon) ? cloneElement(a.icon as React.ReactElement<{ size?: number }>, { size: 15 }) : <Plus size={15} />}
-                  </span>
-                  <span className="truncate">{a.label}</span>
-                </>
-              );
-              return a.href ? (
-                <Link key={a.id} href={a.href} onClick={() => setOpen(false)} className={row}>{inner}</Link>
-              ) : (
-                <button key={a.id} type="button" onClick={() => { setOpen(false); a.onClick?.(); }} className={row}>{inner}</button>
-              );
-            })}
-          </div>
-        </>
+    <motion.div
+      initial={false}
+      animate={{ width: show ? "auto" : 0, opacity: show ? 1 : 0 }}
+      transition={{ type: "spring", stiffness: 380, damping: 34, mass: 0.8 }}
+      className={cn("flex items-center shrink-0", open ? "overflow-visible" : "overflow-hidden")}
+    >
+      {primary && !multi && (
+        primary.href ? (
+          <Link href={primary.href} aria-label={primary.label} title={primary.label} className={btn}>{navIcon(primary)}</Link>
+        ) : (
+          <button type="button" onClick={primary.onClick} aria-label={primary.label} title={primary.label} className={btn}>{navIcon(primary)}</button>
+        )
       )}
-    </div>
+      {primary && multi && (
+        <div className="relative shrink-0">
+          <button type="button" onClick={() => setOpen((o) => !o)} aria-label="Page actions" title={primary.label} className={btn}>{navIcon(primary)}</button>
+          {open && (
+            <>
+              <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
+              <div className="absolute z-[56] bottom-full mb-3 right-0 w-56 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
+                <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">Actions</div>
+                {actions.map((a) => {
+                  const row = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left text-fg hover:bg-bg-muted/60 transition-colors";
+                  const inner = (
+                    <>
+                      <span className={cn("shrink-0", a.tone === "danger" ? "text-danger" : a.primary ? "text-accent" : "text-fg-muted")}>
+                        {isValidElement(a.icon) ? cloneElement(a.icon as React.ReactElement<{ size?: number }>, { size: 15 }) : <Plus size={15} />}
+                      </span>
+                      <span className="truncate">{a.label}</span>
+                    </>
+                  );
+                  return a.href ? (
+                    <Link key={a.id} href={a.href} onClick={() => setOpen(false)} className={row}>{inner}</Link>
+                  ) : (
+                    <button key={a.id} type="button" onClick={() => { setOpen(false); a.onClick?.(); }} className={row}>{inner}</button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -324,7 +324,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
   // Reduce Motion / Reduce Transparency → a plain solid highlight, no optics.
   const [plain, setPlain] = useState(false);
   const plainRef = useRef(false);
-  const SPRING = { type: "spring" as const, stiffness: 520, damping: 30, mass: 0.7 };
+  const SPRING = { type: "spring" as const, stiffness: 340, damping: 32, mass: 0.95 };
 
   useEffect(() => {
     const mm = window.matchMedia("(prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce)");
@@ -354,10 +354,10 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
     const place = (centerX: number, vx = 0) => {
       x.set(centerX);
       if (plainRef.current) { scaleX.set(1); scaleY.set(1); rawShift.set(0); return; }
-      const stretch = Math.min(0.5, Math.abs(vx) * 0.022);
+      const stretch = Math.min(0.34, Math.abs(vx) * 0.016);
       scaleX.set(1 + stretch);
       scaleY.set(1 - stretch * 0.5);
-      rawShift.set(Math.max(-7, Math.min(7, vx * 0.6))); // chromatic + glare offset
+      rawShift.set(Math.max(-6, Math.min(6, vx * 0.5))); // chromatic + glare offset
     };
 
     const clampPx = (raw: number) => Math.max(s.slots[0].center, Math.min(s.slots[s.slots.length - 1].center, raw));
@@ -437,7 +437,9 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
             "pointer-events-none absolute z-20 flex items-center justify-center overflow-hidden rounded-[1.1rem]",
             plain
               ? "bg-accent-soft ring-1 ring-accent/30"
-              : "glass-refract bg-white/8 dark:bg-white/[0.07] ring-1 ring-white/45 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.6),0_5px_16px_-5px_rgba(0,0,0,0.4)] backdrop-blur-[3px] backdrop-saturate-[1.5]"
+              // Frosted, near-opaque fill MASKS the real icons beneath (no doubling);
+              // the refracted clone on top is the single visible copy.
+              : "bg-[hsl(0_0%_100%/0.62)] dark:bg-[hsl(240_8%_15%/0.9)] ring-1 ring-white/45 dark:ring-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_6px_18px_-6px_rgba(0,0,0,0.45)] backdrop-blur-[6px] backdrop-saturate-[1.4]"
           )}
         >
           {!plain && (
