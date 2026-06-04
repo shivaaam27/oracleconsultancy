@@ -231,7 +231,7 @@ export function TaskDrawer() {
           </span>
           {data?.task && (
             <Link
-              href={`/companies/${data.task.companyId}`}
+              href={`/companies/${data.task.companyId}?from=task:${code}`}
               onClick={close}
               className="text-xs text-fg-muted hover:text-accent truncate transition-colors"
             >

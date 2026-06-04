@@ -2,14 +2,15 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Search, MessageCircle, Filter, ExternalLink, ListTodo, Clock, Copy, UserPlus } from "lucide-react";
+import { Search, MessageCircle, Filter, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, Check, CheckSquare, X } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
+import { Button } from "./ui";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import { useToast } from "./toast";
-import { snoozePerson } from "@/app/people/actions";
+import { snoozePerson, togglePersonActive, setPeopleActive } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
 
 /** A short WhatsApp reminder built from the person's most urgent tasks. */
@@ -46,7 +47,10 @@ export function PeopleTable({ people, companies }: {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [, startSnooze] = useTransition();
+  const [, startBulk] = useTransition();
   const [peek, setPeek] = useState<PersonRow | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
@@ -62,6 +66,30 @@ export function PeopleTable({ people, companies }: {
       const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
       const res = await snoozePerson(p.id, tomorrow);
       toast(res.ok ? `Snoozed ${p.name} for today` : (res.error || "Couldn't snooze"), { tone: res.ok ? "success" : "warn", duration: 4000 });
+    });
+  }
+  function doToggleActive(p: PersonRow) {
+    startBulk(async () => {
+      const res = await togglePersonActive(p.id);
+      toast(res.ok ? (res.active ? `${p.name} restored` : `${p.name} deactivated`) : (res.error || "Couldn't update"), { tone: res.ok ? "success" : "warn" });
+      if (res.ok) router.refresh();
+    });
+  }
+  function toggleSelect(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function exitSelect() { setSelectMode(false); setSelected(new Set()); }
+  function doBulk(active: boolean) {
+    const ids = [...selected];
+    if (!ids.length) return;
+    startBulk(async () => {
+      const res = await setPeopleActive(ids, active);
+      toast(res.ok ? `${ids.length} ${ids.length === 1 ? "person" : "people"} ${active ? "restored" : "deactivated"}` : (res.error || "Couldn't update"), { tone: res.ok ? "success" : "warn" });
+      if (res.ok) { exitSelect(); router.refresh(); }
     });
   }
   async function copyContact(p: PersonRow) {
@@ -91,6 +119,9 @@ export function PeopleTable({ people, companies }: {
     a.push({ label: "Snooze", icon: <Clock size={16} />, onClick: () => doSnooze(p) });
     if (p.whatsapp || p.phone || p.email) a.push({ label: "Copy", icon: <Copy size={16} />, onClick: () => copyContact(p) });
     a.push({ label: "Tasks", icon: <ListTodo size={16} />, onClick: () => router.push(`/?tab=tasks&all=1&q=${encodeURIComponent(p.name)}`) });
+    a.push(p.active
+      ? { label: "Deactivate", icon: <UserMinus size={16} />, tone: "danger", onClick: () => doToggleActive(p) }
+      : { label: "Restore", icon: <UserCheck size={16} />, onClick: () => doToggleActive(p) });
     return a;
   };
 
@@ -154,6 +185,18 @@ export function PeopleTable({ people, companies }: {
       overloaded: people.filter((p) => p.active && p.workload.open >= 5).length,
     };
   }, [people]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        filtered.forEach((p) => next.delete(p.id));
+        return next;
+      }
+      return new Set([...prev, ...filtered.map((p) => p.id)]);
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -219,32 +262,77 @@ export function PeopleTable({ people, companies }: {
             </button>
           );
         })}
-        <label className="ml-auto inline-flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-            className="accent-accent"
-          />
-          Show inactive in list
-        </label>
+        <div className="ml-auto flex items-center gap-3">
+          {!selectMode ? (
+            <>
+              <label className="inline-flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showInactive}
+                  onChange={(e) => setShowInactive(e.target.checked)}
+                  className="accent-accent"
+                />
+                Show inactive in list
+              </label>
+              <button type="button" onClick={() => setSelectMode(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-fg-muted hover:text-fg transition-colors">
+                <CheckSquare size={13} /> Select
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={toggleSelectAll}
+                className="text-xs font-medium text-accent hover:underline">
+                {allFilteredSelected ? "Clear all" : "Select all"}
+              </button>
+              <button type="button" onClick={exitSelect}
+                className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-fg transition-colors">
+                <X size={13} /> Cancel
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Compact list — one elevated container, divided rows */}
       {filtered.length > 0 && (
         <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
-          {filtered.map((p) => (
-            <PersonCard
-              key={p.id}
-              person={p}
-              onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openPerson(p.id); }}
-              onPointerDown={(e) => onRowPointerDown(p, e)}
-              onPointerMove={onRowPointerMove}
-              onPointerUp={clearPress}
-              onPointerLeave={clearPress}
-              onPointerCancel={clearPress}
-            />
-          ))}
+          {filtered.map((p) =>
+            selectMode ? (
+              <div key={p.id} role="button" tabIndex={0}
+                onClick={() => toggleSelect(p.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSelect(p.id); } }}
+                className={cn("flex items-center gap-2 pl-3 cursor-pointer transition-colors", selected.has(p.id) ? "bg-accent-soft/40" : "hover:bg-bg-muted/40")}>
+                <span className={cn("h-5 w-5 rounded-md border flex items-center justify-center shrink-0",
+                  selected.has(p.id) ? "bg-accent border-accent text-white" : "border-border-strong")}>
+                  {selected.has(p.id) && <Check size={13} strokeWidth={3} />}
+                </span>
+                <div className="flex-1 min-w-0 pointer-events-none">
+                  <PersonCard person={p} onOpen={() => {}} />
+                </div>
+              </div>
+            ) : (
+              <PersonCard
+                key={p.id}
+                person={p}
+                onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openPerson(p.id); }}
+                onPointerDown={(e) => onRowPointerDown(p, e)}
+                onPointerMove={onRowPointerMove}
+                onPointerUp={clearPress}
+                onPointerLeave={clearPress}
+                onPointerCancel={clearPress}
+              />
+            )
+          )}
+        </div>
+      )}
+
+      {/* Bulk action bar — floats above the nav pill while selecting */}
+      {selectMode && selected.size > 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-[5.5rem] md:bottom-24 z-40 glass elevated rounded-full shadow-pill flex items-center gap-1.5 pl-4 pr-1.5 py-1.5">
+          <span className="text-xs font-medium text-fg-muted">{selected.size} selected</span>
+          <Button size="sm" variant="secondary" onClick={() => doBulk(true)}><UserCheck size={14} /> Restore</Button>
+          <Button size="sm" variant="danger-soft" onClick={() => doBulk(false)}><UserMinus size={14} /> Deactivate</Button>
         </div>
       )}
 

@@ -177,6 +177,16 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   return { ok: true, active: nextActive };
 }
 
+/** Bulk activate/deactivate (archive/restore). Soft — never deletes. */
+export async function setPeopleActive(ids: number[], active: boolean): Promise<ActionResult> {
+  const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
+  if (!clean.length) return { ok: false, error: "No people selected." };
+  const { error } = await sb.from("people").update({ active }).in("id", clean);
+  if (error) return { ok: false, error: error.message };
+  invalidate();
+  return { ok: true };
+}
+
 /* ----------------------------------------------------------------------
  * Snooze / unsnooze reminders
  * ---------------------------------------------------------------------- */
