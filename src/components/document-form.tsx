@@ -109,8 +109,17 @@ export function DocumentForm({
         setCategory(f.category);
         if (!leadTouched && DEFAULT_LEAD_DAYS[f.category]) setLead(String(DEFAULT_LEAD_DAYS[f.category]));
       }
+      // Overflow → Notes: append anything that didn't map to a labelled field,
+      // without overwriting what's already there or duplicating it.
+      if (f.notes) {
+        const el = form.elements.namedItem("notes") as HTMLTextAreaElement | null;
+        if (el) {
+          const existing = el.value.trim();
+          if (!existing.includes(f.notes)) el.value = existing ? `${existing}\n${f.notes}` : f.notes;
+        }
+      }
     }
-    return [f.title, f.category, f.docType, f.issuer, f.referenceNo, f.issueDate, f.expiryDate, f.companyId, f.personId]
+    return [f.title, f.category, f.docType, f.issuer, f.referenceNo, f.issueDate, f.expiryDate, f.companyId, f.personId, f.notes]
       .filter((v) => v != null && v !== "").length;
   }
 
@@ -192,9 +201,12 @@ export function DocumentForm({
           </div>
         </div>
 
+        {/* Kept outside the tabs so a pending file removal still submits even if
+            you switch capture modes. */}
+        {removeExisting && <input type="hidden" name="removeFile" value="1" />}
+
         {/* Upload — the file is stored AND read automatically (PDF, photo, scan). */}
         <div className={capMode === "upload" ? "" : "hidden"}>
-          {removeExisting && <input type="hidden" name="removeFile" value="1" />}
           <input ref={fileInputRef} name="file" type="file"
             accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { setChosenFile(f.name); setRemoveExisting(false); runExtractFile(f); } }}

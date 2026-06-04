@@ -131,6 +131,8 @@ export type ExtractedFields = {
   companyName?: string;
   personId?: number;
   personName?: string;
+  // Overflow: anything useful that doesn't fit a labelled field, for the Notes box.
+  notes?: string;
 };
 
 type Entity = { id: number; name: string };
@@ -259,6 +261,7 @@ function coerceFields(
   if (co) { f.companyId = co.id; f.companyName = co.name; }
   const pe = resolveEntity(s(parsed.person, 80), people);
   if (pe) { f.personId = pe.id; f.personName = pe.name; }
+  f.notes = s(parsed.notes, 600);
   // Backfill anything missing from the rule extractor + entity scan.
   if (fallbackText) {
     const ruled = ruleExtract(fallbackText);
@@ -276,7 +279,7 @@ function safeJson(content: string | null): Record<string, unknown> {
 function extractPrompt(companies: Entity[], people: Entity[]): string {
   const cNames = companies.map((c) => c.name).join(", ") || "(none)";
   const pNames = people.map((p) => p.name).slice(0, 150).join(", ") || "(none)";
-  return `You are reading a business/compliance document (it may be a licence, certificate, permit, passport, visa, insurance policy, lease, contract or tax document). Documents vary in layout, wording, tables and language. Extract the key details and return ONLY a JSON object with these optional keys (omit any you cannot find):
+  return `You are reading a business/compliance document (it may be a licence, certificate, permit, passport, visa, insurance policy, lease, contract or tax document). It may be a clean scan, a phone photo, a faded/old/dirty page, or rough handwritten notes, possibly at an angle or in mixed languages (English/Swahili). Read it as carefully as you can; transcribe uncertain text rather than dropping it. Extract the key details and return ONLY a JSON object with these optional keys (omit any you genuinely cannot find):
 - title: a short human label for the document
 - category: one of [${DOC_CATEGORIES.join(", ")}]
 - docType: the specific type (e.g. "Work Permit", "Class C Driving Licence", "TIN Certificate")
@@ -286,6 +289,7 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - expiryDate: YYYY-MM-DD (the validity end / renewal-by date)
 - company: the related business — choose the closest match from: ${cNames}
 - person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
+- notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
 Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
 }
 

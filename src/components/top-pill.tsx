@@ -99,7 +99,7 @@ function HrmsNavTab({ active }: { active: boolean }) {
       if (item) { go(item.getAttribute("data-hrms-href")!); return; }
       return; // released elsewhere → keep open so they can tap
     }
-    if (!held.current) { setOpen(false); router.push("/hrms"); } // quick tap → dashboard
+    if (!held.current) setOpen(false); // quick tap → let the Link navigate to /hrms
   }
 
   // Desktop hover reveals the popup; a click still goes straight to the dashboard.
