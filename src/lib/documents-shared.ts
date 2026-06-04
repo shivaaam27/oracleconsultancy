@@ -11,6 +11,7 @@ export const DOC_CATEGORIES = [
   "Lease",
   "Permit",
   "Immigration",
+  "Passport",
   "Tax",
   "Other",
 ] as const;
@@ -19,6 +20,7 @@ export type DocCategory = (typeof DOC_CATEGORIES)[number];
 // Sensible default reminder lead times (days before expiry) by category.
 export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Immigration: 90,
+  Passport: 180,
   Permit: 60,
   Licence: 60,
   Registration: 45,

@@ -102,3 +102,29 @@ per-document timeline.
   Typecheck clean; /documents, /inbox, deep-link all HTTP 200.
 
 **Documents & Compliance feature COMPLETE (Phases 1–5).**
+
+## Phase 6 — File reading (PDF + image OCR) & smarter extraction (2026-06-04)
+Owner asked the auto-fill to read uploaded PDFs/photos and extract everything (dates,
+person, company, etc.) across dynamic layouts. Researched first: confirmed Groq has a
+**vision** model and `unpdf` is serverless-safe.
+- **New dep `unpdf`** (pure-JS, zero native deps; in `next.config.serverExternalPackages`).
+- **`extractDocumentFromFile(fd)`** in `app/documents/actions.ts`:
+  - **PDF** → `unpdf` `getDocumentProxy`+`extractText` → Groq text model. If extracted text
+    < 40 chars (image-only scan) → returns a note asking for a photo instead (honest boundary;
+    no fragile serverless PDF→image rasterisation).
+  - **Image** (png/jpg/webp/heic) → Groq **vision** `meta-llama/llama-4-scout-17b-16e-instruct`
+    (base64 data URL). Client **downscales** images >3.5 MB to ≤2000px JPEG (Groq base64 limit
+    is 4 MB).
+  - AI-off: PDFs use rule extractor + entity scan; images return a note (can't OCR offline).
+- **Entity resolution**: extraction now matches company/person names against records
+  (`loadEntities`/`resolveEntity`/`scanEntities`) and returns `companyId`/`personId`, which the
+  form selects auto-fill. Shared `extractPrompt` lists known company/people names so the model
+  picks real entities. `coerceFields` validates + backfills from rules.
+- **Form** (`document-form.tsx`): auto-fill panel gains "Upload a PDF or photo to read
+  automatically" (+ existing paste-text). Uploaded file is also **attached** to the document via
+  DataTransfer (no double upload). `applyFields` fills inputs + company/person selects + category.
+- **New category "Passport"** (lead 180 days); rule extractor maps passport→Passport.
+- Verified: generated text PDF → unpdf parsed → title "Dar Spices Trade Licence", ref, both
+  dates, company id resolved. Typecheck clean.
+- **NOTE:** image OCR needs the Groq key on (vision). Restart not needed beyond the earlier
+  next.config change (serverExternalPackages added now → a fresh build picks it up).

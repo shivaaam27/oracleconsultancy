@@ -1,10 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles } from "lucide-react";
-import { createDocumentAction, updateDocumentAction, extractDocumentFields } from "@/app/documents/actions";
+import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload } from "lucide-react";
+import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, type ExtractedFields } from "@/app/documents/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
 import { cn } from "@/lib/cn";
+
+// Downscale large images client-side so they fit Groq's 4 MB base64 limit.
+async function downscaleImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  if (file.size <= 3.5 * 1024 * 1024) return file;
+  try {
+    const img = await createImageBitmap(file);
+    const maxDim = 2000;
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(img, 0, 0, w, h);
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob((b) => res(b), "image/jpeg", 0.82));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -47,6 +69,7 @@ export function DocumentForm({
   const [lead, setLead] = useState<string>(doc ? String(doc.reminderLeadDays) : "30");
   // File upload state.
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const extractFileRef = useRef<HTMLInputElement>(null);
   const [chosenFile, setChosenFile] = useState<string | null>(null);
   const [removeExisting, setRemoveExisting] = useState(false);
   const hasExistingFile = !!doc?.storagePath && !removeExisting;
@@ -60,35 +83,73 @@ export function DocumentForm({
     });
   };
 
+  // Apply extracted fields to the form; returns how many meaningful fields filled.
+  function applyFields(f: ExtractedFields): number {
+    const form = formRef.current;
+    if (form) {
+      const setVal = (name: string, val?: string | number) => {
+        if (val == null || val === "") return;
+        const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+        if (el) el.value = String(val);
+      };
+      setVal("title", f.title);
+      setVal("docType", f.docType);
+      setVal("issuer", f.issuer);
+      setVal("referenceNo", f.referenceNo);
+      setVal("issueDate", f.issueDate);
+      setVal("expiryDate", f.expiryDate);
+      setVal("companyId", f.companyId);
+      setVal("personId", f.personId);
+      if (f.category) {
+        setCategory(f.category);
+        if (!leadTouched && DEFAULT_LEAD_DAYS[f.category]) setLead(String(DEFAULT_LEAD_DAYS[f.category]));
+      }
+    }
+    return [f.title, f.category, f.docType, f.issuer, f.referenceNo, f.issueDate, f.expiryDate, f.companyId, f.personId]
+      .filter((v) => v != null && v !== "").length;
+  }
+
+  function noteFor(filled: number, source: string): string {
+    if (filled === 0) return "Couldn't find document details. Fill the fields in manually.";
+    const how = source === "vision" ? " from the image" : source === "rules" ? " (AI off — used basic rules)" : "";
+    return `Filled ${filled} field${filled === 1 ? "" : "s"}${how}. Check before saving.`;
+  }
+
   async function runExtract() {
     if (!extractText.trim()) return;
     setExtracting(true);
     setExtractNote(null);
     try {
       const res = await extractDocumentFields(extractText);
-      const f = res.fields;
-      const form = formRef.current;
-      if (form) {
-        const setVal = (name: string, val?: string) => {
-          if (!val) return;
-          const el = form.elements.namedItem(name) as HTMLInputElement | null;
-          if (el) el.value = val;
-        };
-        setVal("title", f.title);
-        setVal("docType", f.docType);
-        setVal("issuer", f.issuer);
-        setVal("referenceNo", f.referenceNo);
-        setVal("issueDate", f.issueDate);
-        setVal("expiryDate", f.expiryDate);
-        if (f.category) {
-          setCategory(f.category);
-          if (!leadTouched && DEFAULT_LEAD_DAYS[f.category]) setLead(String(DEFAULT_LEAD_DAYS[f.category]));
-        }
+      setExtractNote(noteFor(applyFields(res.fields), res.source));
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  // Read a PDF/image: extract fields AND attach the file to the document so it
+  // isn't uploaded twice.
+  async function runExtractFile(file: File) {
+    setExtracting(true);
+    setExtractNote(null);
+    try {
+      const prepared = await downscaleImage(file);
+      const fd = new FormData();
+      fd.set("file", prepared);
+      const res = await extractDocumentFromFile(fd);
+      if (!res.ok) {
+        setExtractNote(res.note ?? "Couldn't read that file.");
+        return;
       }
-      const filled = Object.values(f).filter(Boolean).length;
-      setExtractNote(filled > 0
-        ? `Filled ${filled} field${filled === 1 ? "" : "s"}${res.source === "rules" ? " (AI off — used basic rules)" : ""}. Check before saving.`
-        : "Couldn't find document details in that text.");
+      // Attach the (prepared) file to the document's upload field.
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(prepared);
+        if (fileInputRef.current) fileInputRef.current.files = dt.files;
+        setChosenFile(prepared.name);
+        setRemoveExisting(false);
+      } catch { /* attachment is best-effort */ }
+      setExtractNote(noteFor(applyFields(res.fields), res.source) + (res.note ? ` ${res.note}` : ""));
     } finally {
       setExtracting(false);
     }
@@ -118,13 +179,23 @@ export function DocumentForm({
         </button>
         {showExtract && (
           <div className="px-3 pb-3 space-y-2">
-            <textarea value={extractText} onChange={(e) => setExtractText(e.target.value)} rows={4}
+            {/* Upload a PDF or photo — read by AI (vision for images). */}
+            <input ref={extractFileRef} type="file" accept=".pdf,image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) runExtractFile(f); e.target.value = ""; }} />
+            <button type="button" onClick={() => extractFileRef.current?.click()} disabled={extracting}
+              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-md border border-dashed border-accent/50 text-accent hover:bg-accent/10 disabled:opacity-50 transition-colors">
+              <Upload size={14} /> Upload a PDF or photo to read automatically
+            </button>
+            <div className="flex items-center gap-2 text-[11px] text-fg-subtle">
+              <span className="h-px flex-1 bg-border/60" /> or paste text <span className="h-px flex-1 bg-border/60" />
+            </div>
+            <textarea value={extractText} onChange={(e) => setExtractText(e.target.value)} rows={3}
               className={inputCls} placeholder="Paste the renewal email or the text from the document…" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button type="button" onClick={runExtract} disabled={extracting || !extractText.trim()}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
                 {extracting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                {extracting ? "Reading…" : "Extract details"}
+                {extracting ? "Reading…" : "Extract from text"}
               </button>
               {extractNote && <span className="text-xs text-fg-muted">{extractNote}</span>}
             </div>

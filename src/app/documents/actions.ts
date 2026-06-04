@@ -126,7 +126,14 @@ export type ExtractedFields = {
   referenceNo?: string;
   issueDate?: string; // YYYY-MM-DD
   expiryDate?: string; // YYYY-MM-DD
+  // Resolved against existing records so the form can select them directly.
+  companyId?: number;
+  companyName?: string;
+  personId?: number;
+  personName?: string;
 };
+
+type Entity = { id: number; name: string };
 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
@@ -156,13 +163,20 @@ function findDates(text: string): { iso: string; idx: number }[] {
 function ruleExtract(text: string): ExtractedFields {
   const fields: ExtractedFields = {};
   const lower = text.toLowerCase();
-  // Title = first non-empty line, trimmed.
+  // Title = first non-empty line; if the text is flattened (no line breaks, e.g.
+  // from a PDF), cut before the first metadata keyword so we don't grab the lot.
   const firstLine = text.split(/\r?\n/).map((l) => l.trim()).find(Boolean);
-  if (firstLine) fields.title = firstLine.slice(0, 120);
+  if (firstLine) {
+    let t = firstLine;
+    const cut = t.search(/\b(issued|reference|ref\b|date of|dated|valid|expir|no[:.]|certificate no)/i);
+    if (cut > 3) t = t.slice(0, cut).trim();
+    fields.title = t.slice(0, 80).trim();
+  }
   // Category by keyword.
   for (const c of DOC_CATEGORIES) if (lower.includes(c.toLowerCase())) { fields.category = c; break; }
   if (!fields.category) {
-    if (/visa|permit|passport|immigration/.test(lower)) fields.category = "Immigration";
+    if (/passport/.test(lower)) fields.category = "Passport";
+    else if (/visa|permit|immigration|residence/.test(lower)) fields.category = "Immigration";
     else if (/insurance|policy/.test(lower)) fields.category = "Insurance";
     else if (/licen[cs]e/.test(lower)) fields.category = "Licence";
   }
@@ -185,52 +199,206 @@ function ruleExtract(text: string): ExtractedFields {
   return fields;
 }
 
+// Load the companies + active people so extraction can match names to records.
+async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }> {
+  const [{ data: c }, { data: p }] = await Promise.all([
+    supa.from("companies").select("id,name"),
+    supa.from("people").select("id,name").eq("active", true),
+  ]);
+  return {
+    companies: (c ?? []).map((r) => ({ id: r.id as number, name: r.name as string })),
+    people: (p ?? []).map((r) => ({ id: r.id as number, name: r.name as string })),
+  };
+}
+
+// Match a free-text name to a known entity: exact (case-insensitive), then a
+// contains-either-way match, preferring the longest name.
+function resolveEntity(name: string | undefined, list: Entity[]): Entity | null {
+  if (!name) return null;
+  const q = name.trim().toLowerCase();
+  if (!q) return null;
+  const exact = list.find((e) => e.name.toLowerCase() === q);
+  if (exact) return exact;
+  const partial = list
+    .filter((e) => { const n = e.name.toLowerCase(); return n.includes(q) || q.includes(n); })
+    .sort((a, b) => b.name.length - a.name.length)[0];
+  return partial ?? null;
+}
+
+// Scan raw text for any known company/person name appearing verbatim (used in
+// the AI-off path and to backfill).
+function scanEntities(text: string, companies: Entity[], people: Entity[]): Partial<ExtractedFields> {
+  const lower = text.toLowerCase();
+  const out: Partial<ExtractedFields> = {};
+  const co = companies.filter((c) => lower.includes(c.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
+  if (co) { out.companyId = co.id; out.companyName = co.name; }
+  const pe = people.filter((p) => lower.includes(p.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
+  if (pe) { out.personId = pe.id; out.personName = pe.name; }
+  return out;
+}
+
+// Validate + normalise a parsed JSON object into ExtractedFields, resolving the
+// company/person names against records and backfilling from text when present.
+function coerceFields(
+  parsed: Record<string, unknown>,
+  companies: Entity[],
+  people: Entity[],
+  fallbackText?: string
+): ExtractedFields {
+  const f: ExtractedFields = {};
+  const s = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : undefined);
+  f.title = s(parsed.title, 120);
+  const cat = s(parsed.category, 40);
+  if (cat && (DOC_CATEGORIES as readonly string[]).includes(cat)) f.category = cat;
+  f.docType = s(parsed.docType, 80);
+  f.issuer = s(parsed.issuer, 80);
+  f.referenceNo = s(parsed.referenceNo, 80);
+  const id = s(parsed.issueDate, 10); if (id && /^\d{4}-\d{2}-\d{2}$/.test(id)) f.issueDate = id;
+  const ed = s(parsed.expiryDate, 10); if (ed && /^\d{4}-\d{2}-\d{2}$/.test(ed)) f.expiryDate = ed;
+  const co = resolveEntity(s(parsed.company, 80), companies);
+  if (co) { f.companyId = co.id; f.companyName = co.name; }
+  const pe = resolveEntity(s(parsed.person, 80), people);
+  if (pe) { f.personId = pe.id; f.personName = pe.name; }
+  // Backfill anything missing from the rule extractor + entity scan.
+  if (fallbackText) {
+    const ruled = ruleExtract(fallbackText);
+    const scanned = scanEntities(fallbackText, companies, people);
+    return { ...ruled, ...scanned, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined)) };
+  }
+  return f;
+}
+
+function safeJson(content: string | null): Record<string, unknown> {
+  if (!content) return {};
+  try { return JSON.parse(content) as Record<string, unknown>; } catch { return {}; }
+}
+
+function extractPrompt(companies: Entity[], people: Entity[]): string {
+  const cNames = companies.map((c) => c.name).join(", ") || "(none)";
+  const pNames = people.map((p) => p.name).slice(0, 150).join(", ") || "(none)";
+  return `You are reading a business/compliance document (it may be a licence, certificate, permit, passport, visa, insurance policy, lease, contract or tax document). Documents vary in layout, wording, tables and language. Extract the key details and return ONLY a JSON object with these optional keys (omit any you cannot find):
+- title: a short human label for the document
+- category: one of [${DOC_CATEGORIES.join(", ")}]
+- docType: the specific type (e.g. "Work Permit", "Class C Driving Licence", "TIN Certificate")
+- issuer: the authority/organisation that issued it
+- referenceNo: the document/certificate/serial number
+- issueDate: YYYY-MM-DD
+- expiryDate: YYYY-MM-DD (the validity end / renewal-by date)
+- company: the related business — choose the closest match from: ${cNames}
+- person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
+Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
+}
+
+async function groqJson(messages: unknown[], model: string, apiKey: string): Promise<string | null> {
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature: 0, max_tokens: 400, response_format: { type: "json_object" } }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Extract document fields from pasted text (e.g. a renewal email or the text on
- * a certificate). Uses Groq when configured, with a rule-based fallback so it
- * still works AI-off. Never throws — returns {} on failure.
+ * Extract document fields from pasted text (renewal email / certificate text).
+ * Groq text model when configured, rule-based fallback when AI is off.
  */
 export async function extractDocumentFields(text: string): Promise<{ ok: boolean; fields: ExtractedFields; source: "ai" | "rules" }> {
   const trimmed = (text ?? "").toString().trim();
   if (!trimmed) return { ok: false, fields: {}, source: "rules" };
+  const { companies, people } = await loadEntities();
+  const apiKey = await getGroqKey();
+  if (!apiKey) {
+    return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
+  }
+  const content = await groqJson(
+    [
+      { role: "system", content: "You extract structured data and reply with strict JSON only." },
+      { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${trimmed.slice(0, 6000)}` },
+    ],
+    "llama-3.1-8b-instant",
+    apiKey
+  );
+  if (!content) return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
+  return { ok: true, fields: coerceFields(safeJson(content), companies, people, trimmed), source: "ai" };
+}
+
+/**
+ * Extract document fields from an uploaded file. Text-based PDFs are parsed with
+ * unpdf then read by the text model; images (photos/scans) are read by the Groq
+ * vision model. Scanned image-only PDFs are detected and the user is asked to
+ * upload a photo instead. Never throws.
+ */
+export async function extractDocumentFromFile(
+  fd: FormData
+): Promise<{ ok: boolean; fields: ExtractedFields; source: "ai" | "rules" | "vision"; note?: string }> {
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, fields: {}, source: "rules", note: "No file provided." };
 
   const apiKey = await getGroqKey();
-  if (!apiKey) return { ok: true, fields: ruleExtract(trimmed), source: "rules" };
+  const { companies, people } = await loadEntities();
+  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
-  try {
-    const prompt = `Extract document metadata from the text below. Return ONLY a JSON object with these optional keys (omit any you cannot find): title (short label), category (one of: ${DOC_CATEGORIES.join(", ")}), docType (specific type e.g. "Work Permit"), issuer, referenceNo, issueDate (YYYY-MM-DD), expiryDate (YYYY-MM-DD). British English. Do not invent values.\n\nTEXT:\n${trimmed.slice(0, 4000)}`;
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: "You extract structured data and reply with strict JSON only." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0,
-        max_tokens: 300,
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!res.ok) return { ok: true, fields: ruleExtract(trimmed), source: "rules" };
-    const data = await res.json();
-    const raw = data?.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw) as ExtractedFields;
-    const fields: ExtractedFields = {};
-    if (parsed.title) fields.title = String(parsed.title).slice(0, 120);
-    if (parsed.category && (DOC_CATEGORIES as readonly string[]).includes(parsed.category)) fields.category = parsed.category;
-    if (parsed.docType) fields.docType = String(parsed.docType).slice(0, 80);
-    if (parsed.issuer) fields.issuer = String(parsed.issuer).slice(0, 80);
-    if (parsed.referenceNo) fields.referenceNo = String(parsed.referenceNo).slice(0, 80);
-    if (parsed.issueDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.issueDate)) fields.issueDate = parsed.issueDate;
-    if (parsed.expiryDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.expiryDate)) fields.expiryDate = parsed.expiryDate;
-    // Backfill any missing field with the rule extractor.
-    const ruled = ruleExtract(trimmed);
-    return { ok: true, fields: { ...ruled, ...fields }, source: "ai" };
-  } catch {
-    return { ok: true, fields: ruleExtract(trimmed), source: "rules" };
+  if (isPdf) {
+    let text = "";
+    try {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const pdf = await getDocumentProxy(buf);
+      const r = await extractText(pdf, { mergePages: true });
+      text = Array.isArray(r.text) ? r.text.join("\n") : r.text;
+    } catch {
+      text = "";
+    }
+    if (text.trim().length < 40) {
+      return { ok: false, fields: {}, source: "rules", note: "This PDF looks like a scan with no readable text. Please upload a clear photo or image of the document instead." };
+    }
+    if (!apiKey) {
+      return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+    }
+    const content = await groqJson(
+      [
+        { role: "system", content: "You extract structured data and reply with strict JSON only." },
+        { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
+      ],
+      "llama-3.1-8b-instant",
+      apiKey
+    );
+    if (!content) return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+    return { ok: true, fields: coerceFields(safeJson(content), companies, people, text), source: "ai" };
   }
+
+  if (file.type.startsWith("image/")) {
+    if (!apiKey) return { ok: false, fields: {}, source: "rules", note: "AI is off, so images can't be read automatically. Type the details, or paste the document text." };
+    // Groq base64 image limit is 4 MB; the client downscales before sending.
+    if (file.size > 4 * 1024 * 1024) {
+      return { ok: false, fields: {}, source: "vision", note: "Image is too large (max 4 MB). Try a smaller photo." };
+    }
+    const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
+    const dataUrl = `data:${file.type};base64,${b64}`;
+    const content = await groqJson(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: extractPrompt(companies, people) },
+            { type: "image_url", image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+      "meta-llama/llama-4-scout-17b-16e-instruct",
+      apiKey
+    );
+    if (!content) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo." };
+    return { ok: true, fields: coerceFields(safeJson(content), companies, people), source: "vision" };
+  }
+
+  return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF or an image (PNG/JPG)." };
 }
 
 export async function removeDocumentFileAction(id: number): Promise<Result> {
