@@ -322,54 +322,50 @@ export function OutboxCard({
         sent && "opacity-60"
       )}
     >
-      <div className="p-4 border-b border-border flex items-center justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
-            <User size={15} />
+      {/* Header — name + meta only (channel moved to its own row) */}
+      <div className="p-3 flex items-center justify-between gap-2 border-b border-border">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
+            <User size={14} />
           </div>
           <div className="min-w-0">
-            <div className="font-medium truncate">{draft.recipientName}</div>
-            <div className="text-xs text-fg-muted flex flex-wrap gap-x-2 gap-y-0.5">
+            <div className="font-medium text-sm truncate">{draft.recipientName}</div>
+            <div className="text-[11px] text-fg-muted flex flex-wrap gap-x-1.5">
               <span>{draft.tasks.length} task{draft.tasks.length === 1 ? "" : "s"}</span>
               {u.overdue > 0 && <span className="text-red-600 dark:text-red-400">· {u.overdue} overdue</span>}
               {u.critical > 0 && <span className="text-red-600 dark:text-red-400">· {u.critical} critical</span>}
               {u.dueSoon > 0 && u.overdue === 0 && u.critical === 0 && (
                 <span className="text-amber-600 dark:text-amber-400">· {u.dueSoon} due soon</span>
               )}
-              {contactValue && <span className="text-fg-subtle">· {contactValue}</span>}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <ChannelPicker />
-          {sent ? (
-            <Badge tone={duplicate ? "warn" : "success"}>
-              <Check size={11} /> {duplicate ? "Already sent" : "Sent"}
-            </Badge>
-          ) : channelReady ? (
-            <Badge tone="success">Ready</Badge>
-          ) : (
-            <Badge tone="warn"><AlertCircle size={11} /> No {channelLabel(channel)}</Badge>
-          )}
-          {compact && (
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              className="text-fg-subtle hover:text-fg p-1 rounded-md hover:bg-bg-muted"
-              title="Collapse"
-            >
-              <ChevronUp size={13} />
-            </button>
-          )}
-        </div>
+        {compact && (
+          <button type="button" onClick={() => setExpanded(false)} className="shrink-0 text-fg-subtle hover:text-fg p-1 rounded-md hover:bg-bg-muted" title="Collapse">
+            <ChevronUp size={14} />
+          </button>
+        )}
       </div>
+
+      {/* Channel row — picker + readiness + contact, with room to breathe */}
+      {!sent && (
+        <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-border bg-bg-subtle/30">
+          <ChannelPicker />
+          <div className="flex items-center gap-2 min-w-0">
+            {channelReady && contactValue && (
+              <span className="text-[11px] text-fg-subtle truncate max-w-[150px] tabular hidden sm:inline">{contactValue}</span>
+            )}
+            {channelReady ? <Badge tone="success">Ready</Badge> : <Badge tone="warn"><AlertCircle size={10} /> No {channelLabel(channel)}</Badge>}
+          </div>
+        </div>
+      )}
 
       {/* By-company breakdown — surfaces cross-company recipients without changing dedupe */}
       {(() => {
         const groups = groupByCompany(draft.tasks);
         if (groups.length === 0) return null;
         return (
-          <div className="px-4 py-3 border-b border-border bg-bg-subtle/30 space-y-2">
+          <div className="px-3 py-2.5 border-b border-border space-y-1.5">
             <div className="text-[10px] uppercase tracking-wider text-fg-subtle">
               By company
               {groups.length > 1 && (
@@ -434,12 +430,12 @@ export function OutboxCard({
       )}
 
       {!sent && (
-        <div className="p-4 bg-bg-subtle/50 max-h-64 overflow-y-auto">
+        <div className="p-3 bg-bg-subtle/40 max-h-56 overflow-y-auto">
           {editing ? (
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full min-h-[180px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-md p-2 focus:outline-none focus:border-accent"
+              className="w-full min-h-[160px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-md p-2 focus:outline-none focus:border-accent"
             />
           ) : (
             <pre className="text-xs whitespace-pre-wrap font-sans text-fg-muted leading-relaxed">{message}</pre>
@@ -447,7 +443,7 @@ export function OutboxCard({
         </div>
       )}
 
-      <div className="p-3 flex items-center justify-between gap-2 bg-bg-elev border-t border-border">
+      <div className="p-2.5 flex items-center justify-between gap-2 bg-bg-elev border-t border-border">
         {sent ? (
           <span className="text-xs text-fg-subtle inline-flex items-center gap-1.5">
             <CurrentChannelIcon size={12} /> {duplicate ? "Was already done today." : `Sent via ${channelLabel(channel)}.`}
@@ -457,51 +453,31 @@ export function OutboxCard({
             type="button"
             onClick={onSkip}
             disabled={pending || !draft.personId}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-40"
             title="Hide this person until tomorrow"
           >
-            <BellOff size={12} /> Skip today
+            <BellOff size={12} /> <span className="hidden sm:inline">Skip today</span>
           </button>
         )}
 
         {!sent && (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setEditing((e) => !e)}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md transition-colors",
-                editing
-                  ? "bg-accent/15 text-accent"
-                  : "text-fg-subtle hover:text-fg hover:bg-bg-muted"
-              )}
-              title={editing ? "Finish editing" : "Edit message before copying"}
-            >
-              {editing ? <X size={12} /> : <Pencil size={12} />}
+          <div className="flex items-center gap-1 shrink-0">
+            <button type="button" onClick={() => setEditing((e) => !e)} title={editing ? "Done editing" : "Edit message"}
+              className={cn("inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors", editing ? "bg-accent/15 text-accent" : "text-fg-subtle hover:text-fg hover:bg-bg-muted")}>
+              {editing ? <X size={14} /> : <Pencil size={13} />}
             </button>
-            <button
-              type="button"
-              onClick={onCopy}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors"
-            >
-              {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+            <button type="button" onClick={onCopy} title="Copy message"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors">
+              {copied ? <Check size={14} className="text-success" /> : <Copy size={13} />}
             </button>
-            <button
-              type="button"
-              onClick={onMarkSentOnly}
-              disabled={pending}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50"
-            >
-              <Check size={12} /> Mark sent
+            <button type="button" onClick={onMarkSentOnly} disabled={pending} title="Mark sent (without copying)"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50">
+              <Check size={14} />
             </button>
-            <button
-              type="button"
-              onClick={onCopyAndMark}
-              disabled={pending || !channelReady}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
+            <button type="button" onClick={onCopyAndMark} disabled={pending || !channelReady}
               title={channelReady ? `Copy & mark sent on ${channelLabel(channel)}` : `No ${channelLabel(channel)} contact`}
-            >
-              <Send size={12} /> {pending ? "Working…" : "Copy & Mark Sent"}
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
+              <Send size={13} /> {pending ? "…" : <span>Copy &amp; Sent</span>}
             </button>
           </div>
         )}
