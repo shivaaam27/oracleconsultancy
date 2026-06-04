@@ -23,33 +23,57 @@ export type OutboxDraft = {
   contactStatus: ContactStatus;
 };
 
+/** Compact deadline, e.g. "1 Jun" (Dar es Salaam time). */
 function fmtDate(d: Date | null): string {
-  if (!d) return "No Deadline";
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  if (!d) return "no deadline";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" });
+}
+
+/** One compact meta line: "due 1 Jun · In Progress" (+ priority only when High/Critical). */
+function taskMeta(t: TaskRow): string {
+  const bits = [`due ${fmtDate(t.deadline)}`, t.status];
+  if (t.priority === "High" || t.priority === "Critical") bits.push(t.priority);
+  return bits.join(" · ");
+}
+
+/**
+ * Scannable reminder body, grouped by company. `bold` wraps the task name
+ * (WhatsApp gets *asterisks*; email/SMS pass through plain). A single-company
+ * recipient skips the company headers.
+ */
+function buildReminder(name: string, tasks: TaskRow[], bold: (s: string) => string): string {
+  // Group by company, first-seen order; tasks within a company by soonest deadline.
+  const groups = new Map<string, TaskRow[]>();
+  for (const t of tasks) {
+    const list = groups.get(t.companyName);
+    if (list) list.push(t); else groups.set(t.companyName, [t]);
+  }
+  for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
+  const single = groups.size === 1;
+
+  const lines = [`Hi ${name}, a quick reminder on your open items:`, ""];
+  for (const [company, list] of groups) {
+    if (!single) lines.push(bold(company));
+    for (const t of list) {
+      lines.push(`• ${bold(t.actionItem)} (${t.code}) — ${taskMeta(t)}`);
+    }
+    if (!single) lines.push("");
+  }
+  if (single) lines.push("");
+  lines.push("Please update the tracker when you can. Thanks.");
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export function buildWhatsAppMessage(name: string, tasks: TaskRow[]): string {
-  const lines = [`Hello ${name},`, "", "Task reminder for today:", ""];
-  tasks.forEach((t, i) => {
-    lines.push(`${i + 1}. ${t.companyName} — ${t.actionItem}`);
-    lines.push(`Task ID: ${t.code}`);
-    lines.push(`Accountable: ${t.assignees.join(", ") || "—"}`);
-    lines.push(`Status: ${t.status}`);
-    lines.push(`Deadline: ${fmtDate(t.deadline)}`);
-    lines.push(`Priority: ${t.priority}`);
-    if (t.latestUpdate) lines.push(`Latest Update: ${t.latestUpdate}`);
-    lines.push("");
-  });
-  lines.push("Please update the tracker before end of day.");
-  return lines.join("\n");
+  return buildReminder(name, tasks, (s) => `*${s}*`);
 }
 
 export function buildEmailMessage(name: string, tasks: TaskRow[]): string {
-  return buildWhatsAppMessage(name, tasks);
+  return buildReminder(name, tasks, (s) => s); // email shows literal asterisks — keep plain
 }
 
 export function buildSmsMessage(t: TaskRow): string {
-  return `${t.code} ${t.companyName}: ${t.actionItem} · Due ${fmtDate(t.deadline)} · ${t.priority}`;
+  return `${t.code} ${t.companyName}: ${t.actionItem} · ${taskMeta(t)}`;
 }
 
 function buildAllMessages(name: string, list: TaskRow[]): Record<Channel, string> {
