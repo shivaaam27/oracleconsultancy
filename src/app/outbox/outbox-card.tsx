@@ -13,35 +13,6 @@ import { cn } from "@/lib/cn";
 
 type Urgency = "critical" | "warn" | "normal";
 
-type TaskItem = OutboxDraft["tasks"][number];
-
-/**
- * Bucket a person's tasks by company so cross-company recipients are visually triageable.
- * Companies are ordered by urgency (most-overdue first), then count desc.
- */
-function groupByCompany(tasks: TaskItem[]) {
-  const flagOrder = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track", "closed"];
-  const groups = new Map<string, { name: string; accent: string | null; items: TaskItem[] }>();
-  for (const t of tasks) {
-    const key = t.companyName;
-    const cur = groups.get(key) || { name: t.companyName, accent: t.companyAccent ?? null, items: [] };
-    cur.items.push(t);
-    groups.set(key, cur);
-  }
-  return Array.from(groups.values()).sort((a, b) => {
-    const aWorst = Math.min(...a.items.map((t) => {
-      const i = flagOrder.indexOf(t.flag);
-      return i === -1 ? flagOrder.length : i;
-    }));
-    const bWorst = Math.min(...b.items.map((t) => {
-      const i = flagOrder.indexOf(t.flag);
-      return i === -1 ? flagOrder.length : i;
-    }));
-    if (aWorst !== bWorst) return aWorst - bWorst;
-    return b.items.length - a.items.length;
-  });
-}
-
 function topTaskOf(tasks: OutboxDraft["tasks"]) {
   if (tasks.length === 0) return null;
   const flagOrder = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track", "closed"];
@@ -102,6 +73,24 @@ function defaultChannel(draft: OutboxDraft): Channel {
   return pref || "WHATSAPP";
 }
 
+/** Render a WhatsApp-style message: `*bold*` → bold, whole-line bold → heading. */
+function renderRichMessage(text: string) {
+  return text.split("\n").map((line, i) => {
+    if (line.trim() === "") return <div key={i} className="h-2" />;
+    const isHeading = /^\*[^*]+\*$/.test(line.trim());
+    const parts = line.split(/(\*[^*]+\*)/g).filter(Boolean);
+    return (
+      <div key={i} className={isHeading ? "font-semibold text-fg mt-2.5 first:mt-0" : ""}>
+        {parts.map((seg, j) =>
+          seg.startsWith("*") && seg.endsWith("*")
+            ? <strong key={j} className="font-medium text-fg">{seg.slice(1, -1)}</strong>
+            : <span key={j}>{seg}</span>
+        )}
+      </div>
+    );
+  });
+}
+
 export function OutboxCard({
   draft,
   alreadySent = false,
@@ -116,23 +105,17 @@ export function OutboxCard({
   scopeName?: string | null;
 }) {
   const hasScoped = scopeName ? draft.tasks.some((t) => t.companyName === scopeName) : false;
-  const initialChannel = defaultChannel(draft);
-  const [channel, setChannel] = useState<Channel>(initialChannel);
+  // One "Message" — no channel switcher. Channel is auto-picked (preferred, then
+  // whatever contact exists) purely for the sent-record + contact lookup.
+  const channel = defaultChannel(draft);
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(alreadySent);
   const [duplicate, setDuplicate] = useState(false);
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
-  const [message, setMessage] = useState(draft.messages[initialChannel]);
+  const [message, setMessage] = useState(draft.messages.WHATSAPP);
   const [expanded, setExpanded] = useState(false);
-  const [localSent, setLocalSent] = useState<Set<Channel>>(new Set(sentChannels));
   const { toast } = useToast();
-
-  // When user switches channel, replace the working message unless they were editing.
-  const switchChannel = (c: Channel) => {
-    setChannel(c);
-    if (!editing) setMessage(draft.messages[c]);
-  };
 
   const contactValue =
     channel === "EMAIL"
@@ -142,6 +125,7 @@ export function OutboxCard({
         : draft.phone;
 
   const channelReady = draft.contactByChannel[channel] === "Complete";
+  const anyContact = !!(draft.whatsapp || draft.email || draft.phone);
 
   const doMarkSent = async (): Promise<{ ok: boolean; undoToken?: string }> => {
     const fd = new FormData();
@@ -154,13 +138,11 @@ export function OutboxCard({
     const res = await recordSent(fd);
     if (res.ok) {
       setSent(true);
-      setLocalSent((prev) => new Set(prev).add(channel));
       return { ok: true, undoToken: res.undoToken };
     }
     if (res.reason === "duplicate") {
       setSent(true);
       setDuplicate(true);
-      setLocalSent((prev) => new Set(prev).add(channel));
       return { ok: false };
     }
     toast("Couldn't mark sent.", { tone: "danger" });
@@ -224,42 +206,6 @@ export function OutboxCard({
   const u = urgencyOf(draft.tasks);
   const CurrentChannelIcon = channelIcon[channel];
 
-  // Channel picker chip group
-  const ChannelPicker = ({ size = "sm" }: { size?: "sm" | "xs" }) => {
-    const all: Channel[] = ["WHATSAPP", "EMAIL", "SMS"];
-    return (
-      <div className="inline-flex bg-bg-subtle border border-border rounded-md p-0.5 gap-0.5">
-        {all.map((c) => {
-          const Icon = channelIcon[c];
-          const active = channel === c;
-          const ready = draft.contactByChannel[c] === "Complete";
-          const sentOnThis = localSent.has(c);
-          return (
-            <button
-              key={c}
-              type="button"
-              onClick={() => switchChannel(c)}
-              className={cn(
-                "inline-flex items-center gap-1 rounded transition-colors",
-                size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs",
-                active
-                  ? "bg-bg-elev text-fg shadow-sm"
-                  : ready
-                    ? "text-fg-muted hover:text-fg"
-                    : "text-fg-subtle"
-              )}
-              title={ready ? channelLabel(c) : `No ${channelLabel(c)} contact`}
-            >
-              <Icon size={size === "xs" ? 9 : 11} />
-              {size !== "xs" && <span>{channelLabel(c).slice(0, channelLabel(c) === "WhatsApp" ? 2 : 5)}</span>}
-              {sentOnThis && <Check size={size === "xs" ? 8 : 10} className="text-success" />}
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
-
   // Compact row mode
   if (compact && !expanded) {
     const topTask = topTaskOf(draft.tasks);
@@ -295,15 +241,14 @@ export function OutboxCard({
         {sent ? (
           <Badge tone={duplicate ? "warn" : "success"}><Check size={11} /> {duplicate ? "Done" : "Sent"}</Badge>
         ) : (
-          <div className="flex items-center gap-1 shrink-0">
-            {!channelReady && <AlertCircle size={12} className="text-amber-500" aria-label={`No ${channelLabel(channel)} contact`} />}
-            <div className="hidden sm:block"><ChannelPicker size="xs" /></div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!anyContact && <AlertCircle size={12} className="text-amber-500" aria-label="No contact details" />}
             <button
               type="button"
               onClick={onCopyAndMark}
-              disabled={pending || !channelReady}
+              disabled={pending || !anyContact}
               className="inline-flex items-center gap-1.5 h-8 px-2 sm:px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
-              title={channelReady ? "Copy message and mark sent" : `No ${channelLabel(channel)} contact`}
+              title={anyContact ? "Copy message and mark sent" : "No contact details for this person"}
             >
               <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & Sent"}</span>
             </button>
@@ -347,90 +292,20 @@ export function OutboxCard({
         )}
       </div>
 
-      {/* Channel row — picker + readiness + contact, with room to breathe */}
-      {!sent && (
-        <div className="px-3 py-2 flex items-center justify-between gap-2 border-b border-border bg-bg-subtle/30">
-          <ChannelPicker />
-          <div className="flex items-center gap-2 min-w-0">
-            {channelReady && contactValue && (
-              <span className="text-[11px] text-fg-subtle truncate max-w-[150px] tabular hidden sm:inline">{contactValue}</span>
-            )}
-            {channelReady ? <Badge tone="success">Ready</Badge> : <Badge tone="warn"><AlertCircle size={10} /> No {channelLabel(channel)}</Badge>}
-          </div>
-        </div>
-      )}
-
-      {/* By-company breakdown — surfaces cross-company recipients without changing dedupe */}
-      {(() => {
-        const groups = groupByCompany(draft.tasks);
-        if (groups.length === 0) return null;
-        return (
-          <div className="px-3 py-2.5 border-b border-border space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wider text-fg-subtle">
-              By company
-              {groups.length > 1 && (
-                <span className="ml-1 text-amber-600 dark:text-amber-400">
-                  · {groups.length} companies
-                </span>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              {groups.map((g) => {
-                const od = g.items.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length;
-                const crit = g.items.filter((t) => t.priority === "Critical").length;
-                return (
-                  <div key={g.name} className="flex items-start gap-2 text-xs">
-                    <span
-                      className="inline-block w-2 h-2 rounded-full mt-1.5 shrink-0"
-                      style={{ backgroundColor: g.accent || "var(--accent)" }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-medium text-fg">{g.name}</span>
-                        <span className="text-[10px] text-fg-subtle tabular">
-                          {g.items.length} task{g.items.length === 1 ? "" : "s"}
-                        </span>
-                        {od > 0 && (
-                          <span className="text-[10px] text-red-600 dark:text-red-400 tabular">
-                            · {od} overdue
-                          </span>
-                        )}
-                        {crit > 0 && od === 0 && (
-                          <span className="text-[10px] text-red-600 dark:text-red-400 tabular">
-                            · {crit} critical
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-fg-muted mt-0.5 leading-snug">
-                        {g.items.slice(0, 3).map((t, i) => (
-                          <span key={t.code}>
-                            {i > 0 && <span className="text-fg-subtle"> · </span>}
-                            <span className="font-mono text-[10px] text-fg-subtle">{t.code}</span>{" "}
-                            <span className="text-fg-muted">{t.actionItem}</span>
-                          </span>
-                        ))}
-                        {g.items.length > 3 && (
-                          <span className="text-fg-subtle"> · +{g.items.length - 3} more</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
       {!sent && draft.notes && (
-        <div className="px-4 py-2 text-xs italic text-fg-muted bg-amber-500/5 border-b border-amber-500/20 flex items-start gap-1.5">
+        <div className="px-3 py-2 text-xs italic text-fg-muted bg-amber-500/5 border-b border-amber-500/20 flex items-start gap-1.5">
           <StickyNote size={11} className="shrink-0 mt-0.5 text-amber-500" />
           <span>{draft.notes}</span>
         </div>
       )}
 
+      {/* The Message — company breakdown + shared-assignees live inside the text. */}
       {!sent && (
-        <div className="p-3 bg-bg-subtle/40 max-h-56 overflow-y-auto">
+        <div className="px-3 pt-2 pb-3 bg-bg-subtle/40 max-h-64 overflow-y-auto">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Message</span>
+            {!anyContact && <span className="text-[10px] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1"><AlertCircle size={10} /> no contact</span>}
+          </div>
           {editing ? (
             <textarea
               value={message}
@@ -438,7 +313,7 @@ export function OutboxCard({
               className="w-full min-h-[160px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-md p-2 focus:outline-none focus:border-accent"
             />
           ) : (
-            <pre className="text-xs whitespace-pre-wrap font-sans text-fg-muted leading-relaxed">{message}</pre>
+            <div className="text-xs leading-relaxed text-fg-muted">{renderRichMessage(message)}</div>
           )}
         </div>
       )}
@@ -474,8 +349,8 @@ export function OutboxCard({
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50">
               <Check size={14} />
             </button>
-            <button type="button" onClick={onCopyAndMark} disabled={pending || !channelReady}
-              title={channelReady ? `Copy & mark sent on ${channelLabel(channel)}` : `No ${channelLabel(channel)} contact`}
+            <button type="button" onClick={onCopyAndMark} disabled={pending || !anyContact}
+              title={anyContact ? "Copy message and mark sent" : "No contact details for this person"}
               className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
               <Send size={13} /> {pending ? "…" : <span>Copy &amp; Sent</span>}
             </button>

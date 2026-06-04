@@ -49,17 +49,16 @@ function buildReminder(name: string, tasks: TaskRow[], bold: (s: string) => stri
     if (list) list.push(t); else groups.set(t.companyName, [t]);
   }
   for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
-  const single = groups.size === 1;
-
   const lines = [`Hi ${name}, a quick reminder on your open items:`, ""];
   for (const [company, list] of groups) {
-    if (!single) lines.push(bold(company));
+    lines.push(bold(company)); // company always heads its block — the breakdown lives in the message
     for (const t of list) {
-      lines.push(`• ${bold(t.actionItem)} (${t.code}) — ${taskMeta(t)}`);
+      const others = t.assignees.filter((a) => a && a !== name);
+      const shared = others.length ? ` (with ${others.join(", ")})` : "";
+      lines.push(`• ${bold(t.actionItem)} (${t.code}) — ${taskMeta(t)}${shared}`);
     }
-    if (!single) lines.push("");
+    lines.push("");
   }
-  if (single) lines.push("");
   lines.push("Please update the tracker when you can. Thanks.");
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
