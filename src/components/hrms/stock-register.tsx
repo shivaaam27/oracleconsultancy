@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import {
-  Search, Boxes, Plus, X, Pencil, ChevronDown, Save, Archive, ArchiveRestore,
+  Search, Boxes, Plus, Pencil, ChevronDown, Save, Archive, ArchiveRestore,
 } from "lucide-react";
-import { TableShell, Th, Td, Badge, Button, Input, Select, FieldLabel, EmptyState } from "@/components/ui";
+import { TableShell, Th, Td, Button, Input, Select, FieldLabel, EmptyState } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
+import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { cn } from "@/lib/cn";
 import {
   STOCK_CATEGORIES, STOCK_UNITS, currentStock, totalPurchased, totalIssued,
@@ -72,10 +72,10 @@ export function StockRegister({
           hint="Add an item once (code, name, opening stock, reorder level). After that you only log purchases and issues — current stock looks after itself."
           action={<Button onClick={() => setCreateOpen(true)}><Plus size={15} /> Add your first item</Button>}
         />
-        <ItemDialog open={createOpen} onOpenChange={setCreateOpen} title="Add an item">
+        <HrmsDialog open={createOpen} onOpenChange={setCreateOpen} title="Add an item">
           <ItemForm mode="create" onCancel={() => setCreateOpen(false)}
             onComplete={(r) => { if (r.ok) { toast("Item added.", { tone: "success" }); setCreateOpen(false); } }} />
-        </ItemDialog>
+        </HrmsDialog>
       </>
     );
   }
@@ -143,18 +143,18 @@ export function StockRegister({
       </p>
 
       {/* Create */}
-      <ItemDialog open={createOpen} onOpenChange={setCreateOpen} title="Add an item">
+      <HrmsDialog open={createOpen} onOpenChange={setCreateOpen} title="Add an item">
         <ItemForm mode="create" onCancel={() => setCreateOpen(false)}
           onComplete={(r) => { if (r.ok) { toast("Item added.", { tone: "success" }); setCreateOpen(false); } }} />
-      </ItemDialog>
+      </HrmsDialog>
 
       {/* Edit */}
-      <ItemDialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)} title="Edit item">
+      <HrmsDialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)} title="Edit item">
         {editItem && (
           <ItemForm mode="edit" item={editItem} onCancel={() => setEditItem(null)}
             onComplete={(r) => { if (r.ok) { toast("Saved.", { tone: "success" }); setEditItem(null); } }} />
         )}
-      </ItemDialog>
+      </HrmsDialog>
     </div>
   );
 }
@@ -299,36 +299,5 @@ function ItemForm({
         <Button type="submit" loading={pending}><Save size={15} /> {mode === "create" ? "Add to register" : "Save changes"}</Button>
       </div>
     </form>
-  );
-}
-
-/* ---- Dialog shell (mirrors documents DocDialog) ---- */
-function ItemDialog({ open, onOpenChange, title, children }: {
-  open: boolean; onOpenChange: (o: boolean) => void; title: string; children: React.ReactNode;
-}) {
-  return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm
-          data-[state=open]:animate-in data-[state=open]:fade-in-0
-          data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(560px,calc(100vw-2rem))] max-h-[85vh]
-          -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl
-          bg-bg-elev border border-border shadow-2xl outline-none
-          data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
-          data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">{title}</Dialog.Title>
-            <Dialog.Close asChild>
-              <button type="button" aria-label="Close"
-                className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors">
-                <X size={14} />
-              </button>
-            </Dialog.Close>
-          </div>
-          <div className="p-5">{children}</div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
   );
 }

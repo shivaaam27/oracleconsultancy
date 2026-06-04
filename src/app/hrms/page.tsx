@@ -1,9 +1,9 @@
-import { ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
-import { EmptyState } from "@/components/ui";
 import { HrmsShell, type HrmsTab } from "@/components/hrms/hrms-shell";
 import { StockDashboard } from "@/components/hrms/stock-dashboard";
 import { StockRegister } from "@/components/hrms/stock-register";
+import { StockPurchases, StockIssues } from "@/components/hrms/stock-movements";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
+import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,11 @@ export default async function HrmsPage({
   const { tab } = await searchParams;
   const initialTab = (VALID_TABS.includes(tab as HrmsTab) ? tab : "dashboard") as HrmsTab;
 
-  const { items, purchases, issues } = await loadStock();
+  const [{ items, purchases, issues }, { data: companiesRaw }] = await Promise.all([
+    loadStock(),
+    sb.from("companies").select("id,name").eq("active", true).order("name"),
+  ]);
+  const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const m = dashboardMetrics(items, purchases, issues);
 
   const sub =
@@ -25,29 +29,14 @@ export default async function HrmsPage({
       ? "No items yet — set up your stock register to begin"
       : `${m.totalItems} item${m.totalItems === 1 ? "" : "s"} · ${m.reorder} to reorder · ${m.outOfStock} out of stock`;
 
-  // Phase 2 ships the themed shell + navigation. The Dashboard, Register and
-  // movement panels are filled in the next phases; placeholders keep the page
-  // navigable and self-explanatory in the meantime.
   return (
     <HrmsShell
       sub={sub}
       initialTab={initialTab}
       dashboardSlot={<StockDashboard items={items} purchases={purchases} issues={issues} />}
       registerSlot={<StockRegister items={items} purchases={purchases} issues={issues} />}
-      purchasesSlot={
-        <EmptyState
-          icon={<ArrowDownToLine size={22} />}
-          title="Purchases — Stock In"
-          hint="Log what you buy. Each purchase raises the item's current stock automatically."
-        />
-      }
-      issuesSlot={
-        <EmptyState
-          icon={<ArrowUpFromLine size={22} />}
-          title="Issues — Stock Out"
-          hint="Log what's handed out, tagged to the company that received it. Each issue lowers current stock automatically."
-        />
-      }
+      purchasesSlot={<StockPurchases items={items} purchases={purchases} />}
+      issuesSlot={<StockIssues items={items} issues={issues} companies={companies} />}
     />
   );
 }

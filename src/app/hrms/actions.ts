@@ -5,6 +5,9 @@ import {
   createStockItem,
   updateStockItem,
   setStockItemArchived,
+  recordPurchase,
+  recordIssue,
+  InsufficientStockError,
   type StockItemInput,
 } from "@/lib/stock";
 
@@ -79,5 +82,67 @@ export async function archiveStockItemAction(id: number, archived: boolean): Pro
     return { ok: true, id };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update the item." };
+  }
+}
+
+// "YYYY-MM-DD" → Date at UTC midnight (all-day, matching the documents convention).
+function dateFromInput(fd: FormData, key: string): Date | null {
+  const v = (fd.get(key) ?? "").toString().trim();
+  if (!v) return null;
+  const d = new Date(`${v}T00:00:00Z`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/* ---- Purchases (stock IN) ---- */
+export async function recordPurchaseAction(fd: FormData): Promise<Result> {
+  const itemCode = str(fd, "itemCode");
+  const qty = numOrNull(fd, "qty");
+  if (!itemCode) return { ok: false, error: "Choose an item." };
+  if (!qty || qty <= 0) return { ok: false, error: "Enter a quantity greater than zero." };
+  try {
+    const id = await recordPurchase({
+      itemCode,
+      qty,
+      date: dateFromInput(fd, "date"),
+      unitCost: numOrNull(fd, "unitCost") ?? 0,
+      supplier: str(fd, "supplier"),
+      ref: str(fd, "ref"),
+    });
+    revalidateHrms();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not record the purchase." };
+  }
+}
+
+/* ---- Issues (stock OUT) ---- */
+export async function recordIssueAction(fd: FormData): Promise<Result> {
+  const itemCode = str(fd, "itemCode");
+  const qty = numOrNull(fd, "qty");
+  if (!itemCode) return { ok: false, error: "Choose an item." };
+  if (!qty || qty <= 0) return { ok: false, error: "Enter a quantity greater than zero." };
+  const allowNegative = fd.get("allowNegative") === "1";
+  try {
+    const id = await recordIssue(
+      {
+        itemCode,
+        qty,
+        date: dateFromInput(fd, "date"),
+        issuedTo: str(fd, "issuedTo"),
+        companyId: numOrNull(fd, "companyId"),
+        notes: str(fd, "notes"),
+      },
+      "web-ui",
+      { allowNegative }
+    );
+    revalidateHrms();
+    return { ok: true, id };
+  } catch (e) {
+    // Surface the negative-stock guard with a distinct flag so the form can
+    // offer an "issue anyway" override.
+    if (e instanceof InsufficientStockError) {
+      return { ok: false, error: `Only ${e.available} in stock — you're trying to issue ${e.requested}.` };
+    }
+    return { ok: false, error: e instanceof Error ? e.message : "Could not record the issue." };
   }
 }

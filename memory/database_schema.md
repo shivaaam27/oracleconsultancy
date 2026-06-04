@@ -108,7 +108,7 @@ Tracks licences, contracts, certificates, registrations, insurance, leases, perm
 
 ## HRMS — Stock Control
 
-First module of the HRMS page (Phase 1: data layer only). Mirrors the Excel stock workbook. Pure maths (source of truth) lives in `src/lib/stock-shared.ts` (client-safe); Supabase helpers in `src/lib/stock.ts`. **Current stock is never stored** — it is derived at read time: `currentStock = openingStock + Σ purchases − Σ issues` (same pattern as `deriveDocStatus`). `stockStatus` → `OK` / `Reorder` (≤ reorderLevel) / `Out of Stock` (≤ 0).
+First module of the HRMS page (`/hrms`, tabs: Dashboard / Register / Purchases / Issues). Mirrors the Excel stock workbook. Pure maths (source of truth) lives in `src/lib/stock-shared.ts` (client-safe, incl. `fmtMoney` → TZS); Supabase helpers in `src/lib/stock.ts`; server actions in `src/app/hrms/actions.ts`. UI components under `src/components/hrms/`. **Current stock is never stored** — it is derived at read time: `currentStock = openingStock + Σ purchases − Σ issues` (same pattern as `deriveDocStatus`). `stockStatus` → `OK` / `Reorder` (≤ reorderLevel) / `Out of Stock` (≤ 0).
 
 ### stock_items
 `id, code (unique, e.g. ST-001), name, category, unit, opening_stock, reorder_level, unit_cost, archived, created_at, updated_at, created_by`. Soft-delete via `archived`.
