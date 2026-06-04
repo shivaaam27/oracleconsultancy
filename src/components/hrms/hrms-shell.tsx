@@ -12,8 +12,8 @@ export type HrmsTab = "dashboard" | "register" | "purchases" | "issues";
 const TABS: { value: HrmsTab; label: string; icon: React.ReactNode }[] = [
   { value: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={14} /> },
   { value: "register", label: "Register", icon: <Boxes size={14} /> },
-  { value: "purchases", label: "Purchases — In", icon: <ArrowDownToLine size={14} /> },
-  { value: "issues", label: "Issues — Out", icon: <ArrowUpFromLine size={14} /> },
+  { value: "purchases", label: "Purchases", icon: <ArrowDownToLine size={14} /> },
+  { value: "issues", label: "Issues", icon: <ArrowUpFromLine size={14} /> },
 ];
 
 /**
@@ -71,7 +71,9 @@ export function HrmsShell({
           {titleSub && <div className="text-xs text-fg-subtle">{titleSub}</div>}
           {sub && <div className="text-xs text-fg-muted mt-0.5">{sub}</div>}
         </div>
-        <Segmented value={tab} onChange={setTab} options={TABS} />
+        <div className="w-full sm:w-auto overflow-x-auto -mx-1 px-1 no-scrollbar">
+          <Segmented value={tab} onChange={setTab} options={TABS} size="sm" className="min-w-max" />
+        </div>
       </div>
 
       {/* The one rule everything rests on — a quiet nod, not a spreadsheet. */}
