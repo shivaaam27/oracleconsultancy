@@ -302,25 +302,20 @@ function NavActionButton() {
 /* --------------------------------------------------------------------- */
 
 const LENS_SLOTS = ["Home", "Task Management", "Companies", "Workbook", "Search"] as const;
-const LENS_ICON: Record<string, LucideIcon> = {
-  Home, "Task Management": CheckSquare, Companies: Building2, Workbook: NotebookPen, Search,
-};
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
   const scaleX = useMotionValue(1);
   const scaleY = useMotionValue(1);
-  // Velocity-driven specular glare (springy so it eases back at rest).
+  // Velocity-driven specular glare + chromatic-aberration border (springy, eases
+  // back to neutral at rest).
   const rawShift = useMotionValue(0);
   const shift = useSpring(rawShift, { stiffness: 300, damping: 22, mass: 0.4 });
   const glareX = useTransform(shift, (v) => -v * 1.4);
+  const edgeC = useTransform(shift, (v) => v * 1.1);   // cyan edge
+  const edgeR = useTransform(shift, (v) => -v * 1.1);  // rose edge
   const [visible, setVisible] = useState(false);
-  const [activeLabel, setActiveLabel] = useState<string>("Home");
   const [box, setBox] = useState({ w: 44, h: 40, top: 0 });
-  // Measured slot centres for the in-lens clone of the real icons.
-  const [slots, setSlots] = useState<{ label: string; center: number }[]>([]);
-  // Shift the clone so the slice under the lens overlays the real nav exactly.
-  const cloneShift = useTransform(x, (v) => box.w / 2 - v);
   // Reduce Motion / Reduce Transparency → a plain solid highlight, no optics.
   const [plain, setPlain] = useState(false);
   const plainRef = useRef(false);
@@ -375,8 +370,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
         s.dragging = true;
         try { c.setPointerCapture(e.pointerId); } catch { /* ignore */ }
         const first = s.slots[0];
-        setBox({ w: first.w + 6, h: first.h, top: first.top });
-        setSlots(s.slots.map((sl) => ({ label: sl.label, center: sl.center })));
+        setBox({ w: first.w + 8, h: first.h + 2, top: first.top - 1 });
         x.set(clampPx(e.clientX - s.left));
         setVisible(true);
       }
@@ -384,10 +378,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
       const now = performance.now();
       const vx = (e.clientX - s.lastX) / Math.max(1, now - s.lastT);
       s.lastX = e.clientX; s.lastT = now;
-      const px = clampPx(e.clientX - s.left);
-      place(px, vx);
-      const near = s.slots.reduce((a, b) => (Math.abs(b.center - px) < Math.abs(a.center - px) ? b : a), s.slots[0]);
-      setActiveLabel(near.label);
+      place(clampPx(e.clientX - s.left), vx);
     };
 
     const onUp = (e: PointerEvent) => {
@@ -434,39 +425,24 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
           transition={{ duration: 0.16 }}
           style={{ x, scaleX, scaleY, left: -box.w / 2, top: box.top, width: box.w, height: box.h, originX: 0.5, originY: 0.5, willChange: "transform" }}
           className={cn(
-            "pointer-events-none absolute z-20 flex items-center justify-center overflow-hidden rounded-[1.1rem]",
+            "pointer-events-none absolute z-20 overflow-hidden rounded-[1.1rem]",
             plain
               ? "bg-accent-soft ring-1 ring-accent/30"
-              // Frosted, near-opaque fill MASKS the real icons beneath (no doubling);
-              // the refracted clone on top is the single visible copy.
-              : "bg-[hsl(0_0%_100%/0.62)] dark:bg-[hsl(240_8%_15%/0.9)] ring-1 ring-white/45 dark:ring-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_6px_18px_-6px_rgba(0,0,0,0.45)] backdrop-blur-[6px] backdrop-saturate-[1.4]"
+              // Clear liquid glass: just a light frost + bright rim. It refracts the
+              // real icons in place (Chromium backdrop) and frosts them elsewhere —
+              // nothing is painted inside, so there's nothing to double up.
+              : "glass-refract bg-white/20 dark:bg-white/[0.07] ring-1 ring-white/55 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.65),inset_0_-1px_0_0_rgba(255,255,255,0.15),0_5px_16px_-6px_rgba(0,0,0,0.35)] backdrop-blur-[3px] backdrop-saturate-[1.7]"
           )}
         >
           {!plain && (
             <>
-              {/* Refracted clone of the REAL icons beneath — magnified, edge-bent
-                  and chromatically aberrated via an SVG element filter (Safari-safe).
-                  No injected icon: the active tab shows accent because it's the
-                  real content. */}
-              <motion.div style={{ x: cloneShift, scale: 1.14 }} className="pointer-events-none absolute inset-0">
-                <div className="absolute inset-0" style={{ filter: "url(#cos-lens-refract)" }}>
-                  {slots.map((sl) => {
-                    const Icon = LENS_ICON[sl.label] ?? Home;
-                    return (
-                      <span
-                        key={sl.label}
-                        style={{ left: sl.center, top: "50%", transform: "translate(-50%,-50%)" }}
-                        className={cn("absolute", sl.label === activeLabel ? "text-accent" : "text-fg-muted")}
-                      >
-                        <Icon size={20} strokeWidth={2.2} />
-                      </span>
-                    );
-                  })}
-                </div>
-              </motion.div>
+              {/* Chromatic-aberration border: two coloured rims that separate with
+                  velocity (the morph) and re-converge to a clean rim at rest. */}
+              <motion.span style={{ x: edgeC }} className="pointer-events-none absolute inset-0 rounded-[1.1rem] border-2 border-cyan-300/45 mix-blend-screen" />
+              <motion.span style={{ x: edgeR }} className="pointer-events-none absolute inset-0 rounded-[1.1rem] border-2 border-rose-400/45 mix-blend-screen" />
 
               {/* Specular glare — a soft highlight that lags the motion. */}
-              <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/40 blur-[3px]" />
+              <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/50 blur-[3px]" />
             </>
           )}
         </motion.div>
