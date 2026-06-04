@@ -7,7 +7,8 @@ import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresen
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search,
-  Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText, type LucideIcon,
+  Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText,
+  StickyNote, ListTodo, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -149,6 +150,116 @@ function HrmsNavTab({ active }: { active: boolean }) {
               const Icon = r.icon;
               return (
                 <button key={r.href} type="button" data-hrms-href={r.href} onClick={() => go(r.href)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-colors",
+                    highlight === r.href ? "bg-accent-soft text-fg" : "text-fg hover:bg-bg-muted/60"
+                  )}>
+                  <Icon size={15} className="shrink-0 text-fg-subtle" />
+                  <span className="truncate">{r.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------------- */
+/* Workbook tab — tap opens Meetings; press-and-hold or hover reveals a     */
+/* popup for Meetings / Notes / To-do (same idea as the HRMS tab).          */
+/* --------------------------------------------------------------------- */
+
+const WORKBOOK_LINKS: Array<{ href: string; label: string; icon: LucideIcon }> = [
+  { href: "/workbook", label: "Meetings", icon: NotebookPen },
+  { href: "/workbook?tab=notes", label: "Notes", icon: StickyNote },
+  { href: "/workbook?tab=todo", label: "To-do", icon: ListTodo },
+];
+
+function WorkbookNavTab({ active }: { active: boolean }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+
+  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+
+  function go(href: string) { setOpen(false); setHighlight(null); router.push(href); }
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.pointerType === "mouse") return;
+    held.current = false;
+    start.current = { x: e.clientX, y: e.clientY };
+    clear();
+    timer.current = setTimeout(() => { held.current = true; triggerHaptic(); setOpen(true); }, 300);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!open || e.pointerType === "mouse") {
+      if (start.current && (Math.abs(e.clientX - start.current.x) > 8 || Math.abs(e.clientY - start.current.y) > 8)) clear();
+      return;
+    }
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const item = el?.closest("[data-wb-href]");
+    setHighlight(item ? item.getAttribute("data-wb-href") : null);
+  }
+  function onPointerUp(e: React.PointerEvent) {
+    clear();
+    if (e.pointerType === "mouse") return;
+    if (open && held.current) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const item = el?.closest("[data-wb-href]");
+      if (item) { go(item.getAttribute("data-wb-href")!); return; }
+      return;
+    }
+    if (!held.current) setOpen(false); // quick tap → let the Link navigate to /workbook
+  }
+
+  function onMouseEnter() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setOpen(true), 180);
+  }
+  function onMouseLeave() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setOpen(false), 160);
+  }
+
+  return (
+    <div className="relative shrink-0" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+      <Link
+        href="/workbook"
+        aria-label="Workbook"
+        title="Workbook — hold or hover for sections"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={clear}
+        onPointerCancel={clear}
+        onClick={(e) => { if (held.current) e.preventDefault(); }}
+        onContextMenu={(e) => e.preventDefault()}
+        className={cn(
+          "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full transition-colors select-none touch-none",
+          active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+        )}
+      >
+        {active && (
+          <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
+        )}
+        <NotebookPen size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
+      </Link>
+
+      {open && (
+        <>
+          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
+          <div className="absolute z-[56] bottom-full mb-3 left-1/2 -translate-x-1/2 w-48 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
+            <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">Workbook</div>
+            {WORKBOOK_LINKS.map((r) => {
+              const Icon = r.icon;
+              return (
+                <button key={r.href} type="button" data-wb-href={r.href} onClick={() => go(r.href)}
                   className={cn(
                     "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-colors",
                     highlight === r.href ? "bg-accent-soft text-fg" : "text-fg hover:bg-bg-muted/60"
@@ -501,7 +612,7 @@ export function TopPill() {
         <NavLens containerRef={pillRef} onSelect={selectSlot} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
-        <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
+        <WorkbookNavTab active={workbookActive} />
         <HrmsNavTab active={hrmsActive} />
         <MoreSheet pathname={pathname} />
 

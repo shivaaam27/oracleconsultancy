@@ -14,6 +14,7 @@ import { SnoozeSheet } from "@/components/snooze-sheet";
 import { SwipeRow } from "@/components/swipe-row";
 import { VoiceButton } from "@/components/voice-button";
 import { parseTodo } from "@/lib/todo-parse";
+import { Button } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -385,22 +386,23 @@ export function WorkbookTodo({
           {/* Composer */}
           {composerOpen ? (
             <div className="glass elevated rounded-2xl p-3 space-y-2.5">
-              <div className="flex items-center gap-2">
+              {/* Title — a clear, bordered field with inline dictation. */}
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2 focus-within:ring-2 focus-within:ring-accent/40 transition-shadow">
                 <input ref={titleRef} autoFocus value={fTitle} onChange={(e) => setFTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submitComposer(); if (e.key === "Escape") setComposerOpen(false); }} placeholder="e.g. Pay VAT friday 2pm #Dar Spices" className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-fg-subtle" />
                 <VoiceButton lang={voiceLanguage} title="Dictate a to-do" onResult={(text) => setFTitle((v) => (v.trim() ? `${v.trim()} ${text}` : text))} />
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg" />
-                <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="px-2 py-1.5 text-xs rounded-lg border border-border bg-bg disabled:opacity-40" />
-                <FluidSelect value={fCompany} onSelect={setFCompany} placeholder="No company" options={[{ value: "", label: "No company" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]} />
+                <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className="px-2.5 h-8 text-xs rounded-lg border border-border bg-bg" />
+                <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} disabled={!fDate} className="px-2.5 h-8 text-xs rounded-lg border border-border bg-bg disabled:opacity-40" />
+                <FluidSelect value={fCompany} onSelect={setFCompany} placeholder="No company" buttonClassName="h-8 py-0 text-xs" options={[{ value: "", label: "No company" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]} />
                 {people.length > 0 && (
-                  <FluidSelect value={fPerson} onSelect={setFPerson} placeholder="No one" options={[{ value: "", label: "No one" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
+                  <FluidSelect value={fPerson} onSelect={setFPerson} placeholder="No one" buttonClassName="h-8 py-0 text-xs" options={[{ value: "", label: "No one" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
                 )}
                 <div className="ml-auto flex items-center gap-2">
-                  <button type="button" onClick={() => setComposerOpen(false)} className="text-xs px-2.5 py-1.5 rounded-lg text-fg-muted hover:text-fg">Cancel</button>
-                  <button type="button" onClick={submitComposer} disabled={saving || !fTitle.trim()} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent text-accent-fg font-medium disabled:opacity-50 hover:opacity-90">
-                    {saving ? <Loader2 size={13} className="animate-spin" /> : editId ? <Check size={13} /> : <Plus size={13} />} {editId ? "Save" : "Add"}
-                  </button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setComposerOpen(false)}>Cancel</Button>
+                  <Button type="button" size="sm" onClick={submitComposer} loading={saving} disabled={!fTitle.trim()}>
+                    {!saving && (editId ? <Check size={14} /> : <Plus size={14} />)} {editId ? "Save" : "Add"}
+                  </Button>
                 </div>
               </div>
             </div>
