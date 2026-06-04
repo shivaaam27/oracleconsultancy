@@ -1,7 +1,8 @@
-import { Boxes, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { EmptyState } from "@/components/ui";
 import { HrmsShell, type HrmsTab } from "@/components/hrms/hrms-shell";
 import { StockDashboard } from "@/components/hrms/stock-dashboard";
+import { StockRegister } from "@/components/hrms/stock-register";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
 
 export const dynamic = "force-dynamic";
@@ -32,13 +33,7 @@ export default async function HrmsPage({
       sub={sub}
       initialTab={initialTab}
       dashboardSlot={<StockDashboard items={items} purchases={purchases} issues={issues} />}
-      registerSlot={
-        <EmptyState
-          icon={<Boxes size={22} />}
-          title="Stock Register"
-          hint="Your catalogue of items with live current stock and status. You'll add items and the figures recalculate from purchases and issues automatically."
-        />
-      }
+      registerSlot={<StockRegister items={items} purchases={purchases} issues={issues} />}
       purchasesSlot={
         <EmptyState
           icon={<ArrowDownToLine size={22} />}

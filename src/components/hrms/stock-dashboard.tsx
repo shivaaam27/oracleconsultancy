@@ -4,15 +4,13 @@ import {
   dashboardMetrics,
   currentStock,
   stockStatus,
+  fmtMoney as money,
+  fmtNum as num,
   type StockItemRow,
   type PurchaseRow,
   type IssueRow,
   type StockStatus,
 } from "@/lib/stock-shared";
-
-const num = (n: number) => n.toLocaleString();
-const money = (n: number) =>
-  n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const statusTone: Record<Exclude<StockStatus, "OK">, "warn" | "danger"> = {
   Reorder: "warn",

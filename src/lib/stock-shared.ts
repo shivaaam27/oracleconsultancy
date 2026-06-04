@@ -132,6 +132,16 @@ export const dashboardMetrics = (
   };
 };
 
+// Currency for all monetary figures in the HRMS module (Tanzanian Shilling).
+export const CURRENCY = "TZS";
+
+/** Format a money value with the TZS prefix, e.g. "TZS 1,234.50". */
+export const fmtMoney = (n: number): string =>
+  `${CURRENCY} ${(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Format a plain count with thousands separators. */
+export const fmtNum = (n: number): string => (Number(n) || 0).toLocaleString();
+
 export const stockStatusColor: Record<StockStatus, string> = {
   OK: "bg-success-soft text-success",
   Reorder: "bg-warn-soft text-warn",
