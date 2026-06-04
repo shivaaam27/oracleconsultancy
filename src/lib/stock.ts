@@ -214,6 +214,12 @@ export async function setStockItemArchived(id: number, archived: boolean): Promi
   if (error) throw new Error(error.message);
 }
 
+/** Hard-delete an item. Its purchases/issues cascade away (FK on item_code). */
+export async function deleteStockItem(id: number): Promise<void> {
+  const { error } = await sb.from("stock_items").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 /* ---------------------------------------------------------------------- */
 /* Writes — Purchases (stock IN)                                          */
 /* ---------------------------------------------------------------------- */
@@ -248,6 +254,26 @@ export async function recordPurchase(
     .single();
   if (error) throw new Error(error.message);
   return data.id as number;
+}
+
+export async function updatePurchase(id: number, input: PurchaseInput): Promise<void> {
+  const { error } = await sb
+    .from("stock_purchases")
+    .update({
+      item_code: input.itemCode,
+      qty: input.qty,
+      date: toIso(input.date) ?? new Date().toISOString(),
+      unit_cost: input.unitCost ?? 0,
+      supplier: input.supplier ?? null,
+      ref: input.ref ?? null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deletePurchase(id: number): Promise<void> {
+  const { error } = await sb.from("stock_purchases").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -306,4 +332,25 @@ export async function recordIssue(
     .single();
   if (error) throw new Error(error.message);
   return data.id as number;
+}
+
+/** Edit an issue. No negative-stock guard here — edits are corrections. */
+export async function updateIssue(id: number, input: IssueInput): Promise<void> {
+  const { error } = await sb
+    .from("stock_issues")
+    .update({
+      item_code: input.itemCode,
+      qty: input.qty,
+      date: toIso(input.date) ?? new Date().toISOString(),
+      issued_to: input.issuedTo ?? null,
+      company_id: input.companyId ?? null,
+      notes: input.notes ?? null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteIssue(id: number): Promise<void> {
+  const { error } = await sb.from("stock_issues").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }

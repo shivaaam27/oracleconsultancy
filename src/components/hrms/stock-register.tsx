@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import {
-  Search, Boxes, Plus, Pencil, ChevronDown, Save, Archive, ArchiveRestore,
+  Search, Boxes, Plus, Pencil, ChevronDown, Save, Archive, ArchiveRestore, Trash2,
 } from "lucide-react";
 import { TableShell, Th, Td, Button, Input, Select, FieldLabel, EmptyState } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -15,7 +15,7 @@ import {
   type StockItemRow, type PurchaseRow, type IssueRow,
 } from "@/lib/stock-shared";
 import {
-  createStockItemAction, updateStockItemAction, archiveStockItemAction,
+  createStockItemAction, updateStockItemAction, archiveStockItemAction, deleteStockItemAction,
 } from "@/app/hrms/actions";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
@@ -60,6 +60,14 @@ export function StockRegister({
     startAction(async () => {
       const res = await archiveStockItemAction(item.id, archived);
       toast(res.ok ? (archived ? "Item archived" : "Item restored") : res.error, { tone: res.ok ? "success" : "warn" });
+    });
+  }
+
+  function doDelete(item: StockItemRow) {
+    if (!confirm(`Delete "${item.name}" (${item.code})? Its purchase and issue history will also be removed. This cannot be undone.`)) return;
+    startAction(async () => {
+      const res = await deleteStockItemAction(item.id);
+      toast(res.ok ? "Item deleted." : res.error, { tone: res.ok ? "success" : "warn" });
     });
   }
 
@@ -130,6 +138,7 @@ export function StockRegister({
                     onToggle={() => setExpanded(isOpen ? null : it.id)}
                     onEdit={() => setEditItem(it)}
                     onArchive={() => doArchive(it, !it.archived)}
+                    onDelete={() => doDelete(it)}
                   />
                 );
               })}
@@ -161,7 +170,7 @@ export function StockRegister({
 
 /* ---- One item: main row + expandable detail row ---- */
 function ItemRows({
-  item, cur, status, purchases, issues, isOpen, onToggle, onEdit, onArchive,
+  item, cur, status, purchases, issues, isOpen, onToggle, onEdit, onArchive, onDelete,
 }: {
   item: StockItemRow;
   cur: number;
@@ -172,6 +181,7 @@ function ItemRows({
   onToggle: () => void;
   onEdit: () => void;
   onArchive: () => void;
+  onDelete: () => void;
 }) {
   return (
     <>
@@ -207,6 +217,9 @@ function ItemRows({
                 <Button size="xs" variant="secondary" onClick={(e) => { e.stopPropagation(); onEdit(); }}><Pencil size={13} /> Edit</Button>
                 <Button size="xs" variant="ghost" onClick={(e) => { e.stopPropagation(); onArchive(); }}>
                   {item.archived ? <><ArchiveRestore size={13} /> Restore</> : <><Archive size={13} /> Archive</>}
+                </Button>
+                <Button size="xs" variant="ghost" className="text-fg-subtle hover:text-danger" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+                  <Trash2 size={13} /> Delete
                 </Button>
               </div>
             </div>

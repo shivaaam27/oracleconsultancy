@@ -1,42 +1,49 @@
-import { HrmsShell, type HrmsTab } from "@/components/hrms/hrms-shell";
-import { StockDashboard } from "@/components/hrms/stock-dashboard";
-import { StockRegister } from "@/components/hrms/stock-register";
-import { StockPurchases, StockIssues } from "@/components/hrms/stock-movements";
+import { Package, Sparkles } from "lucide-react";
+import { RegistryCard, type RegistryStat } from "@/components/hrms/registry-card";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
-import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
 
-const VALID_TABS: HrmsTab[] = ["dashboard", "register", "purchases", "issues"];
-
-export default async function HrmsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
-  const { tab } = await searchParams;
-  const initialTab = (VALID_TABS.includes(tab as HrmsTab) ? tab : "dashboard") as HrmsTab;
-
-  const [{ items, purchases, issues }, { data: companiesRaw }] = await Promise.all([
-    loadStock(),
-    sb.from("companies").select("id,name").eq("active", true).order("name"),
-  ]);
-  const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+export default async function HrmsHubPage() {
+  // Live snapshot for the OECR card.
+  const { items, purchases, issues } = await loadStock();
   const m = dashboardMetrics(items, purchases, issues);
 
-  const sub =
-    items.length === 0
-      ? "No items yet — set up your stock register to begin"
-      : `${m.totalItems} item${m.totalItems === 1 ? "" : "s"} · ${m.reorder} to reorder · ${m.outOfStock} out of stock`;
+  const oecrStats: RegistryStat[] = [
+    { label: `${m.totalItems} item${m.totalItems === 1 ? "" : "s"}` },
+    ...(m.reorder > 0 ? [{ label: `${m.reorder} to reorder`, tone: "warn" as const }] : []),
+    ...(m.outOfStock > 0 ? [{ label: `${m.outOfStock} out of stock`, tone: "danger" as const }] : []),
+    ...(m.reorder === 0 && m.outOfStock === 0 && m.totalItems > 0
+      ? [{ label: "all in good stock", tone: "success" as const }]
+      : []),
+  ];
 
   return (
-    <HrmsShell
-      sub={sub}
-      initialTab={initialTab}
-      dashboardSlot={<StockDashboard items={items} purchases={purchases} issues={issues} />}
-      registerSlot={<StockRegister items={items} purchases={purchases} issues={issues} />}
-      purchasesSlot={<StockPurchases items={items} purchases={purchases} />}
-      issuesSlot={<StockIssues items={items} issues={issues} companies={companies} />}
-    />
+    <div className="space-y-5 max-w-3xl mx-auto">
+      <div>
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">HRMS</div>
+        <h1 className="text-xl font-semibold tracking-tight">Registries</h1>
+        <div className="text-xs text-fg-muted mt-0.5">Open a registry to manage it.</div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <RegistryCard
+          href="/hrms/oecr"
+          abbr="OECR"
+          title="Office Equipment Control Registry"
+          description="Track office equipment and stationery stock — items, purchases in and issues out, with current stock and value worked out for you."
+          icon={Package}
+          stats={oecrStats}
+        />
+        <RegistryCard
+          href="/hrms/ocr"
+          abbr="OCR"
+          title="Office Cleaning Registry"
+          description="Keep cleaning records in one place. This registry is being set up."
+          icon={Sparkles}
+          comingSoon
+        />
+      </div>
+    </div>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Boxes, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { LayoutDashboard, Boxes, ArrowDownToLine, ArrowUpFromLine, ChevronLeft } from "lucide-react";
 import { Segmented } from "@/components/macos";
 
 export type HrmsTab = "dashboard" | "register" | "purchases" | "issues";
@@ -22,6 +23,8 @@ const TABS: { value: HrmsTab; label: string; icon: React.ReactNode }[] = [
  * can stay server-rendered.
  */
 export function HrmsShell({
+  title = "Stock Control",
+  titleSub,
   sub,
   dashboardSlot,
   registerSlot,
@@ -29,6 +32,8 @@ export function HrmsShell({
   issuesSlot,
   initialTab = "dashboard",
 }: {
+  title?: string;
+  titleSub?: string;
   sub?: React.ReactNode;
   dashboardSlot: React.ReactNode;
   registerSlot: React.ReactNode;
@@ -59,8 +64,11 @@ export function HrmsShell({
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">HRMS</div>
-          <h1 className="text-xl font-semibold tracking-tight">Stock Control</h1>
+          <Link href="/hrms" className="inline-flex items-center gap-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5 hover:underline">
+            <ChevronLeft size={12} /> HRMS
+          </Link>
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+          {titleSub && <div className="text-xs text-fg-subtle">{titleSub}</div>}
           {sub && <div className="text-xs text-fg-muted mt-0.5">{sub}</div>}
         </div>
         <Segmented value={tab} onChange={setTab} options={TABS} />

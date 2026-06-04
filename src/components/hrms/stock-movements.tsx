@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
-  Search, Plus, Save, ArrowDownToLine, ArrowUpFromLine, AlertTriangle,
+  Search, Plus, Save, Trash2, ArrowDownToLine, ArrowUpFromLine, AlertTriangle,
 } from "lucide-react";
 import { TableShell, Th, Td, Button, Input, Select, FieldLabel, EmptyState } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -11,12 +11,16 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import {
   fmtMoney, type StockItemRow, type PurchaseRow, type IssueRow,
 } from "@/lib/stock-shared";
-import { recordPurchaseAction, recordIssueAction } from "@/app/hrms/actions";
+import {
+  recordPurchaseAction, updatePurchaseAction, deletePurchaseAction,
+  recordIssueAction, updateIssueAction, deleteIssueAction,
+} from "@/app/hrms/actions";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 type Company = { id: number; name: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
+const toDateInput = (d: Date) => d.toISOString().slice(0, 10);
 const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 
 function useCodeName(items: StockItemRow[]) {
@@ -38,8 +42,10 @@ function NoItems() {
 /* ====================================================================== */
 export function StockPurchases({ items, purchases }: { items: StockItemRow[]; purchases: PurchaseRow[] }) {
   const { toast } = useToast();
+  const [, startAction] = useTransition();
   const codeName = useCodeName(items);
   const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState<PurchaseRow | null>(null);
   const [search, setSearch] = useState("");
 
   useContextActions(
@@ -58,6 +64,14 @@ export function StockPurchases({ items, purchases }: { items: StockItemRow[]; pu
       (p.ref?.toLowerCase().includes(q) ?? false)
     );
   }, [purchases, search, codeName]);
+
+  function doDelete(p: PurchaseRow) {
+    if (!confirm(`Delete this purchase of ${p.qty} × ${p.itemCode}? Stock will adjust down.`)) return;
+    startAction(async () => {
+      const res = await deletePurchaseAction(p.id);
+      toast(res.ok ? "Purchase deleted." : res.error, { tone: res.ok ? "success" : "warn" });
+    });
+  }
 
   if (items.length === 0) return <NoItems />;
 
@@ -83,35 +97,51 @@ export function StockPurchases({ items, purchases }: { items: StockItemRow[]; pu
               <Th>Date</Th><Th>Item</Th><Th align="right">Qty in</Th>
               <Th align="right" className="hidden sm:table-cell">Unit cost</Th>
               <Th align="right" className="hidden md:table-cell">Total</Th>
-              <Th className="hidden sm:table-cell">Supplier</Th><Th className="hidden md:table-cell">Ref</Th>
+              <Th className="hidden sm:table-cell">Supplier</Th><Th className="hidden lg:table-cell">Ref</Th>
+              <Th align="right"> </Th>
             </tr></thead>
             <tbody>
               {rows.map((p) => (
-                <tr key={p.id} className="hover:bg-bg-muted/40 transition-colors">
+                <tr key={p.id} className="hover:bg-bg-muted/40 transition-colors cursor-pointer" onClick={() => setEdit(p)}>
                   <Td className="text-fg-muted whitespace-nowrap">{fmtDate(p.date)}</Td>
                   <Td><span className="font-mono text-xs">{p.itemCode}</span> <span className="text-fg-muted">{codeName[p.itemCode] ?? "—"}</span></Td>
                   <Td align="right"><span className="font-semibold tabular text-success">+{p.qty}</span></Td>
                   <Td align="right" className="hidden sm:table-cell tabular text-fg-muted">{fmtMoney(p.unitCost)}</Td>
                   <Td align="right" className="hidden md:table-cell tabular">{fmtMoney(p.qty * p.unitCost)}</Td>
                   <Td className="hidden sm:table-cell">{p.supplier ?? "—"}</Td>
-                  <Td className="hidden md:table-cell text-fg-muted">{p.ref ?? "—"}</Td>
+                  <Td className="hidden lg:table-cell text-fg-muted">{p.ref ?? "—"}</Td>
+                  <Td align="right">
+                    <button type="button" aria-label="Delete purchase"
+                      onClick={(e) => { e.stopPropagation(); doDelete(p); }}
+                      className="text-fg-subtle hover:text-danger transition-colors p-1 rounded">
+                      <Trash2 size={14} />
+                    </button>
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </table>
         </TableShell>
       )}
+      <p className="text-xs text-fg-subtle px-1">Tap a row to edit · trash to delete. Stock recalculates automatically.</p>
 
       <HrmsDialog open={open} onOpenChange={setOpen} title="Record a purchase">
-        <PurchaseForm items={items} onCancel={() => setOpen(false)}
+        <PurchaseForm mode="create" items={items} onCancel={() => setOpen(false)}
           onComplete={(r) => { if (r.ok) { toast("Purchase recorded — stock raised.", { tone: "success" }); setOpen(false); } }} />
+      </HrmsDialog>
+      <HrmsDialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)} title="Edit purchase">
+        {edit && (
+          <PurchaseForm mode="edit" purchase={edit} items={items} onCancel={() => setEdit(null)}
+            onComplete={(r) => { if (r.ok) { toast("Saved.", { tone: "success" }); setEdit(null); } }} />
+        )}
       </HrmsDialog>
     </div>
   );
 }
 
-function PurchaseForm({ items, onComplete, onCancel }: {
-  items: StockItemRow[]; onComplete?: (r: Result) => void; onCancel?: () => void;
+function PurchaseForm({ mode, purchase, items, onComplete, onCancel }: {
+  mode: "create" | "edit"; purchase?: PurchaseRow; items: StockItemRow[];
+  onComplete?: (r: Result) => void; onCancel?: () => void;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +149,7 @@ function PurchaseForm({ items, onComplete, onCancel }: {
   function submit(fd: FormData) {
     setError(null);
     start(async () => {
-      const res = await recordPurchaseAction(fd);
+      const res = mode === "create" ? await recordPurchaseAction(fd) : await updatePurchaseAction(purchase!.id, fd);
       if (!res.ok) setError(res.error);
       onComplete?.(res);
     });
@@ -130,35 +160,35 @@ function PurchaseForm({ items, onComplete, onCancel }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <FieldLabel>Date</FieldLabel>
-          <Input name="date" type="date" defaultValue={today()} />
+          <Input name="date" type="date" defaultValue={purchase ? toDateInput(purchase.date) : today()} />
         </div>
         <div>
           <FieldLabel>Item</FieldLabel>
-          <Select name="itemCode" defaultValue={items[0]?.code}>
+          <Select name="itemCode" defaultValue={purchase?.itemCode ?? items[0]?.code}>
             {items.map((i) => <option key={i.code} value={i.code}>{i.code} — {i.name}</option>)}
           </Select>
         </div>
         <div>
           <FieldLabel>Qty in</FieldLabel>
-          <Input name="qty" type="number" step="1" min="1" defaultValue={1} required />
+          <Input name="qty" type="number" step="1" min="1" defaultValue={purchase?.qty ?? 1} required />
         </div>
         <div>
           <FieldLabel>Unit cost (TZS)</FieldLabel>
-          <Input name="unitCost" type="number" step="0.01" defaultValue={0} />
+          <Input name="unitCost" type="number" step="0.01" defaultValue={purchase?.unitCost ?? 0} />
         </div>
         <div>
           <FieldLabel>Supplier</FieldLabel>
-          <Input name="supplier" placeholder="OfficeMart" />
+          <Input name="supplier" defaultValue={purchase?.supplier ?? ""} placeholder="OfficeMart" />
         </div>
         <div>
           <FieldLabel>Invoice / PO</FieldLabel>
-          <Input name="ref" placeholder="PO-1042" />
+          <Input name="ref" defaultValue={purchase?.ref ?? ""} placeholder="PO-1042" />
         </div>
       </div>
       {error && <div className="text-xs text-danger">{error}</div>}
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" loading={pending}><Save size={15} /> Add purchase</Button>
+        <Button type="submit" loading={pending}><Save size={15} /> {mode === "create" ? "Add purchase" : "Save changes"}</Button>
       </div>
     </form>
   );
@@ -171,9 +201,11 @@ export function StockIssues({ items, issues, companies }: {
   items: StockItemRow[]; issues: IssueRow[]; companies: Company[];
 }) {
   const { toast } = useToast();
+  const [, startAction] = useTransition();
   const codeName = useCodeName(items);
   const companyName = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c.name])), [companies]);
   const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState<IssueRow | null>(null);
   const [search, setSearch] = useState("");
 
   useContextActions(
@@ -192,6 +224,14 @@ export function StockIssues({ items, issues, companies }: {
       (i.companyId != null && (companyName[i.companyId]?.toLowerCase().includes(q) ?? false))
     );
   }, [issues, search, codeName, companyName]);
+
+  function doDelete(i: IssueRow) {
+    if (!confirm(`Delete this issue of ${i.qty} × ${i.itemCode}? Stock will adjust back up.`)) return;
+    startAction(async () => {
+      const res = await deleteIssueAction(i.id);
+      toast(res.ok ? "Issue deleted." : res.error, { tone: res.ok ? "success" : "warn" });
+    });
+  }
 
   if (items.length === 0) return <NoItems />;
 
@@ -217,48 +257,63 @@ export function StockIssues({ items, issues, companies }: {
               <Th>Date</Th><Th>Item</Th><Th align="right">Qty out</Th>
               <Th className="hidden sm:table-cell">Issued to</Th>
               <Th className="hidden sm:table-cell">Company</Th>
-              <Th className="hidden md:table-cell">Notes</Th>
+              <Th className="hidden lg:table-cell">Notes</Th>
+              <Th align="right"> </Th>
             </tr></thead>
             <tbody>
               {rows.map((i) => (
-                <tr key={i.id} className="hover:bg-bg-muted/40 transition-colors">
+                <tr key={i.id} className="hover:bg-bg-muted/40 transition-colors cursor-pointer" onClick={() => setEdit(i)}>
                   <Td className="text-fg-muted whitespace-nowrap">{fmtDate(i.date)}</Td>
                   <Td><span className="font-mono text-xs">{i.itemCode}</span> <span className="text-fg-muted">{codeName[i.itemCode] ?? "—"}</span></Td>
                   <Td align="right"><span className="font-semibold tabular text-danger">−{i.qty}</span></Td>
                   <Td className="hidden sm:table-cell">{i.issuedTo ?? "—"}</Td>
                   <Td className="hidden sm:table-cell text-fg-muted">{i.companyId != null ? (companyName[i.companyId] ?? "—") : "—"}</Td>
-                  <Td className="hidden md:table-cell text-fg-muted">{i.notes ?? "—"}</Td>
+                  <Td className="hidden lg:table-cell text-fg-muted">{i.notes ?? "—"}</Td>
+                  <Td align="right">
+                    <button type="button" aria-label="Delete issue"
+                      onClick={(e) => { e.stopPropagation(); doDelete(i); }}
+                      className="text-fg-subtle hover:text-danger transition-colors p-1 rounded">
+                      <Trash2 size={14} />
+                    </button>
+                  </Td>
                 </tr>
               ))}
             </tbody>
           </table>
         </TableShell>
       )}
+      <p className="text-xs text-fg-subtle px-1">Tap a row to edit · trash to delete. Stock recalculates automatically.</p>
 
       <HrmsDialog open={open} onOpenChange={setOpen} title="Record an issue">
-        <IssueForm items={items} companies={companies} onCancel={() => setOpen(false)}
+        <IssueForm mode="create" items={items} companies={companies} onCancel={() => setOpen(false)}
           onComplete={(r) => { if (r.ok) { toast("Issue recorded — stock reduced.", { tone: "success" }); setOpen(false); } }} />
+      </HrmsDialog>
+      <HrmsDialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)} title="Edit issue">
+        {edit && (
+          <IssueForm mode="edit" issue={edit} items={items} companies={companies} onCancel={() => setEdit(null)}
+            onComplete={(r) => { if (r.ok) { toast("Saved.", { tone: "success" }); setEdit(null); } }} />
+        )}
       </HrmsDialog>
     </div>
   );
 }
 
-function IssueForm({ items, companies, onComplete, onCancel }: {
-  items: StockItemRow[]; companies: Company[]; onComplete?: (r: Result) => void; onCancel?: () => void;
+function IssueForm({ mode, issue, items, companies, onComplete, onCancel }: {
+  mode: "create" | "edit"; issue?: IssueRow; items: StockItemRow[]; companies: Company[];
+  onComplete?: (r: Result) => void; onCancel?: () => void;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  // When the negative-stock guard blocks an issue, offer an override.
   const [blocked, setBlocked] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   function run(fd: FormData) {
     setError(null);
     start(async () => {
-      const res = await recordIssueAction(fd);
+      const res = mode === "create" ? await recordIssueAction(fd) : await updateIssueAction(issue!.id, fd);
       if (!res.ok) {
         setError(res.error);
-        setBlocked(/in stock/.test(res.error));
+        setBlocked(mode === "create" && /in stock/.test(res.error));
       } else {
         setBlocked(false);
       }
@@ -280,32 +335,32 @@ function IssueForm({ items, companies, onComplete, onCancel }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <FieldLabel>Date</FieldLabel>
-          <Input name="date" type="date" defaultValue={today()} />
+          <Input name="date" type="date" defaultValue={issue ? toDateInput(issue.date) : today()} />
         </div>
         <div>
           <FieldLabel>Item</FieldLabel>
-          <Select name="itemCode" defaultValue={items[0]?.code}>
+          <Select name="itemCode" defaultValue={issue?.itemCode ?? items[0]?.code}>
             {items.map((i) => <option key={i.code} value={i.code}>{i.code} — {i.name}</option>)}
           </Select>
         </div>
         <div>
           <FieldLabel>Qty out</FieldLabel>
-          <Input name="qty" type="number" step="1" min="1" defaultValue={1} required />
+          <Input name="qty" type="number" step="1" min="1" defaultValue={issue?.qty ?? 1} required />
         </div>
         <div>
           <FieldLabel>Issued to</FieldLabel>
-          <Input name="issuedTo" placeholder="Reception" />
+          <Input name="issuedTo" defaultValue={issue?.issuedTo ?? ""} placeholder="Reception" />
         </div>
         <div>
           <FieldLabel>Company</FieldLabel>
-          <Select name="companyId" defaultValue="">
+          <Select name="companyId" defaultValue={issue?.companyId != null ? String(issue.companyId) : ""}>
             <option value="">— None —</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
         </div>
         <div>
           <FieldLabel>Notes</FieldLabel>
-          <Input name="notes" placeholder="Front desk" />
+          <Input name="notes" defaultValue={issue?.notes ?? ""} placeholder="Front desk" />
         </div>
       </div>
 
@@ -319,11 +374,9 @@ function IssueForm({ items, companies, onComplete, onCancel }: {
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
         {blocked && (
-          <Button type="button" variant="danger-soft" loading={pending} onClick={issueAnyway}>
-            Issue anyway
-          </Button>
+          <Button type="button" variant="danger-soft" loading={pending} onClick={issueAnyway}>Issue anyway</Button>
         )}
-        <Button type="submit" loading={pending}><Save size={15} /> Add issue</Button>
+        <Button type="submit" loading={pending}><Save size={15} /> {mode === "create" ? "Add issue" : "Save changes"}</Button>
       </div>
     </form>
   );
