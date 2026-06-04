@@ -8,7 +8,7 @@ import { Globe2 } from "lucide-react";
 import { UnsnoozeButton } from "./outbox-card";
 import { PendingList, type PendingItem } from "./pending-list";
 import { SentLogDrawer } from "./sent-log-drawer";
-import { Send, Inbox, Check, Clock, BellOff, ChevronDown } from "lucide-react";
+import { Send, Inbox, Check, BellOff, ChevronDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +79,7 @@ export default async function OutboxPage() {
   }));
 
   return (
-    <div className="space-y-6 max-w-[960px] mx-auto">
+    <div className="space-y-4 max-w-[820px] mx-auto">
       <PageHeader
         title="Outbox"
         sub={
@@ -126,22 +126,14 @@ export default async function OutboxPage() {
       {/* One-off drafts (to-do reminders, ad-hoc) */}
       <DraftsList drafts={savedDrafts} />
 
-      {/* Progress strip */}
+      {/* Progress strip — slim inline bar */}
       {totalToday > 0 && (
-        <div className="glass elevated rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-2 text-sm">
-            <div className="flex items-center gap-2">
-              <Clock size={13} className="text-fg-muted" />
-              <span className="font-medium">{sentCount} of {totalToday} sent today</span>
-            </div>
-            <div className="text-xs text-fg-muted tabular">{progressPct}%</div>
+        <div className="flex items-center gap-3 px-1">
+          <span className="text-xs text-fg-muted whitespace-nowrap tabular">{sentCount}/{totalToday} sent</span>
+          <div className="flex-1 bg-bg-muted rounded-full h-1.5 overflow-hidden">
+            <div className="bg-accent h-full rounded-full transition-all" style={{ width: `${progressPct}%` }} />
           </div>
-          <div className="bg-bg-muted rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-accent h-full rounded-full transition-all"
-              style={{ width: `${progressPct}%` }}
-            />
-          </div>
+          <span className="text-xs text-fg-subtle tabular w-9 text-right">{progressPct}%</span>
         </div>
       )}
 

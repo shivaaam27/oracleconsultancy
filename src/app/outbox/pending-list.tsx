@@ -100,18 +100,18 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
           type="button"
           onClick={toggleDensity}
           title={`Density: ${density}`}
-          className="ml-auto inline-flex items-center justify-center p-1.5 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors"
+          className="ml-auto hidden sm:inline-flex items-center justify-center p-1.5 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors"
         >
           {density === "compact" ? <Rows3 size={13} /> : <Rows2 size={13} />}
         </button>
-        <div className="relative">
+        <div className="relative ml-auto sm:ml-0 flex-1 sm:flex-none min-w-[8rem]">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search by name…"
-            className="pl-8 pr-7 py-1.5 text-xs rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50 w-48"
+            placeholder="Search…"
+            className="w-full sm:w-44 pl-8 pr-7 py-1 text-xs rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
           {q && (
             <button
@@ -194,9 +194,9 @@ function Chip({
       type="button"
       onClick={count === 0 ? undefined : onClick}
       disabled={count === 0}
-      className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${cls}`}
+      className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 text-[11px] rounded-full transition-all backdrop-blur-md hover:shadow-sm ${cls}`}
     >
-      <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
+      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
         {count}
       </span>
       <span className="font-medium">{label}</span>

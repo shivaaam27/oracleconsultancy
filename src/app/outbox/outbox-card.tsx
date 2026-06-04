@@ -3,7 +3,7 @@ import { Badge, Card } from "@/components/ui";
 import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
 import {
   Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote,
-  ChevronDown, ChevronUp, MessageCircle, Mail, Phone,
+  ChevronUp, MessageCircle, Mail, Phone,
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
@@ -266,7 +266,7 @@ export function OutboxCard({
     return (
       <div
         className={cn(
-          "card border-l-4 px-3 py-2 flex items-center gap-3 hover:border-accent transition-colors",
+          "card border-l-[3px] pl-2.5 pr-2 py-2 flex items-center gap-2.5 hover:border-accent transition-colors",
           stripeClass[u.level],
           hasScoped && "ring-1 ring-accent/30",
           sent && "opacity-60"
@@ -274,104 +274,38 @@ export function OutboxCard({
       >
         <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotClass[u.level])} />
 
-        {/* Name + meta — fixed width so it doesn't push actions away */}
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="text-left flex items-center gap-1.5 hover:text-accent transition-colors shrink-0 w-[180px]"
-        >
-          <span className="font-medium truncate">{draft.recipientName}</span>
-          <span className="text-[11px] text-fg-subtle whitespace-nowrap">
-            · {draft.tasks.length}
-            {u.overdue > 0 && <span className="text-red-600 dark:text-red-400"> · {u.overdue} od</span>}
-            {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400"> · {u.critical} crit</span>}
-            {u.overdue === 0 && u.critical === 0 && u.dueSoon > 0 && (
-              <span className="text-amber-600 dark:text-amber-400"> · {u.dueSoon} soon</span>
-            )}
-          </span>
-        </button>
-
-        {/* Top task preview — fills the gap with real info */}
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="flex-1 min-w-0 text-left text-xs text-fg-muted truncate hover:text-fg transition-colors"
-          title={topTask?.actionItem}
-        >
-          {topTask ? `${topTask.code} · ${topTask.actionItem}` : ""}
-        </button>
-
-        {/* Company chips — scoped company first & highlighted */}
-        {(() => {
-          const groups = groupByCompany(draft.tasks);
-          const ordered = scopeName
-            ? [...groups].sort((a, b) => (b.name === scopeName ? 1 : 0) - (a.name === scopeName ? 1 : 0))
-            : groups;
-          const shown = ordered.slice(0, 2);
-          const extra = ordered.length - shown.length;
-          return (
-            <div
-              className="hidden md:flex items-center gap-1 shrink-0"
-              title={groups.map((g) => `${g.name} · ${g.items.length}`).join("\n")}
-            >
-              {shown.map((g) => (
-                <span
-                  key={g.name}
-                  className={cn(
-                    "inline-flex items-center gap-1 text-[10px] rounded-full px-1.5 py-0.5 max-w-[110px]",
-                    g.name === scopeName
-                      ? "bg-accent/15 text-fg border border-accent/40"
-                      : "bg-bg-muted text-fg-muted"
-                  )}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: g.accent || "var(--accent)" }} />
-                  <span className="truncate">{g.name}</span>
-                  <span className="text-fg-subtle shrink-0">{g.items.length}</span>
-                </span>
-              ))}
-              {extra > 0 && <span className="text-[10px] text-fg-subtle">+{extra}</span>}
+        {/* Name + count over a one-line top-task preview — tap to expand */}
+        <button type="button" onClick={() => setExpanded(true)} className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-sm truncate">{draft.recipientName}</span>
+            <span className="text-[11px] text-fg-subtle whitespace-nowrap shrink-0">
+              · {draft.tasks.length}
+              {u.overdue > 0 && <span className="text-red-600 dark:text-red-400"> · {u.overdue} od</span>}
+              {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400"> · {u.critical} crit</span>}
+              {u.overdue === 0 && u.critical === 0 && u.dueSoon > 0 && <span className="text-amber-600 dark:text-amber-400"> · {u.dueSoon} soon</span>}
+            </span>
+          </div>
+          {topTask && (
+            <div className="text-[11px] text-fg-muted truncate mt-0.5" title={topTask.actionItem}>
+              <span className="font-mono text-fg-subtle">{topTask.code}</span> · {topTask.actionItem}
             </div>
-          );
-        })()}
-
-        {/* Contact value preview for current channel */}
-        {channelReady && contactValue && (
-          <span className="text-[11px] text-fg-subtle truncate max-w-[140px] tabular shrink-0 hidden md:inline">
-            {contactValue}
-          </span>
-        )}
+          )}
+        </button>
 
         {sent ? (
-          <Badge tone={duplicate ? "warn" : "success"}>
-            <Check size={11} /> {duplicate ? "Done" : "Sent"}
-          </Badge>
+          <Badge tone={duplicate ? "warn" : "success"}><Check size={11} /> {duplicate ? "Done" : "Sent"}</Badge>
         ) : (
           <div className="flex items-center gap-1 shrink-0">
-            {!channelReady && (
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 inline-flex items-center gap-1"
-                title={`This person has no ${channelLabel(channel)} contact`}
-              >
-                <AlertCircle size={9} /> No {channelLabel(channel)}
-              </span>
-            )}
-            <ChannelPicker size="xs" />
+            {!channelReady && <AlertCircle size={12} className="text-amber-500" aria-label={`No ${channelLabel(channel)} contact`} />}
+            <div className="hidden sm:block"><ChannelPicker size="xs" /></div>
             <button
               type="button"
               onClick={onCopyAndMark}
               disabled={pending || !channelReady}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
-              title={channelReady ? "Copy message and mark sent" : `No ${channelLabel(channel)} contact for this person`}
+              className="inline-flex items-center gap-1.5 h-8 px-2 sm:px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
+              title={channelReady ? "Copy message and mark sent" : `No ${channelLabel(channel)} contact`}
             >
-              <Send size={11} /> {pending ? "…" : "Copy & Sent"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setExpanded(true)}
-              className="text-fg-subtle hover:text-fg p-1 rounded-md hover:bg-bg-muted"
-              title="Expand"
-            >
-              <ChevronDown size={13} />
+              <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & Sent"}</span>
             </button>
           </div>
         )}
