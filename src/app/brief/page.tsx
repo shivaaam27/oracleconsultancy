@@ -3,6 +3,7 @@ import { Card, Stat, Badge } from "@/components/ui";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
 import { BriefCompanyFilter } from "@/components/brief-company-filter";
+import { BriefDraftButton } from "@/components/brief-draft-button";
 import { getBrief, briefShareText, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +36,10 @@ export default async function DirectorBriefPage({
           <h1 className="text-xl font-semibold tracking-tight">{b.selectedCompanyName ?? "Oracle Consultancy"}</h1>
           <div className="text-xs text-fg-muted mt-0.5">{b.monthLabel} · as at {b.asAt}</div>
         </div>
-        <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <BriefDraftButton period={b.period} companyId={b.selectedCompanyId} />
+          <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
+        </div>
       </div>
       <div className="space-y-2">
         <BriefPeriodFilter period={b.period} />
