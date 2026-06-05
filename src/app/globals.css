@@ -179,7 +179,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3 { letter-spacing: -0.015em; }
+h1, h2, h3 { letter-spacing: -0.015em; text-wrap: balance; }
+/* Avoid ugly single-word last lines in running text (modern browsers). */
+p { text-wrap: pretty; }
 
 .tabular { font-variant-numeric: tabular-nums; }
 
