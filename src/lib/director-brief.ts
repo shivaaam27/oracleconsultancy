@@ -7,6 +7,44 @@ import { isOpen } from "./derive";
 const isClosed = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
 const isOverdue = (r: TaskRow) => r.flag === "overdue" || r.flag === "escalate-now";
 
+export type BriefPeriod = "month" | "last-month" | "quarter" | "year";
+
+export function parseBriefPeriod(value: string | null | undefined): BriefPeriod {
+  if (value === "last-month" || value === "quarter" || value === "year") return value;
+  return "month";
+}
+
+function periodRange(now: Date, period: BriefPeriod) {
+  if (period === "last-month") {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    return {
+      start,
+      end,
+      label: start.toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
+    };
+  }
+  if (period === "quarter") {
+    const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+    const start = new Date(now.getFullYear(), qStartMonth, 1);
+    return {
+      start,
+      end: now,
+      label: `Q${Math.floor(now.getMonth() / 3) + 1} ${now.getFullYear()}`,
+    };
+  }
+  if (period === "year") {
+    const start = new Date(now.getFullYear(), 0, 1);
+    return { start, end: now, label: `${now.getFullYear()} year to date` };
+  }
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    start,
+    end: now,
+    label: now.toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
+  };
+}
+
 function fmtDay(d: Date | null): string {
   return d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" }) : "—";
 }
@@ -29,7 +67,10 @@ export type BriefDelivered = { company: string; items: { id: number; actionItem:
 export type BriefWatch = { id: number; actionItem: string; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
 
 export type BriefData = {
+  period: BriefPeriod;
   monthLabel: string;
+  periodStart: Date;
+  periodEnd: Date;
   asAt: string;
   deliveredCount: number;
   openCount: number;
@@ -41,16 +82,16 @@ export type BriefData = {
   watch: BriefWatch[];
 };
 
-export async function getBrief(now: Date = new Date()): Promise<BriefData> {
+export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month"): Promise<BriefData> {
   const rows = await getAllTasks();
   const kpis = computeCompanyKpis(rows);
 
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthLabel = now.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const range = periodRange(now, period);
+  const monthLabel = range.label;
   const asAt = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
   const deliveredThisMonth = rows
-    .filter((r) => isClosed(r) && r.closedDate && r.closedDate >= monthStart)
+    .filter((r) => isClosed(r) && r.closedDate && r.closedDate >= range.start && r.closedDate <= range.end)
     .sort((a, b) => (b.closedDate?.getTime() ?? 0) - (a.closedDate?.getTime() ?? 0));
 
   const openTasks = rows.filter((r) => isOpen(r.status));
@@ -100,7 +141,10 @@ export async function getBrief(now: Date = new Date()): Promise<BriefData> {
     .map((r) => ({ id: r.id, actionItem: r.actionItem, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
   return {
+    period,
     monthLabel, asAt,
+    periodStart: range.start,
+    periodEnd: range.end,
     deliveredCount: deliveredThisMonth.length,
     openCount: openTasks.length,
     overdueCount: overdueOpen.length,
@@ -116,7 +160,7 @@ export function briefShareText(b: BriefData): string {
   L.push(`*Oracle Consultancy — Director Brief*`);
   L.push(`${b.monthLabel} · as at ${b.asAt}`);
   L.push("");
-  L.push(`✅ ${b.deliveredCount} delivered this month · 📋 ${b.openCount} open · ⚠️ ${b.overdueCount} overdue · ${b.companyCount} companies`);
+  L.push(`✅ ${b.deliveredCount} delivered in ${b.monthLabel} · 📋 ${b.openCount} open · ⚠️ ${b.overdueCount} overdue · ${b.companyCount} companies`);
   L.push("");
   L.push(`*By company*`);
   for (const c of b.companies) {
@@ -124,7 +168,7 @@ export function briefShareText(b: BriefData): string {
   }
   if (b.delivered.length) {
     L.push("");
-    L.push(`*Delivered this month*`);
+    L.push(`*Delivered in ${b.monthLabel}*`);
     for (const g of b.delivered) {
       for (const t of g.items) L.push(`• ${g.company}: ${t.actionItem} (${t.status} ${fmtDay(t.closedDate)})`);
     }

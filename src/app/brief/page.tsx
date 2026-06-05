@@ -1,7 +1,8 @@
 import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { ShareBrief } from "@/components/hrms/share-brief";
-import { getBrief, briefShareText, briefEmail } from "@/lib/director-brief";
+import { BriefPeriodFilter } from "@/components/brief-period-filter";
+import { getBrief, briefShareText, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,13 @@ function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "i
   if (p === "Medium") return "info";
   return "default";
 }
-export default async function DirectorBriefPage() {
-  const b = await getBrief();
+export default async function DirectorBriefPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
+  const sp = await searchParams;
+  const b = await getBrief(new Date(), parseBriefPeriod(sp.period));
   const email = briefEmail(b);
 
   return (
@@ -29,10 +35,11 @@ export default async function DirectorBriefPage() {
         </div>
         <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
       </div>
+      <BriefPeriodFilter period={b.period} />
 
       {/* Headline line */}
       <p className="text-sm text-fg-muted">
-        <b className="text-success">{b.deliveredCount} delivered</b> this month ·{" "}
+        <b className="text-success">{b.deliveredCount} delivered</b> in {b.monthLabel} ·{" "}
         <b className="text-fg">{b.openCount} open</b> ·{" "}
         <b className={b.overdueCount ? "text-danger" : "text-fg"}>{b.overdueCount} overdue</b> across{" "}
         {b.companyCount} companies{b.atRiskCount ? <> · <b className="text-warn">{b.atRiskCount} need watching</b></> : null}.
@@ -48,7 +55,7 @@ export default async function DirectorBriefPage() {
 
       {/* Top-line stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Delivered · month" value={b.deliveredCount} tone="success" icon={<CircleCheck size={16} />} />
+        <Stat label="Delivered" value={b.deliveredCount} tone="success" icon={<CircleCheck size={16} />} />
         <Stat label="Open" value={b.openCount} icon={<ListTodo size={16} />} />
         <Stat label="Overdue" value={b.overdueCount} tone={b.overdueCount ? "danger" : "default"} icon={<AlertTriangle size={16} />} />
         <Stat label="Companies" value={b.companyCount} icon={<Building2 size={16} />} />
@@ -75,13 +82,13 @@ export default async function DirectorBriefPage() {
         </div>
       </div>
 
-      {/* Delivered this month */}
+      {/* Delivered in selected period */}
       <div>
         <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
-          <CheckCircle2 size={13} className="text-success" /> Delivered this month · {b.deliveredCount}
+          <CheckCircle2 size={13} className="text-success" /> Delivered in {b.monthLabel} · {b.deliveredCount}
         </div>
         {b.deliveredCount === 0 ? (
-          <Card className="p-4 text-sm text-fg-muted">Nothing closed yet this month.</Card>
+          <Card className="p-4 text-sm text-fg-muted">Nothing closed in this period.</Card>
         ) : (
           <Card className="divide-y divide-border/70">
             {b.delivered.map((g) => (
