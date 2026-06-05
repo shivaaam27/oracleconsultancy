@@ -9,6 +9,10 @@ import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
+import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
+import { buildCompanyComplianceScores } from "@/lib/compliance";
+import { listDocuments } from "@/lib/documents";
+import { sb } from "@/db/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, ChevronRight, Building2 } from "lucide-react";
@@ -27,10 +31,19 @@ export default async function CompanyPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
   const tab = parseCompanyTab(sp.tab);
-  const rows = (await getAllTasks()).filter((r) => r.companyId === companyId);
+  const [allRows, documents, { data: companyRaw }] = await Promise.all([
+    getAllTasks(),
+    listDocuments(),
+    sb.from("companies").select("id,name").eq("id", companyId).maybeSingle(),
+  ]);
+  const rows = allRows.filter((r) => r.companyId === companyId);
   if (!rows.length) return notFound();
   const name = rows[0].companyName;
   const accent = rows[0].companyAccent || "hsl(var(--accent))";
+  const complianceScore = buildCompanyComplianceScores(
+    [{ id: companyId, name: (companyRaw?.name as string | undefined) ?? name }],
+    documents
+  )[0];
 
   const openRows = rows
     .filter((r) => r.status !== "Completed" && r.status !== "Closed")
@@ -73,6 +86,7 @@ export default async function CompanyPage({
           <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />
           {/* Compact KPI pills, then the tasks table immediately — data first. */}
           <CompanyKpiStrip rows={rows} companyName={name} />
+          {complianceScore && <ComplianceSummaryCard score={complianceScore} />}
 
           <div className="flex items-center justify-between pt-1">
             <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">

@@ -93,7 +93,8 @@ Examples:
    insurance and leases are monitored when present rather than mandatory for
    every company. Compliance detail view now opens from each score row and shows
    why the score is low: missing requirements, expired/expiring linked documents,
-   and owner-specific next links.
+   and owner-specific next links. Company pages now show their live compliance
+   summary card; People Directory shows active people compliance issue counts.
 5. **Director Brief Phase 5** - period filters, per-company brief, scheduled draft.
 6. **Ask COS Agentic Upgrade** - page-specific "what should I do here?", meeting
    preparation, suggested actions after answers.
