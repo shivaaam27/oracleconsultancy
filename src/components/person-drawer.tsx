@@ -12,6 +12,7 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
+import { PersonPackBuilder } from "./person-pack-builder";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
@@ -392,6 +393,7 @@ export function PersonDrawer() {
                       <Send size={12} /> Remind
                     </button>
                   )}
+                  <PersonPackBuilder personId={person.id} personName={person.name} />
                 </div>
 
                 {/* Workload — compact tinted chips */}

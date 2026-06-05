@@ -1,0 +1,62 @@
+export type PersonPackPurpose =
+  | "document-request"
+  | "visa-permit"
+  | "recruitment"
+  | "task-reminder"
+  | "custom";
+
+export type PersonPackSectionKey =
+  | "missingDocuments"
+  | "documentIssues"
+  | "openTasks"
+  | "personalTodos"
+  | "deadlines"
+  | "latestUpdates"
+  | "contactDetails"
+  | "companyContext"
+  | "fileLinks"
+  | "complianceScore"
+  | "internalNotes";
+
+export const PERSON_PACK_SECTION_KEYS: PersonPackSectionKey[] = [
+  "missingDocuments",
+  "documentIssues",
+  "openTasks",
+  "personalTodos",
+  "deadlines",
+  "latestUpdates",
+  "contactDetails",
+  "companyContext",
+  "fileLinks",
+  "complianceScore",
+  "internalNotes",
+];
+
+export type PersonPackSectionSelection = Record<PersonPackSectionKey, boolean>;
+
+export function blankPersonPackSelection(): PersonPackSectionSelection {
+  return {
+    missingDocuments: false,
+    documentIssues: false,
+    openTasks: false,
+    personalTodos: false,
+    deadlines: false,
+    latestUpdates: false,
+    contactDetails: false,
+    companyContext: false,
+    fileLinks: false,
+    complianceScore: false,
+    internalNotes: false,
+  };
+}
+
+export function parsePersonPackSections(value?: string | null): PersonPackSectionSelection {
+  const selected = new Set((value ?? "").split(",").filter(Boolean));
+  const out = blankPersonPackSelection();
+  for (const key of PERSON_PACK_SECTION_KEYS) out[key] = selected.has(key);
+  return out;
+}
+
+export function serialisePersonPackSections(selection: PersonPackSectionSelection): string {
+  return PERSON_PACK_SECTION_KEYS.filter((key) => selection[key]).join(",");
+}

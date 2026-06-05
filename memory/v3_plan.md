@@ -80,7 +80,18 @@ Examples:
 3. **HRMS People Profile Upgrade** - person workload, documents, reminders and status.
    **Started:** the person drawer now shows linked compliance documents with
    expired/expiring status, using the same derived status rules as the Documents
-   centre.
+   centre. **Person Pack Phase 1 started:** `src/lib/person-pack.ts` now gathers
+   one person's profile, compliance gaps, linked documents, open tasks, assigned
+   personal to-dos and Outbox draft history, with purpose-based default section
+   selections for Document Request, Visa/Permit, Recruitment, Task Reminder and
+   Custom. **Phase 2 started:** the person drawer now has a preview-only
+   **Prepare pack** action (`src/components/person-pack-builder.tsx`) backed by
+   `/api/person-pack`. It shows purpose presets, careful section toggles and a
+   live content preview. **Phase 3 started:** the builder is mobile/touch
+   tightened (phone bottom-sheet behaviour, larger tap rows, sticky action bar)
+   and can open a selected-section PDF route at `/people/[id]/pack`, using the
+   existing Director Brief-style print approach. Outbox draft creation remains
+   intentionally disabled for the next phase.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,
