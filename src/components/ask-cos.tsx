@@ -235,7 +235,7 @@ export function AskCOS({
         return;
       }
       const data = await res.json();
-      const scopeLabel = data.scopeName ? `${data.scopeName} · ` : "Oracle Group · ";
+      const scopeLabel = data.scopeName ? `${data.scopeName} · ` : "Oracle Consultancy · ";
 
       // Try to enrich with an AI executive narrative (degrades gracefully).
       let narrative = "";

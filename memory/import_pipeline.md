@@ -28,7 +28,7 @@ Override with `XLSX_PATH`.
 
 ## Sheets
 
-1. Companies - hard-coded 7-company Oracle Group list.
+1. Companies - hard-coded 7-company Oracle Consultancy list.
 2. `_People Directory` - people/contact records, upserted by name.
 3. One sheet per company - task rows.
 4. `_Settings` - key/value settings.

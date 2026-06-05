@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Mail, Copy, Check } from "lucide-react";
+import { MessageCircle, Mail, Copy, Check, Printer } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useToast } from "@/components/toast";
 
@@ -39,9 +39,10 @@ export function ShareBrief({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap print-hidden">
       <Button size="sm" onClick={whatsapp}><MessageCircle size={14} /> WhatsApp</Button>
       <Button size="sm" variant="secondary" onClick={email}><Mail size={14} /> Email</Button>
+      <Button size="sm" variant="secondary" onClick={() => window.print()}><Printer size={14} /> PDF</Button>
       <Button size="sm" variant="secondary" onClick={copy}>
         {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy"}
       </Button>

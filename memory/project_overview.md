@@ -8,7 +8,7 @@ metadata:
 
 # COS System - Chief of Staff Command Centre
 
-COS System is a single-operator web app for the principal / Chief of Staff of **Oracle Group**. It runs weekly operations across 7 portfolio companies and replaces the old `Chief Of Staff Workflow - Live.xlsx` workbook with a database-backed command centre.
+COS System is a single-operator web app for the principal / Chief of Staff of **Oracle Consultancy**. It runs weekly operations across 7 portfolio companies and replaces the old `Chief Of Staff Workflow - Live.xlsx` workbook with a database-backed command centre.
 
 The app is intentionally single-user. There is no auth and no multi-tenant model. UI-created records usually use `createdBy = "web-ui"`; AI command mutations use `createdBy = "ai-command"`; Meeting Workspace task creation uses `createdBy = "meeting-mode"`.
 

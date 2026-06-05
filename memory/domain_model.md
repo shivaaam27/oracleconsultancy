@@ -10,7 +10,7 @@ metadata:
 
 ## Companies
 
-Oracle Group has 7 portfolio companies:
+Oracle Consultancy has 7 portfolio companies:
 
 - CO01 Dar Spices
 - CO02 Cocozuri Chocolat

@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiEnabled: true,
   voiceLanguage: "en-GB",
   voiceDictionary: [
-    "Oracle Group",
+    "Oracle Consultancy",
     "Dar Spices",
     "Cocozuri Chocolat",
     "Terra Green",

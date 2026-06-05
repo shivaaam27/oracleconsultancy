@@ -89,7 +89,7 @@ export async function getBrief(now: Date = new Date()): Promise<BriefData> {
 /** WhatsApp-friendly share text (uses *bold*). Concise and scannable. */
 export function briefShareText(b: BriefData): string {
   const L: string[] = [];
-  L.push(`*Oracle Group — Director Brief*`);
+  L.push(`*Oracle Consultancy — Director Brief*`);
   L.push(`${b.monthLabel} · as at ${b.asAt}`);
   L.push("");
   L.push(`✅ ${b.deliveredCount} delivered this month · 📋 ${b.openCount} open · ⚠️ ${b.overdueCount} overdue · ${b.companyCount} companies`);
@@ -119,7 +119,7 @@ export function briefShareText(b: BriefData): string {
 /** Email subject + plain-text body (no markdown bold). */
 export function briefEmail(b: BriefData): { subject: string; body: string } {
   return {
-    subject: `Oracle Group — Director Brief (${b.monthLabel})`,
+    subject: `Oracle Consultancy — Director Brief (${b.monthLabel})`,
     body: briefShareText(b).replace(/\*/g, ""),
   };
 }

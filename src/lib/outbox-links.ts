@@ -78,7 +78,7 @@ export function buildTodoReminderMessage(
   const tail = `${opts.title}${due ? ` — due ${due}` : ""}${opts.company ? ` (${opts.company})` : ""}`;
   const subject = `Reminder: ${opts.title}`;
   if (channel === "EMAIL") {
-    const body = `Hi ${opts.personName},\n\nA quick reminder: ${tail}.\n\nThanks,\nOracle Group`;
+    const body = `Hi ${opts.personName},\n\nA quick reminder: ${tail}.\n\nThanks,\nOracle Consultancy`;
     return { subject, body };
   }
   // WhatsApp / SMS — concise.

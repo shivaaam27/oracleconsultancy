@@ -3,7 +3,7 @@ import { getGroqKey } from "@/lib/settings";
 
 export const maxDuration = 60;
 
-const SYSTEM_PROMPT = `You are the Chief of Staff drafting a concise weekly executive briefing for the principal of a multi-company portfolio (Oracle Group). Output a single 4-6 sentence narrative paragraph (no bullet points, no markdown headers, no greeting/signoff).
+const SYSTEM_PROMPT = `You are the Chief of Staff drafting a concise weekly executive briefing for the principal of a multi-company portfolio (Oracle Consultancy). Output a single 4-6 sentence narrative paragraph (no bullet points, no markdown headers, no greeting/signoff).
 
 STYLE:
 - Direct, factual, decision-grade. No fluff, no hedging, no "as we discussed".

@@ -413,3 +413,34 @@ input:focus, select:focus, textarea:focus {
 
 
 
+
+/* ---------------------------------------------------------------------- */
+/* Print / Save-as-PDF — used by the Director Brief. Forces a clean white   */
+/* document (even from dark mode), hides app chrome, removes glass/shadow.  */
+/* ---------------------------------------------------------------------- */
+@media print {
+  /* Re-map dark theme surfaces/text to light so the page prints legibly. */
+  .dark {
+    --bg:            0 0% 100%;
+    --bg-elev:       0 0% 100%;
+    --bg-subtle:     240 6% 96%;
+    --bg-muted:      240 5% 93%;
+    --bg-overlay:    0 0% 100%;
+    --fg:            240 10% 10%;
+    --fg-muted:      240 4% 38%;
+    --fg-subtle:     240 4% 50%;
+    --border:        240 6% 84%;
+    --border-strong: 240 6% 76%;
+  }
+  html, body { background: #fff !important; }
+  /* Strip glass/blur and shadows for crisp print. */
+  .glass, .glass-menu, .vibrancy, .vibrancy-strong {
+    background: #fff !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .elevated, .shadow-pill, [class*="shadow-"] { box-shadow: none !important; }
+  /* Hide all floating chrome (nav pill, action buttons, toasts) + opted-out bits. */
+  .fixed, .print-hidden { display: none !important; }
+  @page { margin: 14mm; }
+}

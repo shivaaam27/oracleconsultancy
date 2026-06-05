@@ -28,7 +28,7 @@ export default async function DirectorBriefPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Director Brief</div>
-          <h1 className="text-xl font-semibold tracking-tight">Oracle Group</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Oracle Consultancy</h1>
           <div className="text-xs text-fg-muted mt-0.5">{b.monthLabel} · as at {b.asAt}</div>
         </div>
         <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
