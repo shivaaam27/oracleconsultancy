@@ -194,6 +194,7 @@ export type CompanyKpi = {
   name: string;
   total: number;
   open: number;
+  inProgress: number;
   overdue: number;
   dueSoon: number;
   blocked: number;
@@ -217,6 +218,7 @@ export function computeCompanyKpis(rows: TaskRow[]): CompanyKpi[] {
   for (const [id, list] of byCompany) {
     const total = list.length;
     const open = list.filter((r) => isOpen(r.status)).length;
+    const inProgress = list.filter((r) => r.status === "In Progress").length;
     const overdue = list.filter((r) => r.flag === "overdue" || r.flag === "escalate-now").length;
     const dueSoon = list.filter((r) => r.flag === "due-soon").length;
     const blocked = list.filter((r) => r.status === "Blocked").length;
@@ -231,6 +233,7 @@ export function computeCompanyKpis(rows: TaskRow[]): CompanyKpi[] {
       name: list[0].companyName,
       total,
       open,
+      inProgress,
       overdue,
       dueSoon,
       blocked,

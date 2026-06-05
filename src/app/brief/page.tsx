@@ -14,10 +14,6 @@ function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "i
   if (p === "Medium") return "info";
   return "default";
 }
-function riskTone(label: string): "success" | "warn" | "danger" {
-  return label === "High risk" ? "danger" : label === "Watch" ? "warn" : "success";
-}
-
 export default async function DirectorBriefPage() {
   const b = await getBrief();
   const email = briefEmail(b);
@@ -42,6 +38,14 @@ export default async function DirectorBriefPage() {
         {b.companyCount} companies{b.atRiskCount ? <> · <b className="text-warn">{b.atRiskCount} need watching</b></> : null}.
       </p>
 
+      {/* Executive summary — PDF only. */}
+      <p className="print-only text-sm leading-relaxed">
+        In {b.monthLabel}, Oracle Consultancy delivered {b.deliveredCount} item{b.deliveredCount === 1 ? "" : "s"} across {b.companyCount} portfolio companies.
+        {" "}{b.openCount} item{b.openCount === 1 ? "" : "s"} remain open ({b.companies.reduce((n, c) => n + c.inProgress, 0)} in progress)
+        {b.overdueCount ? `, with ${b.overdueCount} overdue requiring attention` : ", with nothing overdue"}.
+        {b.watch.length ? ` ${b.watch.length} item${b.watch.length === 1 ? "" : "s"} are flagged for attention below.` : ""}
+      </p>
+
       {/* Top-line stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Delivered · month" value={b.deliveredCount} tone="success" icon={<CircleCheck size={16} />} />
@@ -59,11 +63,11 @@ export default async function DirectorBriefPage() {
               <div className="flex items-center gap-2 mb-2.5">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: k.accent || "hsl(var(--accent))" }} />
                 <span className="font-medium text-sm truncate flex-1">{k.name}</span>
-                <Badge tone={riskTone(k.risk)}>{k.risk}</Badge>
               </div>
-              <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-3.5 text-sm flex-wrap">
                 <span className="tabular"><b className="text-success">{k.done}</b> <span className="text-fg-subtle text-xs">done</span></span>
                 <span className="tabular"><b>{k.open}</b> <span className="text-fg-subtle text-xs">open</span></span>
+                <span className="tabular"><b className="text-info">{k.inProgress}</b> <span className="text-fg-subtle text-xs">in progress</span></span>
                 <span className="tabular"><b className={k.overdue ? "text-danger" : ""}>{k.overdue}</b> <span className="text-fg-subtle text-xs">overdue</span></span>
               </div>
             </Card>
@@ -121,6 +125,44 @@ export default async function DirectorBriefPage() {
           </Card>
         </div>
       )}
+
+      {/* Detailed report — PDF only. Open work (incl. in progress) per company. */}
+      <div className="print-only report-section">
+        <h2 className="text-base font-semibold mb-1 report-h2">Open work by company</h2>
+        <p className="text-xs text-fg-muted mb-3">All open items, including those in progress, as at {b.asAt}.</p>
+        {b.companies.filter((c) => c.tasks.length > 0).map((c) => (
+          <div key={c.id} className="report-company mb-4">
+            <div className="report-company-head">
+              <span className="report-dot" style={{ backgroundColor: c.accent || "hsl(var(--accent))" }} />
+              {c.name} — {c.open} open · {c.inProgress} in progress · {c.overdue} overdue
+            </div>
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "34%" }}>Task</th>
+                  <th style={{ width: "14%" }}>Owner</th>
+                  <th style={{ width: "10%" }}>Priority</th>
+                  <th style={{ width: "12%" }}>Deadline</th>
+                  <th style={{ width: "12%" }}>Status</th>
+                  <th>Latest update</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.tasks.map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.actionItem}</td>
+                    <td>{t.owner}</td>
+                    <td>{t.priority}</td>
+                    <td>{t.overdue ? "overdue" : t.deadline ? fmtDay(t.deadline) : "—"}</td>
+                    <td>{t.status}</td>
+                    <td>{t.latestUpdate ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

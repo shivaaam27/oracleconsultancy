@@ -16,9 +16,14 @@ export function riskLabel(score: number): RiskLabel {
   return score > 50 ? "High risk" : score > 20 ? "Watch" : "Healthy";
 }
 
+export type ReportTask = {
+  id: number; actionItem: string; owner: string; priority: string; status: string;
+  deadline: Date | null; overdue: boolean; latestUpdate: string | null;
+};
 export type BriefCompany = {
   id: number; name: string; accent: string | null; riskScore: number; risk: RiskLabel;
-  done: number; open: number; overdue: number;
+  done: number; open: number; inProgress: number; overdue: number;
+  tasks: ReportTask[]; // open tasks (incl. in progress), for the detailed PDF report
 };
 export type BriefDelivered = { company: string; items: { id: number; actionItem: string; status: string; closedDate: Date | null }[] };
 export type BriefWatch = { id: number; actionItem: string; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
@@ -54,9 +59,28 @@ export async function getBrief(now: Date = new Date()): Promise<BriefData> {
   const deliveredByCompany = new Map<number, number>();
   for (const r of deliveredThisMonth) deliveredByCompany.set(r.companyId, (deliveredByCompany.get(r.companyId) ?? 0) + 1);
 
+  // Open tasks per company (incl. in progress), worst-first, for the report tables.
+  const openByCompany = new Map<number, ReportTask[]>();
+  for (const r of openTasks) {
+    const list = openByCompany.get(r.companyId) ?? [];
+    list.push({
+      id: r.id, actionItem: r.actionItem, owner: r.owner ?? r.assignees[0] ?? "—",
+      priority: r.priority, status: r.status, deadline: r.deadline, overdue: isOverdue(r), latestUpdate: r.latestUpdate,
+    });
+    openByCompany.set(r.companyId, list);
+  }
+  for (const [, list] of openByCompany) {
+    list.sort((a, b) => {
+      const fa = (a.overdue ? 100 : 0) + (a.priority === "Critical" ? 40 : a.priority === "High" ? 20 : 0);
+      const fb = (b.overdue ? 100 : 0) + (b.priority === "Critical" ? 40 : b.priority === "High" ? 20 : 0);
+      return fb - fa;
+    });
+  }
+
   const companies: BriefCompany[] = kpis.map((k) => ({
     id: k.id, name: k.name, accent: k.accent, riskScore: k.riskScore, risk: riskLabel(k.riskScore),
-    done: deliveredByCompany.get(k.id) ?? 0, open: k.open, overdue: k.overdue,
+    done: deliveredByCompany.get(k.id) ?? 0, open: k.open, inProgress: k.inProgress, overdue: k.overdue,
+    tasks: openByCompany.get(k.id) ?? [],
   }));
 
   const groups = new Map<string, BriefDelivered["items"]>();
@@ -96,7 +120,7 @@ export function briefShareText(b: BriefData): string {
   L.push("");
   L.push(`*By company*`);
   for (const c of b.companies) {
-    L.push(`• ${c.name} — ${c.done} done · ${c.open} open · ${c.overdue} overdue (${c.risk})`);
+    L.push(`• ${c.name} — ${c.done} done · ${c.open} open · ${c.inProgress} in progress · ${c.overdue} overdue`);
   }
   if (b.delivered.length) {
     L.push("");

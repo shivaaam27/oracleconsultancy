@@ -418,7 +418,30 @@ input:focus, select:focus, textarea:focus {
 /* Print / Save-as-PDF — used by the Director Brief. Forces a clean white   */
 /* document (even from dark mode), hides app chrome, removes glass/shadow.  */
 /* ---------------------------------------------------------------------- */
+
+/* Content that exists only in the printed report (hidden on screen). */
+.print-only { display: none; }
+
+/* Detailed report tables (rendered inside .print-only, so screen-inert). */
+.report-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.report-table th {
+  text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #555; border-bottom: 1px solid #b8b8b8; padding: 3px 6px; white-space: nowrap;
+}
+.report-table td { font-size: 10.5px; padding: 3px 6px; border-bottom: 1px solid #ececec; vertical-align: top; color: #1c1c1c; }
+.report-table tbody tr:nth-child(even) td { background: #fafafa; }
+.report-company { margin-bottom: 14px; }
+.report-company-head { font-size: 12px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; color: #111; }
+.report-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; }
+
 @media print {
+  /* Show print-only content. */
+  .print-only { display: block !important; }
+  /* Detailed report starts on a fresh page; keep each company table together;
+     repeat the table header across page breaks. */
+  .report-section { break-before: page; }
+  .report-company { break-inside: avoid; }
+  .report-table thead { display: table-header-group; }
   /* Re-map dark theme surfaces/text to light so the page prints legibly. */
   .dark {
     --bg:            0 0% 100%;
