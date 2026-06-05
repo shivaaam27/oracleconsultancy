@@ -29,17 +29,25 @@ function fmtDate(d: Date | null): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" });
 }
 
-/** One compact meta line: "due 1 Jun · In Progress" (+ priority only when High/Critical). */
+const isOverdue = (t: TaskRow): boolean => t.daysToDeadline != null && Number(t.daysToDeadline) < 0;
+
+/** Collapse whitespace and clamp to one line so notes never bloat the message. */
+function oneLine(s: string, max = 120): string {
+  const t = s.trim().replace(/\s+/g, " ");
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+/** One compact meta line: "due 1 Jun · High". No status; priority kept. */
 function taskMeta(t: TaskRow): string {
-  const bits = [`due ${fmtDate(t.deadline)}`, t.status];
-  if (t.priority === "High" || t.priority === "Critical") bits.push(t.priority);
-  return bits.join(" · ");
+  return [`due ${fmtDate(t.deadline)}`, t.priority].join(" · ");
 }
 
 /**
  * Scannable reminder body, grouped by company. `bold` wraps the task name
  * (WhatsApp gets *asterisks*; email/SMS pass through plain). A single-company
- * recipient skips the company headers.
+ * recipient skips the company headers. Each task shows its Description (the main
+ * message) and Latest update when present — no task code, no status words; an
+ * "⚠️ overdue" marker replaces status wording only when a task is actually late.
  */
 function buildReminder(name: string, tasks: TaskRow[], bold: (s: string) => string): string {
   // Group by company, first-seen order; tasks within a company by soonest deadline.
@@ -49,13 +57,19 @@ function buildReminder(name: string, tasks: TaskRow[], bold: (s: string) => stri
     if (list) list.push(t); else groups.set(t.companyName, [t]);
   }
   for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
-  const lines = [`Hi ${name}, a quick reminder on your open items:`, ""];
+
+  const overdueCount = tasks.filter(isOverdue).length;
+  const head = `Hi ${name}, a quick reminder on your ${tasks.length} open item${tasks.length === 1 ? "" : "s"}${overdueCount ? ` (${overdueCount} overdue)` : ""}:`;
+  const lines = [head, ""];
   for (const [company, list] of groups) {
     lines.push(bold(company)); // company always heads its block — the breakdown lives in the message
     for (const t of list) {
       const others = t.assignees.filter((a) => a && a !== name);
       const shared = others.length ? ` (with ${others.join(", ")})` : "";
-      lines.push(`• ${bold(t.actionItem)} (${t.code}) — ${taskMeta(t)}${shared}`);
+      const flag = isOverdue(t) ? "⚠️ " : "";
+      lines.push(`• ${flag}${bold(t.actionItem)} — ${taskMeta(t)}${shared}`);
+      if (t.comments && t.comments.trim()) lines.push(`  ${oneLine(t.comments)}`);
+      if (t.latestUpdate && t.latestUpdate.trim()) lines.push(`  Latest: ${oneLine(t.latestUpdate)}`);
     }
     lines.push("");
   }
@@ -72,7 +86,9 @@ export function buildEmailMessage(name: string, tasks: TaskRow[]): string {
 }
 
 export function buildSmsMessage(t: TaskRow): string {
-  return `${t.code} ${t.companyName}: ${t.actionItem} · ${taskMeta(t)}`;
+  // SMS stays ultra-short: no code, no description/update — one scannable line.
+  const flag = isOverdue(t) ? "⚠️ " : "";
+  return `${flag}${t.companyName}: ${t.actionItem} · ${taskMeta(t)}`;
 }
 
 function buildAllMessages(name: string, list: TaskRow[]): Record<Channel, string> {
