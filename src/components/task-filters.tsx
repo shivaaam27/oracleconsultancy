@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SlidersHorizontal, X, RotateCcw, Check } from "lucide-react";
 import { spring } from "@/lib/motion";
 import { cn } from "@/lib/cn";
-import { Card } from "./ui";
+import { Card, SearchInput } from "./ui";
 import { CompanyJump } from "./company-jump";
 import { FilterSelect } from "./filter-select";
 
@@ -86,11 +86,11 @@ export function TaskFilters(props: Props) {
         <form className="flex flex-wrap gap-2 items-center">
           {hidden}
           {view === "table" && (
-            <input
+            <SearchInput
               name="q"
               defaultValue={q}
               placeholder="Search action item, code, or person…"
-              className="flex-1 min-w-[200px] px-3 py-1.5 text-sm rounded-md"
+              wrapperClassName="flex-1 min-w-[200px]"
             />
           )}
           <CompanyJump value="" companies={companies} />
@@ -115,12 +115,7 @@ export function TaskFilters(props: Props) {
         {view === "table" && (
           <form className="flex-1 min-w-0">
             {hidden}
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="Search tasks…"
-              className="w-full px-3 py-2 text-sm rounded-xl"
-            />
+            <SearchInput name="q" defaultValue={q} placeholder="Search tasks…" />
           </form>
         )}
         <button

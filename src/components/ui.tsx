@@ -1,7 +1,30 @@
 import { cn } from "@/lib/cn";
 import Link from "next/link";
-import { Loader2, ChevronDown } from "lucide-react";
+import { Loader2, ChevronDown, Search } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
+
+/** Search field — leading icon + design-system input. Pass-through props
+ *  (name/defaultValue/value/onChange…) so it works in forms or controlled. */
+export function SearchInput({
+  wrapperClassName,
+  className,
+  ...p
+}: { wrapperClassName?: string } & ComponentProps<"input">) {
+  return (
+    <div className={cn("relative", wrapperClassName)}>
+      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
+      <input
+        type="search"
+        {...p}
+        className={cn(
+          "w-full h-9 pl-9 pr-3 text-sm rounded-xl border border-border bg-bg-subtle/60",
+          "focus:outline-none focus:ring-2 focus:ring-accent/50 placeholder:text-fg-subtle",
+          className
+        )}
+      />
+    </div>
+  );
+}
 
 /* --------------------------------------------------------------------- */
 /* Surface primitives                                                     */
