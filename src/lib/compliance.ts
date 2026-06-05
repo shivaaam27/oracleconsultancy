@@ -41,8 +41,6 @@ export const COMPANY_REQUIREMENTS: ComplianceRequirement[] = [
   { id: "company-registration", label: "Company registration", categories: ["Registration"], ownerType: "company", appliesTo: "all", weight: 2 },
   { id: "tax-registration", label: "Tax / TIN document", categories: ["Tax"], ownerType: "company", appliesTo: "all", weight: 2 },
   { id: "business-licence", label: "Business licence", categories: ["Licence", "Permit"], ownerType: "company", appliesTo: "all", weight: 3 },
-  { id: "insurance", label: "Insurance cover", categories: ["Insurance"], ownerType: "company", appliesTo: "all", weight: 2 },
-  { id: "lease", label: "Office / site lease", categories: ["Lease"], ownerType: "company", appliesTo: "all", weight: 1 },
 ];
 
 export const PERSON_REQUIREMENTS: ComplianceRequirement[] = [
@@ -136,7 +134,7 @@ export function buildCompanyComplianceScores(
       ownerName: company.name,
       ownerType: "company",
       requirements: COMPANY_REQUIREMENTS,
-      documents: documents.filter((doc) => doc.companyId === company.id && doc.personId == null),
+      documents: documents.filter((doc) => doc.companyId === company.id),
     })
   );
 }

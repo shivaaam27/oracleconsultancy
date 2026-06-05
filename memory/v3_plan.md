@@ -88,7 +88,10 @@ Examples:
    `/documents`, and sends the worst compliance issues into Home Intelligence.
    Follow-up tuning: company records and expats are strict required-checklist
    owners; internal/external people are monitored for expired/expiring linked
-   documents but are not marked missing by default.
+   documents but are not marked missing by default. Company checklist now focuses
+   on core statutory documents (registration, tax/TIN, business licence/permit);
+   insurance and leases are monitored when present rather than mandatory for
+   every company.
 5. **Director Brief Phase 5** - period filters, per-company brief, scheduled draft.
 6. **Ask COS Agentic Upgrade** - page-specific "what should I do here?", meeting
    preparation, suggested actions after answers.

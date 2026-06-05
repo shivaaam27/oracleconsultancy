@@ -32,7 +32,7 @@ function ScoreCard({ score }: { score: ComplianceScore }) {
   return (
     <Link
       href={href}
-      className="group rounded-2xl bg-bg-elev ring-1 ring-border p-3 elevated hover:-translate-y-0.5 hover:ring-accent/25 transition-all"
+      className="group block rounded-xl px-2 py-2 hover:bg-bg-muted/45 transition-colors"
     >
       <div className="flex items-start gap-3">
         <span className={cn("inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1", t.bg, t.ring)}>
@@ -98,7 +98,9 @@ export function ComplianceScorePanel({
         <div className="space-y-2">
           <div className="px-1 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">Company gaps</div>
           {riskyCompanies.length > 0 ? (
-            riskyCompanies.slice(0, 4).map((score) => <ScoreCard key={`c-${score.ownerId}`} score={score} />)
+            <div className="divide-y divide-border/50 rounded-xl overflow-hidden">
+              {riskyCompanies.slice(0, 4).map((score) => <ScoreCard key={`c-${score.ownerId}`} score={score} />)}
+            </div>
           ) : (
             <div className="rounded-2xl bg-bg-subtle/60 px-4 py-6 text-center text-sm text-fg-muted">
               No company checklist gaps.
@@ -108,7 +110,9 @@ export function ComplianceScorePanel({
         <div className="space-y-2">
           <div className="px-1 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">People gaps</div>
           {riskyPeople.length > 0 ? (
-            riskyPeople.slice(0, 4).map((score) => <ScoreCard key={`p-${score.ownerId}`} score={score} />)
+            <div className="divide-y divide-border/50 rounded-xl overflow-hidden">
+              {riskyPeople.slice(0, 4).map((score) => <ScoreCard key={`p-${score.ownerId}`} score={score} />)}
+            </div>
           ) : (
             <div className="rounded-2xl bg-bg-subtle/60 px-4 py-6 text-center text-sm text-fg-muted">
               No people checklist gaps.
