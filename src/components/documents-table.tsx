@@ -249,6 +249,9 @@ export function DocumentsTable({
                     {companyName(doc.companyId) && <span className="inline-flex items-center gap-1 truncate"><Building2 size={11} />{companyName(doc.companyId)}</span>}
                     {personName(doc.personId) && <span className="inline-flex items-center gap-1 truncate"><UserIcon size={11} />{personName(doc.personId)}</span>}
                   </div>
+                  {doc.notes && doc.notes.trim() && (
+                    <div className="text-[11px] text-fg-muted truncate mt-0.5">{doc.notes}</div>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
                   {/* Full date on larger screens; the countdown shows on all sizes. */}

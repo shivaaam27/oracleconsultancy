@@ -2,6 +2,7 @@
 
 import { Mail, MessageCircle, Phone, AlertCircle, MoonStar, UserX } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { displayNote } from "@/lib/notes-display";
 import type { PersonRow } from "@/lib/people-queries";
 
 function whatsappHref(num: string) {
@@ -80,8 +81,8 @@ export function PersonCard({
           {snoozed && <MoonStar size={12} className="text-warn shrink-0" />}
         </div>
         <div className="text-xs text-fg-muted truncate mt-0.5">{metaLine}</div>
-        {p.notes && p.notes.trim() && (
-          <div className="text-xs text-fg-subtle truncate mt-0.5">{p.notes}</div>
+        {displayNote(p.notes) && (
+          <div className="text-xs text-fg-subtle truncate mt-0.5">{displayNote(p.notes)}</div>
         )}
       </div>
 

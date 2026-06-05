@@ -9,6 +9,7 @@ import { FluidSelect } from "./fluid-select";
 import { Button } from "./ui";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
+import { displayNote } from "@/lib/notes-display";
 import { useToast } from "./toast";
 import { snoozePerson, togglePersonActive, setPeopleActive } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
@@ -351,10 +352,10 @@ export function PeopleTable({ people, companies }: {
             {!peek.hasContact && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">No contact</span>}
           </>
         ) : undefined}
-        body={peek && (peek.notes?.trim() || peek.topTasks.length > 0) ? (
+        body={peek && (displayNote(peek.notes) || peek.topTasks.length > 0) ? (
           <div className="space-y-2.5">
-            {peek.notes && peek.notes.trim() && (
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{peek.notes}</p>
+            {displayNote(peek.notes) && (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{displayNote(peek.notes)}</p>
             )}
             {peek.topTasks.length > 0 && (
               <div className="-mx-1 rounded-xl border border-border/60 divide-y divide-border/50 overflow-hidden">
