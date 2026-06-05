@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
-  Bot,
   BriefcaseBusiness,
   CalendarClock,
   CheckCircle2,
@@ -17,6 +16,7 @@ import {
 import { cn } from "@/lib/cn";
 import { Badge, LinkButton } from "@/components/ui";
 import { AutomationActionButton } from "@/components/automation-action-button";
+import { PlanMyDayButton } from "@/components/plan-my-day-button";
 
 type Tone = "danger" | "warn" | "accent" | "success" | "muted";
 
@@ -158,9 +158,7 @@ export function HomeIntelligence({
                         {lead.actionLabel} <ArrowRight size={13} />
                       </LinkButton>
                     )}
-                    <LinkButton href="/ask" variant="secondary" size="sm">
-                      <Bot size={13} /> Plan my day
-                    </LinkButton>
+                    <PlanMyDayButton />
                   </div>
                 </div>
               </div>
