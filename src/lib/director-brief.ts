@@ -78,6 +78,14 @@ export type BriefCompliance = {
   gaps: string[];
   issues: string[];
 };
+export type BriefDirectorAction = {
+  type: "Task" | "Compliance";
+  companyName: string;
+  headline: string;
+  detail: string;
+  urgency: "High" | "Medium";
+  link: string;
+};
 
 export type BriefData = {
   period: BriefPeriod;
@@ -97,6 +105,7 @@ export type BriefData = {
   delivered: BriefDelivered[];
   watch: BriefWatch[];
   compliance: BriefCompliance[];
+  directorActions: BriefDirectorAction[];
 };
 
 export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | null): Promise<BriefData> {
@@ -180,6 +189,41 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
       issues: score.documentIssues.map((doc) => `${doc.title}${doc.expiryLabel ? ` (${doc.expiryLabel})` : ""}`),
     }));
 
+  const directorActions: BriefDirectorAction[] = [
+    ...[...openTasks]
+      .filter((r) => sev(r) > 0)
+      .sort((a, b) => sev(b) - sev(a))
+      .slice(0, 4)
+      .map((r) => {
+        const when = isOverdue(r) ? "Overdue" : r.deadline ? `Due ${fmtDay(r.deadline)}` : "No deadline";
+        return {
+          type: "Task" as const,
+          companyName: r.companyName,
+          headline: `${r.code}: ${r.actionItem}`,
+          detail: `${when} · ${r.priority} · ${r.status}`,
+          urgency: (isOverdue(r) || r.priority === "Critical" ? "High" : "Medium") as "High" | "Medium",
+          link: `/task/${r.code}`,
+        };
+      }),
+    ...compliance.slice(0, 4).map((c) => {
+      const detail = [
+        c.missing ? `${c.missing} missing` : null,
+        c.expired ? `${c.expired} expired` : null,
+        c.expiring ? `${c.expiring} expiring` : null,
+      ].filter(Boolean).join(" · ");
+      return {
+        type: "Compliance" as const,
+        companyName: c.companyName,
+        headline: `${c.companyName}: compliance score ${c.score}%`,
+        detail: `${detail || c.status}${c.gaps[0] ? ` · next: ${c.gaps[0]}` : ""}`,
+        urgency: (c.status === "Risk" || c.expired > 0 ? "High" : "Medium") as "High" | "Medium",
+        link: `/documents?company=${c.companyId}`,
+      };
+    }),
+  ]
+    .sort((a, b) => (a.urgency === b.urgency ? 0 : a.urgency === "High" ? -1 : 1))
+    .slice(0, 6);
+
   return {
     period,
     selectedCompanyId,
@@ -193,7 +237,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     overdueCount: overdueOpen.length,
     companyCount: kpis.length,
     atRiskCount: kpis.filter((k) => k.riskScore > 20).length,
-    companies, delivered, watch, compliance,
+    companies, delivered, watch, compliance, directorActions,
   };
 }
 
@@ -222,6 +266,13 @@ export function briefShareText(b: BriefData): string {
     for (const w of b.watch) {
       const when = w.overdue ? "overdue" : w.deadline ? `due ${fmtDay(w.deadline)}` : "no deadline";
       L.push(`• ${w.actionItem} — ${w.companyName} · ${when} · ${w.priority}`);
+    }
+  }
+  if (b.directorActions.length) {
+    L.push("");
+    L.push(`*Recommended director actions*`);
+    for (const a of b.directorActions.slice(0, 5)) {
+      L.push(`• ${a.companyName}: ${a.headline} — ${a.detail}`);
     }
   }
   if (b.compliance.length) {

@@ -107,7 +107,9 @@ Examples:
    Per-company brief filtering is now available and keeps page, share/email and
    PDF data in sync with the selected company. A safe "Draft" action now creates
    a de-duplicated Email draft in Outbox for the selected period/company without
-   sending anything.
+   sending anything. Recommended director actions are now derived from live task
+   risk and compliance issues, visible on the brief, included in share/email
+   text, and printed through the existing PDF report-table layout.
 6. **Ask COS Agentic Upgrade** - page-specific "what should I do here?", meeting
    preparation, suggested actions after answers.
 7. **Voice Intelligence Expansion** - punctuation/lists, snippets, tone shaping,

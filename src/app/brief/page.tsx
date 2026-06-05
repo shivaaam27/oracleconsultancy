@@ -1,4 +1,4 @@
-import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
@@ -60,6 +60,7 @@ export default async function DirectorBriefPage({
         {" "}{b.openCount} item{b.openCount === 1 ? "" : "s"} remain open ({b.companies.reduce((n, c) => n + c.inProgress, 0)} in progress)
         {b.overdueCount ? `, with ${b.overdueCount} overdue requiring attention` : ", with nothing overdue"}.
         {b.watch.length ? ` ${b.watch.length} item${b.watch.length === 1 ? "" : "s"} are flagged for attention below.` : ""}
+        {b.directorActions.length ? ` ${b.directorActions.length} recommended director action${b.directorActions.length === 1 ? "" : "s"} are included in the live action list.` : ""}
         {b.compliance.length ? ` ${b.compliance.length} compan${b.compliance.length === 1 ? "y has" : "ies have"} compliance issues.` : ""}
       </p>
 
@@ -121,6 +122,25 @@ export default async function DirectorBriefPage({
         )}
       </div>
 
+      {b.directorActions.length > 0 && (
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+            <Target size={13} className="text-accent" /> Recommended director actions · {b.directorActions.length}
+          </div>
+          <Card className="divide-y divide-border/70">
+            {b.directorActions.map((a) => (
+              <a key={`${a.type}-${a.link}-${a.headline}`} href={a.link} className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-muted/40 transition-colors">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{a.headline}</div>
+                  <div className="text-[11px] text-fg-subtle">{a.companyName} · {a.detail}</div>
+                </div>
+                <Badge tone={a.urgency === "High" ? "danger" : "warn"}>{a.urgency}</Badge>
+              </a>
+            ))}
+          </Card>
+        </div>
+      )}
+
       {/* Watch-list */}
       {b.watch.length > 0 && (
         <div>
@@ -167,6 +187,32 @@ export default async function DirectorBriefPage({
 
       {/* Detailed report — PDF only. Open work (incl. in progress) per company. */}
       <div className="print-only report-section">
+        {b.directorActions.length > 0 && (
+          <>
+            <h2 className="text-base font-semibold mb-1 report-h2">Recommended director actions</h2>
+            <p className="text-xs text-fg-muted mb-3">Live recommended follow-up points from task risk and document compliance.</p>
+            <table className="report-table mb-4">
+              <thead>
+                <tr>
+                  <th style={{ width: "15%" }}>Type</th>
+                  <th style={{ width: "22%" }}>Company</th>
+                  <th>Action</th>
+                  <th style={{ width: "12%" }}>Urgency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {b.directorActions.map((a) => (
+                  <tr key={`${a.type}-${a.link}-${a.headline}`}>
+                    <td>{a.type}</td>
+                    <td>{a.companyName}</td>
+                    <td>{a.headline} · {a.detail}</td>
+                    <td>{a.urgency}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
         {b.compliance.length > 0 && (
           <>
             <h2 className="text-base font-semibold mb-1 report-h2">Compliance watch</h2>
