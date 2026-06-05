@@ -81,6 +81,9 @@ export type BriefCompliance = {
 
 export type BriefData = {
   period: BriefPeriod;
+  selectedCompanyId: number | null;
+  selectedCompanyName: string | null;
+  companyOptions: Array<{ id: number; name: string }>;
   monthLabel: string;
   periodStart: Date;
   periodEnd: Date;
@@ -96,9 +99,14 @@ export type BriefData = {
   compliance: BriefCompliance[];
 };
 
-export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month"): Promise<BriefData> {
-  const [rows, documents] = await Promise.all([getAllTasks(), listDocuments()]);
-  const kpis = computeCompanyKpis(rows);
+export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | null): Promise<BriefData> {
+  const [allRows, documents] = await Promise.all([getAllTasks(), listDocuments()]);
+  const allKpis = computeCompanyKpis(allRows);
+  const companyOptions = allKpis.map((k) => ({ id: k.id, name: k.name })).sort((a, b) => a.name.localeCompare(b.name));
+  const selectedCompanyId = companyId && allKpis.some((k) => k.id === companyId) ? companyId : null;
+  const selectedCompanyName = selectedCompanyId ? allKpis.find((k) => k.id === selectedCompanyId)?.name ?? null : null;
+  const rows = selectedCompanyId ? allRows.filter((r) => r.companyId === selectedCompanyId) : allRows;
+  const kpis = selectedCompanyId ? allKpis.filter((k) => k.id === selectedCompanyId) : allKpis;
 
   const range = periodRange(now, period);
   const monthLabel = range.label;
@@ -174,6 +182,9 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
 
   return {
     period,
+    selectedCompanyId,
+    selectedCompanyName,
+    companyOptions,
     monthLabel, asAt,
     periodStart: range.start,
     periodEnd: range.end,
@@ -190,7 +201,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
 export function briefShareText(b: BriefData): string {
   const L: string[] = [];
   L.push(`*Oracle Consultancy — Director Brief*`);
-  L.push(`${b.monthLabel} · as at ${b.asAt}`);
+  L.push(`${b.selectedCompanyName ? `${b.selectedCompanyName} · ` : ""}${b.monthLabel} · as at ${b.asAt}`);
   L.push("");
   L.push(`✅ ${b.deliveredCount} delivered in ${b.monthLabel} · 📋 ${b.openCount} open · ⚠️ ${b.overdueCount} overdue · ${b.companyCount} companies`);
   L.push("");
@@ -231,7 +242,7 @@ export function briefShareText(b: BriefData): string {
 /** Email subject + plain-text body (no markdown bold). */
 export function briefEmail(b: BriefData): { subject: string; body: string } {
   return {
-    subject: `Oracle Consultancy — Director Brief (${b.monthLabel})`,
+    subject: `Oracle Consultancy — Director Brief${b.selectedCompanyName ? ` · ${b.selectedCompanyName}` : ""} (${b.monthLabel})`,
     body: briefShareText(b).replace(/\*/g, ""),
   };
 }

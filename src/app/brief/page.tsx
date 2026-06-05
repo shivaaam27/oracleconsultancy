@@ -2,6 +2,7 @@ import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCh
 import { Card, Stat, Badge } from "@/components/ui";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
+import { BriefCompanyFilter } from "@/components/brief-company-filter";
 import { getBrief, briefShareText, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +19,11 @@ function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "i
 export default async function DirectorBriefPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>;
+  searchParams: Promise<{ period?: string; company?: string }>;
 }) {
   const sp = await searchParams;
-  const b = await getBrief(new Date(), parseBriefPeriod(sp.period));
+  const companyId = sp.company && /^\d+$/.test(sp.company) ? parseInt(sp.company, 10) : null;
+  const b = await getBrief(new Date(), parseBriefPeriod(sp.period), companyId);
   const email = briefEmail(b);
 
   return (
@@ -30,19 +32,22 @@ export default async function DirectorBriefPage({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Director Brief</div>
-          <h1 className="text-xl font-semibold tracking-tight">Oracle Consultancy</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{b.selectedCompanyName ?? "Oracle Consultancy"}</h1>
           <div className="text-xs text-fg-muted mt-0.5">{b.monthLabel} · as at {b.asAt}</div>
         </div>
         <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
       </div>
-      <BriefPeriodFilter period={b.period} />
+      <div className="space-y-2">
+        <BriefPeriodFilter period={b.period} />
+        <BriefCompanyFilter period={b.period} selectedCompanyId={b.selectedCompanyId} companies={b.companyOptions} />
+      </div>
 
       {/* Headline line */}
       <p className="text-sm text-fg-muted">
         <b className="text-success">{b.deliveredCount} delivered</b> in {b.monthLabel} ·{" "}
         <b className="text-fg">{b.openCount} open</b> ·{" "}
         <b className={b.overdueCount ? "text-danger" : "text-fg"}>{b.overdueCount} overdue</b> across{" "}
-        {b.companyCount} companies{b.atRiskCount ? <> · <b className="text-warn">{b.atRiskCount} need watching</b></> : null}.
+        {b.companyCount} compan{b.companyCount === 1 ? "y" : "ies"}{b.atRiskCount ? <> · <b className="text-warn">{b.atRiskCount} need watching</b></> : null}.
       </p>
 
       {/* Executive summary — PDF only. */}
