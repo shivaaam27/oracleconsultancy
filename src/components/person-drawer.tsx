@@ -6,7 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, Loader2, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
-  RotateCcw, Clock, ChevronDown, Send,
+  RotateCcw, Clock, ChevronDown, Send, FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -52,6 +52,18 @@ type DrawerData = {
     completedThisMonth: number;
   };
   assignedTasks: TaskRow[];
+  documents: Array<{
+    id: number;
+    title: string;
+    category: string | null;
+    docType: string | null;
+    expiryDate: string | null;
+    reminderLeadDays: number;
+    status: "Valid" | "Expiring" | "Expired" | "No expiry" | "Archived";
+    expiryLabel: string | null;
+    companyId: number | null;
+    companyName: string | null;
+  }>;
   recentUpdates: Array<{
     id: number;
     taskId: number;
@@ -81,6 +93,13 @@ function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "i
   if (p === "Critical") return "danger";
   if (p === "High") return "warn";
   if (p === "Medium") return "info";
+  return "default";
+}
+
+function documentTone(status: string): "default" | "success" | "warn" | "danger" | "info" {
+  if (status === "Expired") return "danger";
+  if (status === "Expiring") return "warn";
+  if (status === "Valid") return "success";
   return "default";
 }
 
@@ -405,6 +424,56 @@ export function PersonDrawer() {
                     </div>
                   </div>
                 )}
+
+                {/* Compliance documents linked to this person */}
+                {data && data.documents.length > 0 && (() => {
+                  const expired = data.documents.filter((d) => d.status === "Expired").length;
+                  const expiring = data.documents.filter((d) => d.status === "Expiring").length;
+                  return (
+                    <details className="group glass elevated rounded-2xl overflow-hidden" open>
+                      <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+                        <FileText size={12} /> Documents
+                        <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+                          {data.documents.length}
+                        </span>
+                        {expired > 0 && <Badge tone="danger" className="normal-case">{expired} expired</Badge>}
+                        {expiring > 0 && <Badge tone="warn" className="normal-case">{expiring} expiring</Badge>}
+                        <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
+                      </summary>
+                      <div className="px-2 pb-2">
+                        <div className="rounded-xl overflow-hidden divide-y divide-border/60">
+                          {data.documents.slice(0, 8).map((doc) => (
+                            <Link
+                              key={doc.id}
+                              href="/documents"
+                              onClick={close}
+                              className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left hover:bg-bg-muted/50 transition-colors"
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full shrink-0",
+                                  doc.status === "Expired" ? "bg-danger" :
+                                  doc.status === "Expiring" ? "bg-warn" :
+                                  doc.status === "Valid" ? "bg-success" : "bg-fg-subtle"
+                                )}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-xs font-medium truncate">{doc.title}</span>
+                                <span className="block text-[10px] text-fg-muted truncate">
+                                  {[doc.category, doc.docType, doc.expiryLabel].filter(Boolean).join(" - ") || "No expiry date"}
+                                </span>
+                              </span>
+                              <Badge tone={documentTone(doc.status)} className="shrink-0">{doc.status}</Badge>
+                            </Link>
+                          ))}
+                        </div>
+                        {data.documents.length > 8 && (
+                          <p className="text-[10px] text-fg-subtle text-center pt-2">+ {data.documents.length - 8} more</p>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })()}
 
                 {/* Notes */}
                 {person.notes && (

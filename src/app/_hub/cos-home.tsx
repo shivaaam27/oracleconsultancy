@@ -5,7 +5,7 @@ import { getAppSettings } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
 import { listOutboxDrafts } from "@/lib/outbox-drafts";
 import { listMeetings } from "@/app/meeting/actions";
-import { buildAutomationSuggestions, getStaleTasks } from "@/lib/automation-suggestions";
+import { buildAutomationSuggestions, getDocumentRenewalCandidates, getStaleTasks } from "@/lib/automation-suggestions";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import {
@@ -156,6 +156,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     .filter((x) => x.status === "Expired" || x.status === "Expiring")
     .sort((a, b) => (a.dte ?? Infinity) - (b.dte ?? Infinity));
   const expiredDocs = expiringDocs.filter((x) => x.status === "Expired");
+  const documentRenewalCandidates = await getDocumentRenewalCandidates(documents);
 
   const recentMeetings = meetings
     .filter((m) => {
@@ -201,6 +202,16 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       actionLabel: "Open Outbox",
       tone: "accent",
       count: drafts.length,
+    },
+    documentRenewalCandidates.length > 0 && {
+      id: "automation-document-renewals",
+      title: `Create ${documentRenewalCandidates.length} renewal task${documentRenewalCandidates.length === 1 ? "" : "s"}`,
+      detail: "COS found expiring documents without an open linked renewal task.",
+      href: "/documents",
+      actionLabel: "Create renewals",
+      tone: expiredDocs.length ? "danger" : "warn",
+      count: documentRenewalCandidates.length,
+      automationAction: "document-renewals",
     },
     expiringDocs.length > 0 && {
       id: "documents",

@@ -1,6 +1,7 @@
 import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
+import { deriveDocStatus, expiryLabel, type DocStatus } from "./documents-shared";
 
 export type PersonType = "internal" | "external" | "expat";
 
@@ -42,6 +43,19 @@ export type PersonWorkload = {
 };
 
 export type PersonTopTask = { code: string; actionItem: string; status: string; flag: string | null; companyName: string };
+
+export type PersonDocument = {
+  id: number;
+  title: string;
+  category: string | null;
+  docType: string | null;
+  expiryDate: Date | null;
+  reminderLeadDays: number;
+  status: DocStatus;
+  expiryLabel: string | null;
+  companyId: number | null;
+  companyName: string | null;
+};
 
 export type PersonRow = Person & {
   workload: PersonWorkload;
@@ -146,6 +160,7 @@ export type PersonDetail = {
   person: Person;
   workload: PersonWorkload;
   assignedTasks: TaskRow[];
+  documents: PersonDocument[];
   /** Recent task_updates on tasks this person is involved in. */
   recentUpdates: Array<{
     id: number;
@@ -161,7 +176,7 @@ export type PersonDetail = {
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
-  const [{ data: rawPerson }, { data: rawCompanies }, { data: rawAssoc }, tasks] = await Promise.all([
+  const [{ data: rawPerson }, { data: rawCompanies }, { data: rawAssoc }, { data: rawDocuments }, tasks] = await Promise.all([
     sb
       .from("people")
       .select(
@@ -171,6 +186,12 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
       .maybeSingle(),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("company_id,relationship").eq("person_id", id),
+    sb
+      .from("documents")
+      .select("id,title,category,doc_type,expiry_date,reminder_lead_days,company_id,archived")
+      .eq("person_id", id)
+      .eq("archived", false)
+      .order("expiry_date", { ascending: true, nullsFirst: false }),
     getAllTasks(),
   ]);
 
@@ -214,6 +235,27 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
 
   const assignedTasks = tasks.filter((t) => isInvolved(person, t));
   const workload = computeWorkload(person, tasks);
+  const documents: PersonDocument[] = (rawDocuments ?? []).map((doc) => {
+    const expiryDate = doc.expiry_date ? new Date(doc.expiry_date as string) : null;
+    const reminderLeadDays = (doc.reminder_lead_days as number | null) ?? 30;
+    const statusInput = {
+      expiryDate,
+      reminderLeadDays,
+      archived: (doc.archived as boolean | null) ?? false,
+    };
+    return {
+      id: doc.id as number,
+      title: doc.title as string,
+      category: (doc.category as string | null) ?? null,
+      docType: (doc.doc_type as string | null) ?? null,
+      expiryDate,
+      reminderLeadDays,
+      status: deriveDocStatus(statusInput),
+      expiryLabel: expiryLabel(statusInput),
+      companyId: (doc.company_id as number | null) ?? null,
+      companyName: doc.company_id ? cMap.get(doc.company_id as number) ?? null : null,
+    };
+  });
 
   const assignedTaskIds = assignedTasks.map((t) => t.id);
   let recentUpdates: PersonDetail["recentUpdates"] = [];
@@ -254,5 +296,5 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     active: (p.active as boolean | null) ?? true,
   }));
 
-  return { person, workload, assignedTasks, recentUpdates, companies, peopleList };
+  return { person, workload, assignedTasks, documents, recentUpdates, companies, peopleList };
 }

@@ -28,7 +28,7 @@ export type CommandAction = {
   actionLabel: string;
   tone: Tone;
   count?: number;
-  automationAction?: "overdue-reminders";
+  automationAction?: "overdue-reminders" | "document-renewals";
 };
 
 export type PulseMetric = {

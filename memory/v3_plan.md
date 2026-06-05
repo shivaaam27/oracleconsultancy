@@ -74,7 +74,13 @@ Examples:
    shared automation helper detects stale tasks and overdue reminder opportunities;
    Home shows stale-task pulse/commands; overdue assigned tasks can create
    de-duplicated Outbox drafts by accountable person (`source=automation-overdue`).
+   Document renewal suggestions now detect expired/expiring documents without an
+   open linked renewal task and can create de-duplicated linked renewal tasks
+   from Home.
 3. **HRMS People Profile Upgrade** - person workload, documents, reminders and status.
+   **Started:** the person drawer now shows linked compliance documents with
+   expired/expiring status, using the same derived status rules as the Documents
+   centre.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score.
 5. **Director Brief Phase 5** - period filters, per-company brief, scheduled draft.

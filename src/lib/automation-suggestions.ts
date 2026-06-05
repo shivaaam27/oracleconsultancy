@@ -8,6 +8,8 @@ import {
   type Channel,
 } from "@/lib/outbox-gen";
 import { contactForChannel, pickChannel } from "@/lib/outbox-links";
+import { deriveDocStatus, type DocumentRow, linkDocumentTask } from "@/lib/documents";
+import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 export const STALE_TASK_DAYS = 7;
 export const OVERDUE_DRAFT_SOURCE = "automation-overdue";
@@ -76,6 +78,90 @@ export function buildAutomationSuggestions(rows: TaskRow[]): AutomationSuggestio
       tone: "warn" as const,
     },
   ].filter(Boolean) as AutomationSuggestion[];
+}
+
+export type DocumentRenewalCandidate = {
+  document: DocumentRow;
+  status: "Expired" | "Expiring";
+};
+
+export async function getDocumentRenewalCandidates(documents: DocumentRow[]): Promise<DocumentRenewalCandidate[]> {
+  const actionable = documents
+    .map((document) => ({ document, status: deriveDocStatus(document) }))
+    .filter((x): x is DocumentRenewalCandidate => (x.status === "Expired" || x.status === "Expiring") && !!x.document.companyId);
+  if (actionable.length === 0) return [];
+
+  const ids = actionable.map((x) => x.document.id);
+  const { data: links, error } = await sb
+    .from("document_links")
+    .select("document_id,tasks(status)")
+    .in("document_id", ids);
+  if (error) throw new Error(error.message);
+
+  const hasOpenRenewal = new Set<number>();
+  for (const row of links ?? []) {
+    const task = Array.isArray((row as any).tasks) ? (row as any).tasks[0] : (row as any).tasks;
+    const status = task?.status as string | null | undefined;
+    if (status && isOpen(status)) hasOpenRenewal.add(row.document_id as number);
+  }
+
+  return actionable.filter((x) => !hasOpenRenewal.has(x.document.id));
+}
+
+export async function createDocumentRenewalTasks(documents: DocumentRow[]): Promise<{ created: number; skipped: number }> {
+  const candidates = await getDocumentRenewalCandidates(documents);
+  if (candidates.length === 0) return { created: 0, skipped: 0 };
+
+  const companyIds = [...new Set(candidates.map((x) => x.document.companyId).filter((id): id is number => !!id))];
+  const { data: companies, error: companyError } = await sb
+    .from("companies")
+    .select("id,code,code_prefix")
+    .in("id", companyIds);
+  if (companyError) throw new Error(companyError.message);
+
+  const companyById = new Map((companies ?? []).map((c) => [c.id as number, c as { id: number; code: string | null; code_prefix: string | null }]));
+  const now = new Date();
+  let created = 0;
+  let skipped = 0;
+
+  for (const { document } of candidates) {
+    if (!document.companyId) {
+      skipped++;
+      continue;
+    }
+    const company = companyById.get(document.companyId);
+    if (!company) {
+      skipped++;
+      continue;
+    }
+    const prefix = company.code_prefix || company.code || "";
+    const task = await insertTaskWithUniqueCodeSb(document.companyId, prefix, {
+      actionItem: `Renew: ${document.title}`,
+      status: "Not Started",
+      priority: "High",
+      category: "Admin",
+      deadline: document.expiryDate,
+      createdDate: now,
+      lastUpdatedAt: now,
+      archived: false,
+    });
+    await sb.from("audit_log").insert({
+      task_id: task.id,
+      task_code: task.code,
+      company_id: document.companyId,
+      entry_type: "CREATE",
+      field: "Task",
+      old_value: null,
+      new_value: `Renew: ${document.title}`,
+      change_reason: "Created by V3 document renewal automation",
+      created_at: now.toISOString(),
+      created_by: "web-ui",
+    });
+    await linkDocumentTask(document.id, task.id);
+    created++;
+  }
+
+  return { created, skipped };
 }
 
 function messageFor(channel: Channel, personName: string, tasks: TaskRow[]): { subject: string | null; body: string } {
