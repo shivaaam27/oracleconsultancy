@@ -10,7 +10,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
-import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, FileText } from "lucide-react";
+import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, FileText, AlignLeft } from "lucide-react";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
@@ -258,6 +258,19 @@ export default async function TaskPage({
           ))}
         </div>
       </div>
+
+      {/* Description — the task's standing context (the main message). */}
+      {r.comments && r.comments.trim() && (
+        <div className="glass elevated rounded-2xl px-4 py-3 flex items-start gap-3">
+          <div className="mt-0.5 h-8 w-8 rounded-full bg-bg-muted text-fg-muted flex items-center justify-center shrink-0">
+            <AlignLeft size={15} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-wider text-fg-muted mb-0.5">Description</div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap"><CodeLinkedText text={r.comments} /></p>
+          </div>
+        </div>
+      )}
 
       {/* Latest update callout */}
       {r.latestUpdate && (
