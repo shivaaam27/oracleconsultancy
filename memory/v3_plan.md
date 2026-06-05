@@ -82,7 +82,10 @@ Examples:
    expired/expiring status, using the same derived status rules as the Documents
    centre.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
-   Word/Excel reading, compliance score.
+   Word/Excel reading, compliance score. **Started:** shared compliance scoring
+   now defines required company/person document checklists, computes missing,
+   expired and expiring issues, surfaces a Compliance score panel on
+   `/documents`, and sends the worst compliance issues into Home Intelligence.
 5. **Director Brief Phase 5** - period filters, per-company brief, scheduled draft.
 6. **Ask COS Agentic Upgrade** - page-specific "what should I do here?", meeting
    preparation, suggested actions after answers.

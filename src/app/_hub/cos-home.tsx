@@ -6,6 +6,8 @@ import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib
 import { listOutboxDrafts } from "@/lib/outbox-drafts";
 import { listMeetings } from "@/app/meeting/actions";
 import { buildAutomationSuggestions, getDocumentRenewalCandidates, getStaleTasks } from "@/lib/automation-suggestions";
+import { buildCompanyComplianceScores, buildPersonComplianceScores, worstComplianceScores } from "@/lib/compliance";
+import { sb } from "@/db/supabase";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import {
@@ -130,11 +132,13 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
 
-  const [documents, drafts, meetings, activity] = await Promise.all([
+  const [documents, drafts, meetings, activity, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments(),
     listOutboxDrafts(),
     listMeetings(),
     getRecentActivity(60),
+    sb.from("companies").select("id,name"),
+    sb.from("people").select("id,name,person_type").eq("active", true),
   ]);
 
   const kpis = computeGlobalKpis(rows);
@@ -157,6 +161,17 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     .sort((a, b) => (a.dte ?? Infinity) - (b.dte ?? Infinity));
   const expiredDocs = expiringDocs.filter((x) => x.status === "Expired");
   const documentRenewalCandidates = await getDocumentRenewalCandidates(documents);
+  const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  const people = (peopleRaw ?? []).map((p) => ({
+    id: p.id as number,
+    name: p.name as string,
+    personType: (p.person_type as string | null) ?? "internal",
+  }));
+  const complianceRisks = worstComplianceScores([
+    ...buildCompanyComplianceScores(companies, documents),
+    ...buildPersonComplianceScores(people, documents),
+  ], 6);
+  const complianceIssues = complianceRisks.reduce((sum, score) => sum + score.missing + score.expired + score.expiring, 0);
 
   const recentMeetings = meetings
     .filter((m) => {
@@ -221,6 +236,15 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       actionLabel: "Review documents",
       tone: expiredDocs.length ? "danger" : "warn",
       count: expiringDocs.length,
+    },
+    complianceRisks.length > 0 && {
+      id: "compliance-gaps",
+      title: `Review ${complianceIssues} compliance issue${complianceIssues === 1 ? "" : "s"}`,
+      detail: "Required document checklists found missing or risky records.",
+      href: "/documents",
+      actionLabel: "Open compliance",
+      tone: complianceRisks.some((score) => score.status === "Risk") ? "danger" : "warn",
+      count: complianceIssues,
     },
     todayTodos.length > 0 && {
       id: "todos",
@@ -307,6 +331,16 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     due: expiryLabel(d),
   }));
 
+  const complianceFocus: FocusItem[] = complianceRisks.slice(0, 4).map((score) => ({
+    id: `compliance-${score.ownerType}-${score.ownerId}`,
+    title: `${score.ownerName}: ${score.score}% compliance`,
+    meta: `${score.missing} missing - ${score.expired} expired - ${score.expiring} expiring`,
+    href: score.ownerType === "company" ? `/documents?company=${score.ownerId}` : `/people?person=${score.ownerId}`,
+    kind: "document",
+    tone: score.status === "Risk" ? "danger" : "warn",
+    due: score.gaps[0]?.label ?? null,
+  }));
+
   const draftFocus: FocusItem[] = drafts.slice(0, 3).map((d) => ({
     id: `draft-${d.id}`,
     title: d.recipientName ? `Draft for ${d.recipientName}` : "Draft waiting to send",
@@ -317,7 +351,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     due: null,
   }));
 
-  const focus = [...taskFocus, ...docFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
+  const focus = [...taskFocus, ...docFocus, ...complianceFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
 
   const pulse: PulseMetric[] = [
     { label: "Open tasks", value: kpis.open },
@@ -326,6 +360,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     { label: "Due today", value: dueToday.length, tone: dueToday.length ? "warn" : "muted" },
     { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
     { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
+    { label: "Compliance issues", value: complianceIssues, tone: complianceIssues ? "warn" : "success" },
     { label: "Stale tasks", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success" },
   ];
 

@@ -63,6 +63,8 @@ export function DocumentsTable({
       setCreateOpen(true);
       router.replace(pathname, { scroll: false });
     }
+    const company = searchParams.get("company");
+    if (company && /^\d+$/.test(company)) setCompanyFilter(parseInt(company, 10));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

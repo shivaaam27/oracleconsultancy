@@ -1,7 +1,9 @@
 import { PageHeader } from "@/components/ui";
 import { DocumentsTable } from "@/components/documents-table";
+import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
+import { buildCompanyComplianceScores, buildPersonComplianceScores } from "@/lib/compliance";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +17,7 @@ export default async function DocumentsPage({
   const [documents, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments({ includeArchived: true }),
     sb.from("companies").select("id,name,accent_color").order("name"),
-    sb.from("people").select("id,name").eq("active", true).order("name"),
+    sb.from("people").select("id,name,person_type").eq("active", true).order("name"),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({
@@ -23,7 +25,13 @@ export default async function DocumentsPage({
     name: c.name as string,
     accentColor: (c.accent_color as string | null) ?? null,
   }));
-  const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
+  const people = (peopleRaw ?? []).map((p) => ({
+    id: p.id as number,
+    name: p.name as string,
+    personType: (p.person_type as string | null) ?? "internal",
+  }));
+  const companyScores = buildCompanyComplianceScores(companies, documents);
+  const personScores = buildPersonComplianceScores(people, documents);
 
   // Linked renewal/action tasks per document (backward link, mirrors meeting_tasks).
   const { data: linkRows } = await sb.from("document_links").select("document_id, tasks(code,status)");
@@ -44,6 +52,7 @@ export default async function DocumentsPage({
     <div className="space-y-4 max-w-4xl">
       <HrmsCrumbs from={from} />
       <PageHeader title="Documents & Compliance" sub={sub} />
+      <ComplianceScorePanel companyScores={companyScores} personScores={personScores} />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>
   );
