@@ -5,6 +5,7 @@ import { getAppSettings } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
 import { listOutboxDrafts } from "@/lib/outbox-drafts";
 import { listMeetings } from "@/app/meeting/actions";
+import { buildAutomationSuggestions, getStaleTasks } from "@/lib/automation-suggestions";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import {
@@ -142,6 +143,8 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const critical = openRows.filter((r) => r.priority === "Critical");
   const blocked = openRows.filter((r) => r.status === "Blocked" || r.flag === "stalled");
   const dueToday = openRows.filter((r) => r.daysToDeadline === 0);
+  const staleTasks = getStaleTasks(rows);
+  const automationSuggestions = buildAutomationSuggestions(rows);
 
   const todayTodos = todos
     .filter((t) => !t.done && t.dueAt && new Date(t.dueAt).getTime() <= todayEnd)
@@ -162,6 +165,16 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     .slice(0, 3);
 
   const command: CommandAction[] = [
+    automationSuggestions.find((s) => s.id === "overdue-reminder-drafts") && {
+      id: "automation-overdue-drafts",
+      title: automationSuggestions.find((s) => s.id === "overdue-reminder-drafts")!.title,
+      detail: automationSuggestions.find((s) => s.id === "overdue-reminder-drafts")!.detail,
+      href: "/outbox",
+      actionLabel: "Create drafts",
+      tone: "danger",
+      count: automationSuggestions.find((s) => s.id === "overdue-reminder-drafts")!.count,
+      automationAction: "overdue-reminders",
+    },
     overdue.length > 0 && {
       id: "overdue",
       title: `Chase ${overdue.length} overdue task${overdue.length === 1 ? "" : "s"}`,
@@ -216,6 +229,15 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       tone: "warn",
       count: blocked.length,
     },
+    staleTasks.length > 0 && {
+      id: "stale",
+      title: `Refresh ${staleTasks.length} stale task${staleTasks.length === 1 ? "" : "s"}`,
+      detail: "These open tasks need a fresh update or next step.",
+      href: "/?tab=tasks&view=table",
+      actionLabel: "Open tasks",
+      tone: "warn",
+      count: staleTasks.length,
+    },
     recentMeetings.length > 0 && {
       id: "meetings",
       title: "Review meeting follow-ups",
@@ -240,6 +262,16 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       tone: taskTone(r),
       due: deadlineLabel(r),
     }));
+
+  const staleFocus: FocusItem[] = staleTasks.slice(0, 4).map((r) => ({
+    id: `stale-${r.id}`,
+    title: `Update needed: ${r.actionItem}`,
+    meta: `${r.code} · ${r.companyName} · no recent update`,
+    href: `/?task=${encodeURIComponent(r.code)}`,
+    kind: "task",
+    tone: "warn",
+    due: r.lastUpdatedAt ? `${Math.floor((Date.now() - r.lastUpdatedAt.getTime()) / 86400000)}d quiet` : null,
+  }));
 
   const todoFocus: FocusItem[] = todayTodos.slice(0, 4).map((t) => {
     const due = t.dueAt ? new Date(t.dueAt) : null;
@@ -274,7 +306,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     due: null,
   }));
 
-  const focus = [...taskFocus, ...docFocus, ...todoFocus, ...draftFocus].slice(0, 12);
+  const focus = [...taskFocus, ...docFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
 
   const pulse: PulseMetric[] = [
     { label: "Open tasks", value: kpis.open },
@@ -283,6 +315,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     { label: "Due today", value: dueToday.length, tone: dueToday.length ? "warn" : "muted" },
     { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
     { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
+    { label: "Stale tasks", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success" },
   ];
 
   return (

@@ -70,7 +70,10 @@ Examples:
 ## Suggested V3 Phases
 
 1. **Home Intelligence Rebuild** - current phase.
-2. **Automation Engine V1** - safe suggestions/drafts, no silent mutations.
+2. **Automation Engine V1** - safe suggestions/drafts, no silent mutations. **Started:**
+   shared automation helper detects stale tasks and overdue reminder opportunities;
+   Home shows stale-task pulse/commands; overdue assigned tasks can create
+   de-duplicated Outbox drafts by accountable person (`source=automation-overdue`).
 3. **HRMS People Profile Upgrade** - person workload, documents, reminders and status.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score.
@@ -93,5 +96,7 @@ Examples:
   daily operation.
 - Do not auto-send messages.
 - Do not silently change task status or create records without confirmation.
+- Automation V1 should prepare drafts/suggestions only; the operator still sends
+  messages and confirms real status changes.
 - Keep AI optional via `getGroqKey()`.
 - Use British English and plain language.

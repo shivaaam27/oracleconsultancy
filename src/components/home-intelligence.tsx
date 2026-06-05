@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge, LinkButton } from "@/components/ui";
+import { AutomationActionButton } from "@/components/automation-action-button";
 
 type Tone = "danger" | "warn" | "accent" | "success" | "muted";
 
@@ -27,6 +28,7 @@ export type CommandAction = {
   actionLabel: string;
   tone: Tone;
   count?: number;
+  automationAction?: "overdue-reminders";
 };
 
 export type PulseMetric = {
@@ -149,9 +151,13 @@ export function HomeIntelligence({
                   </div>
                   <p className="mt-1 max-w-[18rem] pr-1 text-sm text-fg-muted leading-relaxed sm:max-w-[34rem]">{lead.detail}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <LinkButton href={lead.href} variant="primary" size="sm">
-                      {lead.actionLabel} <ArrowRight size={13} />
-                    </LinkButton>
+                    {lead.automationAction ? (
+                      <AutomationActionButton action={lead.automationAction} label={lead.actionLabel} />
+                    ) : (
+                      <LinkButton href={lead.href} variant="primary" size="sm">
+                        {lead.actionLabel} <ArrowRight size={13} />
+                      </LinkButton>
+                    )}
                     <LinkButton href="/ask" variant="secondary" size="sm">
                       <Bot size={13} /> Plan my day
                     </LinkButton>
