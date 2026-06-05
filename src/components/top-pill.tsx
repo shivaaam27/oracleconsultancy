@@ -281,7 +281,6 @@ function WorkbookNavTab({ active }: { active: boolean }) {
 /* --------------------------------------------------------------------- */
 
 const MORE: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/brief", label: "Director Brief", icon: ClipboardList },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },
@@ -424,7 +423,7 @@ function NavActionButton() {
 /* work untouched.                                                         */
 /* --------------------------------------------------------------------- */
 
-const LENS_SLOTS = ["Home", "Task Management", "Workbook", "HRMS", "Search"] as const;
+const LENS_SLOTS = ["Home", "Director Brief", "Task Management", "Workbook", "HRMS", "Search"] as const;
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
@@ -588,6 +587,7 @@ export function TopPill() {
 
   function selectSlot(label: string) {
     if (label === "Home") router.push("/");
+    else if (label === "Director Brief") router.push("/brief");
     else if (label === "Task Management") router.push("/?tab=tasks");
     else if (label === "Workbook") router.push("/workbook");
     else if (label === "HRMS") router.push("/hrms");
@@ -597,6 +597,7 @@ export function TopPill() {
   const onHub = pathname === "/";
   const homeActive = onHub && tab !== "tasks";
   const tasksActive = onHub && tab === "tasks";
+  const briefActive = pathname.startsWith("/brief");
   const workbookActive = pathname.startsWith("/workbook");
   const hrmsActive = pathname.startsWith("/hrms");
 
@@ -612,6 +613,7 @@ export function TopPill() {
       >
         <NavLens containerRef={pillRef} onSelect={selectSlot} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
+        <NavTab href="/brief" icon={ClipboardList} label="Director Brief" active={briefActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
         <WorkbookNavTab active={workbookActive} />
         <HrmsNavTab active={hrmsActive} />
