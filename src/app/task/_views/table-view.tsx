@@ -11,6 +11,7 @@ import { Deadline } from "@/components/deadline";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { AssigneeList } from "@/components/assignee-list";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
+import { TaskContext } from "@/components/task-context";
 import { SnoozeSheet } from "@/components/snooze-sheet";
 import { PeekQuickUpdate } from "@/components/peek-quick-update";
 import { TaskCard } from "@/components/task-card";
@@ -240,7 +241,7 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
             <Badge tone={priorityTone(peek.priority)}>{peek.priority}</Badge>
           </>
         ) : undefined}
-        body={peek?.latestUpdate || undefined}
+        body={peek ? <TaskContext comments={peek.comments} latestUpdate={peek.latestUpdate} /> : undefined}
         quickUpdate={peek ? <PeekQuickUpdate row={peek} onPosted={() => { setPeek(null); router.refresh(); }} /> : undefined}
         actions={peek ? peekActions(peek) : []}
         actionsLayout="row"

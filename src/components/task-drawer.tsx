@@ -325,6 +325,14 @@ export function TaskDrawer() {
                     </div>
                   </div>
 
+                  {/* Description — the task's standing context (the main message). */}
+                  {data.task.comments && data.task.comments.trim() && (
+                    <div className="relative">
+                      <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">Description</div>
+                      <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap"><CodeLinkedText text={data.task.comments} /></p>
+                    </div>
+                  )}
+
                   {/* Latest update */}
                   {data.task.latestUpdate && (
                     <div className="relative rounded-xl bg-bg-subtle/60 px-3 py-2.5">

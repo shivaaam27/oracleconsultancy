@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui";
 import { InlineEdit } from "@/components/inline-edit";
 import { DeadlineEditor } from "@/components/deadline-editor";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
+import { TaskContext } from "@/components/task-context";
 import { PeekQuickUpdate } from "@/components/peek-quick-update";
 import { SnoozeSheet } from "@/components/snooze-sheet";
 import { triggerHaptic } from "@/lib/use-long-press";
@@ -209,7 +210,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
             <Badge tone={priorityTone(peek.priority)}>{peek.priority}</Badge>
           </>
         ) : undefined}
-        body={peek?.latestUpdate || undefined}
+        body={peek ? <TaskContext comments={peek.comments} latestUpdate={peek.latestUpdate} /> : undefined}
         quickUpdate={peek ? <PeekQuickUpdate row={peek} onPosted={() => { setPeek(null); router.refresh(); }} /> : undefined}
         actions={peek ? peekActions(peek) : []}
         actionsLayout="row"
