@@ -91,7 +91,9 @@ Examples:
    documents but are not marked missing by default. Company checklist now focuses
    on core statutory documents (registration, tax/TIN, business licence/permit);
    insurance and leases are monitored when present rather than mandatory for
-   every company.
+   every company. Compliance detail view now opens from each score row and shows
+   why the score is low: missing requirements, expired/expiring linked documents,
+   and owner-specific next links.
 5. **Director Brief Phase 5** - period filters, per-company brief, scheduled draft.
 6. **Ask COS Agentic Upgrade** - page-specific "what should I do here?", meeting
    preparation, suggested actions after answers.

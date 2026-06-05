@@ -1,4 +1,4 @@
-import { deriveDocStatus, type DocumentRow } from "@/lib/documents-shared";
+import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 
 export type ComplianceOwnerType = "company" | "person";
 
@@ -16,6 +16,14 @@ export type ComplianceGap = ComplianceRequirement & {
   ownerName: string;
 };
 
+export type ComplianceDocumentIssue = {
+  id: number;
+  title: string;
+  category: string | null;
+  status: Extract<DocStatus, "Expired" | "Expiring">;
+  expiryLabel: string | null;
+};
+
 export type ComplianceScore = {
   ownerId: number;
   ownerName: string;
@@ -29,6 +37,7 @@ export type ComplianceScore = {
   monitoredDocuments: number;
   status: "Good" | "Watch" | "Risk";
   gaps: ComplianceGap[];
+  documentIssues: ComplianceDocumentIssue[];
 };
 
 export type CompliancePerson = {
@@ -86,6 +95,18 @@ function calculateScore({
   const documentStatuses = liveDocs.map((doc) => deriveDocStatus(doc));
   let expired = documentStatuses.filter((status) => status === "Expired").length;
   let expiring = documentStatuses.filter((status) => status === "Expiring").length;
+  const documentIssues: ComplianceDocumentIssue[] = liveDocs
+    .map((doc) => ({ doc, status: deriveDocStatus(doc) }))
+    .filter((item): item is { doc: DocumentRow; status: "Expired" | "Expiring" } =>
+      item.status === "Expired" || item.status === "Expiring"
+    )
+    .map(({ doc, status }) => ({
+      id: doc.id,
+      title: doc.title,
+      category: doc.category,
+      status,
+      expiryLabel: expiryLabel(doc),
+    }));
 
   for (const req of requirements) {
     const matching = liveDocs.filter((doc) => matchesRequirement(doc, req));
@@ -121,6 +142,7 @@ function calculateScore({
     monitoredDocuments: liveDocs.length,
     status: scoreStatus(score, expired, missing),
     gaps,
+    documentIssues,
   };
 }
 
