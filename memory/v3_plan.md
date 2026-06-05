@@ -98,7 +98,8 @@ Examples:
 5. **Director Brief Phase 5** - period filters, per-company brief, scheduled draft.
    **Started:** Director Brief now supports period filters (this month, last
    month, quarter, year); page, share text, email and print/PDF data all read
-   from the same selected period.
+   from the same selected period. Compliance watch has been added to the live
+   brief and the print/PDF report using the existing report-table design.
 6. **Ask COS Agentic Upgrade** - page-specific "what should I do here?", meeting
    preparation, suggested actions after answers.
 7. **Voice Intelligence Expansion** - punctuation/lists, snippets, tone shaping,

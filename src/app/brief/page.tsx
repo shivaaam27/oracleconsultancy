@@ -1,4 +1,4 @@
-import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck } from "lucide-react";
+import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
@@ -51,6 +51,7 @@ export default async function DirectorBriefPage({
         {" "}{b.openCount} item{b.openCount === 1 ? "" : "s"} remain open ({b.companies.reduce((n, c) => n + c.inProgress, 0)} in progress)
         {b.overdueCount ? `, with ${b.overdueCount} overdue requiring attention` : ", with nothing overdue"}.
         {b.watch.length ? ` ${b.watch.length} item${b.watch.length === 1 ? "" : "s"} are flagged for attention below.` : ""}
+        {b.compliance.length ? ` ${b.compliance.length} compan${b.compliance.length === 1 ? "y has" : "ies have"} compliance issues.` : ""}
       </p>
 
       {/* Top-line stat cards */}
@@ -133,8 +134,60 @@ export default async function DirectorBriefPage({
         </div>
       )}
 
+      {/* Compliance watch */}
+      {b.compliance.length > 0 && (
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+            <ShieldCheck size={13} className="text-warn" /> Compliance watch · {b.compliance.length}
+          </div>
+          <Card className="divide-y divide-border/70">
+            {b.compliance.slice(0, 5).map((c) => (
+              <div key={c.companyId} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{c.companyName}</div>
+                  <div className="text-[11px] text-fg-subtle">
+                    {c.missing} missing · {c.expired} expired · {c.expiring} expiring
+                  </div>
+                </div>
+                <Badge tone={c.status === "Risk" ? "danger" : "warn"}>{c.score}%</Badge>
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
+
       {/* Detailed report — PDF only. Open work (incl. in progress) per company. */}
       <div className="print-only report-section">
+        {b.compliance.length > 0 && (
+          <>
+            <h2 className="text-base font-semibold mb-1 report-h2">Compliance watch</h2>
+            <p className="text-xs text-fg-muted mb-3">Live document compliance issues as at {b.asAt}.</p>
+            <table className="report-table mb-4">
+              <thead>
+                <tr>
+                  <th style={{ width: "22%" }}>Company</th>
+                  <th style={{ width: "10%" }}>Score</th>
+                  <th style={{ width: "18%" }}>Missing</th>
+                  <th style={{ width: "10%" }}>Expired</th>
+                  <th style={{ width: "10%" }}>Expiring</th>
+                  <th>Next detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {b.compliance.map((c) => (
+                  <tr key={c.companyId}>
+                    <td>{c.companyName}</td>
+                    <td>{c.score}%</td>
+                    <td>{c.gaps.slice(0, 2).join(", ") || "—"}</td>
+                    <td>{c.expired || "—"}</td>
+                    <td>{c.expiring || "—"}</td>
+                    <td>{c.issues.slice(0, 2).join("; ") || c.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
         <h2 className="text-base font-semibold mb-1 report-h2">Open work by company</h2>
         <p className="text-xs text-fg-muted mb-3">All open items, including those in progress, as at {b.asAt}.</p>
         {b.companies.filter((c) => c.tasks.length > 0).map((c) => (

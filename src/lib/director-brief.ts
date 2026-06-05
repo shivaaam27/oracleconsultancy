@@ -3,6 +3,8 @@
 
 import { getAllTasks, computeCompanyKpis, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
+import { listDocuments } from "./documents";
+import { buildCompanyComplianceScores } from "./compliance";
 
 const isClosed = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
 const isOverdue = (r: TaskRow) => r.flag === "overdue" || r.flag === "escalate-now";
@@ -65,6 +67,17 @@ export type BriefCompany = {
 };
 export type BriefDelivered = { company: string; items: { id: number; actionItem: string; status: string; closedDate: Date | null }[] };
 export type BriefWatch = { id: number; actionItem: string; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
+export type BriefCompliance = {
+  companyId: number;
+  companyName: string;
+  score: number;
+  status: string;
+  missing: number;
+  expired: number;
+  expiring: number;
+  gaps: string[];
+  issues: string[];
+};
 
 export type BriefData = {
   period: BriefPeriod;
@@ -80,10 +93,11 @@ export type BriefData = {
   companies: BriefCompany[];
   delivered: BriefDelivered[];
   watch: BriefWatch[];
+  compliance: BriefCompliance[];
 };
 
 export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month"): Promise<BriefData> {
-  const rows = await getAllTasks();
+  const [rows, documents] = await Promise.all([getAllTasks(), listDocuments()]);
   const kpis = computeCompanyKpis(rows);
 
   const range = periodRange(now, period);
@@ -140,6 +154,24 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .slice(0, 8)
     .map((r) => ({ id: r.id, actionItem: r.actionItem, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
+  const compliance: BriefCompliance[] = buildCompanyComplianceScores(
+    kpis.map((k) => ({ id: k.id, name: k.name })),
+    documents
+  )
+    .filter((score) => score.status !== "Good")
+    .sort((a, b) => a.score - b.score || b.expired - a.expired || b.missing - a.missing)
+    .map((score) => ({
+      companyId: score.ownerId,
+      companyName: score.ownerName,
+      score: score.score,
+      status: score.status,
+      missing: score.missing,
+      expired: score.expired,
+      expiring: score.expiring,
+      gaps: score.gaps.map((gap) => gap.label),
+      issues: score.documentIssues.map((doc) => `${doc.title}${doc.expiryLabel ? ` (${doc.expiryLabel})` : ""}`),
+    }));
+
   return {
     period,
     monthLabel, asAt,
@@ -150,7 +182,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     overdueCount: overdueOpen.length,
     companyCount: kpis.length,
     atRiskCount: kpis.filter((k) => k.riskScore > 20).length,
-    companies, delivered, watch,
+    companies, delivered, watch, compliance,
   };
 }
 
@@ -179,6 +211,18 @@ export function briefShareText(b: BriefData): string {
     for (const w of b.watch) {
       const when = w.overdue ? "overdue" : w.deadline ? `due ${fmtDay(w.deadline)}` : "no deadline";
       L.push(`• ${w.actionItem} — ${w.companyName} · ${when} · ${w.priority}`);
+    }
+  }
+  if (b.compliance.length) {
+    L.push("");
+    L.push(`*Compliance watch*`);
+    for (const c of b.compliance.slice(0, 5)) {
+      const detail = [
+        c.missing ? `${c.missing} missing` : null,
+        c.expired ? `${c.expired} expired` : null,
+        c.expiring ? `${c.expiring} expiring` : null,
+      ].filter(Boolean).join(" · ");
+      L.push(`• ${c.companyName} — ${c.score}% · ${detail || c.status}`);
     }
   }
   return L.join("\n");
