@@ -188,7 +188,10 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
                   </Td>
                 )}
                 <Td className="max-w-md">
-                  <span className="group-hover:text-accent">{r.actionItem}</span>
+                  <span className="block group-hover:text-accent">{r.actionItem}</span>
+                  {r.comments && r.comments.trim() && (
+                    <span className="block text-xs text-fg-muted truncate mt-0.5">{r.comments}</span>
+                  )}
                 </Td>
                 <Td className="whitespace-nowrap text-fg-muted">
                   <Stop><AssigneeList names={r.assignees} ids={r.assigneeIds} /></Stop>

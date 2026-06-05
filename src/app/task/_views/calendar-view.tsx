@@ -271,6 +271,9 @@ export function CalendarView({
                       <span className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: pillColor(r) }} />
                       <span className="min-w-0 flex-1">
                         <span className="text-sm leading-snug line-clamp-2">{r.actionItem}</span>
+                        {r.comments && r.comments.trim() && (
+                          <span className="block text-xs text-fg-muted truncate mt-0.5">{r.comments}</span>
+                        )}
                         <span className="block text-xs text-fg-muted mt-0.5">
                           {dl && hasTime(dl) && <span className="font-mono mr-1.5">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
                           {r.code} · {r.companyName} · {r.status}

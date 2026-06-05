@@ -174,7 +174,10 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                     </span>
                   </div>
 
-                  <div className="text-[13px] leading-snug mb-2 line-clamp-2">{r.actionItem}</div>
+                  <div className="text-[13px] leading-snug mb-1 line-clamp-2">{r.actionItem}</div>
+                  {r.comments && r.comments.trim() && (
+                    <div className="text-[11px] text-fg-muted leading-snug mb-2 line-clamp-2">{r.comments}</div>
+                  )}
 
                   <div className="flex items-center justify-between text-[11px] text-fg-muted gap-2">
                     <span className="truncate inline-flex items-center gap-1.5 min-w-0">

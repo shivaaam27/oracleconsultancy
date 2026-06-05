@@ -88,6 +88,11 @@ export function TaskCard({
       {/* Title */}
       <h3 className="text-[15px] font-medium leading-snug mt-2.5 line-clamp-2">{row.actionItem}</h3>
 
+      {/* Description — the standing context (main message), shown directly. */}
+      {row.comments && row.comments.trim() && (
+        <p className="text-[13px] text-fg-muted leading-snug mt-1 line-clamp-2">{row.comments}</p>
+      )}
+
       {/* Meta: status + priority — uniform pills */}
       <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
         <Badge tone={statusTone(row.status)}>{row.status}</Badge>
