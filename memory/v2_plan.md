@@ -106,3 +106,25 @@ deadlines are stored at `…T00:00:00Z`).
 - Verify code changes with `npm exec tsc -- --noEmit`.
 - For schema work: edit `schema.ts`, generate/review migration, apply with `npm run db:migrate`.
 - After meaningful feature work, update these memory docs.
+
+## V2 — shipped (conclusion)
+
+V2 is complete and on `master`; production build is clean, all primary pages 200.
+See `HANDOVER.md` for the full handover. Highlights delivered in V2:
+
+- **HRMS** hub (`/hrms`) with **OECR** (office equipment/stock control, `/hrms/oecr`)
+  and **OCR** (office cleaning checklist, `/hrms/ocr`); Companies/People/Documents
+  moved into HRMS. Details in `memory/hrms.md` + `memory/database_schema.md`.
+- **Director Brief** (`/brief`) — glanceable portfolio report incl. closed work
+  this month; WhatsApp/Email/Copy share + multi-page print-to-PDF detailed report.
+  Details in `memory/outbox_and_reminders.md`.
+- **Nav overhaul** — single centred HRMS "Go to" launcher (replaces More sheet +
+  per-tab popovers); Director Brief promoted to a primary tab; mobile overflow fixed.
+- **Descriptions surfaced** (task `comments`, people `notes`) on cards/popups/pages.
+- **Documents AI** reads scanned PDFs (rasterise → vision) + overflow-to-Notes.
+- **Outbox draft** revamped (no code/status, keep priority, + description + latest update).
+- Polish: smart breadcrumbs, People bulk deactivate, unified `+`, shared `SearchInput`,
+  typography (`text-wrap`), brand renamed Oracle Group → **Oracle Consultancy** system-wide.
+
+Outstanding (future): real message dispatch (provider), Word/Excel doc reading,
+OCR Phases 3–5, Director Brief period filter / scheduling, cron verification.

@@ -180,3 +180,7 @@ the `TimelineEntry` component (icon node, actor, relative time, optional task ch
 - British English.
 - Plain language for a non-technical owner.
 - Avoid visible instructional bloat in the app; controls should be discoverable through labels, icons, and short status text.
+
+## V2 nav update
+
+Pill tabs are now: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog, `HrmsLauncher` in `top-pill.tsx`) with every secondary destination (HRMS Hub, OECR, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings). The old "More" sheet and the per-tab (HRMS/Workbook) popovers were removed for a minimal pill. The lens drag-targets are Home · Director Brief · Task Management · Workbook · Search. Shared `SearchInput` (icon + system styling) lives in `ui.tsx`.

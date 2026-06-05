@@ -4,7 +4,7 @@ Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain lan
 
 ## Product
 
-Chief-of-Staff command centre for Oracle Group's 7 portfolio companies:
+Chief-of-Staff command centre for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
 
 - CO01 Dar Spices
 - CO02 Cocozuri Chocolat
@@ -88,17 +88,22 @@ See `memory/database_schema.md`.
 - `/registry` - redirects to hub Tasks table
 - `/meeting` - Meeting Workspace
 - `/workbook` - Meetings / Notes / To-do (see `memory/todos.md`)
+- `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
+- `/hrms` - **HRMS hub** (V2): registry cards. See `memory/hrms.md`.
+- `/hrms/oecr` - OECR (Office Equipment Control Registry) — stock control
+- `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
 - `/companies`
 - `/companies/[id]`
 - `/people`
+- `/documents` - Documents & Compliance
 - `/outbox`
 - `/inbox`
 - `/insights`
 - `/settings`
 
-Navigation: one bottom-floating pill on all breakpoints (sidebar removed).
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (HRMS Hub, OECR, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings) — the old "More" sheet and the per-tab popovers were removed. Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
-Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`.
+Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`. The desktop sidebar and the dedicated Companies nav tab were removed.
 
 ## Meeting Workspace
 
