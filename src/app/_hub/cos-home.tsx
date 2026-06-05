@@ -1,117 +1,301 @@
-import type { TaskRow } from "@/lib/queries";
-import { computeGlobalKpis } from "@/lib/queries";
+import type { TaskRow, RawActivity } from "@/lib/queries";
+import { computeGlobalKpis, getRecentActivity } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { getAppSettings } from "@/lib/settings";
-import { WelcomeHero } from "@/components/welcome-hero";
-import { HomeActions } from "./home-actions";
-import { AttentionList } from "@/components/attention-list";
-import { CompaniesWidget, type CompanyGlance } from "@/components/companies-widget";
-import { TodayTodos } from "@/components/today-todos";
-import { ExpiringDocs, type ExpiringDocItem } from "@/components/expiring-docs";
 import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
-import { sb } from "@/db/supabase";
-import type { AttnItem } from "@/components/attention-panel";
+import { listOutboxDrafts } from "@/lib/outbox-drafts";
+import { listMeetings } from "@/app/meeting/actions";
+import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
-
-/**
- * One short, human insight — not a count dump (the stat chips already show
- * the numbers). Points the operator at where to look first.
- */
-function buildPulse(rows: TaskRow[]): string {
-  const k = computeGlobalKpis(rows);
-  const heat = new Map<string, number>();
-  for (const r of rows) {
-    if (!isOpen(r.status)) continue;
-    if (r.flag === "overdue" || r.flag === "escalate-now" || r.priority === "Critical")
-      heat.set(r.companyName, (heat.get(r.companyName) ?? 0) + 1);
-  }
-  const hotspot = [...heat.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  if (k.overdue === 0 && k.critical === 0) return "Everything's on track today. 🎉";
-  if (hotspot) return `${hotspot} needs the most attention today.`;
-  return "A few items need a look today.";
-}
+import {
+  HomeIntelligence,
+  type CommandAction,
+  type FocusItem,
+  type MovementItem,
+  type PulseMetric,
+} from "@/components/home-intelligence";
 
 const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
 
+function isOpenRow(r: TaskRow) {
+  return isOpen(r.status);
+}
+
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function endOfToday() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
+
+function greeting(h: number): string {
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 21) return "Good evening";
+  return "Working late";
+}
+
+function dayLabel(d: Date) {
+  return d.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function deadlineLabel(r: TaskRow): string | null {
+  if (typeof r.daysToDeadline !== "number") return r.deadline ? r.deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
+  if (r.daysToDeadline < 0) return `${Math.abs(r.daysToDeadline)}d overdue`;
+  if (r.daysToDeadline === 0) return "Today";
+  if (r.daysToDeadline === 1) return "Tomorrow";
+  if (r.daysToDeadline <= 7) return `${r.daysToDeadline}d`;
+  return r.deadline ? r.deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
+}
+
+function taskTone(r: TaskRow): FocusItem["tone"] {
+  if (r.flag === "escalate-now" || r.flag === "overdue" || r.status === "Escalated") return "danger";
+  if (r.flag === "due-soon" || r.status === "Blocked" || r.flag === "stalled") return "warn";
+  if (r.priority === "Critical") return "danger";
+  return "accent";
+}
+
+function taskScore(r: TaskRow) {
+  const priority = PRIORITY_ORDER.indexOf(r.priority);
+  return (
+    (r.flag === "escalate-now" ? 160 : 0) +
+    (r.flag === "overdue" ? 130 : 0) +
+    (r.status === "Escalated" || r.escalation === "Yes" ? 110 : 0) +
+    (r.status === "Blocked" || r.flag === "stalled" ? 90 : 0) +
+    (r.priority === "Critical" ? 70 : r.priority === "High" ? 35 : 0) +
+    (r.flag === "due-soon" ? 30 : 0) -
+    (priority >= 0 ? priority : 4)
+  );
+}
+
+function relTime(d: Date): string {
+  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < 45) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.round(h / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function buildMovement(activity: RawActivity, rows: TaskRow[]): MovementItem[] {
+  const taskById = new Map(rows.map((r) => [r.id, r]));
+  const updates = activity.updates.map((u): MovementItem & { at: Date } => {
+    const task = taskById.get(u.task_id);
+    const at = new Date(u.created_at);
+    return {
+      id: `u-${u.id}`,
+      title: task ? `${task.code} updated` : "Task updated",
+      meta: `${task?.actionItem ?? u.body.slice(0, 70)} · ${relTime(at)}`,
+      href: task ? `/?task=${encodeURIComponent(task.code)}` : undefined,
+      tone: "accent",
+      at,
+    };
+  });
+  const audits = activity.audit.map((a): MovementItem & { at: Date } => {
+    const task = a.task_id ? taskById.get(a.task_id) : rows.find((r) => r.code === a.task_code || r.legacyCode === a.task_code);
+    const at = new Date(a.created_at);
+    const field = a.entry_type === "CREATE" ? "created" : (a.field || a.entry_type || "changed").toLowerCase();
+    return {
+      id: `a-${a.id}`,
+      title: task ? `${task.code} ${field}` : `Task ${field}`,
+      meta: `${task?.actionItem ?? a.task_code ?? "Operational history"} · ${relTime(at)}`,
+      href: task ? `/?task=${encodeURIComponent(task.code)}` : undefined,
+      tone: a.entry_type === "CREATE" ? "success" : a.field === "Escalation" || a.new_value === "Escalated" ? "danger" : "muted",
+      at,
+    };
+  });
+  return [...updates, ...audits]
+    .sort((a, b) => b.at.getTime() - a.at.getTime())
+    .slice(0, 8)
+    .map(({ at: _at, ...item }) => item);
+}
+
 export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const settings = await getAppSettings();
-  const isOpenRow = (r: TaskRow) => r.status !== "Completed" && r.status !== "Closed";
+  const now = new Date();
+  const todayStart = startOfToday();
+  const todayEnd = endOfToday();
 
-  // Personal to-dos due today (and anything overdue), most urgent first.
-  const endOfToday = (() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d.getTime(); })();
-  const todayTodos = todos
-    .filter((t) => !t.done && t.dueAt && new Date(t.dueAt).getTime() <= endOfToday)
-    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
-
-  // The one focused list: anything genuinely needing attention, most urgent first.
-  const attention = rows
-    .filter((r) =>
-      r.flag === "escalate-now" || r.flag === "overdue" || r.flag === "escalated" ||
-      r.flag === "stalled" || r.status === "Escalated" || r.escalation === "Yes" ||
-      (r.flag === "due-soon") || (r.priority === "Critical" && isOpenRow(r))
-    )
-    .sort((a, b) => {
-      const pa = PRIORITY_ORDER.indexOf(a.priority), pb = PRIORITY_ORDER.indexOf(b.priority);
-      const da = typeof a.daysToDeadline === "number" ? a.daysToDeadline : 9999;
-      const db = typeof b.daysToDeadline === "number" ? b.daysToDeadline : 9999;
-      if (da !== db) return da - db;
-      return pa - pb;
-    });
-
-  const attnItems: AttnItem[] = attention.map((r) => ({
-    code: r.code, actionItem: r.actionItem, companyName: r.companyName,
-    status: r.status, flag: r.flag, priority: r.priority,
-    deadlineTs: r.deadline ? r.deadline.getTime() : null,
-    updatedTs: r.lastUpdatedAt ? r.lastUpdatedAt.getTime() : null,
-    latestUpdate: r.latestUpdate,
-  }));
-
-  // Per-company roll-up for the subtle dashboard widget.
-  const byCompany = new Map<number, CompanyGlance>();
-  for (const r of rows) {
-    const g = byCompany.get(r.companyId) ?? {
-      id: r.companyId, name: r.companyName, accent: r.companyAccent, open: 0, closed: 0,
-      openTitles: [] as string[], closedTitles: [] as string[],
-    };
-    if (isOpenRow(r)) { g.open += 1; if (g.openTitles.length < 12) g.openTitles.push(r.actionItem); }
-    else { g.closed += 1; if (g.closedTitles.length < 12) g.closedTitles.push(r.actionItem); }
-    byCompany.set(r.companyId, g);
-  }
-  const companyGlances = [...byCompany.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name));
-
-  // Documents that are expired or inside their reminder window — soonest first.
-  const [documents, { data: companyRows }] = await Promise.all([
+  const [documents, drafts, meetings, activity] = await Promise.all([
     listDocuments(),
-    sb.from("companies").select("id,name"),
+    listOutboxDrafts(),
+    listMeetings(),
+    getRecentActivity(60),
   ]);
-  const companyNameById = new Map<number, string>((companyRows ?? []).map((c) => [c.id as number, c.name as string]));
-  const expiringDocs: ExpiringDocItem[] = documents
+
+  const kpis = computeGlobalKpis(rows);
+  const openRows = rows.filter(isOpenRow);
+  const overdue = openRows.filter((r) => r.flag === "overdue" || r.flag === "escalate-now");
+  const critical = openRows.filter((r) => r.priority === "Critical");
+  const blocked = openRows.filter((r) => r.status === "Blocked" || r.flag === "stalled");
+  const dueToday = openRows.filter((r) => r.daysToDeadline === 0);
+
+  const todayTodos = todos
+    .filter((t) => !t.done && t.dueAt && new Date(t.dueAt).getTime() <= todayEnd)
+    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime());
+  const overdueTodos = todayTodos.filter((t) => t.dueAt && new Date(t.dueAt).getTime() < todayStart);
+
+  const expiringDocs = documents
     .map((d) => ({ d, status: deriveDocStatus(d), dte: daysToExpiry(d) }))
     .filter((x) => x.status === "Expired" || x.status === "Expiring")
-    .sort((a, b) => (a.dte ?? Infinity) - (b.dte ?? Infinity))
-    .slice(0, 6)
-    .map(({ d, status }) => ({
-      id: d.id,
-      title: d.title,
-      companyName: d.companyId ? companyNameById.get(d.companyId) ?? null : null,
-      expiryLabel: expiryLabel(d),
-      status,
-      urgent: status === "Expired",
+    .sort((a, b) => (a.dte ?? Infinity) - (b.dte ?? Infinity));
+  const expiredDocs = expiringDocs.filter((x) => x.status === "Expired");
+
+  const recentMeetings = meetings
+    .filter((m) => {
+      const updated = new Date(m.updatedAt).getTime();
+      return updated >= todayStart - 3 * 86400000 && m.taskCount > 0;
+    })
+    .slice(0, 3);
+
+  const command: CommandAction[] = [
+    overdue.length > 0 && {
+      id: "overdue",
+      title: `Chase ${overdue.length} overdue task${overdue.length === 1 ? "" : "s"}`,
+      detail: "Start with overdue work before it becomes director-level noise.",
+      href: "/?tab=tasks&flag=overdue",
+      actionLabel: "Open overdue",
+      tone: "danger",
+      count: overdue.length,
+    },
+    critical.length > 0 && {
+      id: "critical",
+      title: `Review ${critical.length} critical item${critical.length === 1 ? "" : "s"}`,
+      detail: "Critical work should have an owner, a deadline, and a fresh next step.",
+      href: "/?tab=tasks&priority=Critical",
+      actionLabel: "Review critical",
+      tone: "danger",
+      count: critical.length,
+    },
+    drafts.length > 0 && {
+      id: "drafts",
+      title: `Send ${drafts.length} pending draft${drafts.length === 1 ? "" : "s"}`,
+      detail: "Reminder drafts are prepared; they still need your approval to send.",
+      href: "/outbox",
+      actionLabel: "Open Outbox",
+      tone: "accent",
+      count: drafts.length,
+    },
+    expiringDocs.length > 0 && {
+      id: "documents",
+      title: `${expiringDocs.length} document${expiringDocs.length === 1 ? "" : "s"} need attention`,
+      detail: expiredDocs.length ? "Expired documents should be renewed or assigned immediately." : "Review upcoming expiries before they become urgent.",
+      href: "/documents",
+      actionLabel: "Review documents",
+      tone: expiredDocs.length ? "danger" : "warn",
+      count: expiringDocs.length,
+    },
+    todayTodos.length > 0 && {
+      id: "todos",
+      title: `Clear ${todayTodos.length} personal to-do${todayTodos.length === 1 ? "" : "s"}`,
+      detail: overdueTodos.length ? `${overdueTodos.length} are already overdue.` : "These are due today or earlier.",
+      href: "/workbook?tab=todo",
+      actionLabel: "Open To-do",
+      tone: overdueTodos.length ? "warn" : "accent",
+      count: todayTodos.length,
+    },
+    blocked.length > 0 && {
+      id: "blocked",
+      title: `Unblock ${blocked.length} stuck item${blocked.length === 1 ? "" : "s"}`,
+      detail: "Blocked work needs a decision, an external chase, or a new owner.",
+      href: "/?tab=tasks&status=Blocked",
+      actionLabel: "Open blocked",
+      tone: "warn",
+      count: blocked.length,
+    },
+    recentMeetings.length > 0 && {
+      id: "meetings",
+      title: "Review meeting follow-ups",
+      detail: "Recent meetings have linked tasks; check whether the next steps are moving.",
+      href: "/workbook?tab=meetings",
+      actionLabel: "Open Workbook",
+      tone: "accent",
+      count: recentMeetings.length,
+    },
+  ].filter(Boolean) as CommandAction[];
+
+  const taskFocus: FocusItem[] = openRows
+    .filter((r) => taskScore(r) > 0)
+    .sort((a, b) => taskScore(b) - taskScore(a))
+    .slice(0, 8)
+    .map((r) => ({
+      id: `task-${r.id}`,
+      title: r.actionItem,
+      meta: `${r.code} · ${r.companyName} · ${r.priority}`,
+      href: `/?task=${encodeURIComponent(r.code)}`,
+      kind: "task",
+      tone: taskTone(r),
+      due: deadlineLabel(r),
     }));
+
+  const todoFocus: FocusItem[] = todayTodos.slice(0, 4).map((t) => {
+    const due = t.dueAt ? new Date(t.dueAt) : null;
+    return {
+      id: `todo-${t.id}`,
+      title: t.title,
+      meta: [t.companyName, t.personName, "Personal to-do"].filter(Boolean).join(" · "),
+      href: "/workbook?tab=todo",
+      kind: "todo",
+      tone: due && due.getTime() < todayStart ? "warn" : "accent",
+      due: due ? due.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
+    };
+  });
+
+  const docFocus: FocusItem[] = expiringDocs.slice(0, 4).map(({ d, status }) => ({
+    id: `doc-${d.id}`,
+    title: d.title,
+    meta: [d.category, status].filter(Boolean).join(" · "),
+    href: "/documents",
+    kind: "document",
+    tone: status === "Expired" ? "danger" : "warn",
+    due: expiryLabel(d),
+  }));
+
+  const draftFocus: FocusItem[] = drafts.slice(0, 3).map((d) => ({
+    id: `draft-${d.id}`,
+    title: d.recipientName ? `Draft for ${d.recipientName}` : "Draft waiting to send",
+    meta: [d.channel, d.company, d.source].filter(Boolean).join(" · "),
+    href: "/outbox",
+    kind: "draft",
+    tone: "accent",
+    due: null,
+  }));
+
+  const focus = [...taskFocus, ...docFocus, ...todoFocus, ...draftFocus].slice(0, 12);
+
+  const pulse: PulseMetric[] = [
+    { label: "Open tasks", value: kpis.open },
+    { label: "Overdue", value: kpis.overdue, tone: kpis.overdue ? "danger" : "success" },
+    { label: "Critical", value: kpis.critical, tone: kpis.critical ? "danger" : "success" },
+    { label: "Due today", value: dueToday.length, tone: dueToday.length ? "warn" : "muted" },
+    { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
+    { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
+  ];
 
   return (
     <div className="space-y-4">
       <HomeActions />
-      <WelcomeHero
-        pulse={buildPulse(rows)}
-        city={settings.weatherCity}
-        lat={settings.weatherLat}
-        lon={settings.weatherLon}
+      <HomeIntelligence
+        greeting={greeting(now.getHours())}
+        dateLabel={`${dayLabel(now)} · ${settings.weatherCity}`}
+        command={command}
+        pulse={pulse}
+        focus={focus}
+        movement={buildMovement(activity, rows)}
       />
-      <TodayTodos todos={todayTodos} />
-      <ExpiringDocs items={expiringDocs} />
-      <AttentionList items={attnItems} swipeRight={settings.swipeRightAction} swipeLeft={settings.swipeLeftAction} />
-      <CompaniesWidget companies={companyGlances} />
     </div>
   );
 }

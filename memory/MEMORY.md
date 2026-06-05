@@ -1,5 +1,6 @@
 - **[V2 Handover](../HANDOVER.md)** - what V2 shipped, architecture, run, DB, known limits (repo root).
 - **[V2 Plan - START HERE](v2_plan.md)** - current direction, phase status, and how to work here.
+- **[V3 Plan](v3_plan.md)** - Home Intelligence, system-wide automations, and the V3 operating-layer direction.
 - [Project Overview](project_overview.md) - what COS System is, who uses it, and the main workflows.
 - [HRMS](hrms.md) - HRMS hub, OECR (stock control) and OCR (cleaning checklist).
 - [Tech Stack](tech_stack.md) - Next.js 16, React 19, Drizzle ORM, Supabase Postgres pooler, Tailwind v4, Groq.
