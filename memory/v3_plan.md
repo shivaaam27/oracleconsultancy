@@ -96,7 +96,9 @@ Examples:
    and owner-specific next links. Company pages now show their live compliance
    summary card; People Directory shows active people compliance issue counts.
    Word/Excel reading added to the existing document auto-fill upload path
-   (`.docx`, `.xlsx`, `.xls`, `.csv`) alongside PDF/image reading.
+   (`.docx`, `.xlsx`, `.xls`, `.csv`) alongside PDF/image reading. Document
+   renewal tasks now de-duplicate against existing open linked tasks and show the
+   linked task code directly in the Documents list.
 5. **Director Brief Phase 5** - period filters, per-company brief, scheduled draft.
    **Started:** Director Brief now supports period filters (this month, last
    month, quarter, year); page, share text, email and print/PDF data all read

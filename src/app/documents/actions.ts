@@ -547,6 +547,17 @@ export async function renewDocumentAction(id: number): Promise<Result> {
       return { ok: false, error: "Assign this document to a company first, then create a renewal task." };
     }
 
+    const { data: links, error: linkError } = await sb
+      .from("document_links")
+      .select("tasks(code,status)")
+      .eq("document_id", id);
+    if (linkError) throw new Error(linkError.message);
+
+    const openLink = (links ?? [])
+      .map((row) => row.tasks as { code?: string | null; status?: string | null } | null)
+      .find((task) => task?.code && task.status !== "Completed" && task.status !== "Closed");
+    if (openLink?.code) return { ok: true, code: openLink.code };
+
     const { data: company } = await sb
       .from("companies")
       .select("code")

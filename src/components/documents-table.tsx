@@ -231,6 +231,7 @@ export function DocumentsTable({
             const urgent = dte !== null && dte < 0;
             const soon = dte !== null && dte >= 0 && dte <= doc.reminderLeadDays;
             const accent = companyAccent(doc.companyId);
+            const openLinkedTask = linkedTasks[doc.id]?.find((t) => t.status !== "Completed" && t.status !== "Closed");
             return (
               <div key={doc.id} role="button" tabIndex={0}
                 onClick={() => { if (longPressed.current) { longPressed.current = false; return; } setEditDoc(doc); }}
@@ -246,6 +247,11 @@ export function DocumentsTable({
                     <span className="truncate text-sm font-medium">{doc.title}</span>
                     {(doc.storagePath || doc.fileUrl) && <Paperclip size={12} className="text-fg-subtle shrink-0" />}
                     {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
+                    {openLinkedTask && (
+                      <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
+                        {openLinkedTask.code}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-0.5 min-w-0">
                     {companyName(doc.companyId) && <span className="inline-flex items-center gap-1 truncate"><Building2 size={11} />{companyName(doc.companyId)}</span>}
