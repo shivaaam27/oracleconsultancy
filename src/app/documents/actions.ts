@@ -332,11 +332,50 @@ export async function extractDocumentFields(text: string): Promise<{ ok: boolean
   return { ok: true, fields: coerceFields(safeJson(content), companies, people, trimmed), source: "ai" };
 }
 
+// Rough base64-length ceiling for Groq's 4 MB-per-image limit.
+const MAX_IMAGE_DATAURL = 5_400_000;
+
 /**
- * Extract document fields from an uploaded file. Text-based PDFs are parsed with
- * unpdf then read by the text model; images (photos/scans) are read by the Groq
- * vision model. Scanned image-only PDFs are detected and the user is asked to
- * upload a photo instead. Never throws.
+ * Rasterise the first pages of a (scanned/image-only) PDF to PNG data URLs so
+ * the vision model can read them. Uses unpdf's renderer backed by @napi-rs/canvas.
+ * Returns [] if rendering isn't possible (so callers can fall back gracefully).
+ */
+async function renderPdfPages(base: Buffer, maxPages = 2): Promise<string[]> {
+  try {
+    const { renderPageAsImage } = await import("unpdf");
+    const urls: string[] = [];
+    for (let i = 1; i <= maxPages; i++) {
+      try {
+        const url = await renderPageAsImage(Uint8Array.from(base), i, {
+          canvasImport: () => import("@napi-rs/canvas"),
+          width: 1400,
+          toDataURL: true,
+        });
+        if (typeof url === "string" && url.length <= MAX_IMAGE_DATAURL) urls.push(url);
+      } catch {
+        break; // no further pages, or render failed
+      }
+    }
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+/** Read one or more images with the Groq vision model. */
+async function groqVision(imageUrls: string[], prompt: string, apiKey: string): Promise<string | null> {
+  const content = [
+    { type: "text", text: prompt },
+    ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
+  return groqJson([{ role: "user", content }], "meta-llama/llama-4-scout-17b-16e-instruct", apiKey);
+}
+
+/**
+ * Extract document fields from an uploaded file. Text-layer PDFs are parsed with
+ * unpdf and read by the text model; images AND scanned/image-only PDFs are read
+ * by the Groq vision model (scanned PDFs are rasterised to images first). Never
+ * throws.
  */
 export async function extractDocumentFromFile(
   fd: FormData
@@ -349,32 +388,45 @@ export async function extractDocumentFromFile(
   const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
   if (isPdf) {
+    const base = Buffer.from(await file.arrayBuffer());
     let text = "";
     try {
       const { extractText, getDocumentProxy } = await import("unpdf");
-      const buf = new Uint8Array(await file.arrayBuffer());
-      const pdf = await getDocumentProxy(buf);
+      const pdf = await getDocumentProxy(Uint8Array.from(base));
       const r = await extractText(pdf, { mergePages: true });
       text = Array.isArray(r.text) ? r.text.join("\n") : r.text;
     } catch {
       text = "";
     }
-    if (text.trim().length < 40) {
-      return { ok: false, fields: {}, source: "rules", note: "This PDF looks like a scan with no readable text. Please upload a clear photo or image of the document instead." };
+
+    // Text-layer PDF → read the embedded text.
+    if (text.trim().length >= 40) {
+      if (!apiKey) {
+        return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+      }
+      const content = await groqJson(
+        [
+          { role: "system", content: "You extract structured data and reply with strict JSON only." },
+          { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
+        ],
+        "llama-3.1-8b-instant",
+        apiKey
+      );
+      if (!content) return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+      return { ok: true, fields: coerceFields(safeJson(content), companies, people, text), source: "ai" };
     }
+
+    // Scanned / image-only PDF → rasterise the pages and read with the vision model.
     if (!apiKey) {
-      return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+      return { ok: false, fields: {}, source: "rules", note: "This looks like a scanned PDF and AI is off. Type the details, or paste the document text." };
     }
-    const content = await groqJson(
-      [
-        { role: "system", content: "You extract structured data and reply with strict JSON only." },
-        { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
-      ],
-      "llama-3.1-8b-instant",
-      apiKey
-    );
-    if (!content) return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
-    return { ok: true, fields: coerceFields(safeJson(content), companies, people, text), source: "ai" };
+    const images = await renderPdfPages(base, 2);
+    if (!images.length) {
+      return { ok: false, fields: {}, source: "vision", note: "Couldn't render this PDF to read it. Try uploading a clear photo of the document instead." };
+    }
+    const content = await groqVision(images, extractPrompt(companies, people), apiKey);
+    if (!content) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo." };
+    return { ok: true, fields: coerceFields(safeJson(content), companies, people), source: "vision" };
   }
 
   if (file.type.startsWith("image/")) {
@@ -385,19 +437,7 @@ export async function extractDocumentFromFile(
     }
     const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const dataUrl = `data:${file.type};base64,${b64}`;
-    const content = await groqJson(
-      [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: extractPrompt(companies, people) },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-      "meta-llama/llama-4-scout-17b-16e-instruct",
-      apiKey
-    );
+    const content = await groqVision([dataUrl], extractPrompt(companies, people), apiKey);
     if (!content) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo." };
     return { ok: true, fields: coerceFields(safeJson(content), companies, people), source: "vision" };
   }
