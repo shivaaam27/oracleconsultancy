@@ -111,3 +111,14 @@ cos-system/
 - `src/lib/derive.ts` - domain flags/risk derivation.
 - `src/lib/queries.ts` - task queries and KPI computation.
 - `src/lib/timeline.ts` - timeline sorting/grouping/filtering.
+
+## V2 additions (key new files)
+
+- **HRMS** — pages `src/app/hrms/{page,oecr/page,ocr/page}.tsx`, actions `src/app/hrms/actions.ts` + `src/app/hrms/ocr/actions.ts`; logic `src/lib/{stock,stock-shared,cleaning,cleaning-shared}.ts`; UI `src/components/hrms/{hrms-shell,stock-dashboard,stock-register,stock-movements,hrms-dialog,registry-card,ocr-today,hrms-crumbs,share-brief}.tsx`.
+- **Director Brief** — page `src/app/brief/page.tsx`; logic `src/lib/director-brief.ts`; share UI `src/components/hrms/share-brief.tsx`.
+- **Documents** — `src/app/documents/page.tsx`, `src/app/documents/actions.ts` (AI extraction incl. scanned-PDF rasterise), `src/components/{documents-table,document-form}.tsx`, `src/lib/documents{,-shared}.ts`.
+- **Descriptions surfaced** — `src/components/task-context.tsx` (task Description + Latest update block), `src/lib/notes-display.ts` (placeholder-note filter).
+- **Nav** — `src/components/top-pill.tsx` (`HrmsLauncher` centred launcher; More sheet + per-tab popovers removed).
+- **Shared UI** — `SearchInput` in `src/components/ui.tsx`.
+- **Print/PDF + typography** — `@media print` + `text-wrap` rules in `src/app/globals.css`.
+- **Root docs** — `HANDOVER.md` (V2 handover).

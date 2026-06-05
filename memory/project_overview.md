@@ -24,7 +24,7 @@ The app is intentionally single-user. There is no auth and no multi-tenant model
 | CO06 | MES Ltd |
 | CO07 | Pamoja Plus |
 
-Task codes use the company prefix, for example `CO01-001`.
+Task codes use the company's two-letter `code_prefix`, e.g. `DS-001` for Dar Spices. Legacy `COxx-NNN` codes are kept in `tasks.legacy_code` so old links redirect.
 
 ## Main Workflows
 
@@ -35,8 +35,11 @@ Task codes use the company prefix, for example `CO01-001`.
 - **Meeting Workspace** - `/meeting` saves notes, generates minutes, extracts actions, links created tasks back to meetings, and keeps mobile capture compact.
 - **Voice intelligence** - shared dictation clean-up for rough speech, with a COS vocabulary dictionary and initial English, Swahili, Hindi, and Gujarati language support.
 - **Ask COS** - floating assistant and embedded chat answer questions and run commands over tasks, updates, companies, people, and now saved meeting minutes.
-- **People** - internal, external, and expat contacts with company associations.
-- **Outbox** - creates per-person reminder drafts and records sends; real dispatch is not implemented yet.
+- **HRMS** (V2) - `/hrms` hub of registries: **OECR** office-equipment stock control (`/hrms/oecr`) and **OCR** daily cleaning checklist (`/hrms/ocr`). Companies, People and Documents live under HRMS, reached via a single centred "Go to" launcher on the HRMS nav icon.
+- **Director Brief** (V2) - `/brief` glanceable portfolio report incl. completed/closed this month; share via WhatsApp/Email/Copy or print to a multi-page PDF report.
+- **Documents & Compliance** - `/documents` tracks licences/contracts/visas with expiry reminders; AI reads uploads (text PDFs, images, and scanned/handwritten PDFs).
+- **People** - internal, external, and expat contacts with company associations; bulk deactivate; notes surfaced on cards/popups.
+- **Outbox** - creates per-person reminder drafts (priority + description + latest update) and records sends; real dispatch is not implemented yet.
 - **Settings** - risk thresholds, weather location, AI master switch, reminders, navigation reorder, and resync.
 
 ## Current Product Direction

@@ -77,9 +77,9 @@ Panels/sheets = 16 → cards/tables = 12 → controls = 10/8.
 | Component | File | Purpose / used by |
 |---|---|---|
 | `Button` / `LinkButton` / `IconButton` | `components/ui.tsx` | All buttons. Press compression, focus ring, `loading`, rim materials. |
-| `Card`, `Surface`, `TableShell`, `Badge`, `Stat`, `PageHeader`, `EmptyState`, inputs | `components/ui.tsx` | Tier-2 content surfaces + form bits. |
+| `Card`, `Surface`, `TableShell`, `Badge`, `Stat`, `PageHeader`, `EmptyState`, `SearchInput`, inputs | `components/ui.tsx` | Tier-2 content surfaces + form bits. **`SearchInput`** = leading magnifier + system border/bg + accent focus ring (use for page search bars). |
 | `Segmented`, `Pill`, `SearchField`, `Toolbar`, `ListRow`, `Sheet` | `components/macos.tsx` | macOS primitives. Segmented has a `layoutId` morph indicator. |
-| `TopPill` / `NavLens` | `components/top-pill.tsx` | The single bottom nav pill (all breakpoints; sidebar removed): tabs, page-action `+`, Search/Theme, and a draggable liquid-glass lens. |
+| `TopPill` / `NavLens` / `HrmsLauncher` | `components/top-pill.tsx` | The single bottom nav pill (all breakpoints). Tabs: Home · Director Brief · Task Management · Workbook · **HRMS** + page-action `+` · Search · Theme. **`HrmsLauncher`** = the HRMS icon opens a centred "Go to" dashboard (Radix Dialog) of all secondary destinations (replaced the old "More" sheet + per-tab popovers). Draggable liquid-glass lens. |
 | `LiquidGlassDefs` | `components/liquid-glass.tsx` | Squircle displacement map + SVG filters (`#cos-liquid-glass` backdrop, `#cos-lens-refract` element); flips `data-refract` on Chromium. |
 | `SwipeRow` | `components/swipe-row.tsx` | iOS swipe actions (configurable). Used by `AttentionList`. |
 | `PeekPreview` + `useLongPress` | `components/peek-preview.tsx`, `lib/use-long-press.ts` | Long-press peek & pop. Used by the Tasks table; reusable for People/Notes/Meetings. |
@@ -132,9 +132,24 @@ try ideas before rolling them across the app. Keep it in sync when primitives ch
 ### Dropdowns — `FluidSelect`
 `src/components/fluid-select.tsx` is the one fluid menu: a glass popover with a
 spring pop-in, check-marked selection, optional colour `dot`, and outside-click /
-Escape dismissal. `FilterSelect` wraps it to drive a URL search param (Tasks
-filters); the People filters and `InlineEdit` menus use the same look. Prefer it
-over native `<select>` everywhere.
+Escape dismissal. It renders its menu in a **portal with fixed positioning**
+(clamped to the viewport) so it can never be trapped behind a `glass`/transform
+stacking context or clipped. `FilterSelect` wraps it to drive a URL search param
+(Tasks filters); People filters and `InlineEdit` menus use the same look. Prefer
+it over native `<select>` everywhere.
+
+### Print / PDF (`@media print` in `globals.css`)
+The **Director Brief** prints via the browser (no PDF library). Print rules:
+re-map dark surface/text tokens to light (clean white document from any theme),
+hide chrome (`.fixed`, `.print-hidden`), reveal `.print-only` content, flatten the
+framer-motion page wrapper (`.page-flow { display:contents }`) so content
+**paginates across pages**, and style the `.report-table` (repeating headers,
+`break-inside: avoid` per company, fresh page for the detailed report). Mark
+on-screen-only controls with `print-hidden`; mark PDF-only sections `print-only`.
+
+### Typography
+Base body has smoothing + tuned letter-spacing; headings use `text-wrap: balance`
+and paragraphs `text-wrap: pretty` for even, orphan-free wrapping system-wide.
 
 ### Touch hygiene (learned on real iPhones)
 - Long-press / swipe rows carry `select-none`; globally `.select-none` also sets

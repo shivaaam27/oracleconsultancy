@@ -104,11 +104,25 @@ and the timer jobs need re-entering.
 
 ---
 
+## Build & native dependencies (V2)
+
+- **`@napi-rs/canvas`** is a prebuilt native module used to rasterise scanned
+  PDFs for the document vision reader. It ships platform binaries (works on
+  Linux/Vercel and Windows) and is listed alongside `unpdf` in
+  `serverExternalPackages` (`next.config.ts`) so Turbopack doesn't try to bundle
+  it. `npm install` pulls the right binary for the host; no extra setup needed.
+- Document uploads ride server actions, so `next.config.ts` sets
+  `serverActions.bodySizeLimit: "25mb"` (the documents bucket allows up to 20 MB).
+- The **Director Brief PDF** uses the browser's print-to-PDF (no server PDF
+  library, nothing to deploy).
+
 ## Database migrations (for reference)
 
 - Schema is defined in `src/db/schema.ts`; migrations live in `drizzle/`.
-- The baseline (`0000`) and the meetings tables were applied by hand, so the
-  Drizzle snapshot can lag behind the live database. Generate with
+- The baseline (`0000`), the documents tables, and some others were applied by
+  hand, so the Drizzle snapshot can lag behind the live database. Generate with
   `npm run db:generate`, then **review the SQL** before applying — if it tries
   to recreate tables that already exist, trim it to only the new changes (as was
-  done for the `inbox` table via `scripts/apply-inbox.ts`).
+  done for the HRMS stock migration and the `inbox` table). Latest feature
+  migrations: `0017_yummy_mad_thinker` (stock), `0018_glamorous_lady_vermin`
+  (cleaning).

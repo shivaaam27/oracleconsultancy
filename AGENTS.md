@@ -4,7 +4,7 @@ Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain lan
 
 ## Product
 
-Chief-of-Staff command centre for Oracle Group's 7 portfolio companies:
+Chief-of-Staff command centre for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
 
 - CO01 Dar Spices
 - CO02 Cocozuri Chocolat
@@ -19,7 +19,7 @@ Single operator, no auth. `createdBy` is normally `"web-ui"`; AI command mutatio
 The system replaces an Excel workbook with:
 
 - task capture and tracking;
-- per-task timeline and audit history;
+- per-task timeline and audit history, plus a portfolio-wide activity feed (hub Timeline view);
 - company and portfolio risk views;
 - saved meeting notes and minutes;
 - AI-assisted meeting intelligence;
@@ -42,6 +42,8 @@ The system replaces an Excel workbook with:
 - `DATABASE_URL` must use the Supabase pooler on port `6543`.
 - Baseline migration `0000_flaky_amphibian.sql` was applied manually; `scripts/baseline-migrations.ts` marks it applied.
 - Newer write paths often use `src/db/supabase.ts` and helpers in `src/lib/db-helpers.ts`.
+- All wall-clock columns are `timestamptz` (migration `0014`); writes use `.toISOString()` (UTC) and times render in the viewer's local zone (Dar es Salaam, UTC+3). Do not revert to plain `timestamp`.
+- Navigation is one bottom-floating pill on **all** breakpoints (`top-pill.tsx`); the desktop sidebar was removed. The pill carries the page action `+` and a draggable liquid-glass lens.
 
 ## Current Schema Areas
 
@@ -60,10 +62,14 @@ Governance:
 - audit_log
 - corrections
 
+To-dos:
+
+- todos (personal to-do list; see `memory/todos.md`)
+
 Outreach:
 
 - reminders
-- outbox
+- outbox (now also persisted drafts: `source`/`person_id`/`todo_id`/`scheduled_for`)
 
 Analytics/config/system:
 
@@ -81,13 +87,23 @@ See `memory/database_schema.md`.
 - `/task/[code]`
 - `/registry` - redirects to hub Tasks table
 - `/meeting` - Meeting Workspace
+- `/workbook` - Meetings / Notes / To-do (see `memory/todos.md`)
+- `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
+- `/hrms` - **HRMS hub** (V2): registry cards. See `memory/hrms.md`.
+- `/hrms/oecr` - OECR (Office Equipment Control Registry) — stock control
+- `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
 - `/companies`
 - `/companies/[id]`
 - `/people`
+- `/documents` - Documents & Compliance
 - `/outbox`
+- `/inbox`
+- `/insights`
 - `/settings`
 
-Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`.
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (HRMS Hub, OECR, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings) — the old "More" sheet and the per-tab popovers were removed. Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
+
+Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`. The desktop sidebar and the dedicated Companies nav tab were removed.
 
 ## Meeting Workspace
 
@@ -133,7 +149,7 @@ Voice is now a shared product layer, not only a microphone button:
 - Statuses: Not Started, In Progress, Under Review, Blocked, Waiting External, Escalated, Completed, Closed.
 - Open means anything except Completed/Closed.
 - Priorities/Risk: Critical, High, Medium, Low.
-- Task codes: `<COxx>-NNN`.
+- Task codes: `<PREFIX>-NNN`, where PREFIX is the company's two-letter `code_prefix` (e.g. `DS-001` for Dar Spices). Legacy `COxx-NNN` codes are kept in `tasks.legacy_code` so old links redirect.
 - Categories: Finance, Operations, Marketing, HR, Legal, Technology, Sales, Admin, Meetings, Strategy, Other.
 - Channels: WHATSAPP, EMAIL, SMS.
 

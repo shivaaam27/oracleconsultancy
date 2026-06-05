@@ -18,11 +18,19 @@ All list/data pages are dynamic because operational data changes often.
 | `/task/new` | `src/app/task/new/page.tsx` | Create task form. |
 | `/task/[code]` | `src/app/task/[code]/page.tsx` | Task detail, edit form, assignees, latest update, source meeting card, updates, audit timeline, similar tasks, draft email. |
 | `/registry` | `src/app/registry/page.tsx` | Redirects to `/?tab=tasks&view=table`. |
+| `/brief` | `src/app/brief/page.tsx` | **Director Brief** (V2): glanceable portfolio report incl. delivered-this-month; stat cards, per-company strip (done/open/in-progress/overdue), delivered + watch-list; WhatsApp/Email/Copy share + PDF (print-only detailed per-company tables). Data via `src/lib/director-brief.ts`. |
+| `/hrms` | `src/app/hrms/page.tsx` | **HRMS hub** (V2): registry cards (OECR, OCR, Companies, People, Documents) with live stats. |
+| `/hrms/oecr` | `src/app/hrms/oecr/page.tsx` | **OECR** stock control: Dashboard / Register / Purchases / Issues. `src/lib/stock*.ts`. |
+| `/hrms/ocr` | `src/app/hrms/ocr/page.tsx` | **OCR** daily cleaning checklist (one shared register). `src/lib/cleaning*.ts`. |
 | `/meeting` | `src/app/meeting/page.tsx` | Mobile-tight Meeting Workspace: saved notes, AI minutes, clean notes, decisions, risks, follow-up draft, history search/filter, action extraction, linked tasks, voice polish, dictionary teaching. |
-| `/companies` | `src/app/companies/page.tsx` | Company list with KPIs. |
+| `/workbook` | `src/app/workbook/page.tsx` | Meetings / Notes / To-do. |
+| `/companies` | `src/app/companies/page.tsx` | Company list with KPIs. Reached via HRMS; smart `?from=task:CODE` breadcrumb. |
 | `/companies/[id]` | `src/app/companies/[id]/page.tsx` | Company detail with Overview, Completed, Timeline. Open tasks grouped by month. |
-| `/people` | `src/app/people/page.tsx` | People directory with internal/external/expat contacts. |
-| `/outbox` | `src/app/outbox/page.tsx` | Reminder drafts and sent log. Send action records only. |
+| `/people` | `src/app/people/page.tsx` | People directory (internal/external/expat); bulk deactivate; notes surfaced. |
+| `/documents` | `src/app/documents/page.tsx` | Documents & Compliance: tracking + expiry reminders; unified capture (Upload·Link·Paste text); AI reads PDFs/images incl. scanned. |
+| `/outbox` | `src/app/outbox/page.tsx` | Reminder drafts and sent log. Drafts show priority + description + latest update (no code/status). |
+| `/inbox` | `src/app/inbox/page.tsx` | Inbox capture → file as task/document. |
+| `/insights` | `src/app/insights/page.tsx` | Analytics/insights. |
 | `/settings` | `src/app/settings/page.tsx` | Risk thresholds, weather location, AI master switch, reminders, nav reorder, resync. |
 
 ## Removed Routes
@@ -44,8 +52,16 @@ Do not recreate these as standalone pages:
 - `src/app/settings/actions.ts` - save typed settings.
 - `src/app/voice/actions.ts` - shared dictation polish and voice dictionary teaching.
 - `src/app/audit/actions.ts` - edit/delete/restore audit timeline rows.
-- `src/app/people/actions.ts` - people/contact management.
+- `src/app/people/actions.ts` - people/contact management; bulk `setPeopleActive`.
 - `src/app/scope-actions.ts` - company scope controls.
+- `src/app/documents/actions.ts` - document CRUD, file upload/sign, AI extraction (text + vision incl. scanned-PDF rasterise via `renderPdfPages`), overflow-to-Notes.
+- `src/app/hrms/actions.ts` - OECR stock items + purchases/issues (create/update/delete; negative-stock guard).
+- `src/app/hrms/ocr/actions.ts` - OCR cleaning ticks, attendance, note, sign-off.
+- `src/app/todos/actions.ts` - personal to-do list CRUD + reminder drafts.
+
+## Navigation (V2)
+
+One bottom-floating pill: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme (`src/components/top-pill.tsx`). The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing all secondary destinations (HRMS Hub, OECR, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings). The old "More" sheet and per-tab popovers were removed.
 
 ## API Routes
 

@@ -34,7 +34,7 @@ Do not remove these unless switching away from PgBouncer transaction mode.
 - Generated SQL lives in `drizzle/`.
 - `0000_flaky_amphibian.sql` was applied manually before Drizzle migration tracking.
 - `scripts/baseline-migrations.ts` marks baseline as applied.
-- Latest feature migration: `0008_meeting_workspace.sql`.
+- Latest feature migrations: `0017_yummy_mad_thinker` (HRMS stock — hand-trimmed), `0018_glamorous_lady_vermin` (OCR cleaning). `0017_documents_compliance`/`0018_document_files` were applied manually outside the journal — see `database_schema.md`.
 
 ## Styling
 
@@ -45,6 +45,13 @@ Do not remove these unless switching away from PgBouncer transaction mode.
 - Icons via `lucide-react`.
 - Radix primitives for dialog/dropdown/tooltip.
 - `cmdk` for command palette.
+
+## Documents / PDF
+
+- `unpdf` — serverless pdf.js: text extraction **and** page rasterising (`renderPageAsImage`).
+- `@napi-rs/canvas` — prebuilt native canvas backing unpdf's renderer (scanned-PDF → image for the vision reader). Both in `serverExternalPackages` (`next.config.ts`).
+- `serverActions.bodySizeLimit: "25mb"` for document uploads.
+- Director Brief PDF = browser print of `/brief` via `@media print` in `globals.css` (no PDF library).
 
 ## AI
 

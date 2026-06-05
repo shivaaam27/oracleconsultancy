@@ -22,7 +22,7 @@ Oracle Consultancy has 7 portfolio companies:
 
 ## Task Codes
 
-Format: `<COxx>-NNN`, for example `CO01-001`.
+Format: `<PREFIX>-NNN`, where PREFIX is the company's two-letter `code_prefix` (e.g. `DS-001` for Dar Spices). Legacy `COxx-NNN` codes are kept in `tasks.legacy_code` so old links redirect.
 
 Allocation uses read-max-then-insert with retries in helper paths. If task creation becomes highly concurrent, consider a stronger Postgres-side allocator.
 
@@ -74,7 +74,9 @@ Flag order:
 
 ## Risk Score
 
-Company KPI risk score:
+Company KPI (`computeCompanyKpis` in `queries.ts`) includes `total, open, inProgress, overdue, dueSoon, blocked, critical, escalated, completed, closed, aging, riskScore`. (`inProgress` = status "In Progress"; surfaced on the Director Brief.)
+
+Risk score:
 
 `round(((overdue * 3 + blocked * 2 + aging) / total) * 100)`
 

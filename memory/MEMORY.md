@@ -1,5 +1,7 @@
+- **[V2 Handover](../HANDOVER.md)** - what V2 shipped, architecture, run, DB, known limits (repo root).
 - **[V2 Plan - START HERE](v2_plan.md)** - current direction, phase status, and how to work here.
 - [Project Overview](project_overview.md) - what COS System is, who uses it, and the main workflows.
+- [HRMS](hrms.md) - HRMS hub, OECR (stock control) and OCR (cleaning checklist).
 - [Tech Stack](tech_stack.md) - Next.js 16, React 19, Drizzle ORM, Supabase Postgres pooler, Tailwind v4, Groq.
 - [Repo Layout](repo_layout.md) - current directory map and key files.
 - [Database Schema](database_schema.md) - current tables, including meetings, meeting_tasks, person_companies, system_events, and undo_tokens.
@@ -12,6 +14,7 @@
 - [Liquid Lens](liquid_lens.md) - the draggable liquid-glass lens on the nav pill (drag-to-select + refraction optics).
 - [Audit Trail](audit_trail.md) - task audit logging, timeline behaviour, and entry types.
 - [Timeline & Activity](timeline.md) - the three timeline scopes, shared event model, the unified TimelineEntry, and the global activity feed.
+- [Documents & Compliance](documents_compliance_plan.md) - document tracking, expiry reminders, and AI capture (incl. scanned PDFs).
 - [Import Pipeline](import_pipeline.md) - Excel workbook import flow.
 - [Dev Workflow](dev_workflow.md) - local setup, scripts, migrations, and Supabase pooler rules.
 - [UI Conventions](ui_conventions.md) - shell, navigation, Meeting Workspace, assistant, voice, and responsive rules.

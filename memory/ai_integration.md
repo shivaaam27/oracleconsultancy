@@ -105,6 +105,18 @@ All Meeting Workspace AI actions have rule fallbacks:
 - AI error -> basic local output plus user-facing message;
 - empty AI output -> local fallback where possible.
 
+### Document AI (Documents & Compliance)
+
+Implemented in `src/app/documents/actions.ts`. Extracts document fields (title, category, type, issuer, reference no., issue/expiry dates, company, person) from:
+
+- **Pasted text** (`extractDocumentFields`) — Groq text model with a rule-based fallback (`ruleExtract`) when AI is off.
+- **Uploaded files** (`extractDocumentFromFile`):
+  - **Text-layer PDFs** → unpdf text → text model.
+  - **Images** → Groq **vision** model (`meta-llama/llama-4-scout-17b-16e-instruct`).
+  - **Scanned / image-only PDFs** → rasterised to PNGs (`renderPdfPages` via unpdf `renderPageAsImage` + **`@napi-rs/canvas`**, ≤2 pages, width 1400) → vision model (`groqVision`).
+- **Overflow-to-Notes** — the prompt also returns a `notes` field for anything that doesn't map to a labelled field (extra refs, conditions, addresses, handwritten remarks); the form **appends** it to the Notes box.
+- The prompt explicitly handles scans, phone photos, faded/dirty pages, handwritten/rough notes, and mixed EN/SW. Honours `getGroqKey()` (AI-off → manual entry).
+
 ## Shared Context Helpers
 
 `src/lib/ai-context.ts` provides:

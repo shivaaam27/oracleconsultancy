@@ -50,7 +50,7 @@ Optional:
 4. Apply with `npm run db:migrate`.
 5. Verify with `npm exec tsc -- --noEmit`.
 
-Latest migration: `drizzle/0008_meeting_workspace.sql`.
+Latest feature migrations: `drizzle/0017_yummy_mad_thinker.sql` (HRMS stock) and `drizzle/0018_glamorous_lady_vermin.sql` (OCR cleaning). Some migrations (`0000` baseline, `0017_documents_compliance`, `0018_document_files`) were applied **manually outside the Drizzle journal**, so generated SQL can re-emit existing tables — **review and trim** before applying. See `database_schema.md`.
 
 ## Supabase Pooler
 
