@@ -141,7 +141,7 @@ export function DocumentForm({
     }
   }
 
-  // Read a PDF/image: extract fields AND attach the file to the document so it
+  // Read a PDF/image/office file: extract fields AND attach the file to the document so it
   // isn't uploaded twice.
   async function runExtractFile(file: File) {
     setExtracting(true);
@@ -205,7 +205,7 @@ export function DocumentForm({
             you switch capture modes. */}
         {removeExisting && <input type="hidden" name="removeFile" value="1" />}
 
-        {/* Upload — the file is stored AND read automatically (PDF, photo, scan). */}
+        {/* Upload — the file is stored AND read automatically (PDF, Word, Excel, photo, scan). */}
         <div className={capMode === "upload" ? "" : "hidden"}>
           <input ref={fileInputRef} name="file" type="file"
             accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx"
@@ -228,10 +228,10 @@ export function DocumentForm({
           ) : (
             <button type="button" onClick={() => { setRemoveExisting(false); fileInputRef.current?.click(); }}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-accent/50 px-3 py-3 text-sm text-accent hover:bg-accent/10 transition-colors">
-              <Upload size={15} /> Choose a PDF, photo or scan — read automatically
+              <Upload size={15} /> Choose PDF, Word, Excel or photo — read automatically
             </button>
           )}
-          <p className="text-[11px] text-fg-subtle mt-1.5">Max 20 MB. Scans, photos and handwritten notes are fine.</p>
+          <p className="text-[11px] text-fg-subtle mt-1.5">Max 20 MB. Supports PDF, DOCX, Excel/CSV, scans, photos and handwritten notes.</p>
         </div>
 
         {/* Link — a reference to where the file lives (not read by AI). */}

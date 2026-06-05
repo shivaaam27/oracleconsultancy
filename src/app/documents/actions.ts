@@ -371,6 +371,60 @@ async function groqVision(imageUrls: string[], prompt: string, apiKey: string): 
   return groqJson([{ role: "user", content }], "meta-llama/llama-4-scout-17b-16e-instruct", apiKey);
 }
 
+async function fieldsFromText(
+  text: string,
+  companies: Entity[],
+  people: Entity[],
+  apiKey: string | undefined
+): Promise<{ ok: boolean; fields: ExtractedFields; source: "ai" | "rules" }> {
+  if (!text.trim()) return { ok: false, fields: {}, source: "rules" };
+  if (!apiKey) {
+    return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+  }
+  const content = await groqJson(
+    [
+      { role: "system", content: "You extract structured data and reply with strict JSON only." },
+      { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
+    ],
+    "llama-3.1-8b-instant",
+    apiKey
+  );
+  if (!content) return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+  return { ok: true, fields: coerceFields(safeJson(content), companies, people, text), source: "ai" };
+}
+
+async function extractOfficeText(file: File): Promise<string> {
+  const lower = file.name.toLowerCase();
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  if (lower.endsWith(".docx") || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer });
+    return result.value ?? "";
+  }
+
+  if (
+    lower.endsWith(".xlsx") ||
+    lower.endsWith(".xls") ||
+    lower.endsWith(".csv") ||
+    file.type.includes("spreadsheet") ||
+    file.type === "text/csv"
+  ) {
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+    return workbook.SheetNames.slice(0, 6)
+      .map((name) => {
+        const sheet = workbook.Sheets[name];
+        const csv = XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+        return [`Sheet: ${name}`, csv].join("\n");
+      })
+      .join("\n\n")
+      .slice(0, 12000);
+  }
+
+  return "";
+}
+
 /**
  * Extract document fields from an uploaded file. Text-layer PDFs are parsed with
  * unpdf and read by the text model; images AND scanned/image-only PDFs are read
@@ -386,6 +440,28 @@ export async function extractDocumentFromFile(
   const apiKey = await getGroqKey();
   const { companies, people } = await loadEntities();
   const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  const lowerName = file.name.toLowerCase();
+  const isOffice =
+    lowerName.endsWith(".docx") ||
+    lowerName.endsWith(".xlsx") ||
+    lowerName.endsWith(".xls") ||
+    lowerName.endsWith(".csv") ||
+    file.type.includes("spreadsheet") ||
+    file.type === "text/csv" ||
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  if (isOffice) {
+    try {
+      const text = await extractOfficeText(file);
+      if (text.trim().length < 20) {
+        return { ok: false, fields: {}, source: "rules", note: "Couldn't read useful text from that Word/Excel file." };
+      }
+      const result = await fieldsFromText(text, companies, people, apiKey);
+      return { ...result, note: result.source === "rules" ? "Read the file text with rule-based extraction." : undefined };
+    } catch {
+      return { ok: false, fields: {}, source: "rules", note: "Couldn't read that Word/Excel file. Try saving it as PDF or paste the text." };
+    }
+  }
 
   if (isPdf) {
     const base = Buffer.from(await file.arrayBuffer());
@@ -401,19 +477,7 @@ export async function extractDocumentFromFile(
 
     // Text-layer PDF → read the embedded text.
     if (text.trim().length >= 40) {
-      if (!apiKey) {
-        return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
-      }
-      const content = await groqJson(
-        [
-          { role: "system", content: "You extract structured data and reply with strict JSON only." },
-          { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
-        ],
-        "llama-3.1-8b-instant",
-        apiKey
-      );
-      if (!content) return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
-      return { ok: true, fields: coerceFields(safeJson(content), companies, people, text), source: "ai" };
+      return fieldsFromText(text, companies, people, apiKey);
     }
 
     // Scanned / image-only PDF → rasterise the pages and read with the vision model.
@@ -442,7 +506,7 @@ export async function extractDocumentFromFile(
     return { ok: true, fields: coerceFields(safeJson(content), companies, people), source: "vision" };
   }
 
-  return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF or an image (PNG/JPG)." };
+  return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF, Word, Excel/CSV or an image (PNG/JPG)." };
 }
 
 export async function removeDocumentFileAction(id: number): Promise<Result> {
