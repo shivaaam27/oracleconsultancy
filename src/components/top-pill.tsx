@@ -8,7 +8,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search,
   Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText,
-  StickyNote, ListTodo, type LucideIcon,
+  StickyNote, ListTodo, ClipboardList, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -281,6 +281,7 @@ function WorkbookNavTab({ active }: { active: boolean }) {
 /* --------------------------------------------------------------------- */
 
 const MORE: Array<{ href: string; label: string; icon: LucideIcon }> = [
+  { href: "/brief", label: "Director Brief", icon: ClipboardList },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },
