@@ -80,6 +80,9 @@ export function PersonCard({
           {snoozed && <MoonStar size={12} className="text-warn shrink-0" />}
         </div>
         <div className="text-xs text-fg-muted truncate mt-0.5">{metaLine}</div>
+        {p.notes && p.notes.trim() && (
+          <div className="text-xs text-fg-subtle truncate mt-0.5">{p.notes}</div>
+        )}
       </div>
 
       {/* Contact channels (actionable) */}

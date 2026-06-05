@@ -351,15 +351,22 @@ export function PeopleTable({ people, companies }: {
             {!peek.hasContact && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger">No contact</span>}
           </>
         ) : undefined}
-        body={peek && peek.topTasks.length > 0 ? (
-          <div className="-mx-1 rounded-xl border border-border/60 divide-y divide-border/50 overflow-hidden">
-            {peek.topTasks.map((t) => (
-              <div key={t.code} className="flex items-center gap-2 px-2.5 py-1.5">
-                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", t.flag === "overdue" || t.flag === "escalate-now" ? "bg-danger" : t.flag === "due-soon" ? "bg-warn" : "bg-fg-subtle/40")} />
-                <span className="min-w-0 flex-1 truncate text-[13px]">{t.actionItem}</span>
-                <span className="font-mono text-[10px] text-fg-subtle shrink-0">{t.code}</span>
+        body={peek && (peek.notes?.trim() || peek.topTasks.length > 0) ? (
+          <div className="space-y-2.5">
+            {peek.notes && peek.notes.trim() && (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{peek.notes}</p>
+            )}
+            {peek.topTasks.length > 0 && (
+              <div className="-mx-1 rounded-xl border border-border/60 divide-y divide-border/50 overflow-hidden">
+                {peek.topTasks.map((t) => (
+                  <div key={t.code} className="flex items-center gap-2 px-2.5 py-1.5">
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", t.flag === "overdue" || t.flag === "escalate-now" ? "bg-danger" : t.flag === "due-soon" ? "bg-warn" : "bg-fg-subtle/40")} />
+                    <span className="min-w-0 flex-1 truncate text-[13px]">{t.actionItem}</span>
+                    <span className="font-mono text-[10px] text-fg-subtle shrink-0">{t.code}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         ) : undefined}
         actions={peek ? peekActions(peek) : []}
