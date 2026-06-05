@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
+import { buildCompanyComplianceScores, buildPersonComplianceScores, worstComplianceScores } from "@/lib/compliance";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
 
@@ -17,6 +18,7 @@ STYLE:
 - Use task codes in brackets, e.g. [DAR-007].
 - If using meeting notes or minutes, name the meeting and date.
 - For compliance questions, use CONTEXT.documents: name the document, its company, status (Valid/Expiring/Expired) and expiry date. Flag anything expired or expiring soon first.
+- For missing-document or compliance-score questions, use CONTEXT.compliance: name the company/person, score, missing count, expired/expiring count and the missing requirement labels.
 - If the answer is a list, use compact bullet points (one line each, no nested bullets).
 - If the answer is a recommendation or summary, use 2-4 sentence prose.
 - If the data doesn't contain enough information, say so plainly: "Not enough data — try X."
@@ -84,10 +86,15 @@ async function buildContext(question: string, page?: PageCtx) {
 
   const [{ data: cRows }, { data: pRows }] = await Promise.all([
     sb.from("companies").select("id,name,code"),
-    sb.from("people").select("id,name"),
+    sb.from("people").select("id,name,person_type,active"),
   ]);
   const companies = (cRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string, code: c.code as string }));
-  const peopleAll = (pRows ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
+  const peopleAll = (pRows ?? []).map((p) => ({
+    id: p.id as number,
+    name: p.name as string,
+    personType: (p.person_type as string | null) ?? "internal",
+    active: (p.active as boolean | null) ?? true,
+  }));
   const cMap = new Map(companies.map((c) => [c.id, c.name]));
 
   const matchedCompanies = companies.filter(c =>
@@ -312,6 +319,10 @@ async function buildContext(question: string, page?: PageCtx) {
     status: string; expiry: string | null; daysToExpiry: number | null;
     issuer: string | null; reference: string | null;
   }> = [];
+  let complianceCtx: Array<{
+    owner: string; ownerType: string; score: number; status: string;
+    missing: number; expired: number; expiring: number; gaps: string[];
+  }> = [];
   try {
     const allDocs = await listDocuments();
     const matchedCompanyIds = new Set(matchedCompanies.map((c) => c.id));
@@ -339,6 +350,21 @@ async function buildContext(question: string, page?: PageCtx) {
         issuer: d.issuer,
         reference: d.referenceNo,
       }));
+    const companyScores = buildCompanyComplianceScores(companies, allDocs);
+    const personScores = buildPersonComplianceScores(
+      peopleAll.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, personType: p.personType })),
+      allDocs
+    );
+    complianceCtx = worstComplianceScores([...companyScores, ...personScores], 12).map((score) => ({
+      owner: score.ownerName,
+      ownerType: score.ownerType,
+      score: score.score,
+      status: score.status,
+      missing: score.missing,
+      expired: score.expired,
+      expiring: score.expiring,
+      gaps: score.gaps.map((gap) => gap.label),
+    }));
   } catch {
     /* documents are best-effort context */
   }
@@ -348,6 +374,7 @@ async function buildContext(question: string, page?: PageCtx) {
     planDay: wantsPlanDay,
     todos,
     documents: documentCtx,
+    compliance: complianceCtx,
     currentPage: page
       ? {
           label: page.label ?? null,

@@ -79,7 +79,7 @@ export function ComplianceScorePanel({
             <ShieldCheck size={16} className="text-accent" /> Compliance score
           </div>
           <p className="mt-0.5 text-xs text-fg-muted">
-            Required-document checklist across companies and people.
+            Company checklist plus expat document requirements; other people are monitored when documents exist.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

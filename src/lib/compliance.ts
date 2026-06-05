@@ -7,7 +7,7 @@ export type ComplianceRequirement = {
   label: string;
   categories: string[];
   ownerType: ComplianceOwnerType;
-  appliesTo: "all" | "expat";
+  appliesTo: "all" | "internal" | "external" | "expat";
   weight: number;
 };
 
@@ -26,6 +26,7 @@ export type ComplianceScore = {
   missing: number;
   expired: number;
   expiring: number;
+  monitoredDocuments: number;
   status: "Good" | "Watch" | "Risk";
   gaps: ComplianceGap[];
 };
@@ -45,7 +46,7 @@ export const COMPANY_REQUIREMENTS: ComplianceRequirement[] = [
 ];
 
 export const PERSON_REQUIREMENTS: ComplianceRequirement[] = [
-  { id: "person-contract", label: "Employment / engagement contract", categories: ["Contract"], ownerType: "person", appliesTo: "all", weight: 2 },
+  { id: "person-contract", label: "Employment / engagement contract", categories: ["Contract"], ownerType: "person", appliesTo: "expat", weight: 2 },
   { id: "person-passport", label: "Passport", categories: ["Passport"], ownerType: "person", appliesTo: "expat", weight: 3 },
   { id: "person-permit", label: "Visa / work permit", categories: ["Immigration", "Permit"], ownerType: "person", appliesTo: "expat", weight: 3 },
 ];
@@ -57,7 +58,7 @@ function matchesRequirement(doc: DocumentRow, req: ComplianceRequirement) {
 
 function requirementApplies(req: ComplianceRequirement, person?: CompliancePerson) {
   if (req.appliesTo === "all") return true;
-  return person?.personType === "expat";
+  return person?.personType === req.appliesTo;
 }
 
 function scoreStatus(score: number, expired: number, missing: number): ComplianceScore["status"] {
@@ -83,9 +84,10 @@ function calculateScore({
   const totalWeight = requirements.reduce((sum, req) => sum + req.weight, 0);
   let earned = totalWeight;
   let present = 0;
-  let expired = 0;
-  let expiring = 0;
   const gaps: ComplianceGap[] = [];
+  const documentStatuses = liveDocs.map((doc) => deriveDocStatus(doc));
+  let expired = documentStatuses.filter((status) => status === "Expired").length;
+  let expiring = documentStatuses.filter((status) => status === "Expiring").length;
 
   for (const req of requirements) {
     const matching = liveDocs.filter((doc) => matchesRequirement(doc, req));
@@ -97,15 +99,15 @@ function calculateScore({
     present++;
     const statuses = matching.map((doc) => deriveDocStatus(doc));
     if (statuses.includes("Expired")) {
-      expired++;
       earned -= req.weight;
     } else if (statuses.includes("Expiring")) {
-      expiring++;
       earned -= req.weight * 0.4;
     }
   }
 
-  const score = totalWeight > 0 ? Math.max(0, Math.round((earned / totalWeight) * 100)) : 100;
+  const score = totalWeight > 0
+    ? Math.max(0, Math.round((earned / totalWeight) * 100))
+    : Math.max(0, 100 - expired * 25 - expiring * 10);
   const missing = gaps.length;
 
   return {
@@ -118,6 +120,7 @@ function calculateScore({
     missing,
     expired,
     expiring,
+    monitoredDocuments: liveDocs.length,
     status: scoreStatus(score, expired, missing),
     gaps,
   };
@@ -156,7 +159,7 @@ export function buildPersonComplianceScores(
 
 export function worstComplianceScores(scores: ComplianceScore[], limit = 5): ComplianceScore[] {
   return scores
-    .filter((score) => score.status !== "Good")
+    .filter((score) => score.status !== "Good" && (score.required > 0 || score.monitoredDocuments > 0))
     .sort((a, b) => a.score - b.score || b.expired - a.expired || b.missing - a.missing)
     .slice(0, limit);
 }
