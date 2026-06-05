@@ -4,17 +4,16 @@ import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObject } from "react";
 import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence } from "framer-motion";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import * as Dialog from "@radix-ui/react-dialog";
 import {
-  Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search,
+  Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search, X,
   Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText,
-  StickyNote, ListTodo, ClipboardList, type LucideIcon,
+  ClipboardList, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { useRegisteredActions } from "./context-actions";
-import { triggerHaptic } from "@/lib/use-long-press";
 
 /* --------------------------------------------------------------------- */
 
@@ -50,294 +49,93 @@ function NavTab({
 }
 
 /* --------------------------------------------------------------------- */
-/* HRMS tab — tap opens the dashboard; press-and-hold or hover reveals a    */
-/* popup of the registries (release-to-select on touch, or just tap one).   */
+/* HRMS launcher — the single "everywhere else" menu. Click or hover opens  */
+/* a centred dashboard of destinations; pick one to go. Replaces the old    */
+/* HRMS/Workbook popovers and the "More" sheet, so the pill stays minimal.  */
 /* --------------------------------------------------------------------- */
 
-const HRMS_LINKS: Array<{ href: string; label: string; icon: LucideIcon }> = [
+const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
+  { href: "/hrms", label: "HRMS Hub", icon: LayoutGrid },
   { href: "/hrms/oecr", label: "OECR", icon: Package },
   { href: "/hrms/ocr", label: "OCR", icon: Sparkles },
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/people", label: "People", icon: Users },
   { href: "/documents", label: "Documents", icon: FileText },
-];
-
-function HrmsNavTab({ active }: { active: boolean }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [highlight, setHighlight] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const held = useRef(false);
-  const start = useRef<{ x: number; y: number } | null>(null);
-
-  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
-
-  function go(href: string) { setOpen(false); setHighlight(null); router.push(href); }
-
-  function onPointerDown(e: React.PointerEvent) {
-    if (e.pointerType === "mouse") return; // mouse uses hover + click, not long-press
-    held.current = false;
-    start.current = { x: e.clientX, y: e.clientY };
-    clear();
-    timer.current = setTimeout(() => { held.current = true; triggerHaptic(); setOpen(true); }, 300);
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!open || e.pointerType === "mouse") {
-      if (start.current && (Math.abs(e.clientX - start.current.x) > 8 || Math.abs(e.clientY - start.current.y) > 8)) clear();
-      return;
-    }
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const item = el?.closest("[data-hrms-href]");
-    setHighlight(item ? item.getAttribute("data-hrms-href") : null);
-  }
-  function onPointerUp(e: React.PointerEvent) {
-    clear();
-    if (e.pointerType === "mouse") return;
-    if (open && held.current) {
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const item = el?.closest("[data-hrms-href]");
-      if (item) { go(item.getAttribute("data-hrms-href")!); return; }
-      return; // released elsewhere → keep open so they can tap
-    }
-    if (!held.current) setOpen(false); // quick tap → let the Link navigate to /hrms
-  }
-
-  // Desktop hover reveals the popup; a click still goes straight to the dashboard.
-  function onMouseEnter() {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => setOpen(true), 180);
-  }
-  function onMouseLeave() {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => setOpen(false), 160);
-  }
-
-  return (
-    <div className="relative shrink-0" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <Link
-        href="/hrms"
-        aria-label="HRMS"
-        title="HRMS — hold or hover for registries"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={clear}
-        onPointerCancel={clear}
-        onClick={(e) => { if (held.current) e.preventDefault(); }}
-        onContextMenu={(e) => e.preventDefault()}
-        className={cn(
-          "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full transition-colors select-none touch-none",
-          active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-        )}
-      >
-        {active && (
-          <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
-        )}
-        <Briefcase size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
-      </Link>
-
-      {open && (
-        <>
-          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute z-[56] bottom-full mb-3 left-1/2 -translate-x-1/2 w-56 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
-            <Link href="/hrms" onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors">
-              <LayoutGrid size={15} className="shrink-0" /> Dashboard
-            </Link>
-            <div className="my-1 h-px bg-border/60" />
-            {HRMS_LINKS.map((r) => {
-              const Icon = r.icon;
-              return (
-                <button key={r.href} type="button" data-hrms-href={r.href} onClick={() => go(r.href)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-colors",
-                    highlight === r.href ? "bg-accent-soft text-fg" : "text-fg hover:bg-bg-muted/60"
-                  )}>
-                  <Icon size={15} className="shrink-0 text-fg-subtle" />
-                  <span className="truncate">{r.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/* --------------------------------------------------------------------- */
-/* Workbook tab — tap opens Meetings; press-and-hold or hover reveals a     */
-/* popup for Meetings / Notes / To-do (same idea as the HRMS tab).          */
-/* --------------------------------------------------------------------- */
-
-const WORKBOOK_LINKS: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/workbook", label: "Meetings", icon: NotebookPen },
-  { href: "/workbook?tab=notes", label: "Notes", icon: StickyNote },
-  { href: "/workbook?tab=todo", label: "To-do", icon: ListTodo },
-];
-
-function WorkbookNavTab({ active }: { active: boolean }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [highlight, setHighlight] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const held = useRef(false);
-  const start = useRef<{ x: number; y: number } | null>(null);
-
-  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
-
-  function go(href: string) { setOpen(false); setHighlight(null); router.push(href); }
-
-  function onPointerDown(e: React.PointerEvent) {
-    if (e.pointerType === "mouse") return;
-    held.current = false;
-    start.current = { x: e.clientX, y: e.clientY };
-    clear();
-    timer.current = setTimeout(() => { held.current = true; triggerHaptic(); setOpen(true); }, 300);
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!open || e.pointerType === "mouse") {
-      if (start.current && (Math.abs(e.clientX - start.current.x) > 8 || Math.abs(e.clientY - start.current.y) > 8)) clear();
-      return;
-    }
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const item = el?.closest("[data-wb-href]");
-    setHighlight(item ? item.getAttribute("data-wb-href") : null);
-  }
-  function onPointerUp(e: React.PointerEvent) {
-    clear();
-    if (e.pointerType === "mouse") return;
-    if (open && held.current) {
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const item = el?.closest("[data-wb-href]");
-      if (item) { go(item.getAttribute("data-wb-href")!); return; }
-      return;
-    }
-    if (!held.current) setOpen(false); // quick tap → let the Link navigate to /workbook
-  }
-
-  function onMouseEnter() {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => setOpen(true), 180);
-  }
-  function onMouseLeave() {
-    if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => setOpen(false), 160);
-  }
-
-  return (
-    <div className="relative shrink-0" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <Link
-        href="/workbook"
-        aria-label="Workbook"
-        title="Workbook — hold or hover for sections"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={clear}
-        onPointerCancel={clear}
-        onClick={(e) => { if (held.current) e.preventDefault(); }}
-        onContextMenu={(e) => e.preventDefault()}
-        className={cn(
-          "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full transition-colors select-none touch-none",
-          active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-        )}
-      >
-        {active && (
-          <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
-        )}
-        <NotebookPen size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
-      </Link>
-
-      {open && (
-        <>
-          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
-          <div className="absolute z-[56] bottom-full mb-3 left-1/2 -translate-x-1/2 w-48 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
-            <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">Workbook</div>
-            {WORKBOOK_LINKS.map((r) => {
-              const Icon = r.icon;
-              return (
-                <button key={r.href} type="button" data-wb-href={r.href} onClick={() => go(r.href)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-colors",
-                    highlight === r.href ? "bg-accent-soft text-fg" : "text-fg hover:bg-bg-muted/60"
-                  )}>
-                  <Icon size={15} className="shrink-0 text-fg-subtle" />
-                  <span className="truncate">{r.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/* --------------------------------------------------------------------- */
-/* "More" sheet — the secondary destinations                              */
-/* --------------------------------------------------------------------- */
-
-const MORE: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-function MoreSheet({ pathname }: { pathname: string }) {
-  const active = MORE.some((r) => pathname === r.href || pathname.startsWith(r.href + "/"));
+function HrmsLauncher({ active }: { active: boolean }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function go(href: string) { setOpen(false); router.push(href); }
+  function onMouseEnter() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setOpen(true), 160);
+  }
+  function onMouseLeave() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+  }
+
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Trigger asChild>
         <button
           type="button"
-          aria-label="More"
-          title="More"
+          aria-label="HRMS"
+          title="Menu"
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
           className={cn(
             "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full shrink-0 transition-colors outline-none",
-            active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+            active || open ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
           )}
         >
-          {active && (
+          {(active || open) && (
             <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
           )}
-          <LayoutGrid size={20} className="relative" />
+          <Briefcase size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
         </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          side="top"
-          sideOffset={12}
-          align="center"
-          className="z-[60] w-[260px] glass glass-menu rounded-2xl p-2 shadow-lg"
-        >
-          <DropdownMenu.Label className="px-2 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">More</DropdownMenu.Label>
-          <div className="grid grid-cols-3 gap-1">
-            {MORE.map((r) => {
-              const Icon = r.icon;
-              const isActive = pathname === r.href || pathname.startsWith(r.href + "/");
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm
+          data-[state=open]:animate-in data-[state=open]:fade-in-0
+          data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[61] w-[min(420px,calc(100vw-2rem))]
+          -translate-x-1/2 -translate-y-1/2 glass glass-menu elevated rounded-3xl p-4 shadow-2xl outline-none
+          data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
+          data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <Dialog.Title className="text-sm font-semibold">Go to</Dialog.Title>
+            <Dialog.Close asChild>
+              <button type="button" aria-label="Close" className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
+                <X size={15} />
+              </button>
+            </Dialog.Close>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {DESTINATIONS.map((d) => {
+              const Icon = d.icon;
               return (
-                <DropdownMenu.Item key={r.href} asChild>
-                  <Link
-                    href={r.href}
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-1.5 h-16 rounded-xl text-[11px] outline-none cursor-pointer transition-colors",
-                      isActive ? "bg-accent-soft text-accent font-medium" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-                    )}
-                  >
-                    <Icon size={17} />
-                    {r.label}
-                  </Link>
-                </DropdownMenu.Item>
+                <button
+                  key={d.href}
+                  type="button"
+                  onClick={() => go(d.href)}
+                  className="flex flex-col items-center justify-center gap-2 h-[4.75rem] rounded-2xl border border-border bg-bg-elev/60 hover:bg-accent-soft hover:border-accent/30 active:scale-[0.97] transition-all text-center"
+                >
+                  <Icon size={20} className="text-accent" />
+                  <span className="text-[11px] font-medium text-fg leading-tight px-1">{d.label}</span>
+                </button>
               );
             })}
           </div>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -423,7 +221,7 @@ function NavActionButton() {
 /* work untouched.                                                         */
 /* --------------------------------------------------------------------- */
 
-const LENS_SLOTS = ["Home", "Director Brief", "Task Management", "Workbook", "HRMS", "Search"] as const;
+const LENS_SLOTS = ["Home", "Director Brief", "Task Management", "Workbook", "Search"] as const;
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
@@ -550,20 +348,13 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
             "pointer-events-none absolute z-20 overflow-hidden rounded-[1.1rem]",
             plain
               ? "bg-accent-soft ring-1 ring-accent/30"
-              // Clear liquid glass: just a light frost + bright rim. It refracts the
-              // real icons in place (Chromium backdrop) and frosts them elsewhere —
-              // nothing is painted inside, so there's nothing to double up.
               : "glass-refract bg-white/20 dark:bg-white/[0.07] ring-1 ring-white/55 dark:ring-white/25 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.65),inset_0_-1px_0_0_rgba(255,255,255,0.15),0_5px_16px_-6px_rgba(0,0,0,0.35)] backdrop-blur-[3px] backdrop-saturate-[1.7]"
           )}
         >
           {!plain && (
             <>
-              {/* Chromatic-aberration border: two coloured rims that separate with
-                  velocity (the morph) and re-converge to a clean rim at rest. */}
               <motion.span style={{ x: edgeC }} className="pointer-events-none absolute inset-0 rounded-[1.1rem] border-2 border-cyan-300/45 mix-blend-screen" />
               <motion.span style={{ x: edgeR }} className="pointer-events-none absolute inset-0 rounded-[1.1rem] border-2 border-rose-400/45 mix-blend-screen" />
-
-              {/* Specular glare — a soft highlight that lags the motion. */}
               <motion.span style={{ x: glareX }} className="pointer-events-none absolute left-1/2 -top-1 h-3 w-9 -translate-x-1/2 rounded-full bg-white/50 blur-[3px]" />
             </>
           )}
@@ -574,7 +365,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
 }
 
 /* --------------------------------------------------------------------- */
-/* The bottom-floating pill (mobile only)                                 */
+/* The bottom-floating pill                                               */
 /* --------------------------------------------------------------------- */
 
 export function TopPill() {
@@ -590,7 +381,6 @@ export function TopPill() {
     else if (label === "Director Brief") router.push("/brief");
     else if (label === "Task Management") router.push("/?tab=tasks");
     else if (label === "Workbook") router.push("/workbook");
-    else if (label === "HRMS") router.push("/hrms");
     else if (label === "Search") openPalette();
   }
 
@@ -609,15 +399,14 @@ export function TopPill() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 380, damping: 30 }}
         style={{ touchAction: "pan-y" }}
-        className="relative pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2.5 h-14 md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
+        className="relative pointer-events-auto max-w-[calc(100vw-1rem)] glass elevated rounded-full shadow-pill flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2.5 h-14 md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
         <NavLens containerRef={pillRef} onSelect={selectSlot} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} />
         <NavTab href="/brief" icon={ClipboardList} label="Director Brief" active={briefActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
-        <WorkbookNavTab active={workbookActive} />
-        <HrmsNavTab active={hrmsActive} />
-        <MoreSheet pathname={pathname} />
+        <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
+        <HrmsLauncher active={hrmsActive} />
 
         <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
 
