@@ -1,23 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPersonPack, type PersonPackPurpose } from "@/lib/person-pack";
+import { isPersonPackPurpose } from "@/lib/person-pack-shared";
 
 export const dynamic = "force-dynamic";
 
-const PURPOSES: PersonPackPurpose[] = [
-  "document-request",
-  "expat-onboarding",
-  "visa-permit",
-  "work-permit-renewal",
-  "recruitment",
-  "contract-signing",
-  "task-reminder",
-  "custom",
-];
-
 function parsePurpose(value: string | null): PersonPackPurpose {
-  return PURPOSES.includes(value as PersonPackPurpose)
-    ? (value as PersonPackPurpose)
-    : "document-request";
+  return isPersonPackPurpose(value) ? value : "document-request";
 }
 
 export async function GET(req: NextRequest) {

@@ -4,19 +4,9 @@ import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { getPersonDetail } from "@/lib/people-queries";
 import { contactForChannel, linkFor, type Channel } from "@/lib/outbox-links";
-import type { PersonPackPurpose } from "@/lib/person-pack-shared";
+import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
 
 const CHANNELS: Channel[] = ["WHATSAPP", "EMAIL", "SMS"];
-const PURPOSES: PersonPackPurpose[] = [
-  "document-request",
-  "expat-onboarding",
-  "visa-permit",
-  "work-permit-renewal",
-  "recruitment",
-  "contract-signing",
-  "task-reminder",
-  "custom",
-];
 
 export type PersonPackDraftInput = {
   personId: number;
@@ -46,7 +36,7 @@ function todayStartIso() {
 }
 
 function validPurpose(value: string): value is PersonPackPurpose {
-  return PURPOSES.includes(value as PersonPackPurpose);
+  return isPersonPackPurpose(value);
 }
 
 function validChannel(value: string): value is Channel {

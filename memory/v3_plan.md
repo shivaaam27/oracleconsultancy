@@ -131,11 +131,14 @@ Examples:
    builder now includes Expat Onboarding, Work Permit Renewal, Recruitment File
    and Contract Signing as minimalist purpose presets using the same toggle/PDF/
    Outbox flow. **Ask COS pack intent added:** commands such as "prepare visa
-   pack for Shivam" resolve locally to the correct person-pack preview route,
+   pack for Shivam" resolve locally to the person-pack Prepare pack route,
    without creating a draft or sending anything. **Home/Ask COS routing cleanup:**
    Home person-pack signals and Ask COS person-pack commands now open
    `/people?person=ID&pack=1[&purpose=...]`, landing in the cleaned Prepare pack
    modal with the intended purpose selected.
+   **Phase 7 cleanup:** person-pack purpose validation now uses the shared
+   `PERSON_PACK_PURPOSES` / `isPersonPackPurpose` helper instead of repeated
+   allow-lists across API, PDF, actions and drawer code.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,

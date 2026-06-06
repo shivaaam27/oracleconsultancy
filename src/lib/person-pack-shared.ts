@@ -8,6 +8,21 @@ export type PersonPackPurpose =
   | "task-reminder"
   | "custom";
 
+export const PERSON_PACK_PURPOSES: PersonPackPurpose[] = [
+  "document-request",
+  "expat-onboarding",
+  "visa-permit",
+  "work-permit-renewal",
+  "recruitment",
+  "contract-signing",
+  "task-reminder",
+  "custom",
+];
+
+export function isPersonPackPurpose(value: string | null | undefined): value is PersonPackPurpose {
+  return !!value && PERSON_PACK_PURPOSES.includes(value as PersonPackPurpose);
+}
+
 export type PersonPackSectionKey =
   | "missingDocuments"
   | "documentIssues"

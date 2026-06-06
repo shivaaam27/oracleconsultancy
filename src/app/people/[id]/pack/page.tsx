@@ -19,6 +19,7 @@ import {
   type PersonPackPurpose,
 } from "@/lib/person-pack";
 import type { PersonPackSectionSelection } from "@/lib/person-pack-shared";
+import { isPersonPackPurpose } from "@/lib/person-pack-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -33,19 +34,8 @@ const PURPOSE_LABELS: Record<PersonPackPurpose, string> = {
   custom: "Custom",
 };
 
-const PURPOSES: PersonPackPurpose[] = [
-  "document-request",
-  "expat-onboarding",
-  "visa-permit",
-  "work-permit-renewal",
-  "recruitment",
-  "contract-signing",
-  "task-reminder",
-  "custom",
-];
-
 function parsePurpose(value?: string): PersonPackPurpose {
-  return PURPOSES.includes(value as PersonPackPurpose) ? (value as PersonPackPurpose) : "document-request";
+  return isPersonPackPurpose(value) ? value : "document-request";
 }
 
 function fmtDate(value: Date | string | null) {

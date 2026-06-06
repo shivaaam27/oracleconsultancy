@@ -17,7 +17,7 @@ import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
 import type { TaskRow } from "@/lib/queries";
-import type { PersonPackPurpose } from "@/lib/person-pack-shared";
+import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
 
 /* -------------------------------------------------------------------------
  * API payload types — mirror lib/people-queries.ts PersonDetail
@@ -119,19 +119,8 @@ function buildPersonReminder(name: string, tasks: { code: string; actionItem: st
   return lines.join("\n");
 }
 
-const PERSON_PACK_PURPOSES: PersonPackPurpose[] = [
-  "document-request",
-  "expat-onboarding",
-  "visa-permit",
-  "work-permit-renewal",
-  "recruitment",
-  "contract-signing",
-  "task-reminder",
-  "custom",
-];
-
 function parsePackPurpose(value: string | null): PersonPackPurpose | undefined {
-  return PERSON_PACK_PURPOSES.includes(value as PersonPackPurpose) ? (value as PersonPackPurpose) : undefined;
+  return isPersonPackPurpose(value) ? value : undefined;
 }
 
 function docMatches(doc: DrawerData["documents"][number], terms: string[]) {
