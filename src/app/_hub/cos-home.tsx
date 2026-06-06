@@ -167,11 +167,22 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     name: p.name as string,
     personType: (p.person_type as string | null) ?? "internal",
   }));
+  const companyComplianceScores = buildCompanyComplianceScores(companies, documents);
+  const personComplianceScores = buildPersonComplianceScores(people, documents);
   const complianceRisks = worstComplianceScores([
-    ...buildCompanyComplianceScores(companies, documents),
-    ...buildPersonComplianceScores(people, documents),
+    ...companyComplianceScores,
+    ...personComplianceScores,
   ], 6);
   const complianceIssues = complianceRisks.reduce((sum, score) => sum + score.missing + score.expired + score.expiring, 0);
+  const personTypeById = new Map(people.map((person) => [person.id, person.personType]));
+  const personPackNeeds = personComplianceScores
+    .filter((score) => score.status !== "Good" && (score.required > 0 || score.monitoredDocuments > 0))
+    .sort((a, b) => {
+      const expatA = personTypeById.get(a.ownerId) === "expat" ? 1 : 0;
+      const expatB = personTypeById.get(b.ownerId) === "expat" ? 1 : 0;
+      return expatB - expatA || a.score - b.score || b.expired - a.expired || b.missing - a.missing;
+    });
+  const expatPackNeeds = personPackNeeds.filter((score) => personTypeById.get(score.ownerId) === "expat");
 
   const recentMeetings = meetings
     .filter((m) => {
@@ -236,6 +247,17 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       actionLabel: "Review documents",
       tone: expiredDocs.length ? "danger" : "warn",
       count: expiringDocs.length,
+    },
+    personPackNeeds.length > 0 && {
+      id: "person-pack-needs",
+      title: `Prepare ${personPackNeeds.length} person pack${personPackNeeds.length === 1 ? "" : "s"}`,
+      detail: expatPackNeeds.length
+        ? `${expatPackNeeds.length} expat file${expatPackNeeds.length === 1 ? "" : "s"} need document follow-up.`
+        : "People have personal document issues; prepare a focused pack before chasing.",
+      href: "/people",
+      actionLabel: "Open People",
+      tone: personPackNeeds.some((score) => score.status === "Risk") ? "danger" : "warn",
+      count: personPackNeeds.length,
     },
     complianceRisks.length > 0 && {
       id: "compliance-gaps",
@@ -331,11 +353,24 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     due: expiryLabel(d),
   }));
 
-  const complianceFocus: FocusItem[] = complianceRisks.slice(0, 4).map((score) => ({
+  const personPackFocus: FocusItem[] = personPackNeeds.slice(0, 4).map((score) => {
+    const firstIssue = score.gaps[0]?.label ?? score.documentIssues[0]?.title ?? "Personal document follow-up";
+    return {
+      id: `person-pack-${score.ownerId}`,
+      title: `Person pack: ${score.ownerName}`,
+      meta: `${firstIssue} Â· ${score.missing} missing - ${score.expired} expired - ${score.expiring} expiring`,
+      href: `/people?person=${score.ownerId}`,
+      kind: "document",
+      tone: score.status === "Risk" ? "danger" : "warn",
+      due: personTypeById.get(score.ownerId) === "expat" ? "Expat" : score.documentIssues[0]?.expiryLabel ?? null,
+    };
+  });
+
+  const complianceFocus: FocusItem[] = complianceRisks.filter((score) => score.ownerType === "company").slice(0, 4).map((score) => ({
     id: `compliance-${score.ownerType}-${score.ownerId}`,
     title: `${score.ownerName}: ${score.score}% compliance`,
     meta: `${score.missing} missing - ${score.expired} expired - ${score.expiring} expiring`,
-    href: score.ownerType === "company" ? `/documents?company=${score.ownerId}` : `/people?person=${score.ownerId}`,
+    href: `/documents?company=${score.ownerId}`,
     kind: "document",
     tone: score.status === "Risk" ? "danger" : "warn",
     due: score.gaps[0]?.label ?? null,
@@ -351,7 +386,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     due: null,
   }));
 
-  const focus = [...taskFocus, ...docFocus, ...complianceFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
+  const focus = [...taskFocus, ...docFocus, ...personPackFocus, ...complianceFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
 
   const pulse: PulseMetric[] = [
     { label: "Open tasks", value: kpis.open },
@@ -361,6 +396,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
     { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
     { label: "Compliance issues", value: complianceIssues, tone: complianceIssues ? "warn" : "success" },
+    { label: "Person packs", value: personPackNeeds.length, tone: personPackNeeds.length ? "warn" : "success" },
     { label: "Stale tasks", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success" },
   ];
 

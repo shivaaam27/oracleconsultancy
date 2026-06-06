@@ -105,7 +105,10 @@ Examples:
    preset has no action items, explicit advice to include tasks/to-dos only when
    wanted, and a PDF layout closer to Director Brief (headline, stat cards,
    report sections). Compliance detail now offers Add Document for missing
-   requirements and a person-pack PDF route for person issues.
+   requirements and a person-pack PDF route for person issues. **Home signal
+   added:** Home Intelligence now surfaces person-pack needs separately from
+   company compliance, prioritising expat/personal document issues in the
+   command cards, focus queue and pulse strip.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,
