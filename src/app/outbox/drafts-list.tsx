@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo } from "lucide-react";
+import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo, PackageCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { linkFor, channelLabel, type Channel } from "@/lib/outbox-links";
@@ -74,6 +74,7 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
         <span className="font-medium text-sm truncate">{draft.recipientName}</span>
         <span className="text-[11px] text-fg-subtle">· {channelLabel(draft.channel)}</span>
         {draft.todoId && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><ListTodo size={11} /> from to-do</span>}
+        {draft.source?.startsWith("person-pack") && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><PackageCheck size={11} /> person pack</span>}
         {draft.recipientContact && <span className="ml-auto text-[11px] text-fg-subtle truncate max-w-[160px] hidden sm:inline tabular">{draft.recipientContact}</span>}
       </div>
 

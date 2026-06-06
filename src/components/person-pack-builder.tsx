@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, ClipboardList, FileText, FileWarning, Loader2, PackageCheck, Plus, ShieldCheck, X } from "lucide-react";
+import { Check, ClipboardList, FileText, FileWarning, Loader2, Mail, MessageCircle, PackageCheck, Phone, Plus, Send, ShieldCheck, X } from "lucide-react";
 import { Badge, Button } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { createPersonPackDraftAction } from "@/app/people/pack-actions";
 import { cn } from "@/lib/cn";
+import { channelLabel, contactForChannel, pickChannel, type Channel } from "@/lib/outbox-links";
 import type {
   PersonPackPurpose,
   PersonPackSectionKey,
@@ -21,6 +25,10 @@ type PackResponse = {
       role: string | null;
       companyName: string | null;
       personType: "internal" | "external" | "expat";
+      email: string | null;
+      phone: string | null;
+      whatsapp: string | null;
+      preferredChannel: string | null;
     };
   };
   compliance: {
@@ -65,6 +73,12 @@ const purposeOptions: Array<{ id: PersonPackPurpose; label: string; hint: string
   { id: "task-reminder", label: "Task Reminder", hint: "Work assigned to this person." },
   { id: "custom", label: "Custom", hint: "Start blank and choose sections." },
 ];
+
+const channelIcons: Record<Channel, typeof MessageCircle> = {
+  WHATSAPP: MessageCircle,
+  EMAIL: Mail,
+  SMS: Phone,
+};
 
 const sectionLabels: Array<{ key: PersonPackSectionKey; label: string; sensitive?: boolean }> = [
   { key: "missingDocuments", label: "Missing documents" },
@@ -133,6 +147,118 @@ function selectedActionCount(pack: PackResponse, selection: PersonPackSectionSel
     (selection.openTasks ? pack.openTasks.length : 0) +
     (selection.personalTodos ? pack.personalTodos.length : 0)
   );
+}
+
+function purposeLabel(purpose: PersonPackPurpose) {
+  return purposeOptions.find((option) => option.id === purpose)?.label ?? "Person Pack";
+}
+
+function listLines(items: string[], limit: number) {
+  const shown = items.slice(0, limit);
+  const more = items.length - shown.length;
+  return [...shown.map((item) => `- ${item}`), ...(more > 0 ? [`- ${more} more item${more === 1 ? "" : "s"} in the pack.`] : [])];
+}
+
+function buildPersonPackMessage(
+  pack: PackResponse,
+  selection: PersonPackSectionSelection,
+  purpose: PersonPackPurpose,
+  channel: Channel
+) {
+  const person = pack.detail.person;
+  const title = purposeLabel(purpose);
+  const subject = `${title}: ${person.name}`;
+  const limit = channel === "EMAIL" ? 14 : 8;
+  const sections: string[] = [];
+
+  if (selection.missingDocuments) {
+    if (pack.compliance.gaps.length) {
+      sections.push("Documents needed:", ...listLines(pack.compliance.gaps.map((gap) => gap.label), limit));
+    } else {
+      sections.push(pack.compliance.required === 0 ? "Missing documents: no required checklist applies yet." : "Missing documents: none currently missing.");
+    }
+  }
+
+  if (selection.documentIssues) {
+    if (pack.compliance.documentIssues.length) {
+      sections.push(
+        "Documents needing attention:",
+        ...listLines(pack.compliance.documentIssues.map((doc) => `${doc.title}${doc.expiryLabel ? ` (${doc.expiryLabel})` : ""}`), limit)
+      );
+    } else {
+      sections.push("Expired/expiring documents: none found.");
+    }
+  }
+
+  if (selection.linkedDocuments) {
+    if (pack.documents.length) {
+      sections.push(
+        "Documents on file:",
+        ...listLines(
+          pack.documents.map((doc) => {
+            const file = selection.fileLinks && doc.fileUrl ? ` - ${doc.fileUrl}` : "";
+            const expiry = doc.expiryLabel ?? fmtDate(doc.expiryDate);
+            return `${doc.title} (${doc.status}${expiry ? `, ${expiry}` : ""})${file}`;
+          }),
+          limit
+        )
+      );
+    } else {
+      sections.push("Documents on file: none linked to your profile yet.");
+    }
+  }
+
+  if (selection.openTasks) {
+    if (pack.openTasks.length) {
+      sections.push(
+        "Open work:",
+        ...listLines(
+          pack.openTasks.map((task) => {
+            const due = selection.deadlines && task.deadline ? `, due ${fmtDate(task.deadline)}` : "";
+            return `${task.code}: ${task.actionItem}${due} (${task.priority})`;
+          }),
+          limit
+        )
+      );
+    } else {
+      sections.push("Open work: none assigned.");
+    }
+  }
+
+  if (selection.personalTodos) {
+    if (pack.personalTodos.length) {
+      sections.push(
+        "To-dos:",
+        ...listLines(
+          pack.personalTodos.map((todo) => `${todo.title}${selection.deadlines && todo.dueAt ? ` (due ${fmtDate(todo.dueAt)})` : ""}`),
+          limit
+        )
+      );
+    } else {
+      sections.push("To-dos: none assigned.");
+    }
+  }
+
+  if (sections.length === 0) {
+    sections.push("No sections are selected yet.");
+  }
+
+  if (channel === "SMS") {
+    const actions = selectedActionCount(pack, selection);
+    return {
+      subject,
+      body: actions > 0
+        ? `Hi ${person.name}, Oracle Consultancy reminder: ${actions} selected item${actions === 1 ? "" : "s"} need attention. Please review the pack and send updates.`
+        : `Hi ${person.name}, Oracle Consultancy: your selected HR pack has no action items right now. Thanks.`,
+    };
+  }
+
+  const greeting = `Hi ${person.name},`;
+  const intro = channel === "EMAIL"
+    ? `Please find below the selected ${title.toLowerCase()} items for your review.`
+    : `Here are the selected ${title.toLowerCase()} items for your review.`;
+  const body = [greeting, "", intro, "", ...sections, "", "Thanks,", "Oracle Consultancy"].join("\n");
+  return { subject, body };
 }
 
 function PackGuidance({
@@ -397,13 +523,73 @@ function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPac
   );
 }
 
+function DraftMessagePreview({
+  pack,
+  channel,
+  setChannel,
+  message,
+}: {
+  pack: PackResponse;
+  channel: Channel;
+  setChannel: (channel: Channel) => void;
+  message: { subject: string; body: string };
+}) {
+  const contact = contactForChannel(pack.detail.person, channel);
+
+  return (
+    <div className="rounded-xl bg-bg-elev p-3 ring-1 ring-border">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Message preview</div>
+          <div className="mt-0.5 text-xs text-fg-subtle">{contact || `No ${channelLabel(channel).toLowerCase()} contact saved`}</div>
+        </div>
+        <div className="flex rounded-lg bg-bg-subtle p-1 ring-1 ring-border/60">
+          {(["WHATSAPP", "EMAIL", "SMS"] as Channel[]).map((option) => {
+            const Icon = channelIcons[option];
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setChannel(option)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors",
+                  channel === option ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg"
+                )}
+              >
+                <Icon size={13} /> {channelLabel(option)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {channel === "EMAIL" && (
+        <div className="mt-3 rounded-lg bg-bg-subtle/60 px-3 py-2 text-xs">
+          <span className="text-fg-subtle">Subject: </span>
+          <span className="font-medium">{message.subject}</span>
+        </div>
+      )}
+      <pre className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg bg-bg-subtle/60 p-3 text-xs leading-relaxed text-fg-muted">
+        {message.body}
+      </pre>
+    </div>
+  );
+}
+
 export function PersonPackBuilder({ personId, personName }: { personId: number; personName: string }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [purpose, setPurpose] = useState<PersonPackPurpose>("document-request");
   const [pack, setPack] = useState<PackResponse | null>(null);
   const [selection, setSelection] = useState<PersonPackSectionSelection | null>(null);
+  const [channel, setChannel] = useState<Channel>("WHATSAPP");
+  const [draftPending, startDraftTransition] = useTransition();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const messagePreview = useMemo(
+    () => (pack && selection ? buildPersonPackMessage(pack, selection, purpose, channel) : null),
+    [pack, selection, purpose, channel]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -419,6 +605,7 @@ export function PersonPackBuilder({ personId, personName }: { personId: number; 
         if (cancelled) return;
         setPack(data);
         setSelection(data.recommendedSelection);
+        setChannel(pickChannel(data.detail.person));
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
@@ -444,6 +631,34 @@ export function PersonPackBuilder({ personId, personName }: { personId: number; 
       sections: serialisePersonPackSections(selection),
     });
     window.open(`/people/${personId}/pack?${params.toString()}`, "_blank", "noopener,noreferrer");
+  }
+
+  function createDraft() {
+    if (!pack || !selection || !messagePreview) return;
+    const sections = serialisePersonPackSections(selection);
+    startDraftTransition(async () => {
+      const res = await createPersonPackDraftAction({
+        personId,
+        purpose,
+        sections,
+        channel,
+        subject: messagePreview.subject,
+        body: messagePreview.body,
+      });
+      if (!res.ok) {
+        toast(res.error, { tone: "danger", duration: 4500 });
+        return;
+      }
+      toast(
+        res.created
+          ? res.contactMissing
+            ? "Draft saved in Outbox, but this channel has no contact saved."
+            : "Person pack draft saved in Outbox."
+          : "A matching person pack draft already exists today.",
+        { tone: res.contactMissing ? "warn" : res.created ? "success" : "default", duration: 4500 }
+      );
+      router.refresh();
+    });
   }
 
   return (
@@ -540,9 +755,14 @@ export function PersonPackBuilder({ personId, personName }: { personId: number; 
                   </div>
                   <PackGuidance pack={pack} selection={selection} include={include} switchPurpose={setPurpose} />
                   <Preview pack={pack} selection={selection} />
+                  {messagePreview && (
+                    <DraftMessagePreview pack={pack} channel={channel} setChannel={setChannel} message={messagePreview} />
+                  )}
                   <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap justify-end gap-2 border-t border-border bg-bg/80 px-4 py-3 backdrop-blur-md">
                     <Button type="button" variant="secondary" size="sm" onClick={openPdf}>PDF</Button>
-                    <Button type="button" size="sm" disabled>Create Outbox Draft next</Button>
+                    <Button type="button" size="sm" onClick={createDraft} loading={draftPending}>
+                      <Send size={13} /> Create Outbox Draft
+                    </Button>
                   </div>
                 </>
               )}

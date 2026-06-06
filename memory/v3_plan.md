@@ -92,8 +92,10 @@ Examples:
    and can open a selected-section PDF route at `/people/[id]/pack`, using the
    existing Director Brief-style print approach. The PDF now has a person-facing
    request summary, selected-section content only, pack-specific print sections,
-   and a print/PDF button. Outbox draft creation remains intentionally disabled
-   for the next phase. **Documents integration added:** the Documents form now
+   and a print/PDF button. **Outbox draft phase complete:** the builder now
+   shows channel-specific message wording before saving, then creates a saved
+   Draft in Outbox with `source="person-pack:..."` and no auto-send.
+   **Documents integration added:** the Documents form now
    has explicit ownership (Company / Person / Company + Person), supports URL
    prefill such as `/documents?newdoc=1&person=ID`, includes a person filter and
    labels person-linked documents as Person Pack inputs. Missing Person Pack
