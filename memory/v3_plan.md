@@ -111,6 +111,9 @@ Examples:
    and a print/PDF button. **Outbox draft phase complete:** the builder now
    shows channel-specific message wording before saving, then creates a saved
    Draft in Outbox with `source="person-pack:..."` and no auto-send.
+   **Outbox context cleanup:** person-pack drafts now parse their saved source,
+   show the pack purpose, and provide direct PDF and Edit pack links while still
+   requiring manual WhatsApp/email opening and Mark sent.
    **Documents integration added:** the Documents form now
    has explicit ownership (Company / Person / Company + Person), supports URL
    prefill such as `/documents?newdoc=1&person=ID`, includes a person filter and

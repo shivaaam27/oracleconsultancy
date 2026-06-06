@@ -10,6 +10,32 @@ import { sendDraft, updateDraft, deleteDraft } from "./actions";
 
 const channelIcon: Record<Channel, typeof MessageCircle> = { WHATSAPP: MessageCircle, EMAIL: Mail, SMS: Phone };
 
+const purposeLabels: Record<string, string> = {
+  "document-request": "Documents",
+  "expat-onboarding": "Expat onboarding",
+  "visa-permit": "Visa / permit",
+  "work-permit-renewal": "Work permit renewal",
+  recruitment: "Recruitment",
+  "contract-signing": "Contract signing",
+  "task-reminder": "Work reminder",
+  custom: "Custom",
+};
+
+function parsePersonPackSource(source: string | null, personId: number | null) {
+  if (!source?.startsWith("person-pack:")) return null;
+  const [, sourcePersonId, purpose = "document-request", sections = ""] = source.split(":");
+  const id = personId ?? Number(sourcePersonId);
+  if (!Number.isFinite(id)) return null;
+  return {
+    personId: id,
+    purpose,
+    sections,
+    label: purposeLabels[purpose] ?? "Person pack",
+    pdfHref: `/people/${id}/pack?${new URLSearchParams({ purpose, sections }).toString()}`,
+    editHref: `/people?${new URLSearchParams({ person: String(id), pack: "1" }).toString()}`,
+  };
+}
+
 export function DraftsList({ drafts }: { drafts: OutboxDraftRow[] }) {
   const [items, setItems] = useState(drafts);
   if (items.length === 0) return null;
@@ -38,6 +64,7 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
   const [pending, startTransition] = useTransition();
   const Icon = channelIcon[draft.channel];
   const link = linkFor(draft.channel, draft.recipientContact, subject, body);
+  const pack = parsePersonPackSource(draft.source, draft.personId);
 
   function saveIfNeeded() {
     if (body !== draft.body || subject !== (draft.subject ?? "")) {
@@ -74,7 +101,7 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
         <span className="font-medium text-sm truncate">{draft.recipientName}</span>
         <span className="text-[11px] text-fg-subtle">· {channelLabel(draft.channel)}</span>
         {draft.todoId && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><ListTodo size={11} /> from to-do</span>}
-        {draft.source?.startsWith("person-pack") && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><PackageCheck size={11} /> person pack</span>}
+        {pack && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><PackageCheck size={11} /> {pack.label}</span>}
         {draft.recipientContact && <span className="ml-auto text-[11px] text-fg-subtle truncate max-w-[160px] hidden sm:inline tabular">{draft.recipientContact}</span>}
       </div>
 
@@ -87,9 +114,19 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
         <pre className="text-xs whitespace-pre-wrap font-sans text-fg-muted leading-relaxed">{body}</pre>
       )}
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <button type="button" onClick={() => setEditing((e) => { if (e) saveIfNeeded(); return !e; })} className={cn("inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors", editing ? "bg-accent/15 text-accent" : "text-fg-subtle hover:text-fg hover:bg-bg-muted")} title="Edit"><Pencil size={12} /></button>
         <button type="button" onClick={onCopy} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors">{copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}</button>
+        {pack && (
+          <>
+            <a href={pack.pdfHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors">
+              <PackageCheck size={12} /> PDF
+            </a>
+            <a href={pack.editHref} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors">
+              <Pencil size={12} /> Edit pack
+            </a>
+          </>
+        )}
         {link && (
           <a href={link} target="_blank" rel="noopener noreferrer" onClick={saveIfNeeded} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity" title={`Open ${channelLabel(draft.channel)}`}>
             <ExternalLink size={12} /> Open {channelLabel(draft.channel)}
