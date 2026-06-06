@@ -132,7 +132,10 @@ Examples:
    and Contract Signing as minimalist purpose presets using the same toggle/PDF/
    Outbox flow. **Ask COS pack intent added:** commands such as "prepare visa
    pack for Shivam" resolve locally to the correct person-pack preview route,
-   without creating a draft or sending anything.
+   without creating a draft or sending anything. **Home/Ask COS routing cleanup:**
+   Home person-pack signals and Ask COS person-pack commands now open
+   `/people?person=ID&pack=1[&purpose=...]`, landing in the cleaned Prepare pack
+   modal with the intended purpose selected.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,

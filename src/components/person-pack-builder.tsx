@@ -809,15 +809,17 @@ export function PersonPackBuilder({
   personId,
   personName,
   openOnMount = false,
+  initialPurpose,
 }: {
   personId: number;
   personName: string;
   openOnMount?: boolean;
+  initialPurpose?: PersonPackPurpose;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [purpose, setPurpose] = useState<PersonPackPurpose>("document-request");
+  const [purpose, setPurpose] = useState<PersonPackPurpose>(initialPurpose ?? "document-request");
   const [pack, setPack] = useState<PackResponse | null>(null);
   const [selection, setSelection] = useState<PersonPackSectionSelection | null>(null);
   const [channel, setChannel] = useState<Channel>("WHATSAPP");
@@ -830,8 +832,11 @@ export function PersonPackBuilder({
   );
 
   useEffect(() => {
-    if (openOnMount) setOpen(true);
-  }, [openOnMount]);
+    if (openOnMount) {
+      if (initialPurpose) setPurpose(initialPurpose);
+      setOpen(true);
+    }
+  }, [openOnMount, initialPurpose]);
 
   useEffect(() => {
     if (!open) return;

@@ -254,7 +254,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       detail: expatPackNeeds.length
         ? `${expatPackNeeds.length} expat file${expatPackNeeds.length === 1 ? "" : "s"} need document follow-up.`
         : "People have personal document issues; prepare a focused pack before chasing.",
-      href: "/people",
+      href: personPackNeeds[0] ? `/people?person=${personPackNeeds[0].ownerId}&pack=1` : "/people",
       actionLabel: "Open People",
       tone: personPackNeeds.some((score) => score.status === "Risk") ? "danger" : "warn",
       count: personPackNeeds.length,
@@ -359,7 +359,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       id: `person-pack-${score.ownerId}`,
       title: `Person pack: ${score.ownerName}`,
       meta: `${firstIssue} Â· ${score.missing} missing - ${score.expired} expired - ${score.expiring} expiring`,
-      href: `/people?person=${score.ownerId}`,
+      href: `/people?person=${score.ownerId}&pack=1`,
       kind: "document",
       tone: score.status === "Risk" ? "danger" : "warn",
       due: personTypeById.get(score.ownerId) === "expat" ? "Expat" : score.documentIssues[0]?.expiryLabel ?? null,

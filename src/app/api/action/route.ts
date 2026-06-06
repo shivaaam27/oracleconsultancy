@@ -355,8 +355,8 @@ export async function POST(req: NextRequest) {
       if (!person) {
         return NextResponse.json({ intent, ok: false, message: `Person "${intent.personName}" not found` });
       }
-      const params = new URLSearchParams({ purpose: intent.purpose });
-      const redirect = `/people/${person.id}/pack?${params.toString()}`;
+      const params = new URLSearchParams({ person: String(person.id), pack: "1", purpose: intent.purpose });
+      const redirect = `/people?${params.toString()}`;
       return NextResponse.json({
         intent,
         ok: true,
