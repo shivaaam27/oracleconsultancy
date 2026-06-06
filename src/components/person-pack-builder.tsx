@@ -66,14 +66,22 @@ type PackResponse = {
   };
 };
 
+const purposeNames: Record<PersonPackPurpose, string> = {
+  "document-request": "Documents",
+  "expat-onboarding": "Expat Onboarding",
+  "visa-permit": "Visa / Permit",
+  "work-permit-renewal": "Work Permit Renewal",
+  recruitment: "Recruitment",
+  "contract-signing": "Contract Signing",
+  "task-reminder": "Work Reminder",
+  custom: "Custom",
+};
+
 const purposeOptions: Array<{ id: PersonPackPurpose; label: string; hint: string }> = [
-  { id: "document-request", label: "Document Request", hint: "Only what they need to send." },
-  { id: "expat-onboarding", label: "Expat Onboarding", hint: "Passport, permit, contract and HR file." },
-  { id: "visa-permit", label: "Visa / Permit", hint: "Immigration, permit and linked work." },
-  { id: "work-permit-renewal", label: "Work Permit Renewal", hint: "Renewal documents and linked tasks." },
-  { id: "recruitment", label: "Recruitment File", hint: "Candidate or new-starter request." },
-  { id: "contract-signing", label: "Contract Signing", hint: "Contract, contact and signing context." },
-  { id: "task-reminder", label: "Task Reminder", hint: "Work assigned to this person." },
+  { id: "document-request", label: "Documents", hint: "Request or confirm HR documents." },
+  { id: "visa-permit", label: "Visa / Permit", hint: "Immigration and permit follow-up." },
+  { id: "recruitment", label: "Recruitment", hint: "Candidate or new-starter file." },
+  { id: "task-reminder", label: "Work Reminder", hint: "Only assigned work and dates." },
   { id: "custom", label: "Custom", hint: "Start blank and choose sections." },
 ];
 
@@ -83,19 +91,64 @@ const channelIcons: Record<Channel, typeof MessageCircle> = {
   SMS: Phone,
 };
 
-const sectionLabels: Array<{ key: PersonPackSectionKey; label: string; sensitive?: boolean }> = [
-  { key: "missingDocuments", label: "Missing documents" },
-  { key: "documentIssues", label: "Expired/expiring documents" },
-  { key: "linkedDocuments", label: "Linked documents" },
-  { key: "openTasks", label: "Open tasks" },
-  { key: "personalTodos", label: "Personal to-dos" },
-  { key: "deadlines", label: "Deadlines" },
-  { key: "latestUpdates", label: "Latest task updates", sensitive: true },
-  { key: "contactDetails", label: "Contact details" },
-  { key: "companyContext", label: "Company context" },
-  { key: "fileLinks", label: "Document file links", sensitive: true },
-  { key: "complianceScore", label: "Compliance score", sensitive: true },
-  { key: "internalNotes", label: "Internal notes", sensitive: true },
+const sectionLabels: Array<{ key: PersonPackSectionKey; label: string; hint?: string; sensitive?: boolean }> = [
+  { key: "missingDocuments", label: "Documents needed", hint: "Missing items to request from the person." },
+  { key: "documentIssues", label: "Expiry issues", hint: "Expired or expiring documents linked to them." },
+  { key: "linkedDocuments", label: "Document list", hint: "A person-facing list of their saved documents." },
+  { key: "fileLinks", label: "File links", hint: "Include document links or filenames.", sensitive: true },
+  { key: "openTasks", label: "Open work", hint: "Tasks currently assigned to this person." },
+  { key: "personalTodos", label: "Personal to-dos", hint: "To-dos assigned to this person." },
+  { key: "deadlines", label: "Due dates", hint: "Show dates next to selected documents/work." },
+  { key: "latestUpdates", label: "Latest updates", hint: "Include recent task update text.", sensitive: true },
+  { key: "contactDetails", label: "Contact details", hint: "Email, WhatsApp and phone on record." },
+  { key: "companyContext", label: "Company/role context", hint: "Primary company, role and links." },
+  { key: "complianceScore", label: "Compliance score", hint: "Internal scoring, not normally recipient-facing.", sensitive: true },
+  { key: "internalNotes", label: "Internal notes", hint: "Private notes from the person record.", sensitive: true },
+];
+
+const sectionMeta = Object.fromEntries(sectionLabels.map((section) => [section.key, section])) as Record<
+  PersonPackSectionKey,
+  (typeof sectionLabels)[number]
+>;
+
+const sectionGroups: Array<{
+  title: string;
+  hint: string;
+  icon: typeof FileText;
+  keys: PersonPackSectionKey[];
+  sensitive?: boolean;
+}> = [
+  {
+    title: "Request",
+    hint: "What the person needs to send or fix.",
+    icon: FileWarning,
+    keys: ["missingDocuments", "documentIssues", "deadlines"],
+  },
+  {
+    title: "Saved documents",
+    hint: "Show what COS already has for this person.",
+    icon: FileText,
+    keys: ["linkedDocuments", "fileLinks"],
+  },
+  {
+    title: "Work follow-up",
+    hint: "Only include this when the message is about work.",
+    icon: ClipboardList,
+    keys: ["openTasks", "personalTodos", "latestUpdates"],
+  },
+  {
+    title: "Profile",
+    hint: "Basic contact and role context.",
+    icon: Phone,
+    keys: ["contactDetails", "companyContext"],
+  },
+  {
+    title: "Sensitive internal",
+    hint: "Normally keep this out of person-facing packs.",
+    icon: ShieldCheck,
+    keys: ["complianceScore", "internalNotes"],
+    sensitive: true,
+  },
 ];
 
 function fmtDate(value: string | null) {
@@ -153,7 +206,7 @@ function selectedActionCount(pack: PackResponse, selection: PersonPackSectionSel
 }
 
 function purposeLabel(purpose: PersonPackPurpose) {
-  return purposeOptions.find((option) => option.id === purpose)?.label ?? "Person Pack";
+  return purposeNames[purpose] ?? "Person Pack";
 }
 
 function listLines(items: string[], limit: number) {
@@ -291,48 +344,214 @@ function PackGuidance({
   if (actionCount > 0 && available.length === 0 && pack.counts.linkedDocuments > 0) return null;
 
   return (
-    <div className="rounded-xl bg-accent-soft/45 p-3 ring-1 ring-accent/15">
+    <div className="rounded-xl bg-bg-subtle/55 p-3 ring-1 ring-border/70">
       <div className="flex items-start gap-2">
-        <ShieldCheck size={15} className="mt-0.5 shrink-0 text-accent" />
+        <ShieldCheck size={14} className="mt-0.5 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">
-            {actionCount === 0 ? "No selected action items in this preset." : "More person data is available."}
+          <div className="text-xs font-medium text-fg">
+            {actionCount === 0 ? "This pack has no selected action items." : "Keep the pack focused."}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-fg-muted">
             {actionCount === 0
-              ? "That can be correct, but the pack should still make it clear what is clean and what else exists for this person."
-              : "Keep the PDF minimal, or include only the extra sections that are relevant to the message you are sending."}
+              ? "That is fine when you only want to share a clean record. Add sections below only if they help the message."
+              : "Only include the extra data the person actually needs to see."}
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {available.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => include(item.key)}
-                className="rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
-              >
-                {item.label}
-              </button>
-            ))}
-            {pack.counts.openTasks > 0 && (
-              <button
-                type="button"
-                onClick={() => switchPurpose("task-reminder")}
-                className="rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
-              >
-                Switch to Task Reminder
-              </button>
+          {(available.length > 0 || pack.counts.openTasks > 0 || pack.counts.linkedDocuments === 0) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {available.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => include(item.key)}
+                  className="rounded-md bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
+                >
+                  {item.label}
+                </button>
+              ))}
+              {pack.counts.openTasks > 0 && !selection.openTasks && (
+                <button
+                  type="button"
+                  onClick={() => switchPurpose("task-reminder")}
+                  className="rounded-md bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
+                >
+                  Use Work Reminder
+                </button>
+              )}
+              {pack.counts.linkedDocuments === 0 && (
+                <a
+                  href={addPersonDocumentHref(pack.detail.person.id)}
+                  className="inline-flex items-center gap-1 rounded-md bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
+                >
+                  <Plus size={11} /> Add document
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PackSnapshot({ pack, selection }: { pack: PackResponse; selection: PersonPackSectionSelection }) {
+  const selectedActions = selectedActionCount(pack, selection);
+  const selectedSections = sectionLabels.filter((section) => selection[section.key]).length;
+  const docsShown = selection.linkedDocuments ? pack.counts.linkedDocuments : 0;
+  const workShown =
+    (selection.openTasks ? pack.counts.openTasks : 0) +
+    (selection.personalTodos ? pack.counts.personalTodos : 0);
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {[
+        { label: "Needs", value: selectedActions, tone: selectedActions ? "text-warn" : "text-success" },
+        { label: "Sections", value: selectedSections, tone: "text-fg" },
+        { label: "Docs shown", value: docsShown, tone: docsShown ? "text-info" : "text-fg-subtle" },
+        { label: "Work shown", value: workShown, tone: workShown ? "text-info" : "text-fg-subtle" },
+      ].map((item) => (
+        <div key={item.label} className="rounded-xl bg-bg-elev px-3 py-2 ring-1 ring-border/70">
+          <div className={cn("text-base font-semibold tabular", item.tone)}>{item.value}</div>
+          <div className="text-[11px] text-fg-muted">{item.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReasonPicker({
+  purpose,
+  setPurpose,
+}: {
+  purpose: PersonPackPurpose;
+  setPurpose: (purpose: PersonPackPurpose) => void;
+}) {
+  return (
+    <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-[11px] text-accent">1</span>
+        Reason
+      </div>
+      <div className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-1">
+        {purposeOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => setPurpose(option.id)}
+            className={cn(
+              "min-h-12 rounded-xl px-3 py-2.5 text-left ring-1 transition-colors",
+              purpose === option.id
+                ? "bg-accent-soft text-fg ring-accent/35"
+                : "bg-bg-subtle/60 text-fg-muted ring-border/70 hover:bg-bg-muted"
             )}
-            {pack.counts.linkedDocuments === 0 && (
-              <a
-                href={addPersonDocumentHref(pack.detail.person.id)}
-                className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
-              >
-                <Plus size={12} /> Add document
-              </a>
-            )}
+          >
+            <span className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 text-sm font-medium">{option.label}</span>
+              {purpose === option.id && <Check size={13} className="shrink-0 text-accent" />}
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-relaxed text-fg-subtle">{option.hint}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SectionToggle({
+  sectionKey,
+  checked,
+  onToggle,
+}: {
+  sectionKey: PersonPackSectionKey;
+  checked: boolean;
+  onToggle: (key: PersonPackSectionKey) => void;
+}) {
+  const meta = sectionMeta[sectionKey];
+
+  return (
+    <label
+      className={cn(
+        "flex min-h-12 cursor-pointer items-start gap-2 rounded-xl px-2.5 py-2.5 text-xs ring-1 transition-colors",
+        checked ? "bg-accent-soft/55 ring-accent/25" : "bg-bg-subtle/55 ring-border/70 hover:bg-bg-muted"
+      )}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={() => onToggle(sectionKey)}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--accent))]"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className="font-medium text-fg">{meta.label}</span>
+          {meta.sensitive && <Badge tone="warn">careful</Badge>}
+        </span>
+        {meta.hint && <span className="mt-0.5 block leading-relaxed text-fg-subtle">{meta.hint}</span>}
+      </span>
+    </label>
+  );
+}
+
+function IncludeGroups({
+  selection,
+  toggle,
+}: {
+  selection: PersonPackSectionSelection;
+  toggle: (key: PersonPackSectionKey) => void;
+}) {
+  const normalGroups = sectionGroups.filter((group) => !group.sensitive);
+  const sensitiveGroups = sectionGroups.filter((group) => group.sensitive);
+
+  const groupBlock = (group: (typeof sectionGroups)[number]) => {
+    const Icon = group.icon;
+    const selected = group.keys.filter((key) => selection[key]).length;
+    return (
+      <div key={group.title} className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
+        <div className="mb-2 flex items-start gap-2">
+          <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-bg-subtle text-fg-muted ring-1 ring-border/60">
+            <Icon size={14} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-medium">{group.title}</div>
+              <Badge tone={selected ? "accent" : "default"}>{selected}/{group.keys.length}</Badge>
+            </div>
+            <p className="mt-0.5 text-xs leading-relaxed text-fg-muted">{group.hint}</p>
           </div>
         </div>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {group.keys.map((key) => (
+            <SectionToggle key={key} sectionKey={key} checked={selection[key]} onToggle={toggle} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-[11px] text-accent">2</span>
+        Include
+      </div>
+      <div className="space-y-2">
+        {normalGroups.map(groupBlock)}
+        {sensitiveGroups.map((group) => (
+          <details key={group.title} className="group rounded-2xl bg-bg-subtle/45 ring-1 ring-border/70">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium text-fg-muted">
+              <ShieldCheck size={14} className="text-warn" />
+              Sensitive internal items
+              <span className="ml-auto text-[11px] text-fg-subtle">open only if needed</span>
+            </summary>
+            <div className="px-3 pb-3">
+              <p className="mb-2 text-xs leading-relaxed text-fg-muted">{group.hint}</p>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {group.keys.map((key) => (
+                  <SectionToggle key={key} sectionKey={key} checked={selection[key]} onToggle={toggle} />
+                ))}
+              </div>
+            </div>
+          </details>
+        ))}
       </div>
     </div>
   );
@@ -340,6 +559,14 @@ function PackGuidance({
 
 function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPackSectionSelection }) {
   const included = useMemo(() => sectionLabels.filter((s) => selection[s.key]), [selection]);
+  const shownCounts = {
+    missingDocuments: selection.missingDocuments ? pack.counts.missingDocuments : 0,
+    documentIssues: selection.documentIssues ? pack.counts.documentIssues : 0,
+    linkedDocuments: selection.linkedDocuments ? pack.counts.linkedDocuments : 0,
+    work:
+      (selection.openTasks ? pack.counts.openTasks : 0) +
+      (selection.personalTodos ? pack.counts.personalTodos : 0),
+  };
 
   if (included.length === 0) {
     return (
@@ -359,20 +586,20 @@ function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPac
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
           <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{pack.counts.missingDocuments}</div>
+            <div className="text-sm font-semibold tabular">{shownCounts.missingDocuments}</div>
             <div className="text-fg-muted">Missing</div>
           </div>
           <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{pack.counts.documentIssues}</div>
+            <div className="text-sm font-semibold tabular">{shownCounts.documentIssues}</div>
             <div className="text-fg-muted">Issues</div>
           </div>
           <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{pack.counts.linkedDocuments}</div>
+            <div className="text-sm font-semibold tabular">{shownCounts.linkedDocuments}</div>
             <div className="text-fg-muted">Documents</div>
           </div>
           <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{pack.counts.openTasks}</div>
-            <div className="text-fg-muted">Open work</div>
+            <div className="text-sm font-semibold tabular">{shownCounts.work}</div>
+            <div className="text-fg-muted">Work</div>
           </div>
         </div>
       </div>
@@ -692,54 +919,29 @@ export function PersonPackBuilder({ personId, personName }: { personId: number; 
             </Dialog.Close>
           </div>
 
-          <div className="grid h-[calc(92svh-61px)] min-h-0 overflow-y-auto md:h-auto md:max-h-[calc(88svh-61px)] md:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="space-y-4 border-b border-border p-4 md:border-b-0 md:border-r">
-              <div>
-                <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">Purpose</div>
-                <div className="space-y-1.5">
-                  {purposeOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setPurpose(option.id)}
-                      className={cn(
-                        "min-h-12 w-full rounded-xl px-3 py-2.5 text-left ring-1 transition-colors",
-                        purpose === option.id
-                          ? "bg-accent-soft text-fg ring-accent/30"
-                          : "bg-bg-elev text-fg-muted ring-border hover:bg-bg-muted"
-                      )}
-                    >
-                      <span className="block text-xs font-medium">{option.label}</span>
-                      <span className="mt-0.5 block text-[11px] text-fg-subtle">{option.hint}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">Sections</div>
+          <div className="h-[calc(92svh-61px)] min-h-0 overflow-y-auto md:h-auto md:max-h-[calc(88svh-61px)]">
+            <div className="grid gap-4 p-4 lg:grid-cols-[330px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <ReasonPicker purpose={purpose} setPurpose={setPurpose} />
                 {selection ? (
-                  <div className="space-y-1.5">
-                    {sectionLabels.map((section) => (
-                      <label key={section.key} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-xs hover:bg-bg-muted">
-                        <input
-                          type="checkbox"
-                          checked={selection[section.key]}
-                          onChange={() => toggle(section.key)}
-                          className="h-4 w-4 shrink-0 accent-[hsl(var(--accent))]"
-                        />
-                        <span className="min-w-0 flex-1">{section.label}</span>
-                        {section.sensitive && <Badge tone="warn">careful</Badge>}
-                      </label>
-                    ))}
-                  </div>
+                  <IncludeGroups selection={selection} toggle={toggle} />
                 ) : (
-                  <div className="text-xs text-fg-muted">Load a person pack to choose sections.</div>
+                  <div className="rounded-2xl bg-bg-elev p-4 text-sm text-fg-muted ring-1 ring-border">
+                    Load a person pack to choose what to include.
+                  </div>
                 )}
               </div>
-            </div>
 
-            <div className="min-w-0 space-y-3 p-4">
+              <div className="min-w-0 space-y-3">
+                <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-[11px] text-accent">3</span>
+                    Preview and draft
+                  </div>
+                  <p className="text-xs leading-relaxed text-fg-muted">
+                    This is recipient-safe by default. The PDF and message use only the sections selected on the left.
+                  </p>
+                </div>
               {loading && (
                 <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-fg-muted">
                   <Loader2 size={16} className="animate-spin" /> Preparing pack...
@@ -748,14 +950,7 @@ export function PersonPackBuilder({ personId, personName }: { personId: number; 
               {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
               {!loading && pack && selection && (
                 <>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Badge tone={pack.counts.missingDocuments ? "danger" : "success"}>{pack.counts.missingDocuments} missing</Badge>
-                    <Badge tone={pack.counts.documentIssues ? "warn" : "success"}>{pack.counts.documentIssues} document issues</Badge>
-                    <Badge tone={pack.counts.linkedDocuments ? "info" : "default"}>{pack.counts.linkedDocuments} linked docs</Badge>
-                    <Badge tone={pack.counts.openTasks ? "info" : "default"}>{pack.counts.openTasks} open tasks</Badge>
-                    <Badge tone={pack.counts.personalTodos ? "info" : "default"}>{pack.counts.personalTodos} to-dos</Badge>
-                    <Badge tone={pack.counts.drafts ? "accent" : "default"}>{pack.counts.drafts} drafts</Badge>
-                  </div>
+                  <PackSnapshot pack={pack} selection={selection} />
                   <PackGuidance pack={pack} selection={selection} include={include} switchPurpose={setPurpose} />
                   <Preview pack={pack} selection={selection} />
                   {messagePreview && (
@@ -769,6 +964,7 @@ export function PersonPackBuilder({ personId, personName }: { personId: number; 
                   </div>
                 </>
               )}
+              </div>
             </div>
           </div>
         </Dialog.Content>

@@ -86,8 +86,12 @@ Examples:
    selections for Document Request, Visa/Permit, Recruitment, Task Reminder and
    Custom. **Phase 2 started:** the person drawer now has a preview-only
    **Prepare pack** action (`src/components/person-pack-builder.tsx`) backed by
-   `/api/person-pack`. It shows purpose presets, careful section toggles and a
-   live content preview. **Phase 3 complete:** the builder is mobile/touch
+   `/api/person-pack`. It now shows a simpler 1-2-3 flow: Reason, Include,
+   Preview and draft. Visible reasons are reduced to Documents, Visa / Permit,
+   Recruitment, Work Reminder and Custom; include options are grouped into
+   Request, Saved documents, Work follow-up, Profile and a collapsed Sensitive
+   internal area. Preview counts reflect only selected sections, so hidden work
+   or internal data does not appear as if it will be sent. **Phase 3 complete:** the builder is mobile/touch
    tightened (phone bottom-sheet behaviour, larger tap rows, sticky action bar)
    and can open a selected-section PDF route at `/people/[id]/pack`, using the
    existing Director Brief-style print approach. The PDF now has a person-facing
