@@ -435,6 +435,7 @@ input:focus, select:focus, textarea:focus {
 .report-company { margin-bottom: 14px; }
 .report-company-head { font-size: 12px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; color: #111; }
 .report-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; }
+.person-pack-section { break-inside: avoid; }
 
 @media print {
   /* The page-transition wrapper (framer-motion) leaves a transform, which makes
@@ -447,6 +448,7 @@ input:focus, select:focus, textarea:focus {
   /* Detailed report starts on a fresh page; keep each company table together;
      repeat the table header across page breaks. */
   .report-section { break-before: page; }
+  .person-pack-section { break-before: auto; break-inside: avoid; margin-bottom: 14px; }
   .report-company { break-inside: avoid; }
   .report-table thead { display: table-header-group; }
   /* Re-map dark theme surfaces/text to light so the page prints legibly. */

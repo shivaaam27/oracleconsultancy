@@ -8,6 +8,7 @@ import { Segmented } from "@/components/macos";
 import { cn } from "@/lib/cn";
 
 type CaptureMode = "upload" | "link" | "text";
+type OwnerMode = "company" | "person" | "both";
 
 // Downscale large images client-side so they fit Groq's 4 MB base64 limit.
 async function downscaleImage(file: File): Promise<File> {
@@ -47,6 +48,10 @@ export function DocumentForm({
   onComplete,
   onCancel,
   initialExtractText,
+  initialCompanyId,
+  initialPersonId,
+  initialCategory,
+  initialTitle,
 }: {
   mode: "create" | "edit";
   doc?: DocumentRow;
@@ -56,10 +61,17 @@ export function DocumentForm({
   onCancel?: () => void;
   /** When set (e.g. filing an Inbox item), pre-loads the auto-fill panel and runs extraction. */
   initialExtractText?: string;
+  initialCompanyId?: number | null;
+  initialPersonId?: number | null;
+  initialCategory?: string | null;
+  initialTitle?: string;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [category, setCategory] = useState(doc?.category ?? "");
+  const [ownerMode, setOwnerMode] = useState<OwnerMode>(
+    doc?.companyId && doc?.personId ? "both" : doc?.personId || initialPersonId ? "person" : "company"
+  );
+  const [category, setCategory] = useState(doc?.category ?? initialCategory ?? "");
   const formRef = useRef<HTMLFormElement>(null);
   // Unified capture: Upload · Link · Paste text. Default depends on what's there.
   const [capMode, setCapMode] = useState<CaptureMode>(
@@ -72,7 +84,9 @@ export function DocumentForm({
   // Track whether the user has touched lead days, so changing category can
   // suggest a default without clobbering an explicit value.
   const [leadTouched, setLeadTouched] = useState(false);
-  const [lead, setLead] = useState<string>(doc ? String(doc.reminderLeadDays) : "30");
+  const [lead, setLead] = useState<string>(
+    doc ? String(doc.reminderLeadDays) : initialCategory && DEFAULT_LEAD_DAYS[initialCategory] ? String(DEFAULT_LEAD_DAYS[initialCategory]) : "30"
+  );
   // File upload state.
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [chosenFile, setChosenFile] = useState<string | null>(null);
@@ -263,8 +277,18 @@ export function DocumentForm({
       <div className="grid gap-2.5 grid-cols-2">
         <div className="col-span-2">
           <label className={labelCls}>Title <span className="text-danger">*</span></label>
-          <input name="title" defaultValue={doc?.title ?? ""} required autoFocus={mode === "create"}
+          <input name="title" defaultValue={doc?.title ?? initialTitle ?? ""} required autoFocus={mode === "create"}
             className={inputCls} placeholder="e.g. Dar Spices Trade Licence" />
+        </div>
+
+        <div className="col-span-2">
+          <label className={labelCls}>This document is for</label>
+          <Segmented<OwnerMode> value={ownerMode} onChange={setOwnerMode}
+            options={[
+              { value: "company", label: "Company" },
+              { value: "person", label: "Person" },
+              { value: "both", label: "Company + Person" },
+            ]} />
         </div>
 
         <div>
@@ -287,21 +311,23 @@ export function DocumentForm({
             placeholder="e.g. Work Permit, TIN" />
         </div>
 
-        <div>
+        <div className={ownerMode === "person" ? "hidden" : ""}>
           <label className={labelCls}>Company</label>
-          <select name="companyId" defaultValue={doc?.companyId ? String(doc.companyId) : ""} className={inputCls}>
+          <select name="companyId" defaultValue={doc?.companyId ? String(doc.companyId) : initialCompanyId ? String(initialCompanyId) : ""} className={inputCls}>
             <option value="">—</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+        {ownerMode === "person" && <input type="hidden" name="companyId" value="" />}
 
-        <div>
-          <label className={labelCls}>Person (optional)</label>
-          <select name="personId" defaultValue={doc?.personId ? String(doc.personId) : ""} className={inputCls}>
+        <div className={ownerMode === "company" ? "hidden" : ""}>
+          <label className={labelCls}>Person</label>
+          <select name="personId" defaultValue={doc?.personId ? String(doc.personId) : initialPersonId ? String(initialPersonId) : ""} className={inputCls}>
             <option value="">—</option>
             {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
+        {ownerMode === "company" && <input type="hidden" name="personId" value="" />}
 
         <div>
           <label className={labelCls}>Issuer</label>

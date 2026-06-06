@@ -380,6 +380,13 @@ export function PersonDrawer() {
                       <AlertCircle size={11} /> No contact info on file
                     </span>
                   )}
+                  <Link
+                    href={`/documents?newdoc=1&person=${person.id}`}
+                    onClick={close}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border hover:border-accent hover:text-accent transition-colors"
+                  >
+                    <FileText size={12} /> Add document
+                  </Link>
                   {data && data.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed") && (
                     <button
                       type="button"

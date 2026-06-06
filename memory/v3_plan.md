@@ -87,11 +87,18 @@ Examples:
    Custom. **Phase 2 started:** the person drawer now has a preview-only
    **Prepare pack** action (`src/components/person-pack-builder.tsx`) backed by
    `/api/person-pack`. It shows purpose presets, careful section toggles and a
-   live content preview. **Phase 3 started:** the builder is mobile/touch
+   live content preview. **Phase 3 complete:** the builder is mobile/touch
    tightened (phone bottom-sheet behaviour, larger tap rows, sticky action bar)
    and can open a selected-section PDF route at `/people/[id]/pack`, using the
-   existing Director Brief-style print approach. Outbox draft creation remains
-   intentionally disabled for the next phase.
+   existing Director Brief-style print approach. The PDF now has a person-facing
+   request summary, selected-section content only, pack-specific print sections,
+   and a print/PDF button. Outbox draft creation remains intentionally disabled
+   for the next phase. **Documents integration added:** the Documents form now
+   has explicit ownership (Company / Person / Company + Person), supports URL
+   prefill such as `/documents?newdoc=1&person=ID`, includes a person filter and
+   labels person-linked documents as Person Pack inputs. Missing Person Pack
+   requirements link straight to Add Document with person/category/title
+   prefilled.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,

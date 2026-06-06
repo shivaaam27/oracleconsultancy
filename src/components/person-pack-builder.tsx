@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, ClipboardList, FileWarning, Loader2, PackageCheck, X } from "lucide-react";
+import { Check, ClipboardList, FileWarning, Loader2, PackageCheck, Plus, X } from "lucide-react";
 import { Badge, Button } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import type {
@@ -69,6 +69,21 @@ function fmtDate(value: string | null) {
   return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function categoryForRequirement(label: string) {
+  const l = label.toLowerCase();
+  if (l.includes("passport")) return "Passport";
+  if (l.includes("permit") || l.includes("visa") || l.includes("immigration")) return "Immigration";
+  if (l.includes("contract") || l.includes("engagement")) return "Contract";
+  return undefined;
+}
+
+function addDocumentHref(personId: number, label: string) {
+  const params = new URLSearchParams({ newdoc: "1", person: String(personId), title: label });
+  const category = categoryForRequirement(label);
+  if (category) params.set("category", category);
+  return `/documents?${params.toString()}`;
+}
+
 function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPackSectionSelection }) {
   const included = useMemo(() => sectionLabels.filter((s) => selection[s.key]), [selection]);
 
@@ -96,9 +111,19 @@ function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPac
             <FileWarning size={13} /> Missing documents
           </div>
           {pack.compliance.gaps.length ? (
-            <ul className="mt-2 space-y-1.5 text-sm">
-              {pack.compliance.gaps.map((gap) => <li key={gap.id}>- {gap.label}</li>)}
-            </ul>
+            <div className="mt-2 space-y-1.5">
+              {pack.compliance.gaps.map((gap) => (
+                <div key={gap.id} className="flex items-center gap-2 rounded-lg bg-bg-subtle/50 px-2.5 py-2 text-sm">
+                  <span className="min-w-0 flex-1">{gap.label}</span>
+                  <a
+                    href={addDocumentHref(pack.detail.person.id, gap.label)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20"
+                  >
+                    <Plus size={12} /> Add
+                  </a>
+                </div>
+              ))}
+            </div>
           ) : (
             <p className="mt-2 text-sm text-fg-muted">No missing required documents found.</p>
           )}

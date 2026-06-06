@@ -40,6 +40,7 @@ export function DocumentsTable({
 
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState<number | "all">("all");
+  const [personFilter, setPersonFilter] = useState<number | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showArchived, setShowArchived] = useState(false);
@@ -49,6 +50,10 @@ export function DocumentsTable({
   const [peek, setPeek] = useState<DocumentRow | null>(null);
   // Text to pre-load the create form's auto-fill panel (e.g. filing an Inbox item).
   const [prefillText, setPrefillText] = useState<string | undefined>(undefined);
+  const [prefillPersonId, setPrefillPersonId] = useState<number | null>(null);
+  const [prefillCompanyId, setPrefillCompanyId] = useState<number | null>(null);
+  const [prefillCategory, setPrefillCategory] = useState<string | null>(null);
+  const [prefillTitle, setPrefillTitle] = useState<string | undefined>(undefined);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -60,11 +65,21 @@ export function DocumentsTable({
     if (searchParams.get("newdoc") === "1") {
       const text = searchParams.get("text");
       if (text) setPrefillText(text);
+      const person = searchParams.get("person");
+      if (person && /^\d+$/.test(person)) setPrefillPersonId(parseInt(person, 10));
+      const company = searchParams.get("company");
+      if (company && /^\d+$/.test(company)) setPrefillCompanyId(parseInt(company, 10));
+      const category = searchParams.get("category");
+      if (category) setPrefillCategory(category);
+      const title = searchParams.get("title");
+      if (title) setPrefillTitle(title);
       setCreateOpen(true);
       router.replace(pathname, { scroll: false });
     }
     const company = searchParams.get("company");
     if (company && /^\d+$/.test(company)) setCompanyFilter(parseInt(company, 10));
+    const person = searchParams.get("person");
+    if (person && /^\d+$/.test(person)) setPersonFilter(parseInt(person, 10));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -127,10 +142,12 @@ export function DocumentsTable({
         (d.docType?.toLowerCase().includes(q) ?? false) ||
         (d.issuer?.toLowerCase().includes(q) ?? false) ||
         (d.referenceNo?.toLowerCase().includes(q) ?? false) ||
-        (companyName(d.companyId)?.toLowerCase().includes(q) ?? false)
+        (companyName(d.companyId)?.toLowerCase().includes(q) ?? false) ||
+        (personName(d.personId)?.toLowerCase().includes(q) ?? false)
       );
     }
     if (companyFilter !== "all") rows = rows.filter((d) => d.companyId === companyFilter);
+    if (personFilter !== "all") rows = rows.filter((d) => d.personId === personFilter);
     if (categoryFilter !== "all") rows = rows.filter((d) => d.category === categoryFilter);
     if (statusFilter !== "all") rows = rows.filter((d) => deriveDocStatus(d) === statusFilter);
     // Expired/expiring soonest first, nulls last.
@@ -141,7 +158,7 @@ export function DocumentsTable({
     });
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documents, search, companyFilter, categoryFilter, statusFilter, showArchived]);
+  }, [documents, search, companyFilter, personFilter, categoryFilter, statusFilter, showArchived]);
 
   const counts = useMemo(() => {
     const live = documents.filter((d) => !d.archived);
@@ -180,6 +197,9 @@ export function DocumentsTable({
         <FluidSelect value={companyFilter === "all" ? "all" : String(companyFilter)}
           onSelect={(v) => setCompanyFilter(v === "all" ? "all" : parseInt(v, 10))}
           options={[{ value: "all", label: "All Companies" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]} />
+        <FluidSelect value={personFilter === "all" ? "all" : String(personFilter)}
+          onSelect={(v) => setPersonFilter(v === "all" ? "all" : parseInt(v, 10))}
+          options={[{ value: "all", label: "All People" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
         <FluidSelect value={categoryFilter} onSelect={setCategoryFilter}
           options={[{ value: "all", label: "All Categories" }, ...DOC_CATEGORIES.map((c) => ({ value: c, label: c }))]} />
         <FluidSelect value={statusFilter} onSelect={(v) => setStatusFilter(v as StatusFilter)}
@@ -247,6 +267,7 @@ export function DocumentsTable({
                     <span className="truncate text-sm font-medium">{doc.title}</span>
                     {(doc.storagePath || doc.fileUrl) && <Paperclip size={12} className="text-fg-subtle shrink-0" />}
                     {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
+                    {doc.personId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person Pack</span>}
                     {openLinkedTask && (
                       <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
                         {openLinkedTask.code}
@@ -336,10 +357,11 @@ export function DocumentsTable({
       />
 
       {/* Create dialog */}
-      <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setPrefillText(undefined); }} title="Add a document">
+      <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); } }} title="Add a document">
         <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}
-          onCancel={() => { setCreateOpen(false); setPrefillText(undefined); }}
-          onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); setPrefillText(undefined); } }} />
+          initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle}
+          onCancel={() => { setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); }}
+          onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); } }} />
       </DocDialog>
 
       {/* Edit dialog */}

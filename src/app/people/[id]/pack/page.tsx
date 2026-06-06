@@ -31,13 +31,44 @@ function fmtDate(value: Date | string | null) {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function categoryForRequirement(label: string) {
+  const l = label.toLowerCase();
+  if (l.includes("passport")) return "Passport";
+  if (l.includes("permit") || l.includes("visa") || l.includes("immigration")) return "Immigration";
+  if (l.includes("contract") || l.includes("engagement")) return "Contract";
+  return undefined;
+}
+
+function addDocumentHref(personId: number, label: string) {
+  const params = new URLSearchParams({ newdoc: "1", person: String(personId), title: label });
+  const category = categoryForRequirement(label);
+  if (category) params.set("category", category);
+  return `/documents?${params.toString()}`;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="report-section">
+    <section className="person-pack-section">
       <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-fg-muted print:text-slate-600">{title}</h2>
       <div className="mt-2">{children}</div>
     </section>
   );
+}
+
+function purposeIntro(purpose: PersonPackPurpose, name: string) {
+  if (purpose === "visa-permit") {
+    return `This pack summarises the immigration and permit items currently needed from ${name}.`;
+  }
+  if (purpose === "recruitment") {
+    return `This pack summarises the recruitment and onboarding items currently needed from ${name}.`;
+  }
+  if (purpose === "task-reminder") {
+    return `This pack summarises the open work and follow-up items currently assigned to ${name}.`;
+  }
+  if (purpose === "custom") {
+    return `This pack summarises the selected items currently relevant to ${name}.`;
+  }
+  return `This pack summarises the documents and details currently needed from ${name}.`;
 }
 
 export default async function PersonPackPage({
@@ -60,6 +91,17 @@ export default async function PersonPackPage({
     : defaultPersonPackSelection(purpose, pack.detail.person.personType);
   const person = pack.detail.person;
   const generated = fmtDate(pack.generatedAt);
+  const requestedCount =
+    (selection.missingDocuments ? pack.compliance.gaps.length : 0) +
+    (selection.documentIssues ? pack.compliance.documentIssues.length : 0) +
+    (selection.openTasks ? pack.openTasks.length : 0) +
+    (selection.personalTodos ? pack.personalTodos.length : 0);
+  const topRequests = [
+    ...(selection.missingDocuments ? pack.compliance.gaps.map((gap) => gap.label) : []),
+    ...(selection.documentIssues ? pack.compliance.documentIssues.map((doc) => `${doc.title} (${doc.expiryLabel ?? doc.status})`) : []),
+    ...(selection.openTasks ? pack.openTasks.slice(0, 3).map((task) => task.actionItem) : []),
+    ...(selection.personalTodos ? pack.personalTodos.slice(0, 3).map((todo) => todo.title) : []),
+  ].slice(0, 6);
 
   return (
     <main className="mx-auto max-w-4xl space-y-5 px-4 pb-28 pt-5 print:max-w-none print:px-0 print:pb-0">
@@ -75,6 +117,9 @@ export default async function PersonPackPage({
         <h1 className="mt-1 text-2xl font-semibold tracking-tight print:text-3xl">{person.name}</h1>
         <p className="mt-1 text-sm text-fg-muted print:text-slate-600">
           {PURPOSE_LABELS[purpose]} - prepared {generated}
+        </p>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-fg-muted print:text-slate-700">
+          {purposeIntro(purpose, person.name)}
         </p>
         <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3 print:grid-cols-3">
           <div>
@@ -93,11 +138,33 @@ export default async function PersonPackPage({
       </header>
 
       <div className="space-y-5 rounded-3xl bg-bg-elev p-5 ring-1 ring-border print:rounded-none print:bg-white print:p-0 print:ring-0">
+        <Section title="Summary">
+          <div className="rounded-2xl bg-bg-subtle/70 p-4 ring-1 ring-border print:rounded-none print:bg-white print:p-0 print:ring-0">
+            <p className="text-sm leading-relaxed text-fg-muted print:text-slate-700">
+              {requestedCount > 0
+                ? `${requestedCount} item${requestedCount === 1 ? "" : "s"} require attention. Please review the list below and send the requested documents or updates when available.`
+                : "No selected items currently require action. This pack can be kept as a clean record of the current status."}
+            </p>
+            {topRequests.length > 0 && (
+              <ul className="mt-3 space-y-1.5 text-sm">
+                {topRequests.map((item) => <li key={item}>- {item}</li>)}
+              </ul>
+            )}
+          </div>
+        </Section>
+
         {selection.missingDocuments && (
           <Section title="Items needed from you">
             {pack.compliance.gaps.length ? (
               <ul className="space-y-1.5 text-sm">
-                {pack.compliance.gaps.map((gap) => <li key={gap.id}>- {gap.label}</li>)}
+                {pack.compliance.gaps.map((gap) => (
+                  <li key={gap.id} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1">- {gap.label}</span>
+                    <Link href={addDocumentHref(person.id, gap.label)} className="print-hidden rounded-md bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20">
+                      Add document
+                    </Link>
+                  </li>
+                ))}
               </ul>
             ) : (
               <p className="text-sm text-fg-muted print:text-slate-600">No missing required documents found.</p>

@@ -39,7 +39,9 @@ function str(fd: FormData, key: string): string | null {
 }
 
 function intOrNull(fd: FormData, key: string): number | null {
-  const v = (fd.get(key) ?? "").toString().trim();
+  const values = fd.getAll(key);
+  const raw = values.length ? values[values.length - 1] : fd.get(key);
+  const v = (raw ?? "").toString().trim();
   if (!v) return null;
   const n = parseInt(v, 10);
   return isNaN(n) ? null : n;
