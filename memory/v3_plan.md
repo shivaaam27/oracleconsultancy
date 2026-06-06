@@ -98,7 +98,12 @@ Examples:
    prefill such as `/documents?newdoc=1&person=ID`, includes a person filter and
    labels person-linked documents as Person Pack inputs. Missing Person Pack
    requirements link straight to Add Document with person/category/title
-   prefilled.
+   prefilled. **Phase 3 correction pass:** Person Pack now has a real
+   "Linked documents" section, smarter empty-state guidance when the selected
+   preset has no action items, explicit advice to include tasks/to-dos only when
+   wanted, and a PDF layout closer to Director Brief (headline, stat cards,
+   report sections). Compliance detail now offers Add Document for missing
+   requirements and a person-pack PDF route for person issues.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,

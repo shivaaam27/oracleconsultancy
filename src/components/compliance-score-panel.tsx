@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
-import { AlertTriangle, CheckCircle2, ExternalLink, FileWarning, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, FileWarning, PackageCheck, Plus, ShieldCheck, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { ComplianceScore } from "@/lib/compliance";
 
@@ -30,6 +30,34 @@ function tone(score: ComplianceScore) {
 
 function ownerHref(score: ComplianceScore) {
   return score.ownerType === "company" ? `/documents?company=${score.ownerId}` : `/people?person=${score.ownerId}`;
+}
+
+function categoryForRequirement(label: string) {
+  const l = label.toLowerCase();
+  if (l.includes("passport")) return "Passport";
+  if (l.includes("permit") || l.includes("visa") || l.includes("immigration")) return "Immigration";
+  if (l.includes("contract") || l.includes("engagement")) return "Contract";
+  if (l.includes("tax") || l.includes("tin")) return "Tax";
+  if (l.includes("licence") || l.includes("license")) return "Licence";
+  if (l.includes("registration")) return "Registration";
+  return undefined;
+}
+
+function addDocumentHref(score: ComplianceScore, label: string) {
+  const params = new URLSearchParams({ newdoc: "1", title: label });
+  if (score.ownerType === "company") params.set("company", String(score.ownerId));
+  else params.set("person", String(score.ownerId));
+  const category = categoryForRequirement(label);
+  if (category) params.set("category", category);
+  return `/documents?${params.toString()}`;
+}
+
+function personPackHref(score: ComplianceScore) {
+  const params = new URLSearchParams({
+    purpose: "document-request",
+    sections: "missingDocuments,documentIssues,linkedDocuments,deadlines,contactDetails,fileLinks",
+  });
+  return `/people/${score.ownerId}/pack?${params.toString()}`;
 }
 
 function ScoreRow({ score, onOpen }: { score: ComplianceScore; onOpen: (score: ComplianceScore) => void }) {
@@ -72,7 +100,7 @@ function ScoreRow({ score, onOpen }: { score: ComplianceScore; onOpen: (score: C
 
 function ScoreDetail({ score }: { score: ComplianceScore }) {
   const t = tone(score);
-  const gapLabels = score.gaps.map((gap) => gap.label);
+  const gaps = score.gaps;
 
   return (
     <div className="space-y-4">
@@ -104,12 +132,20 @@ function ScoreDetail({ score }: { score: ComplianceScore }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle">Missing documents</div>
-          {gapLabels.length > 0 ? (
+          {gaps.length > 0 ? (
             <div className="rounded-xl overflow-hidden divide-y divide-border/60 ring-1 ring-border/60">
-              {gapLabels.map((label) => (
-                <div key={label} className="px-3 py-2 text-sm">
-                  <span className="text-danger">Missing</span>
-                  <span className="text-fg-muted"> - {label}</span>
+              {gaps.map((gap) => (
+                <div key={gap.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="text-danger">Missing</span>
+                    <span className="text-fg-muted"> - {gap.label}</span>
+                  </span>
+                  <Link
+                    href={addDocumentHref(score, gap.label)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20"
+                  >
+                    <Plus size={12} /> Add
+                  </Link>
                 </div>
               ))}
             </div>
@@ -147,6 +183,14 @@ function ScoreDetail({ score }: { score: ComplianceScore }) {
         >
           <ExternalLink size={13} /> {score.ownerType === "company" ? "Filter documents" : "Open person"}
         </Link>
+        {score.ownerType === "person" && (
+          <Link
+            href={personPackHref(score)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-bg-elev px-3 py-1.5 text-xs font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
+          >
+            <PackageCheck size={13} /> Person pack PDF
+          </Link>
+        )}
       </div>
     </div>
   );

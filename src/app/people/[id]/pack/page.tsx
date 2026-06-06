@@ -1,13 +1,24 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  FileWarning,
+  ShieldCheck,
+} from "lucide-react";
+import { Badge, Card, Stat } from "@/components/ui";
 import { PersonPackPrintButton } from "@/components/person-pack-print-button";
 import {
   getPersonPack,
   parsePersonPackSections,
   defaultPersonPackSelection,
+  type PersonPackDocument,
   type PersonPackPurpose,
 } from "@/lib/person-pack";
+import type { PersonPackSectionSelection } from "@/lib/person-pack-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +42,10 @@ function fmtDate(value: Date | string | null) {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function plural(n: number, one: string, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 function categoryForRequirement(label: string) {
   const l = label.toLowerCase();
   if (l.includes("passport")) return "Passport";
@@ -46,29 +61,86 @@ function addDocumentHref(personId: number, label: string) {
   return `/documents?${params.toString()}`;
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function addPersonDocumentHref(personId: number) {
+  return `/documents?${new URLSearchParams({ newdoc: "1", person: String(personId) }).toString()}`;
+}
+
+function statusTone(status: PersonPackDocument["status"]): "default" | "success" | "warn" | "danger" {
+  if (status === "Expired") return "danger";
+  if (status === "Expiring") return "warn";
+  if (status === "Valid") return "success";
+  return "default";
+}
+
+function complianceTone(status: "Good" | "Watch" | "Risk"): "default" | "success" | "warn" | "danger" {
+  if (status === "Risk") return "danger";
+  if (status === "Watch") return "warn";
+  return "success";
+}
+
+function documentFileLabel(doc: PersonPackDocument) {
+  if (doc.fileUrl) return "External link";
+  if (doc.fileName) return doc.fileName;
+  return null;
+}
+
+function DocumentFileCell({ doc }: { doc: PersonPackDocument }) {
+  if (doc.fileUrl) {
+    return (
+      <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="print:text-slate-700 text-accent hover:underline">
+        Open link
+      </a>
+    );
+  }
+  return documentFileLabel(doc) ?? "-";
+}
+
+function complianceText(pack: Awaited<ReturnType<typeof getPersonPack>> extends infer T ? NonNullable<T> : never) {
+  const c = pack.compliance;
+  if (c.required === 0 && c.monitoredDocuments === 0) {
+    return "No required checklist applies yet, and no person-linked documents are on file.";
+  }
+  if (c.required === 0) {
+    return `${plural(c.monitoredDocuments, "linked document")} monitored for expiry. Score ${c.score}% (${c.status}).`;
+  }
+  return `${c.present} of ${c.required} required items are present. Score ${c.score}% (${c.status}).`;
+}
+
+function actionCount(pack: Awaited<ReturnType<typeof getPersonPack>> extends infer T ? NonNullable<T> : never, selection: PersonPackSectionSelection) {
+  return (
+    (selection.missingDocuments ? pack.compliance.gaps.length : 0) +
+    (selection.documentIssues ? pack.compliance.documentIssues.length : 0) +
+    (selection.openTasks ? pack.openTasks.length : 0) +
+    (selection.personalTodos ? pack.personalTodos.length : 0)
+  );
+}
+
+function Section({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="person-pack-section">
-      <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-fg-muted print:text-slate-600">{title}</h2>
-      <div className="mt-2">{children}</div>
+      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted print:text-slate-600">
+        {icon}
+        {title}
+      </div>
+      {children}
     </section>
   );
 }
 
 function purposeIntro(purpose: PersonPackPurpose, name: string) {
   if (purpose === "visa-permit") {
-    return `This pack summarises the immigration and permit items currently needed from ${name}.`;
+    return `This pack summarises the immigration, permit and HR follow-up items currently relevant to ${name}.`;
   }
   if (purpose === "recruitment") {
-    return `This pack summarises the recruitment and onboarding items currently needed from ${name}.`;
+    return `This pack summarises the recruitment and onboarding items currently relevant to ${name}.`;
   }
   if (purpose === "task-reminder") {
     return `This pack summarises the open work and follow-up items currently assigned to ${name}.`;
   }
   if (purpose === "custom") {
-    return `This pack summarises the selected items currently relevant to ${name}.`;
+    return `This pack summarises the selected person-specific items currently relevant to ${name}.`;
   }
-  return `This pack summarises the documents and details currently needed from ${name}.`;
+  return `This pack summarises the selected document and compliance items currently relevant to ${name}.`;
 }
 
 export default async function PersonPackPage({
@@ -91,20 +163,21 @@ export default async function PersonPackPage({
     : defaultPersonPackSelection(purpose, pack.detail.person.personType);
   const person = pack.detail.person;
   const generated = fmtDate(pack.generatedAt);
-  const requestedCount =
-    (selection.missingDocuments ? pack.compliance.gaps.length : 0) +
-    (selection.documentIssues ? pack.compliance.documentIssues.length : 0) +
-    (selection.openTasks ? pack.openTasks.length : 0) +
-    (selection.personalTodos ? pack.personalTodos.length : 0);
+  const selectedActions = actionCount(pack, selection);
+  const linkedDocsShown = selection.linkedDocuments ? pack.documents.length : 0;
   const topRequests = [
     ...(selection.missingDocuments ? pack.compliance.gaps.map((gap) => gap.label) : []),
     ...(selection.documentIssues ? pack.compliance.documentIssues.map((doc) => `${doc.title} (${doc.expiryLabel ?? doc.status})`) : []),
-    ...(selection.openTasks ? pack.openTasks.slice(0, 3).map((task) => task.actionItem) : []),
+    ...(selection.openTasks ? pack.openTasks.slice(0, 3).map((task) => `${task.code}: ${task.actionItem}`) : []),
     ...(selection.personalTodos ? pack.personalTodos.slice(0, 3).map((todo) => todo.title) : []),
   ].slice(0, 6);
+  const complianceValue =
+    pack.compliance.required === 0 && pack.compliance.monitoredDocuments === 0
+      ? "None"
+      : `${pack.compliance.score}%`;
 
   return (
-    <main className="mx-auto max-w-4xl space-y-5 px-4 pb-28 pt-5 print:max-w-none print:px-0 print:pb-0">
+    <main className="mx-auto max-w-3xl space-y-5 px-4 pb-28 pt-5 print:max-w-none print:px-0 print:pb-0">
       <div className="print-hidden flex flex-wrap items-center justify-between gap-2">
         <Link href={`/people?person=${person.id}`} className="inline-flex items-center gap-1.5 text-sm text-fg-muted hover:text-accent">
           <ArrowLeft size={14} /> Back to person
@@ -112,68 +185,88 @@ export default async function PersonPackPage({
         <PersonPackPrintButton />
       </div>
 
-      <header className="rounded-3xl glass elevated p-5 print:rounded-none print:border-b print:border-slate-200 print:bg-white print:p-0 print:pb-4 print:shadow-none">
-        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent print:text-slate-500">Oracle Consultancy</div>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight print:text-3xl">{person.name}</h1>
-        <p className="mt-1 text-sm text-fg-muted print:text-slate-600">
-          {PURPOSE_LABELS[purpose]} - prepared {generated}
-        </p>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-fg-muted print:text-slate-700">
-          {purposeIntro(purpose, person.name)}
-        </p>
-        <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3 print:grid-cols-3">
-          <div>
-            <div className="text-xs text-fg-subtle print:text-slate-500">Role</div>
-            <div className="font-medium">{person.role ?? "Not recorded"}</div>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-accent print:text-slate-500">
+            Person Pack
           </div>
-          <div>
-            <div className="text-xs text-fg-subtle print:text-slate-500">Company</div>
-            <div className="font-medium">{person.companyName ?? "Not recorded"}</div>
-          </div>
-          <div>
-            <div className="text-xs text-fg-subtle print:text-slate-500">Type</div>
-            <div className="font-medium capitalize">{person.personType}</div>
+          <h1 className="text-xl font-semibold tracking-tight print:text-2xl">{person.name}</h1>
+          <div className="mt-0.5 text-xs text-fg-muted print:text-slate-600">
+            {PURPOSE_LABELS[purpose]} - prepared {generated} - Oracle Consultancy
           </div>
         </div>
+        <Badge tone={person.personType === "expat" ? "warn" : "default"} className="capitalize">
+          {person.personType}
+        </Badge>
       </header>
 
-      <div className="space-y-5 rounded-3xl bg-bg-elev p-5 ring-1 ring-border print:rounded-none print:bg-white print:p-0 print:ring-0">
-        <Section title="Summary">
-          <div className="rounded-2xl bg-bg-subtle/70 p-4 ring-1 ring-border print:rounded-none print:bg-white print:p-0 print:ring-0">
-            <p className="text-sm leading-relaxed text-fg-muted print:text-slate-700">
-              {requestedCount > 0
-                ? `${requestedCount} item${requestedCount === 1 ? "" : "s"} require attention. Please review the list below and send the requested documents or updates when available.`
-                : "No selected items currently require action. This pack can be kept as a clean record of the current status."}
-            </p>
-            {topRequests.length > 0 && (
-              <ul className="mt-3 space-y-1.5 text-sm">
-                {topRequests.map((item) => <li key={item}>- {item}</li>)}
-              </ul>
-            )}
-          </div>
-        </Section>
+      <p className="text-sm leading-relaxed text-fg-muted print:text-slate-700">
+        <b className={selectedActions ? "text-warn print:text-slate-900" : "text-success print:text-slate-900"}>
+          {plural(selectedActions, "selected action")}
+        </b>
+        {" - "}
+        <b className="text-fg print:text-slate-900">{plural(linkedDocsShown, "linked document")}</b>
+        {" - "}
+        <b className={pack.openTasks.length ? "text-info print:text-slate-900" : "text-fg print:text-slate-900"}>
+          {plural(pack.openTasks.length, "open task")}
+        </b>
+        {" - "}
+        {complianceText(pack)}
+      </p>
 
+      <p className="print-only text-sm leading-relaxed">
+        {purposeIntro(purpose, person.name)} This PDF contains only the sections selected before printing.
+        {selectedActions > 0
+          ? ` ${plural(selectedActions, "item")} require attention.`
+          : " No selected action items currently require attention."}
+      </p>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Needed" value={selectedActions} tone={selectedActions ? "warn" : "success"} icon={selectedActions ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />} />
+        <Stat label="Documents" value={linkedDocsShown} icon={<FileText size={16} />} />
+        <Stat label="Open" value={selection.openTasks ? pack.openTasks.length : 0} tone={selection.openTasks && pack.openTasks.length ? "warn" : "default"} icon={<ClipboardList size={16} />} />
+        <Stat label="Compliance" value={complianceValue} tone={complianceTone(pack.compliance.status)} icon={<ShieldCheck size={16} />} />
+      </div>
+
+      <Card className="p-4">
+        <p className="text-sm leading-relaxed text-fg-muted print:text-slate-700">
+          {selectedActions > 0
+            ? "Please review the selected items below and send the requested documents or updates when available."
+            : "No selected items currently require action. This pack can be kept as a clean person-specific record of the current status."}
+        </p>
+        {topRequests.length > 0 && (
+          <ul className="mt-3 space-y-1.5 text-sm">
+            {topRequests.map((item) => <li key={item}>- {item}</li>)}
+          </ul>
+        )}
+      </Card>
+
+      <div className="space-y-5">
         {selection.missingDocuments && (
-          <Section title="Items needed from you">
+          <Section title="Items needed from you" icon={<FileWarning size={13} className="text-warn" />}>
             {pack.compliance.gaps.length ? (
-              <ul className="space-y-1.5 text-sm">
+              <Card className="divide-y divide-border/70">
                 {pack.compliance.gaps.map((gap) => (
-                  <li key={gap.id} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1">- {gap.label}</span>
+                  <div key={gap.id} className="flex items-center gap-2 px-4 py-2.5 text-sm">
+                    <span className="min-w-0 flex-1">{gap.label}</span>
                     <Link href={addDocumentHref(person.id, gap.label)} className="print-hidden rounded-md bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20">
                       Add document
                     </Link>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </Card>
             ) : (
-              <p className="text-sm text-fg-muted print:text-slate-600">No missing required documents found.</p>
+              <Card className="p-4 text-sm text-fg-muted">
+                {pack.compliance.required === 0
+                  ? "No required checklist applies to this person type yet."
+                  : "No missing required documents found."}
+              </Card>
             )}
           </Section>
         )}
 
         {selection.documentIssues && (
-          <Section title="Documents needing attention">
+          <Section title="Documents needing attention" icon={<FileWarning size={13} className="text-warn" />}>
             {pack.compliance.documentIssues.length ? (
               <table className="report-table">
                 <thead><tr><th>Document</th><th>Status</th><th>Expiry</th></tr></thead>
@@ -188,21 +281,57 @@ export default async function PersonPackPage({
                 </tbody>
               </table>
             ) : (
-              <p className="text-sm text-fg-muted print:text-slate-600">No expired or expiring documents found.</p>
+              <Card className="p-4 text-sm text-fg-muted">No expired or expiring documents found.</Card>
+            )}
+          </Section>
+        )}
+
+        {selection.linkedDocuments && (
+          <Section title="Linked documents on file" icon={<FileText size={13} className="text-accent" />}>
+            {pack.documents.length ? (
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: "32%" }}>Document</th>
+                    <th style={{ width: "16%" }}>Category</th>
+                    <th style={{ width: "14%" }}>Status</th>
+                    <th style={{ width: "18%" }}>Expiry</th>
+                    {selection.fileLinks && <th>File</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pack.documents.map((doc) => (
+                    <tr key={doc.id}>
+                      <td>{doc.title}</td>
+                      <td>{doc.category ?? "-"}</td>
+                      <td><Badge tone={statusTone(doc.status)}>{doc.status}</Badge></td>
+                      <td>{doc.expiryLabel ?? fmtDate(doc.expiryDate) ?? "-"}</td>
+                      {selection.fileLinks && <td><DocumentFileCell doc={doc} /></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <Card className="p-4 text-sm text-fg-muted">
+                No person-linked documents are on file yet.
+                <Link href={addPersonDocumentHref(person.id)} className="print-hidden ml-2 text-accent hover:underline">
+                  Add document
+                </Link>
+              </Card>
             )}
           </Section>
         )}
 
         {selection.openTasks && (
-          <Section title="Open work">
+          <Section title="Open work" icon={<ClipboardList size={13} className="text-info" />}>
             {pack.openTasks.length ? (
               <table className="report-table">
-                <thead><tr><th>Item</th><th>Due</th><th>Priority</th></tr></thead>
+                <thead><tr><th>Task</th><th>Due</th><th>Priority</th></tr></thead>
                 <tbody>
                   {pack.openTasks.map((task) => (
                     <tr key={task.id}>
                       <td>
-                        <div>{task.actionItem}</div>
+                        <div>{task.code} - {task.actionItem}</div>
                         {selection.latestUpdates && task.latestUpdate && (
                           <div className="mt-1 text-xs text-fg-muted print:text-slate-500">{task.latestUpdate}</div>
                         )}
@@ -214,47 +343,64 @@ export default async function PersonPackPage({
                 </tbody>
               </table>
             ) : (
-              <p className="text-sm text-fg-muted print:text-slate-600">No open tasks assigned.</p>
+              <Card className="p-4 text-sm text-fg-muted">No open tasks assigned.</Card>
             )}
           </Section>
         )}
 
         {selection.personalTodos && (
-          <Section title="To-dos">
+          <Section title="To-dos" icon={<CheckCircle2 size={13} className="text-success" />}>
             {pack.personalTodos.length ? (
-              <ul className="space-y-1.5 text-sm">
+              <Card className="divide-y divide-border/70">
                 {pack.personalTodos.map((todo) => (
-                  <li key={todo.id}>
-                    - {todo.title}
-                    {selection.deadlines && todo.dueAt ? ` (${fmtDate(todo.dueAt)})` : ""}
-                  </li>
+                  <div key={todo.id} className="px-4 py-2.5 text-sm">
+                    {todo.title}
+                    {selection.deadlines && todo.dueAt ? <span className="text-fg-muted"> ({fmtDate(todo.dueAt)})</span> : null}
+                    {todo.taskCode ? <span className="text-fg-subtle"> - {todo.taskCode}</span> : null}
+                  </div>
                 ))}
-              </ul>
+              </Card>
             ) : (
-              <p className="text-sm text-fg-muted print:text-slate-600">No open personal to-dos assigned.</p>
+              <Card className="p-4 text-sm text-fg-muted">No open personal to-dos assigned.</Card>
             )}
           </Section>
         )}
 
         {selection.contactDetails && (
           <Section title="Contact details on record">
-            <div className="grid gap-2 text-sm sm:grid-cols-3 print:grid-cols-3">
+            <Card className="grid gap-2 p-4 text-sm sm:grid-cols-3 print:grid-cols-3">
               <div>Email: {person.email ?? "Not recorded"}</div>
               <div>WhatsApp: {person.whatsapp ?? "Not recorded"}</div>
               <div>Phone: {person.phone ?? "Not recorded"}</div>
-            </div>
+            </Card>
+          </Section>
+        )}
+
+        {selection.companyContext && (
+          <Section title="Company context">
+            <Card className="p-4 text-sm">
+              <div>Primary company: {person.companyName ?? "Not recorded"}</div>
+              <div>Role: {person.role ?? "Not recorded"}</div>
+              {person.associations.length > 0 && (
+                <div className="mt-2 text-fg-muted">
+                  Also linked to: {person.associations.map((a) => [a.companyName, a.relationship].filter(Boolean).join(" - ")).join(", ")}
+                </div>
+              )}
+            </Card>
           </Section>
         )}
 
         {selection.complianceScore && (
-          <Section title="Compliance status">
-            <p className="text-sm">Score: {pack.compliance.score}% ({pack.compliance.status})</p>
+          <Section title="Compliance status" icon={<ShieldCheck size={13} className="text-accent" />}>
+            <Card className="p-4 text-sm text-fg-muted">{complianceText(pack)}</Card>
           </Section>
         )}
 
         {selection.internalNotes && person.notes && (
           <Section title="Internal notes">
-            <p className="whitespace-pre-wrap text-sm">{person.notes}</p>
+            <Card className="p-4">
+              <p className="whitespace-pre-wrap text-sm">{person.notes}</p>
+            </Card>
           </Section>
         )}
       </div>

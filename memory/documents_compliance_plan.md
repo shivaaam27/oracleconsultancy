@@ -103,6 +103,19 @@ per-document timeline.
 
 **Documents & Compliance feature COMPLETE (Phases 1–5).**
 
+## Integration correction - People Pack and Compliance actions (2026-06-06)
+
+- Person Pack now reads person-linked documents as first-class pack content, with a selectable
+  **Linked documents** section and optional file-link display.
+- Pack empty states now distinguish "no required checklist applies" from a true compliance pass,
+  so internal/external people with no documents do not look falsely complete.
+- The pack builder advises what is available but not selected, such as open tasks or to-dos,
+  without automatically including all HR data in the PDF.
+- The Person Pack PDF now follows the Director Brief pattern more closely: concise header,
+  headline line, top stat cards, and report-table sections.
+- Compliance score detail now links missing requirements straight to Add Document, and person
+  compliance issues can open a person-pack PDF.
+
 ## Phase 6 — File reading (PDF + image OCR) & smarter extraction (2026-06-04)
 Owner asked the auto-fill to read uploaded PDFs/photos and extract everything (dates,
 person, company, etc.) across dynamic layouts. Researched first: confirmed Groq has a

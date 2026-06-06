@@ -8,6 +8,7 @@ export type PersonPackPurpose =
 export type PersonPackSectionKey =
   | "missingDocuments"
   | "documentIssues"
+  | "linkedDocuments"
   | "openTasks"
   | "personalTodos"
   | "deadlines"
@@ -21,6 +22,7 @@ export type PersonPackSectionKey =
 export const PERSON_PACK_SECTION_KEYS: PersonPackSectionKey[] = [
   "missingDocuments",
   "documentIssues",
+  "linkedDocuments",
   "openTasks",
   "personalTodos",
   "deadlines",
@@ -38,6 +40,7 @@ export function blankPersonPackSelection(): PersonPackSectionSelection {
   return {
     missingDocuments: false,
     documentIssues: false,
+    linkedDocuments: false,
     openTasks: false,
     personalTodos: false,
     deadlines: false,

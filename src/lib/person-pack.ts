@@ -4,7 +4,7 @@ import {
   buildPersonComplianceScores,
   type ComplianceScore,
 } from "@/lib/compliance";
-import { listDocuments, type DocumentRow } from "@/lib/documents";
+import { deriveDocStatus, expiryLabel, listDocuments, type DocumentRow } from "@/lib/documents";
 import { getPersonDetail, type PersonDetail } from "@/lib/people-queries";
 import type { TaskRow } from "@/lib/queries";
 import type { Channel } from "@/lib/outbox-links";
@@ -48,6 +48,8 @@ export type PersonPackDraft = {
 
 export type PersonPackDocument = DocumentRow & {
   companyName: string | null;
+  status: ReturnType<typeof deriveDocStatus>;
+  expiryLabel: string | null;
 };
 
 export type PersonPack = {
@@ -63,6 +65,7 @@ export type PersonPack = {
   counts: {
     missingDocuments: number;
     documentIssues: number;
+    linkedDocuments: number;
     openTasks: number;
     personalTodos: number;
     drafts: number;
@@ -78,6 +81,7 @@ export function defaultPersonPackSelection(
   if (purpose === "document-request") {
     s.missingDocuments = true;
     s.documentIssues = true;
+    s.linkedDocuments = true;
     s.deadlines = true;
     s.fileLinks = true;
     s.contactDetails = true;
@@ -87,6 +91,7 @@ export function defaultPersonPackSelection(
   if (purpose === "visa-permit") {
     s.missingDocuments = true;
     s.documentIssues = true;
+    s.linkedDocuments = true;
     s.openTasks = true;
     s.personalTodos = true;
     s.deadlines = true;
@@ -99,6 +104,7 @@ export function defaultPersonPackSelection(
   if (purpose === "recruitment") {
     s.missingDocuments = true;
     s.documentIssues = true;
+    s.linkedDocuments = true;
     s.personalTodos = true;
     s.deadlines = true;
     s.contactDetails = true;
@@ -207,6 +213,8 @@ function personDocuments(
     .map((doc) => ({
       ...doc,
       companyName: doc.companyId ? companyNames.get(doc.companyId) ?? null : null,
+      status: deriveDocStatus(doc),
+      expiryLabel: expiryLabel(doc),
     }));
 }
 
@@ -244,6 +252,7 @@ export async function getPersonPack(
     counts: {
       missingDocuments: compliance.missing,
       documentIssues: compliance.expired + compliance.expiring,
+      linkedDocuments: docs.length,
       openTasks: openTasks.length,
       personalTodos: todos.length,
       drafts: drafts.length,
