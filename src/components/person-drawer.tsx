@@ -137,10 +137,12 @@ function HRFileHealth({
   data,
   person,
   close,
+  openPack = false,
 }: {
   data: DrawerData;
   person: DrawerPerson;
   close: () => void;
+  openPack?: boolean;
 }) {
   const missing = missingPersonRequirements(person, data.documents);
   const expired = data.documents.filter((d) => d.status === "Expired").length;
@@ -192,7 +194,7 @@ function HRFileHealth({
       )}
 
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <PersonPackBuilder personId={person.id} personName={person.name} />
+        <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} />
         <Link
           href={`/documents?newdoc=1&person=${person.id}`}
           onClick={close}
@@ -221,6 +223,7 @@ export function PersonDrawer() {
   const router = useRouter();
 
   const idStr = searchParams.get("person");
+  const openPack = searchParams.get("pack") === "1";
   const open = !!idStr;
 
   const [data, setData] = useState<DrawerData | null>(null);
@@ -441,7 +444,7 @@ export function PersonDrawer() {
                   </div>
                 </div>
 
-                <HRFileHealth data={data} person={person} close={close} />
+                <HRFileHealth data={data} person={person} close={close} openPack={openPack} />
 
                 {/* Contact actions */}
                 <div className="flex flex-wrap gap-1.5">

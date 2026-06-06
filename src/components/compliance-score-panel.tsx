@@ -53,11 +53,8 @@ function addDocumentHref(score: ComplianceScore, label: string) {
 }
 
 function personPackHref(score: ComplianceScore) {
-  const params = new URLSearchParams({
-    purpose: "document-request",
-    sections: "missingDocuments,documentIssues,linkedDocuments,deadlines,contactDetails,fileLinks",
-  });
-  return `/people/${score.ownerId}/pack?${params.toString()}`;
+  const params = new URLSearchParams({ person: String(score.ownerId), pack: "1" });
+  return `/people?${params.toString()}`;
 }
 
 function ScoreRow({ score, onOpen }: { score: ComplianceScore; onOpen: (score: ComplianceScore) => void }) {
@@ -188,7 +185,7 @@ function ScoreDetail({ score }: { score: ComplianceScore }) {
             href={personPackHref(score)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-bg-elev px-3 py-1.5 text-xs font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
           >
-            <PackageCheck size={13} /> Person pack PDF
+            <PackageCheck size={13} /> Prepare pack
           </Link>
         )}
       </div>

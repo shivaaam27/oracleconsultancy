@@ -805,7 +805,15 @@ function DraftMessagePreview({
   );
 }
 
-export function PersonPackBuilder({ personId, personName }: { personId: number; personName: string }) {
+export function PersonPackBuilder({
+  personId,
+  personName,
+  openOnMount = false,
+}: {
+  personId: number;
+  personName: string;
+  openOnMount?: boolean;
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -820,6 +828,10 @@ export function PersonPackBuilder({ personId, personName }: { personId: number; 
     () => (pack && selection ? buildPersonPackMessage(pack, selection, purpose, channel) : null),
     [pack, selection, purpose, channel]
   );
+
+  useEffect(() => {
+    if (openOnMount) setOpen(true);
+  }, [openOnMount]);
 
   useEffect(() => {
     if (!open) return;

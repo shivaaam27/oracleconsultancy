@@ -95,7 +95,11 @@ Examples:
    cleanup pass:** the profile now shows one compact HR file health card near
    the top, with Prepare pack, Add document and Open documents as the primary HR
    actions. Detailed tasks/activity panels are collapsed by default and the old
-   duplicate workload chip block was removed. **Phase 3 complete:** the builder is mobile/touch
+   duplicate workload chip block was removed. **Documents/compliance integration
+   cleanup:** person compliance issues now link to `/people?person=ID&pack=1`,
+   opening the person drawer and Prepare pack modal instead of jumping straight
+   to a PDF output. Documents linked to a person are labelled as Person file
+   inputs in the Documents table. **Phase 3 complete:** the builder is mobile/touch
    tightened (phone bottom-sheet behaviour, larger tap rows, sticky action bar)
    and can open a selected-section PDF route at `/people/[id]/pack`, using the
    existing Director Brief-style print approach. The PDF now has a person-facing
