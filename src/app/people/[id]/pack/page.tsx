@@ -161,7 +161,7 @@ function purposeIntro(purpose: PersonPackPurpose, name: string) {
   if (purpose === "custom") {
     return `This pack summarises the selected person-specific items currently relevant to ${name}.`;
   }
-  return `This pack summarises the selected document and compliance items currently relevant to ${name}.`;
+  return `This pack summarises the selected document items currently relevant to ${name}.`;
 }
 
 export default async function PersonPackPage({
@@ -186,6 +186,9 @@ export default async function PersonPackPage({
   const generated = fmtDate(pack.generatedAt);
   const selectedActions = actionCount(pack, selection);
   const linkedDocsShown = selection.linkedDocuments ? pack.documents.length : 0;
+  const workShown =
+    (selection.openTasks ? pack.openTasks.length : 0) +
+    (selection.personalTodos ? pack.personalTodos.length : 0);
   const topRequests = [
     ...(selection.missingDocuments ? pack.compliance.gaps.map((gap) => gap.label) : []),
     ...(selection.documentIssues ? pack.compliance.documentIssues.map((doc) => `${doc.title} (${doc.expiryLabel ?? doc.status})`) : []),
@@ -193,9 +196,17 @@ export default async function PersonPackPage({
     ...(selection.personalTodos ? pack.personalTodos.slice(0, 3).map((todo) => todo.title) : []),
   ].slice(0, 6);
   const complianceValue =
-    pack.compliance.required === 0 && pack.compliance.monitoredDocuments === 0
+    !selection.complianceScore
+      ? "Not included"
+      : pack.compliance.required === 0 && pack.compliance.monitoredDocuments === 0
       ? "None"
       : `${pack.compliance.score}%`;
+  const headlineParts = [
+    `${plural(selectedActions, "selected action")}`,
+    selection.linkedDocuments ? `${plural(linkedDocsShown, "linked document")}` : null,
+    workShown ? `${plural(workShown, "work item")}` : null,
+    selection.complianceScore ? complianceText(pack) : null,
+  ].filter(Boolean);
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 px-4 pb-28 pt-5 print:max-w-none print:px-0 print:pb-0">
@@ -223,16 +234,9 @@ export default async function PersonPackPage({
 
       <p className="text-sm leading-relaxed text-fg-muted print:text-slate-700">
         <b className={selectedActions ? "text-warn print:text-slate-900" : "text-success print:text-slate-900"}>
-          {plural(selectedActions, "selected action")}
+          {headlineParts[0]}
         </b>
-        {" - "}
-        <b className="text-fg print:text-slate-900">{plural(linkedDocsShown, "linked document")}</b>
-        {" - "}
-        <b className={pack.openTasks.length ? "text-info print:text-slate-900" : "text-fg print:text-slate-900"}>
-          {plural(pack.openTasks.length, "open task")}
-        </b>
-        {" - "}
-        {complianceText(pack)}
+        {headlineParts.length > 1 ? ` - ${headlineParts.slice(1).join(" - ")}` : ""}
       </p>
 
       <p className="print-only text-sm leading-relaxed">
@@ -245,8 +249,8 @@ export default async function PersonPackPage({
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Needed" value={selectedActions} tone={selectedActions ? "warn" : "success"} icon={selectedActions ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />} />
         <Stat label="Documents" value={linkedDocsShown} icon={<FileText size={16} />} />
-        <Stat label="Open" value={selection.openTasks ? pack.openTasks.length : 0} tone={selection.openTasks && pack.openTasks.length ? "warn" : "default"} icon={<ClipboardList size={16} />} />
-        <Stat label="Compliance" value={complianceValue} tone={complianceTone(pack.compliance.status)} icon={<ShieldCheck size={16} />} />
+        <Stat label="Work" value={workShown} tone={workShown ? "warn" : "default"} icon={<ClipboardList size={16} />} />
+        <Stat label="Compliance" value={complianceValue} tone={selection.complianceScore ? complianceTone(pack.compliance.status) : "default"} icon={<ShieldCheck size={16} />} />
       </div>
 
       <Card className="p-4">

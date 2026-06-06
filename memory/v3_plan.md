@@ -99,7 +99,11 @@ Examples:
    cleanup:** person compliance issues now link to `/people?person=ID&pack=1`,
    opening the person drawer and Prepare pack modal instead of jumping straight
    to a PDF output. Documents linked to a person are labelled as Person file
-   inputs in the Documents table. **Phase 3 complete:** the builder is mobile/touch
+   inputs in the Documents table. **PDF cleanup pass:** the person-pack PDF
+   headline and stat cards now describe only selected sections. Work counts are
+   hidden unless work/to-dos are selected, compliance shows "Not included"
+   unless selected, and default wording no longer implies compliance data is in
+   a document-only pack. **Phase 3 complete:** the builder is mobile/touch
    tightened (phone bottom-sheet behaviour, larger tap rows, sticky action bar)
    and can open a selected-section PDF route at `/people/[id]/pack`, using the
    existing Director Brief-style print approach. The PDF now has a person-facing
