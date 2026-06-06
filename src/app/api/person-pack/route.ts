@@ -5,8 +5,11 @@ export const dynamic = "force-dynamic";
 
 const PURPOSES: PersonPackPurpose[] = [
   "document-request",
+  "expat-onboarding",
   "visa-permit",
+  "work-permit-renewal",
   "recruitment",
+  "contract-signing",
   "task-reminder",
   "custom",
 ];

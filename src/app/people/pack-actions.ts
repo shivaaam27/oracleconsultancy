@@ -7,7 +7,16 @@ import { contactForChannel, linkFor, type Channel } from "@/lib/outbox-links";
 import type { PersonPackPurpose } from "@/lib/person-pack-shared";
 
 const CHANNELS: Channel[] = ["WHATSAPP", "EMAIL", "SMS"];
-const PURPOSES: PersonPackPurpose[] = ["document-request", "visa-permit", "recruitment", "task-reminder", "custom"];
+const PURPOSES: PersonPackPurpose[] = [
+  "document-request",
+  "expat-onboarding",
+  "visa-permit",
+  "work-permit-renewal",
+  "recruitment",
+  "contract-signing",
+  "task-reminder",
+  "custom",
+];
 
 export type PersonPackDraftInput = {
   personId: number;

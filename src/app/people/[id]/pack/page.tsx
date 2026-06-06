@@ -24,13 +24,25 @@ export const dynamic = "force-dynamic";
 
 const PURPOSE_LABELS: Record<PersonPackPurpose, string> = {
   "document-request": "Document Request",
+  "expat-onboarding": "Expat Onboarding",
   "visa-permit": "Visa / Permit",
-  recruitment: "Recruitment",
+  "work-permit-renewal": "Work Permit Renewal",
+  recruitment: "Recruitment File",
+  "contract-signing": "Contract Signing",
   "task-reminder": "Task Reminder",
   custom: "Custom",
 };
 
-const PURPOSES: PersonPackPurpose[] = ["document-request", "visa-permit", "recruitment", "task-reminder", "custom"];
+const PURPOSES: PersonPackPurpose[] = [
+  "document-request",
+  "expat-onboarding",
+  "visa-permit",
+  "work-permit-renewal",
+  "recruitment",
+  "contract-signing",
+  "task-reminder",
+  "custom",
+];
 
 function parsePurpose(value?: string): PersonPackPurpose {
   return PURPOSES.includes(value as PersonPackPurpose) ? (value as PersonPackPurpose) : "document-request";
@@ -128,11 +140,20 @@ function Section({ title, icon, children }: { title: string; icon?: React.ReactN
 }
 
 function purposeIntro(purpose: PersonPackPurpose, name: string) {
+  if (purpose === "expat-onboarding") {
+    return `This pack summarises the onboarding, immigration and HR file items currently relevant to ${name}.`;
+  }
   if (purpose === "visa-permit") {
     return `This pack summarises the immigration, permit and HR follow-up items currently relevant to ${name}.`;
   }
+  if (purpose === "work-permit-renewal") {
+    return `This pack summarises the permit renewal items, linked documents and open follow-up work currently relevant to ${name}.`;
+  }
   if (purpose === "recruitment") {
     return `This pack summarises the recruitment and onboarding items currently relevant to ${name}.`;
+  }
+  if (purpose === "contract-signing") {
+    return `This pack summarises the contract and signing details currently relevant to ${name}.`;
   }
   if (purpose === "task-reminder") {
     return `This pack summarises the open work and follow-up items currently assigned to ${name}.`;

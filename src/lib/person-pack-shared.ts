@@ -1,7 +1,10 @@
 export type PersonPackPurpose =
   | "document-request"
+  | "expat-onboarding"
   | "visa-permit"
+  | "work-permit-renewal"
   | "recruitment"
+  | "contract-signing"
   | "task-reminder"
   | "custom";
 

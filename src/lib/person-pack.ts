@@ -88,6 +88,18 @@ export function defaultPersonPackSelection(
     return s;
   }
 
+  if (purpose === "expat-onboarding") {
+    s.missingDocuments = true;
+    s.documentIssues = true;
+    s.linkedDocuments = true;
+    s.personalTodos = true;
+    s.deadlines = true;
+    s.fileLinks = true;
+    s.companyContext = true;
+    s.contactDetails = true;
+    return s;
+  }
+
   if (purpose === "visa-permit") {
     s.missingDocuments = true;
     s.documentIssues = true;
@@ -101,12 +113,34 @@ export function defaultPersonPackSelection(
     return s;
   }
 
+  if (purpose === "work-permit-renewal") {
+    s.missingDocuments = true;
+    s.documentIssues = true;
+    s.linkedDocuments = true;
+    s.openTasks = true;
+    s.deadlines = true;
+    s.fileLinks = true;
+    s.companyContext = true;
+    s.contactDetails = true;
+    return s;
+  }
+
   if (purpose === "recruitment") {
     s.missingDocuments = true;
     s.documentIssues = true;
     s.linkedDocuments = true;
     s.personalTodos = true;
     s.deadlines = true;
+    s.contactDetails = true;
+    s.companyContext = true;
+    return s;
+  }
+
+  if (purpose === "contract-signing") {
+    s.missingDocuments = true;
+    s.linkedDocuments = true;
+    s.deadlines = true;
+    s.fileLinks = true;
     s.contactDetails = true;
     s.companyContext = true;
     return s;

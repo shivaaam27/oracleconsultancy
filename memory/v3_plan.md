@@ -108,7 +108,10 @@ Examples:
    requirements and a person-pack PDF route for person issues. **Home signal
    added:** Home Intelligence now surfaces person-pack needs separately from
    company compliance, prioritising expat/personal document issues in the
-   command cards, focus queue and pulse strip.
+   command cards, focus queue and pulse strip. **HR templates added:** the
+   builder now includes Expat Onboarding, Work Permit Renewal, Recruitment File
+   and Contract Signing as minimalist purpose presets using the same toggle/PDF/
+   Outbox flow.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,

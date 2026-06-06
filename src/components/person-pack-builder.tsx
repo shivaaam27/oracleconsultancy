@@ -68,8 +68,11 @@ type PackResponse = {
 
 const purposeOptions: Array<{ id: PersonPackPurpose; label: string; hint: string }> = [
   { id: "document-request", label: "Document Request", hint: "Only what they need to send." },
+  { id: "expat-onboarding", label: "Expat Onboarding", hint: "Passport, permit, contract and HR file." },
   { id: "visa-permit", label: "Visa / Permit", hint: "Immigration, permit and linked work." },
-  { id: "recruitment", label: "Recruitment", hint: "Candidate or new-starter request." },
+  { id: "work-permit-renewal", label: "Work Permit Renewal", hint: "Renewal documents and linked tasks." },
+  { id: "recruitment", label: "Recruitment File", hint: "Candidate or new-starter request." },
+  { id: "contract-signing", label: "Contract Signing", hint: "Contract, contact and signing context." },
   { id: "task-reminder", label: "Task Reminder", hint: "Work assigned to this person." },
   { id: "custom", label: "Custom", hint: "Start blank and choose sections." },
 ];
