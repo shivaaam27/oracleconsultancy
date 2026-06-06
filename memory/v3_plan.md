@@ -111,7 +111,9 @@ Examples:
    command cards, focus queue and pulse strip. **HR templates added:** the
    builder now includes Expat Onboarding, Work Permit Renewal, Recruitment File
    and Contract Signing as minimalist purpose presets using the same toggle/PDF/
-   Outbox flow.
+   Outbox flow. **Ask COS pack intent added:** commands such as "prepare visa
+   pack for Shivam" resolve locally to the correct person-pack preview route,
+   without creating a draft or sending anything.
 4. **Documents & Compliance Advanced** - missing-document checklists, versions,
    Word/Excel reading, compliance score. **Started:** shared compliance scoring
    now defines required company/person document checklists, computes missing,

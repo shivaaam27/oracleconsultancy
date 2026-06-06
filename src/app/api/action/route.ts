@@ -9,6 +9,7 @@ import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import type { PersonPackPurpose } from "@/lib/person-pack-shared";
 
 export const maxDuration = 60;
 
@@ -21,6 +22,7 @@ type ParsedIntent =
   | { type: "set_priority"; taskCode: string; priority: string }
   | { type: "bulk"; op: "complete" | "escalate" | "set_status" | "set_priority"; status?: string; priority?: string; taskCodes?: string[] }
   | { type: "navigate"; target: string; query?: string }
+  | { type: "person_pack"; personName: string; purpose: PersonPackPurpose }
   | { type: "unknown"; reason: string };
 
 const SYSTEM_PROMPT = `You are the command parser for a Chief of Staff task system. Convert the principal's natural-language command into a single JSON intent.
@@ -49,6 +51,42 @@ RULES:
 - For create: extract company, action, priority (urgent/critical→Critical), deadline (parse natural dates).
 - Today is ${new Date().toISOString().slice(0, 10)}.
 - Return ONLY JSON. No markdown, no prose, no explanations.`;
+
+const PERSON_PACK_LABELS: Record<PersonPackPurpose, string> = {
+  "document-request": "Document Request",
+  "expat-onboarding": "Expat Onboarding",
+  "visa-permit": "Visa / Permit",
+  "work-permit-renewal": "Work Permit Renewal",
+  recruitment: "Recruitment File",
+  "contract-signing": "Contract Signing",
+  "task-reminder": "Task Reminder",
+  custom: "Custom",
+};
+
+function packPurposeFromCommand(command: string): PersonPackPurpose {
+  const c = command.toLowerCase();
+  if (/\b(expat|onboard|onboarding|new starter)\b/.test(c)) return "expat-onboarding";
+  if (/\b(work\s*permit|permit renewal|renewal|renew)\b/.test(c)) return "work-permit-renewal";
+  if (/\b(visa|immigration|permit)\b/.test(c)) return "visa-permit";
+  if (/\b(recruit|candidate|recruitment)\b/.test(c)) return "recruitment";
+  if (/\b(contract|signing|signature)\b/.test(c)) return "contract-signing";
+  if (/\b(task|reminder|chase)\b/.test(c)) return "task-reminder";
+  return "document-request";
+}
+
+function parsePersonPackCommand(command: string): ParsedIntent | null {
+  const c = command.trim();
+  if (!/\b(pack|person pack|visa|permit|immigration|recruitment|contract)\b/i.test(c)) return null;
+  if (!/\b(prepare|build|create|open|draft|make)\b/i.test(c)) return null;
+
+  const personMatch =
+    c.match(/\bfor\s+([A-Za-z][A-Za-z'.\- ]{1,80})\s*$/i) ??
+    c.match(/\b(?:for|about)\s+([A-Za-z][A-Za-z'.\- ]{1,80})\b/i);
+  const rawName = personMatch?.[1]?.replace(/\b(please|thanks|today|now)\b/gi, "").trim();
+  if (!rawName) return { type: "unknown", reason: "Tell me who the pack is for, for example: prepare a visa pack for Shivam" };
+
+  return { type: "person_pack", personName: rawName, purpose: packPurposeFromCommand(c) };
+}
 
 async function parseCommand(
   command: string,
@@ -286,7 +324,7 @@ export async function POST(req: NextRequest) {
     const activeContext = body?.activeContext || undefined;
     if (!command) return NextResponse.json({ error: "command required" }, { status: 400 });
 
-    const intent = await parseCommand(command, history, activeContext);
+    const intent = parsePersonPackCommand(command) ?? await parseCommand(command, history, activeContext);
 
     if (intent.type === "navigate") {
       // Resolve target
@@ -310,6 +348,22 @@ export async function POST(req: NextRequest) {
       else if (t === "companies") redirect = "/companies";
 
       return NextResponse.json({ intent, ok: true, message: `Opening…`, redirect, executed: true });
+    }
+
+    if (intent.type === "person_pack") {
+      const person = await findPersonByName(intent.personName);
+      if (!person) {
+        return NextResponse.json({ intent, ok: false, message: `Person "${intent.personName}" not found` });
+      }
+      const params = new URLSearchParams({ purpose: intent.purpose });
+      const redirect = `/people/${person.id}/pack?${params.toString()}`;
+      return NextResponse.json({
+        intent,
+        ok: true,
+        message: `Opening ${PERSON_PACK_LABELS[intent.purpose]} pack for ${person.name}. Review before drafting or sending.`,
+        redirect,
+        executed: true,
+      });
     }
 
     if (intent.type === "unknown") {

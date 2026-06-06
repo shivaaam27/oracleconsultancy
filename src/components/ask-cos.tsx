@@ -30,7 +30,7 @@ type Message = {
 
 // Detect if a message is a command vs a question
 function looksLikeCommand(text: string): boolean {
-  return /^(mark|make|complete|finish|close|escalate|create|add|update|set|change|open|go to|navigate|show me task|delete|remove|assign|reassign)/i.test(text.trim());
+  return /^(mark|make|complete|finish|close|escalate|create|add|update|set|change|open|go to|navigate|show me task|delete|remove|assign|reassign|prepare|build)/i.test(text.trim());
 }
 
 // Detect a request for the weekly digest / briefing
