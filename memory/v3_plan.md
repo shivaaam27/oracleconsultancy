@@ -91,7 +91,11 @@ Examples:
    Recruitment, Work Reminder and Custom; include options are grouped into
    Request, Saved documents, Work follow-up, Profile and a collapsed Sensitive
    internal area. Preview counts reflect only selected sections, so hidden work
-   or internal data does not appear as if it will be sent. **Phase 3 complete:** the builder is mobile/touch
+   or internal data does not appear as if it will be sent. **People drawer
+   cleanup pass:** the profile now shows one compact HR file health card near
+   the top, with Prepare pack, Add document and Open documents as the primary HR
+   actions. Detailed tasks/activity panels are collapsed by default and the old
+   duplicate workload chip block was removed. **Phase 3 complete:** the builder is mobile/touch
    tightened (phone bottom-sheet behaviour, larger tap rows, sticky action bar)
    and can open a selected-section PDF route at `/people/[id]/pack`, using the
    existing Director Brief-style print approach. The PDF now has a person-facing

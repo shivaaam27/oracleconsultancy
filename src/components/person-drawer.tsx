@@ -118,6 +118,100 @@ function buildPersonReminder(name: string, tasks: { code: string; actionItem: st
   return lines.join("\n");
 }
 
+function docMatches(doc: DrawerData["documents"][number], terms: string[]) {
+  const haystack = [doc.title, doc.category, doc.docType].filter(Boolean).join(" ").toLowerCase();
+  return terms.some((term) => haystack.includes(term));
+}
+
+function missingPersonRequirements(person: DrawerPerson, documents: DrawerData["documents"]) {
+  if (person.personType !== "expat") return [];
+  const checks = [
+    { label: "Contract", terms: ["contract", "engagement"] },
+    { label: "Passport", terms: ["passport"] },
+    { label: "Visa / permit", terms: ["visa", "permit", "immigration"] },
+  ];
+  return checks.filter((check) => !documents.some((doc) => docMatches(doc, check.terms))).map((check) => check.label);
+}
+
+function HRFileHealth({
+  data,
+  person,
+  close,
+}: {
+  data: DrawerData;
+  person: DrawerPerson;
+  close: () => void;
+}) {
+  const missing = missingPersonRequirements(person, data.documents);
+  const expired = data.documents.filter((d) => d.status === "Expired").length;
+  const expiring = data.documents.filter((d) => d.status === "Expiring").length;
+  const openWork = data.assignedTasks.filter((t) => t.status !== "Completed" && t.status !== "Closed").length;
+  const contactMissing = !person.email && !person.whatsapp && !person.phone;
+  const issueCount = missing.length + expired + expiring + data.workload.overdue + (contactMissing ? 1 : 0);
+  const tone = issueCount > 0 ? "warn" : "success";
+  const headline =
+    issueCount > 0
+      ? `${issueCount} item${issueCount === 1 ? "" : "s"} need attention`
+      : "HR file looks clean";
+
+  return (
+    <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <FileText size={15} className={tone === "warn" ? "text-warn" : "text-success"} />
+            HR file health
+          </div>
+          <p className="mt-0.5 text-xs text-fg-muted">{headline}</p>
+        </div>
+        <Badge tone={tone}>{person.personType}</Badge>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { label: "Missing", value: missing.length, tone: missing.length ? "text-danger" : "text-success" },
+          { label: "Doc issues", value: expired + expiring, tone: expired ? "text-danger" : expiring ? "text-warn" : "text-success" },
+          { label: "Docs", value: data.documents.length, tone: data.documents.length ? "text-info" : "text-fg-subtle" },
+          { label: "Open work", value: openWork, tone: data.workload.overdue ? "text-danger" : openWork ? "text-info" : "text-fg-subtle" },
+        ].map((item) => (
+          <div key={item.label} className="rounded-xl bg-bg-subtle/60 px-3 py-2 ring-1 ring-border/60">
+            <div className={cn("text-base font-semibold tabular", item.tone)}>{item.value}</div>
+            <div className="text-[11px] text-fg-muted">{item.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {(missing.length > 0 || expired > 0 || expiring > 0 || data.workload.overdue > 0 || contactMissing) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {missing.slice(0, 3).map((item) => <Badge key={item} tone="danger">Missing {item}</Badge>)}
+          {expired > 0 && <Badge tone="danger">{expired} expired</Badge>}
+          {expiring > 0 && <Badge tone="warn">{expiring} expiring</Badge>}
+          {data.workload.overdue > 0 && <Badge tone="danger">{data.workload.overdue} overdue</Badge>}
+          {contactMissing && <Badge tone="danger">No contact</Badge>}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <PersonPackBuilder personId={person.id} personName={person.name} />
+        <Link
+          href={`/documents?newdoc=1&person=${person.id}`}
+          onClick={close}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:border-accent hover:text-accent"
+        >
+          <FileText size={12} /> Add document
+        </Link>
+        <Link
+          href={`/documents?person=${person.id}`}
+          onClick={close}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:border-accent hover:text-accent"
+        >
+          <ExternalLink size={12} /> Open documents
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------------------
  * PersonDrawer
  * ---------------------------------------------------------------------- */
@@ -347,6 +441,8 @@ export function PersonDrawer() {
                   </div>
                 </div>
 
+                <HRFileHealth data={data} person={person} close={close} />
+
                 {/* Contact actions */}
                 <div className="flex flex-wrap gap-1.5">
                   {person.email && (
@@ -380,13 +476,6 @@ export function PersonDrawer() {
                       <AlertCircle size={11} /> No contact info on file
                     </span>
                   )}
-                  <Link
-                    href={`/documents?newdoc=1&person=${person.id}`}
-                    onClick={close}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border hover:border-accent hover:text-accent transition-colors"
-                  >
-                    <FileText size={12} /> Add document
-                  </Link>
                   {data && data.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed") && (
                     <button
                       type="button"
@@ -400,46 +489,15 @@ export function PersonDrawer() {
                       <Send size={12} /> Remind
                     </button>
                   )}
-                  <PersonPackBuilder personId={person.id} personName={person.name} />
                 </div>
 
-                {/* Workload — compact tinted chips */}
-                {data && (
-                  <div>
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Workload</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { label: "Open", value: data.workload.open, tone: "info" as const },
-                        { label: "Overdue", value: data.workload.overdue, tone: "danger" as const },
-                        { label: "Due soon", value: data.workload.dueSoon, tone: "warn" as const },
-                        { label: "Blocked", value: data.workload.blocked, tone: "warn" as const },
-                        { label: "Escalated", value: data.workload.escalated, tone: "danger" as const },
-                        { label: "Done · mo", value: data.workload.completedThisMonth, tone: "success" as const },
-                      ].map(({ label, value, tone }) => {
-                        const dim = value === 0;
-                        const tint = dim
-                          ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
-                          : tone === "danger" ? "bg-danger-soft/60 ring-1 ring-danger/30 text-danger"
-                          : tone === "warn" ? "bg-warn-soft/60 ring-1 ring-warn/30 text-warn"
-                          : tone === "success" ? "bg-success-soft/60 ring-1 ring-success/30 text-success"
-                          : "bg-info-soft/60 ring-1 ring-info/30 text-info";
-                        return (
-                          <span key={label} className={`inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md ${tint}`}>
-                            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">{value}</span>
-                            {label}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 {/* Compliance documents linked to this person */}
                 {data && data.documents.length > 0 && (() => {
                   const expired = data.documents.filter((d) => d.status === "Expired").length;
                   const expiring = data.documents.filter((d) => d.status === "Expiring").length;
                   return (
-                    <details className="group glass elevated rounded-2xl overflow-hidden" open>
+                    <details className="group glass elevated rounded-2xl overflow-hidden">
                       <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
                         <FileText size={12} /> Documents
                         <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
@@ -497,7 +555,7 @@ export function PersonDrawer() {
                 <div className="grid sm:grid-cols-2 gap-3 items-start">
                 {/* Assigned tasks — collapsible glass card */}
                 {data.assignedTasks.length > 0 && (
-                  <details className="group glass elevated rounded-2xl overflow-hidden" open>
+                  <details className="group glass elevated rounded-2xl overflow-hidden">
                     <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
                       <ListTodo size={12} /> Assigned tasks
                       <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.assignedTasks.length}</span>
@@ -536,7 +594,7 @@ export function PersonDrawer() {
 
                 {/* Recent activity — collapsible glass card */}
                 {data.recentUpdates.length > 0 && (
-                  <details className="group glass elevated rounded-2xl overflow-hidden" open>
+                  <details className="group glass elevated rounded-2xl overflow-hidden">
                     <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
                       <Activity size={12} /> Recent activity
                       <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.recentUpdates.length}</span>
