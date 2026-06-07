@@ -55,6 +55,8 @@ export function PeopleTable({ people, companies }: {
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
+  const moved = useRef(false);
+  const lastPointerType = useRef<string>("mouse");
 
   function openPerson(id: number) {
     const params = new URLSearchParams(searchParams.toString());
@@ -101,13 +103,21 @@ export function PeopleTable({ people, companies }: {
   function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
   function onRowPointerDown(p: PersonRow, e: React.PointerEvent) {
     longPressed.current = false;
+    moved.current = false;
+    lastPointerType.current = e.pointerType || "mouse";
     pressStart.current = { x: e.clientX, y: e.clientY };
     clearPress();
     pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeek(p); }, 400);
   }
   function onRowPointerMove(e: React.PointerEvent) {
     if (!pressStart.current) return;
-    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
+    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) { moved.current = true; clearPress(); }
+  }
+  function onRowPointerUp(p: PersonRow, e: React.PointerEvent) {
+    clearPress();
+    // On touch, open directly on tap-up. Mobile browsers drop the synthesized
+    // click inside scrollable lists, so relying on onClick fails on phones.
+    if (e.pointerType === "touch" && !longPressed.current && !moved.current) openPerson(p.id);
   }
   // Fast actions in the peek — primary one adapts: message if reachable, else add contact.
   const peekActions = (p: PersonRow): PeekAction[] => {
@@ -316,10 +326,14 @@ export function PeopleTable({ people, companies }: {
               <PersonCard
                 key={p.id}
                 person={p}
-                onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openPerson(p.id); }}
+                onOpen={() => {
+                  if (longPressed.current) { longPressed.current = false; return; }
+                  if (lastPointerType.current === "touch") return; // touch handled in onPointerUp
+                  openPerson(p.id);
+                }}
                 onPointerDown={(e) => onRowPointerDown(p, e)}
                 onPointerMove={onRowPointerMove}
-                onPointerUp={clearPress}
+                onPointerUp={(e) => onRowPointerUp(p, e)}
                 onPointerLeave={clearPress}
                 onPointerCancel={clearPress}
               />

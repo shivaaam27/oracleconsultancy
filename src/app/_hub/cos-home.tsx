@@ -191,15 +191,17 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     })
     .slice(0, 3);
 
+  const overdueDraftSuggestion = automationSuggestions.find((s) => s.id === "overdue-reminder-drafts");
+
   const command: CommandAction[] = [
-    automationSuggestions.find((s) => s.id === "overdue-reminder-drafts") && {
+    overdueDraftSuggestion && {
       id: "automation-overdue-drafts",
-      title: automationSuggestions.find((s) => s.id === "overdue-reminder-drafts")!.title,
-      detail: automationSuggestions.find((s) => s.id === "overdue-reminder-drafts")!.detail,
+      title: overdueDraftSuggestion.title,
+      detail: overdueDraftSuggestion.detail,
       href: "/outbox",
       actionLabel: "Create drafts",
       tone: "danger",
-      count: automationSuggestions.find((s) => s.id === "overdue-reminder-drafts")!.count,
+      count: overdueDraftSuggestion.count,
       automationAction: "overdue-reminders",
     },
     overdue.length > 0 && {
@@ -306,21 +308,24 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     },
   ].filter(Boolean) as CommandAction[];
 
-  const taskFocus: FocusItem[] = openRows
+  const focusedTaskRows = openRows
     .filter((r) => taskScore(r) > 0)
     .sort((a, b) => taskScore(b) - taskScore(a))
-    .slice(0, 8)
-    .map((r) => ({
-      id: `task-${r.id}`,
-      title: r.actionItem,
-      meta: `${r.code} · ${r.companyName} · ${r.priority}`,
-      href: `/?task=${encodeURIComponent(r.code)}`,
-      kind: "task",
-      tone: taskTone(r),
-      due: deadlineLabel(r),
-    }));
+    .slice(0, 8);
+  const focusedTaskIds = new Set(focusedTaskRows.map((r) => r.id));
+  const taskFocus: FocusItem[] = focusedTaskRows.map((r) => ({
+    id: `task-${r.id}`,
+    title: r.actionItem,
+    meta: `${r.code} · ${r.companyName} · ${r.priority}`,
+    href: `/?task=${encodeURIComponent(r.code)}`,
+    kind: "task",
+    tone: taskTone(r),
+    due: deadlineLabel(r),
+  }));
 
-  const staleFocus: FocusItem[] = staleTasks.slice(0, 4).map((r) => ({
+  // Exclude stale tasks already shown in the main task focus, so the same task
+  // can't occupy two rows in the queue.
+  const staleFocus: FocusItem[] = staleTasks.filter((r) => !focusedTaskIds.has(r.id)).slice(0, 4).map((r) => ({
     id: `stale-${r.id}`,
     title: `Update needed: ${r.actionItem}`,
     meta: `${r.code} · ${r.companyName} · no recent update`,
@@ -358,7 +363,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     return {
       id: `person-pack-${score.ownerId}`,
       title: `Person pack: ${score.ownerName}`,
-      meta: `${firstIssue} Â· ${score.missing} missing - ${score.expired} expired - ${score.expiring} expiring`,
+      meta: `${firstIssue} · ${score.missing} missing · ${score.expired} expired · ${score.expiring} expiring`,
       href: `/people?person=${score.ownerId}&pack=1`,
       kind: "document",
       tone: score.status === "Risk" ? "danger" : "warn",
@@ -369,7 +374,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const complianceFocus: FocusItem[] = complianceRisks.filter((score) => score.ownerType === "company").slice(0, 4).map((score) => ({
     id: `compliance-${score.ownerType}-${score.ownerId}`,
     title: `${score.ownerName}: ${score.score}% compliance`,
-    meta: `${score.missing} missing - ${score.expired} expired - ${score.expiring} expiring`,
+    meta: `${score.missing} missing · ${score.expired} expired · ${score.expiring} expiring`,
     href: `/documents?company=${score.ownerId}`,
     kind: "document",
     tone: score.status === "Risk" ? "danger" : "warn",
