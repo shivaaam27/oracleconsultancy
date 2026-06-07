@@ -31,6 +31,7 @@ const TYPE_TINT: Record<string, string> = {
 export function PersonCard({
   person: p,
   onOpen,
+  compliance,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -39,6 +40,7 @@ export function PersonCard({
 }: {
   person: PersonRow;
   onOpen: () => void;
+  compliance?: { score: number; status: "Good" | "Watch" | "Risk" } | null;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
   onPointerUp?: (e: React.PointerEvent) => void;
@@ -94,6 +96,20 @@ export function PersonCard({
         {p.phone && <a href={`tel:${p.phone}`} title={p.phone} className="hover:text-accent transition-colors"><Phone size={14} /></a>}
         {!p.hasContact && <span title="No contact info" className="text-danger"><AlertCircle size={14} /></span>}
       </div>
+
+      {compliance && (
+        <span
+          title={`Document compliance: ${compliance.score}% (${compliance.status})`}
+          className={cn(
+            "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium tabular shrink-0 ring-1",
+            compliance.status === "Risk" ? "bg-danger-soft/70 ring-danger/30 text-danger"
+              : compliance.status === "Watch" ? "bg-warn-soft/70 ring-warn/30 text-warn"
+              : "bg-success-soft/70 ring-success/30 text-success"
+          )}
+        >
+          {compliance.score}%
+        </span>
+      )}
 
       <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium tabular shrink-0", workloadTint)}>
         {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}

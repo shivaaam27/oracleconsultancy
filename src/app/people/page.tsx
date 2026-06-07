@@ -3,8 +3,7 @@ import { PeopleTable } from "@/components/people-table";
 import { NewPersonButton } from "@/components/new-person-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
-import { buildPersonComplianceScores } from "@/lib/compliance";
-import { listDocuments } from "@/lib/documents";
+import { buildPersonRequirementScores } from "@/lib/requirements";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +14,9 @@ export default async function PeoplePage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [people, documents, { data: companiesRaw }, { data: departmentsRaw }] = await Promise.all([
+  const [people, personScores, { data: companiesRaw }, { data: departmentsRaw }] = await Promise.all([
     getAllPeopleWithWorkload(),
-    listDocuments(),
+    buildPersonRequirementScores(),
     sb.from("companies").select("id,name").order("name"),
     sb.from("departments").select("name").order("name"),
   ]);
@@ -33,11 +32,9 @@ export default async function PeoplePage({
 
   const activeCount = people.filter((p) => p.active).length;
   const overdueLoad = people.filter((p) => p.active && p.workload.overdue > 0).length;
-  const personCompliance = buildPersonComplianceScores(
-    people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, personType: p.personType })),
-    documents
-  );
-  const complianceIssues = personCompliance.filter((score) => score.status !== "Good").length;
+  const complianceIssues = personScores.filter((score) => score.status !== "Good").length;
+  const complianceById: Record<number, { score: number; status: "Good" | "Watch" | "Risk" }> = {};
+  for (const s of personScores) complianceById[s.ownerId] = { score: s.score, status: s.status };
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -47,7 +44,7 @@ export default async function PeoplePage({
         sub={`${activeCount} active · ${overdueLoad} carrying overdue work · ${complianceIssues} compliance issue${complianceIssues === 1 ? "" : "s"}`}
         action={<NewPersonButton companies={companies} peopleList={peopleList} departments={departments} />}
       />
-      <PeopleTable people={people} companies={companies} />
+      <PeopleTable people={people} companies={companies} complianceById={complianceById} />
     </div>
   );
 }

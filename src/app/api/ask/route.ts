@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
-import { buildCompanyComplianceScores, buildPersonComplianceScores, worstComplianceScores } from "@/lib/compliance";
+import { buildCompanyComplianceScores, worstComplianceScores } from "@/lib/compliance";
+import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
@@ -352,10 +353,7 @@ async function buildContext(question: string, page?: PageCtx) {
         reference: d.referenceNo,
       }));
     const companyScores = buildCompanyComplianceScores(companies, allDocs);
-    const personScores = buildPersonComplianceScores(
-      peopleAll.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, personType: p.personType })),
-      allDocs
-    );
+    const personScores = await buildPersonRequirementScores();
     complianceCtx = worstComplianceScores([...companyScores, ...personScores], 12).map((score) => ({
       owner: score.ownerName,
       ownerType: score.ownerType,

@@ -3,6 +3,7 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { normalizePersonType } from "@/lib/person-types";
+import { ensurePersonRequirements } from "@/lib/requirements";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -128,6 +129,8 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   await syncAssociations(data.id as number, parseAssociations(formData));
+  // Auto-generate this person's document checklist for their type.
+  try { await ensurePersonRequirements(data.id as number, normalizePersonType(personType(formData))); } catch {}
 
   invalidate();
   return { ok: true, id: data.id as number };
@@ -180,6 +183,8 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   if (error) return { ok: false, error: error.message };
 
   await syncAssociations(id, parseAssociations(formData));
+  // Reconcile the checklist to the (possibly changed) type.
+  try { await ensurePersonRequirements(id, normalizePersonType(personType(formData))); } catch {}
 
   invalidate();
   return { ok: true, id };

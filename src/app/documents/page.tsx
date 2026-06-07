@@ -3,7 +3,8 @@ import { DocumentsTable } from "@/components/documents-table";
 import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
-import { buildCompanyComplianceScores, buildPersonComplianceScores } from "@/lib/compliance";
+import { buildCompanyComplianceScores } from "@/lib/compliance";
+import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 
@@ -32,7 +33,7 @@ export default async function DocumentsPage({
     personType: normalizePersonType(p.person_type as string | null),
   }));
   const companyScores = buildCompanyComplianceScores(companies, documents);
-  const personScores = buildPersonComplianceScores(people, documents);
+  const personScores = await buildPersonRequirementScores();
 
   // Linked renewal/action tasks per document (backward link, mirrors meeting_tasks).
   const { data: linkRows } = await sb.from("document_links").select("document_id, tasks(code,status)");

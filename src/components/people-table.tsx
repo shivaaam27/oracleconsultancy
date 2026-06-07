@@ -32,9 +32,10 @@ function whatsappHref(num: string) {
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
 }
 
-export function PeopleTable({ people, companies }: {
+export function PeopleTable({ people, companies, complianceById }: {
   people: PersonRow[];
   companies: Array<{ id: number; name: string }>;
+  complianceById?: Record<number, { score: number; status: "Good" | "Watch" | "Risk" }>;
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterKind>("all");
@@ -325,6 +326,7 @@ export function PeopleTable({ people, companies }: {
               <PersonCard
                 key={p.id}
                 person={p}
+                compliance={complianceById?.[p.id] ?? null}
                 onOpen={() => {
                   if (longPressed.current) { longPressed.current = false; return; }
                   if (lastPointerType.current === "touch") return; // touch handled in onPointerUp

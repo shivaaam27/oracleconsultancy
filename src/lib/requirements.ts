@@ -7,6 +7,7 @@ import {
   type EffectiveStatus,
   type RequirementStatus,
 } from "@/lib/requirements-shared";
+import type { ComplianceScore, ComplianceGap, ComplianceDocumentIssue } from "@/lib/compliance";
 
 /* ------------------------------------------------------------------ */
 /* Default seed profiles — one per person type. Owner-confirmed lists: */
@@ -377,6 +378,104 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
     items,
     documents: docs.map((d) => ({ id: d.id, title: d.title, category: d.category, status: d.status })),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Bulk read-only scoring — for People list, Home and Documents.       */
+/* Computes from stored person_requirements rows + person documents,   */
+/* WITHOUT writing (no ensure/auto-link). Returns ComplianceScore-      */
+/* shaped objects so existing consumers/panels work unchanged.         */
+/* ------------------------------------------------------------------ */
+export async function buildPersonRequirementScores(): Promise<ComplianceScore[]> {
+  const [{ data: people }, { data: reqRows }, { data: docRows }] = await Promise.all([
+    sb.from("people").select("id,name").eq("active", true),
+    sb.from("person_requirements").select("person_id,label,category,mandatory,status,document_id"),
+    sb.from("documents").select("id,person_id,title,category,expiry_date,reminder_lead_days,archived"),
+  ]);
+
+  // Person documents → derived status, grouped by person.
+  type Doc = { id: number; title: string; category: string | null; status: DocStatus; expiryLabel: string | null };
+  const docsByPerson = new Map<number, Doc[]>();
+  const docStatusById = new Map<number, DocStatus>();
+  for (const d of docRows ?? []) {
+    if (d.person_id == null || (d.archived as boolean)) continue;
+    const expiryDate = d.expiry_date ? new Date(d.expiry_date as string) : null;
+    const reminderLeadDays = (d.reminder_lead_days as number | null) ?? 30;
+    const status = deriveDocStatus({ expiryDate, reminderLeadDays, archived: false });
+    docStatusById.set(d.id as number, status);
+    const list = docsByPerson.get(d.person_id as number) ?? [];
+    list.push({ id: d.id as number, title: d.title as string, category: (d.category as string | null) ?? null, status, expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays }) : null });
+    docsByPerson.set(d.person_id as number, list);
+  }
+
+  const reqsByPerson = new Map<number, typeof reqRows>();
+  for (const r of reqRows ?? []) {
+    const pid = r.person_id as number;
+    const list = reqsByPerson.get(pid) ?? [];
+    list!.push(r);
+    reqsByPerson.set(pid, list);
+  }
+
+  return (people ?? []).map((p) => {
+    const personId = p.id as number;
+    const ownerName = p.name as string;
+    const rows = reqsByPerson.get(personId) ?? [];
+    const personDocs = docsByPerson.get(personId) ?? [];
+
+    let mandatoryTotal = 0;
+    let verified = 0;
+    let expired = 0;
+    let expiring = 0;
+    const gaps: ComplianceGap[] = [];
+
+    for (const r of rows ?? []) {
+      const status = (r.status as RequirementStatus) ?? "missing";
+      if (status === "waived") continue;
+      const mandatory = (r.mandatory as boolean | null) ?? true;
+      if (!mandatory) continue;
+      mandatoryTotal++;
+      const docStatus = r.document_id ? docStatusById.get(r.document_id as number) ?? null : null;
+      const eff = effectiveStatus(status, docStatus);
+      if (eff === "verified" || eff === "expiring") verified++;
+      if (eff === "expiring") expiring++;
+      if (eff === "expired") expired++;
+      if (eff === "missing" || eff === "requested" || eff === "received" || eff === "expired") {
+        gaps.push({
+          id: `req-${r.person_id}-${(r.label as string)}`,
+          label: r.label as string,
+          categories: r.category ? [r.category as string] : [],
+          ownerType: "person",
+          appliesTo: "all",
+          weight: 1,
+          ownerId: personId,
+          ownerName,
+        });
+      }
+    }
+
+    const documentIssues: ComplianceDocumentIssue[] = personDocs
+      .filter((d) => d.status === "Expired" || d.status === "Expiring")
+      .map((d) => ({ id: d.id, title: d.title, category: d.category, status: d.status as "Expired" | "Expiring", expiryLabel: d.expiryLabel }));
+
+    const score = mandatoryTotal === 0 ? 100 : Math.round((verified / mandatoryTotal) * 100);
+    const band = complianceBand(score, expired > 0);
+
+    return {
+      ownerId: personId,
+      ownerName,
+      ownerType: "person",
+      score,
+      required: mandatoryTotal,
+      present: verified,
+      missing: gaps.length,
+      expired,
+      expiring,
+      monitoredDocuments: personDocs.length,
+      status: band,
+      gaps,
+      documentIssues,
+    };
+  });
 }
 
 /* ------------------------------------------------------------------ */
