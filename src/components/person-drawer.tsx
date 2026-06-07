@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackBuilder } from "./person-pack-builder";
+import { RequirementsChecklist } from "./requirements-checklist";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
@@ -129,21 +130,6 @@ function parsePackPurpose(value: string | null): PersonPackPurpose | undefined {
   return isPersonPackPurpose(value) ? value : undefined;
 }
 
-function docMatches(doc: DrawerData["documents"][number], terms: string[]) {
-  const haystack = [doc.title, doc.category, doc.docType].filter(Boolean).join(" ").toLowerCase();
-  return terms.some((term) => haystack.includes(term));
-}
-
-function missingPersonRequirements(person: DrawerPerson, documents: DrawerData["documents"]) {
-  if (person.personType !== "expat") return [];
-  const checks = [
-    { label: "Contract", terms: ["contract", "engagement"] },
-    { label: "Passport", terms: ["passport"] },
-    { label: "Visa / permit", terms: ["visa", "permit", "immigration"] },
-  ];
-  return checks.filter((check) => !documents.some((doc) => docMatches(doc, check.terms))).map((check) => check.label);
-}
-
 function HRFileHealth({
   data,
   person,
@@ -157,12 +143,11 @@ function HRFileHealth({
   openPack?: boolean;
   initialPurpose?: PersonPackPurpose;
 }) {
-  const missing = missingPersonRequirements(person, data.documents);
   const expired = data.documents.filter((d) => d.status === "Expired").length;
   const expiring = data.documents.filter((d) => d.status === "Expiring").length;
   const openWork = data.assignedTasks.filter((t) => t.status !== "Completed" && t.status !== "Closed").length;
   const contactMissing = !person.email && !person.whatsapp && !person.phone;
-  const issueCount = missing.length + expired + expiring + data.workload.overdue + (contactMissing ? 1 : 0);
+  const issueCount = expired + expiring + data.workload.overdue + (contactMissing ? 1 : 0);
   const tone = issueCount > 0 ? "warn" : "success";
   const headline =
     issueCount > 0
@@ -182,9 +167,8 @@ function HRFileHealth({
         <Badge tone={tone}>{personTypeLabel(person.personType)}</Badge>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-3 grid grid-cols-3 gap-2">
         {[
-          { label: "Missing", value: missing.length, tone: missing.length ? "text-danger" : "text-success" },
           { label: "Doc issues", value: expired + expiring, tone: expired ? "text-danger" : expiring ? "text-warn" : "text-success" },
           { label: "Docs", value: data.documents.length, tone: data.documents.length ? "text-info" : "text-fg-subtle" },
           { label: "Open work", value: openWork, tone: data.workload.overdue ? "text-danger" : openWork ? "text-info" : "text-fg-subtle" },
@@ -196,9 +180,8 @@ function HRFileHealth({
         ))}
       </div>
 
-      {(missing.length > 0 || expired > 0 || expiring > 0 || data.workload.overdue > 0 || contactMissing) && (
+      {(expired > 0 || expiring > 0 || data.workload.overdue > 0 || contactMissing) && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {missing.slice(0, 3).map((item) => <Badge key={item} tone="danger">Missing {item}</Badge>)}
           {expired > 0 && <Badge tone="danger">{expired} expired</Badge>}
           {expiring > 0 && <Badge tone="warn">{expiring} expiring</Badge>}
           {data.workload.overdue > 0 && <Badge tone="danger">{data.workload.overdue} overdue</Badge>}
@@ -475,6 +458,8 @@ export function PersonDrawer() {
                 </div>
 
                 <HRFileHealth data={data} person={person} close={close} openPack={openPack} initialPurpose={packPurpose} />
+
+                <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} />
 
                 {/* Contact actions */}
                 <div className="flex flex-wrap gap-1.5">

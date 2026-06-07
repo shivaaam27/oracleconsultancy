@@ -52,6 +52,63 @@ export const personCompanies = pgTable(
   (t) => [primaryKey({ columns: [t.personId, t.companyId] })]
 );
 
+// HR compliance — requirement profiles (one per person type) and their items.
+// A profile lists the documents a person of that type must (or may) provide.
+// Per-person checklists are snapshotted into person_requirements.
+export const requirementProfiles = pgTable("requirement_profiles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  // Canonical person type this profile applies to (lib/person-types.ts):
+  // "local_staff" | "expat" | "outsider" | "candidate".
+  appliesToType: text("applies_to_type").notNull(),
+  description: text("description"),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+});
+
+// The documents a profile requires. category maps to DOC_CATEGORIES so a saved
+// document can satisfy the item. mandatory items count toward the 100% score.
+export const requirementItems = pgTable("requirement_items", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => requirementProfiles.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  category: text("category"),
+  mandatory: boolean("mandatory").notNull().default(true),
+  expiryTracked: boolean("expiry_tracked").notNull().default(true),
+  defaultLeadDays: integer("default_lead_days").notNull().default(30),
+  helpText: text("help_text"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+// A person's actual checklist — one row per required document, snapshotted from
+// requirement_items so later profile edits don't silently rewrite history.
+// status: missing | requested | received | verified | waived. The linked
+// document satisfies the item; verification is a deliberate manual step.
+export const personRequirements = pgTable(
+  "person_requirements",
+  {
+    id: serial("id").primaryKey(),
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    itemId: integer("item_id").references(() => requirementItems.id, { onDelete: "set null" }),
+    label: text("label").notNull(),
+    category: text("category"),
+    mandatory: boolean("mandatory").notNull().default(true),
+    expiryTracked: boolean("expiry_tracked").notNull().default(true),
+    status: text("status").notNull().default("missing"),
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    requestedAt: timestamp("requested_at", { mode: "date", withTimezone: true }),
+    receivedAt: timestamp("received_at", { mode: "date", withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),
+    verifiedBy: text("verified_by"),
+    waivedReason: text("waived_reason"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("person_requirements_person_item_idx").on(t.personId, t.itemId)]
+);
+
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),
