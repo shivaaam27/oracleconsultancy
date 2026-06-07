@@ -150,7 +150,7 @@ export function defaultPersonPackSelection(
     s.openTasks = true;
     s.personalTodos = true;
     s.deadlines = true;
-    s.latestUpdates = personType === "internal";
+    s.latestUpdates = personType === "local_staff";
     return s;
   }
 

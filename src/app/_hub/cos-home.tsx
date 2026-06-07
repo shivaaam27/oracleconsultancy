@@ -7,6 +7,7 @@ import { listOutboxDrafts } from "@/lib/outbox-drafts";
 import { listMeetings } from "@/app/meeting/actions";
 import { buildAutomationSuggestions, getDocumentRenewalCandidates, getStaleTasks } from "@/lib/automation-suggestions";
 import { buildCompanyComplianceScores, buildPersonComplianceScores, worstComplianceScores } from "@/lib/compliance";
+import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
@@ -165,7 +166,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const people = (peopleRaw ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
-    personType: (p.person_type as string | null) ?? "internal",
+    personType: normalizePersonType(p.person_type as string | null),
   }));
   const companyComplianceScores = buildCompanyComplianceScores(companies, documents);
   const personComplianceScores = buildPersonComplianceScores(people, documents);

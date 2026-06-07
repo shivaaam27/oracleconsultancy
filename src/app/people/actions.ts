@@ -2,6 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
+import { normalizePersonType } from "@/lib/person-types";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -28,10 +29,26 @@ function contactStatus(email: string | null, phone: string | null, whatsapp: str
   return "Pending";
 }
 
-const PERSON_TYPES = ["internal", "external", "expat"] as const;
 function personType(formData: FormData): string {
-  const v = s(formData, "personType");
-  return v && (PERSON_TYPES as readonly string[]).includes(v) ? v : "internal";
+  return normalizePersonType(s(formData, "personType"));
+}
+
+/** Parse a date-only field (YYYY-MM-DD) to a UTC-midnight ISO string, or null. */
+function dateField(formData: FormData, key: string): string | null {
+  const v = s(formData, key);
+  if (!v) return null;
+  const d = new Date(`${v}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Resolve a department by name, creating it if new. Returns its id (or null). */
+async function resolveDepartmentId(formData: FormData): Promise<number | null> {
+  const name = s(formData, "department");
+  if (!name) return null;
+  const { data: existing } = await sb.from("departments").select("id").eq("name", name).maybeSingle();
+  if (existing) return existing.id as number;
+  const { data: created } = await sb.from("departments").insert({ name }).select("id").single();
+  return (created?.id as number | undefined) ?? null;
 }
 
 /** Parse the associations field (JSON array of {companyId, relationship}) submitted by the form. */
@@ -84,6 +101,7 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   const email = s(formData, "email");
   const phone = s(formData, "phone");
   const whatsapp = s(formData, "whatsapp");
+  const departmentId = await resolveDepartmentId(formData);
 
   const { data, error } = await sb
     .from("people")
@@ -95,6 +113,8 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
       preferred_channel: s(formData, "preferredChannel"),
       role: s(formData, "role"),
       company_id: n(formData, "companyId"),
+      department_id: departmentId,
+      start_date: dateField(formData, "startDate"),
       manager_id: n(formData, "managerId"),
       notes: s(formData, "notes"),
       active: true,
@@ -135,6 +155,7 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   const email = s(formData, "email");
   const phone = s(formData, "phone");
   const whatsapp = s(formData, "whatsapp");
+  const departmentId = await resolveDepartmentId(formData);
 
   const { error } = await sb
     .from("people")
@@ -146,6 +167,8 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
       preferred_channel: s(formData, "preferredChannel"),
       role: s(formData, "role"),
       company_id: n(formData, "companyId"),
+      department_id: departmentId,
+      start_date: dateField(formData, "startDate"),
       manager_id: safeManagerId,
       notes: s(formData, "notes"),
       contact_status: contactStatus(email, phone, whatsapp),

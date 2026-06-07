@@ -24,13 +24,17 @@ export const people = pgTable("people", {
   preferredChannel: text("preferred_channel"),
   role: text("role"),
   companyId: integer("company_id").references(() => companies.id),
+  departmentId: integer("department_id").references(() => departments.id),
   managerId: integer("manager_id"),
+  // Employment start date (org/master data). Stored at UTC midnight (all-day).
+  startDate: timestamp("start_date", { mode: "date", withTimezone: true }),
   contactStatus: text("contact_status"),
   active: boolean("active").notNull().default(true),
   notes: text("notes"),
   snoozedUntil: timestamp("snoozed_until", { mode: "date", withTimezone: true }),
-  // "internal" (employed) | "external" (broker, agent, vendor) | "expat" (person being processed).
-  personType: text("person_type").notNull().default("internal"),
+  // Canonical HR types (see lib/person-types.ts): "local_staff" | "expat" |
+  // "outsider" | "candidate". Legacy internal→local_staff, external→outsider.
+  personType: text("person_type").notNull().default("local_staff"),
   // Soft self-reference: e.g. an immigration agent → the expat they are helping, or vice-versa.
   relatedPersonId: integer("related_person_id"),
 });

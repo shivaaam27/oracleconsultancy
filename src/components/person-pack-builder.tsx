@@ -15,6 +15,7 @@ import type {
   PersonPackSectionSelection,
 } from "@/lib/person-pack-shared";
 import { serialisePersonPackSections } from "@/lib/person-pack-shared";
+import { personTypeLabel, type PersonType } from "@/lib/person-types";
 
 type PackResponse = {
   purpose: PersonPackPurpose;
@@ -24,7 +25,7 @@ type PackResponse = {
       name: string;
       role: string | null;
       companyName: string | null;
-      personType: "internal" | "external" | "expat";
+      personType: PersonType;
       email: string | null;
       phone: string | null;
       whatsapp: string | null;
@@ -582,7 +583,7 @@ function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPac
         <div className="text-xs uppercase tracking-[0.08em] text-fg-muted">Preview</div>
         <h3 className="mt-1 text-base font-semibold">{pack.detail.person.name}</h3>
         <p className="text-xs text-fg-muted">
-          {[pack.detail.person.role, pack.detail.person.companyName, pack.detail.person.personType].filter(Boolean).join(" - ")}
+          {[pack.detail.person.role, pack.detail.person.companyName, personTypeLabel(pack.detail.person.personType)].filter(Boolean).join(" · ")}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
           <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">

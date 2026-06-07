@@ -7,6 +7,7 @@ import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
 import { buildCompanyComplianceScores, buildPersonComplianceScores, worstComplianceScores } from "@/lib/compliance";
+import { normalizePersonType } from "@/lib/person-types";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
 
@@ -92,7 +93,7 @@ async function buildContext(question: string, page?: PageCtx) {
   const peopleAll = (pRows ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
-    personType: (p.person_type as string | null) ?? "internal",
+    personType: normalizePersonType(p.person_type as string | null),
     active: (p.active as boolean | null) ?? true,
   }));
   const cMap = new Map(companies.map((c) => [c.id, c.name]));

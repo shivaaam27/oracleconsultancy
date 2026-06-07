@@ -1,4 +1,5 @@
 import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
+import type { PersonType } from "@/lib/person-types";
 
 export type ComplianceOwnerType = "company" | "person";
 
@@ -7,7 +8,7 @@ export type ComplianceRequirement = {
   label: string;
   categories: string[];
   ownerType: ComplianceOwnerType;
-  appliesTo: "all" | "internal" | "external" | "expat";
+  appliesTo: "all" | PersonType;
   weight: number;
 };
 

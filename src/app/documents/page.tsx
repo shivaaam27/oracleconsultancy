@@ -4,6 +4,7 @@ import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { buildCompanyComplianceScores, buildPersonComplianceScores } from "@/lib/compliance";
+import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function DocumentsPage({
   const people = (peopleRaw ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
-    personType: (p.person_type as string | null) ?? "internal",
+    personType: normalizePersonType(p.person_type as string | null),
   }));
   const companyScores = buildCompanyComplianceScores(companies, documents);
   const personScores = buildPersonComplianceScores(people, documents);

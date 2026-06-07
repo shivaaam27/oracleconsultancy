@@ -20,6 +20,7 @@ import {
 } from "@/lib/person-pack";
 import type { PersonPackSectionSelection } from "@/lib/person-pack-shared";
 import { isPersonPackPurpose } from "@/lib/person-pack-shared";
+import { personTypeLabel } from "@/lib/person-types";
 
 export const dynamic = "force-dynamic";
 
@@ -217,8 +218,8 @@ export default async function PersonPackPage({
             {PURPOSE_LABELS[purpose]} - prepared {generated} - Oracle Consultancy
           </div>
         </div>
-        <Badge tone={person.personType === "expat" ? "warn" : "default"} className="capitalize">
-          {person.personType}
+        <Badge tone={person.personType === "expat" ? "warn" : "default"}>
+          {personTypeLabel(person.personType)}
         </Badge>
       </header>
 

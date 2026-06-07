@@ -13,6 +13,7 @@ import { displayNote } from "@/lib/notes-display";
 import { useToast } from "./toast";
 import { snoozePerson, togglePersonActive, setPeopleActive } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
+import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 
 /** A short WhatsApp reminder built from the person's most urgent tasks. */
 function quickReminderText(p: PersonRow): string {
@@ -38,7 +39,7 @@ export function PeopleTable({ people, companies }: {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterKind>("all");
   const [companyFilter, setCompanyFilter] = useState<number | "all">("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | "internal" | "external" | "expat">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | PersonType>("all");
   const [sortKey, setSortKey] = useState<SortKey>("workload");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showInactive, setShowInactive] = useState(false);
@@ -233,9 +234,7 @@ export function PeopleTable({ people, companies }: {
           onSelect={(v) => setTypeFilter(v as typeof typeFilter)}
           options={[
             { value: "all", label: "All Types" },
-            { value: "internal", label: "Internal" },
-            { value: "external", label: "External" },
-            { value: "expat", label: "Expat" },
+            ...PERSON_TYPES.map((t) => ({ value: t, label: PERSON_TYPE_LABELS[t] })),
           ]}
         />
       </div>

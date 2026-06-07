@@ -4,14 +4,9 @@ import { useState, useTransition } from "react";
 import { Loader2, Save, UserPlus, AlertCircle, Plus, X } from "lucide-react";
 import { createPerson, updatePerson } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
+import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
-
-const PERSON_TYPES = [
-  { value: "internal", label: "Internal", hint: "Employed within the group" },
-  { value: "external", label: "External", hint: "Broker, agent, vendor, lawyer" },
-  { value: "expat", label: "Expat", hint: "Person being processed" },
-] as const;
 
 type Association = { companyId: number | ""; relationship: string };
 
@@ -23,6 +18,8 @@ type Defaults = Partial<{
   preferredChannel: string | null;
   role: string | null;
   companyId: number | null;
+  department: string | null;
+  startDate: string | null;
   managerId: number | null;
   notes: string | null;
   personType: string | null;
@@ -40,6 +37,7 @@ export function PersonForm({
   defaults,
   companies,
   peopleList,
+  departments = [],
   onComplete,
   onCancel,
   compact = false,
@@ -51,6 +49,8 @@ export function PersonForm({
   companies: Array<{ id: number; name: string }>;
   /** Used for manager dropdown. Excludes the person being edited (can't be own manager). */
   peopleList: Array<{ id: number; name: string; active: boolean }>;
+  /** Existing department names for the datalist (create-on-the-fly still allowed). */
+  departments?: string[];
   onComplete?: (result: Result) => void;
   onCancel?: () => void;
   /** Compact mode = tighter spacing for in-drawer rendering. */
@@ -58,7 +58,7 @@ export function PersonForm({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [pType, setPType] = useState<string>(defaults?.personType ?? "internal");
+  const [pType, setPType] = useState<string>(normalizePersonType(defaults?.personType));
   const [associations, setAssociations] = useState<Association[]>(
     (defaults?.associations ?? []).map((a) => ({ companyId: a.companyId, relationship: a.relationship ?? "" }))
   );
@@ -122,33 +122,59 @@ export function PersonForm({
         <div className="col-span-2">
           <label className={labelCls}>Type</label>
           <input type="hidden" name="personType" value={pType} />
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {PERSON_TYPES.map((t) => (
               <button
-                key={t.value}
+                key={t}
                 type="button"
-                onClick={() => setPType(t.value)}
-                title={t.hint}
+                onClick={() => setPType(t)}
+                title={PERSON_TYPE_HINTS[t]}
                 className={cn(
                   "rounded-md border px-2 py-1.5 text-xs transition-colors text-left",
-                  pType === t.value
+                  pType === t
                     ? "border-accent bg-accent/10 text-accent font-medium"
                     : "border-border text-fg-muted hover:text-fg hover:bg-bg-muted/60"
                 )}
               >
-                {t.label}
+                {PERSON_TYPE_LABELS[t]}
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <label className={labelCls}>Role</label>
+          <label className={labelCls}>Role / Job title</label>
           <input
             name="role"
             defaultValue={defaults?.role ?? ""}
             className={inputCls}
             placeholder="e.g. Operations Manager"
+          />
+        </div>
+
+        <div>
+          <label className={labelCls}>Department</label>
+          <input
+            name="department"
+            list="department-options"
+            defaultValue={defaults?.department ?? ""}
+            className={inputCls}
+            placeholder="e.g. Finance"
+          />
+          <datalist id="department-options">
+            {departments.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
+        </div>
+
+        <div>
+          <label className={labelCls}>Start date</label>
+          <input
+            name="startDate"
+            type="date"
+            defaultValue={defaults?.startDate ?? ""}
+            className={inputCls}
           />
         </div>
 

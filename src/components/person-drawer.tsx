@@ -18,6 +18,7 @@ import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
 import type { TaskRow } from "@/lib/queries";
 import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
+import { personTypeLabel, type PersonType } from "@/lib/person-types";
 
 /* -------------------------------------------------------------------------
  * API payload types — mirror lib/people-queries.ts PersonDetail
@@ -32,12 +33,16 @@ type DrawerPerson = {
   role: string | null;
   companyId: number | null;
   companyName: string | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  startDate: string | null;
   contactStatus: string | null;
   active: boolean;
   notes: string | null;
   snoozedUntil: string | null;
   managerId: number | null;
-  personType: "internal" | "external" | "expat";
+  managerName: string | null;
+  personType: PersonType;
   relatedPersonId: number | null;
   relatedPersonName: string | null;
   associations: Array<{ companyId: number; companyName: string | null; relationship: string | null }>;
@@ -76,6 +81,7 @@ type DrawerData = {
   }>;
   companies: Array<{ id: number; name: string }>;
   peopleList: Array<{ id: number; name: string; active: boolean }>;
+  departments: string[];
 };
 
 /* -------------------------------------------------------------------------
@@ -173,7 +179,7 @@ function HRFileHealth({
           </div>
           <p className="mt-0.5 text-xs text-fg-muted">{headline}</p>
         </div>
-        <Badge tone={tone}>{person.personType}</Badge>
+        <Badge tone={tone}>{personTypeLabel(person.personType)}</Badge>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -391,6 +397,8 @@ export function PersonDrawer() {
                     preferredChannel: person.preferredChannel,
                     role: person.role,
                     companyId: person.companyId,
+                    department: person.departmentName,
+                    startDate: person.startDate ? person.startDate.slice(0, 10) : null,
                     managerId: person.managerId,
                     notes: person.notes,
                     personType: person.personType,
@@ -399,6 +407,7 @@ export function PersonDrawer() {
                   }}
                   companies={data.companies}
                   peopleList={data.peopleList}
+                  departments={data.departments}
                   onCancel={() => setMode("view")}
                   onComplete={(res) => {
                     if (res.ok) {
@@ -434,7 +443,20 @@ export function PersonDrawer() {
                         </Link>
                       </>
                     )}
+                    {person.departmentName && (
+                      <>
+                        <span className="text-fg-subtle">·</span>
+                        <span className="text-fg-muted">{person.departmentName}</span>
+                      </>
+                    )}
                   </div>
+                  {(person.startDate || person.managerName) && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-subtle">
+                      {person.startDate && <span>Started {fmtDate(new Date(person.startDate))}</span>}
+                      {person.startDate && person.managerName && <span>·</span>}
+                      {person.managerName && <span>Reports to {person.managerName}</span>}
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-1.5">
                     {!person.active && <Badge tone="default"><UserX size={10} className="inline mr-0.5" /> Inactive</Badge>}
                     {snoozed && person.snoozedUntil && (

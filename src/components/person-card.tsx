@@ -17,9 +17,10 @@ function initials(name: string): string {
 }
 
 const TYPE_TINT: Record<string, string> = {
-  internal: "bg-accent-soft text-accent ring-accent/25",
-  external: "bg-bg-muted text-fg-muted ring-border",
+  local_staff: "bg-accent-soft text-accent ring-accent/25",
+  outsider: "bg-bg-muted text-fg-muted ring-border",
   expat: "bg-info-soft text-info ring-info/25",
+  candidate: "bg-warn-soft text-warn ring-warn/25",
 };
 
 /**
@@ -70,7 +71,7 @@ export function PersonCard({
         dim && "opacity-60"
       )}
     >
-      <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-[13px] font-semibold shrink-0", TYPE_TINT[p.personType] ?? TYPE_TINT.external)}>
+      <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-[13px] font-semibold shrink-0", TYPE_TINT[p.personType] ?? TYPE_TINT.outsider)}>
         {initials(p.name)}
       </span>
 

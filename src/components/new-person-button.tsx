@@ -11,9 +11,11 @@ import { useContextActions } from "./context-actions";
 export function NewPersonButton({
   companies,
   peopleList,
+  departments = [],
 }: {
   companies: Array<{ id: number; name: string }>;
   peopleList: Array<{ id: number; name: string; active: boolean }>;
+  departments?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -57,6 +59,7 @@ export function NewPersonButton({
               mode="create"
               companies={companies}
               peopleList={peopleList}
+              departments={departments}
               onCancel={() => setOpen(false)}
               onComplete={(res) => {
                 if (res.ok && res.id) {

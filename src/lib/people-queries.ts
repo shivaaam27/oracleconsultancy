@@ -2,8 +2,9 @@ import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
 import { deriveDocStatus, expiryLabel, type DocStatus } from "./documents-shared";
+import { normalizePersonType, type PersonType } from "./person-types";
 
-export type PersonType = "internal" | "external" | "expat";
+export type { PersonType };
 
 export type CompanyAssociation = {
   companyId: number;
@@ -21,11 +22,15 @@ export type Person = {
   role: string | null;
   companyId: number | null;
   companyName: string | null;
+  departmentId: number | null;
+  departmentName: string | null;
+  startDate: Date | null;
   contactStatus: string | null;
   active: boolean;
   notes: string | null;
   snoozedUntil: Date | null;
   managerId: number | null;
+  managerName: string | null;
   personType: PersonType;
   relatedPersonId: number | null;
   relatedPersonName: string | null;
@@ -104,13 +109,15 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
       ),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("person_id,company_id,relationship"),
     getAllTasks(),
   ]);
 
+  const { data: rawDepartments } = await sb.from("departments").select("id,name");
+  const dMap = new Map((rawDepartments ?? []).map((d) => [d.id as number, d.name as string]));
   const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
   const nameById = new Map((rawPeople ?? []).map((p) => [p.id as number, p.name as string]));
 
@@ -137,12 +144,16 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     role: (p.role as string | null) ?? null,
     companyId: (p.company_id as number | null) ?? null,
     companyName: p.company_id ? cMap.get(p.company_id as number) ?? null : null,
+    departmentId: (p.department_id as number | null) ?? null,
+    departmentName: p.department_id ? dMap.get(p.department_id as number) ?? null : null,
+    startDate: p.start_date ? new Date(p.start_date as string) : null,
     contactStatus: (p.contact_status as string | null) ?? null,
     active: (p.active as boolean | null) ?? true,
     notes: (p.notes as string | null) ?? null,
     snoozedUntil: p.snoozed_until ? new Date(p.snoozed_until as string) : null,
     managerId: (p.manager_id as number | null) ?? null,
-    personType: ((p.person_type as string | null) ?? "internal") as PersonType,
+    managerName: p.manager_id ? nameById.get(p.manager_id as number) ?? null : null,
+    personType: normalizePersonType(p.person_type as string | null),
     relatedPersonId: (p.related_person_id as number | null) ?? null,
     relatedPersonName: p.related_person_id ? nameById.get(p.related_person_id as number) ?? null : null,
     associations: assocByPerson.get(p.id as number) ?? [],
@@ -173,6 +184,8 @@ export type PersonDetail = {
   /** Lookup data for edit dropdowns — small enough to inline in the response. */
   companies: Array<{ id: number; name: string }>;
   peopleList: Array<{ id: number; name: string; active: boolean }>;
+  /** Existing department names, for the edit form's department datalist. */
+  departments: string[];
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
@@ -180,7 +193,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
       )
       .eq("id", id)
       .maybeSingle(),
@@ -197,6 +210,9 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
 
   if (!rawPerson) return null;
 
+  const { data: rawDepartments } = await sb.from("departments").select("id,name").order("name");
+  const dMap = new Map((rawDepartments ?? []).map((d) => [d.id as number, d.name as string]));
+  const departments = (rawDepartments ?? []).map((d) => d.name as string);
   const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
 
   const relatedPersonId = (rawPerson.related_person_id as number | null) ?? null;
@@ -222,12 +238,16 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     role: (rawPerson.role as string | null) ?? null,
     companyId: (rawPerson.company_id as number | null) ?? null,
     companyName: rawPerson.company_id ? cMap.get(rawPerson.company_id as number) ?? null : null,
+    departmentId: (rawPerson.department_id as number | null) ?? null,
+    departmentName: rawPerson.department_id ? dMap.get(rawPerson.department_id as number) ?? null : null,
+    startDate: rawPerson.start_date ? new Date(rawPerson.start_date as string) : null,
     contactStatus: (rawPerson.contact_status as string | null) ?? null,
     active: (rawPerson.active as boolean | null) ?? true,
     notes: (rawPerson.notes as string | null) ?? null,
     snoozedUntil: rawPerson.snoozed_until ? new Date(rawPerson.snoozed_until as string) : null,
     managerId: (rawPerson.manager_id as number | null) ?? null,
-    personType: ((rawPerson.person_type as string | null) ?? "internal") as PersonType,
+    managerName: null,
+    personType: normalizePersonType(rawPerson.person_type as string | null),
     relatedPersonId,
     relatedPersonName,
     associations,
@@ -295,6 +315,9 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     name: p.name as string,
     active: (p.active as boolean | null) ?? true,
   }));
+  if (person.managerId) {
+    person.managerName = peopleList.find((p) => p.id === person.managerId)?.name ?? null;
+  }
 
-  return { person, workload, assignedTasks, documents, recentUpdates, companies, peopleList };
+  return { person, workload, assignedTasks, documents, recentUpdates, companies, peopleList, departments };
 }

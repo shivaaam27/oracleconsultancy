@@ -15,16 +15,18 @@ export default async function PeoplePage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [people, documents, { data: companiesRaw }] = await Promise.all([
+  const [people, documents, { data: companiesRaw }, { data: departmentsRaw }] = await Promise.all([
     getAllPeopleWithWorkload(),
     listDocuments(),
     sb.from("companies").select("id,name").order("name"),
+    sb.from("departments").select("name").order("name"),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({
     id: c.id as number,
     name: c.name as string,
   }));
+  const departments = (departmentsRaw ?? []).map((d) => d.name as string);
 
   // For the manager dropdown in the create dialog — derived from already-loaded data
   const peopleList = people.map((p) => ({ id: p.id, name: p.name, active: p.active }));
@@ -43,7 +45,7 @@ export default async function PeoplePage({
       <PageHeader
         title="People Directory"
         sub={`${activeCount} active · ${overdueLoad} carrying overdue work · ${complianceIssues} compliance issue${complianceIssues === 1 ? "" : "s"}`}
-        action={<NewPersonButton companies={companies} peopleList={peopleList} />}
+        action={<NewPersonButton companies={companies} peopleList={peopleList} departments={departments} />}
       />
       <PeopleTable people={people} companies={companies} />
     </div>
