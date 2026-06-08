@@ -5,11 +5,12 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
-  ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip,
+  ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip, UploadCloud,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
+import { BulkUploadDialog } from "./bulk-upload-dialog";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
@@ -46,6 +47,7 @@ export function DocumentsTable({
   const [showArchived, setShowArchived] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
   const [peek, setPeek] = useState<DocumentRow | null>(null);
   // Text to pre-load the create form's auto-fill panel (e.g. filing an Inbox item).
@@ -213,6 +215,10 @@ export function DocumentsTable({
             { value: "Valid", label: "Valid" },
             { value: "No expiry", label: "No expiry" },
           ]} />
+        <button type="button" onClick={() => setBulkOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-bg-subtle/60 px-3 py-2 text-sm text-fg-muted hover:text-fg hover:border-accent transition-colors">
+          <UploadCloud size={15} /> Bulk upload
+        </button>
       </div>
 
       {/* Summary chips */}
@@ -360,6 +366,15 @@ export function DocumentsTable({
       />
 
       {/* Create dialog */}
+      <BulkUploadDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        companies={companies}
+        people={people}
+        documents={documents}
+        onDone={() => router.refresh()}
+      />
+
       <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); setPrefillVendorId(null); } }} title="Add a document">
         <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}
           initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle} initialVendorId={prefillVendorId}
