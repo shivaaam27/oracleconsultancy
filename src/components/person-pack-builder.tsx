@@ -79,11 +79,9 @@ const purposeNames: Record<PersonPackPurpose, string> = {
 };
 
 const purposeOptions: Array<{ id: PersonPackPurpose; label: string; hint: string }> = [
-  { id: "document-request", label: "Documents", hint: "Request or confirm HR documents." },
-  { id: "visa-permit", label: "Visa / Permit", hint: "Immigration and permit follow-up." },
-  { id: "recruitment", label: "Recruitment", hint: "Candidate or new-starter file." },
-  { id: "task-reminder", label: "Work Reminder", hint: "Only assigned work and dates." },
-  { id: "custom", label: "Custom", hint: "Start blank and choose sections." },
+  { id: "document-request", label: "Request documents", hint: "Chase the documents still missing." },
+  { id: "task-reminder", label: "Work reminder", hint: "Their open work and dates." },
+  { id: "custom", label: "Custom", hint: "Choose exactly what to include." },
 ];
 
 const channelIcons: Record<Channel, typeof MessageCircle> = {
@@ -318,31 +316,6 @@ function buildPersonPackMessage(
   return { subject, body };
 }
 
-function PackSnapshot({ pack, selection }: { pack: PackResponse; selection: PersonPackSectionSelection }) {
-  const selectedActions = selectedActionCount(pack, selection);
-  const selectedSections = sectionLabels.filter((section) => selection[section.key]).length;
-  const docsShown = selection.linkedDocuments ? pack.counts.linkedDocuments : 0;
-  const workShown =
-    (selection.openTasks ? pack.counts.openTasks : 0) +
-    (selection.personalTodos ? pack.counts.personalTodos : 0);
-
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {[
-        { label: "Needs", value: selectedActions, tone: selectedActions ? "text-warn" : "text-success" },
-        { label: "Sections", value: selectedSections, tone: "text-fg" },
-        { label: "Docs shown", value: docsShown, tone: docsShown ? "text-info" : "text-fg-subtle" },
-        { label: "Work shown", value: workShown, tone: workShown ? "text-info" : "text-fg-subtle" },
-      ].map((item) => (
-        <div key={item.label} className="rounded-xl bg-bg-elev px-3 py-2 ring-1 ring-border/70">
-          <div className={cn("text-base font-semibold tabular", item.tone)}>{item.value}</div>
-          <div className="text-[11px] text-fg-muted">{item.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function ReasonPicker({
   purpose,
   setPurpose,
@@ -350,33 +323,25 @@ function ReasonPicker({
   purpose: PersonPackPurpose;
   setPurpose: (purpose: PersonPackPurpose) => void;
 }) {
+  const current = purposeOptions.find((o) => o.id === purpose) ?? purposeOptions[0];
   return (
-    <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-[11px] text-accent">1</span>
-        Reason
-      </div>
-      <div className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-1">
+    <div className="space-y-1.5">
+      <div className="inline-flex w-full rounded-xl bg-bg-subtle p-1 ring-1 ring-border/60">
         {purposeOptions.map((option) => (
           <button
             key={option.id}
             type="button"
             onClick={() => setPurpose(option.id)}
             className={cn(
-              "min-h-12 rounded-xl px-3 py-2.5 text-left ring-1 transition-colors",
-              purpose === option.id
-                ? "bg-accent-soft text-fg ring-accent/35"
-                : "bg-bg-subtle/60 text-fg-muted ring-border/70 hover:bg-bg-muted"
+              "flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors",
+              purpose === option.id ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg"
             )}
           >
-            <span className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 text-sm font-medium">{option.label}</span>
-              {purpose === option.id && <Check size={13} className="shrink-0 text-accent" />}
-            </span>
-            <span className="mt-0.5 block text-[11px] leading-relaxed text-fg-subtle">{option.hint}</span>
+            {option.label}
           </button>
         ))}
       </div>
+      <p className="px-1 text-[11px] text-fg-subtle">{current.hint}</p>
     </div>
   );
 }
@@ -476,16 +441,20 @@ function IncludeGroups({
   );
 }
 
-function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPackSectionSelection }) {
+function Preview({
+  pack,
+  selection,
+  gapSelection,
+  onToggleGap,
+  allGaps,
+}: {
+  pack: PackResponse;
+  selection: PersonPackSectionSelection;
+  gapSelection: Set<string>;
+  onToggleGap: (id: string) => void;
+  allGaps: PackResponse["compliance"]["gaps"];
+}) {
   const included = useMemo(() => sectionLabels.filter((s) => selection[s.key]), [selection]);
-  const shownCounts = {
-    missingDocuments: selection.missingDocuments ? pack.counts.missingDocuments : 0,
-    documentIssues: selection.documentIssues ? pack.counts.documentIssues : 0,
-    linkedDocuments: selection.linkedDocuments ? pack.counts.linkedDocuments : 0,
-    work:
-      (selection.openTasks ? pack.counts.openTasks : 0) +
-      (selection.personalTodos ? pack.counts.personalTodos : 0),
-  };
 
   if (included.length === 0) {
     return (
@@ -497,56 +466,36 @@ function Preview({ pack, selection }: { pack: PackResponse; selection: PersonPac
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3">
-        <div className="text-xs uppercase tracking-[0.08em] text-fg-muted">Preview</div>
-        <h3 className="mt-1 text-base font-semibold">{pack.detail.person.name}</h3>
-        <p className="text-xs text-fg-muted">
-          {[pack.detail.person.role, pack.detail.person.companyName, personTypeLabel(pack.detail.person.personType)].filter(Boolean).join(" · ")}
-        </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{shownCounts.missingDocuments}</div>
-            <div className="text-fg-muted">Missing</div>
-          </div>
-          <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{shownCounts.documentIssues}</div>
-            <div className="text-fg-muted">Issues</div>
-          </div>
-          <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{shownCounts.linkedDocuments}</div>
-            <div className="text-fg-muted">Documents</div>
-          </div>
-          <div className="rounded-lg bg-bg-subtle/60 px-2.5 py-2 ring-1 ring-border/60">
-            <div className="text-sm font-semibold tabular">{shownCounts.work}</div>
-            <div className="text-fg-muted">Work</div>
-          </div>
-        </div>
-      </div>
-
       {selection.missingDocuments && (
         <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
-            <FileWarning size={13} /> Missing documents
+            <FileWarning size={13} /> Documents to request
+            {allGaps.length > 0 && <span className="ml-auto text-[11px] text-fg-subtle">{gapSelection.size} of {allGaps.length} ticked</span>}
           </div>
-          {pack.compliance.gaps.length ? (
+          {allGaps.length ? (
             <div className="mt-2 space-y-1.5">
-              {pack.compliance.gaps.map((gap) => (
-                <div key={gap.id} className="flex items-center gap-2 rounded-lg bg-bg-subtle/50 px-2.5 py-2 text-sm">
-                  <span className="min-w-0 flex-1">{gap.label}</span>
-                  <a
-                    href={addDocumentHref(pack.detail.person.id, gap.label)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20"
-                  >
-                    <Plus size={12} /> Add
-                  </a>
-                </div>
-              ))}
+              {allGaps.map((gap) => {
+                const ticked = gapSelection.has(gap.id);
+                return (
+                  <label key={gap.id} className={cn("flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm cursor-pointer ring-1 transition-colors", ticked ? "bg-accent-soft/40 ring-accent/20" : "bg-bg-subtle/40 ring-border/60")}>
+                    <input type="checkbox" checked={ticked} onChange={() => onToggleGap(gap.id)} className="h-4 w-4 shrink-0 accent-[hsl(var(--accent))]" />
+                    <span className={cn("min-w-0 flex-1", !ticked && "text-fg-muted line-through")}>{gap.label}</span>
+                    <a
+                      href={addDocumentHref(pack.detail.person.id, gap.label)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-2 py-1 text-xs text-accent hover:bg-accent/20"
+                    >
+                      <Plus size={12} /> Add
+                    </a>
+                  </label>
+                );
+              })}
             </div>
           ) : (
             <p className="mt-2 text-sm text-fg-muted">
               {pack.compliance.required === 0
                 ? "No required checklist applies to this person type yet."
-                : "No missing required documents found."}
+                : "No missing required documents — all good."}
             </p>
           )}
         </div>
@@ -745,10 +694,29 @@ export function PersonPackBuilder({
   const [draftPending, startDraftTransition] = useTransition();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which missing items to actually request (default: all). Lets you chase
+  // only the few you want. Everything downstream uses the filtered pack.
+  const [selectedGaps, setSelectedGaps] = useState<Set<string>>(new Set());
+
+  // The pack with its missing-document list narrowed to the ticked items.
+  const effPack = useMemo<PackResponse | null>(() => {
+    if (!pack) return null;
+    const gaps = pack.compliance.gaps.filter((g) => selectedGaps.has(g.id));
+    return { ...pack, compliance: { ...pack.compliance, gaps } };
+  }, [pack, selectedGaps]);
+
   const messagePreview = useMemo(
-    () => (pack && selection ? buildPersonPackMessage(pack, selection, purpose, channel) : null),
-    [pack, selection, purpose, channel]
+    () => (effPack && selection ? buildPersonPackMessage(effPack, selection, purpose, channel) : null),
+    [effPack, selection, purpose, channel]
   );
+
+  function toggleGap(id: string) {
+    setSelectedGaps((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (openOnMount) {
@@ -772,6 +740,7 @@ export function PersonPackBuilder({
         setPack(data);
         setSelection(data.recommendedSelection);
         setChannel(pickChannel(data.detail.person));
+        setSelectedGaps(new Set(data.compliance.gaps.map((g) => g.id)));
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
@@ -786,13 +755,29 @@ export function PersonPackBuilder({
     setSelection((current) => current ? { ...current, [key]: !current[key] } : current);
   }
 
+  // Print the styled pack page in place via a hidden iframe — no new tab.
   function openPdf() {
     if (!selection) return;
-    const params = new URLSearchParams({
-      purpose,
-      sections: serialisePersonPackSections(selection),
-    });
-    window.open(`/people/${personId}/pack?${params.toString()}`, "_blank", "noopener,noreferrer");
+    const params = new URLSearchParams({ purpose, sections: serialisePersonPackSections(selection) });
+    const url = `/people/${personId}/pack?${params.toString()}`;
+    const existing = document.getElementById("pack-print-frame");
+    if (existing) existing.remove();
+    const iframe = document.createElement("iframe");
+    iframe.id = "pack-print-frame";
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.src = url;
+    iframe.onload = () => {
+      setTimeout(() => {
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); }
+        catch { window.open(url, "_blank", "noopener,noreferrer"); }
+      }, 400);
+    };
+    document.body.appendChild(iframe);
   }
 
   function createDraft() {
@@ -841,9 +826,9 @@ export function PersonPackBuilder({
         >
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5">
             <div className="min-w-0">
-              <Dialog.Title className="truncate text-sm font-semibold">Prepare pack for {personName}</Dialog.Title>
+              <Dialog.Title className="truncate text-sm font-semibold">Reach out to {personName}</Dialog.Title>
               <Dialog.Description className="mt-0.5 text-xs text-fg-muted">
-                Choose exactly what will be included before PDF or Outbox drafting.
+                Pick a reason, choose what to send, then save a draft or download a PDF.
               </Dialog.Description>
             </div>
             <Dialog.Close className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted hover:bg-bg-muted hover:text-fg">
@@ -878,17 +863,16 @@ export function PersonPackBuilder({
                 </div>
               )}
               {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
-              {!loading && pack && selection && (
+              {!loading && effPack && selection && (
                 <>
-                  <PackSnapshot pack={pack} selection={selection} />
-                  <Preview pack={pack} selection={selection} />
+                  <Preview pack={effPack} selection={selection} gapSelection={selectedGaps} onToggleGap={toggleGap} allGaps={pack?.compliance.gaps ?? []} />
                   {messagePreview && (
-                    <DraftMessagePreview pack={pack} channel={channel} setChannel={setChannel} message={messagePreview} />
+                    <DraftMessagePreview pack={effPack} channel={channel} setChannel={setChannel} message={messagePreview} />
                   )}
                   <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap justify-end gap-2 border-t border-border bg-bg/80 px-4 py-3 backdrop-blur-md">
-                    <Button type="button" variant="secondary" size="sm" onClick={openPdf}>PDF</Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={openPdf}>Download PDF</Button>
                     <Button type="button" size="sm" onClick={createDraft} loading={draftPending}>
-                      <Send size={13} /> Create Outbox Draft
+                      <Send size={13} /> Save draft
                     </Button>
                   </div>
                 </>
