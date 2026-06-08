@@ -25,6 +25,15 @@ type Defaults = Partial<{
   personType: string | null;
   relatedPersonId: number | null;
   associations: Array<{ companyId: number; relationship: string | null }>;
+  // Profile details
+  dateOfBirth: string | null;
+  nationality: string | null;
+  nationalId: string | null;
+  passportNo: string | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  probationEndDate: string | null;
 }>;
 
 type Result =
@@ -312,6 +321,45 @@ export function PersonForm({
             >
               <Plus size={13} /> Add company link
             </button>
+          </div>
+        </div>
+
+        {/* Profile details — HR master data. All optional; auto-filled from intake where possible. */}
+        <div className="col-span-2 mt-1 border-t border-border/60 pt-2.5">
+          <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-2">Profile details</div>
+          <div className="grid gap-2.5 grid-cols-2">
+            <div>
+              <label className={labelCls}>Date of birth</label>
+              <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Nationality</label>
+              <input name="nationality" defaultValue={defaults?.nationality ?? ""} className={inputCls} placeholder="e.g. Tanzanian" />
+            </div>
+            <div>
+              <label className={labelCls}>National ID (NIDA)</label>
+              <input name="nationalId" defaultValue={defaults?.nationalId ?? ""} className={inputCls} placeholder="ID number" />
+            </div>
+            <div>
+              <label className={labelCls}>Passport number</label>
+              <input name="passportNo" defaultValue={defaults?.passportNo ?? ""} className={inputCls} placeholder="Passport no." />
+            </div>
+            <div className="col-span-2">
+              <label className={labelCls}>Address</label>
+              <input name="address" defaultValue={defaults?.address ?? ""} className={inputCls} placeholder="Residential address" />
+            </div>
+            <div>
+              <label className={labelCls}>Emergency contact</label>
+              <input name="emergencyContactName" defaultValue={defaults?.emergencyContactName ?? ""} className={inputCls} placeholder="Name" />
+            </div>
+            <div>
+              <label className={labelCls}>Emergency phone</label>
+              <input name="emergencyContactPhone" type="tel" defaultValue={defaults?.emergencyContactPhone ?? ""} className={inputCls} placeholder="+255…" />
+            </div>
+            <div>
+              <label className={labelCls}>Probation ends</label>
+              <input name="probationEndDate" type="date" defaultValue={defaults?.probationEndDate ?? ""} className={inputCls} />
+            </div>
           </div>
         </div>
 

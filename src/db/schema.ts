@@ -28,6 +28,16 @@ export const people = pgTable("people", {
   managerId: integer("manager_id"),
   // Employment start date (org/master data). Stored at UTC midnight (all-day).
   startDate: timestamp("start_date", { mode: "date", withTimezone: true }),
+  // HR profile details (all optional; filled manually or auto-filled from intake).
+  dateOfBirth: timestamp("date_of_birth", { mode: "date", withTimezone: true }),
+  nationality: text("nationality"),
+  nationalId: text("national_id"),
+  passportNo: text("passport_no"),
+  address: text("address"),
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: text("emergency_contact_phone"),
+  // End of probation period. Stored at UTC midnight (all-day).
+  probationEndDate: timestamp("probation_end_date", { mode: "date", withTimezone: true }),
   contactStatus: text("contact_status"),
   active: boolean("active").notNull().default(true),
   notes: text("notes"),

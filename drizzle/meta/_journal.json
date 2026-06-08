@@ -169,6 +169,13 @@
       "when": 1780902050017,
       "tag": "0023_romantic_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1780920122696,
+      "tag": "0024_overjoyed_demogoblin",
+      "breakpoints": true
     }
   ]
 }

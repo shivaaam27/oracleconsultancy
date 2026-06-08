@@ -39,6 +39,14 @@ type DrawerPerson = {
   departmentId: number | null;
   departmentName: string | null;
   startDate: string | null;
+  dateOfBirth: string | null;
+  nationality: string | null;
+  nationalId: string | null;
+  passportNo: string | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  probationEndDate: string | null;
   contactStatus: string | null;
   active: boolean;
   notes: string | null;
@@ -309,6 +317,14 @@ export function PersonDrawer() {
                     companyId: person.companyId,
                     department: person.departmentName,
                     startDate: person.startDate ? person.startDate.slice(0, 10) : null,
+                    dateOfBirth: person.dateOfBirth ? person.dateOfBirth.slice(0, 10) : null,
+                    nationality: person.nationality,
+                    nationalId: person.nationalId,
+                    passportNo: person.passportNo,
+                    address: person.address,
+                    emergencyContactName: person.emergencyContactName,
+                    emergencyContactPhone: person.emergencyContactPhone,
+                    probationEndDate: person.probationEndDate ? person.probationEndDate.slice(0, 10) : null,
                     managerId: person.managerId,
                     notes: person.notes,
                     personType: person.personType,
@@ -458,6 +474,37 @@ export function PersonDrawer() {
                 />
 
                 <PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} />
+
+                {/* Profile details — HR master data (collapsed; "—" shows what's still missing) */}
+                {(() => {
+                  const rows: Array<[string, string | null]> = [
+                    ["Date of birth", person.dateOfBirth ? fmtDate(new Date(person.dateOfBirth)) : null],
+                    ["Nationality", person.nationality],
+                    ["National ID", person.nationalId],
+                    ["Passport no.", person.passportNo],
+                    ["Address", person.address],
+                    ["Emergency contact", [person.emergencyContactName, person.emergencyContactPhone].filter(Boolean).join(" · ") || null],
+                    ["Probation ends", person.probationEndDate ? fmtDate(new Date(person.probationEndDate)) : null],
+                  ];
+                  const filled = rows.filter(([, v]) => v).length;
+                  return (
+                    <details className="group glass elevated rounded-2xl overflow-hidden">
+                      <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+                        <Briefcase size={12} /> Profile details
+                        <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{filled}/{rows.length}</span>
+                        <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
+                      </summary>
+                      <div className="px-4 pb-3 grid grid-cols-2 gap-x-3 gap-y-2">
+                        {rows.map(([label, value]) => (
+                          <div key={label}>
+                            <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{label}</div>
+                            <div className={cn("text-sm", value ? "text-fg" : "text-fg-subtle")}>{value || "—"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })()}
 
                 {/* Compliance documents linked to this person */}
                 {data && data.documents.length > 0 && (() => {

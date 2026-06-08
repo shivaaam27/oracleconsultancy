@@ -25,6 +25,14 @@ export type Person = {
   departmentId: number | null;
   departmentName: string | null;
   startDate: Date | null;
+  dateOfBirth: Date | null;
+  nationality: string | null;
+  nationalId: string | null;
+  passportNo: string | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  probationEndDate: Date | null;
   contactStatus: string | null;
   active: boolean;
   notes: string | null;
@@ -109,7 +117,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
       ),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("person_id,company_id,relationship"),
@@ -147,6 +155,14 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     departmentId: (p.department_id as number | null) ?? null,
     departmentName: p.department_id ? dMap.get(p.department_id as number) ?? null : null,
     startDate: p.start_date ? new Date(p.start_date as string) : null,
+    dateOfBirth: p.date_of_birth ? new Date(p.date_of_birth as string) : null,
+    nationality: (p.nationality as string | null) ?? null,
+    nationalId: (p.national_id as string | null) ?? null,
+    passportNo: (p.passport_no as string | null) ?? null,
+    address: (p.address as string | null) ?? null,
+    emergencyContactName: (p.emergency_contact_name as string | null) ?? null,
+    emergencyContactPhone: (p.emergency_contact_phone as string | null) ?? null,
+    probationEndDate: p.probation_end_date ? new Date(p.probation_end_date as string) : null,
     contactStatus: (p.contact_status as string | null) ?? null,
     active: (p.active as boolean | null) ?? true,
     notes: (p.notes as string | null) ?? null,
@@ -193,7 +209,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
       )
       .eq("id", id)
       .maybeSingle(),
@@ -241,6 +257,14 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     departmentId: (rawPerson.department_id as number | null) ?? null,
     departmentName: rawPerson.department_id ? dMap.get(rawPerson.department_id as number) ?? null : null,
     startDate: rawPerson.start_date ? new Date(rawPerson.start_date as string) : null,
+    dateOfBirth: rawPerson.date_of_birth ? new Date(rawPerson.date_of_birth as string) : null,
+    nationality: (rawPerson.nationality as string | null) ?? null,
+    nationalId: (rawPerson.national_id as string | null) ?? null,
+    passportNo: (rawPerson.passport_no as string | null) ?? null,
+    address: (rawPerson.address as string | null) ?? null,
+    emergencyContactName: (rawPerson.emergency_contact_name as string | null) ?? null,
+    emergencyContactPhone: (rawPerson.emergency_contact_phone as string | null) ?? null,
+    probationEndDate: rawPerson.probation_end_date ? new Date(rawPerson.probation_end_date as string) : null,
     contactStatus: (rawPerson.contact_status as string | null) ?? null,
     active: (rawPerson.active as boolean | null) ?? true,
     notes: (rawPerson.notes as string | null) ?? null,
