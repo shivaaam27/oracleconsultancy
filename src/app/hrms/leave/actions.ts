@@ -93,6 +93,8 @@ export async function saveLeaveTypeAction(fd: FormData, id?: number): Promise<Re
     color: str(fd, "color"),
     paid: fd.get("paid") === "1" || fd.get("paid") === "on",
     default_days: numOrNull(fd, "defaultDays") ?? 0,
+    cycle_months: numOrNull(fd, "cycleMonths") ?? 12,
+    half_pay_days: numOrNull(fd, "halfPayDays") ?? 0,
   };
   if (id) {
     const { error } = await sb.from("leave_types").update(payload).eq("id", id);

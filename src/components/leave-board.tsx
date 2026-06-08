@@ -222,7 +222,10 @@ function SetupTab({ types, holidays, companies, busyId, run }: {
             <div key={t.id} className={cn("flex items-center gap-2 px-4 py-2 text-sm", !t.active && "opacity-50")}>
               <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: t.color ?? "var(--accent)" }} />
               <span className="flex-1 truncate">{t.name}</span>
-              <span className="text-xs text-fg-muted">{t.defaultDays > 0 ? `${t.defaultDays} days/yr` : "uncapped"} · {t.paid ? "paid" : "unpaid"}</span>
+              <span className="text-xs text-fg-muted">
+                {t.defaultDays > 0 ? `${t.defaultDays} days/${t.cycleMonths === 12 ? "yr" : `${t.cycleMonths}mo`}` : "uncapped"}
+                {t.halfPayDays > 0 ? ` (${t.defaultDays - t.halfPayDays} full + ${t.halfPayDays} half)` : ""} · {t.paid ? "paid" : "unpaid"}
+              </span>
               {t.active && (
                 <button type="button" disabled={busyId === t.id} onClick={() => run(t.id, () => archiveLeaveTypeAction(t.id), "Archived.")}
                   className="text-fg-muted hover:text-danger"><X size={13} /></button>
@@ -232,7 +235,9 @@ function SetupTab({ types, holidays, companies, busyId, run }: {
         </div>
         <form onSubmit={addType} className="p-3 border-t border-border/70 grid grid-cols-2 gap-2">
           <input name="name" placeholder="New type name" className={cn(input, "col-span-2")} required />
-          <input name="defaultDays" type="number" min={0} placeholder="Days/yr" className={input} />
+          <input name="defaultDays" type="number" min={0} placeholder="Total days" className={input} />
+          <input name="cycleMonths" type="number" min={1} defaultValue={12} placeholder="Cycle (months)" className={input} />
+          <input name="halfPayDays" type="number" min={0} defaultValue={0} placeholder="Half-pay days" className={input} title="Days of the entitlement paid at half wage (e.g. sick 63)" />
           <input name="color" type="color" defaultValue="#2563eb" className="h-9 w-full rounded-md border border-border bg-bg-subtle" />
           <label className="col-span-2 inline-flex items-center gap-1.5 text-xs text-fg-muted"><input type="checkbox" name="paid" defaultChecked className="accent-accent" /> Paid leave</label>
           <Button type="submit" size="sm" loading={pending} className="col-span-2"><Plus size={13} /> Add leave type</Button>

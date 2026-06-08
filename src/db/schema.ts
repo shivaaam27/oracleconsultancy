@@ -564,8 +564,12 @@ export const leaveTypes = pgTable("leave_types", {
   name: text("name").notNull(),
   color: text("color"),
   paid: boolean("paid").notNull().default(true),
-  // Default annual entitlement in working days (0 = unlimited/uncapped, e.g. Unpaid).
+  // Total entitlement in working days per cycle (0 = unlimited/uncapped, e.g. Unpaid).
   defaultDays: integer("default_days").notNull().default(0),
+  // Length of the entitlement cycle in months (annual=12, sick=36 per ELR Act).
+  cycleMonths: integer("cycle_months").notNull().default(12),
+  // Portion of the entitlement paid at HALF wage (sick = 63 of 126); rest is full.
+  halfPayDays: integer("half_pay_days").notNull().default(0),
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),

@@ -183,6 +183,13 @@
       "when": 1780921206628,
       "tag": "0025_gorgeous_mesmero",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1780922112681,
+      "tag": "0026_soft_pretty_boy",
+      "breakpoints": true
     }
   ]
 }

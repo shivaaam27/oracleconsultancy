@@ -40,7 +40,7 @@ export async function computeLeaveDays(startISO: string, endISO: string, halfDay
 /* Leave types                                                         */
 /* ------------------------------------------------------------------ */
 export async function listLeaveTypes(includeInactive = false): Promise<LeaveType[]> {
-  let q = sb.from("leave_types").select("id,name,color,paid,default_days,active").order("sort_order", { ascending: true });
+  let q = sb.from("leave_types").select("id,name,color,paid,default_days,cycle_months,half_pay_days,active").order("sort_order", { ascending: true });
   if (!includeInactive) q = q.eq("active", true);
   const { data } = await q;
   return (data ?? []).map((t) => ({
@@ -49,6 +49,8 @@ export async function listLeaveTypes(includeInactive = false): Promise<LeaveType
     color: (t.color as string | null) ?? null,
     paid: (t.paid as boolean | null) ?? true,
     defaultDays: (t.default_days as number | null) ?? 0,
+    cycleMonths: (t.cycle_months as number | null) ?? 12,
+    halfPayDays: (t.half_pay_days as number | null) ?? 0,
     active: (t.active as boolean | null) ?? true,
   }));
 }
@@ -132,13 +134,15 @@ export async function leaveMetrics(): Promise<LeaveMetrics> {
 /* Balances — entitlement (per type) − approved days this year.        */
 /* ------------------------------------------------------------------ */
 export async function personLeaveBalances(personId: number): Promise<PersonLeaveBalance[]> {
-  const yearStart = new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1)).toISOString();
   const [types, { data: reqs }] = await Promise.all([
     listLeaveTypes(),
-    sb.from("leave_requests").select("leave_type_id,days,status").eq("person_id", personId).gte("start_date", yearStart),
+    sb.from("leave_requests").select("leave_type_id,days,status,start_date").eq("person_id", personId),
   ]);
+  const now = new Date();
   return types.map((t) => {
-    const mine = (reqs ?? []).filter((r) => r.leave_type_id === t.id);
+    // Count only requests within this type's entitlement cycle (e.g. last 12 or 36 months).
+    const cycleStart = new Date(now); cycleStart.setUTCMonth(cycleStart.getUTCMonth() - t.cycleMonths);
+    const mine = (reqs ?? []).filter((r) => r.leave_type_id === t.id && new Date(r.start_date as string) >= cycleStart);
     const taken = mine.filter((r) => r.status === "Approved").reduce((s, r) => s + ((r.days as number) ?? 0), 0);
     const pending = mine.filter((r) => r.status === "Pending").reduce((s, r) => s + ((r.days as number) ?? 0), 0);
     return {

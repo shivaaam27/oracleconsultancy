@@ -32,6 +32,8 @@ export type LeaveType = {
   color: string | null;
   paid: boolean;
   defaultDays: number;
+  cycleMonths: number;
+  halfPayDays: number;
   active: boolean;
 };
 
