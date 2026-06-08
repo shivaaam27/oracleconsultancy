@@ -28,14 +28,6 @@ export default async function OrgChartPage({
   const trees: Record<number, CompanyTree> = {};
   for (const c of companies) trees[c.id] = buildCompanyTree(people, c.id);
 
-  // Default to the company with the most reporting lines set, else the largest.
-  const initialCompanyId =
-    [...companies]
-      .sort((a, b) => {
-        const ta = trees[a.id], tb = trees[b.id];
-        return tb.withManager - ta.withManager || tb.total - ta.total;
-      })[0]?.id ?? companies[0]?.id;
-
   const totalPeople = Object.values(trees).reduce((s, t) => s + t.total, 0);
   const totalLines = Object.values(trees).reduce((s, t) => s + t.withManager, 0);
 
@@ -49,7 +41,7 @@ export default async function OrgChartPage({
       <OrgChart
         companies={companies}
         trees={trees}
-        initialCompanyId={company ? Number(company) : initialCompanyId}
+        initialCompanyId={company ? Number(company) : undefined}
       />
     </div>
   );

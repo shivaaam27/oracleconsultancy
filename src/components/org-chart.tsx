@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Users, CornerDownRight } from "lucide-react";
+import { Users, CornerDownRight, ChevronRight, LayoutGrid } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Segmented } from "@/components/macos";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
-import type { CompanyTree, OrgNode } from "@/lib/org-chart";
+import { countNodes, type CompanyTree, type OrgNode } from "@/lib/org-chart";
 
 const TYPE_TINT: Record<string, string> = {
   local_staff: "bg-accent-soft text-accent ring-accent/25",
@@ -111,41 +111,115 @@ function TreeView({ tree }: { tree: CompanyTree }) {
   );
 }
 
+/** The most senior person in a company's tree — the root with the most reports. */
+function companyLead(tree: CompanyTree): { node: OrgNode; reports: number } | null {
+  if (tree.roots.length === 0) return null;
+  let best = tree.roots[0];
+  let bestReports = countNodes(best.children);
+  for (const r of tree.roots.slice(1)) {
+    const reports = countNodes(r.children);
+    if (reports > bestReports) { best = r; bestReports = reports; }
+  }
+  return { node: best, reports: bestReports };
+}
+
+/** Portfolio overview — a card per company; click to drill into its tree. */
+function GroupOverview({
+  companies,
+  trees,
+  onPick,
+}: {
+  companies: OrgChartCompany[];
+  trees: Record<number, CompanyTree>;
+  onPick: (companyId: number) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {companies.map((c) => {
+        const tree = trees[c.id];
+        const lead = tree ? companyLead(tree) : null;
+        const accent = c.accentColor || "hsl(var(--accent))";
+        return (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => onPick(c.id)}
+            className="group text-left rounded-2xl glass elevated p-4 hover:ring-1 hover:ring-accent/30 transition-all"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
+                <span className="font-medium text-fg truncate">{c.name}</span>
+              </div>
+              <ChevronRight size={15} className="text-fg-subtle group-hover:text-accent group-hover:translate-x-0.5 transition-all shrink-0" />
+            </div>
+            <div className="mt-2 text-[11px] text-fg-subtle tabular">
+              {tree?.total ?? 0} people · {tree?.withManager ?? 0} reporting line{(tree?.withManager ?? 0) === 1 ? "" : "s"}
+            </div>
+            <div className="mt-1.5 text-xs text-fg-muted truncate">
+              {lead
+                ? <>Lead: <span className="text-fg">{lead.node.name}</span>{lead.reports > 0 && <span className="text-fg-subtle"> · {lead.reports} report{lead.reports === 1 ? "" : "s"}</span>}</>
+                : <span className="italic text-fg-subtle">No reporting lines yet</span>}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Organogram view. The server pre-builds one CompanyTree per company; this
- * component just switches between them. Pass a single company (and omit the
- * switcher) to embed one company's tree, e.g. on the company dashboard.
+ * component switches between a group overview and per-company trees. Pass a
+ * single company with showGroup/showSwitcher off to embed one company's tree
+ * (e.g. the company dashboard Org tab).
  */
 export function OrgChart({
   companies,
   trees,
   initialCompanyId,
   showSwitcher = true,
+  showGroup = true,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
   initialCompanyId?: number;
   showSwitcher?: boolean;
+  showGroup?: boolean;
 }) {
-  const [companyId, setCompanyId] = useState<number>(
-    initialCompanyId ?? companies[0]?.id ?? 0
+  // "group" = portfolio overview; a number = a specific company's tree.
+  // Default to the group overview, unless a specific company was requested
+  // (deep-link) or the group view is disabled (embedded single-company use).
+  const [view, setView] = useState<"group" | number>(
+    initialCompanyId != null ? initialCompanyId
+    : showGroup ? "group"
+    : (companies[0]?.id ?? 0)
   );
-  const tree = trees[companyId];
+
+  const options = [
+    ...(showGroup ? [{ value: "group", label: "Group", icon: <LayoutGrid size={13} /> }] : []),
+    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ];
 
   return (
     <div className="space-y-4">
-      {showSwitcher && companies.length > 1 && (
+      {showSwitcher && options.length > 1 && (
         <div className="overflow-x-auto -mx-1 px-1 no-scrollbar">
           <Segmented
-            value={String(companyId)}
-            onChange={(v) => setCompanyId(Number(v))}
+            value={view === "group" ? "group" : String(view)}
+            onChange={(v) => setView(v === "group" ? "group" : Number(v))}
             size="sm"
             className="min-w-max"
-            options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
+            options={options}
           />
         </div>
       )}
-      {tree ? <TreeView tree={tree} /> : (
+
+      {view === "group" ? (
+        <GroupOverview companies={companies} trees={trees} onPick={(id) => setView(id)} />
+      ) : trees[view] ? (
+        <TreeView tree={trees[view]} />
+      ) : (
         <p className="text-sm text-fg-subtle italic py-6 text-center">Select a company.</p>
       )}
     </div>

@@ -18,9 +18,11 @@ export type OrgNode = {
 };
 
 export type CompanyTree = {
-  /** People whose primary manager sits inside this company (proper tree). */
+  /** Top of an in-company hierarchy: people who have reports but aren't
+   *  themselves someone's in-company report. */
   roots: OrgNode[];
-  /** Active people in the company with no manager set at all. */
+  /** People with no place in an in-company hierarchy (no in-company reports
+   *  and not reporting to anyone inside the company). */
   unassigned: OrgNode[];
   total: number;
   withManager: number;
@@ -42,39 +44,41 @@ function toNode(p: Person): OrgNode {
 /**
  * Build the reporting tree for a single company from the full people list.
  *
- * A person belongs to the company via `companyId`. Their parent is their
- * primary manager **only if that manager is also in this company** — otherwise
- * they surface as a root (their line leads outside, e.g. to a group director).
- * People with no manager at all are listed separately as "unassigned" so the
- * chart doesn't pretend they sit at the top of a hierarchy.
+ * A person belongs to the company via `companyId`. They nest under their
+ * primary manager **only if that manager is also in this company**. After
+ * nesting, the top level splits in two: a "root" is anyone with in-company
+ * reports (the real top of a hierarchy); everyone else with no in-company
+ * position — whether they have no manager, or a manager who works elsewhere —
+ * is listed as "unassigned" so the chart never invents a hierarchy.
  *
- * Cycle-safe: if manager links form a loop, the offending link is dropped and
- * the person becomes a root rather than vanishing.
+ * Cycle-safe: if manager links form a loop, the offending link is dropped.
  */
 export function buildCompanyTree(people: Person[], companyId: number): CompanyTree {
   const members = people.filter((p) => p.active && p.companyId === companyId);
   const memberIds = new Set(members.map((m) => m.id));
   const nodes = new Map<number, OrgNode>(members.map((m) => [m.id, toNode(m)]));
 
+  let withManager = 0;
+  const nestedIds = new Set<number>(); // people placed under an in-company manager
+
+  // Pass 1 — nest each person under their in-company primary manager.
+  for (const m of members) {
+    const mgrId = m.managerId;
+    if (mgrId != null) withManager++;
+    const mgrInCompany = mgrId != null && memberIds.has(mgrId) && mgrId !== m.id;
+    if (mgrInCompany && !createsCycle(nodes, m.id, mgrId!)) {
+      nodes.get(mgrId!)!.children.push(nodes.get(m.id)!);
+      nestedIds.add(m.id);
+    }
+  }
+
+  // Pass 2 — partition the top level: has reports → root, else → unassigned.
   const roots: OrgNode[] = [];
   const unassigned: OrgNode[] = [];
-  let withManager = 0;
-
   for (const m of members) {
+    if (nestedIds.has(m.id)) continue;
     const node = nodes.get(m.id)!;
-    const mgrId = m.managerId;
-    const mgrInCompany = mgrId != null && memberIds.has(mgrId) && mgrId !== m.id;
-
-    if (mgrId != null) withManager++;
-
-    if (mgrInCompany && !createsCycle(nodes, m.id, mgrId!)) {
-      nodes.get(mgrId!)!.children.push(node);
-    } else if (mgrId == null) {
-      unassigned.push(node);
-    } else {
-      // Manager is outside this company (or a cycle) → this person heads a branch.
-      roots.push(node);
-    }
+    (node.children.length > 0 ? roots : unassigned).push(node);
   }
 
   const byName = (a: OrgNode, b: OrgNode) => a.name.localeCompare(b.name);

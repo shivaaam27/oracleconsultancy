@@ -159,6 +159,7 @@ export default async function CompanyPage({
           trees={{ [companyId]: buildCompanyTree(await getAllPeopleWithWorkload(), companyId) }}
           initialCompanyId={companyId}
           showSwitcher={false}
+          showGroup={false}
         />
       )}
     </div>
