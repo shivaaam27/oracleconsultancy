@@ -14,8 +14,13 @@ export type OrgNode = {
   managerId: number | null;
   /** Additional dotted-line managers this person also reports to. */
   secondaryManagers: Array<{ id: number; name: string | null }>;
+  /** Count of open tasks this person carries (badge on the node). */
+  openTasks: number;
   children: OrgNode[];
 };
+
+/** Input shape — Person, optionally carrying workload (for the task badge). */
+type PersonWithWorkload = Person & { workload?: { open: number } };
 
 export type CompanyTree = {
   /** Top of an in-company hierarchy: people who have reports but aren't
@@ -28,7 +33,7 @@ export type CompanyTree = {
   withManager: number;
 };
 
-function toNode(p: Person): OrgNode {
+function toNode(p: PersonWithWorkload): OrgNode {
   return {
     id: p.id,
     name: p.name,
@@ -37,6 +42,7 @@ function toNode(p: Person): OrgNode {
     departmentName: p.departmentName,
     managerId: p.managerId,
     secondaryManagers: p.secondaryManagers ?? [],
+    openTasks: p.workload?.open ?? 0,
     children: [],
   };
 }
@@ -53,7 +59,7 @@ function toNode(p: Person): OrgNode {
  *
  * Cycle-safe: if manager links form a loop, the offending link is dropped.
  */
-export function buildCompanyTree(people: Person[], companyId: number): CompanyTree {
+export function buildCompanyTree(people: PersonWithWorkload[], companyId: number): CompanyTree {
   const members = people.filter((p) => p.active && p.companyId === companyId);
   const memberIds = new Set(members.map((m) => m.id));
   const nodes = new Map<number, OrgNode>(members.map((m) => [m.id, toNode(m)]));
