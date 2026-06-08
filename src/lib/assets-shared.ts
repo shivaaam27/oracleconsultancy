@@ -33,9 +33,16 @@ export type AssetRow = {
   serialNo: string | null;
   companyId: number | null;
   companyName: string | null;
+  vendorId: number | null;
+  vendorName: string | null;
+  location: string | null;
   status: AssetStatus;
   assignedToPersonId: number | null;
   assignedToName: string | null;
+  assignedToCompanyId: number | null;
+  assignedToCompanyName: string | null;
+  custodianPersonId: number | null;
+  custodianName: string | null;
   assignedAt: string | null;
   purchaseDate: string | null;
   purchaseCost: number | null;

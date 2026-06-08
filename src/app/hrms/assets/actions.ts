@@ -46,6 +46,8 @@ function assetFromForm(fd: FormData): AssetInput | { error: string } {
     category: str(fd, "category"),
     serialNo: str(fd, "serialNo"),
     companyId: numOrNull(fd, "companyId"),
+    vendorId: numOrNull(fd, "vendorId"),
+    location: str(fd, "location"),
     purchaseDate: dateIso(fd, "purchaseDate"),
     purchaseCost: numOrNull(fd, "purchaseCost"),
     notes: str(fd, "notes"),

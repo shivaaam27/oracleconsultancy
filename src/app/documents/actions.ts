@@ -55,6 +55,9 @@ function inputFromForm(fd: FormData): DocumentInput | { error: string } {
     title,
     companyId: intOrNull(fd, "companyId"),
     personId: intOrNull(fd, "personId"),
+    // Only touch vendor_id when the form actually carries it (vendor-contract
+    // create flow). Omitting preserves the existing link on normal edits.
+    ...(fd.has("vendorId") ? { vendorId: intOrNull(fd, "vendorId") } : {}),
     category: str(fd, "category"),
     docType: str(fd, "docType"),
     issuer: str(fd, "issuer"),

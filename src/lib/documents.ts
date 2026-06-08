@@ -77,6 +77,7 @@ export type DocumentInput = {
   title: string;
   companyId?: number | null;
   personId?: number | null;
+  vendorId?: number | null;
   category?: string | null;
   docType?: string | null;
   issuer?: string | null;
@@ -107,6 +108,7 @@ export async function createDocument(
       title: input.title,
       company_id: input.companyId ?? null,
       person_id: input.personId ?? null,
+      vendor_id: input.vendorId ?? null,
       category: input.category ?? null,
       doc_type: input.docType ?? null,
       issuer: input.issuer ?? null,
@@ -132,6 +134,7 @@ export async function updateDocument(id: number, patch: Partial<DocumentInput>):
   if (patch.title !== undefined) payload.title = patch.title;
   if (patch.companyId !== undefined) payload.company_id = patch.companyId;
   if (patch.personId !== undefined) payload.person_id = patch.personId;
+  if (patch.vendorId !== undefined) payload.vendor_id = patch.vendorId;
   if (patch.category !== undefined) payload.category = patch.category;
   if (patch.docType !== undefined) payload.doc_type = patch.docType;
   if (patch.issuer !== undefined) payload.issuer = patch.issuer;

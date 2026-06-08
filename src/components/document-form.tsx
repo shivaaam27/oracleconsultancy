@@ -52,6 +52,7 @@ export function DocumentForm({
   initialPersonId,
   initialCategory,
   initialTitle,
+  initialVendorId,
 }: {
   mode: "create" | "edit";
   doc?: DocumentRow;
@@ -65,6 +66,8 @@ export function DocumentForm({
   initialPersonId?: number | null;
   initialCategory?: string | null;
   initialTitle?: string;
+  /** When set (e.g. adding a vendor contract), links the document to a vendor. */
+  initialVendorId?: number | null;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -197,6 +200,9 @@ export function DocumentForm({
 
   return (
     <form ref={formRef} action={action} className="space-y-4">
+      {/* Vendor contract link — only present when adding a contract for a vendor,
+          so normal document edits never disturb an existing vendor link. */}
+      {initialVendorId != null && <input type="hidden" name="vendorId" value={String(initialVendorId)} />}
       {/* Unified capture — Upload · Link · Paste text. Upload and Paste text are
           read by AI to auto-fill the fields below; Link is just a reference. The
           actual form inputs (file, fileUrl) stay mounted so switching tabs never

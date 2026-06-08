@@ -57,7 +57,7 @@ function NavTab({
 const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/hrms", label: "HRMS Hub", icon: LayoutGrid },
   { href: "/hrms/oecr", label: "OECR", icon: Package },
-  { href: "/hrms/assets", label: "Assets", icon: Laptop },
+  { href: "/hrms/assets", label: "Assets & Vendors", icon: Laptop },
   { href: "/hrms/ocr", label: "OCR", icon: Sparkles },
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/people", label: "People", icon: Users },

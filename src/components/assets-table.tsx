@@ -34,10 +34,12 @@ export function AssetsTable({
   assets,
   companies,
   people,
+  vendors = [],
 }: {
   assets: AssetRow[];
   companies: Lite[];
   people: Lite[];
+  vendors?: Lite[];
 }) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -111,7 +113,7 @@ export function AssetsTable({
         <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
           {filtered.map((a) => {
             const busy = busyId === a.id;
-            const meta = [a.tag, a.serialNo ? `SN ${a.serialNo}` : null, a.companyName].filter(Boolean).join(" · ");
+            const meta = [a.tag, a.serialNo ? `SN ${a.serialNo}` : null, a.companyName, a.location, a.vendorName ? `from ${a.vendorName}` : null].filter(Boolean).join(" · ");
             return (
               <div key={a.id} className={cn("flex flex-wrap items-center gap-3 px-3.5 py-2.5", busy && "opacity-60")}>
                 <span className="h-9 w-9 rounded-full bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
@@ -193,6 +195,7 @@ export function AssetsTable({
         onOpenChange={setDialogOpen}
         editing={editing}
         companies={companies}
+        vendors={vendors}
       />
     </div>
   );
@@ -203,11 +206,13 @@ function AssetDialog({
   onOpenChange,
   editing,
   companies,
+  vendors,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   editing: AssetRow | null;
   companies: Lite[];
+  vendors: Lite[];
 }) {
   const { toast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -266,6 +271,19 @@ function AssetDialog({
                   <option value="">—</option>
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={label}>Supplier (vendor)</label>
+                <select name="vendorId" defaultValue={editing?.vendorId ?? ""} className={input}>
+                  <option value="">—</option>
+                  {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={label}>Location / site</label>
+                <input name="location" defaultValue={editing?.location ?? ""} placeholder="e.g. Head Office" className={input} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

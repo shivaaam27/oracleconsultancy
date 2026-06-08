@@ -54,6 +54,7 @@ export function DocumentsTable({
   const [prefillCompanyId, setPrefillCompanyId] = useState<number | null>(null);
   const [prefillCategory, setPrefillCategory] = useState<string | null>(null);
   const [prefillTitle, setPrefillTitle] = useState<string | undefined>(undefined);
+  const [prefillVendorId, setPrefillVendorId] = useState<number | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -73,6 +74,8 @@ export function DocumentsTable({
       if (category) setPrefillCategory(category);
       const title = searchParams.get("title");
       if (title) setPrefillTitle(title);
+      const vendor = searchParams.get("vendor");
+      if (vendor && /^\d+$/.test(vendor)) setPrefillVendorId(parseInt(vendor, 10));
       setCreateOpen(true);
       router.replace(pathname, { scroll: false });
     }
@@ -357,11 +360,11 @@ export function DocumentsTable({
       />
 
       {/* Create dialog */}
-      <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); } }} title="Add a document">
+      <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); setPrefillVendorId(null); } }} title="Add a document">
         <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}
-          initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle}
-          onCancel={() => { setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); }}
-          onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); } }} />
+          initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle} initialVendorId={prefillVendorId}
+          onCancel={() => { setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); setPrefillVendorId(null); }}
+          onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); setPrefillVendorId(null); } }} />
       </DocDialog>
 
       {/* Edit dialog */}

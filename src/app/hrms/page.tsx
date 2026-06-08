@@ -2,6 +2,7 @@ import { Package, Sparkles, Building2, Users, FileText, Laptop } from "lucide-re
 import { RegistryCard, type RegistryStat } from "@/components/hrms/registry-card";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
 import { listAssets, assetMetrics } from "@/lib/assets";
+import { listVendors } from "@/lib/vendors";
 import { listAreas } from "@/lib/cleaning";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { sb } from "@/db/supabase";
@@ -15,6 +16,7 @@ export default async function HrmsHubPage() {
     areas,
     documents,
     assets,
+    vendors,
     { count: companyCount },
     { count: peopleCount },
   ] = await Promise.all([
@@ -22,16 +24,19 @@ export default async function HrmsHubPage() {
     listAreas(),
     listDocuments(),
     listAssets(),
+    listVendors(),
     sb.from("companies").select("*", { count: "exact", head: true }).eq("active", true),
     sb.from("people").select("*", { count: "exact", head: true }).eq("active", true),
   ]);
 
   const m = dashboardMetrics(items, purchases, issues);
   const am = assetMetrics(assets);
+  const vendorIssues = vendors.filter((v) => v.expiredCount > 0 || v.expiringCount > 0).length;
   const assetStats: RegistryStat[] = [
     { label: `${am.total} asset${am.total === 1 ? "" : "s"}` },
+    { label: `${vendors.length} vendor${vendors.length === 1 ? "" : "s"}` },
     ...(am.assigned > 0 ? [{ label: `${am.assigned} assigned`, tone: "success" as const }] : []),
-    ...(am.maintenance > 0 ? [{ label: `${am.maintenance} in maintenance`, tone: "warn" as const }] : []),
+    ...(vendorIssues > 0 ? [{ label: `${vendorIssues} contract issue${vendorIssues === 1 ? "" : "s"}`, tone: "warn" as const }] : []),
   ];
   const oecrStats: RegistryStat[] = [
     { label: `${m.totalItems} item${m.totalItems === 1 ? "" : "s"}` },
@@ -69,9 +74,9 @@ export default async function HrmsHubPage() {
         />
         <RegistryCard
           href="/hrms/assets"
-          abbr="Assets"
-          title="Asset Register"
-          description="Durable company equipment — laptops, phones, vehicles, access cards. Assign to people, track who holds what, and return on offboarding."
+          abbr="Assets & Vendors"
+          title="Asset & Vendor Register"
+          description="Company equipment (assign to people, return on offboarding) and the suppliers, contractors and landlords you rely on — with their contracts and renewals."
           icon={Laptop}
           stats={assetStats}
         />

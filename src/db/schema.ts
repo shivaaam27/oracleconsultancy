@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, primaryKey, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -361,7 +361,33 @@ export const documents = pgTable("documents", {
   storagePath: text("storage_path"),
   fileName: text("file_name"),
   notes: text("notes"),
+  // Optional link to the vendor this document belongs to (e.g. a supplier
+  // contract or a service agreement). Lets vendor contracts reuse the
+  // documents expiry/compliance engine.
+  vendorId: integer("vendor_id").references((): AnyPgColumn => vendors.id, { onDelete: "set null" }),
   archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// HRMS — Vendor / Supplier register. The outside companies we buy from or
+// rely on (suppliers, contractors, landlords, utilities, professionals).
+// Contracts + renewals reuse the documents engine via documents.vendor_id.
+export const vendors = pgTable("vendors", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  // Supplier | Contractor | Service | Landlord | Utility | Professional | Other.
+  category: text("category"),
+  // Which of our portfolio companies this vendor primarily serves (optional).
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  contactName: text("contact_name"),
+  email: text("email"),
+  phone: text("phone"),
+  // Free-text site/location, e.g. "Expat House A", "Head Office".
+  location: text("location"),
+  notes: text("notes"),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
@@ -441,9 +467,17 @@ export const assets = pgTable("assets", {
   category: text("category"),
   serialNo: text("serial_no"),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  // The vendor this asset was bought from / is serviced by (optional).
+  vendorId: integer("vendor_id").references((): AnyPgColumn => vendors.id, { onDelete: "set null" }),
+  // Free-text site/location for shared or location-based assets, e.g. "Expat House A".
+  location: text("location"),
   // in_store | assigned | maintenance | retired.
   status: text("status").notNull().default("in_store"),
   assignedToPersonId: integer("assigned_to_person_id").references(() => people.id, { onDelete: "set null" }),
+  // For shared/team assets assigned to a company rather than one person.
+  assignedToCompanyId: integer("assigned_to_company_id").references(() => companies.id, { onDelete: "set null" }),
+  // The one person accountable for a shared asset (even if many use it).
+  custodianPersonId: integer("custodian_person_id").references(() => people.id, { onDelete: "set null" }),
   assignedAt: timestamp("assigned_at", { mode: "date", withTimezone: true }),
   purchaseDate: timestamp("purchase_date", { mode: "date", withTimezone: true }),
   purchaseCost: doublePrecision("purchase_cost"),

@@ -8,6 +8,7 @@ import type { AssetRow, AssetStatus } from "@/lib/assets-shared";
 /* a person's assets automatically.                                    */
 /* ------------------------------------------------------------------ */
 
+type Embed = { name: string } | { name: string }[] | null;
 type Row = {
   id: number;
   tag: string | null;
@@ -15,22 +16,36 @@ type Row = {
   category: string | null;
   serial_no: string | null;
   company_id: number | null;
+  vendor_id: number | null;
+  location: string | null;
   status: string;
   assigned_to_person_id: number | null;
+  assigned_to_company_id: number | null;
+  custodian_person_id: number | null;
   assigned_at: string | null;
   purchase_date: string | null;
   purchase_cost: number | null;
   notes: string | null;
-  companies?: { name: string } | { name: string }[] | null;
-  people?: { name: string } | { name: string }[] | null;
+  company?: Embed;
+  assignedCompany?: Embed;
+  holder?: Embed;
+  custodian?: Embed;
+  vendor?: Embed;
 };
 
 function one<T>(v: T | T[] | null | undefined): T | null {
   return Array.isArray(v) ? v[0] ?? null : v ?? null;
 }
 
+// Assets have two FKs to companies (owning + assigned) and two to people
+// (holder + custodian), so every embed is disambiguated by its FK constraint.
 const SELECT =
-  "id,tag,name,category,serial_no,company_id,status,assigned_to_person_id,assigned_at,purchase_date,purchase_cost,notes, companies(name), people(name)";
+  "id,tag,name,category,serial_no,company_id,vendor_id,location,status,assigned_to_person_id,assigned_to_company_id,custodian_person_id,assigned_at,purchase_date,purchase_cost,notes," +
+  " company:companies!assets_company_id_companies_id_fk(name)," +
+  " assignedCompany:companies!assets_assigned_to_company_id_companies_id_fk(name)," +
+  " holder:people!assets_assigned_to_person_id_people_id_fk(name)," +
+  " custodian:people!assets_custodian_person_id_people_id_fk(name)," +
+  " vendor:vendors!assets_vendor_id_vendors_id_fk(name)";
 
 function map(r: Row): AssetRow {
   return {
@@ -40,10 +55,17 @@ function map(r: Row): AssetRow {
     category: r.category,
     serialNo: r.serial_no,
     companyId: r.company_id,
-    companyName: one(r.companies)?.name ?? null,
+    companyName: one(r.company)?.name ?? null,
+    vendorId: r.vendor_id,
+    vendorName: one(r.vendor)?.name ?? null,
+    location: r.location,
     status: (r.status as AssetStatus) ?? "in_store",
     assignedToPersonId: r.assigned_to_person_id,
-    assignedToName: one(r.people)?.name ?? null,
+    assignedToName: one(r.holder)?.name ?? null,
+    assignedToCompanyId: r.assigned_to_company_id,
+    assignedToCompanyName: one(r.assignedCompany)?.name ?? null,
+    custodianPersonId: r.custodian_person_id,
+    custodianName: one(r.custodian)?.name ?? null,
     assignedAt: r.assigned_at,
     purchaseDate: r.purchase_date,
     purchaseCost: r.purchase_cost,
@@ -58,7 +80,7 @@ export async function listAssets(): Promise<AssetRow[]> {
     .eq("archived", false)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return ((data ?? []) as Row[]).map(map);
+  return ((data ?? []) as unknown as Row[]).map(map);
 }
 
 export type AssetMetrics = {
@@ -88,7 +110,7 @@ export async function listAssignableAssets(): Promise<AssetRow[]> {
     .eq("archived", false)
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
-  return ((data ?? []) as Row[]).map(map);
+  return ((data ?? []) as unknown as Row[]).map(map);
 }
 
 /** Assets currently held by a person (open assignment / status assigned). */
@@ -100,7 +122,7 @@ export async function assetsForPerson(personId: number): Promise<AssetRow[]> {
     .eq("archived", false)
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
-  return ((data ?? []) as Row[]).map(map);
+  return ((data ?? []) as unknown as Row[]).map(map);
 }
 
 export type AssetInput = {
@@ -109,6 +131,8 @@ export type AssetInput = {
   category: string | null;
   serialNo: string | null;
   companyId: number | null;
+  vendorId: number | null;
+  location: string | null;
   purchaseDate: string | null; // ISO or null
   purchaseCost: number | null;
   notes: string | null;
@@ -124,6 +148,8 @@ export async function createAsset(input: AssetInput): Promise<number> {
       category: input.category,
       serial_no: input.serialNo,
       company_id: input.companyId,
+      vendor_id: input.vendorId,
+      location: input.location,
       purchase_date: input.purchaseDate,
       purchase_cost: input.purchaseCost,
       notes: input.notes,
@@ -146,6 +172,8 @@ export async function updateAsset(id: number, input: AssetInput): Promise<void> 
       category: input.category,
       serial_no: input.serialNo,
       company_id: input.companyId,
+      vendor_id: input.vendorId,
+      location: input.location,
       purchase_date: input.purchaseDate,
       purchase_cost: input.purchaseCost,
       notes: input.notes,
