@@ -317,6 +317,12 @@ export const todos = pgTable("todos", {
   title: text("title").notNull(),
   done: boolean("done").notNull().default(false),
   important: boolean("important").notNull().default(false),
+  // Tags a to-do as part of a person journey: "onboarding" | "offboarding".
+  // NULL for ordinary personal to-dos. Lets the drawer group/progress steps
+  // and prevents duplicate generation, while steps still live in the to-do system.
+  kind: text("kind"),
+  // Ordering within a generated journey checklist (0-based); NULL for ad-hoc to-dos.
+  sortOrder: integer("sort_order"),
   dueAt: timestamp("due_at", { mode: "date", withTimezone: true }),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),

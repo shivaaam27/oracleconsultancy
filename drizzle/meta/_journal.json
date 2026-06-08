@@ -148,6 +148,13 @@
       "when": 1780866115458,
       "tag": "0020_youthful_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1780898928801,
+      "tag": "0021_square_slipstream",
+      "breakpoints": true
     }
   ]
 }

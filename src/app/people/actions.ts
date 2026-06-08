@@ -4,6 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { normalizePersonType } from "@/lib/person-types";
 import { ensurePersonRequirements } from "@/lib/requirements";
+import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -129,8 +130,13 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   await syncAssociations(data.id as number, parseAssociations(formData));
+  const newType = normalizePersonType(personType(formData));
   // Auto-generate this person's document checklist for their type.
-  try { await ensurePersonRequirements(data.id as number, normalizePersonType(personType(formData))); } catch {}
+  try { await ensurePersonRequirements(data.id as number, newType); } catch {}
+  // Auto-start an onboarding checklist for actual hires (local staff / expat).
+  if (AUTO_ONBOARD_TYPES.includes(newType)) {
+    try { await startJourney(data.id as number, "onboarding"); } catch {}
+  }
 
   invalidate();
   return { ok: true, id: data.id as number };
@@ -200,6 +206,11 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   const nextActive = !current.active;
   const { error } = await sb.from("people").update({ active: nextActive }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  // Archiving someone kicks off an offboarding checklist (idempotent).
+  if (!nextActive) {
+    try { await startJourney(id, "offboarding"); } catch {}
+  }
 
   invalidate();
   return { ok: true, active: nextActive };

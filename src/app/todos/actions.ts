@@ -46,7 +46,9 @@ function map(row: Row): Todo {
 const SELECT = "id,title,done,important,due_at,company_id,person_id,task_id,created_at,completed_at, companies(name), people(name), tasks(code)";
 
 export async function listTodos(): Promise<Todo[]> {
-  const { data, error } = await sb.from("todos").select(SELECT).order("created_at", { ascending: false });
+  // Only ad-hoc personal to-dos here. Onboarding/offboarding journey steps
+  // (kind != null) live in the person drawer, not the Workbook list.
+  const { data, error } = await sb.from("todos").select(SELECT).is("kind", null).order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return ((data ?? []) as Row[]).map(map);
 }

@@ -178,6 +178,7 @@ async function listPersonTodos(personId: number): Promise<PersonPackTodo[]> {
     .select("id,title,done,important,due_at,company_id,task_id,companies(name),tasks(code)")
     .eq("person_id", personId)
     .eq("done", false)
+    .is("kind", null)
     .order("due_at", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);

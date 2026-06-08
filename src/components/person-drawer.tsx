@@ -14,6 +14,7 @@ import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackBuilder } from "./person-pack-builder";
 import { RequirementsChecklist } from "./requirements-checklist";
+import { JourneyChecklist } from "./journey-checklist";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
@@ -460,6 +461,13 @@ export function PersonDrawer() {
                 <HRFileHealth data={data} person={person} close={close} openPack={openPack} initialPurpose={packPurpose} />
 
                 <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} />
+
+                <JourneyChecklist
+                  personId={person.id}
+                  kind={person.active ? "onboarding" : "offboarding"}
+                  onChanged={refresh}
+                  onNavigate={close}
+                />
 
                 {/* Contact actions */}
                 <div className="flex flex-wrap gap-1.5">
