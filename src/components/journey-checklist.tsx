@@ -154,14 +154,14 @@ export function JourneyChecklist({
           const link = stepLink(step.label);
           const overdue = !step.done && step.dueAt && new Date(step.dueAt) < new Date();
           return (
-            <div key={step.id} className={cn("flex items-start gap-2.5 px-3 py-2.5", busy && "opacity-60")}>
+            <div key={step.id} className={cn("flex items-center gap-2.5 px-3 py-2", busy && "opacity-60")}>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => toggle(step.id, !step.done)}
                 aria-label={step.done ? "Mark not done" : "Mark done"}
                 className={cn(
-                  "mt-0.5 h-5 w-5 shrink-0 rounded-md border flex items-center justify-center transition-colors",
+                  "h-5 w-5 shrink-0 rounded-md border flex items-center justify-center transition-colors",
                   step.done ? "bg-success border-success text-white" : "border-border-strong hover:border-accent"
                 )}
               >

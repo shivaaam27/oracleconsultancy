@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, FileText, ChevronDown } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -94,6 +94,7 @@ export function RequirementsChecklist({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
+  const [openItem, setOpenItem] = useState<number | null>(null);
   const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
@@ -173,31 +174,32 @@ export function RequirementsChecklist({
         {data.items.map((item) => {
           const tone = REQUIREMENT_STATUS_TONE[item.effectiveStatus];
           const busy = busyId === item.id;
+          const expanded = openItem === item.id;
           const linkable = data.documents.filter((d) => d.id !== item.documentId);
           const needsDoc = item.effectiveStatus === "missing" || item.effectiveStatus === "requested";
+          const dot = tone === "success" ? "bg-success" : tone === "warn" ? "bg-warn" : tone === "danger" ? "bg-danger" : tone === "info" ? "bg-info" : "bg-fg-subtle";
+          const subtitle = item.documentTitle
+            ? [item.documentTitle, item.expiryLabel].filter(Boolean).join(" · ")
+            : item.mandatory ? "Required" : "Optional";
           return (
-            <div key={item.id} className={cn("flex items-start gap-2.5 px-3 py-2.5", busy && "opacity-60")}>
-              <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full",
-                tone === "success" ? "bg-success" : tone === "warn" ? "bg-warn" : tone === "danger" ? "bg-danger" : tone === "info" ? "bg-info" : "bg-fg-subtle")} />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-sm font-medium">{item.label}</span>
-                  {!item.mandatory && <span className="text-[10px] text-fg-subtle">optional</span>}
-                  <Badge tone={tone}>{REQUIREMENT_STATUS_LABELS[item.effectiveStatus]}</Badge>
-                  {item.expiryLabel && (
-                    <span className={cn("text-[11px]", item.docStatus === "Expired" ? "text-danger" : item.docStatus === "Expiring" ? "text-warn" : "text-fg-subtle")}>
-                      {item.expiryLabel}
-                    </span>
-                  )}
-                </div>
-                {item.documentTitle && (
-                  <div className="mt-0.5 flex items-center gap-1 text-[11px] text-fg-muted">
-                    <FileText size={11} /> {item.documentTitle}
-                  </div>
-                )}
+            <div key={item.id} className={cn(busy && "opacity-60")}>
+              {/* Compact one-line row — tap to reveal actions */}
+              <button
+                type="button"
+                onClick={() => setOpenItem(expanded ? null : item.id)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-bg-muted/40 transition-colors"
+              >
+                <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium truncate">{item.label}</span>
+                  <span className={cn("block text-[11px] truncate", item.docStatus === "Expired" ? "text-danger" : item.docStatus === "Expiring" ? "text-warn" : "text-fg-muted")}>{subtitle}</span>
+                </span>
+                <Badge tone={tone}>{REQUIREMENT_STATUS_LABELS[item.effectiveStatus]}</Badge>
+                <ChevronDown size={14} className={cn("shrink-0 text-fg-subtle transition-transform", expanded && "rotate-180")} />
+              </button>
 
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  {/* Verify / received */}
+              {expanded && (
+                <div className="flex flex-wrap items-center gap-1.5 pl-[26px] pr-3 pb-2.5">
                   {item.effectiveStatus === "received" && (
                     <button type="button" disabled={busy} onClick={() => run(item.id, () => reqVerify(item.id), "Verified.")}
                       className={cn(actionBtn, "bg-success-soft text-success ring-success/25 hover:bg-success-soft/80")}>
@@ -205,9 +207,7 @@ export function RequirementsChecklist({
                     </button>
                   )}
                   {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring") && (
-                    <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnverify(item.id))} className={subtleBtn}>
-                      Unverify
-                    </button>
+                    <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnverify(item.id))} className={subtleBtn}>Unverify</button>
                   )}
                   {item.effectiveStatus === "expired" && (
                     <Link href={addDocHref(personId, item)} onClick={onNavigate}
@@ -215,7 +215,6 @@ export function RequirementsChecklist({
                       <Plus size={12} /> Renew
                     </Link>
                   )}
-                  {/* Needs a document */}
                   {needsDoc && (
                     <>
                       <Link href={addDocHref(personId, item)} onClick={onNavigate}
@@ -240,13 +239,11 @@ export function RequirementsChecklist({
                       )}
                     </>
                   )}
-                  {/* Unlink for anything with a document */}
                   {item.documentId && item.effectiveStatus !== "verified" && item.effectiveStatus !== "expiring" && (
                     <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnlinkDocument(item.id))} className={subtleBtn}>
                       <Link2 size={11} /> Unlink
                     </button>
                   )}
-                  {/* Waive / restore */}
                   {item.effectiveStatus === "waived" ? (
                     <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnwaive(item.id))} className={subtleBtn}>
                       <RotateCcw size={11} /> Restore
@@ -258,7 +255,7 @@ export function RequirementsChecklist({
                   ) : null}
                   {busy && <Loader2 size={12} className="animate-spin text-fg-subtle" />}
                 </div>
-              </div>
+              )}
             </div>
           );
         })}
