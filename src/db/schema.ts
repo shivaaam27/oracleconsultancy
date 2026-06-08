@@ -8,6 +8,16 @@ export const companies = pgTable("companies", {
   accentColor: text("accent_color"),
   // Two-letter prefix for task codes, e.g. "DS" → DS-001 (see migrate-task-codes).
   codePrefix: text("code_prefix"),
+  // Letterhead / branding — used by the system-wide letter generator. All optional.
+  legalName: text("legal_name"),
+  address: text("address"),
+  phone: text("phone"),
+  email: text("email"),
+  registrationNo: text("registration_no"),
+  tin: text("tin"),
+  logoPath: text("logo_path"),
+  signatoryName: text("signatory_name"),
+  signatoryTitle: text("signatory_title"),
 });
 
 export const departments = pgTable("departments", {
