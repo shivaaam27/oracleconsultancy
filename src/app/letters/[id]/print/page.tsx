@@ -29,7 +29,7 @@ export default async function LetterPrintPage({ params }: { params: Promise<{ id
         .letter-sheet { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; color: #111; position: relative; }
         .lh-band { position: fixed; left: 0; right: 0; width: 210mm; margin: 0 auto; }
         .lh-band img { width: 210mm; display: block; }
-        .letter-body { font-family: Georgia, 'Times New Roman', serif; font-size: 11.5pt; line-height: 1.55; }
+        .letter-body { font-family: var(--font-sans); font-size: 11pt; line-height: 1.55; color: #111; }
         .letter-body .meta { display: flex; justify-content: space-between; font-size: 10.5pt; }
         .letter-body .addressee { white-space: pre-wrap; margin-top: 14pt; }
         .letter-body .prose { white-space: pre-wrap; margin-top: 16pt; }
