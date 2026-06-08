@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type } from "lucide-react";
+import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
 import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, type ExtractedFields } from "@/app/documents/actions";
+import { createPerson } from "@/app/people/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
 import { Segmented } from "@/components/macos";
 import { cn } from "@/lib/cn";
@@ -53,6 +54,9 @@ export function DocumentForm({
   initialCategory,
   initialTitle,
   initialVendorId,
+  initialFile,
+  submitLabel,
+  cancelLabel,
 }: {
   mode: "create" | "edit";
   doc?: DocumentRow;
@@ -68,6 +72,11 @@ export function DocumentForm({
   initialTitle?: string;
   /** When set (e.g. adding a vendor contract), links the document to a vendor. */
   initialVendorId?: number | null;
+  /** A file to attach + auto-read on mount (used by the bulk-add queue). */
+  initialFile?: File;
+  /** Override the submit / cancel button text (e.g. "Save & next" / "Skip"). */
+  submitLabel?: string;
+  cancelLabel?: string;
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +85,12 @@ export function DocumentForm({
   );
   const [category, setCategory] = useState(doc?.category ?? initialCategory ?? "");
   const formRef = useRef<HTMLFormElement>(null);
+  // People list can grow if you create someone on the spot for an unknown owner.
+  const [localPeople, setLocalPeople] = useState(people);
+  useEffect(() => { setLocalPeople(people); }, [people]);
+  const [creatingPerson, setCreatingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState("");
+  const [savingPerson, setSavingPerson] = useState(false);
   // Unified capture: Upload · Link · Paste text. Default depends on what's there.
   const [capMode, setCapMode] = useState<CaptureMode>(
     initialExtractText ? "text" : doc?.fileUrl && !doc?.storagePath ? "link" : "upload"
@@ -126,6 +141,11 @@ export function DocumentForm({
         setCategory(f.category);
         if (!leadTouched && DEFAULT_LEAD_DAYS[f.category]) setLead(String(DEFAULT_LEAD_DAYS[f.category]));
       }
+      // Reflect the detected owner in the segmented control so the right
+      // field(s) are visible (company / person / both).
+      if (f.companyId && f.personId) setOwnerMode("both");
+      else if (f.personId) setOwnerMode("person");
+      else if (f.companyId) setOwnerMode("company");
       // Overflow → Notes: append anything that didn't map to a labelled field,
       // without overwriting what's already there or duplicating it.
       if (f.notes) {
@@ -194,6 +214,41 @@ export function DocumentForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialExtractText]);
+
+  // Bulk queue: attach + auto-read the given file once on mount.
+  const autoRanFile = useRef(false);
+  useEffect(() => {
+    if (initialFile && !autoRanFile.current) {
+      autoRanFile.current = true;
+      setCapMode("upload");
+      runExtractFile(initialFile);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile]);
+
+  async function handleCreatePerson() {
+    const name = newPersonName.trim();
+    if (!name) return;
+    setSavingPerson(true);
+    try {
+      const fd = new FormData();
+      fd.set("name", name);
+      fd.set("personType", "local_staff");
+      const res = await createPerson(fd);
+      if (res.ok && res.id) {
+        setLocalPeople((prev) => [...prev, { id: res.id!, name }].sort((a, b) => a.name.localeCompare(b.name)));
+        const el = formRef.current?.elements.namedItem("personId") as HTMLSelectElement | null;
+        if (el) el.value = String(res.id);
+        setOwnerMode((m) => (m === "company" ? "both" : m === "person" ? "person" : m));
+        setCreatingPerson(false);
+        setNewPersonName("");
+      } else if (!res.ok) {
+        setError(res.error);
+      }
+    } finally {
+      setSavingPerson(false);
+    }
+  }
 
   const inputCls = "w-full rounded-lg border border-border bg-bg-subtle/60 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40";
   const labelCls = "block text-[10px] uppercase tracking-wider text-fg-subtle mb-1";
@@ -330,8 +385,27 @@ export function DocumentForm({
           <label className={labelCls}>Person</label>
           <select name="personId" defaultValue={doc?.personId ? String(doc.personId) : initialPersonId ? String(initialPersonId) : ""} className={inputCls}>
             <option value="">—</option>
-            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {localPeople.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          {creatingPerson ? (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <input value={newPersonName} onChange={(e) => setNewPersonName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreatePerson(); } }}
+                placeholder="New person's name" autoFocus
+                className="flex-1 rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent" />
+              <button type="button" onClick={handleCreatePerson} disabled={savingPerson || !newPersonName.trim()}
+                className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2 py-1 text-[11px] disabled:opacity-50">
+                {savingPerson ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Add
+              </button>
+              <button type="button" onClick={() => { setCreatingPerson(false); setNewPersonName(""); }}
+                className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setCreatingPerson(true)}
+              className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent hover:underline">
+              <UserPlus size={11} /> New person
+            </button>
+          )}
         </div>
         {ownerMode === "company" && <input type="hidden" name="personId" value="" />}
 
@@ -381,13 +455,13 @@ export function DocumentForm({
         {onCancel && (
           <button type="button" onClick={onCancel} disabled={pending}
             className="px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">
-            Cancel
+            {cancelLabel ?? "Cancel"}
           </button>
         )}
         <button type="submit" disabled={pending}
           className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50")}>
           {pending ? <Loader2 size={13} className="animate-spin" /> : mode === "create" ? <FilePlus size={13} /> : <Save size={13} />}
-          {pending ? (mode === "create" ? "Saving…" : "Saving…") : mode === "create" ? "Add document" : "Save changes"}
+          {pending ? "Saving…" : submitLabel ?? (mode === "create" ? "Add document" : "Save changes")}
         </button>
       </div>
     </form>

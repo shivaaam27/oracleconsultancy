@@ -217,7 +217,7 @@ export function DocumentsTable({
           ]} />
         <button type="button" onClick={() => setBulkOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-bg-subtle/60 px-3 py-2 text-sm text-fg-muted hover:text-fg hover:border-accent transition-colors">
-          <UploadCloud size={15} /> Bulk upload
+          <UploadCloud size={15} /> Add several
         </button>
       </div>
 
@@ -371,7 +371,6 @@ export function DocumentsTable({
         onOpenChange={setBulkOpen}
         companies={companies}
         people={people}
-        documents={documents}
         onDone={() => router.refresh()}
       />
 
