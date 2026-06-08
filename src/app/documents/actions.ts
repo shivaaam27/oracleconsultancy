@@ -15,7 +15,46 @@ import {
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey } from "@/lib/settings";
-import { DOC_CATEGORIES } from "@/lib/documents-shared";
+import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
+
+export type OwnerDocMatch = {
+  id: number;
+  title: string;
+  status: "Valid" | "Expiring" | "Expired" | "No expiry" | "Archived";
+  expiryLabel: string | null;
+  expiryDate: string | null;
+};
+
+/**
+ * Existing (non-archived) documents for an owner + category — used to warn
+ * about duplicates before saving, so a re-sent/older copy never silently
+ * replaces a newer one.
+ */
+export async function findOwnerDocuments(
+  owner: { kind: "company" | "person"; id: number },
+  category: string
+): Promise<OwnerDocMatch[]> {
+  if (!category || !owner?.id) return [];
+  const col = owner.kind === "company" ? "company_id" : "person_id";
+  const { data } = await supa
+    .from("documents")
+    .select("id,title,expiry_date,reminder_lead_days,archived")
+    .eq(col, owner.id)
+    .eq("category", category)
+    .eq("archived", false)
+    .order("expiry_date", { ascending: false, nullsFirst: false });
+  return (data ?? []).map((d) => {
+    const expiryDate = d.expiry_date ? new Date(d.expiry_date as string) : null;
+    const reminderLeadDays = (d.reminder_lead_days as number | null) ?? 30;
+    return {
+      id: d.id as number,
+      title: d.title as string,
+      status: deriveDocStatus({ expiryDate, reminderLeadDays, archived: false }),
+      expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays }) : null,
+      expiryDate: expiryDate ? expiryDate.toISOString() : null,
+    };
+  });
+}
 
 type Result = { ok: true; id?: number; code?: string } | { ok: false; error: string };
 

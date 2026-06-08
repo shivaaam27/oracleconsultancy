@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
-import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, type ExtractedFields } from "@/app/documents/actions";
+import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findOwnerDocuments, archiveDocumentAction, type ExtractedFields, type OwnerDocMatch } from "@/app/documents/actions";
 import { createPerson } from "@/app/people/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
 import { Segmented } from "@/components/macos";
@@ -111,10 +111,32 @@ export function DocumentForm({
   const [removeExisting, setRemoveExisting] = useState(false);
   const hasExistingFile = !!doc?.storagePath && !removeExisting;
 
+  // Duplicate detection: existing docs for this owner + category.
+  const [dupDocs, setDupDocs] = useState<OwnerDocMatch[]>([]);
+  const [supersedeId, setSupersedeId] = useState<number | null>(null);
+
+  async function recheckDup() {
+    const form = formRef.current;
+    if (!form || mode !== "create") return;
+    const cat = (form.elements.namedItem("category") as HTMLSelectElement | null)?.value || "";
+    const companyId = parseInt((form.elements.namedItem("companyId") as HTMLSelectElement | null)?.value || "", 10);
+    const personId = parseInt((form.elements.namedItem("personId") as HTMLSelectElement | null)?.value || "", 10);
+    const owner = !Number.isNaN(personId) ? { kind: "person" as const, id: personId }
+      : !Number.isNaN(companyId) ? { kind: "company" as const, id: companyId } : null;
+    if (!owner || !cat) { setDupDocs([]); setSupersedeId(null); return; }
+    const matches = await findOwnerDocuments(owner, cat);
+    setDupDocs(matches);
+    setSupersedeId(null); // default: add as new (never auto-replace)
+  }
+
   const action = (fd: FormData) => {
     setError(null);
     start(async () => {
       const res = mode === "create" ? await createDocumentAction(fd) : await updateDocumentAction(doc!.id, fd);
+      if (res.ok && supersedeId) {
+        // User chose to replace: archive the superseded document (kept as history).
+        try { await archiveDocumentAction(supersedeId, true); } catch { /* best effort */ }
+      }
       if (!res.ok) setError(res.error);
       onComplete?.(res);
     });
@@ -156,6 +178,7 @@ export function DocumentForm({
         }
       }
     }
+    void recheckDup();
     return [f.title, f.category, f.docType, f.issuer, f.referenceNo, f.issueDate, f.expiryDate, f.companyId, f.personId, f.notes]
       .filter((v) => v != null && v !== "").length;
   }
@@ -359,6 +382,7 @@ export function DocumentForm({
               const v = e.target.value;
               setCategory(v);
               if (!leadTouched && v && DEFAULT_LEAD_DAYS[v]) setLead(String(DEFAULT_LEAD_DAYS[v]));
+              void recheckDup();
             }}
             className={inputCls}>
             <option value="">—</option>
@@ -374,7 +398,7 @@ export function DocumentForm({
 
         <div className={ownerMode === "person" ? "hidden" : ""}>
           <label className={labelCls}>Company</label>
-          <select name="companyId" defaultValue={doc?.companyId ? String(doc.companyId) : initialCompanyId ? String(initialCompanyId) : ""} className={inputCls}>
+          <select name="companyId" onChange={recheckDup} defaultValue={doc?.companyId ? String(doc.companyId) : initialCompanyId ? String(initialCompanyId) : ""} className={inputCls}>
             <option value="">—</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -383,7 +407,7 @@ export function DocumentForm({
 
         <div className={ownerMode === "company" ? "hidden" : ""}>
           <label className={labelCls}>Person</label>
-          <select name="personId" defaultValue={doc?.personId ? String(doc.personId) : initialPersonId ? String(initialPersonId) : ""} className={inputCls}>
+          <select name="personId" onChange={recheckDup} defaultValue={doc?.personId ? String(doc.personId) : initialPersonId ? String(initialPersonId) : ""} className={inputCls}>
             <option value="">—</option>
             {localPeople.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -408,6 +432,34 @@ export function DocumentForm({
           )}
         </div>
         {ownerMode === "company" && <input type="hidden" name="personId" value="" />}
+
+        {dupDocs.length > 0 && (
+          <div className="col-span-2 rounded-lg bg-warn-soft/40 ring-1 ring-warn/30 p-2.5 text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 font-medium text-warn">
+              <AlertCircle size={13} /> Already on file: {dupDocs.length} {category} document{dupDocs.length === 1 ? "" : "s"}
+            </div>
+            <ul className="text-fg-muted space-y-0.5">
+              {dupDocs.slice(0, 3).map((d) => (
+                <li key={d.id}>• {d.title}{d.expiryLabel ? ` · ${d.expiryLabel}` : ""} <span className="text-fg-subtle">({d.status})</span></li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              <button type="button" onClick={() => setSupersedeId(null)}
+                className={cn("rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors", supersedeId === null ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle text-fg-muted ring-border hover:bg-bg-muted")}>
+                Keep both (add new)
+              </button>
+              <button type="button" onClick={() => setSupersedeId(dupDocs[0].id)}
+                className={cn("rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors", supersedeId != null ? "bg-warn-soft text-warn ring-warn/30" : "bg-bg-subtle text-fg-muted ring-border hover:bg-bg-muted")}>
+                Replace newest (archive old)
+              </button>
+            </div>
+            <p className="text-[11px] text-fg-subtle">
+              {supersedeId != null
+                ? "On save, the existing copy is archived (kept in history), not deleted."
+                : "Nothing on file is touched — this is added as a separate document. Only choose Replace if this is genuinely newer."}
+            </p>
+          </div>
+        )}
 
         <div>
           <label className={labelCls}>Issuer</label>
