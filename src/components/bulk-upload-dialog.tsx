@@ -19,22 +19,33 @@ export function BulkUploadDialog({
   companies,
   people,
   onDone,
+  initialFiles,
+  noteText,
+  onAllDone,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   companies: Array<{ id: number; name: string }>;
   people: Array<{ id: number; name: string }>;
   onDone?: () => void;
+  /** Pre-loaded files (e.g. an Inbox bundle's attachments). Hides the drop zone. */
+  initialFiles?: File[];
+  /** Reference text shown above the queue (e.g. the Inbox message). */
+  noteText?: string;
+  /** Fired when the whole queue is finished (used to mark the bundle filed). */
+  onAllDone?: () => void;
 }) {
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [index, setIndex] = useState(0);
   const [done, setDone] = useState<Set<number>>(new Set());
+  const [savedAny, setSavedAny] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // Fresh start every time the dialog opens (fixes stale data on reopen).
   useEffect(() => {
-    if (open) { setFiles([]); setIndex(0); setDone(new Set()); }
+    if (open) { setFiles(initialFiles ?? []); setIndex(0); setDone(new Set()); setSavedAny(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function addFiles(list: FileList | null) {
@@ -52,11 +63,12 @@ export function BulkUploadDialog({
     const nextDone = new Set(done);
     nextDone.add(index);
     setDone(nextDone);
-    if (savedOk) onDone?.();
+    if (savedOk) { onDone?.(); setSavedAny(true); }
     // Move to the next unhandled file, or finish.
     const remaining = files.map((_, j) => j).filter((j) => !nextDone.has(j));
     if (remaining.length === 0) {
-      toast(`Filed ${[...nextDone].length} file${nextDone.size === 1 ? "" : "s"} reviewed.`, { tone: "success" });
+      toast(`${nextDone.size} file${nextDone.size === 1 ? "" : "s"} reviewed.`, { tone: "success" });
+      if (savedOk || savedAny) onAllDone?.();
       onOpenChange(false);
       return;
     }
@@ -119,6 +131,12 @@ export function BulkUploadDialog({
           />
 
           <div className="flex-1 overflow-y-auto p-4">
+            {noteText && files.length > 0 && (
+              <details className="mb-3 rounded-xl bg-bg-subtle/50 ring-1 ring-border/60 px-3 py-2">
+                <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wider text-fg-subtle">Message from sender</summary>
+                <p className="mt-1.5 whitespace-pre-wrap text-xs text-fg-muted">{noteText}</p>
+              </details>
+            )}
             {files.length === 0 ? (
               <button
                 type="button"

@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy, FileText } from "lucide-react";
-import { dismissInboxItem, updateInboxBody, signInboxAttachment, type InboxItem } from "./actions";
+import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy, FileText, FolderInput } from "lucide-react";
+import { dismissInboxItem, updateInboxBody, signInboxAttachment, markInboxFiled, type InboxItem } from "./actions";
 import { SwipeRow } from "@/components/swipe-row";
+import { BulkUploadDialog } from "@/components/bulk-upload-dialog";
 
 function CopyChip({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -43,7 +44,15 @@ function relTime(iso: string): string {
 // Show the toggle only when the text is long enough to be clamped.
 const LONG = 180;
 
-export function InboxList({ items }: { items: InboxItem[] }) {
+export function InboxList({
+  items,
+  companies = [],
+  people = [],
+}: {
+  items: InboxItem[];
+  companies?: Array<{ id: number; name: string }>;
+  people?: Array<{ id: number; name: string }>;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -51,6 +60,29 @@ export function InboxList({ items }: { items: InboxItem[] }) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
+  const [fetchingId, setFetchingId] = useState<number | null>(null);
+  const [processing, setProcessing] = useState<{ id: number; files: File[]; note: string } | null>(null);
+
+  // Download a bundle's stored attachments as Files, then open the review queue.
+  async function processBundle(item: InboxItem) {
+    const atts = item.attachments.filter((a) => a.storagePath);
+    if (atts.length === 0) return;
+    setFetchingId(item.id);
+    try {
+      const files: File[] = [];
+      for (const a of atts) {
+        const { url } = await signInboxAttachment(a.storagePath!);
+        if (!url) continue;
+        const blob = await (await fetch(url)).blob();
+        files.push(new File([blob], a.name || "file", { type: a.type || blob.type }));
+      }
+      if (files.length === 0) return;
+      const note = [item.subject, item.body].filter(Boolean).join("\n");
+      setProcessing({ id: item.id, files, note });
+    } finally {
+      setFetchingId(null);
+    }
+  }
 
   if (items.length === 0) {
     return (
@@ -113,6 +145,7 @@ export function InboxList({ items }: { items: InboxItem[] }) {
   }
 
   return (
+    <>
     <div className="space-y-2.5">
       {items.map((item) => {
         const { icon: Icon, label } = sourceMeta(item.source);
@@ -209,14 +242,26 @@ export function InboxList({ items }: { items: InboxItem[] }) {
                 >
                   <Sparkles size={13} /> File it
                 </button>
-                <button
-                  type="button"
-                  onClick={() => fileAsDoc(item)}
-                  title="File as a compliance document"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
-                >
-                  <FileText size={13} /> As document
-                </button>
+                {item.attachments.some((a) => a.storagePath) ? (
+                  <button
+                    type="button"
+                    onClick={() => processBundle(item)}
+                    disabled={fetchingId === item.id}
+                    title="Review the attached files and file them as documents"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-accent/40 bg-accent-soft/40 text-xs text-accent hover:bg-accent-soft transition-colors disabled:opacity-50"
+                  >
+                    {fetchingId === item.id ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} Process files
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileAsDoc(item)}
+                    title="File as a compliance document"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+                  >
+                    <FileText size={13} /> As document
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => startEdit(item)}
@@ -255,5 +300,22 @@ export function InboxList({ items }: { items: InboxItem[] }) {
         );
       })}
     </div>
+
+    <BulkUploadDialog
+      open={!!processing}
+      onOpenChange={(o) => { if (!o) setProcessing(null); }}
+      companies={companies}
+      people={people}
+      initialFiles={processing?.files}
+      noteText={processing?.note}
+      onDone={() => router.refresh()}
+      onAllDone={() => {
+        if (processing) {
+          const id = processing.id;
+          startTransition(async () => { await markInboxFiled(id, "documents", ""); router.refresh(); });
+        }
+      }}
+    />
+    </>
   );
 }

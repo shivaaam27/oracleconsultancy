@@ -106,7 +106,7 @@ export async function updateInboxBody(id: number, body: string): Promise<{ ok: b
 
 export async function markInboxFiled(
   id: number,
-  filedKind: "task" | "note",
+  filedKind: "task" | "note" | "documents",
   filedRef: string
 ): Promise<void> {
   await sb
