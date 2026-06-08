@@ -14,9 +14,9 @@ function fmtDue(value: string | null): string | null {
   return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-/** Equipment steps deep-link to OECR; others have no link (docs live in the checklist above). */
+/** Equipment steps deep-link to the Asset Register; others have no link (docs live in the checklist above). */
 function stepLink(label: string): string | null {
-  return /equipment|laptop|oecr/i.test(label) ? "/hrms/oecr" : null;
+  return /equipment|laptop|asset/i.test(label) ? "/hrms/assets" : null;
 }
 
 export function JourneyChecklist({
@@ -170,7 +170,7 @@ export function JourneyChecklist({
                   )}
                   {link && (
                     <Link href={link} onClick={onNavigate} className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline">
-                      <Package size={11} /> Open OECR
+                      <Package size={11} /> Open Assets
                     </Link>
                   )}
                 </div>

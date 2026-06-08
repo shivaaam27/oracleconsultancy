@@ -32,7 +32,7 @@ const ONBOARDING_STEPS: StepTemplate[] = [
   { label: "Set up payroll & bank details", offsetDays: 2 },
   { label: "Register statutory (NSSF / TIN / NHIF)", offsetDays: 5, types: ["local_staff"] },
   { label: "Confirm work permit & visa are valid", offsetDays: 0, types: ["expat"] },
-  { label: "Issue equipment (laptop, phone, access card) via OECR", offsetDays: 1 },
+  { label: "Issue equipment (laptop, phone, access card) via Asset Register", offsetDays: 1 },
   { label: "Create email & system accounts", offsetDays: 1 },
   { label: "Add to team groups & make introductions", offsetDays: 1 },
   { label: "Orientation & induction (policies, safety, tools)", offsetDays: 2 },
@@ -42,7 +42,7 @@ const ONBOARDING_STEPS: StepTemplate[] = [
 
 const OFFBOARDING_STEPS: StepTemplate[] = [
   { label: "Collect handover notes & reassign open work", offsetDays: 0 },
-  { label: "Return equipment via OECR (laptop, phone, access card)", offsetDays: 1 },
+  { label: "Return equipment via Asset Register (laptop, phone, access card)", offsetDays: 1 },
   { label: "Revoke email & system accounts", offsetDays: 1 },
   { label: "Final pay & settlement", offsetDays: 3 },
   { label: "Archive documents & issue exit letter", offsetDays: 3 },

@@ -79,6 +79,18 @@ export function assetMetrics(rows: AssetRow[]): AssetMetrics {
   };
 }
 
+/** In-store assets available to assign to someone. */
+export async function listAssignableAssets(): Promise<AssetRow[]> {
+  const { data, error } = await sb
+    .from("assets")
+    .select(SELECT)
+    .eq("status", "in_store")
+    .eq("archived", false)
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Row[]).map(map);
+}
+
 /** Assets currently held by a person (open assignment / status assigned). */
 export async function assetsForPerson(personId: number): Promise<AssetRow[]> {
   const { data, error } = await sb
