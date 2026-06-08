@@ -307,7 +307,7 @@ export function PersonDrawer() {
         <Dialog.Content
           forceMount
           aria-describedby={undefined}
-          className="fixed inset-0 m-auto z-[51] h-fit max-h-[88svh] w-[calc(100%-1.5rem)] max-w-[640px]
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[51] max-h-[88dvh] w-[calc(100%-1.5rem)] max-w-[640px]
             flex flex-col overflow-hidden glass glass-refract rounded-2xl outline-none
             transition-all duration-200 ease-out
             data-[state=open]:opacity-100 data-[state=open]:scale-100
