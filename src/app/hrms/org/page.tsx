@@ -3,6 +3,7 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { OrgChart, type OrgChartCompany } from "@/components/org-chart";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildCompanyTree, type CompanyTree } from "@/lib/org-chart";
+import { getOrgExtras } from "@/lib/org-extras";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +14,9 @@ export default async function OrgChartPage({
   searchParams: Promise<{ from?: string; company?: string }>;
 }) {
   const { from, company } = await searchParams;
-  const [people, { data: companiesRaw }] = await Promise.all([
+  const [people, extras, { data: companiesRaw }] = await Promise.all([
     getAllPeopleWithWorkload(),
+    getOrgExtras(),
     sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
   ]);
 
@@ -41,6 +43,7 @@ export default async function OrgChartPage({
       <OrgChart
         companies={companies}
         trees={trees}
+        extras={extras}
         initialCompanyId={company ? Number(company) : undefined}
       />
     </div>

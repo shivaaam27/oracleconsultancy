@@ -12,6 +12,7 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { OrgChart } from "@/components/org-chart";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildCompanyTree } from "@/lib/org-chart";
+import { getOrgExtras } from "@/lib/org-extras";
 import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
 import { buildCompanyComplianceScores } from "@/lib/compliance";
 import { listDocuments } from "@/lib/documents";
@@ -157,6 +158,7 @@ export default async function CompanyPage({
         <OrgChart
           companies={[{ id: companyId, name, accentColor: rows[0].companyAccent ?? null }]}
           trees={{ [companyId]: buildCompanyTree(await getAllPeopleWithWorkload(), companyId) }}
+          extras={await getOrgExtras()}
           initialCompanyId={companyId}
           showSwitcher={false}
           showGroup={false}
