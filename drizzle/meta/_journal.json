@@ -204,6 +204,13 @@
       "when": 1780940299554,
       "tag": "0028_gray_mephistopheles",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780942139507,
+      "tag": "0029_jazzy_energizer",
+      "breakpoints": true
     }
   ]
 }

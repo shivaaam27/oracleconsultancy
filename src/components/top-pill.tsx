@@ -63,6 +63,7 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/people", label: "People", icon: Users },
   { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/letters", label: "Letters", icon: FileText },
   { href: "/letterheads", label: "Company Letterheads", icon: Building2 },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },

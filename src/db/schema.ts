@@ -640,3 +640,27 @@ export const attendance = pgTable(
   },
   (t) => [uniqueIndex("attendance_person_date_idx").on(t.personId, t.date)]
 );
+
+// System-wide letters. A letter is generated from a template, edited freely as
+// a Draft, then Issued — which freezes a letterhead snapshot + stamps ref/date.
+export const letters = pgTable("letters", {
+  id: serial("id").primaryKey(),
+  // Template id, e.g. "invitation" | "blank".
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  ref: text("ref"),
+  letterDate: timestamp("letter_date", { mode: "date", withTimezone: true }),
+  addressee: text("addressee"),
+  subject: text("subject"),
+  body: text("body").notNull().default(""),
+  // Frozen letterhead (JSON) captured at Issue; null while Draft (renders live company).
+  letterheadSnapshot: text("letterhead_snapshot"),
+  // Draft | Issued.
+  status: text("status").notNull().default("Draft"),
+  issuedAt: timestamp("issued_at", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
