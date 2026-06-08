@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User } from "lucide-react";
+import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users } from "lucide-react";
 import { Badge, Button } from "./ui";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
@@ -18,6 +18,7 @@ import {
   createAssetAction,
   updateAssetAction,
   assignAssetAction,
+  assignAssetSharedAction,
   returnAssetAction,
   setAssetStatusAction,
   archiveAssetAction,
@@ -47,6 +48,7 @@ export function AssetsTable({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AssetRow | null>(null);
+  const [sharing, setSharing] = useState<AssetRow | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
 
@@ -131,6 +133,11 @@ export function AssetsTable({
                       <User size={11} /> {a.assignedToName}{a.assignedAt ? ` · since ${fmtDate(a.assignedAt)}` : ""}
                     </div>
                   )}
+                  {a.status === "assigned" && !a.assignedToName && (a.assignedToCompanyName || a.custodianName) && (
+                    <div className="text-[11px] text-info mt-0.5 inline-flex items-center gap-1">
+                      <Users size={11} /> Shared{a.assignedToCompanyName ? ` · ${a.assignedToCompanyName}` : ""}{a.custodianName ? ` · custodian ${a.custodianName}` : ""}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -143,15 +150,22 @@ export function AssetsTable({
                       <RotateCcw size={12} /> Return
                     </button>
                   ) : a.status === "in_store" ? (
-                    <select
-                      disabled={busy}
-                      defaultValue=""
-                      onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) run(a.id, () => assignAssetAction(a.id, v), "Asset assigned."); }}
-                      className="rounded-md bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1 max-w-[9rem]"
-                    >
-                      <option value="" disabled>Assign to…</option>
-                      {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <>
+                      <select
+                        disabled={busy}
+                        defaultValue=""
+                        onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) run(a.id, () => assignAssetAction(a.id, v), "Asset assigned."); }}
+                        className="rounded-md bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1 max-w-[9rem]"
+                      >
+                        <option value="" disabled>Assign to…</option>
+                        {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      <button type="button" disabled={busy} title="Share with a team"
+                        onClick={() => setSharing(a)}
+                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
+                        <Users size={12} /> Share
+                      </button>
+                    </>
                   ) : null}
 
                   {a.status !== "maintenance" && a.status !== "retired" && (
@@ -197,7 +211,92 @@ export function AssetsTable({
         companies={companies}
         vendors={vendors}
       />
+
+      <ShareDialog
+        asset={sharing}
+        onOpenChange={(o) => { if (!o) setSharing(null); }}
+        companies={companies}
+        people={people}
+      />
     </div>
+  );
+}
+
+function ShareDialog({
+  asset,
+  onOpenChange,
+  companies,
+  people,
+}: {
+  asset: AssetRow | null;
+  onOpenChange: (o: boolean) => void;
+  companies: Lite[];
+  people: Lite[];
+}) {
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+  const [companyId, setCompanyId] = useState<string>("");
+  const [custodianId, setCustodianId] = useState<string>("");
+
+  // Reset selections when a new asset opens.
+  const open = asset != null;
+
+  function submit() {
+    if (!asset) return;
+    if (!companyId && !custodianId) { toast("Pick a team/company or a custodian.", { tone: "warn" }); return; }
+    startTransition(async () => {
+      const res = await assignAssetSharedAction(
+        asset.id,
+        companyId ? parseInt(companyId, 10) : null,
+        custodianId ? parseInt(custodianId, 10) : null
+      );
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast("Asset shared with the team.", { tone: "success" });
+      setCompanyId(""); setCustodianId("");
+      onOpenChange(false);
+    });
+  }
+
+  const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
+  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-bg-elev border border-border shadow-2xl outline-none">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+            <Dialog.Title className="text-sm font-semibold">Share {asset?.name}</Dialog.Title>
+            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
+              <X size={14} />
+            </Dialog.Close>
+          </div>
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-fg-muted">
+              For kit a whole team shares (no single holder). Pick the team/company and one accountable custodian.
+            </p>
+            <div>
+              <label className={label}>Team / company</label>
+              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={input}>
+                <option value="">—</option>
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={label}>Custodian (accountable person)</label>
+              <select value={custodianId} onChange={(e) => setCustodianId(e.target.value)} className={input}>
+                <option value="">—</option>
+                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="button" size="sm" loading={pending} onClick={submit}>Share asset</Button>
+            </div>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

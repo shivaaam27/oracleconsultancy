@@ -5,6 +5,7 @@ import {
   createAsset,
   updateAsset,
   assignAsset,
+  assignAssetShared,
   returnAsset,
   setAssetStatus,
   archiveAsset,
@@ -85,6 +86,20 @@ export async function updateAssetAction(id: number, fd: FormData): Promise<Resul
 export async function assignAssetAction(assetId: number, personId: number, notes?: string | null): Promise<Result> {
   try {
     await assignAsset(assetId, personId, notes ?? null);
+    invalidate();
+    return { ok: true, id: assetId };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not assign the asset." };
+  }
+}
+
+export async function assignAssetSharedAction(
+  assetId: number,
+  companyId: number | null,
+  custodianPersonId: number | null
+): Promise<Result> {
+  try {
+    await assignAssetShared(assetId, { companyId, custodianPersonId });
     invalidate();
     return { ok: true, id: assetId };
   } catch (e) {

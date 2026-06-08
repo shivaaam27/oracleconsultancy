@@ -190,12 +190,41 @@ export async function assignAsset(assetId: number, personId: number, notes: stri
   await sb.from("asset_assignments").update({ returned_at: now }).eq("asset_id", assetId).is("returned_at", null);
   const { error: aErr } = await sb
     .from("assets")
-    .update({ assigned_to_person_id: personId, assigned_at: now, status: "assigned", updated_at: now })
+    .update({ assigned_to_person_id: personId, assigned_to_company_id: null, custodian_person_id: null, assigned_at: now, status: "assigned", updated_at: now })
     .eq("id", assetId);
   if (aErr) throw new Error(aErr.message);
   const { error: lErr } = await sb
     .from("asset_assignments")
     .insert({ asset_id: assetId, person_id: personId, assigned_at: now, notes, created_at: now });
+  if (lErr) throw new Error(lErr.message);
+}
+
+/**
+ * Assign an asset to a team/company (shared use) with one accountable
+ * custodian — for kit no single person "holds". Closes any open ledger row
+ * and opens a new one against the custodian.
+ */
+export async function assignAssetShared(
+  assetId: number,
+  opts: { companyId: number | null; custodianPersonId: number | null }
+): Promise<void> {
+  const now = new Date().toISOString();
+  await sb.from("asset_assignments").update({ returned_at: now }).eq("asset_id", assetId).is("returned_at", null);
+  const { error: aErr } = await sb
+    .from("assets")
+    .update({
+      assigned_to_person_id: null,
+      assigned_to_company_id: opts.companyId,
+      custodian_person_id: opts.custodianPersonId,
+      assigned_at: now,
+      status: "assigned",
+      updated_at: now,
+    })
+    .eq("id", assetId);
+  if (aErr) throw new Error(aErr.message);
+  const { error: lErr } = await sb
+    .from("asset_assignments")
+    .insert({ asset_id: assetId, person_id: opts.custodianPersonId, assigned_at: now, notes: "Shared / team assignment", created_at: now });
   if (lErr) throw new Error(lErr.message);
 }
 
@@ -209,7 +238,14 @@ export async function returnAsset(assetId: number, notes: string | null = null):
     .is("returned_at", null);
   const { error } = await sb
     .from("assets")
-    .update({ assigned_to_person_id: null, assigned_at: null, status: "in_store", updated_at: now })
+    .update({
+      assigned_to_person_id: null,
+      assigned_to_company_id: null,
+      custodian_person_id: null,
+      assigned_at: null,
+      status: "in_store",
+      updated_at: now,
+    })
     .eq("id", assetId);
   if (error) throw new Error(error.message);
 }
@@ -227,6 +263,8 @@ export async function setAssetStatus(assetId: number, status: AssetStatus): Prom
   // Leaving "assigned" by hand frees the holder + closes the ledger.
   if (status !== "assigned") {
     patch.assigned_to_person_id = null;
+    patch.assigned_to_company_id = null;
+    patch.custodian_person_id = null;
     patch.assigned_at = null;
     await sb.from("asset_assignments").update({ returned_at: now }).eq("asset_id", assetId).is("returned_at", null);
   }
