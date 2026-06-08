@@ -26,10 +26,17 @@ function quickReminderText(p: PersonRow): string {
 type SortKey = "name" | "company" | "workload";
 type SortDir = "asc" | "desc";
 
-type FilterKind = "all" | "noContact" | "snoozed" | "inactive" | "overloaded";
+type FilterKind = "all" | "noContact" | "snoozed" | "inactive" | "overloaded" | "probationEnding";
 
 function whatsappHref(num: string) {
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
+}
+
+/** True if the person's probation ends within the next 30 days (and not past). */
+function probationEndingSoon(p: PersonRow, now: Date): boolean {
+  if (!p.probationEndDate) return false;
+  const days = (p.probationEndDate.getTime() - now.getTime()) / 86400000;
+  return days >= 0 && days <= 30;
 }
 
 export function PeopleTable({ people, companies, complianceById }: {
@@ -175,6 +182,7 @@ export function PeopleTable({ people, companies, complianceById }: {
     if (filter === "snoozed") rows = rows.filter((p) => p.snoozedUntil && p.snoozedUntil > now);
     if (filter === "inactive") rows = rows.filter((p) => !p.active);
     if (filter === "overloaded") rows = rows.filter((p) => p.workload.open >= 5);
+    if (filter === "probationEnding") rows = rows.filter((p) => probationEndingSoon(p, now));
 
     // Sort
     rows.sort((a, b) => {
@@ -196,6 +204,7 @@ export function PeopleTable({ people, companies, complianceById }: {
       snoozed: people.filter((p) => p.active && p.snoozedUntil && p.snoozedUntil > now).length,
       inactive: people.filter((p) => !p.active).length,
       overloaded: people.filter((p) => p.active && p.workload.open >= 5).length,
+      probationEnding: people.filter((p) => p.active && probationEndingSoon(p, now)).length,
     };
   }, [people]);
 
@@ -248,6 +257,7 @@ export function PeopleTable({ people, companies, complianceById }: {
           { key: "noContact", label: "No contact info", count: counts.noContact, tone: "danger" as const },
           { key: "snoozed", label: "Snoozed", count: counts.snoozed, tone: "warn" as const },
           { key: "overloaded", label: "Overloaded (5+)", count: counts.overloaded, tone: "warn" as const },
+          { key: "probationEnding", label: "Probation ending", count: counts.probationEnding, tone: "warn" as const },
           { key: "inactive", label: "Inactive", count: counts.inactive, tone: "default" as const },
         ].map(({ key, label, count, tone }) => {
           const active = filter === key;

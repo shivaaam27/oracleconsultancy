@@ -9,7 +9,12 @@ import {
   unverifyRequirement,
   waiveRequirement,
   unwaiveRequirement,
+  addPersonRequirement,
+  editPersonRequirement,
+  removePersonRequirement,
 } from "@/lib/requirements";
+
+type ReqInput = { label: string; category: string | null; mandatory: boolean };
 
 type Res = { ok: true } | { ok: false; error: string };
 
@@ -44,4 +49,13 @@ export async function reqWaive(id: number, reason: string | null) {
 }
 export async function reqUnwaive(id: number) {
   return wrap(() => unwaiveRequirement(id));
+}
+export async function reqAdd(personId: number, input: ReqInput) {
+  return wrap(() => addPersonRequirement(personId, input));
+}
+export async function reqEdit(id: number, input: ReqInput) {
+  return wrap(() => editPersonRequirement(id, input));
+}
+export async function reqRemove(id: number) {
+  return wrap(() => removePersonRequirement(id));
 }

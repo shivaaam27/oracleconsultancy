@@ -308,15 +308,18 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
     sb.from("requirement_profiles").select("name").eq("applies_to_type", type).eq("active", true).maybeSingle(),
   ]);
 
+  // Hidden ("removed") items never show or score.
+  const liveRows = (rows ?? []).filter((r) => (r.status as string) !== "removed");
+
   const docById = new Map(docs.map((d) => [d.id, d]));
   const linkedDocIds = new Set(
-    (rows ?? []).map((r) => r.document_id as number | null).filter((x): x is number => x != null)
+    liveRows.map((r) => r.document_id as number | null).filter((x): x is number => x != null)
   );
 
   // Auto-link: an un-actioned item with a specific category gets matched to a
   // saved document of the same category that isn't already linked elsewhere.
   const now = new Date().toISOString();
-  for (const r of rows ?? []) {
+  for (const r of liveRows) {
     if (r.document_id) continue;
     if (r.status !== "missing" && r.status !== "requested") continue;
     const cat = r.category as string | null;
@@ -332,7 +335,7 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
       .eq("id", r.id as number);
   }
 
-  const items: ChecklistItem[] = (rows ?? [])
+  const items: ChecklistItem[] = liveRows
     .map((r) => {
       const status = (r.status as RequirementStatus) ?? "missing";
       const doc = r.document_id ? docById.get(r.document_id as number) ?? null : null;
@@ -410,6 +413,7 @@ export async function buildPersonRequirementScores(): Promise<ComplianceScore[]>
 
   const reqsByPerson = new Map<number, typeof reqRows>();
   for (const r of reqRows ?? []) {
+    if ((r.status as string) === "removed") continue;
     const pid = r.person_id as number;
     const list = reqsByPerson.get(pid) ?? [];
     list!.push(r);
@@ -572,4 +576,141 @@ export async function waiveRequirement(id: number, reason: string | null) {
 
 export async function unwaiveRequirement(id: number) {
   await patch(id, { status: "missing", waived_reason: null });
+}
+
+/* ------------------------------------------------------------------ */
+/* Per-person custom items (add / edit / remove).                      */
+/* A custom item has item_id = null. Removing a custom item hard-       */
+/* deletes it; removing a STANDARD (profile-derived) item hides it with */
+/* status "removed" so ensurePersonRequirements never recreates it.     */
+/* ------------------------------------------------------------------ */
+export async function addPersonRequirement(
+  personId: number,
+  input: { label: string; category: string | null; mandatory: boolean }
+) {
+  const label = input.label.trim();
+  if (!label) throw new Error("A name is required.");
+  const now = new Date().toISOString();
+  const { error } = await sb.from("person_requirements").insert({
+    person_id: personId,
+    item_id: null,
+    label,
+    category: input.category,
+    mandatory: input.mandatory,
+    expiry_tracked: true,
+    status: "missing",
+    created_at: now,
+    updated_at: now,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function editPersonRequirement(
+  id: number,
+  input: { label: string; category: string | null; mandatory: boolean }
+) {
+  const label = input.label.trim();
+  if (!label) throw new Error("A name is required.");
+  await patch(id, { label, category: input.category, mandatory: input.mandatory });
+}
+
+/* ------------------------------------------------------------------ */
+/* Per-TYPE template editing (requirement_profiles / requirement_items).*/
+/* Edits affect FUTURE checklists: adds propagate to existing people on  */
+/* their next sync; relabels/deletes do NOT rewrite existing snapshots.  */
+/* ------------------------------------------------------------------ */
+export type TemplateItem = { id: number; label: string; category: string | null; mandatory: boolean; sortOrder: number };
+export type TemplateProfile = {
+  id: number;
+  name: string;
+  appliesToType: PersonType;
+  description: string | null;
+  items: TemplateItem[];
+};
+
+export async function listRequirementProfilesWithItems(): Promise<TemplateProfile[]> {
+  const [{ data: profs }, { data: items }] = await Promise.all([
+    sb.from("requirement_profiles").select("id,name,applies_to_type,description,sort_order").eq("active", true).order("sort_order", { ascending: true }),
+    sb.from("requirement_items").select("id,profile_id,label,category,mandatory,sort_order").order("sort_order", { ascending: true }),
+  ]);
+  const byProfile = new Map<number, TemplateItem[]>();
+  for (const it of items ?? []) {
+    const list = byProfile.get(it.profile_id as number) ?? [];
+    list.push({
+      id: it.id as number,
+      label: it.label as string,
+      category: (it.category as string | null) ?? null,
+      mandatory: (it.mandatory as boolean | null) ?? true,
+      sortOrder: (it.sort_order as number | null) ?? 0,
+    });
+    byProfile.set(it.profile_id as number, list);
+  }
+  return (profs ?? []).map((p) => ({
+    id: p.id as number,
+    name: p.name as string,
+    appliesToType: normalizePersonType(p.applies_to_type as string | null),
+    description: (p.description as string | null) ?? null,
+    items: byProfile.get(p.id as number) ?? [],
+  }));
+}
+
+export async function addRequirementItem(
+  profileId: number,
+  input: { label: string; category: string | null; mandatory: boolean }
+) {
+  const label = input.label.trim();
+  if (!label) throw new Error("A name is required.");
+  const { data: last } = await sb
+    .from("requirement_items")
+    .select("sort_order")
+    .eq("profile_id", profileId)
+    .order("sort_order", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = ((last?.sort_order as number | null) ?? -1) + 1;
+  const { error } = await sb.from("requirement_items").insert({
+    profile_id: profileId,
+    label,
+    category: input.category,
+    mandatory: input.mandatory,
+    expiry_tracked: true,
+    default_lead_days: (input.category && DEFAULT_LEAD_DAYS[input.category]) || 30,
+    sort_order: nextOrder,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function editRequirementItem(
+  id: number,
+  input: { label: string; category: string | null; mandatory: boolean }
+) {
+  const label = input.label.trim();
+  if (!label) throw new Error("A name is required.");
+  const { error } = await sb
+    .from("requirement_items")
+    .update({
+      label,
+      category: input.category,
+      mandatory: input.mandatory,
+      default_lead_days: (input.category && DEFAULT_LEAD_DAYS[input.category]) || 30,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteRequirementItem(id: number) {
+  const { error } = await sb.from("requirement_items").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function removePersonRequirement(id: number) {
+  const { data: row } = await sb.from("person_requirements").select("item_id").eq("id", id).maybeSingle();
+  if (!row) return;
+  if (row.item_id == null) {
+    const { error } = await sb.from("person_requirements").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  } else {
+    // Standard item — hide it (kept so reconciliation won't resurrect it).
+    await patch(id, { status: "removed", document_id: null });
+  }
 }

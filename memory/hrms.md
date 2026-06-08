@@ -12,11 +12,19 @@ metadata:
 
 ```
 HRMS (hub) ─┬─ [Card] OECR · Office Equipment Control Registry → /hrms/oecr
+            ├─ [Card] Asset & Vendor Register                  → /hrms/assets  (V3)
+            ├─ [Card] Leave & Attendance                       → /hrms/leave   (V3)
             ├─ [Card] OCR  · Office Cleaning Registry          → /hrms/ocr
             ├─ [Card] Companies → /companies   (moved into HRMS)
             ├─ [Card] People    → /people      (moved into HRMS)
             └─ [Card] Documents → /documents   (moved into HRMS)
 ```
+
+**V3 registries added** (full plan + status in `memory/v3_plan.md`):
+- **Asset & Vendor Register** (`/hrms/assets`): segmented Assets/Vendors toggle. Assets = durable equipment assigned to a person or shared to a company+custodian (auto-returned on offboarding), linked to its supplier vendor. Vendors = suppliers/contractors whose contracts reuse the Documents engine (`documents.vendor_id`). `src/lib/assets.ts` + `src/lib/vendors.ts`.
+- **Leave & Attendance** (`/hrms/leave`): tabs Overview/Requests/Setup. Leave requests/approvals + public-holiday calendar, ELR-Act-2004-accurate (Mon–Sat working days; Annual 28/12mo, Sick 126/36mo = 63 full+63 half), derived balances. Attendance daily register = phase 4.2 (pending). `src/lib/leave.ts`.
+- The **person record** gained HR profile fields (DOB, nationality, ID/passport no, address, emergency contact, probation), a per-person document-compliance checklist, and onboarding/offboarding journeys (todos tagged `kind`).
+- Also in the launcher (not HRMS cards): **Letters** (`/letters`) + **Company Letterheads** (`/letterheads`) — system-wide branded PDF letters; see `memory/letters.md`.
 
 **Nav move (owner decision):** Companies, People and Documents now live **only** under HRMS as cards (live stats). They were removed from the bottom nav pill — the dedicated **Companies tab** (and its long-press company switcher, `CompaniesNavTab`) was deleted from `top-pill.tsx`, and **People + Documents** were removed from the "More" sheet. The pages/routes themselves (`/companies`, `/people`, `/documents`) are unchanged — only the way in moved. `TopPillServer` no longer fetches companies.
 

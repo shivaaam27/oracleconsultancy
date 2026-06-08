@@ -87,8 +87,10 @@ Examples:
    Custom. **Phase 2 started:** the person drawer now has a preview-only
    **Prepare pack** action (`src/components/person-pack-builder.tsx`) backed by
    `/api/person-pack`. It now shows a simpler 1-2-3 flow: Reason, Include,
-   Preview and draft. Visible reasons are reduced to Documents, Visa / Permit,
-   Recruitment, Work Reminder and Custom; include options are grouped into
+   Preview and draft. Visible reasons are Documents, Work reminder and Custom
+   (the richer HR presets — visa/permit, expat onboarding, work-permit renewal,
+   recruitment, contract signing — stay reachable via Custom and the Home/Ask COS
+   `?purpose=` deep-links rather than as cold-start buttons); include options are grouped into
    Request, Saved documents, Work follow-up, Profile and a collapsed Sensitive
    internal area. Preview counts reflect only selected sections, so hidden work
    or internal data does not appear as if it will be sent. **People drawer
@@ -178,6 +180,53 @@ Examples:
 11. **Automation Rule Builder** - only after V1 automations prove useful.
 12. **Governance & Corrections** - correction workflow and stronger audit tools.
 13. **Auth / Multi-user Readiness** - only if the app is shared beyond the single operator.
+
+## V3 — HR & Admin Operating System (in progress, 2026-06)
+
+The owner is the group **admin + HR manager**, building a full HR+Admin operating system, reusing existing primitives (no new silos). Shipped:
+
+- **HR foundation**: 4 person types (`local_staff`/`expat`/`outsider`/`candidate`); person record gained department, start date, **HR profile fields** (DOB, nationality, national ID, passport no., address, emergency contact, probation) + AI "Auto-fill from a message" (blanks-only).
+- **Document compliance**: per-type requirement profiles → per-person checklist, auto-link saved docs, verify→100%; surfaced on People/Home/Documents/Director Brief and the redesigned person drawer (glanceable hero tiles + accordion sections).
+- **Onboarding / Offboarding journeys**: checklist of `todos` (tagged `kind`), auto-created on add (staff) / on archive (leaver).
+- **Asset & Vendor Register** (`/hrms/assets`): durable assets assigned to person or team+custodian (auto-return on offboarding) + supplier link; vendor register (contracts reuse Documents). See `memory/hrms.md`.
+- **Leave & Attendance** (`/hrms/leave`): leave types/requests/approvals + holidays, **grounded in Tanzania ELR Act 2004** (Mon–Sat working days; Annual 28/12mo, Sick 126/36mo = 63 full+63 half, Maternity 84, Paternity 3, Compassionate 4); derived balances. Attendance daily register = pending (phase 4.2).
+- **ELR Act money phases (planned)**: wage field + s.26 wage-rate table (4.4); overtime ×1.5 / night +5% / Sunday·holiday ×2 + working-time breach warnings (4.5); termination/final-pay (severance 7 days/yr, notice 28 days, accrued leave) (4.6); statutory compliance pack — contract + certificate of service (4.7). Then Recruitment / Performance / Cases-Policies / HR Intelligence.
+
+### People deep-project (2026-06, owner-driven)
+
+Owner wants the person view to be the strong, unified foundation. Agreed 4 phases:
+1. **Immersion + design** (DONE, see below). 2. **Customisable checklists** — per-person add/edit/remove on the document-compliance checklist AND onboarding/offboarding journey, **plus editing the per-type templates**. ("Delete" of a standard item = a hidden/not-applicable status so `ensurePersonRequirements` doesn't resurrect it; custom items (item_id null) hard-delete. Journey steps are `todos` rows — add/edit/delete directly.) 3. **Unification & auto-fill** — widen `rulePersonFields`/prompt so all profile fields fill (emergency contact, nationality, name, role currently miss when AI off/misses); link profile ↔ documents (passport field shows its document; adding a passport backfills the number) so everything syncs from one source. 4. (optional) pragmatic tailored add-document form (prefilled + shorter default + "More details" expander; photo upload already works).
+
+**Phase 3 shipped (unification & auto-fill):**
+- **Wider auto-fill**: `rulePersonFields` in `people/actions.ts` now also extracts labelled `Role/Designation`, `Nationality`, `Address`, `WhatsApp`, `Emergency contact` (name + phone, incl. "Name - +255…" split), `Manager/Supervisor`, and `Name`. Because the rule result is the base the AI result merges onto, a field the model omits but that's clearly labelled now still fills — fixes the owner's "emergency contact / passport don't fill" gap, and works AI-off.
+- **Profile ↔ documents link**: the drawer's Profile details now shows a 📎 link under **Passport no.** and **National ID** when a matching person document is on file (`docFor()` matches by category/keyword), linking to `/documents?person=ID`. If the field is blank but a document exists it reads "{title} — on file", surfacing the backward connection the owner wanted. (Bidirectional backfill on upload already exists via the doc form's enrich banner.)
+
+**Phase 2 shipped (per-person customisation + template editing):**
+- **Per-person compliance** (`requirements-checklist.tsx` + `requirement-actions.ts` + `requirements.ts`): add a custom item, edit any item (name/category/required), and remove items. New lib fns `addPersonRequirement`/`editPersonRequirement`/`removePersonRequirement`. **"Remove" of a standard (profile-derived) item sets status `"removed"`** (a stored-only string, filtered out of `getPersonChecklist`/`buildPersonRequirementScores`) so `ensurePersonRequirements` never resurrects it; **custom items (item_id null) hard-delete**. No migration.
+- **Per-person journey** (`journey-checklist.tsx` + `onboarding-actions.ts` + `onboarding.ts`): add/edit/delete steps inline (steps are `todos` rows — `addJourneyStep`/`editJourneyStep`/`deleteJourneyStep`).
+- **Per-type template editor** (`/documents` → "Manage requirements" button → `requirement-templates-button.tsx`): edit the default `requirement_items` per `requirement_profiles` type. New `listRequirementProfilesWithItems` + `addRequirementItem`/`editRequirementItem`/`deleteRequirementItem` (`template-actions.ts`, `GET /api/requirement-templates` seeds then lists). **Propagation:** adds reach existing people on their next checklist sync (via `ensurePersonRequirements`); edits/deletes do NOT rewrite existing person snapshots (documented in the editor's info banner). Journey-template editing still deferred (hardcoded in `onboarding.ts`, would need a table).
+- All verified in preview (API 200 with 4 seeded profiles; checklist Edit/Remove + journey edit/delete + template modal all render).
+
+**Phase 1 shipped:**
+- **Immersive add-document**: the requirements checklist "Add"/"Renew" and the drawer "Add doc" no longer navigate to `/documents` (which switched the background page + reloaded on return). They now open the `DocumentForm` in a **modal layered over the person drawer** (`addDoc` state in `person-drawer.tsx`, prefilled person/category/title), and on save refresh the checklist + tiles in place via `refreshKey` → `RequirementsChecklist reloadSignal`. `requirements-checklist.tsx` gained `onAddDocument` + `reloadSignal` props (falls back to the old `<Link>` when no handler). Verified in preview: drawer stays mounted behind, no route change.
+- **Design consistency**: the Requirements / Journey / Equipment cards used flat `bg-bg-elev` (pure white in light mode — the "this section is more white" inconsistency) while the drawer's other accordions used `glass elevated`. Unified all to `glass elevated`. (Prepare-pack modal restyle still pending — owner flagged it as white/boring in light mode.)
+
+### People area hardening pass (2026-06)
+
+First "make the foundation strong" pass over People + Person Packs (balanced: bugs + obvious features):
+- **Removed the dead parallel person-compliance model** (`buildPersonComplianceScores` + `PERSON_REQUIREMENTS` + `requirementApplies` + `CompliancePerson`) from `src/lib/compliance.ts`. Person compliance is owned solely by the DB-backed `src/lib/requirements.ts` (used by People list, person drawer, Documents page, Person Pack). `compliance.ts` now only scores **companies**; added a guard comment.
+- **Person drawer**: deduped the manager line (header "Reports to" is now the single, clickable reference — the standalone block was removed); the **Documents** accordion now deep-links to `/documents?person=ID` (was bare `/documents`); the **Remind** button now always saves a de-duplicated Outbox draft via `createPersonPackDraftAction` (purpose `task-reminder`) and opens the best-channel deep-link (`pickChannel`/`linkFor`) — no more silent jump to `/outbox`.
+- **Probation signal**: drawer shows a "Probation ends in Nd" badge (warn ≤45d, danger ≤14d) or "Probation ended {date}" (≤30d past); People directory gained a **"Probation ending"** filter chip (active people whose probation ends within 30 days). Uses the `probation_end_date` already captured.
+- Fixed a misleading comment in `enrichPersonProfile` and a stale `person-card.tsx` doc-comment.
+- Pack reasons deliberately kept minimal (3) — see note above.
+
+## V3 — Smart Intake (shipped)
+
+One extraction brain across Inbox/People/Documents. Dropping text/files anywhere can fill the person profile (**blanks-only, always reviewed — never overwrites**), file the document(s) to the right owner (person OR company), and recompute compliance. Bulk multi-file upload on `/documents` ("Add several"); recency-aware duplicate detection (Keep both / Replace+archive). Inbox bundles + unified "Process". `src/app/documents/actions.ts` (extractDocumentFromFile + vision), `src/app/people/actions.ts` (extractPersonFields/enrichPersonProfile).
+
+## V3 — Letters (shipped: engine + invitation)
+
+System-wide branded PDF letters — per-company letterhead (typed / designed header+footer images / full-page background), Draft→Issue snapshot, full body editing, PDF + optional Outbox draft, no auto-send. First type = Invitation. See `memory/letters.md`.
 
 ## Guardrails
 

@@ -24,9 +24,9 @@ const TYPE_TINT: Record<string, string> = {
 };
 
 /**
- * Square person card for the directory grid. Tap opens the full popup;
+ * A single row in the people directory list. Tap opens the full popup;
  * long-press is handled by the parent (peek preview). No hover overlay — just a
- * subtle lift — so cards never overlap their neighbours.
+ * subtle row highlight — so rows never overlap their neighbours.
  */
 export function PersonCard({
   person: p,

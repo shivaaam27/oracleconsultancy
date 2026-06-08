@@ -2,12 +2,53 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, ChevronDown } from "lucide-react";
+import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, ChevronDown, Pencil, Trash2, Plus } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { JOURNEY_LABELS, type Journey, type JourneyKind } from "@/lib/onboarding-shared";
-import { startJourneyAction, clearJourneyAction, toggleJourneyStepAction } from "@/app/people/onboarding-actions";
+import {
+  startJourneyAction,
+  clearJourneyAction,
+  toggleJourneyStepAction,
+  addJourneyStepAction,
+  editJourneyStepAction,
+  deleteJourneyStepAction,
+} from "@/app/people/onboarding-actions";
+
+type StepFields = { label: string; dueAt: string | null };
+
+/** Compact inline editor for adding/editing a journey step. */
+function StepEditor({ initial, onSave, onCancel, busy }: {
+  initial?: StepFields;
+  onSave: (v: StepFields) => void;
+  onCancel: () => void;
+  busy?: boolean;
+}) {
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [dueAt, setDueAt] = useState(initial?.dueAt ?? "");
+  return (
+    <div className="flex flex-col gap-2 bg-bg-subtle/50 px-3 py-2.5">
+      <input value={label} onChange={(e) => setLabel(e.target.value)} autoFocus
+        onKeyDown={(e) => { if (e.key === "Enter" && label.trim()) onSave({ label: label.trim(), dueAt: dueAt || null }); if (e.key === "Escape") onCancel(); }}
+        placeholder="Step (e.g. Hand over door keys)"
+        className="rounded-md bg-bg-elev text-sm ring-1 ring-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)}
+          className="rounded-md bg-bg-elev text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1" />
+        <div className="ml-auto flex items-center gap-1.5">
+          <button type="button" onClick={onCancel} disabled={busy}
+            className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
+          <button type="button" disabled={busy || !label.trim()}
+            onClick={() => onSave({ label: label.trim(), dueAt: dueAt || null })}
+            className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+            {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function fmtDue(value: string | null): string | null {
   if (!value) return null;
@@ -36,6 +77,8 @@ export function JourneyChecklist({
   const [data, setData] = useState<Journey | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -94,9 +137,44 @@ export function JourneyChecklist({
     });
   }
 
+  function doAddStep(v: StepFields) {
+    setBusyId(-3);
+    startTransition(async () => {
+      const res = await addJourneyStepAction(personId, kind, v);
+      setBusyId(null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      setAdding(false);
+      load();
+      onChanged?.();
+    });
+  }
+
+  function doEditStep(id: number, v: StepFields) {
+    setBusyId(id);
+    startTransition(async () => {
+      const res = await editJourneyStepAction(id, v);
+      setBusyId(null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      setEditingId(null);
+      load();
+      onChanged?.();
+    });
+  }
+
+  function doDeleteStep(id: number) {
+    setBusyId(id);
+    startTransition(async () => {
+      const res = await deleteJourneyStepAction(id);
+      setBusyId(null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      load();
+      onChanged?.();
+    });
+  }
+
   if (loading && !data) {
     return (
-      <div className="rounded-2xl bg-bg-elev p-4 ring-1 ring-border flex items-center gap-2 text-sm text-fg-muted">
+      <div className="glass elevated rounded-2xl p-4 flex items-center gap-2 text-sm text-fg-muted">
         <Loader2 size={15} className="animate-spin" /> Loading {title.toLowerCase()}…
       </div>
     );
@@ -107,7 +185,7 @@ export function JourneyChecklist({
   // No journey yet — offer to start one.
   if (!hasJourney) {
     return (
-      <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border flex items-center justify-between gap-3">
+      <div className="glass elevated rounded-2xl p-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <Icon size={15} className="text-accent shrink-0" />
           <span className="text-sm font-medium truncate">{title}</span>
@@ -129,7 +207,7 @@ export function JourneyChecklist({
   const done = data!.completed === data!.total;
 
   return (
-    <details className="group rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden" open={!done}>
+    <details className="group glass elevated rounded-2xl overflow-hidden" open={!done}>
       <summary className="list-none cursor-pointer flex items-center gap-3 p-3 select-none">
         <Icon size={15} className={cn("shrink-0", done ? "text-success" : "text-accent")} />
         <div className="min-w-0 flex-1">
@@ -153,6 +231,17 @@ export function JourneyChecklist({
           const due = fmtDue(step.dueAt);
           const link = stepLink(step.label);
           const overdue = !step.done && step.dueAt && new Date(step.dueAt) < new Date();
+          if (editingId === step.id) {
+            return (
+              <StepEditor
+                key={step.id}
+                initial={{ label: step.label, dueAt: step.dueAt ? step.dueAt.slice(0, 10) : null }}
+                onSave={(v) => doEditStep(step.id, v)}
+                onCancel={() => setEditingId(null)}
+                busy={busy}
+              />
+            );
+          }
           return (
             <div key={step.id} className={cn("flex items-center gap-2.5 px-3 py-2", busy && "opacity-60")}>
               <button
@@ -182,12 +271,34 @@ export function JourneyChecklist({
                   )}
                 </div>
               </div>
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button type="button" disabled={busy} onClick={() => setEditingId(step.id)} aria-label="Edit step"
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-md text-fg-subtle hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+                  <Pencil size={12} />
+                </button>
+                <button type="button" disabled={busy} onClick={() => doDeleteStep(step.id)} aria-label="Delete step"
+                  className="h-6 w-6 inline-flex items-center justify-center rounded-md text-fg-subtle hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50">
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
           );
         })}
+
+        {adding && (
+          <StepEditor onSave={doAddStep} onCancel={() => setAdding(false)} busy={busyId === -3} />
+        )}
       </div>
 
-      <div className="flex justify-end border-t border-border/70 px-3 py-2">
+      <div className="flex items-center justify-between border-t border-border/70 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          disabled={adding}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-50"
+        >
+          <Plus size={12} /> Add step
+        </button>
         <button
           type="button"
           onClick={clearAll}

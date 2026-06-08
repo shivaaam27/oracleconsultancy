@@ -49,34 +49,46 @@ The system replaces an Excel workbook with:
 
 Core:
 
-- companies, departments, people, person_companies
+- companies (now also letterhead/branding cols: `legal_name`/`address`/`phone`/`email`/`registration_no`/`tin`/`logo_path`/`signatory_name`/`signatory_title`/`letterhead_mode`/`header_image_path`/`footer_image_path`/`background_image_path`/`content_top_mm`/`content_bottom_mm`), departments, person_companies
+- people (now also HR profile cols: `department_id`/`start_date`/`date_of_birth`/`nationality`/`national_id`/`passport_no`/`address`/`emergency_contact_name`/`emergency_contact_phone`/`probation_end_date`)
 - tasks, task_assignees, task_updates
 
-Meetings:
+Meetings: meetings, meeting_tasks
 
-- meetings
-- meeting_tasks
-
-Governance:
-
-- audit_log
-- corrections
+Governance: audit_log, corrections
 
 To-dos:
 
-- todos (personal to-do list; see `memory/todos.md`)
+- todos (now also `kind` ["onboarding"/"offboarding"] + `sort_order` — onboarding/offboarding journey steps live here as person-tagged todos; see `memory/todos.md`)
 
-Outreach:
+HR compliance (per-person required documents):
 
-- reminders
-- outbox (now also persisted drafts: `source`/`person_id`/`todo_id`/`scheduled_for`)
+- requirement_profiles, requirement_items, person_requirements (auto checklist per person type; see `memory/hrms.md`)
 
-Analytics/config/system:
+HRMS — Assets & Vendors:
 
-- daily_snapshots
-- settings
-- system_events
-- undo_tokens
+- assets, asset_assignments (durable equipment assigned to a person, or shared to a company+custodian; auto-returned on offboarding)
+- vendors (suppliers/contractors/landlords; their contracts are `documents` rows via `documents.vendor_id`)
+
+HRMS — Leave & Attendance (grounded in Tanzania ELR Act 2004):
+
+- leave_types (`default_days`/`cycle_months`/`half_pay_days` — e.g. Sick 126/36mo = 63 full+63 half), public_holidays, leave_requests, attendance
+
+Documents & intake:
+
+- documents (now also `vendor_id`), document_links
+- inbox (manual bundles too: pasted text + uploaded files stored in `attachments` JSON under `inbox/` storage prefix)
+
+Letters:
+
+- letters (Draft→Issued lifecycle, frozen `letterhead_snapshot` on issue; per-company branding)
+
+Stock (OECR): stock_items, stock_purchases, stock_issues
+Cleaning (OCR): cleaning_areas, cleaning_days, cleaning_checks
+
+Outreach: reminders, outbox (persisted drafts: `source`/`person_id`/`todo_id`/`scheduled_for`)
+
+Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
 See `memory/database_schema.md`.
 
@@ -90,18 +102,21 @@ See `memory/database_schema.md`.
 - `/workbook` - Meetings / Notes / To-do (see `memory/todos.md`)
 - `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
 - `/hrms` - **HRMS hub** (V2): registry cards. See `memory/hrms.md`.
-- `/hrms/oecr` - OECR (Office Equipment Control Registry) — stock control
+- `/hrms/oecr` - OECR (Office Equipment Control Registry) — consumable stock control
+- `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle
+- `/hrms/leave` - **Leave & Attendance** — leave types/requests/approvals (ELR Act-accurate), balances, public-holiday calendar (attendance register tab pending). See `memory/hrms.md`.
 - `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
-- `/companies`
-- `/companies/[id]`
-- `/people`
-- `/documents` - Documents & Compliance
+- `/companies`, `/companies/[id]`
+- `/people` - person record now has HR profile fields + a glanceable drawer (hero tiles + accordion sections: Document compliance, Onboarding/Offboarding, Equipment held, Profile details, Documents, Tasks, Activity, Manage)
+- `/documents` - Documents & Compliance (+ "Add several" bulk multi-file upload via the full doc form; recency-aware duplicate detection)
+- `/letters`, `/letters/[id]` (editor), `/letters/[id]/print` - **system-wide PDF letters** (Draft→Issue, per-company branded; first type = Invitation). See `memory/letters.md`.
+- `/letterheads` - **Company letterheads** setup (typed / designed header+footer images / full-page background, per company)
 - `/outbox`
-- `/inbox`
+- `/inbox` - smart intake: "Add to inbox" (paste + multi-file bundle); unified "Process" → review queue files docs + enrich person profile (blanks-only)
 - `/insights`
 - `/settings`
 
-Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (HRMS Hub, OECR, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings) — the old "More" sheet and the per-tab popovers were removed. Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (HRMS Hub, OECR, **Assets & Vendors, Leave & Attendance**, OCR, Companies, People, Documents, **Letters, Company Letterheads**, Outbox, Inbox, Insights, Settings). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
 Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`. The desktop sidebar and the dedicated Companies nav tab were removed.
 
@@ -135,6 +150,25 @@ Voice is now a shared product layer, not only a microphone button:
 - Meeting notes, Quick Capture, and task updates use "speak rough, save polished" behaviour.
 - Meeting Workspace includes a small quality loop to teach COS names/phrases into the voice dictionary.
 - Ask COS dictation now follows the browser language instead of a hardcoded speech locale.
+
+## HR & Admin Operating System (V3 — in progress)
+
+Built on the principle **reuse, don't duplicate** (Documents→compliance, tasks/todos→checklists, OECR→assets, Outbox→messages, Home/Brief→signals). Master plan in `memory/v3_plan.md`.
+
+- **Person types** (`src/lib/person-types.ts`): `local_staff` | `expat` | `outsider` | `candidate` (+ legacy normalisation).
+- **Document compliance**: per-type requirement profiles → per-person checklist (auto-links saved docs by category, manual verify loop, score to 100%). `src/lib/requirements.ts`.
+- **Onboarding/Offboarding journeys**: a checklist of `todos` tagged `kind`; auto-created for new staff (and offboarding on archive); shown in the person drawer.
+- **Assets & Vendors** (`src/lib/assets.ts`, `src/lib/vendors.ts`): durable assets assigned to person or team+custodian; vendor register with contracts reusing documents.
+- **Leave & Attendance** (`src/lib/leave.ts`): ELR-Act-accurate leave (Mon–Sat working days minus holidays; Annual 28/12mo, Sick 126/36mo = 63 full+63 half, Maternity 84, Paternity 3, Compassionate 4). Director Brief has an HR section.
+- **ELR Act 2004** grounding: see `memory/v3_plan.md` for the calc rules (overtime 1.5×, night +5%, Sunday/holiday ×2, severance 7 days/yr, notice 28 days, wage table s.26). Wage field + pay/final-pay calculators are planned phases (4.4–4.7).
+
+## Smart Intake (V3)
+
+One extraction brain across Inbox/People/Documents. Dropping text or files anywhere can fill the person profile (**blanks-only, always reviewed — never overwrites**), file the document(s) to the right owner (person OR company), and recompute compliance. Bulk multi-file upload on `/documents` ("Add several") reviews each file in the full doc form. Recency-aware duplicate detection (Keep both / Replace+archive). See `memory/v3_plan.md` and `memory/v3_plan.md`.
+
+## Letters (V3)
+
+System-wide branded PDF letters. `letters` table + `/letters` editor + `/letters/[id]/print` route. Per-company letterhead (`/letterheads`): typed fields, or a designed **header+footer image** (repeats each page), or a **full-page A4 background**. **Draft → Issue** freezes a letterhead snapshot + stamps a ref (`PREFIX/INV/YYYY/NNN`); reprints are identical. **Full body editing**; PDF (in-place iframe print) + optional Outbox draft; no auto-send. Letter font matches the Director Brief (system sans-serif). New types = add to `LETTER_TEMPLATES` + a `buildBody` fn in `src/lib/letters.ts`. First type = Invitation (auto-pulls invitee name/nationality/passport/DOB/role). See `memory/letters.md`.
 
 ## AI Conventions
 

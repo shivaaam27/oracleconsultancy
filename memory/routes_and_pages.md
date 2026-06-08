@@ -21,15 +21,19 @@ All list/data pages are dynamic because operational data changes often.
 | `/brief` | `src/app/brief/page.tsx` | **Director Brief** (V2): glanceable portfolio report incl. delivered-this-month; stat cards, per-company strip (done/open/in-progress/overdue), delivered + watch-list; WhatsApp/Email/Copy share + PDF (print-only detailed per-company tables). Data via `src/lib/director-brief.ts`. |
 | `/hrms` | `src/app/hrms/page.tsx` | **HRMS hub** (V2): registry cards (OECR, OCR, Companies, People, Documents) with live stats. |
 | `/hrms/oecr` | `src/app/hrms/oecr/page.tsx` | **OECR** stock control: Dashboard / Register / Purchases / Issues. `src/lib/stock*.ts`. |
+| `/hrms/assets` | `src/app/hrms/assets/page.tsx` | **Asset & Vendor Register** (V3): Assets/Vendors toggle. `src/lib/assets.ts` + `src/lib/vendors.ts`. |
+| `/hrms/leave` | `src/app/hrms/leave/page.tsx` | **Leave & Attendance** (V3): Overview/Requests/Setup; ELR-Act leave. `src/lib/leave.ts`. |
 | `/hrms/ocr` | `src/app/hrms/ocr/page.tsx` | **OCR** daily cleaning checklist (one shared register). `src/lib/cleaning*.ts`. |
 | `/meeting` | `src/app/meeting/page.tsx` | Mobile-tight Meeting Workspace: saved notes, AI minutes, clean notes, decisions, risks, follow-up draft, history search/filter, action extraction, linked tasks, voice polish, dictionary teaching. |
 | `/workbook` | `src/app/workbook/page.tsx` | Meetings / Notes / To-do. |
 | `/companies` | `src/app/companies/page.tsx` | Company list with KPIs. Reached via HRMS; smart `?from=task:CODE` breadcrumb. |
 | `/companies/[id]` | `src/app/companies/[id]/page.tsx` | Company detail with Overview, Completed, Timeline. Open tasks grouped by month. |
 | `/people` | `src/app/people/page.tsx` | People directory (internal/external/expat); bulk deactivate; notes surfaced. |
-| `/documents` | `src/app/documents/page.tsx` | Documents & Compliance: tracking + expiry reminders; unified capture (Upload·Link·Paste text); AI reads PDFs/images incl. scanned. |
+| `/documents` | `src/app/documents/page.tsx` | Documents & Compliance: tracking + expiry reminders; unified capture (Upload·Link·Paste text); AI reads PDFs/images incl. scanned. **"Add several"** = bulk multi-file queue (full doc form per file); recency-aware duplicate detection. |
+| `/letters` | `src/app/letters/page.tsx` | **Letters** (V3): list + New. Editor `/letters/[id]`, print route `/letters/[id]/print`. `src/lib/letters.ts`. See `memory/letters.md`. |
+| `/letterheads` | `src/app/letterheads/page.tsx` | **Company letterheads** (V3): per-company branding (typed / header+footer images / full-page background). |
 | `/outbox` | `src/app/outbox/page.tsx` | Reminder drafts and sent log. Drafts show priority + description + latest update (no code/status). |
-| `/inbox` | `src/app/inbox/page.tsx` | Inbox capture → file as task/document. |
+| `/inbox` | `src/app/inbox/page.tsx` | Smart intake: "Add to inbox" (paste text + multi-file bundle); unified "Process" → review queue files docs + enriches person profile (blanks-only). `memory/v3_plan.md`. |
 | `/insights` | `src/app/insights/page.tsx` | Analytics/insights. |
 | `/settings` | `src/app/settings/page.tsx` | Risk thresholds, weather location, AI master switch, reminders, nav reorder, resync. |
 

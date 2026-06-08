@@ -147,3 +147,59 @@ export async function clearJourney(personId: number, kind: JourneyKind): Promise
   const { error } = await sb.from("todos").delete().eq("person_id", personId).eq("kind", kind);
   if (error) throw new Error(error.message);
 }
+
+/* ------------------------------------------------------------------ */
+/* Per-person step customisation (add / edit / delete).                */
+/* Steps are ordinary `todos` rows tagged with `kind`.                 */
+/* ------------------------------------------------------------------ */
+function dateInputToIso(value: string | null): string | null {
+  if (!value) return null;
+  const d = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Append a custom step to a person's journey. */
+export async function addJourneyStep(
+  personId: number,
+  kind: JourneyKind,
+  input: { label: string; dueAt: string | null }
+): Promise<void> {
+  const label = input.label.trim();
+  if (!label) throw new Error("A step name is required.");
+  const { data: last } = await sb
+    .from("todos")
+    .select("sort_order")
+    .eq("person_id", personId)
+    .eq("kind", kind)
+    .order("sort_order", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  const nextOrder = ((last?.sort_order as number | null) ?? -1) + 1;
+  const { data: person } = await sb.from("people").select("company_id").eq("id", personId).maybeSingle();
+  const { error } = await sb.from("todos").insert({
+    title: label,
+    kind,
+    sort_order: nextOrder,
+    person_id: personId,
+    company_id: (person?.company_id as number | null) ?? null,
+    due_at: dateInputToIso(input.dueAt),
+    important: false,
+    done: false,
+    created_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Edit a journey step's name / due date. */
+export async function editJourneyStep(id: number, input: { label: string; dueAt: string | null }): Promise<void> {
+  const label = input.label.trim();
+  if (!label) throw new Error("A step name is required.");
+  const { error } = await sb.from("todos").update({ title: label, due_at: dateInputToIso(input.dueAt) }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/** Delete a single journey step. */
+export async function deleteJourneyStep(id: number): Promise<void> {
+  const { error } = await sb.from("todos").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}

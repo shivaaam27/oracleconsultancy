@@ -395,7 +395,7 @@ function IncludeGroups({
     const Icon = group.icon;
     const selected = group.keys.filter((key) => selection[key]).length;
     return (
-      <div key={group.title} className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
+      <div key={group.title} className="glass elevated rounded-2xl p-3">
         <div className="mb-2 flex items-start gap-2">
           <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-bg-subtle text-fg-muted ring-1 ring-border/60">
             <Icon size={14} />
@@ -467,7 +467,7 @@ function Preview({
   return (
     <div className="space-y-3">
       {selection.missingDocuments && (
-        <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3">
+        <div className="glass elevated rounded-xl p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <FileWarning size={13} /> Documents to request
             {allGaps.length > 0 && <span className="ml-auto text-[11px] text-fg-subtle">{gapSelection.size} of {allGaps.length} ticked</span>}
@@ -502,7 +502,7 @@ function Preview({
       )}
 
       {selection.documentIssues && (
-        <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3">
+        <div className="glass elevated rounded-xl p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <FileWarning size={13} /> Expired / expiring
           </div>
@@ -522,7 +522,7 @@ function Preview({
       )}
 
       {selection.linkedDocuments && (
-        <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3">
+        <div className="glass elevated rounded-xl p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <FileText size={13} /> Linked documents
           </div>
@@ -558,7 +558,7 @@ function Preview({
       )}
 
       {selection.openTasks && (
-        <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3">
+        <div className="glass elevated rounded-xl p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <ClipboardList size={13} /> Open tasks
           </div>
@@ -587,7 +587,7 @@ function Preview({
       )}
 
       {selection.personalTodos && (
-        <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3">
+        <div className="glass elevated rounded-xl p-3">
           <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <Check size={13} /> Personal to-dos
           </div>
@@ -610,7 +610,7 @@ function Preview({
       )}
 
       {selection.complianceScore && (
-        <div className="rounded-xl bg-bg-elev ring-1 ring-border p-3 text-sm">
+        <div className="glass elevated rounded-xl p-3 text-sm">
           <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <ShieldCheck size={13} /> Compliance status
           </div>
@@ -635,7 +635,7 @@ function DraftMessagePreview({
   const contact = contactForChannel(pack.detail.person, channel);
 
   return (
-    <div className="rounded-xl bg-bg-elev p-3 ring-1 ring-border">
+    <div className="glass elevated rounded-xl p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Message preview</div>
@@ -841,7 +841,7 @@ export function PersonPackBuilder({
               <div className="space-y-3">
                 <ReasonPicker purpose={purpose} setPurpose={setPurpose} />
                 {selection && (
-                  <details className="group rounded-2xl bg-bg-elev ring-1 ring-border">
+                  <details className="group glass elevated rounded-2xl">
                     <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
                       <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-[11px] text-fg-muted">2</span>
                       Customise sections

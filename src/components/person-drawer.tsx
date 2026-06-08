@@ -14,11 +14,14 @@ import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackBuilder } from "./person-pack-builder";
 import { RequirementsChecklist } from "./requirements-checklist";
+import { DocumentForm } from "./document-form";
 import { JourneyChecklist } from "./journey-checklist";
 import { PersonAssets } from "./person-assets";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
+import { createPersonPackDraftAction } from "@/app/people/pack-actions";
+import { pickChannel } from "@/lib/outbox-links";
 import type { TaskRow } from "@/lib/queries";
 import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
 import { personTypeLabel, type PersonType } from "@/lib/person-types";
@@ -160,6 +163,9 @@ export function PersonDrawer() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [snoozeInput, setSnoozeInput] = useState<string>("");
   const [actionPending, setActionPending] = useState(false);
+  // In-place "add document" — layered over the person so the flow stays
+  // immersive (no navigation to /documents, no background page switch).
+  const [addDoc, setAddDoc] = useState<{ title?: string; category: string | null } | null>(null);
   // Headline summaries reported up by the section components, for the hero tiles.
   const [compSum, setCompSum] = useState<{ score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number } | null>(null);
   const [journeySum, setJourneySum] = useState<{ completed: number; total: number } | null>(null);
@@ -226,10 +232,35 @@ export function PersonDrawer() {
     }
   };
 
+  // Quick reminder: always saves a (de-duplicated) Outbox draft and, when the
+  // person has a usable contact, opens the channel deep-link pre-filled.
+  const handleRemind = async () => {
+    if (!person || !data) return;
+    const body = buildPersonReminder(person.name, data.assignedTasks);
+    const channel = pickChannel(person);
+    setActionPending(true);
+    const res = await createPersonPackDraftAction({
+      personId: person.id,
+      purpose: "task-reminder",
+      sections: "openTasks",
+      channel,
+      subject: `Reminder: your open items`,
+      body,
+    });
+    setActionPending(false);
+    if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+    toast(
+      res.created ? "Reminder draft saved in Outbox." : "A reminder draft already exists today.",
+      { tone: res.contactMissing ? "warn" : "success" }
+    );
+    if (res.link) window.open(res.link, "_blank", "noopener,noreferrer");
+  };
+
   const person = data?.person;
   const snoozed = person?.snoozedUntil ? new Date(person.snoozedUntil) > new Date() : false;
 
   return (
+    <>
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) close(); }}>
       <Dialog.Portal>
         <Dialog.Overlay
@@ -380,11 +411,36 @@ export function PersonDrawer() {
                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-subtle">
                       {person.startDate && <span>Started {fmtDate(new Date(person.startDate))}</span>}
                       {person.startDate && person.managerName && <span>·</span>}
-                      {person.managerName && <span>Reports to {person.managerName}</span>}
+                      {person.managerName && person.managerId && (
+                        <span>
+                          Reports to{" "}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const params = new URLSearchParams(searchParams.toString());
+                              params.set("person", String(person.managerId));
+                              router.push(`${pathname}?${params.toString()}`, { scroll: false });
+                            }}
+                            className="font-medium text-fg-muted hover:text-accent transition-colors"
+                          >
+                            {person.managerName}
+                          </button>
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-1.5">
                     {!person.active && <Badge tone="default"><UserX size={10} className="inline mr-0.5" /> Inactive</Badge>}
+                    {person.active && person.probationEndDate && (() => {
+                      const days = Math.ceil((new Date(person.probationEndDate).getTime() - Date.now()) / 86400000);
+                      if (days >= 0 && days <= 45) {
+                        return <Badge tone={days <= 14 ? "danger" : "warn"}><Clock size={10} className="inline mr-0.5" /> Probation ends in {days}d</Badge>;
+                      }
+                      if (days < 0 && days >= -30) {
+                        return <Badge tone="info"><Clock size={10} className="inline mr-0.5" /> Probation ended {fmtDate(new Date(person.probationEndDate))}</Badge>;
+                      }
+                      return null;
+                    })()}
                     {snoozed && person.snoozedUntil && (
                       <Badge tone="warn">
                         <MoonStar size={10} className="inline mr-0.5" />
@@ -422,20 +478,17 @@ export function PersonDrawer() {
                   )}
                   {data.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed") && (
                     <button type="button"
-                      onClick={() => {
-                        const text = buildPersonReminder(person.name, data.assignedTasks);
-                        if (person.whatsapp) window.open(`${whatsappHref(person.whatsapp)}?text=${encodeURIComponent(text)}`, "_blank");
-                        else router.push("/outbox");
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+                      onClick={handleRemind}
+                      disabled={actionPending}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
                       <Send size={13} /> Remind
                     </button>
                   )}
                   <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} initialPurpose={packPurpose} />
-                  <Link href={`/documents?newdoc=1&person=${person.id}&from=person:${person.id}`} onClick={close}
+                  <button type="button" onClick={() => setAddDoc({ category: null })}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
                     <FileText size={13} /> Add doc
-                  </Link>
+                  </button>
                   {!person.email && !person.whatsapp && !person.phone && (
                     <span className="text-xs text-danger inline-flex items-center gap-1"><AlertCircle size={11} /> No contact info</span>
                   )}
@@ -463,7 +516,14 @@ export function PersonDrawer() {
                   );
                 })()}
 
-                <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} />
+                <RequirementsChecklist
+                  personId={person.id}
+                  onChanged={refresh}
+                  onNavigate={close}
+                  onSummary={setCompSum}
+                  onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })}
+                  reloadSignal={refreshKey}
+                />
 
                 <JourneyChecklist
                   personId={person.id}
@@ -486,6 +546,14 @@ export function PersonDrawer() {
                     ["Emergency contact", [person.emergencyContactName, person.emergencyContactPhone].filter(Boolean).join(" · ") || null],
                     ["Probation ends", person.probationEndDate ? fmtDate(new Date(person.probationEndDate)) : null],
                   ];
+                  // Backward sync: which saved document backs a given identity field.
+                  const docFor = (kind: "passport" | "nationalId") =>
+                    data.documents.find((d) => {
+                      const hay = [d.category, d.docType, d.title].filter(Boolean).join(" ").toLowerCase();
+                      return kind === "passport"
+                        ? d.category === "Passport" || hay.includes("passport")
+                        : /national id|nida/.test(hay);
+                    }) ?? null;
                   const filled = rows.filter(([, v]) => v).length;
                   return (
                     <details className="group glass elevated rounded-2xl overflow-hidden">
@@ -495,12 +563,23 @@ export function PersonDrawer() {
                         <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
                       </summary>
                       <div className="px-4 pb-3 grid grid-cols-2 gap-x-3 gap-y-2">
-                        {rows.map(([label, value]) => (
-                          <div key={label}>
-                            <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{label}</div>
-                            <div className={cn("text-sm", value ? "text-fg" : "text-fg-subtle")}>{value || "—"}</div>
-                          </div>
-                        ))}
+                        {rows.map(([label, value]) => {
+                          const doc = label === "Passport no." ? docFor("passport") : label === "National ID" ? docFor("nationalId") : null;
+                          return (
+                            <div key={label}>
+                              <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{label}</div>
+                              <div className={cn("text-sm", value ? "text-fg" : "text-fg-subtle")}>{value || "—"}</div>
+                              {doc && (
+                                <Link href={`/documents?person=${person.id}`} onClick={close}
+                                  title={`On file: ${doc.title}`}
+                                  className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent hover:underline max-w-full">
+                                  <FileText size={10} className="shrink-0" />
+                                  <span className="truncate">{value ? doc.title : `${doc.title} — on file`}</span>
+                                </Link>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </details>
                   );
@@ -526,7 +605,7 @@ export function PersonDrawer() {
                           {data.documents.slice(0, 8).map((doc) => (
                             <Link
                               key={doc.id}
-                              href="/documents"
+                              href={`/documents?person=${person.id}`}
                               onClick={close}
                               className="flex w-full items-center gap-2.5 px-2.5 py-2 text-left hover:bg-bg-muted/50 transition-colors"
                             >
@@ -645,27 +724,6 @@ export function PersonDrawer() {
                   </div>
                 )}
 
-                {/* Manager (if set) */}
-                {person.managerId && data?.peopleList && (() => {
-                  const mgr = data.peopleList.find((p) => p.id === person.managerId);
-                  return mgr ? (
-                    <div className="text-xs text-fg-muted">
-                      Reports to{" "}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const params = new URLSearchParams(searchParams.toString());
-                          params.set("person", String(mgr.id));
-                          router.push(`${pathname}?${params.toString()}`, { scroll: false });
-                        }}
-                        className="font-medium text-fg hover:text-accent transition-colors"
-                      >
-                        {mgr.name}
-                      </button>
-                    </div>
-                  ) : null;
-                })()}
-
                 {/* Manage — snooze, archive, all tasks. Tucked away by default. */}
                 <details className="group glass elevated rounded-2xl overflow-hidden">
                   <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
@@ -724,5 +782,51 @@ export function PersonDrawer() {
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+
+    {/* In-place "Add document" — layered above the person, so the flow stays
+        immersive: no navigation to /documents, no background page switch. On
+        save the checklist + tiles refresh in place via refreshKey. */}
+    {person && data && (
+      <Dialog.Root open={!!addDoc} onOpenChange={(o) => { if (!o) setAddDoc(null); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm
+            data-[state=open]:animate-in data-[state=open]:fade-in-0
+            data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2
+              w-[min(560px,calc(100vw-1.5rem))] max-h-[88dvh] flex flex-col overflow-hidden
+              glass glass-refract rounded-2xl outline-none
+              data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
+              data-[state=closed]:animate-out data-[state=closed]:zoom-out-95"
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
+              <Dialog.Title className="text-sm font-semibold truncate">Add a document for {person.name}</Dialog.Title>
+              <Dialog.Close asChild>
+                <button type="button" aria-label="Close"
+                  className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors">
+                  <X size={14} />
+                </button>
+              </Dialog.Close>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {addDoc && (
+                <DocumentForm
+                  mode="create"
+                  companies={data.companies}
+                  people={data.peopleList.map((p) => ({ id: p.id, name: p.name }))}
+                  initialPersonId={person.id}
+                  initialCategory={addDoc.category}
+                  initialTitle={addDoc.title}
+                  onCancel={() => setAddDoc(null)}
+                  onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setAddDoc(null); refresh(); } }}
+                />
+              )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    )}
+    </>
   );
 }

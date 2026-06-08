@@ -124,13 +124,23 @@ function str120(v: unknown, max = 120): string | undefined {
   return t ? t.slice(0, max) : undefined;
 }
 
-/** Rule-based fallback when AI is off — pulls the obvious patterns. */
+/** Rule-based fallback when AI is off — pulls the obvious patterns. Also acts
+ *  as a base layer the AI result merges onto, so a field the model omits but
+ *  that is clearly labelled ("Emergency contact: …") still gets filled. */
 function rulePersonFields(text: string): PersonProfileFields {
   const f: PersonProfileFields = {};
+  // Grab the value after a "Label: value" pair (stops at line end or next field).
+  const labelled = (labels: string) => {
+    const re = new RegExp(`(?:${labels})\\s*[:\\-]\\s*([^\\n\\r]{1,80})`, "i");
+    const m = text.match(re);
+    return m ? m[1].trim().replace(/[.,;]+$/, "") : undefined;
+  };
   const email = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
   if (email) f.email = email[0];
   const phone = text.match(/(?:\+?\d[\d\s-]{7,}\d)/);
   if (phone) f.phone = phone[0].replace(/\s+/g, "");
+  const whatsapp = text.match(/(?:whats?app|w\/?app)\s*[:\-]?\s*(\+?\d[\d\s-]{7,}\d)/i);
+  if (whatsapp) f.whatsapp = whatsapp[1].replace(/\s+/g, "");
   const passport = text.match(/passport\s*(?:no\.?|number)?[:\s]*([A-Z0-9]{6,10})/i);
   if (passport) f.passportNo = passport[1];
   const nida = text.match(/(?:nida|national\s*id)[:\s]*([\d-]{8,25})/i);
@@ -141,8 +151,31 @@ function rulePersonFields(text: string): PersonProfileFields {
   if (start) f.startDate = start[1];
   const prob = text.match(/probation[^:\n]*(?:end|until|ends?)?[:\s]*(\d{4}-\d{2}-\d{2})/i);
   if (prob) f.probationEndDate = prob[1];
-  const dept = text.match(/(?:department|dept)[:\s]*([A-Za-z][A-Za-z &/-]{1,40})/i);
-  if (dept) f.department = dept[1].trim();
+  const dept = labelled("department|dept");
+  if (dept) f.department = dept;
+  // Newly covered labelled fields (the gaps the owner hit on edit).
+  const name = labelled("name|full name");
+  if (name) f.name = name;
+  const role = labelled("role|job title|job|designation|position|title");
+  if (role) f.role = role;
+  const nationality = labelled("nationality|citizen(?:ship)?");
+  if (nationality) f.nationality = nationality;
+  const address = labelled("address|residence|residential address");
+  if (address) f.address = address;
+  // Emergency contact — accept "Name - +255…" or split labels.
+  const emName = labelled("emergency contact(?:\\s*name)?|next of kin|emergency");
+  if (emName) {
+    const split = emName.match(/^(.*?)[\s,–-]+(\+?\d[\d\s-]{6,}\d)\s*$/);
+    if (split) { f.emergencyContactName = split[1].trim(); f.emergencyContactPhone = split[2].replace(/\s+/g, ""); }
+    else f.emergencyContactName = emName;
+  }
+  const emPhone = labelled("emergency (?:phone|number|contact number|tel)");
+  if (emPhone) {
+    const num = emPhone.match(/\+?\d[\d\s-]{6,}\d/);
+    if (num) f.emergencyContactPhone = num[0].replace(/\s+/g, "");
+  }
+  const supervisor = labelled("manager|supervisor|reports? to|reporting (?:to|line)");
+  if (supervisor) f.supervisorName = supervisor;
   return f;
 }
 
@@ -436,7 +469,8 @@ export async function enrichPersonProfile(
   const { error } = await sb.from("people").update(update).eq("id", personId);
   if (error) return { ok: false, filled: [], error: error.message };
 
-  // Keep the document checklist in sync if the type-relevant data changed.
+  // Profile enrichment fills blank columns only; it never changes person_type,
+  // so the document checklist does not need reconciling here.
   invalidate();
   return { ok: true, filled };
 }

@@ -132,6 +132,52 @@ One row per calendar date (unique index on `date`, stored at UTC midnight). `id,
 ### cleaning_checks
 One tick per (day, area). `id, day_id (FK cleaning_days, cascade), area_id (FK cleaning_areas, cascade), done, done_at, comment`. Unique index `(day_id, area_id)`. `setCheck` upserts a tick + timestamps `done_at`.
 
+## HR compliance (per-person required documents) — migration 0020
+
+### requirement_profiles / requirement_items
+A profile per person type (`applies_to_type`) lists the documents that type must/may provide. Items: `label, category, mandatory, expiry_tracked, default_lead_days, sort_order`. Seeded via `scripts/seed-requirement-profiles.ts`. See `src/lib/requirements.ts`.
+
+### person_requirements
+Snapshot of a person's checklist (so later profile edits don't rewrite history). Per item: `status` (missing/requested/received/verified/waived) + optional `document_id`. Effective status derives expiry; score = verified-mandatory / mandatory → 100%. Unique on `(person_id, item_id)`.
+
+## HRMS — Assets & Vendors — migrations 0022/0023
+
+### assets / asset_assignments
+Durable, individually-tracked equipment (laptops, phones, vehicles) — distinct from consumable OECR stock. `assets`: `tag` (unique-nullable), name, category, serial_no, company_id, vendor_id (supplier), location, status (in_store|assigned|maintenance|retired), assigned_to_person_id, assigned_to_company_id, custodian_person_id, assigned_at, purchase_date/cost, archived. `asset_assignments` = assign/return ledger (open row = currently held). Offboarding (archive person) auto-returns held assets. `src/lib/assets.ts`.
+
+### vendors
+Suppliers/contractors/landlords/utilities. `name, category, company_id, contact_name, email, phone, location, notes, active`. Their **contracts are `documents` rows** linked via `documents.vendor_id`. `src/lib/vendors.ts`.
+
+## HRMS — Leave & Attendance (Tanzania ELR Act 2004) — migrations 0025/0026
+
+### leave_types
+`name, color, paid, default_days` (total entitlement per cycle), `cycle_months` (Annual 12, Sick 36), `half_pay_days` (Sick 63 of 126), active, sort_order. Seeded via `scripts/seed-leave-types.ts` (Annual 28, Sick 126[63+63], Maternity 84, Paternity 3, Compassionate 4, Unpaid 0).
+
+### public_holidays
+`date, name, company_id` (null = all). Excluded from leave-day counts.
+
+### leave_requests
+`person_id, leave_type_id, start_date, end_date, half_day, days, reason, status` (Pending/Approved/Rejected/Cancelled), `decided_by/decided_at, notes`. Working days counted **Mon–Sat minus holidays** (half-day = 0.5). Balances derived (entitlement − approved over the type's cycle window). `src/lib/leave.ts`.
+
+### attendance
+Daily register, one row per `(person_id, date)` (unique). `status` (Present/Absent/On leave/Holiday/Remote/Half-day/Sick), note. (Register UI = phase 4.2, pending.)
+
+## Letters — migration 0029
+
+### letters
+System-wide branded PDF letters. `type` (template id), `title, company_id, person_id, ref, letter_date, addressee, subject, body, letterhead_snapshot` (JSON frozen at Issue), `status` (Draft/Issued), issued_at. Draft renders live company letterhead; Issued uses the frozen snapshot. `src/lib/letters.ts`, routes `/letters` + `/letters/[id]/print`. Per-company letterhead lives on `companies` (branding cols, migrations 0027/0028: typed fields + logo, or designed header/footer images, or full-page background + body margins; `letterhead_mode` = typed|images|background).
+
+## New columns on existing tables
+
+- **people** (migrations 0019/0024): `department_id`, `start_date`, `date_of_birth`, `nationality`, `national_id`, `passport_no`, `address`, `emergency_contact_name`, `emergency_contact_phone`, `probation_end_date`. `person_type` default now `local_staff`.
+- **todos** (0021): `kind` ("onboarding"|"offboarding"|null) + `sort_order` — journey steps; excluded from the Workbook/pack todo lists.
+- **documents** (0023): `vendor_id` (links a contract to a vendor).
+- **companies** (0027/0028): letterhead/branding cols (see Letters above).
+
+## Inbox — manual bundles
+
+`inbox` also accepts in-app bundles: pasted text + multiple uploaded files (stored in the `documents` bucket under `inbox/`, recorded in `attachments` JSON with `storagePath`). Unified "Process" opens the doc review queue and can enrich the person profile (blanks-only).
+
 ## Analytics and System
 
 ### daily_snapshots

@@ -41,32 +41,19 @@ export type ComplianceScore = {
   documentIssues: ComplianceDocumentIssue[];
 };
 
-export type CompliancePerson = {
-  id: number;
-  name: string;
-  personType?: string | null;
-};
-
 export const COMPANY_REQUIREMENTS: ComplianceRequirement[] = [
   { id: "company-registration", label: "Company registration", categories: ["Registration"], ownerType: "company", appliesTo: "all", weight: 2 },
   { id: "tax-registration", label: "Tax / TIN document", categories: ["Tax"], ownerType: "company", appliesTo: "all", weight: 2 },
   { id: "business-licence", label: "Business licence", categories: ["Licence", "Permit"], ownerType: "company", appliesTo: "all", weight: 3 },
 ];
 
-export const PERSON_REQUIREMENTS: ComplianceRequirement[] = [
-  { id: "person-contract", label: "Employment / engagement contract", categories: ["Contract"], ownerType: "person", appliesTo: "expat", weight: 2 },
-  { id: "person-passport", label: "Passport", categories: ["Passport"], ownerType: "person", appliesTo: "expat", weight: 3 },
-  { id: "person-permit", label: "Visa / work permit", categories: ["Immigration", "Permit"], ownerType: "person", appliesTo: "expat", weight: 3 },
-];
+// NOTE: Per-PERSON compliance is owned by the DB-backed requirement profiles in
+// `src/lib/requirements.ts` (buildPersonRequirementScores / getPersonChecklist).
+// This file only scores COMPANIES. Do not reintroduce a parallel person model here.
 
 function matchesRequirement(doc: DocumentRow, req: ComplianceRequirement) {
   const haystack = [doc.category, doc.docType, doc.title].filter(Boolean).join(" ").toLowerCase();
   return req.categories.some((category) => haystack.includes(category.toLowerCase()));
-}
-
-function requirementApplies(req: ComplianceRequirement, person?: CompliancePerson) {
-  if (req.appliesTo === "all") return true;
-  return person?.personType === req.appliesTo;
 }
 
 function scoreStatus(score: number, expired: number, missing: number): ComplianceScore["status"] {
@@ -160,22 +147,6 @@ export function buildCompanyComplianceScores(
       documents: documents.filter((doc) => doc.companyId === company.id),
     })
   );
-}
-
-export function buildPersonComplianceScores(
-  people: CompliancePerson[],
-  documents: DocumentRow[]
-): ComplianceScore[] {
-  return people.map((person) => {
-    const requirements = PERSON_REQUIREMENTS.filter((req) => requirementApplies(req, person));
-    return calculateScore({
-      ownerId: person.id,
-      ownerName: person.name,
-      ownerType: "person",
-      requirements,
-      documents: documents.filter((doc) => doc.personId === person.id),
-    });
-  });
 }
 
 export function worstComplianceScores(scores: ComplianceScore[], limit = 5): ComplianceScore[] {

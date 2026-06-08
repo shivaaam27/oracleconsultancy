@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
+import { DOC_CATEGORIES } from "@/lib/documents-shared";
 import {
   REQUIREMENT_STATUS_LABELS,
   REQUIREMENT_STATUS_TONE,
@@ -19,7 +20,51 @@ import {
   reqUnverify,
   reqWaive,
   reqUnwaive,
+  reqAdd,
+  reqEdit,
+  reqRemove,
 } from "@/app/people/requirement-actions";
+
+type ReqFields = { label: string; category: string | null; mandatory: boolean };
+
+/** Compact inline editor for adding/editing a person's requirement item. */
+function ReqEditor({ initial, onSave, onCancel, busy }: {
+  initial?: ReqFields;
+  onSave: (v: ReqFields) => void;
+  onCancel: () => void;
+  busy?: boolean;
+}) {
+  const [label, setLabel] = useState(initial?.label ?? "");
+  const [category, setCategory] = useState(initial?.category ?? "");
+  const [mandatory, setMandatory] = useState(initial?.mandatory ?? true);
+  return (
+    <div className="flex flex-col gap-2 bg-bg-subtle/50 px-3 py-2.5">
+      <input value={label} onChange={(e) => setLabel(e.target.value)} autoFocus
+        onKeyDown={(e) => { if (e.key === "Enter" && label.trim()) onSave({ label: label.trim(), category: category || null, mandatory }); if (e.key === "Escape") onCancel(); }}
+        placeholder="Document name (e.g. Driving licence)"
+        className="rounded-md bg-bg-elev text-sm ring-1 ring-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
+      <div className="flex flex-wrap items-center gap-2">
+        <select value={category} onChange={(e) => setCategory(e.target.value)}
+          className="rounded-md bg-bg-elev text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1">
+          <option value="">No category</option>
+          {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <label className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted cursor-pointer">
+          <input type="checkbox" checked={mandatory} onChange={(e) => setMandatory(e.target.checked)} className="accent-accent" /> Required
+        </label>
+        <div className="ml-auto flex items-center gap-1.5">
+          <button type="button" onClick={onCancel} disabled={busy}
+            className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
+          <button type="button" disabled={busy || !label.trim()}
+            onClick={() => onSave({ label: label.trim(), category: category || null, mandatory })}
+            className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+            {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type ChecklistItem = {
   id: number;
@@ -83,11 +128,18 @@ export function RequirementsChecklist({
   onChanged,
   onNavigate,
   onSummary,
+  onAddDocument,
+  reloadSignal,
 }: {
   personId: number;
   onChanged?: () => void;
   onNavigate?: () => void;
   onSummary?: (s: { score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number }) => void;
+  /** When provided, "Add"/"Renew" open the document form in place (over the person)
+   *  instead of navigating to /documents. Keeps the flow immersive. */
+  onAddDocument?: (opts: { title: string; category: string | null }) => void;
+  /** Bump to force a reload (e.g. after a document was added in the drawer). */
+  reloadSignal?: number;
 }) {
   const { toast } = useToast();
   const [data, setData] = useState<Checklist | null>(null);
@@ -95,6 +147,8 @@ export function RequirementsChecklist({
   const [busyId, setBusyId] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const [openItem, setOpenItem] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
   const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
@@ -111,6 +165,14 @@ export function RequirementsChecklist({
 
   useEffect(() => load(), [load]);
 
+  // Reload when the parent signals a change (e.g. a document was just added in
+  // the drawer) so the new file auto-links and the score updates in place.
+  useEffect(() => {
+    if (reloadSignal === undefined) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadSignal]);
+
   // Report summary up + smart auto-open once (when something needs attention).
   useEffect(() => {
     if (!data) return;
@@ -122,21 +184,32 @@ export function RequirementsChecklist({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  function run(id: number, fn: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) {
+  function run(id: number, fn: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string, after?: () => void) {
     setBusyId(id);
     startTransition(async () => {
       const res = await fn();
       setBusyId(null);
       if (!res.ok) { toast(res.error ?? "Something went wrong", { tone: "danger" }); return; }
       if (okMsg) toast(okMsg, { tone: "success" });
+      after?.();
       load();
       onChanged?.();
     });
   }
 
+  function doAdd(v: ReqFields) {
+    run(-1, () => reqAdd(personId, v), "Requirement added.", () => setAdding(false));
+  }
+  function doEdit(id: number, v: ReqFields) {
+    run(id, () => reqEdit(id, v), "Requirement updated.", () => setEditingId(null));
+  }
+  function doRemove(id: number) {
+    run(id, () => reqRemove(id), "Requirement removed.", () => setOpenItem(null));
+  }
+
   if (loading && !data) {
     return (
-      <div className="rounded-2xl bg-bg-elev p-4 ring-1 ring-border flex items-center gap-2 text-sm text-fg-muted">
+      <div className="glass elevated rounded-2xl p-4 flex items-center gap-2 text-sm text-fg-muted">
         <Loader2 size={15} className="animate-spin" /> Loading document compliance…
       </div>
     );
@@ -147,7 +220,7 @@ export function RequirementsChecklist({
   const actionBtn = "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors";
 
   return (
-    <details className="group rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden" open={open}>
+    <details className="group glass elevated rounded-2xl overflow-hidden" open={open}>
       <summary
         onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
         className="list-none cursor-pointer flex items-center gap-3 p-3 select-none"
@@ -181,8 +254,32 @@ export function RequirementsChecklist({
           const subtitle = item.documentTitle
             ? [item.documentTitle, item.expiryLabel].filter(Boolean).join(" · ")
             : item.mandatory ? "Required" : "Optional";
+          const addCat = item.category && SPECIFIC.has(item.category) ? item.category : null;
+          // In-place add (over the person) when a handler is given; else navigate.
+          const renderAdd = (label: string) =>
+            onAddDocument ? (
+              <button type="button" disabled={busy}
+                onClick={() => onAddDocument({ title: item.label, category: addCat })}
+                className={cn(actionBtn, "bg-accent text-accent-fg ring-transparent hover:opacity-90")}>
+                <Plus size={12} /> {label}
+              </button>
+            ) : (
+              <Link href={addDocHref(personId, item)} onClick={onNavigate}
+                className={cn(actionBtn, "bg-accent text-accent-fg ring-transparent hover:opacity-90")}>
+                <Plus size={12} /> {label}
+              </Link>
+            );
           return (
             <div key={item.id} className={cn(busy && "opacity-60")}>
+              {editingId === item.id ? (
+                <ReqEditor
+                  initial={{ label: item.label, category: item.category, mandatory: item.mandatory }}
+                  onSave={(v) => doEdit(item.id, v)}
+                  onCancel={() => setEditingId(null)}
+                  busy={busy}
+                />
+              ) : (
+                <>
               {/* Compact one-line row — tap to reveal actions */}
               <button
                 type="button"
@@ -209,18 +306,10 @@ export function RequirementsChecklist({
                   {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring") && (
                     <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnverify(item.id))} className={subtleBtn}>Unverify</button>
                   )}
-                  {item.effectiveStatus === "expired" && (
-                    <Link href={addDocHref(personId, item)} onClick={onNavigate}
-                      className={cn(actionBtn, "bg-accent text-accent-fg ring-transparent hover:opacity-90")}>
-                      <Plus size={12} /> Renew
-                    </Link>
-                  )}
+                  {item.effectiveStatus === "expired" && renderAdd("Renew")}
                   {needsDoc && (
                     <>
-                      <Link href={addDocHref(personId, item)} onClick={onNavigate}
-                        className={cn(actionBtn, "bg-accent text-accent-fg ring-transparent hover:opacity-90")}>
-                        <Plus size={12} /> Add
-                      </Link>
+                      {renderAdd("Add")}
                       {linkable.length > 0 && (
                         <select
                           disabled={busy}
@@ -253,12 +342,32 @@ export function RequirementsChecklist({
                       <Ban size={11} /> Waive
                     </button>
                   ) : null}
+                  <span className="mx-0.5 h-3 w-px bg-border/70" />
+                  <button type="button" disabled={busy} onClick={() => setEditingId(item.id)} className={subtleBtn}>
+                    <Pencil size={11} /> Edit
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => doRemove(item.id)}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50">
+                    <Trash2 size={11} /> Remove
+                  </button>
                   {busy && <Loader2 size={12} className="animate-spin text-fg-subtle" />}
                 </div>
+              )}
+                </>
               )}
             </div>
           );
         })}
+
+        {/* Add a custom, person-specific requirement. */}
+        {adding ? (
+          <ReqEditor onSave={doAdd} onCancel={() => setAdding(false)} busy={busyId === -1} />
+        ) : (
+          <button type="button" onClick={() => setAdding(true)}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[11px] font-medium text-accent hover:bg-bg-muted/40 transition-colors">
+            <Plus size={13} /> Add a requirement
+          </button>
+        )}
       </div>
     </details>
   );

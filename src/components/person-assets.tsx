@@ -63,7 +63,7 @@ export function PersonAssets({
 
   if (loading && !data) {
     return (
-      <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border flex items-center gap-2 text-sm text-fg-muted">
+      <div className="glass elevated rounded-2xl p-3 flex items-center gap-2 text-sm text-fg-muted">
         <Loader2 size={15} className="animate-spin" /> Loading equipment…
       </div>
     );
@@ -73,7 +73,7 @@ export function PersonAssets({
   const held = data.held;
 
   return (
-    <details className="group rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden" open={open}>
+    <details className="group glass elevated rounded-2xl overflow-hidden" open={open}>
       <summary
         onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
         className="list-none cursor-pointer flex items-center gap-2 px-3 py-2.5 select-none"
