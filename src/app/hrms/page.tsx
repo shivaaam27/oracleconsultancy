@@ -1,8 +1,9 @@
-import { Package, Sparkles, Building2, Users, FileText, Laptop } from "lucide-react";
+import { Package, Sparkles, Building2, Users, FileText, Laptop, CalendarDays } from "lucide-react";
 import { RegistryCard, type RegistryStat } from "@/components/hrms/registry-card";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
 import { listAssets, assetMetrics } from "@/lib/assets";
 import { listVendors } from "@/lib/vendors";
+import { leaveMetrics } from "@/lib/leave";
 import { listAreas } from "@/lib/cleaning";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { sb } from "@/db/supabase";
@@ -28,6 +29,12 @@ export default async function HrmsHubPage() {
     sb.from("companies").select("*", { count: "exact", head: true }).eq("active", true),
     sb.from("people").select("*", { count: "exact", head: true }).eq("active", true),
   ]);
+  const lm = await leaveMetrics();
+  const leaveStats: RegistryStat[] = [
+    ...(lm.pending > 0 ? [{ label: `${lm.pending} pending`, tone: "warn" as const }] : []),
+    ...(lm.onLeaveToday > 0 ? [{ label: `${lm.onLeaveToday} on leave today` }] : []),
+    ...(lm.pending === 0 && lm.onLeaveToday === 0 ? [{ label: "all clear", tone: "success" as const }] : []),
+  ];
 
   const m = dashboardMetrics(items, purchases, issues);
   const am = assetMetrics(assets);
@@ -79,6 +86,14 @@ export default async function HrmsHubPage() {
           description="Company equipment (assign to people, return on offboarding) and the suppliers, contractors and landlords you rely on — with their contracts and renewals."
           icon={Laptop}
           stats={assetStats}
+        />
+        <RegistryCard
+          href="/hrms/leave"
+          abbr="Leave"
+          title="Leave & Attendance"
+          description="Staff leave requests and approvals, balances, the public-holiday calendar, and the daily attendance register."
+          icon={CalendarDays}
+          stats={leaveStats}
         />
         <RegistryCard
           href="/hrms/ocr"

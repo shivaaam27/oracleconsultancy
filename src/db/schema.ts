@@ -555,3 +555,65 @@ export const cleaningChecks = pgTable(
   },
   (t) => [uniqueIndex("cleaning_checks_day_area_idx").on(t.dayId, t.areaId)]
 );
+
+// HRMS — Leave & Attendance.
+// Leave types (Annual, Sick, …) with a default annual entitlement; balances
+// are DERIVED (entitlement − approved days this year), never stored.
+export const leaveTypes = pgTable("leave_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  color: text("color"),
+  paid: boolean("paid").notNull().default(true),
+  // Default annual entitlement in working days (0 = unlimited/uncapped, e.g. Unpaid).
+  defaultDays: integer("default_days").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+});
+
+// Public holidays — excluded from leave-day counts and shown on attendance.
+// companyId null = applies to all companies.
+export const publicHolidays = pgTable("public_holidays", {
+  id: serial("id").primaryKey(),
+  date: timestamp("date", { mode: "date", withTimezone: true }).notNull(),
+  name: text("name").notNull(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+});
+
+// Leave requests — the owner approves/rejects. `days` is working days (Mon–Sat
+// minus holidays), supports half-days.
+export const leaveRequests = pgTable("leave_requests", {
+  id: serial("id").primaryKey(),
+  personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+  leaveTypeId: integer("leave_type_id").notNull().references(() => leaveTypes.id, { onDelete: "restrict" }),
+  startDate: timestamp("start_date", { mode: "date", withTimezone: true }).notNull(),
+  endDate: timestamp("end_date", { mode: "date", withTimezone: true }).notNull(),
+  halfDay: boolean("half_day").notNull().default(false),
+  days: doublePrecision("days").notNull().default(0),
+  reason: text("reason"),
+  // Pending | Approved | Rejected | Cancelled.
+  status: text("status").notNull().default("Pending"),
+  decidedBy: text("decided_by"),
+  decidedAt: timestamp("decided_at", { mode: "date", withTimezone: true }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// Daily attendance register — one row per (person, date). Status:
+// Present | Absent | On leave | Holiday | Remote | Half-day | Sick.
+export const attendance = pgTable(
+  "attendance",
+  {
+    id: serial("id").primaryKey(),
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    date: timestamp("date", { mode: "date", withTimezone: true }).notNull(),
+    status: text("status").notNull().default("Present"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("attendance_person_date_idx").on(t.personId, t.date)]
+);

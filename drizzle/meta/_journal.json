@@ -176,6 +176,13 @@
       "when": 1780920122696,
       "tag": "0024_overjoyed_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1780921206628,
+      "tag": "0025_gorgeous_mesmero",
+      "breakpoints": true
     }
   ]
 }
