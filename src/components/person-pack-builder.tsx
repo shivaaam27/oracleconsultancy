@@ -318,82 +318,6 @@ function buildPersonPackMessage(
   return { subject, body };
 }
 
-function PackGuidance({
-  pack,
-  selection,
-  include,
-  switchPurpose,
-}: {
-  pack: PackResponse;
-  selection: PersonPackSectionSelection;
-  include: (key: PersonPackSectionKey) => void;
-  switchPurpose: (purpose: PersonPackPurpose) => void;
-}) {
-  const actionCount = selectedActionCount(pack, selection);
-  const available = [
-    !selection.openTasks && pack.counts.openTasks > 0
-      ? { key: "openTasks" as const, label: `Include ${plural(pack.counts.openTasks, "open task")}` }
-      : null,
-    !selection.personalTodos && pack.counts.personalTodos > 0
-      ? { key: "personalTodos" as const, label: `Include ${plural(pack.counts.personalTodos, "to-do", "to-dos")}` }
-      : null,
-    !selection.linkedDocuments && pack.counts.linkedDocuments > 0
-      ? { key: "linkedDocuments" as const, label: `Include ${plural(pack.counts.linkedDocuments, "document")}` }
-      : null,
-  ].filter(Boolean) as Array<{ key: PersonPackSectionKey; label: string }>;
-
-  if (actionCount > 0 && available.length === 0 && pack.counts.linkedDocuments > 0) return null;
-
-  return (
-    <div className="rounded-xl bg-bg-subtle/55 p-3 ring-1 ring-border/70">
-      <div className="flex items-start gap-2">
-        <ShieldCheck size={14} className="mt-0.5 shrink-0 text-accent" />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium text-fg">
-            {actionCount === 0 ? "This pack has no selected action items." : "Keep the pack focused."}
-          </div>
-          <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-            {actionCount === 0
-              ? "That is fine when you only want to share a clean record. Add sections below only if they help the message."
-              : "Only include the extra data the person actually needs to see."}
-          </p>
-          {(available.length > 0 || pack.counts.openTasks > 0 || pack.counts.linkedDocuments === 0) && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {available.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => include(item.key)}
-                  className="rounded-md bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
-                >
-                  {item.label}
-                </button>
-              ))}
-              {pack.counts.openTasks > 0 && !selection.openTasks && (
-                <button
-                  type="button"
-                  onClick={() => switchPurpose("task-reminder")}
-                  className="rounded-md bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
-                >
-                  Use Work Reminder
-                </button>
-              )}
-              {pack.counts.linkedDocuments === 0 && (
-                <a
-                  href={addPersonDocumentHref(pack.detail.person.id)}
-                  className="inline-flex items-center gap-1 rounded-md bg-bg-elev px-2 py-1 text-[11px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted"
-                >
-                  <Plus size={11} /> Add document
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function PackSnapshot({ pack, selection }: { pack: PackResponse; selection: PersonPackSectionSelection }) {
   const selectedActions = selectedActionCount(pack, selection);
   const selectedSections = sectionLabels.filter((section) => selection[section.key]).length;
@@ -529,12 +453,7 @@ function IncludeGroups({
   };
 
   return (
-    <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-[11px] text-accent">2</span>
-        Include
-      </div>
-      <div className="space-y-2">
+    <div className="space-y-2">
         {normalGroups.map(groupBlock)}
         {sensitiveGroups.map((group) => (
           <details key={group.title} className="group rounded-2xl bg-bg-subtle/45 ring-1 ring-border/70">
@@ -553,7 +472,6 @@ function IncludeGroups({
             </div>
           </details>
         ))}
-      </div>
     </div>
   );
 }
@@ -868,10 +786,6 @@ export function PersonPackBuilder({
     setSelection((current) => current ? { ...current, [key]: !current[key] } : current);
   }
 
-  function include(key: PersonPackSectionKey) {
-    setSelection((current) => current ? { ...current, [key]: true } : current);
-  }
-
   function openPdf() {
     if (!selection) return;
     const params = new URLSearchParams({
@@ -941,25 +855,23 @@ export function PersonPackBuilder({
             <div className="grid gap-4 p-4 lg:grid-cols-[330px_minmax(0,1fr)]">
               <div className="space-y-3">
                 <ReasonPicker purpose={purpose} setPurpose={setPurpose} />
-                {selection ? (
-                  <IncludeGroups selection={selection} toggle={toggle} />
-                ) : (
-                  <div className="rounded-2xl bg-bg-elev p-4 text-sm text-fg-muted ring-1 ring-border">
-                    Load a person pack to choose what to include.
-                  </div>
+                {selection && (
+                  <details className="group rounded-2xl bg-bg-elev ring-1 ring-border">
+                    <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-[11px] text-fg-muted">2</span>
+                      Customise sections
+                      <span className="ml-auto text-[11px] font-normal normal-case tracking-normal text-fg-subtle">
+                        optional · pre-filled for the reason
+                      </span>
+                    </summary>
+                    <div className="px-3 pb-3">
+                      <IncludeGroups selection={selection} toggle={toggle} />
+                    </div>
+                  </details>
                 )}
               </div>
 
               <div className="min-w-0 space-y-3">
-                <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft text-[11px] text-accent">3</span>
-                    Preview and draft
-                  </div>
-                  <p className="text-xs leading-relaxed text-fg-muted">
-                    This is recipient-safe by default. The PDF and message use only the sections selected on the left.
-                  </p>
-                </div>
               {loading && (
                 <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-fg-muted">
                   <Loader2 size={16} className="animate-spin" /> Preparing pack...
@@ -969,7 +881,6 @@ export function PersonPackBuilder({
               {!loading && pack && selection && (
                 <>
                   <PackSnapshot pack={pack} selection={selection} />
-                  <PackGuidance pack={pack} selection={selection} include={include} switchPurpose={setPurpose} />
                   <Preview pack={pack} selection={selection} />
                   {messagePreview && (
                     <DraftMessagePreview pack={pack} channel={channel} setChannel={setChannel} message={messagePreview} />

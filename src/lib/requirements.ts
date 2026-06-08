@@ -479,6 +479,63 @@ export async function buildPersonRequirementScores(): Promise<ComplianceScore[]>
 }
 
 /* ------------------------------------------------------------------ */
+/* Single-person score — for the Person Pack. Runs the live checklist  */
+/* (ensure + auto-link) so "Documents needed" reflects the real        */
+/* per-person requirements, then maps to a ComplianceScore.            */
+/* ------------------------------------------------------------------ */
+export async function getPersonRequirementScore(
+  personId: number,
+  ownerName: string
+): Promise<ComplianceScore | null> {
+  const checklist = await getPersonChecklist(personId);
+  if (!checklist) return null;
+
+  // Request list = anything outstanding (not yet received/verified/waived),
+  // mandatory or optional, so the draft covers every document still owed.
+  const gaps: ComplianceGap[] = checklist.items
+    .filter((it) => it.effectiveStatus === "missing" || it.effectiveStatus === "requested" || it.effectiveStatus === "expired")
+    .map((it) => ({
+      id: `req-${personId}-${it.label}`,
+      label: it.label,
+      categories: it.category ? [it.category] : [],
+      ownerType: "person",
+      appliesTo: "all",
+      weight: it.mandatory ? 1 : 0,
+      ownerId: personId,
+      ownerName,
+    }));
+
+  const documentIssues: ComplianceDocumentIssue[] = checklist.items
+    .filter((it) => it.documentId != null && (it.docStatus === "Expired" || it.docStatus === "Expiring"))
+    .map((it) => ({
+      id: it.documentId as number,
+      title: it.documentTitle ?? it.label,
+      category: it.category,
+      status: it.docStatus as "Expired" | "Expiring",
+      expiryLabel: it.expiryLabel,
+    }));
+
+  const expired = checklist.items.filter((it) => it.effectiveStatus === "expired").length;
+  const expiring = checklist.items.filter((it) => it.effectiveStatus === "expiring").length;
+
+  return {
+    ownerId: personId,
+    ownerName,
+    ownerType: "person",
+    score: checklist.score,
+    required: checklist.mandatoryTotal,
+    present: checklist.mandatoryVerified,
+    missing: gaps.length,
+    expired,
+    expiring,
+    monitoredDocuments: checklist.documents.length,
+    status: checklist.band,
+    gaps,
+    documentIssues,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Mutations (called from server actions)                             */
 /* ------------------------------------------------------------------ */
 async function patch(id: number, fields: Record<string, unknown>) {

@@ -1,9 +1,7 @@
 import { sb } from "@/db/supabase";
 import { isOpen } from "@/lib/derive";
-import {
-  buildPersonComplianceScores,
-  type ComplianceScore,
-} from "@/lib/compliance";
+import { type ComplianceScore } from "@/lib/compliance";
+import { getPersonRequirementScore } from "@/lib/requirements";
 import { deriveDocStatus, expiryLabel, listDocuments, type DocumentRow } from "@/lib/documents";
 import { getPersonDetail, type PersonDetail } from "@/lib/people-queries";
 import type { TaskRow } from "@/lib/queries";
@@ -266,10 +264,22 @@ export async function getPersonPack(
 
   if (!detail) return null;
 
-  const compliance = buildPersonComplianceScores(
-    [{ id: detail.person.id, name: detail.person.name, personType: detail.person.personType }],
-    documents
-  )[0];
+  const compliance =
+    (await getPersonRequirementScore(detail.person.id, detail.person.name)) ?? {
+      ownerId: detail.person.id,
+      ownerName: detail.person.name,
+      ownerType: "person" as const,
+      score: 100,
+      required: 0,
+      present: 0,
+      missing: 0,
+      expired: 0,
+      expiring: 0,
+      monitoredDocuments: 0,
+      status: "Good" as const,
+      gaps: [],
+      documentIssues: [],
+    };
   const docs = personDocuments(documents, companies, detail.person.id);
   const openTasks = detail.assignedTasks.filter((task) => isOpen(task.status));
 
