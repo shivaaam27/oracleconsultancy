@@ -24,7 +24,8 @@ All list/data pages are dynamic because operational data changes often.
 | `/hrms/assets` | `src/app/hrms/assets/page.tsx` | **Asset & Vendor Register** (V3): Assets/Vendors toggle. `src/lib/assets.ts` + `src/lib/vendors.ts`. |
 | `/hrms/leave` | `src/app/hrms/leave/page.tsx` | **Leave & Attendance** (V3): Overview/Requests/Setup; ELR-Act leave. `src/lib/leave.ts`. |
 | `/hrms/ocr` | `src/app/hrms/ocr/page.tsx` | **OCR** daily cleaning checklist (one shared register). `src/lib/cleaning*.ts`. |
-| `/hrms/org` | `src/app/hrms/org/page.tsx` | **Organogram** (V3): per-company reporting tree + company switcher. `src/lib/org-chart.ts` + `src/components/org-chart.tsx`. Also the Org tab on `/companies/[id]?tab=org`. |
+| `/hrms/org` | `src/app/hrms/org/page.tsx` | **Organogram** (V3): group overview → per-company reporting tree + company switcher. `src/lib/org-chart.ts` + `src/components/org-chart.tsx`. Also the Org tab on `/companies/[id]?tab=org`. |
+| `/system-map` | `src/app/system-map/page.tsx` | **System Map** (V3): navigable diagram of every area + its pages; config in `src/components/system-map.tsx` (`SYSTEM_MAP`). Doubles as a full index. In the HRMS launcher. |
 | `/meeting` | `src/app/meeting/page.tsx` | Mobile-tight Meeting Workspace: saved notes, AI minutes, clean notes, decisions, risks, follow-up draft, history search/filter, action extraction, linked tasks, voice polish, dictionary teaching. |
 | `/workbook` | `src/app/workbook/page.tsx` | Meetings / Notes / To-do. |
 | `/companies` | `src/app/companies/page.tsx` | Company list with KPIs. Reached via HRMS; smart `?from=task:CODE` breadcrumb. |

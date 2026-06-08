@@ -8,7 +8,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search, X,
   Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText, Laptop, CalendarDays,
-  ClipboardList, Network, type LucideIcon,
+  ClipboardList, Network, Map, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -70,6 +70,7 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/system-map", label: "System Map", icon: Map },
 ];
 
 function HrmsLauncher({ active }: { active: boolean }) {
