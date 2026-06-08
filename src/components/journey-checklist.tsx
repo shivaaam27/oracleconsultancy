@@ -6,7 +6,7 @@ import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, ChevronDown } from 
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
-import { JOURNEY_LABELS, type Journey, type JourneyKind } from "@/lib/onboarding";
+import { JOURNEY_LABELS, type Journey, type JourneyKind } from "@/lib/onboarding-shared";
 import { startJourneyAction, clearJourneyAction, toggleJourneyStepAction } from "@/app/people/onboarding-actions";
 
 function fmtDue(value: string | null): string | null {

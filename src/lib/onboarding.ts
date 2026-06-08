@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { normalizePersonType, type PersonType } from "@/lib/person-types";
+import { type Journey, type JourneyKind, type JourneyStep } from "@/lib/onboarding-shared";
 
 /* ------------------------------------------------------------------ */
 /* Onboarding & Offboarding journeys.                                  */
@@ -11,13 +12,11 @@ import { normalizePersonType, type PersonType } from "@/lib/person-types";
 /* but the drawer can group them and show progress. Document collection*/
 /* stays in the requirements checklist (Phase 2); equipment links to   */
 /* OECR until full asset assignment lands (Phase 5).                   */
+/*                                                                     */
+/* Client-safe types + labels live in lib/onboarding-shared.ts.        */
 /* ------------------------------------------------------------------ */
-export type JourneyKind = "onboarding" | "offboarding";
-
-export const JOURNEY_LABELS: Record<JourneyKind, string> = {
-  onboarding: "Onboarding",
-  offboarding: "Offboarding",
-};
+export type { Journey, JourneyKind, JourneyStep } from "@/lib/onboarding-shared";
+export { JOURNEY_LABELS } from "@/lib/onboarding-shared";
 
 type StepTemplate = {
   label: string;
@@ -63,22 +62,6 @@ function addDays(base: Date, days: number): Date {
   d.setUTCDate(d.getUTCDate() + days);
   return d;
 }
-
-export type JourneyStep = {
-  id: number;
-  label: string;
-  done: boolean;
-  dueAt: string | null;
-  sortOrder: number;
-};
-
-export type Journey = {
-  kind: JourneyKind;
-  steps: JourneyStep[];
-  total: number;
-  completed: number;
-  percent: number;
-};
 
 /**
  * Create a person's journey checklist if they don't already have one.
