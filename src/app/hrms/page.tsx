@@ -1,6 +1,7 @@
-import { Package, Sparkles, Building2, Users, FileText } from "lucide-react";
+import { Package, Sparkles, Building2, Users, FileText, Laptop } from "lucide-react";
 import { RegistryCard, type RegistryStat } from "@/components/hrms/registry-card";
 import { loadStock, dashboardMetrics } from "@/lib/stock";
+import { listAssets, assetMetrics } from "@/lib/assets";
 import { listAreas } from "@/lib/cleaning";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { sb } from "@/db/supabase";
@@ -13,17 +14,25 @@ export default async function HrmsHubPage() {
     { items, purchases, issues },
     areas,
     documents,
+    assets,
     { count: companyCount },
     { count: peopleCount },
   ] = await Promise.all([
     loadStock(),
     listAreas(),
     listDocuments(),
+    listAssets(),
     sb.from("companies").select("*", { count: "exact", head: true }).eq("active", true),
     sb.from("people").select("*", { count: "exact", head: true }).eq("active", true),
   ]);
 
   const m = dashboardMetrics(items, purchases, issues);
+  const am = assetMetrics(assets);
+  const assetStats: RegistryStat[] = [
+    { label: `${am.total} asset${am.total === 1 ? "" : "s"}` },
+    ...(am.assigned > 0 ? [{ label: `${am.assigned} assigned`, tone: "success" as const }] : []),
+    ...(am.maintenance > 0 ? [{ label: `${am.maintenance} in maintenance`, tone: "warn" as const }] : []),
+  ];
   const oecrStats: RegistryStat[] = [
     { label: `${m.totalItems} item${m.totalItems === 1 ? "" : "s"}` },
     ...(m.reorder > 0 ? [{ label: `${m.reorder} to reorder`, tone: "warn" as const }] : []),
@@ -57,6 +66,14 @@ export default async function HrmsHubPage() {
           description="Track office equipment and stationery stock — items, purchases in and issues out, with current stock and value worked out for you."
           icon={Package}
           stats={oecrStats}
+        />
+        <RegistryCard
+          href="/hrms/assets"
+          abbr="Assets"
+          title="Asset Register"
+          description="Durable company equipment — laptops, phones, vehicles, access cards. Assign to people, track who holds what, and return on offboarding."
+          icon={Laptop}
+          stats={assetStats}
         />
         <RegistryCard
           href="/hrms/ocr"

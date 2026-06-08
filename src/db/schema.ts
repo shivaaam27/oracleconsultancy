@@ -427,6 +427,45 @@ export const stockIssues = pgTable("stock_issues", {
   createdBy: text("created_by").notNull().default("web-ui"),
 });
 
+// HRMS — Asset Register. Durable, individually-tracked company assets (laptops,
+// phones, vehicles, access cards) — distinct from consumable OECR stock. Each
+// asset has a current holder (assignedToPersonId) and a status; the full
+// assign/return history lives in asset_assignments. Offboarding returns a
+// person's assets automatically.
+export const assets = pgTable("assets", {
+  id: serial("id").primaryKey(),
+  // Optional asset tag, e.g. "LAP-001". Nullable; unique when present.
+  tag: text("tag").unique(),
+  name: text("name").notNull(),
+  // Laptop | Phone | Vehicle | Access card | Furniture | Other.
+  category: text("category"),
+  serialNo: text("serial_no"),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  // in_store | assigned | maintenance | retired.
+  status: text("status").notNull().default("in_store"),
+  assignedToPersonId: integer("assigned_to_person_id").references(() => people.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at", { mode: "date", withTimezone: true }),
+  purchaseDate: timestamp("purchase_date", { mode: "date", withTimezone: true }),
+  purchaseCost: doublePrecision("purchase_cost"),
+  notes: text("notes"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// Assign/return ledger for assets. An open row (returnedAt IS NULL) = currently held.
+export const assetAssignments = pgTable("asset_assignments", {
+  id: serial("id").primaryKey(),
+  assetId: integer("asset_id").notNull().references(() => assets.id, { onDelete: "cascade" }),
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  assignedAt: timestamp("assigned_at", { mode: "date", withTimezone: true }).notNull(),
+  returnedAt: timestamp("returned_at", { mode: "date", withTimezone: true }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
 // HRMS — OCR (Office Cleaning Registry). Digital version of the paper daily
 // cleaning checklist: one shared "Oracle Office" register. The areas are the
 // "columns" of the sheet (editable); each day has one row; each area gets a

@@ -5,6 +5,7 @@ import { sb } from "@/db/supabase";
 import { normalizePersonType } from "@/lib/person-types";
 import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
+import { returnAssetsForPerson } from "@/lib/assets";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -207,9 +208,11 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   const { error } = await sb.from("people").update({ active: nextActive }).eq("id", id);
   if (error) return { ok: false, error: error.message };
 
-  // Archiving someone kicks off an offboarding checklist (idempotent).
+  // Archiving someone kicks off an offboarding checklist (idempotent) and
+  // returns any company assets they were holding back to the store.
   if (!nextActive) {
     try { await startJourney(id, "offboarding"); } catch {}
+    try { await returnAssetsForPerson(id); } catch {}
   }
 
   invalidate();
