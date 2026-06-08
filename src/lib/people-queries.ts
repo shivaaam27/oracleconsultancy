@@ -44,6 +44,8 @@ export type Person = {
   relatedPersonName: string | null;
   /** Additional company links beyond the primary company, with relationship labels. */
   associations: CompanyAssociation[];
+  /** Secondary / dotted-line managers this person ALSO reports to (organogram). */
+  secondaryManagers: Array<{ id: number; name: string | null }>;
 };
 
 export type PersonWorkload = {
@@ -124,6 +126,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     getAllTasks(),
   ]);
 
+  const { data: rawReporting } = await sb.from("reporting_lines").select("person_id,manager_id");
   const { data: rawDepartments } = await sb.from("departments").select("id,name");
   const dMap = new Map((rawDepartments ?? []).map((d) => [d.id as number, d.name as string]));
   const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
@@ -140,6 +143,15 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
       relationship: (a.relationship as string | null) ?? null,
     });
     assocByPerson.set(pid, list);
+  }
+
+  // Group secondary (dotted-line) managers by person.
+  const secMgrByPerson = new Map<number, Array<{ id: number; name: string | null }>>();
+  for (const r of rawReporting ?? []) {
+    const pid = r.person_id as number;
+    const list = secMgrByPerson.get(pid) ?? [];
+    list.push({ id: r.manager_id as number, name: nameById.get(r.manager_id as number) ?? null });
+    secMgrByPerson.set(pid, list);
   }
 
   const people: Person[] = (rawPeople ?? []).map((p) => ({
@@ -173,6 +185,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     relatedPersonId: (p.related_person_id as number | null) ?? null,
     relatedPersonName: p.related_person_id ? nameById.get(p.related_person_id as number) ?? null : null,
     associations: assocByPerson.get(p.id as number) ?? [],
+    secondaryManagers: secMgrByPerson.get(p.id as number) ?? [],
   }));
 
   return people.map((p) => ({
@@ -244,6 +257,16 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     relationship: (a.relationship as string | null) ?? null,
   }));
 
+  // Secondary (dotted-line) managers this person also reports to.
+  const { data: rawSecMgr } = await sb.from("reporting_lines").select("manager_id").eq("person_id", id);
+  const secMgrIds = (rawSecMgr ?? []).map((r) => r.manager_id as number);
+  const secMgrNames = new Map<number, string | null>();
+  if (secMgrIds.length) {
+    const { data: mgrRows } = await sb.from("people").select("id,name").in("id", secMgrIds);
+    for (const m of mgrRows ?? []) secMgrNames.set(m.id as number, (m.name as string | null) ?? null);
+  }
+  const secondaryManagers = secMgrIds.map((mid) => ({ id: mid, name: secMgrNames.get(mid) ?? null }));
+
   const person: Person = {
     id: rawPerson.id as number,
     name: rawPerson.name as string,
@@ -275,6 +298,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     relatedPersonId,
     relatedPersonName,
     associations,
+    secondaryManagers,
   };
 
   const assignedTasks = tasks.filter((t) => isInvolved(person, t));

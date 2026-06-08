@@ -85,6 +85,36 @@ async function syncAssociations(personId: number, assoc: Array<{ companyId: numb
   await sb.from("person_companies").insert(rows);
 }
 
+/** Parse the "also reports to" field (JSON array of manager ids) from the form. */
+function parseSecondaryManagers(formData: FormData): number[] {
+  const raw = s(formData, "secondaryManagers");
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((v) => (typeof v === "number" ? v : parseInt(String(v), 10)))
+      .filter((v) => Number.isInteger(v));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Replace a person's secondary (dotted-line) reporting links. The PRIMARY manager
+ * lives on people.manager_id and is excluded here to avoid a duplicate solid+dotted
+ * line; a person can't report to themselves either.
+ */
+async function syncReportingLines(personId: number, managerIds: number[], primaryManagerId: number | null) {
+  await sb.from("reporting_lines").delete().eq("person_id", personId);
+  const seen = new Set<number>();
+  const rows = managerIds
+    .filter((mid) => mid !== personId && mid !== primaryManagerId && !seen.has(mid) && (seen.add(mid), true))
+    .map((mid) => ({ person_id: personId, manager_id: mid }));
+  if (rows.length === 0) return;
+  await sb.from("reporting_lines").insert(rows);
+}
+
 function invalidate() {
   revalidatePath("/people");
   revalidatePath("/outbox");
@@ -307,6 +337,7 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   await syncAssociations(data.id as number, parseAssociations(formData));
+  await syncReportingLines(data.id as number, parseSecondaryManagers(formData), n(formData, "managerId"));
   const newType = normalizePersonType(personType(formData));
   // Auto-generate this person's document checklist for their type.
   try { await ensurePersonRequirements(data.id as number, newType); } catch {}
@@ -374,6 +405,7 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   if (error) return { ok: false, error: error.message };
 
   await syncAssociations(id, parseAssociations(formData));
+  await syncReportingLines(id, parseSecondaryManagers(formData), safeManagerId);
   // Reconcile the checklist to the (possibly changed) type.
   try { await ensurePersonRequirements(id, normalizePersonType(personType(formData))); } catch {}
 

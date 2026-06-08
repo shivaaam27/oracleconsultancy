@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { LayoutDashboard, Activity, CheckCircle2 } from "lucide-react";
+import { LayoutDashboard, Activity, CheckCircle2, Network } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type CompanyTab = "overview" | "completed" | "timeline";
+export type CompanyTab = "overview" | "completed" | "timeline" | "org";
 
-export const COMPANY_TABS: CompanyTab[] = ["overview", "completed", "timeline"];
+export const COMPANY_TABS: CompanyTab[] = ["overview", "completed", "timeline", "org"];
 
 export function parseCompanyTab(v: string | undefined): CompanyTab {
-  if (v === "timeline" || v === "completed") return v;
+  if (v === "timeline" || v === "completed" || v === "org") return v;
   return "overview";
 }
 
@@ -15,12 +15,14 @@ const ICONS: Record<CompanyTab, React.ComponentType<{ size?: number }>> = {
   overview: LayoutDashboard,
   completed: CheckCircle2,
   timeline: Activity,
+  org: Network,
 };
 
 const LABELS: Record<CompanyTab, string> = {
   overview: "Overview",
   completed: "Completed",
   timeline: "Timeline",
+  org: "Org",
 };
 
 export function CompanyTabs({

@@ -9,6 +9,9 @@ import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
+import { OrgChart } from "@/components/org-chart";
+import { getAllPeopleWithWorkload } from "@/lib/people-queries";
+import { buildCompanyTree } from "@/lib/org-chart";
 import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
 import { buildCompanyComplianceScores } from "@/lib/compliance";
 import { listDocuments } from "@/lib/documents";
@@ -148,6 +151,15 @@ export default async function CompanyPage({
 
       {tab === "timeline" && (
         <TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} />
+      )}
+
+      {tab === "org" && (
+        <OrgChart
+          companies={[{ id: companyId, name, accentColor: rows[0].companyAccent ?? null }]}
+          trees={{ [companyId]: buildCompanyTree(await getAllPeopleWithWorkload(), companyId) }}
+          initialCompanyId={companyId}
+          showSwitcher={false}
+        />
       )}
     </div>
   );

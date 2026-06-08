@@ -23,6 +23,7 @@ type Defaults = Partial<{
   department: string | null;
   startDate: string | null;
   managerId: number | null;
+  secondaryManagerIds: number[];
   notes: string | null;
   personType: string | null;
   relatedPersonId: number | null;
@@ -164,6 +165,13 @@ export function PersonForm({
   const updateAssociation = (i: number, patch: Partial<Association>) =>
     setAssociations((a) => a.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
 
+  // Secondary / dotted-line managers ("also reports to").
+  const [secondaryManagers, setSecondaryManagers] = useState<number[]>(defaults?.secondaryManagerIds ?? []);
+  const addSecondaryManager = (mid: number) =>
+    setSecondaryManagers((s) => (s.includes(mid) ? s : [...s, mid]));
+  const removeSecondaryManager = (mid: number) =>
+    setSecondaryManagers((s) => s.filter((x) => x !== mid));
+
   const action = (fd: FormData) => {
     setError(null);
     // Serialise associations (drop rows with no company selected) into a single JSON field.
@@ -171,6 +179,7 @@ export function PersonForm({
       .filter((a) => a.companyId !== "")
       .map((a) => ({ companyId: Number(a.companyId), relationship: a.relationship.trim() || null }));
     fd.set("associations", JSON.stringify(clean));
+    fd.set("secondaryManagers", JSON.stringify(secondaryManagers));
     start(async () => {
       const res =
         mode === "create"
@@ -375,6 +384,50 @@ export function PersonForm({
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+        </div>
+
+        {/* Also reports to — secondary / dotted-line managers (organogram) */}
+        <div>
+          <label className={labelCls}>Also reports to</label>
+          <select
+            value=""
+            className={inputCls}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (Number.isInteger(v)) addSecondaryManager(v);
+              e.target.value = "";
+            }}
+          >
+            <option value="">+ Add a dotted-line manager…</option>
+            {managerCandidates
+              .filter((p) => !secondaryManagers.includes(p.id))
+              .map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+          </select>
+          {secondaryManagers.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {secondaryManagers.map((mid) => {
+                const p = peopleList.find((x) => x.id === mid);
+                return (
+                  <span
+                    key={mid}
+                    className="inline-flex items-center gap-1 rounded-full bg-bg-muted/70 px-2.5 py-1 text-xs text-fg"
+                  >
+                    {p?.name ?? `#${mid}`}
+                    <button
+                      type="button"
+                      onClick={() => removeSecondaryManager(mid)}
+                      className="text-fg-subtle hover:text-fg"
+                      aria-label={`Remove ${p?.name ?? "manager"}`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Related person — e.g. an immigration agent ↔ the expat they're helping */}

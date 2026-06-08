@@ -36,6 +36,9 @@ Join table for secondary company associations.
 
 Used for external contacts such as brokers, agents, vendors, or specialists who serve companies without being employed there.
 
+### reporting_lines — migration 0030 (organogram)
+Secondary / "dotted-line" reporting for the org chart. `person_id, manager_id, note`; composite PK `(person_id, manager_id)`, both FK→people (cascade). The **primary** manager stays on `people.manager_id` (the solid line the tree is drawn from); this table holds *additional* managers a person also reports to (matrix/functional), rendered as dotted lines. Synced in `src/app/people/actions.ts` (`syncReportingLines`, excludes self + the primary manager); surfaced as `Person.secondaryManagers` in `src/lib/people-queries.ts`; edited via the "Also reports to" field on the person form.
+
 ### tasks
 `id, code, company_id, department_id, meeting_date, action_item, owner_id, created_date, deadline, status, priority, category, risk, escalation, comments, latest_update, last_updated_at, closed_date, archived`.
 

@@ -60,6 +60,7 @@ type DrawerPerson = {
   relatedPersonId: number | null;
   relatedPersonName: string | null;
   associations: Array<{ companyId: number; companyName: string | null; relationship: string | null }>;
+  secondaryManagers: Array<{ id: number; name: string | null }>;
 };
 
 type DrawerData = {
@@ -357,6 +358,7 @@ export function PersonDrawer() {
                     emergencyContactPhone: person.emergencyContactPhone,
                     probationEndDate: person.probationEndDate ? person.probationEndDate.slice(0, 10) : null,
                     managerId: person.managerId,
+                    secondaryManagerIds: person.secondaryManagers.map((m) => m.id),
                     notes: person.notes,
                     personType: person.personType,
                     relatedPersonId: person.relatedPersonId,

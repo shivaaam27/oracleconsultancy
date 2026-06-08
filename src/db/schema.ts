@@ -81,6 +81,21 @@ export const personCompanies = pgTable(
   (t) => [primaryKey({ columns: [t.personId, t.companyId] })]
 );
 
+// Organogram — secondary / "dotted-line" reporting. The PRIMARY manager stays on
+// people.manager_id (the solid line the org tree is drawn from). This table holds
+// any ADDITIONAL managers a person also reports to (matrix / functional reporting),
+// rendered as dotted lines. One row per extra (person → manager) pair.
+export const reportingLines = pgTable(
+  "reporting_lines",
+  {
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    managerId: integer("manager_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    // Optional label for the relationship, e.g. "Functional", "Project", "Dotted".
+    note: text("note"),
+  },
+  (t) => [primaryKey({ columns: [t.personId, t.managerId] })]
+);
+
 // HR compliance — requirement profiles (one per person type) and their items.
 // A profile lists the documents a person of that type must (or may) provide.
 // Per-person checklists are snapshotted into person_requirements.
