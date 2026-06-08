@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2, Save, UserPlus, AlertCircle, Plus, X } from "lucide-react";
-import { createPerson, updatePerson } from "@/app/people/actions";
+import { useRef, useState, useTransition } from "react";
+import { Loader2, Save, UserPlus, AlertCircle, Plus, X, Sparkles } from "lucide-react";
+import { createPerson, updatePerson, extractPersonFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 
@@ -68,6 +68,48 @@ export function PersonForm({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [pType, setPType] = useState<string>(normalizePersonType(defaults?.personType));
+  const formRef = useRef<HTMLFormElement>(null);
+  const [scanText, setScanText] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
+
+  // Auto-fill EMPTY fields from a pasted message (never overwrites what's set).
+  async function scanFill() {
+    if (!scanText.trim()) return;
+    setScanning(true);
+    setScanNote(null);
+    try {
+      const res = await extractPersonFields(scanText);
+      const form = formRef.current;
+      if (!form) return;
+      let filled = 0;
+      const setIfEmpty = (name: string, val?: string) => {
+        if (!val) return;
+        const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+        if (el && !el.value.trim()) { el.value = val; filled++; }
+      };
+      const f = res.fields;
+      setIfEmpty("name", f.name);
+      setIfEmpty("email", f.email);
+      setIfEmpty("phone", f.phone);
+      setIfEmpty("whatsapp", f.whatsapp);
+      setIfEmpty("role", f.role);
+      setIfEmpty("dateOfBirth", f.dateOfBirth);
+      setIfEmpty("nationality", f.nationality);
+      setIfEmpty("nationalId", f.nationalId);
+      setIfEmpty("passportNo", f.passportNo);
+      setIfEmpty("address", f.address);
+      setIfEmpty("emergencyContactName", f.emergencyContactName);
+      setIfEmpty("emergencyContactPhone", f.emergencyContactPhone);
+      setScanNote(
+        filled === 0
+          ? "Nothing new found, or those fields are already filled."
+          : `Filled ${filled} empty field${filled === 1 ? "" : "s"}${res.source === "rules" ? " (AI off — basic rules)" : ""}. Check before saving.`
+      );
+    } finally {
+      setScanning(false);
+    }
+  }
   const [associations, setAssociations] = useState<Association[]>(
     (defaults?.associations ?? []).map((a) => ({ companyId: a.companyId, relationship: a.relationship ?? "" }))
   );
@@ -112,7 +154,25 @@ export function PersonForm({
   const gap = compact ? "space-y-2.5" : "space-y-4";
 
   return (
-    <form action={action} className={gap}>
+    <form ref={formRef} action={action} className={gap}>
+      {/* Auto-fill from a pasted message (WhatsApp/email). Fills empty fields only. */}
+      <details className="rounded-xl border border-border bg-bg-subtle/40 p-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
+          <Sparkles size={14} className="text-accent" /> Auto-fill from a message
+          <span className="ml-auto text-[11px] font-normal text-fg-subtle">paste &amp; read</span>
+        </summary>
+        <div className="mt-2.5 space-y-2">
+          <textarea value={scanText} onChange={(e) => setScanText(e.target.value)} rows={3}
+            className={inputCls} placeholder="Paste what they sent — name, DOB, passport no, address, contacts…" />
+          <button type="button" onClick={scanFill} disabled={scanning || !scanText.trim()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
+            {scanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {scanning ? "Reading…" : "Read & fill empty fields"}
+          </button>
+          {scanNote && <p className="text-xs text-fg-muted">{scanNote}</p>}
+        </div>
+      </details>
+
       <div className="grid gap-2.5 grid-cols-2">
         {/* Name (required, full width) */}
         <div className="col-span-2">
