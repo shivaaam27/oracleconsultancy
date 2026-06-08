@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, FileText } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, FileText, ChevronDown } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -82,15 +82,19 @@ export function RequirementsChecklist({
   personId,
   onChanged,
   onNavigate,
+  onSummary,
 }: {
   personId: number;
   onChanged?: () => void;
   onNavigate?: () => void;
+  onSummary?: (s: { score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number }) => void;
 }) {
   const { toast } = useToast();
   const [data, setData] = useState<Checklist | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -105,6 +109,17 @@ export function RequirementsChecklist({
   }, [personId]);
 
   useEffect(() => load(), [load]);
+
+  // Report summary up + smart auto-open once (when something needs attention).
+  useEffect(() => {
+    if (!data) return;
+    onSummary?.({ score: data.score, band: data.band, missing: data.missingMandatory, total: data.mandatoryTotal });
+    if (!autoSet.current) {
+      autoSet.current = true;
+      if (data.missingMandatory > 0 || data.expiredMandatory > 0) setOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   function run(id: number, fn: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) {
     setBusyId(id);
@@ -131,8 +146,11 @@ export function RequirementsChecklist({
   const actionBtn = "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors";
 
   return (
-    <div className="rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden">
-      <div className="flex items-center gap-3 p-3 border-b border-border/70">
+    <details className="group rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden" open={open}>
+      <summary
+        onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+        className="list-none cursor-pointer flex items-center gap-3 p-3 select-none"
+      >
         <ScoreRing score={data.score} band={data.band} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -147,11 +165,11 @@ export function RequirementsChecklist({
                 (data.missingMandatory ? ` · ${data.missingMandatory} missing` : "") +
                 (data.expiredMandatory ? ` · ${data.expiredMandatory} expired` : "")}
           </p>
-          {data.profileName && <p className="mt-0.5 text-[11px] text-fg-subtle">{data.profileName} profile</p>}
         </div>
-      </div>
+        <ChevronDown size={16} className={cn("shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
+      </summary>
 
-      <div className="divide-y divide-border/50">
+      <div className="divide-y divide-border/50 border-t border-border/70">
         {data.items.map((item) => {
           const tone = REQUIREMENT_STATUS_TONE[item.effectiveStatus];
           const busy = busyId === item.id;
@@ -245,6 +263,6 @@ export function RequirementsChecklist({
           );
         })}
       </div>
-    </div>
+    </details>
   );
 }

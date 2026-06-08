@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Laptop, Loader2, RotateCcw, Plus, ExternalLink } from "lucide-react";
+import { Laptop, Loader2, RotateCcw, Plus, ChevronDown } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import type { AssetRow } from "@/lib/assets-shared";
@@ -14,15 +14,19 @@ export function PersonAssets({
   personId,
   onChanged,
   onNavigate,
+  onSummary,
 }: {
   personId: number;
   onChanged?: () => void;
   onNavigate?: () => void;
+  onSummary?: (s: { held: number }) => void;
 }) {
   const { toast } = useToast();
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -37,6 +41,13 @@ export function PersonAssets({
   }, [personId]);
 
   useEffect(() => load(), [load]);
+
+  useEffect(() => {
+    if (!data) return;
+    onSummary?.({ held: data.held.length });
+    if (!autoSet.current) { autoSet.current = true; if (data.held.length > 0) setOpen(true); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   function run(id: number, fn: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string) {
     setBusyId(id);
@@ -62,18 +73,20 @@ export function PersonAssets({
   const held = data.held;
 
   return (
-    <div className="rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/70">
+    <details className="group rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden" open={open}>
+      <summary
+        onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+        className="list-none cursor-pointer flex items-center gap-2 px-3 py-2.5 select-none"
+      >
         <Laptop size={15} className="text-accent" />
         <span className="text-sm font-semibold">Equipment held</span>
         <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular">
           {held.length}
         </span>
-        <Link href="/hrms/assets" onClick={onNavigate} className="ml-auto inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent">
-          <ExternalLink size={11} /> Register
-        </Link>
-      </div>
+        <ChevronDown size={16} className={cn("ml-auto shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
+      </summary>
 
+      <div className="border-t border-border/70">
       {held.length > 0 ? (
         <div className="divide-y divide-border/50">
           {held.map((a) => {
@@ -126,6 +139,7 @@ export function PersonAssets({
           </Link>
         )}
       </div>
-    </div>
+      </div>
+    </details>
   );
 }

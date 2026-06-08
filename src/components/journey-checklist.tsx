@@ -24,11 +24,13 @@ export function JourneyChecklist({
   kind,
   onChanged,
   onNavigate,
+  onSummary,
 }: {
   personId: number;
   kind: JourneyKind;
   onChanged?: () => void;
   onNavigate?: () => void;
+  onSummary?: (s: { completed: number; total: number }) => void;
 }) {
   const { toast } = useToast();
   const [data, setData] = useState<Journey | null>(null);
@@ -48,6 +50,11 @@ export function JourneyChecklist({
   }, [personId, kind]);
 
   useEffect(() => load(), [load]);
+
+  useEffect(() => {
+    if (data) onSummary?.({ completed: data.completed, total: data.total });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const title = JOURNEY_LABELS[kind];
   const Icon = kind === "onboarding" ? Rocket : LogOut;

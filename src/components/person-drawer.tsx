@@ -132,86 +132,6 @@ function parsePackPurpose(value: string | null): PersonPackPurpose | undefined {
   return isPersonPackPurpose(value) ? value : undefined;
 }
 
-function HRFileHealth({
-  data,
-  person,
-  close,
-  openPack = false,
-  initialPurpose,
-}: {
-  data: DrawerData;
-  person: DrawerPerson;
-  close: () => void;
-  openPack?: boolean;
-  initialPurpose?: PersonPackPurpose;
-}) {
-  const expired = data.documents.filter((d) => d.status === "Expired").length;
-  const expiring = data.documents.filter((d) => d.status === "Expiring").length;
-  const openWork = data.assignedTasks.filter((t) => t.status !== "Completed" && t.status !== "Closed").length;
-  const contactMissing = !person.email && !person.whatsapp && !person.phone;
-  const issueCount = expired + expiring + data.workload.overdue + (contactMissing ? 1 : 0);
-  const tone = issueCount > 0 ? "warn" : "success";
-  const headline =
-    issueCount > 0
-      ? `${issueCount} item${issueCount === 1 ? "" : "s"} need attention`
-      : "HR file looks clean";
-
-  return (
-    <div className="rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <FileText size={15} className={tone === "warn" ? "text-warn" : "text-success"} />
-            HR file health
-          </div>
-          <p className="mt-0.5 text-xs text-fg-muted">{headline}</p>
-        </div>
-        <Badge tone={tone}>{personTypeLabel(person.personType)}</Badge>
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {[
-          { label: "Doc issues", value: expired + expiring, tone: expired ? "text-danger" : expiring ? "text-warn" : "text-success" },
-          { label: "Docs", value: data.documents.length, tone: data.documents.length ? "text-info" : "text-fg-subtle" },
-          { label: "Open work", value: openWork, tone: data.workload.overdue ? "text-danger" : openWork ? "text-info" : "text-fg-subtle" },
-        ].map((item) => (
-          <div key={item.label} className="rounded-xl bg-bg-subtle/60 px-3 py-2 ring-1 ring-border/60">
-            <div className={cn("text-base font-semibold tabular", item.tone)}>{item.value}</div>
-            <div className="text-[11px] text-fg-muted">{item.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {(expired > 0 || expiring > 0 || data.workload.overdue > 0 || contactMissing) && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {expired > 0 && <Badge tone="danger">{expired} expired</Badge>}
-          {expiring > 0 && <Badge tone="warn">{expiring} expiring</Badge>}
-          {data.workload.overdue > 0 && <Badge tone="danger">{data.workload.overdue} overdue</Badge>}
-          {contactMissing && <Badge tone="danger">No contact</Badge>}
-        </div>
-      )}
-
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} initialPurpose={initialPurpose} />
-        <Link
-          href={`/documents?newdoc=1&person=${person.id}`}
-          onClick={close}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:border-accent hover:text-accent"
-        >
-          <FileText size={12} /> Add document
-        </Link>
-        <Link
-          href={`/documents?person=${person.id}`}
-          onClick={close}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs transition-colors hover:border-accent hover:text-accent"
-        >
-          <ExternalLink size={12} /> Open documents
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 /* -------------------------------------------------------------------------
  * PersonDrawer
  * ---------------------------------------------------------------------- */
@@ -232,6 +152,10 @@ export function PersonDrawer() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [snoozeInput, setSnoozeInput] = useState<string>("");
   const [actionPending, setActionPending] = useState(false);
+  // Headline summaries reported up by the section components, for the hero tiles.
+  const [compSum, setCompSum] = useState<{ score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number } | null>(null);
+  const [journeySum, setJourneySum] = useState<{ completed: number; total: number } | null>(null);
+  const [assetsSum, setAssetsSum] = useState<{ held: number } | null>(null);
   const { toast } = useToast();
 
   const close = useCallback(() => {
@@ -243,6 +167,7 @@ export function PersonDrawer() {
 
   useEffect(() => {
     if (!idStr) { setData(null); setMode("view"); setSnoozeInput(""); return; }
+    setCompSum(null); setJourneySum(null); setAssetsSum(null);
     setLoading(true);
     setError(false);
     fetch(`/api/people-detail?id=${encodeURIComponent(idStr)}`)
@@ -459,67 +384,80 @@ export function PersonDrawer() {
                   </div>
                 </div>
 
-                <HRFileHealth data={data} person={person} close={close} openPack={openPack} initialPurpose={packPurpose} />
+                {/* Quick actions — contact + the things you do most */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {person.email && (
+                    <a href={`mailto:${person.email}`} title={person.email}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
+                      <Mail size={13} /> Email
+                    </a>
+                  )}
+                  {person.whatsapp && (
+                    <a href={whatsappHref(person.whatsapp)} target="_blank" rel="noreferrer" title={person.whatsapp}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
+                      <MessageCircle size={13} /> WhatsApp
+                    </a>
+                  )}
+                  {person.phone && (
+                    <a href={`tel:${person.phone}`} title={person.phone}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
+                      <Phone size={13} /> Call
+                    </a>
+                  )}
+                  {data.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed") && (
+                    <button type="button"
+                      onClick={() => {
+                        const text = buildPersonReminder(person.name, data.assignedTasks);
+                        if (person.whatsapp) window.open(`${whatsappHref(person.whatsapp)}?text=${encodeURIComponent(text)}`, "_blank");
+                        else router.push("/outbox");
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+                      <Send size={13} /> Remind
+                    </button>
+                  )}
+                  <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} initialPurpose={packPurpose} />
+                  <Link href={`/documents?newdoc=1&person=${person.id}`} onClick={close}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
+                    <FileText size={13} /> Add doc
+                  </Link>
+                  {!person.email && !person.whatsapp && !person.phone && (
+                    <span className="text-xs text-danger inline-flex items-center gap-1"><AlertCircle size={11} /> No contact info</span>
+                  )}
+                </div>
 
-                <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} />
+                {/* At a glance — the key numbers, no scrolling */}
+                {(() => {
+                  const docIssues = data.documents.filter((d) => d.status === "Expired" || d.status === "Expiring").length;
+                  const tiles = [
+                    { label: "Compliance", value: compSum ? `${compSum.score}%` : "—", tone: compSum ? (compSum.band === "Risk" ? "text-danger" : compSum.band === "Watch" ? "text-warn" : "text-success") : "text-fg-subtle" },
+                    { label: person.active ? "Onboarding" : "Offboarding", value: journeySum && journeySum.total > 0 ? `${journeySum.completed}/${journeySum.total}` : "—", tone: journeySum && journeySum.total > 0 && journeySum.completed === journeySum.total ? "text-success" : "text-info" },
+                    { label: "Open tasks", value: data.workload.open, tone: data.workload.overdue ? "text-danger" : data.workload.open ? "text-info" : "text-fg-subtle" },
+                    { label: "Equipment", value: assetsSum ? assetsSum.held : "—", tone: assetsSum && assetsSum.held ? "text-info" : "text-fg-subtle" },
+                    { label: "Doc issues", value: docIssues, tone: docIssues ? "text-warn" : "text-success" },
+                  ];
+                  return (
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                      {tiles.map((t) => (
+                        <div key={t.label} className="rounded-xl bg-bg-elev ring-1 ring-border/70 px-2.5 py-2 text-center">
+                          <div className={cn("text-base font-semibold tabular leading-none", t.tone)}>{t.value}</div>
+                          <div className="mt-1 text-[10px] text-fg-muted leading-tight">{t.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} />
 
                 <JourneyChecklist
                   personId={person.id}
                   kind={person.active ? "onboarding" : "offboarding"}
                   onChanged={refresh}
                   onNavigate={close}
+                  onSummary={setJourneySum}
                 />
 
-                <PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} />
-
-                {/* Contact actions */}
-                <div className="flex flex-wrap gap-1.5">
-                  {person.email && (
-                    <a
-                      href={`mailto:${person.email}`}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border hover:border-accent hover:text-accent transition-colors"
-                    >
-                      <Mail size={12} /> Email
-                    </a>
-                  )}
-                  {person.whatsapp && (
-                    <a
-                      href={whatsappHref(person.whatsapp)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border hover:border-accent hover:text-accent transition-colors"
-                    >
-                      <MessageCircle size={12} /> WhatsApp
-                    </a>
-                  )}
-                  {person.phone && (
-                    <a
-                      href={`tel:${person.phone}`}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-border hover:border-accent hover:text-accent transition-colors"
-                    >
-                      <Phone size={12} /> Call
-                    </a>
-                  )}
-                  {!person.email && !person.whatsapp && !person.phone && (
-                    <span className="text-xs text-danger inline-flex items-center gap-1">
-                      <AlertCircle size={11} /> No contact info on file
-                    </span>
-                  )}
-                  {data && data.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed") && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const text = buildPersonReminder(person.name, data.assignedTasks);
-                        if (person.whatsapp) window.open(`${whatsappHref(person.whatsapp)}?text=${encodeURIComponent(text)}`, "_blank");
-                        else router.push("/outbox");
-                      }}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity"
-                    >
-                      <Send size={12} /> Remind
-                    </button>
-                  )}
-                </div>
-
+                <PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} />
 
                 {/* Compliance documents linked to this person */}
                 {data && data.documents.length > 0 && (() => {
@@ -681,70 +619,58 @@ export function PersonDrawer() {
                   ) : null;
                 })()}
 
-                {/* Action rail — Snooze + Archive */}
-                <div className="pt-3 border-t border-border space-y-3">
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-wider text-fg-muted mb-1.5 inline-flex items-center gap-1.5">
-                      <Clock size={11} /> Snooze reminders
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="date"
-                        value={snoozeInput}
-                        onChange={(e) => setSnoozeInput(e.target.value)}
-                        min={new Date().toISOString().slice(0, 10)}
-                        disabled={actionPending}
-                        className="flex-1 rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSnoozeSave}
-                        disabled={actionPending}
-                        className="px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50"
-                      >
-                        Save
-                      </button>
-                      {person.snoozedUntil && (
-                        <button
-                          type="button"
-                          onClick={() => { setSnoozeInput(""); }}
+                {/* Manage — snooze, archive, all tasks. Tucked away by default. */}
+                <details className="group glass elevated rounded-2xl overflow-hidden">
+                  <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+                    <Clock size={12} /> Manage
+                    <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="px-4 pb-4 space-y-3">
+                    <div>
+                      <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Snooze reminders</div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={snoozeInput}
+                          onChange={(e) => setSnoozeInput(e.target.value)}
+                          min={new Date().toISOString().slice(0, 10)}
                           disabled={actionPending}
-                          className="px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50"
-                        >
-                          Clear
-                        </button>
+                          className="flex-1 rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50"
+                        />
+                        <button type="button" onClick={handleSnoozeSave} disabled={actionPending}
+                          className="px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50">Save</button>
+                        {person.snoozedUntil && (
+                          <button type="button" onClick={() => { setSnoozeInput(""); }} disabled={actionPending}
+                            className="px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Clear</button>
+                        )}
+                      </div>
+                      {person.snoozedUntil && (
+                        <p className="text-[11px] text-fg-subtle mt-1">Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.</p>
                       )}
                     </div>
-                    {person.snoozedUntil && (
-                      <p className="text-[11px] text-fg-subtle mt-1">
-                        Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.
-                      </p>
-                    )}
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleArchiveToggle}
+                        disabled={actionPending}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 ${
+                          person.active
+                            ? "border-danger/40 text-danger hover:bg-danger/10"
+                            : "border-success/40 text-success hover:bg-success/10"
+                        }`}
+                      >
+                        {person.active ? <><Archive size={12} /> Archive person</> : <><RotateCcw size={12} /> Restore person</>}
+                      </button>
+                      <Link
+                        href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`}
+                        className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
+                      >
+                        <ExternalLink size={11} /> All tasks involving {person.name.split(" ")[0]}
+                      </Link>
+                    </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={handleArchiveToggle}
-                    disabled={actionPending}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50 ${
-                      person.active
-                        ? "border-danger/40 text-danger hover:bg-danger/10"
-                        : "border-success/40 text-success hover:bg-success/10"
-                    }`}
-                  >
-                    {person.active ? <><Archive size={12} /> Archive person</> : <><RotateCcw size={12} /> Restore person</>}
-                  </button>
-                </div>
-
-                {/* Footer link to view all their tasks */}
-                <div className="pt-2 border-t border-border">
-                  <Link
-                    href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`}
-                    className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors"
-                  >
-                    <ExternalLink size={11} /> View all tasks involving {person.name.split(" ")[0]}
-                  </Link>
-                </div>
+                </details>
               </div>
             )}
           </div>
