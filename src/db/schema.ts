@@ -18,6 +18,15 @@ export const companies = pgTable("companies", {
   logoPath: text("logo_path"),
   signatoryName: text("signatory_name"),
   signatoryTitle: text("signatory_title"),
+  // Designed letterhead support. mode: "typed" (compose from fields + logo) |
+  // "images" (header band + footer band) | "background" (full-page A4 image).
+  letterheadMode: text("letterhead_mode").notNull().default("typed"),
+  headerImagePath: text("header_image_path"),
+  footerImagePath: text("footer_image_path"),
+  backgroundImagePath: text("background_image_path"),
+  // Body margins (mm) reserved for the design so text never overlaps the bands.
+  contentTopMm: integer("content_top_mm"),
+  contentBottomMm: integer("content_bottom_mm"),
 });
 
 export const departments = pgTable("departments", {
