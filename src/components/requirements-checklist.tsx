@@ -52,7 +52,7 @@ type Checklist = {
 const SPECIFIC = new Set(["Contract", "Passport", "Permit", "Immigration", "Tax", "Certificate", "Insurance", "Registration", "Licence", "Lease"]);
 
 function addDocHref(personId: number, item: ChecklistItem) {
-  const p = new URLSearchParams({ newdoc: "1", person: String(personId), title: item.label });
+  const p = new URLSearchParams({ newdoc: "1", person: String(personId), title: item.label, from: `person:${personId}` });
   if (item.category && SPECIFIC.has(item.category)) p.set("category", item.category);
   return `/documents?${p.toString()}`;
 }

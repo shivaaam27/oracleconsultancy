@@ -1,4 +1,4 @@
-import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target } from "lucide-react";
+import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
@@ -36,18 +36,18 @@ export default async function DirectorBriefPage({
           <h1 className="text-xl font-semibold tracking-tight">{b.selectedCompanyName ?? "Oracle Consultancy"}</h1>
           <div className="text-xs text-fg-muted mt-0.5">{b.monthLabel} · as at {b.asAt}</div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap print-hidden">
           <BriefDraftButton period={b.period} companyId={b.selectedCompanyId} />
           <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
         </div>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2 print-hidden">
         <BriefPeriodFilter period={b.period} />
         <BriefCompanyFilter period={b.period} selectedCompanyId={b.selectedCompanyId} companies={b.companyOptions} />
       </div>
 
       {/* Headline line */}
-      <p className="text-sm text-fg-muted">
+      <p className="text-sm text-fg-muted print-hidden">
         <b className="text-success">{b.deliveredCount} delivered</b> in {b.monthLabel} ·{" "}
         <b className="text-fg">{b.openCount} open</b> ·{" "}
         <b className={b.overdueCount ? "text-danger" : "text-fg"}>{b.overdueCount} overdue</b> across{" "}
@@ -64,7 +64,7 @@ export default async function DirectorBriefPage({
         {b.compliance.length ? ` ${b.compliance.length} compan${b.compliance.length === 1 ? "y has" : "ies have"} compliance issues.` : ""}
       </p>
 
-      {/* Top-line stat cards */}
+      {/* Top-line stat cards — kept in the PDF as the visual overview. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Delivered" value={b.deliveredCount} tone="success" icon={<CircleCheck size={16} />} />
         <Stat label="Open" value={b.openCount} icon={<ListTodo size={16} />} />
@@ -73,7 +73,7 @@ export default async function DirectorBriefPage({
       </div>
 
       {/* Per-company strip */}
-      <div>
+      <div className="print-hidden">
         <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2">By company</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {b.companies.map((k) => (
@@ -94,7 +94,7 @@ export default async function DirectorBriefPage({
       </div>
 
       {/* Delivered in selected period */}
-      <div>
+      <div className="print-hidden">
         <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
           <CheckCircle2 size={13} className="text-success" /> Delivered in {b.monthLabel} · {b.deliveredCount}
         </div>
@@ -123,7 +123,7 @@ export default async function DirectorBriefPage({
       </div>
 
       {b.directorActions.length > 0 && (
-        <div>
+        <div className="print-hidden">
           <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <Target size={13} className="text-accent" /> Recommended director actions · {b.directorActions.length}
           </div>
@@ -143,7 +143,7 @@ export default async function DirectorBriefPage({
 
       {/* Watch-list */}
       {b.watch.length > 0 && (
-        <div>
+        <div className="print-hidden">
           <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <AlertTriangle size={13} className="text-warn" /> Needs attention · {b.watch.length}
           </div>
@@ -165,7 +165,7 @@ export default async function DirectorBriefPage({
 
       {/* Compliance watch */}
       {b.compliance.length > 0 && (
-        <div>
+        <div className="print-hidden">
           <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
             <ShieldCheck size={13} className="text-warn" /> Compliance watch · {b.compliance.length}
           </div>
@@ -185,13 +185,38 @@ export default async function DirectorBriefPage({
         </div>
       )}
 
-      {/* Detailed report — PDF only. Open work (incl. in progress) per company. */}
-      <div className="print-only report-section">
+      {/* People & HR — overview card (kept in the PDF); detailed tables below. */}
+      {b.hr.headcount > 0 && (
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+            <Users size={13} className="text-accent" /> People · {b.hr.headcount} active
+          </div>
+          <Card className="p-3.5 space-y-3">
+            <div className="flex items-center gap-3.5 text-sm flex-wrap">
+              <span className="tabular"><b>{b.hr.headcount}</b> <span className="text-fg-subtle text-xs">active</span></span>
+              {b.hr.joiners ? <span className="tabular"><b className="text-success">{b.hr.joiners}</b> <span className="text-fg-subtle text-xs">joined</span></span> : null}
+              {b.hr.onLeaveToday ? <span className="tabular"><b className="text-info">{b.hr.onLeaveToday}</b> <span className="text-fg-subtle text-xs">on leave</span></span> : null}
+              {b.hr.pendingLeave.length ? <span className="tabular"><b className="text-warn">{b.hr.pendingLeave.length}</b> <span className="text-fg-subtle text-xs">leave to approve</span></span> : null}
+              {b.hr.belowFullCount ? <span className="tabular"><b className={b.hr.belowFullCount ? "text-warn" : ""}>{b.hr.belowFullCount}</b> <span className="text-fg-subtle text-xs">below full compliance</span></span> : null}
+              {b.hr.expiringDocs.length ? <span className="tabular"><b className="text-danger">{b.hr.expiringDocs.length}</b> <span className="text-fg-subtle text-xs">docs expiring</span></span> : null}
+            </div>
+            {b.hr.probationEnding.length > 0 && (
+              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
+                Probation ending: {b.hr.probationEnding.slice(0, 4).map((p) => `${p.name} (${fmtDay(p.endDate)})`).join(" · ")}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* Detailed report — PDF only. Tasks first, then compliance, then people. */}
+      <div className="print-only report-body">
+        {/* 1 — Recommended director actions */}
         {b.directorActions.length > 0 && (
           <>
             <h2 className="text-base font-semibold mb-1 report-h2">Recommended director actions</h2>
             <p className="text-xs text-fg-muted mb-3">Live recommended follow-up points from task risk and document compliance.</p>
-            <table className="report-table mb-4">
+            <table className="report-table mb-5">
               <thead>
                 <tr>
                   <th style={{ width: "15%" }}>Type</th>
@@ -213,11 +238,79 @@ export default async function DirectorBriefPage({
             </table>
           </>
         )}
-        {b.compliance.length > 0 && (
+
+        {/* 2 — Delivered this period */}
+        {b.delivered.length > 0 && (
           <>
-            <h2 className="text-base font-semibold mb-1 report-h2">Compliance watch</h2>
-            <p className="text-xs text-fg-muted mb-3">Live document compliance issues as at {b.asAt}.</p>
-            <table className="report-table mb-4">
+            <h2 className="text-base font-semibold mb-1 report-h2">Delivered in {b.monthLabel}</h2>
+            <p className="text-xs text-fg-muted mb-3">{b.deliveredCount} item{b.deliveredCount === 1 ? "" : "s"} completed or closed in the period.</p>
+            <table className="report-table mb-5">
+              <thead>
+                <tr>
+                  <th style={{ width: "24%" }}>Company</th>
+                  <th>Task</th>
+                  <th style={{ width: "14%" }}>Status</th>
+                  <th style={{ width: "14%" }}>Closed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {b.delivered.flatMap((g) => g.items.map((t) => (
+                  <tr key={t.id}>
+                    <td>{g.company}</td>
+                    <td>{t.actionItem}</td>
+                    <td>{t.status}</td>
+                    <td>{fmtDay(t.closedDate)}</td>
+                  </tr>
+                )))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* 3 — Open work by company */}
+        <div className="report-section">
+          <h2 className="text-base font-semibold mb-1 report-h2">Open work by company</h2>
+          <p className="text-xs text-fg-muted mb-3">All open items, including those in progress, as at {b.asAt}.</p>
+          {b.companies.filter((c) => c.tasks.length > 0).map((c) => (
+            <div key={c.id} className="report-company mb-4">
+              <div className="report-company-head">
+                <span className="report-dot" style={{ backgroundColor: c.accent || "hsl(var(--accent))" }} />
+                {c.name} — {c.open} open · {c.inProgress} in progress · {c.overdue} overdue
+              </div>
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: "34%" }}>Task</th>
+                    <th style={{ width: "14%" }}>Owner</th>
+                    <th style={{ width: "10%" }}>Priority</th>
+                    <th style={{ width: "12%" }}>Deadline</th>
+                    <th style={{ width: "12%" }}>Status</th>
+                    <th>Latest update</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {c.tasks.map((t) => (
+                    <tr key={t.id}>
+                      <td>{t.actionItem}</td>
+                      <td>{t.owner}</td>
+                      <td>{t.priority}</td>
+                      <td>{t.overdue ? "overdue" : t.deadline ? fmtDay(t.deadline) : "—"}</td>
+                      <td>{t.status}</td>
+                      <td>{t.latestUpdate ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+
+        {/* 4 — Company compliance */}
+        {b.compliance.length > 0 && (
+          <div className="report-section">
+            <h2 className="text-base font-semibold mb-1 report-h2">Company compliance watch</h2>
+            <p className="text-xs text-fg-muted mb-3">Document compliance issues by company as at {b.asAt}.</p>
+            <table className="report-table mb-5">
               <thead>
                 <tr>
                   <th style={{ width: "22%" }}>Company</th>
@@ -241,42 +334,87 @@ export default async function DirectorBriefPage({
                 ))}
               </tbody>
             </table>
-          </>
-        )}
-        <h2 className="text-base font-semibold mb-1 report-h2">Open work by company</h2>
-        <p className="text-xs text-fg-muted mb-3">All open items, including those in progress, as at {b.asAt}.</p>
-        {b.companies.filter((c) => c.tasks.length > 0).map((c) => (
-          <div key={c.id} className="report-company mb-4">
-            <div className="report-company-head">
-              <span className="report-dot" style={{ backgroundColor: c.accent || "hsl(var(--accent))" }} />
-              {c.name} — {c.open} open · {c.inProgress} in progress · {c.overdue} overdue
-            </div>
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th style={{ width: "34%" }}>Task</th>
-                  <th style={{ width: "14%" }}>Owner</th>
-                  <th style={{ width: "10%" }}>Priority</th>
-                  <th style={{ width: "12%" }}>Deadline</th>
-                  <th style={{ width: "12%" }}>Status</th>
-                  <th>Latest update</th>
-                </tr>
-              </thead>
-              <tbody>
-                {c.tasks.map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.actionItem}</td>
-                    <td>{t.owner}</td>
-                    <td>{t.priority}</td>
-                    <td>{t.overdue ? "overdue" : t.deadline ? fmtDay(t.deadline) : "—"}</td>
-                    <td>{t.status}</td>
-                    <td>{t.latestUpdate ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
-        ))}
+        )}
+
+        {/* 5 — People & HR */}
+        {b.hr.headcount > 0 && (
+          <div className="report-section">
+            <h2 className="text-base font-semibold mb-1 report-h2">People &amp; HR</h2>
+            <p className="text-xs text-fg-muted mb-3">
+              {b.hr.headcount} active{b.hr.joiners ? ` · ${b.hr.joiners} joined this period` : ""}
+              {b.hr.onLeaveToday ? ` · ${b.hr.onLeaveToday} on leave today` : ""}
+              {b.hr.pendingLeave.length ? ` · ${b.hr.pendingLeave.length} leave request${b.hr.pendingLeave.length === 1 ? "" : "s"} to approve` : ""}, as at {b.asAt}.
+            </p>
+
+            {b.hr.byCompany.length > 0 && (
+              <table className="report-table mb-5">
+                <thead><tr><th>Company</th><th style={{ width: "18%" }}>Headcount</th><th>By type</th></tr></thead>
+                <tbody>
+                  {b.hr.byCompany.map((c) => (
+                    <tr key={c.name}><td>{c.name}</td><td>{c.count}</td><td>{b.hr.byType.map((t) => `${t.label}: ${t.count}`).join(" · ")}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {b.hr.compliancePeople.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold mb-1 report-h3">Staff below full document compliance · {b.hr.belowFullCount}</h3>
+                <table className="report-table mb-5">
+                  <thead><tr><th>Person</th><th style={{ width: "16%" }}>Score</th><th style={{ width: "20%" }}>Missing</th></tr></thead>
+                  <tbody>
+                    {b.hr.compliancePeople.map((p) => (
+                      <tr key={p.name}><td>{p.name}</td><td>{p.score}%</td><td>{p.missing || "—"}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {b.hr.expiringDocs.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold mb-1 report-h3">Staff documents expiring / expired</h3>
+                <table className="report-table mb-5">
+                  <thead><tr><th style={{ width: "26%" }}>Person</th><th>Document</th><th style={{ width: "14%" }}>Status</th><th style={{ width: "18%" }}>Expiry</th></tr></thead>
+                  <tbody>
+                    {b.hr.expiringDocs.map((d, i) => (
+                      <tr key={`${d.person}-${i}`}><td>{d.person}</td><td>{d.title}</td><td>{d.status}</td><td>{d.expiryLabel ?? "—"}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {b.hr.pendingLeave.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold mb-1 report-h3">Leave requests to approve</h3>
+                <table className="report-table mb-5">
+                  <thead><tr><th style={{ width: "26%" }}>Person</th><th>Type</th><th style={{ width: "10%" }}>Days</th><th style={{ width: "16%" }}>From</th><th style={{ width: "16%" }}>To</th></tr></thead>
+                  <tbody>
+                    {b.hr.pendingLeave.map((l, i) => (
+                      <tr key={`${l.name}-${i}`}><td>{l.name}</td><td>{l.type}</td><td>{l.days}</td><td>{l.start}</td><td>{l.end}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {b.hr.probationEnding.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold mb-1 report-h3">Probation periods ending soon</h3>
+                <table className="report-table">
+                  <thead><tr><th style={{ width: "34%" }}>Person</th><th>Company</th><th style={{ width: "20%" }}>Probation ends</th></tr></thead>
+                  <tbody>
+                    {b.hr.probationEnding.map((p, i) => (
+                      <tr key={`${p.name}-${i}`}><td>{p.name}</td><td>{p.companyName ?? "—"}</td><td>{fmtDay(p.endDate)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

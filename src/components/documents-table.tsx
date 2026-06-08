@@ -57,6 +57,9 @@ export function DocumentsTable({
   const [prefillCategory, setPrefillCategory] = useState<string | null>(null);
   const [prefillTitle, setPrefillTitle] = useState<string | undefined>(undefined);
   const [prefillVendorId, setPrefillVendorId] = useState<number | null>(null);
+  // Where to go back to after the create dialog closes (e.g. the person drawer
+  // we launched "Add doc" from), so the flow doesn't dump you on the table.
+  const [returnTo, setReturnTo] = useState<string | null>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -78,6 +81,13 @@ export function DocumentsTable({
       if (title) setPrefillTitle(title);
       const vendor = searchParams.get("vendor");
       if (vendor && /^\d+$/.test(vendor)) setPrefillVendorId(parseInt(vendor, 10));
+      // Remember where we came from so cancel/save returns there (e.g.
+      // from=person:42 → /people?person=42, from=company:3 → /companies/3).
+      const from = searchParams.get("from");
+      if (from) {
+        const m = /^(person|company):(\d+)$/.exec(from);
+        if (m) setReturnTo(m[1] === "person" ? `/people?person=${m[2]}` : `/companies/${m[2]}`);
+      }
       setCreateOpen(true);
       router.replace(pathname, { scroll: false });
     }
@@ -135,6 +145,18 @@ export function DocumentsTable({
       toast(res.ok ? (archived ? "Document archived" : "Document restored") : res.error, { tone: res.ok ? "success" : "warn" });
       setPeek(null);
     });
+  }
+
+  // Reset the create dialog's prefill state, and return to the launching
+  // page (person drawer / company) when we arrived via a ?from= link.
+  function closeCreate() {
+    setPrefillText(undefined);
+    setPrefillPersonId(null);
+    setPrefillCompanyId(null);
+    setPrefillCategory(null);
+    setPrefillTitle(undefined);
+    setPrefillVendorId(null);
+    if (returnTo) { const to = returnTo; setReturnTo(null); router.push(to); }
   }
 
   const filtered = useMemo(() => {
@@ -374,11 +396,11 @@ export function DocumentsTable({
         onDone={() => router.refresh()}
       />
 
-      <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) { setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); setPrefillVendorId(null); } }} title="Add a document">
+      <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) closeCreate(); }} title="Add a document">
         <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}
           initialPersonId={prefillPersonId} initialCompanyId={prefillCompanyId} initialCategory={prefillCategory} initialTitle={prefillTitle} initialVendorId={prefillVendorId}
-          onCancel={() => { setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); setPrefillVendorId(null); }}
-          onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); setPrefillText(undefined); setPrefillPersonId(null); setPrefillCompanyId(null); setPrefillCategory(null); setPrefillTitle(undefined); setPrefillVendorId(null); } }} />
+          onCancel={() => { setCreateOpen(false); closeCreate(); }}
+          onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setCreateOpen(false); closeCreate(); } }} />
       </DocDialog>
 
       {/* Edit dialog */}

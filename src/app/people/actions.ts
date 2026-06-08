@@ -110,6 +110,12 @@ export type PersonProfileFields = {
   address?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  // HR / company-relationship fields (V3 unified intake).
+  startDate?: string; // YYYY-MM-DD — join / start date
+  probationEndDate?: string; // YYYY-MM-DD
+  department?: string;
+  supervisorName?: string; // resolved to manager_id by name when enriching
+  companyName?: string; // resolved to company_id by name when enriching
 };
 
 function str120(v: unknown, max = 120): string | undefined {
@@ -131,6 +137,12 @@ function rulePersonFields(text: string): PersonProfileFields {
   if (nida) f.nationalId = nida[1];
   const dob = text.match(/(?:d\.?o\.?b\.?|date of birth|born)[:\s]*(\d{4}-\d{2}-\d{2})/i);
   if (dob) f.dateOfBirth = dob[1];
+  const start = text.match(/(?:start(?:ing)?\s*date|join(?:ing|ed)?\s*date|date of joining|commence\w*)[:\s]*(\d{4}-\d{2}-\d{2})/i);
+  if (start) f.startDate = start[1];
+  const prob = text.match(/probation[^:\n]*(?:end|until|ends?)?[:\s]*(\d{4}-\d{2}-\d{2})/i);
+  if (prob) f.probationEndDate = prob[1];
+  const dept = text.match(/(?:department|dept)[:\s]*([A-Za-z][A-Za-z &/-]{1,40})/i);
+  if (dept) f.department = dept[1].trim();
   return f;
 }
 
@@ -155,6 +167,11 @@ export async function extractPersonFields(
 - address: residential / physical address
 - emergencyContactName
 - emergencyContactPhone
+- startDate: their employment start / joining date, YYYY-MM-DD
+- probationEndDate: when their probation ends, YYYY-MM-DD
+- department: the department or team they work in
+- supervisorName: the name of their manager / supervisor / reporting line
+- companyName: the company / employer they belong to
 Resolve worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.
 
 MESSAGE:
@@ -192,9 +209,16 @@ ${trimmed.slice(0, 6000)}`;
       address: str120(parsed.address, 300),
       emergencyContactName: str120(parsed.emergencyContactName),
       emergencyContactPhone: str120(parsed.emergencyContactPhone, 40),
+      department: str120(parsed.department, 60),
+      supervisorName: str120(parsed.supervisorName),
+      companyName: str120(parsed.companyName),
     };
     const dob = str120(parsed.dateOfBirth, 10);
     if (dob && /^\d{4}-\d{2}-\d{2}$/.test(dob)) f.dateOfBirth = dob;
+    const sd = str120(parsed.startDate, 10);
+    if (sd && /^\d{4}-\d{2}-\d{2}$/.test(sd)) f.startDate = sd;
+    const ped = str120(parsed.probationEndDate, 10);
+    if (ped && /^\d{4}-\d{2}-\d{2}$/.test(ped)) f.probationEndDate = ped;
     // Fill any obvious gaps from the rule extractor.
     const ruled = rulePersonFields(trimmed);
     const merged = { ...ruled, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined)) };
@@ -322,6 +346,99 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
 
   invalidate();
   return { ok: true, id };
+}
+
+/* ----------------------------------------------------------------------
+ * Enrich an existing person's profile from extracted fields — fills BLANKS
+ * ONLY (never overwrites a value already on record). Used by the unified
+ * intake flow (document upload / inbox) to top up a person's HR profile.
+ * Returns the list of human field labels that were actually filled.
+ * ---------------------------------------------------------------------- */
+export async function enrichPersonProfile(
+  personId: number,
+  fields: PersonProfileFields
+): Promise<{ ok: boolean; filled: string[]; error?: string }> {
+  if (!Number.isFinite(personId)) return { ok: false, filled: [], error: "Invalid person." };
+  const { data: current, error: readErr } = await sb
+    .from("people")
+    .select(
+      "email,phone,whatsapp,role,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,start_date,probation_end_date,department_id,manager_id,company_id"
+    )
+    .eq("id", personId)
+    .maybeSingle();
+  if (readErr) return { ok: false, filled: [], error: readErr.message };
+  if (!current) return { ok: false, filled: [], error: "Person not found." };
+
+  const update: Record<string, unknown> = {};
+  const filled: string[] = [];
+  const isEmpty = (v: unknown) => v == null || (typeof v === "string" && v.trim() === "");
+
+  // Simple value columns: only set when the value is present and the column is blank.
+  const map: Array<[col: string, val: string | undefined, label: string, date?: boolean]> = [
+    ["email", fields.email, "Email"],
+    ["phone", fields.phone, "Phone"],
+    ["whatsapp", fields.whatsapp, "WhatsApp"],
+    ["role", fields.role, "Role"],
+    ["date_of_birth", fields.dateOfBirth, "Date of birth", true],
+    ["nationality", fields.nationality, "Nationality"],
+    ["national_id", fields.nationalId, "National ID"],
+    ["passport_no", fields.passportNo, "Passport no."],
+    ["address", fields.address, "Address"],
+    ["emergency_contact_name", fields.emergencyContactName, "Emergency contact"],
+    ["emergency_contact_phone", fields.emergencyContactPhone, "Emergency phone"],
+    ["start_date", fields.startDate, "Start date", true],
+    ["probation_end_date", fields.probationEndDate, "Probation end", true],
+  ];
+  for (const [col, val, label, date] of map) {
+    if (!val || !isEmpty((current as Record<string, unknown>)[col])) continue;
+    if (date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) continue;
+      const d = new Date(`${val}T00:00:00Z`);
+      if (Number.isNaN(d.getTime())) continue;
+      update[col] = d.toISOString();
+    } else {
+      update[col] = val;
+    }
+    filled.push(label);
+  }
+
+  // Department — resolve by name (create if new), only when currently unset.
+  if (fields.department && isEmpty(current.department_id)) {
+    const name = fields.department.trim();
+    const { data: existing } = await sb.from("departments").select("id").eq("name", name).maybeSingle();
+    let deptId = (existing?.id as number | undefined) ?? null;
+    if (!deptId) {
+      const { data: created } = await sb.from("departments").insert({ name }).select("id").single();
+      deptId = (created?.id as number | undefined) ?? null;
+    }
+    if (deptId) { update.department_id = deptId; filled.push("Department"); }
+  }
+
+  // Supervisor / manager — match an existing person by name (never create).
+  if (fields.supervisorName && isEmpty(current.manager_id)) {
+    const { data: mgr } = await sb
+      .from("people")
+      .select("id")
+      .ilike("name", fields.supervisorName.trim())
+      .neq("id", personId)
+      .maybeSingle();
+    if (mgr?.id) { update.manager_id = mgr.id as number; filled.push("Manager"); }
+  }
+
+  // Company — match an existing company by name (never create).
+  if (fields.companyName && isEmpty(current.company_id)) {
+    const { data: co } = await sb.from("companies").select("id").ilike("name", fields.companyName.trim()).maybeSingle();
+    if (co?.id) { update.company_id = co.id as number; filled.push("Company"); }
+  }
+
+  if (filled.length === 0) return { ok: true, filled: [] };
+
+  const { error } = await sb.from("people").update(update).eq("id", personId);
+  if (error) return { ok: false, filled: [], error: error.message };
+
+  // Keep the document checklist in sync if the type-relevant data changed.
+  invalidate();
+  return { ok: true, filled };
 }
 
 /* ----------------------------------------------------------------------

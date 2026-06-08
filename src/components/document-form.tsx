@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
 import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findOwnerDocuments, archiveDocumentAction, type ExtractedFields, type OwnerDocMatch } from "@/app/documents/actions";
-import { createPerson } from "@/app/people/actions";
+import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
 import { Segmented } from "@/components/macos";
 import { cn } from "@/lib/cn";
@@ -115,6 +115,48 @@ export function DocumentForm({
   const [dupDocs, setDupDocs] = useState<OwnerDocMatch[]>([]);
   const [supersedeId, setSupersedeId] = useState<number | null>(null);
 
+  // Person profile enrichment (unified intake): profile details read from the
+  // document, offered as a one-tap "update {name}'s profile" (fill-blanks-only).
+  const [personProfile, setPersonProfile] = useState<PersonProfileFields | null>(null);
+  const [enriching, setEnriching] = useState(false);
+  const [enrichNote, setEnrichNote] = useState<string | null>(null);
+
+  // Human labels for the profile fields we found, for the review banner.
+  const PROFILE_LABELS: Record<keyof PersonProfileFields, string> = {
+    name: "Name", email: "Email", phone: "Phone", whatsapp: "WhatsApp", role: "Role",
+    dateOfBirth: "Date of birth", nationality: "Nationality", nationalId: "National ID",
+    passportNo: "Passport no.", address: "Address", emergencyContactName: "Emergency contact",
+    emergencyContactPhone: "Emergency phone", startDate: "Start date", probationEndDate: "Probation end",
+    department: "Department", supervisorName: "Manager", companyName: "Company",
+  };
+  function profileSummary(p: PersonProfileFields): string {
+    return (Object.keys(p) as Array<keyof PersonProfileFields>)
+      .filter((k) => p[k]).map((k) => PROFILE_LABELS[k]).join(", ");
+  }
+
+  function selectedPersonId(): number | null {
+    const v = (formRef.current?.elements.namedItem("personId") as HTMLSelectElement | null)?.value;
+    const n = parseInt(v || "", 10);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  async function applyProfile() {
+    const pid = selectedPersonId();
+    if (!pid || !personProfile) return;
+    setEnriching(true);
+    try {
+      const res = await enrichPersonProfile(pid, personProfile);
+      if (res.ok) {
+        setEnrichNote(res.filled.length ? `Updated ${res.filled.length} profile field${res.filled.length === 1 ? "" : "s"}: ${res.filled.join(", ")}.` : "Profile already had those details — nothing changed.");
+        setPersonProfile(null);
+      } else {
+        setEnrichNote(res.error ?? "Couldn't update the profile.");
+      }
+    } finally {
+      setEnriching(false);
+    }
+  }
+
   async function recheckDup() {
     const form = formRef.current;
     if (!form || mode !== "create") return;
@@ -177,6 +219,12 @@ export function DocumentForm({
           if (!existing.includes(f.notes)) el.value = existing ? `${existing}\n${f.notes}` : f.notes;
         }
       }
+    }
+    // Stash any person profile details the document revealed, for the
+    // "also update {name}'s profile" review banner (only when a person owner).
+    if (f.person && Object.keys(f.person).length) {
+      setPersonProfile(f.person);
+      setEnrichNote(null);
     }
     void recheckDup();
     return [f.title, f.category, f.docType, f.issuer, f.referenceNo, f.issueDate, f.expiryDate, f.companyId, f.personId, f.notes]
@@ -432,6 +480,31 @@ export function DocumentForm({
           )}
         </div>
         {ownerMode === "company" && <input type="hidden" name="personId" value="" />}
+
+        {/* Unified intake: profile details found in the document → offer to fill
+            the person's blank profile fields (always reviewed, never overwrites). */}
+        {ownerMode !== "company" && personProfile && (
+          <div className="col-span-2 rounded-lg bg-accent-soft/40 ring-1 ring-accent/30 p-2.5 text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 font-medium text-accent">
+              <Sparkles size={13} /> Also found profile details in this document
+            </div>
+            <p className="text-fg-muted">{profileSummary(personProfile)}.</p>
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <button type="button" onClick={applyProfile} disabled={enriching || !selectedPersonId()}
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+                {enriching ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Update the person's profile
+              </button>
+              <button type="button" onClick={() => { setPersonProfile(null); setEnrichNote(null); }}
+                className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg">Dismiss</button>
+            </div>
+            <p className="text-[11px] text-fg-subtle">
+              {selectedPersonId() ? "Only empty fields are filled — nothing already on record is changed." : "Pick the person above first, then update their profile."}
+            </p>
+          </div>
+        )}
+        {enrichNote && (
+          <p className="col-span-2 text-xs text-success flex items-center gap-1.5"><Sparkles size={12} /> {enrichNote}</p>
+        )}
 
         {dupDocs.length > 0 && (
           <div className="col-span-2 rounded-lg bg-warn-soft/40 ring-1 ring-warn/30 p-2.5 text-xs space-y-1.5">

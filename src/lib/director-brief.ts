@@ -3,8 +3,13 @@
 
 import { getAllTasks, computeCompanyKpis, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
-import { listDocuments } from "./documents";
+import { listDocuments, type DocumentRow } from "./documents";
 import { buildCompanyComplianceScores } from "./compliance";
+import { buildPersonRequirementScores } from "./requirements";
+import { leaveMetrics, listLeaveRequests } from "./leave";
+import { deriveDocStatus, expiryLabel } from "./documents-shared";
+import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
+import { sb } from "@/db/supabase";
 
 const isClosed = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
 const isOverdue = (r: TaskRow) => r.flag === "overdue" || r.flag === "escalate-now";
@@ -87,6 +92,19 @@ export type BriefDirectorAction = {
   link: string;
 };
 
+export type BriefHr = {
+  headcount: number;
+  byType: Array<{ type: PersonType; label: string; count: number }>;
+  byCompany: Array<{ name: string; count: number }>;
+  joiners: number;
+  belowFullCount: number;
+  compliancePeople: Array<{ name: string; score: number; missing: number }>;
+  expiringDocs: Array<{ person: string; title: string; status: string; expiryLabel: string | null }>;
+  onLeaveToday: number;
+  pendingLeave: Array<{ name: string; type: string; days: number; start: string; end: string }>;
+  probationEnding: Array<{ name: string; companyName: string | null; endDate: Date }>;
+};
+
 export type BriefData = {
   period: BriefPeriod;
   selectedCompanyId: number | null;
@@ -106,7 +124,114 @@ export type BriefData = {
   watch: BriefWatch[];
   compliance: BriefCompliance[];
   directorActions: BriefDirectorAction[];
+  hr: BriefHr;
 };
+
+/**
+ * HR signals for the brief: headcount, per-person compliance, expiring people
+ * documents, leave, and probation endings. Honours the company filter.
+ */
+async function buildHrBrief(
+  now: Date,
+  range: { start: Date; end: Date },
+  selectedCompanyId: number | null,
+  documents: DocumentRow[],
+  companyNameById: Map<number, string>
+): Promise<BriefHr> {
+  const [{ data: pplRows }, scores, leave, pendingReqs] = await Promise.all([
+    sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date").eq("active", true),
+    buildPersonRequirementScores(),
+    leaveMetrics(),
+    listLeaveRequests({ status: "Pending" }),
+  ]);
+
+  let people = (pplRows ?? []).map((p) => ({
+    id: p.id as number,
+    name: p.name as string,
+    type: normalizePersonType(p.person_type as string | null),
+    companyId: (p.company_id as number | null) ?? null,
+    startDate: p.start_date ? new Date(p.start_date as string) : null,
+    probationEnd: p.probation_end_date ? new Date(p.probation_end_date as string) : null,
+  }));
+  if (selectedCompanyId) people = people.filter((p) => p.companyId === selectedCompanyId);
+  const idSet = new Set(people.map((p) => p.id));
+  const nameById = new Map(people.map((p) => [p.id, p.name]));
+
+  // Headcount.
+  const typeCounts = new Map<PersonType, number>();
+  const companyCounts = new Map<number, number>();
+  let joiners = 0;
+  for (const p of people) {
+    typeCounts.set(p.type, (typeCounts.get(p.type) ?? 0) + 1);
+    if (p.companyId) companyCounts.set(p.companyId, (companyCounts.get(p.companyId) ?? 0) + 1);
+    if (p.startDate && p.startDate >= range.start && p.startDate <= range.end) joiners++;
+  }
+  const byType = [...typeCounts.entries()]
+    .map(([type, count]) => ({ type, label: PERSON_TYPE_LABELS[type], count }))
+    .sort((a, b) => b.count - a.count);
+  const byCompany = [...companyCounts.entries()]
+    .map(([id, count]) => ({ name: companyNameById.get(id) ?? "—", count }))
+    .sort((a, b) => b.count - a.count);
+
+  // Per-person compliance (below 100%), worst first.
+  const compliancePeople = scores
+    .filter((s) => idSet.has(s.ownerId) && s.score < 100)
+    .sort((a, b) => a.score - b.score || b.missing - a.missing)
+    .slice(0, 10)
+    .map((s) => ({ name: s.ownerName, score: s.score, missing: s.missing }));
+  const belowFullCount = scores.filter((s) => idSet.has(s.ownerId) && s.score < 100).length;
+
+  // Expiring / expired people-linked documents.
+  const expiringDocs = documents
+    .filter((d) => d.personId != null && !d.archived && idSet.has(d.personId))
+    .map((d) => {
+      const status = deriveDocStatus({ expiryDate: d.expiryDate, reminderLeadDays: d.reminderLeadDays, archived: false });
+      return {
+        person: nameById.get(d.personId as number) ?? "—",
+        title: d.title,
+        status,
+        expiryLabel: d.expiryDate ? expiryLabel({ expiryDate: d.expiryDate, reminderLeadDays: d.reminderLeadDays }) : null,
+        _exp: d.expiryDate ? d.expiryDate.getTime() : Infinity,
+        _bad: status === "Expired" || status === "Expiring",
+      };
+    })
+    .filter((d) => d._bad)
+    .sort((a, b) => a._exp - b._exp)
+    .slice(0, 12)
+    .map(({ person, title, status, expiryLabel }) => ({ person, title, status, expiryLabel }));
+
+  // Leave — pending approvals (names + type), filtered to the company's people.
+  const pendingLeave = pendingReqs
+    .filter((r) => idSet.has(r.personId))
+    .slice(0, 10)
+    .map((r) => ({
+      name: r.personName ?? nameById.get(r.personId) ?? "—",
+      type: r.leaveTypeName ?? "Leave",
+      days: r.days,
+      start: r.startDate.slice(0, 10),
+      end: r.endDate.slice(0, 10),
+    }));
+
+  // Probation periods ending within the next 45 days.
+  const horizon = new Date(now); horizon.setDate(horizon.getDate() + 45);
+  const probationEnding = people
+    .filter((p) => p.probationEnd && p.probationEnd >= now && p.probationEnd <= horizon)
+    .sort((a, b) => (a.probationEnd!.getTime() - b.probationEnd!.getTime()))
+    .map((p) => ({ name: p.name, companyName: p.companyId ? companyNameById.get(p.companyId) ?? null : null, endDate: p.probationEnd! }));
+
+  return {
+    headcount: people.length,
+    byType,
+    byCompany,
+    joiners,
+    belowFullCount,
+    compliancePeople,
+    expiringDocs,
+    onLeaveToday: leave.onLeaveToday,
+    pendingLeave,
+    probationEnding,
+  };
+}
 
 export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | null): Promise<BriefData> {
   const [allRows, documents] = await Promise.all([getAllTasks(), listDocuments()]);
@@ -120,6 +245,8 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   const range = periodRange(now, period);
   const monthLabel = range.label;
   const asAt = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const companyNameById = new Map(allKpis.map((k) => [k.id, k.name]));
+  const hr = await buildHrBrief(now, range, selectedCompanyId, documents, companyNameById);
 
   const deliveredThisMonth = rows
     .filter((r) => isClosed(r) && r.closedDate && r.closedDate >= range.start && r.closedDate <= range.end)
@@ -237,7 +364,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     overdueCount: overdueOpen.length,
     companyCount: kpis.length,
     atRiskCount: kpis.filter((k) => k.riskScore > 20).length,
-    companies, delivered, watch, compliance, directorActions,
+    companies, delivered, watch, compliance, directorActions, hr,
   };
 }
 
@@ -286,6 +413,15 @@ export function briefShareText(b: BriefData): string {
       ].filter(Boolean).join(" · ");
       L.push(`• ${c.companyName} — ${c.score}% · ${detail || c.status}`);
     }
+  }
+  const hr = b.hr;
+  if (hr.headcount) {
+    L.push("");
+    L.push(`*People*`);
+    L.push(`👥 ${hr.headcount} active${hr.joiners ? ` · ${hr.joiners} joined in ${b.monthLabel}` : ""}${hr.onLeaveToday ? ` · ${hr.onLeaveToday} on leave today` : ""}${hr.pendingLeave.length ? ` · ${hr.pendingLeave.length} leave to approve` : ""}`);
+    if (hr.belowFullCount) L.push(`• ${hr.belowFullCount} below full document compliance`);
+    if (hr.expiringDocs.length) L.push(`• ${hr.expiringDocs.length} staff document${hr.expiringDocs.length === 1 ? "" : "s"} expiring/expired`);
+    for (const p of hr.probationEnding.slice(0, 5)) L.push(`• Probation ending: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.endDate)}`);
   }
   return L.join("\n");
 }

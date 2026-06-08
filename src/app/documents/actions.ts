@@ -16,6 +16,7 @@ import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
+import type { PersonProfileFields } from "@/app/people/actions";
 
 export type OwnerDocMatch = {
   id: number;
@@ -177,6 +178,10 @@ export type ExtractedFields = {
   personName?: string;
   // Overflow: anything useful that doesn't fit a labelled field, for the Notes box.
   notes?: string;
+  // V3 unified intake: profile details about the named individual, read straight
+  // from the document (e.g. DOB/nationality/passport no on a passport scan). The
+  // form uses this to offer "also update {person}'s profile" — fill-blanks-only.
+  person?: PersonProfileFields;
 };
 
 type Entity = { id: number; name: string };
@@ -306,6 +311,30 @@ function coerceFields(
   const pe = resolveEntity(s(parsed.person, 80), people);
   if (pe) { f.personId = pe.id; f.personName = pe.name; }
   f.notes = s(parsed.notes, 600);
+  // Person profile sub-object (unified intake) — read straight from the doc.
+  const p = parsed.person;
+  if (p && typeof p === "object") {
+    const pr = p as Record<string, unknown>;
+    const date10 = (v: unknown) => { const x = s(v, 10); return x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : undefined; };
+    const person: PersonProfileFields = {
+      dateOfBirth: date10(pr.dateOfBirth),
+      nationality: s(pr.nationality, 60),
+      nationalId: s(pr.nationalId, 40),
+      passportNo: s(pr.passportNo, 40),
+      address: s(pr.address, 300),
+      emergencyContactName: s(pr.emergencyContactName, 120),
+      emergencyContactPhone: s(pr.emergencyContactPhone, 40),
+      role: s(pr.role, 120),
+      startDate: date10(pr.startDate),
+      probationEndDate: date10(pr.probationEndDate),
+      department: s(pr.department, 60),
+      supervisorName: s(pr.supervisorName, 120),
+      companyName: s(pr.companyName, 80),
+    };
+    // Keep only the keys we actually found.
+    const trimmed = Object.fromEntries(Object.entries(person).filter(([, v]) => v != null)) as PersonProfileFields;
+    if (Object.keys(trimmed).length) f.person = trimmed;
+  }
   // Backfill anything missing from the rule extractor + entity scan.
   if (fallbackText) {
     const ruled = ruleExtract(fallbackText);
@@ -334,6 +363,7 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - company: the related business — choose the closest match from: ${cNames}
 - person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
+- person: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "person" object for company-only documents.
 Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
 }
 

@@ -432,7 +432,7 @@ export function PersonDrawer() {
                     </button>
                   )}
                   <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} initialPurpose={packPurpose} />
-                  <Link href={`/documents?newdoc=1&person=${person.id}`} onClick={close}
+                  <Link href={`/documents?newdoc=1&person=${person.id}&from=person:${person.id}`} onClick={close}
                     className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
                     <FileText size={13} /> Add doc
                   </Link>

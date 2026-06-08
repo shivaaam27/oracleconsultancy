@@ -2,11 +2,141 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { UploadCloud, X, Check, Plus } from "lucide-react";
-import { Button } from "./ui";
+import { UploadCloud, X, Check, Plus, Sparkles, Loader2, UserPlus } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { DocumentForm } from "./document-form";
+import { extractPersonFields, enrichPersonProfile, createPerson, type PersonProfileFields } from "@/app/people/actions";
+
+const PROFILE_LABELS: Record<keyof PersonProfileFields, string> = {
+  name: "Name", email: "Email", phone: "Phone", whatsapp: "WhatsApp", role: "Role",
+  dateOfBirth: "Date of birth", nationality: "Nationality", nationalId: "National ID",
+  passportNo: "Passport no.", address: "Address", emergencyContactName: "Emergency contact",
+  emergencyContactPhone: "Emergency phone", startDate: "Start date", probationEndDate: "Probation end",
+  department: "Department", supervisorName: "Manager", companyName: "Company",
+};
+
+/**
+ * Reads the sender's message for a person's profile details and offers to fill
+ * a chosen person's BLANK fields (fill-blanks-only, always reviewed). Part of the
+ * unified intake: one bundle updates the person AND files the documents.
+ */
+function MessageProfilePanel({
+  noteText,
+  people,
+  onPersonCreated,
+}: {
+  noteText: string;
+  people: Array<{ id: number; name: string }>;
+  onPersonCreated: (p: { id: number; name: string }) => void;
+}) {
+  const [fields, setFields] = useState<PersonProfileFields | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [personId, setPersonId] = useState<number | "">("");
+  const [enriching, setEnriching] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [savingPerson, setSavingPerson] = useState(false);
+
+  async function scan() {
+    if (!noteText.trim()) return;
+    setScanning(true); setNote(null);
+    try {
+      const res = await extractPersonFields(noteText);
+      const found = Object.fromEntries(Object.entries(res.fields).filter(([, v]) => v)) as PersonProfileFields;
+      setFields(Object.keys(found).length ? found : null);
+      setScanned(true);
+      // If the message names someone we know, pre-select them.
+      if (found.name) {
+        const match = people.find((p) => p.name.toLowerCase() === found.name!.trim().toLowerCase());
+        if (match) setPersonId(match.id);
+      }
+    } finally { setScanning(false); }
+  }
+
+  async function apply() {
+    if (!fields || personId === "") return;
+    setEnriching(true);
+    try {
+      const res = await enrichPersonProfile(Number(personId), fields);
+      setNote(res.ok
+        ? (res.filled.length ? `Updated ${res.filled.length} field${res.filled.length === 1 ? "" : "s"}: ${res.filled.join(", ")}.` : "Profile already had those details.")
+        : (res.error ?? "Couldn't update the profile."));
+      if (res.ok) setFields(null);
+    } finally { setEnriching(false); }
+  }
+
+  async function addPerson() {
+    const name = newName.trim();
+    if (!name) return;
+    setSavingPerson(true);
+    try {
+      const fd = new FormData();
+      fd.set("name", name);
+      fd.set("personType", "local_staff");
+      const res = await createPerson(fd);
+      if (res.ok && res.id) {
+        onPersonCreated({ id: res.id, name });
+        setPersonId(res.id);
+        setCreating(false); setNewName("");
+      }
+    } finally { setSavingPerson(false); }
+  }
+
+  const summary = fields
+    ? (Object.keys(fields) as Array<keyof PersonProfileFields>).filter((k) => fields[k]).map((k) => PROFILE_LABELS[k]).join(", ")
+    : "";
+
+  return (
+    <div className="mb-3 rounded-xl bg-accent-soft/30 ring-1 ring-accent/25 px-3 py-2.5 space-y-2">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-accent">
+        <Sparkles size={12} /> Profile details in this message
+      </div>
+      {!scanned && (
+        <button type="button" onClick={scan} disabled={scanning}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
+          {scanning ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+          {scanning ? "Reading…" : "Read message for profile details"}
+        </button>
+      )}
+      {scanned && !fields && <p className="text-xs text-fg-muted">No personal details found in the message text.</p>}
+      {fields && (
+        <>
+          <p className="text-xs text-fg-muted">Found: {summary}.</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <select value={personId === "" ? "" : String(personId)} onChange={(e) => setPersonId(e.target.value === "" ? "" : Number(e.target.value))}
+              className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-accent/40">
+              <option value="">— Who is this about?</option>
+              {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            {creating ? (
+              <span className="inline-flex items-center gap-1.5">
+                <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New person's name" autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPerson(); } }}
+                  className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent" />
+                <button type="button" onClick={addPerson} disabled={savingPerson || !newName.trim()}
+                  className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2 py-1 text-[11px] disabled:opacity-50">
+                  {savingPerson ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Add
+                </button>
+                <button type="button" onClick={() => { setCreating(false); setNewName(""); }} className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline"><UserPlus size={11} /> New</button>
+            )}
+            <button type="button" onClick={apply} disabled={enriching || personId === ""}
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+              {enriching ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Update profile
+            </button>
+          </div>
+          <p className="text-[11px] text-fg-subtle">Only empty fields are filled — nothing on record is changed.</p>
+        </>
+      )}
+      {note && <p className="text-xs text-success">{note}</p>}
+    </div>
+  );
+}
 
 /**
  * Bulk add: a queue that reviews each dropped file in the FULL DocumentForm
@@ -41,10 +171,13 @@ export function BulkUploadDialog({
   const [done, setDone] = useState<Set<number>>(new Set());
   const [savedAny, setSavedAny] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  // People can grow if someone is created from the message-profile panel; the
+  // file forms should see them immediately too.
+  const [localPeople, setLocalPeople] = useState(people);
 
   // Fresh start every time the dialog opens (fixes stale data on reopen).
   useEffect(() => {
-    if (open) { setFiles(initialFiles ?? []); setIndex(0); setDone(new Set()); setSavedAny(false); }
+    if (open) { setFiles(initialFiles ?? []); setIndex(0); setDone(new Set()); setSavedAny(false); setLocalPeople(people); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -131,11 +264,18 @@ export function BulkUploadDialog({
           />
 
           <div className="flex-1 overflow-y-auto p-4">
-            {noteText && files.length > 0 && (
-              <details className="mb-3 rounded-xl bg-bg-subtle/50 ring-1 ring-border/60 px-3 py-2">
-                <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wider text-fg-subtle">Message from sender</summary>
-                <p className="mt-1.5 whitespace-pre-wrap text-xs text-fg-muted">{noteText}</p>
-              </details>
+            {noteText && noteText.trim() && (
+              <>
+                <MessageProfilePanel
+                  noteText={noteText}
+                  people={localPeople}
+                  onPersonCreated={(p) => setLocalPeople((prev) => [...prev, p].sort((a, b) => a.name.localeCompare(b.name)))}
+                />
+                <details className="mb-3 rounded-xl bg-bg-subtle/50 ring-1 ring-border/60 px-3 py-2">
+                  <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wider text-fg-subtle">Message from sender</summary>
+                  <p className="mt-1.5 whitespace-pre-wrap text-xs text-fg-muted">{noteText}</p>
+                </details>
+              </>
             )}
             {files.length === 0 ? (
               <button
@@ -154,7 +294,7 @@ export function BulkUploadDialog({
                 key={`${index}-${current.name}`}
                 mode="create"
                 companies={companies}
-                people={people}
+                people={localPeople}
                 initialFile={current}
                 submitLabel={advanceFrom(index) === null ? "Save & finish" : "Save & next"}
                 cancelLabel="Skip"

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy, FileText, FolderInput } from "lucide-react";
+import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy, FolderInput } from "lucide-react";
 import { dismissInboxItem, updateInboxBody, signInboxAttachment, markInboxFiled, type InboxItem } from "./actions";
 import { SwipeRow } from "@/components/swipe-row";
 import { BulkUploadDialog } from "@/components/bulk-upload-dialog";
@@ -63,10 +63,12 @@ export function InboxList({
   const [fetchingId, setFetchingId] = useState<number | null>(null);
   const [processing, setProcessing] = useState<{ id: number; files: File[]; note: string } | null>(null);
 
-  // Download a bundle's stored attachments as Files, then open the review queue.
+  // Open the unified review queue for a bundle: download any stored attachments
+  // as Files, and pass the message text so it can also fill the person's profile.
+  // Works for text-only items too (no attachments → message-profile + add files).
   async function processBundle(item: InboxItem) {
     const atts = item.attachments.filter((a) => a.storagePath);
-    if (atts.length === 0) return;
+    const note = [item.subject, item.body].filter(Boolean).join("\n");
     setFetchingId(item.id);
     try {
       const files: File[] = [];
@@ -76,8 +78,6 @@ export function InboxList({
         const blob = await (await fetch(url)).blob();
         files.push(new File([blob], a.name || "file", { type: a.type || blob.type }));
       }
-      if (files.length === 0) return;
-      const note = [item.subject, item.body].filter(Boolean).join("\n");
       setProcessing({ id: item.id, files, note });
     } finally {
       setFetchingId(null);
@@ -100,16 +100,6 @@ export function InboxList({
     params.set("text", item.body);
     params.set("inbox", String(item.id));
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  }
-
-  function fileAsDoc(item: InboxItem) {
-    const params = new URLSearchParams();
-    params.set("newdoc", "1");
-    // Cap length so the URL stays well within browser limits; extraction only
-    // needs the key lines (dates, reference, issuer) which sit near the top.
-    const full = item.subject ? `${item.subject}\n${item.body}` : item.body;
-    params.set("text", full.slice(0, 1500));
-    router.push(`/documents?${params.toString()}`);
   }
 
   function dismiss(id: number) {
@@ -242,26 +232,15 @@ export function InboxList({
                 >
                   <Sparkles size={13} /> File it
                 </button>
-                {item.attachments.some((a) => a.storagePath) ? (
-                  <button
-                    type="button"
-                    onClick={() => processBundle(item)}
-                    disabled={fetchingId === item.id}
-                    title="Review the attached files and file them as documents"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-accent/40 bg-accent-soft/40 text-xs text-accent hover:bg-accent-soft transition-colors disabled:opacity-50"
-                  >
-                    {fetchingId === item.id ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} Process files
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileAsDoc(item)}
-                    title="File as a compliance document"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
-                  >
-                    <FileText size={13} /> As document
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => processBundle(item)}
+                  disabled={fetchingId === item.id}
+                  title="Review this message: update the person's profile and file any documents"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-accent/40 bg-accent-soft/40 text-xs text-accent hover:bg-accent-soft transition-colors disabled:opacity-50"
+                >
+                  {fetchingId === item.id ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} Process
+                </button>
                 <button
                   type="button"
                   onClick={() => startEdit(item)}

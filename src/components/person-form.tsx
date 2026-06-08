@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Loader2, Save, UserPlus, AlertCircle, Plus, X, Sparkles } from "lucide-react";
+import { Loader2, Save, UserPlus, AlertCircle, Plus, X, Sparkles, Upload } from "lucide-react";
 import { createPerson, updatePerson, extractPersonFields } from "@/app/people/actions";
+import { extractDocumentFromFile } from "@/app/documents/actions";
+import type { PersonProfileFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 
@@ -72,6 +74,53 @@ export function PersonForm({
   const [scanText, setScanText] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
+  const scanFileRef = useRef<HTMLInputElement>(null);
+
+  // Apply extracted profile fields to EMPTY form fields only (never overwrites).
+  // Selects (company / manager) are matched by name to an existing option.
+  function applyProfileFields(f: PersonProfileFields): number {
+    const form = formRef.current;
+    if (!form) return 0;
+    let filled = 0;
+    const setIfEmpty = (name: string, val?: string) => {
+      if (!val) return;
+      const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+      if (el && !el.value.trim()) { el.value = val; filled++; }
+    };
+    setIfEmpty("name", f.name);
+    setIfEmpty("email", f.email);
+    setIfEmpty("phone", f.phone);
+    setIfEmpty("whatsapp", f.whatsapp);
+    setIfEmpty("role", f.role);
+    setIfEmpty("dateOfBirth", f.dateOfBirth);
+    setIfEmpty("nationality", f.nationality);
+    setIfEmpty("nationalId", f.nationalId);
+    setIfEmpty("passportNo", f.passportNo);
+    setIfEmpty("address", f.address);
+    setIfEmpty("emergencyContactName", f.emergencyContactName);
+    setIfEmpty("emergencyContactPhone", f.emergencyContactPhone);
+    setIfEmpty("startDate", f.startDate);
+    setIfEmpty("probationEndDate", f.probationEndDate);
+    setIfEmpty("department", f.department);
+    // Company select — match by name (case-insensitive) to an existing option.
+    if (f.companyName) {
+      const co = companies.find((c) => c.name.toLowerCase() === f.companyName!.trim().toLowerCase());
+      const el = form.elements.namedItem("companyId") as HTMLSelectElement | null;
+      if (co && el && !el.value.trim()) { el.value = String(co.id); filled++; }
+    }
+    // Manager select — match supervisor name to an existing person.
+    if (f.supervisorName) {
+      const mgr = peopleList.find((p) => p.name.toLowerCase() === f.supervisorName!.trim().toLowerCase());
+      const el = form.elements.namedItem("managerId") as HTMLSelectElement | null;
+      if (mgr && el && !el.value.trim()) { el.value = String(mgr.id); filled++; }
+    }
+    return filled;
+  }
+
+  function noteForFill(filled: number, source: string, extra = ""): string {
+    if (filled === 0) return "Nothing new found, or those fields are already filled.";
+    return `Filled ${filled} empty field${filled === 1 ? "" : "s"}${source === "rules" ? " (AI off — basic rules)" : source === "vision" ? " from the file" : ""}.${extra} Check before saving.`;
+  }
 
   // Auto-fill EMPTY fields from a pasted message (never overwrites what's set).
   async function scanFill() {
@@ -80,34 +129,30 @@ export function PersonForm({
     setScanNote(null);
     try {
       const res = await extractPersonFields(scanText);
-      const form = formRef.current;
-      if (!form) return;
-      let filled = 0;
-      const setIfEmpty = (name: string, val?: string) => {
-        if (!val) return;
-        const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
-        if (el && !el.value.trim()) { el.value = val; filled++; }
-      };
-      const f = res.fields;
-      setIfEmpty("name", f.name);
-      setIfEmpty("email", f.email);
-      setIfEmpty("phone", f.phone);
-      setIfEmpty("whatsapp", f.whatsapp);
-      setIfEmpty("role", f.role);
-      setIfEmpty("dateOfBirth", f.dateOfBirth);
-      setIfEmpty("nationality", f.nationality);
-      setIfEmpty("nationalId", f.nationalId);
-      setIfEmpty("passportNo", f.passportNo);
-      setIfEmpty("address", f.address);
-      setIfEmpty("emergencyContactName", f.emergencyContactName);
-      setIfEmpty("emergencyContactPhone", f.emergencyContactPhone);
-      setScanNote(
-        filled === 0
-          ? "Nothing new found, or those fields are already filled."
-          : `Filled ${filled} empty field${filled === 1 ? "" : "s"}${res.source === "rules" ? " (AI off — basic rules)" : ""}. Check before saving.`
-      );
+      setScanNote(noteForFill(applyProfileFields(res.fields), res.source));
     } finally {
       setScanning(false);
+    }
+  }
+
+  // Auto-fill from an uploaded file / photo (passport, ID, CV, contract…) using
+  // the shared document-vision engine, which returns a person profile block.
+  async function scanFileFill(file: File) {
+    setScanning(true);
+    setScanNote(null);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      const res = await extractDocumentFromFile(fd);
+      if (!res.ok) { setScanNote(res.note ?? "Couldn't read that file."); return; }
+      // The doc engine returns a nested person block plus a top-level role.
+      const f: PersonProfileFields = { ...(res.fields.person ?? {}) };
+      if (!f.role && res.fields.docType) { /* leave role alone */ }
+      const filled = applyProfileFields(f);
+      setScanNote(noteForFill(filled, res.source, filled === 0 ? " No personal details were found in this file." : ""));
+    } finally {
+      setScanning(false);
+      if (scanFileRef.current) scanFileRef.current.value = "";
     }
   }
   const [associations, setAssociations] = useState<Association[]>(
@@ -164,11 +209,21 @@ export function PersonForm({
         <div className="mt-2.5 space-y-2">
           <textarea value={scanText} onChange={(e) => setScanText(e.target.value)} rows={3}
             className={inputCls} placeholder="Paste what they sent — name, DOB, passport no, address, contacts…" />
-          <button type="button" onClick={scanFill} disabled={scanning || !scanText.trim()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
-            {scanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            {scanning ? "Reading…" : "Read & fill empty fields"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={scanFill} disabled={scanning || !scanText.trim()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
+              {scanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              {scanning ? "Reading…" : "Read & fill empty fields"}
+            </button>
+            <span className="text-[11px] text-fg-subtle">or</span>
+            <input ref={scanFileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) scanFileFill(f); }} className="hidden" />
+            <button type="button" onClick={() => scanFileRef.current?.click()} disabled={scanning}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-border text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">
+              <Upload size={13} /> Read from a file / photo
+            </button>
+          </div>
+          <p className="text-[11px] text-fg-subtle">Reads a passport, ID, CV or contract and fills empty profile fields only.</p>
           {scanNote && <p className="text-xs text-fg-muted">{scanNote}</p>}
         </div>
       </details>

@@ -164,14 +164,14 @@ function categoryForRequirement(label: string) {
 }
 
 function addDocumentHref(personId: number, label: string) {
-  const params = new URLSearchParams({ newdoc: "1", person: String(personId), title: label });
+  const params = new URLSearchParams({ newdoc: "1", person: String(personId), title: label, from: `person:${personId}` });
   const category = categoryForRequirement(label);
   if (category) params.set("category", category);
   return `/documents?${params.toString()}`;
 }
 
 function addPersonDocumentHref(personId: number) {
-  return `/documents?${new URLSearchParams({ newdoc: "1", person: String(personId) }).toString()}`;
+  return `/documents?${new URLSearchParams({ newdoc: "1", person: String(personId), from: `person:${personId}` }).toString()}`;
 }
 
 function plural(n: number, one: string, many = `${one}s`) {
