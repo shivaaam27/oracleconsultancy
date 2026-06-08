@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
+import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+
+export type InboxAttachment = { name?: string; url?: string; type?: string; storagePath?: string; size?: number };
 
 export type InboxItem = {
   id: number;
@@ -10,9 +13,57 @@ export type InboxItem = {
   sender: string | null;
   subject: string | null;
   body: string;
-  attachments: { name?: string; url?: string; type?: string }[];
+  attachments: InboxAttachment[];
   createdAt: string;
 };
+
+function safeName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
+}
+
+/** Create an inbox bundle from pasted text + uploaded files (stored in the bucket). */
+export async function createInboxBundle(
+  fd: FormData
+): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  const subject = (fd.get("subject")?.toString() ?? "").trim() || null;
+  const body = (fd.get("body")?.toString() ?? "").trim();
+  const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (!body && files.length === 0) return { ok: false, error: "Add some text or at least one file." };
+
+  const attachments: InboxAttachment[] = [];
+  for (const file of files) {
+    const path = `inbox/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(file.name)}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const { error } = await sb.storage
+      .from(DOCUMENTS_BUCKET)
+      .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: true });
+    if (error) return { ok: false, error: error.message };
+    attachments.push({ name: file.name, storagePath: path, type: file.type || "", size: file.size });
+  }
+
+  const now = new Date().toISOString();
+  const { data, error } = await sb
+    .from("inbox")
+    .insert({
+      source: "manual",
+      status: "pending",
+      sender: null,
+      subject,
+      body: body || (files.length ? `${files.length} file${files.length === 1 ? "" : "s"} uploaded` : ""),
+      attachments: JSON.stringify(attachments),
+      created_at: now,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/inbox");
+  return { ok: true, id: data.id as number };
+}
+
+/** Short-lived signed URL to open an inbox attachment. */
+export async function signInboxAttachment(storagePath: string): Promise<{ url: string | null }> {
+  return { url: await signDocumentFile(storagePath) };
+}
 
 export async function listPendingInbox(): Promise<InboxItem[]> {
   const { data } = await sb

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Loader2, Paperclip, Pencil, Check, X, ChevronDown, ChevronUp, Copy, FileText } from "lucide-react";
-import { dismissInboxItem, updateInboxBody, type InboxItem } from "./actions";
+import { dismissInboxItem, updateInboxBody, signInboxAttachment, type InboxItem } from "./actions";
 import { SwipeRow } from "@/components/swipe-row";
 
 function CopyChip({ text }: { text: string }) {
@@ -178,11 +178,25 @@ export function InboxList({ items }: { items: InboxItem[] }) {
 
             {item.attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {item.attachments.map((a, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 text-[11px] text-fg-muted bg-bg-muted rounded-full px-2 py-0.5">
-                    <Paperclip size={10} /> {a.name || a.type || "attachment"}
-                  </span>
-                ))}
+                {item.attachments.map((a, i) =>
+                  a.storagePath ? (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={async () => {
+                        const { url } = await signInboxAttachment(a.storagePath!);
+                        if (url) window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] text-accent bg-accent-soft/50 ring-1 ring-accent/20 rounded-full px-2 py-0.5 hover:bg-accent-soft transition-colors"
+                    >
+                      <Paperclip size={10} /> {a.name || a.type || "attachment"}
+                    </button>
+                  ) : (
+                    <span key={i} className="inline-flex items-center gap-1 text-[11px] text-fg-muted bg-bg-muted rounded-full px-2 py-0.5">
+                      <Paperclip size={10} /> {a.name || a.type || "attachment"}
+                    </span>
+                  )
+                )}
               </div>
             )}
 
