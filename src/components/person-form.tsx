@@ -373,13 +373,13 @@ export function PersonForm({
         </div>
 
         <div>
-          <label className={labelCls}>Manager</label>
+          <label className={labelCls}>Director</label>
           <select
             name="managerId"
             defaultValue={defaults?.managerId ? String(defaults.managerId) : ""}
             className={inputCls}
           >
-            <option value="">— No manager</option>
+            <option value="">— No director</option>
             {managerCandidates.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
@@ -432,7 +432,7 @@ export function PersonForm({
 
         {/* Related person — e.g. an immigration agent ↔ the expat they're helping */}
         <div>
-          <label className={labelCls}>Related person</label>
+          <label className={labelCls}>Non Company Person</label>
           <select
             name="relatedPersonId"
             defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}

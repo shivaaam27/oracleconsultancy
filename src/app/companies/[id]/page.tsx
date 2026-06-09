@@ -54,6 +54,20 @@ export default async function CompanyPage({
     .sort((a, b) => DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
   const completedRows = rows.filter((r) => r.status === "Completed" || r.status === "Closed");
 
+  // Org tab data (only when viewing the Org tab — these queries are heavier).
+  let orgTab: null | {
+    tree: ReturnType<typeof buildCompanyTree>;
+    extras: Awaited<ReturnType<typeof getOrgExtras>>;
+    associated: Array<{ id: number; name: string; role: string | null; relationship: string | null; personType: string }>;
+  } = null;
+  if (tab === "org") {
+    const [allPeople, extras] = await Promise.all([getAllPeopleWithWorkload(), getOrgExtras()]);
+    const associated = allPeople
+      .filter((p) => p.active)
+      .flatMap((p) => p.associations.filter((a) => a.companyId === companyId).map((a) => ({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType })));
+    orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated };
+  }
+
   return (
     <div className="space-y-4">
       <HrmsCrumbs from={sp.from} />
@@ -154,11 +168,12 @@ export default async function CompanyPage({
         <TimelineTab companyTasks={rows} companyId={companyId} filterParam={sp.tl} />
       )}
 
-      {tab === "org" && (
+      {tab === "org" && orgTab && (
         <OrgChart
           companies={[{ id: companyId, name, accentColor: rows[0].companyAccent ?? null }]}
-          trees={{ [companyId]: buildCompanyTree(await getAllPeopleWithWorkload(), companyId) }}
-          extras={await getOrgExtras()}
+          trees={{ [companyId]: orgTab.tree }}
+          extras={orgTab.extras}
+          associatedByCompany={{ [companyId]: orgTab.associated }}
           initialCompanyId={companyId}
           showSwitcher={false}
           showEveryone={false}

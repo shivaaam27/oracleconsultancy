@@ -40,7 +40,17 @@ export default async function OrgChartPage({
       accentColor: p.companyId != null ? accentById.get(p.companyId) ?? null : null,
       managerId: p.managerId,
       secondary: p.secondaryManagers.map((m) => m.id),
+      relatedPersonId: p.relatedPersonId,
+      associations: p.associations.map((a) => ({ companyId: a.companyId, relationship: a.relationship })),
     }));
+
+  // Outsiders/contacts linked to each company (for the tree "External & associated" strip).
+  const associatedByCompany: Record<number, Array<{ id: number; name: string; role: string | null; relationship: string | null; personType: string }>> = {};
+  for (const p of people.filter((x) => x.active)) {
+    for (const a of p.associations) {
+      (associatedByCompany[a.companyId] ??= []).push({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType });
+    }
+  }
 
   // Pre-build one reporting tree per company on the server (plain, serialisable).
   const trees: Record<number, CompanyTree> = {};
@@ -61,6 +71,7 @@ export default async function OrgChartPage({
         trees={trees}
         extras={extras}
         webPeople={webPeople}
+        associatedByCompany={associatedByCompany}
         initialCompanyId={company ? Number(company) : undefined}
       />
     </div>

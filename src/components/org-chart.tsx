@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
-  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2,
+  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Badge } from "@/components/ui";
@@ -42,11 +42,8 @@ function waLink(node: OrgNode): string | null {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
-function complianceTone(s: OrgPersonExtras["complianceStatus"]): "success" | "warn" | "danger" {
-  return s === "Risk" ? "danger" : s === "Watch" ? "warn" : "success";
-}
-
 export type OrgChartCompany = { id: number; name: string; accentColor: string | null };
+export type AssociatedPerson = { id: number; name: string; role: string | null; relationship: string | null; personType: string };
 
 /* ------------------------------------------------------------------ */
 /* Hover detail popover — the "peek" with full signals + actions       */
@@ -87,7 +84,7 @@ function HoverDetail({
                 <span className="tabular font-medium text-fg">{x.compliancePct}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-bg-muted overflow-hidden">
-                <div className={cn("h-full rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-ok")} style={{ width: `${x.compliancePct}%` }} />
+                <div className={cn("h-full rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-success")} style={{ width: `${x.compliancePct}%` }} />
               </div>
             </div>
           )}
@@ -122,7 +119,7 @@ function HoverDetail({
           <UserRound size={12} /> Profile
         </PersonDrawerLink>
         {wa && (
-          <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-bg-muted/70 text-fg-muted hover:text-ok transition-colors"><MessageCircle size={13} /></a>
+          <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-bg-muted/70 text-fg-muted hover:text-success transition-colors"><MessageCircle size={13} /></a>
         )}
         <a href={`/outbox?person=${node.id}`} title="Outbox" className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-bg-muted/70 text-fg-muted hover:text-accent transition-colors"><Send size={13} /></a>
       </div>
@@ -184,7 +181,7 @@ function NodeCard({
             <span title={`${x.open} open`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-info-soft text-info text-[10px] font-bold tabular">{x.open}</span>
           ) : null}
           {x?.compliancePct != null && (
-            <span title={`Compliance ${x.compliancePct}%`} className={cn("w-2 h-2 rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-ok")} />
+            <span title={`Compliance ${x.compliancePct}%`} className={cn("w-2 h-2 rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-success")} />
           )}
           {x?.onLeaveToday && <Plane size={11} className="text-warn" />}
         </div>
@@ -255,7 +252,7 @@ function collapsibleIds(roots: OrgNode[]): number[] {
   return out;
 }
 
-function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null }) {
+function TreeView({ tree, extras, accentColor, companyName, associated = [] }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[] }) {
   const [collapsedIds, setCollapsed] = useState<Set<number>>(new Set());
   const [query, setQuery] = useState("");
   const [scale, setScale] = useState(1);
@@ -329,7 +326,7 @@ function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTre
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print-hidden">
         <div className="text-[11px] text-fg-subtle tabular">
-          {tree.total} active · {tree.withManager} with a manager · {tree.total - tree.withManager} unassigned
+          {tree.total} active · {tree.withManager} with a director · {tree.total - tree.withManager} unassigned
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="relative flex-1 min-w-[9rem] sm:flex-none">
@@ -373,7 +370,7 @@ function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTre
       ) : (
         <div className="rounded-xl glass elevated p-4 text-sm text-fg-muted">
           No reporting lines set yet for this company. Open a person and set their{" "}
-          <span className="font-medium text-fg">Manager</span> to start building the tree.
+          <span className="font-medium text-fg">Director</span> to start building the tree.
         </div>
       )}
 
@@ -386,6 +383,27 @@ function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTre
             {tree.unassigned.map((n) => (
               <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
                 onHoverShow={showHover} onHoverHide={hideHover} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {associated.length > 0 && (
+        <div className="pt-1">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle mb-2">
+            <Link2 size={12} /> External &amp; associated ({associated.length})
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {associated.map((a) => (
+              <div key={a.id} className="inline-flex items-center gap-2 rounded-xl glass elevated pl-1 pr-3 py-1.5">
+                <span className={cn("h-8 w-8 rounded-full ring-1 flex items-center justify-center text-[11px] font-semibold shrink-0", TYPE_TINT[a.personType] ?? TYPE_TINT.outsider)}>
+                  {initials(a.name)}
+                </span>
+                <div className="min-w-0">
+                  <PersonDrawerLink id={a.id} name={a.name} className="block text-[13px] font-medium text-fg hover:text-accent truncate leading-tight" />
+                  <div className="text-[10.5px] text-fg-subtle truncate leading-tight">{a.relationship || a.role || "Associated"}</div>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -456,12 +474,13 @@ function OrgSwitcher({
 /* ------------------------------------------------------------------ */
 
 export function OrgChart({
-  companies, trees, extras = {}, webPeople, initialCompanyId, showSwitcher = true, showEveryone = true,
+  companies, trees, extras = {}, webPeople, associatedByCompany = {}, initialCompanyId, showSwitcher = true, showEveryone = true,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
   extras?: Extras;
   webPeople?: WebPerson[];
+  associatedByCompany?: Record<number, AssociatedPerson[]>;
   initialCompanyId?: number;
   showSwitcher?: boolean;
   showEveryone?: boolean;
@@ -484,7 +503,7 @@ export function OrgChart({
       {view === "everyone" && webPeople ? (
         <OrgWeb people={webPeople} companies={companies} extras={extras} onPickCompany={(id) => setView(id)} />
       ) : typeof view === "number" && trees[view] ? (
-        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} />
+        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} />
       ) : (
         <p className="text-sm text-fg-subtle italic py-6 text-center">Select a company.</p>
       )}
