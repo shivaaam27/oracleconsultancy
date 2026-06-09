@@ -1,0 +1,1 @@
+ALTER TABLE "person_requirements" ADD COLUMN "auto_link" boolean DEFAULT true NOT NULL;

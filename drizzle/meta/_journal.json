@@ -225,6 +225,13 @@
       "when": 1780988192379,
       "tag": "0031_dusty_chimera",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781002055343,
+      "tag": "0032_stale_norman_osborn",
+      "breakpoints": true
     }
   ]
 }

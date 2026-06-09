@@ -142,6 +142,9 @@ export const personRequirements = pgTable(
     expiryTracked: boolean("expiry_tracked").notNull().default(true),
     status: text("status").notNull().default("missing"),
     documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    // Set false once the operator manually unlinks a document, so the auto-linker
+    // stops re-attaching a matching doc on every load. Manual linking still works.
+    autoLink: boolean("auto_link").notNull().default(true),
     requestedAt: timestamp("requested_at", { mode: "date", withTimezone: true }),
     receivedAt: timestamp("received_at", { mode: "date", withTimezone: true }),
     verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),

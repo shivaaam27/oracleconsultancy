@@ -376,7 +376,7 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
   const [{ data: rows }, docs, { data: prof }] = await Promise.all([
     sb
       .from("person_requirements")
-      .select("id,item_id,label,category,mandatory,expiry_tracked,status,document_id,verified_at")
+      .select("id,item_id,label,category,mandatory,expiry_tracked,status,document_id,verified_at,auto_link")
       .eq("person_id", personId),
     loadPersonDocuments(personId),
     sb.from("requirement_profiles").select("name").eq("applies_to_type", type).eq("active", true).maybeSingle(),
@@ -395,6 +395,7 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
   const now = new Date().toISOString();
   for (const r of liveRows) {
     if (r.document_id) continue;
+    if ((r.auto_link as boolean | null) === false) continue; // operator unlinked — don't re-attach
     if (r.status !== "missing" && r.status !== "requested") continue;
     const cat = r.category as string | null;
     if (!cat || !SPECIFIC_CATEGORIES.has(cat)) continue;
@@ -633,7 +634,9 @@ export async function linkRequirementDocument(id: number, documentId: number) {
 }
 
 export async function unlinkRequirementDocument(id: number) {
-  await patch(id, { document_id: null, status: "missing", verified_at: null, verified_by: null });
+  // Turn off auto-linking for this item so the same document isn't silently
+  // re-attached on the next load. Manual linking remains available.
+  await patch(id, { document_id: null, status: "missing", verified_at: null, verified_by: null, auto_link: false });
 }
 
 export async function verifyRequirement(id: number) {
