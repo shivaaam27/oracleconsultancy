@@ -10,14 +10,23 @@ import type { ComplianceScore, ComplianceGap, ComplianceDocumentIssue } from "@/
 /* company — add VRN, extra registrations, remove what doesn't apply.  */
 /* ------------------------------------------------------------------ */
 
-type SeedItem = { key: string; label: string; category: string };
+type SeedItem = { key: string; label: string; category: string; mandatory?: boolean };
 
-// Owner decision: seed only the three core statutory documents. Insurance,
-// lease, VRN, extra registrations etc. are added per company by the operator.
+// The statutory registration checklist (per the COS Command Centre handover —
+// one row per authority a Tanzanian company must be current with). VAT and the
+// sector permit are optional ("if applicable"); the rest are mandatory. The
+// operator can still add/remove per company.
 export const COMPANY_DEFAULT_ITEMS: SeedItem[] = [
-  { key: "company-registration", label: "Company registration", category: "Registration" },
-  { key: "tax-registration", label: "Tax / TIN", category: "Tax" },
-  { key: "business-licence", label: "Business licence", category: "Licence" },
+  { key: "company-registration", label: "Certificate of Incorporation (BRELA)", category: "Registration" },
+  { key: "tax-registration", label: "TIN (Taxpayer ID)", category: "Tax" },
+  { key: "vat-registration", label: "VAT registration (if applicable)", category: "Tax", mandatory: false },
+  { key: "business-licence", label: "Business / trading licence", category: "Licence" },
+  { key: "sector-permit", label: "Sector / specific permit (e.g. food, TFDA)", category: "Permit", mandatory: false },
+  { key: "paye-sdl-registration", label: "PAYE / SDL employer registration", category: "Registration" },
+  { key: "nssf-registration", label: "NSSF employer registration", category: "Registration" },
+  { key: "wcf-registration", label: "WCF employer registration", category: "Registration" },
+  { key: "bank-account", label: "Company bank account & signatories", category: "Registration" },
+  { key: "statutory-registers", label: "Statutory registers up to date", category: "Registration" },
 ];
 
 /** Categories specific enough to auto-link a saved company document to its item. */
@@ -45,7 +54,7 @@ export async function ensureCompanyRequirements(companyId: number): Promise<void
     source_key: it.key,
     label: it.label,
     category: it.category,
-    mandatory: true,
+    mandatory: it.mandatory ?? true,
     expiry_tracked: true,
     status: "missing",
     created_at: now,
@@ -226,6 +235,7 @@ function synthDefaultScore(
   let expiring = 0;
   const gaps: ComplianceGap[] = [];
   for (const def of COMPANY_DEFAULT_ITEMS) {
+    if (def.mandatory === false) continue; // optional items don't affect the score
     mandatoryTotal++;
     const matches = companyDocs.filter((d) => d.category === def.category);
     const best =

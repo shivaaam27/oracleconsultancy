@@ -72,10 +72,21 @@ export const FLAG_META: Record<CcFlag, { label: string; text: string; bg: string
 
 // ============================================================================
 // Next-due computation — turn a recurring obligation into its next dated
-// instance. Date rules lifted from the handover seed (cosSeed.ts). Assumes a
-// 31-December financial year-end (a documented assumption; make per-entity later).
-// daily/weekly habits and event-driven duties have no meaningful date → null.
+// instance. Date rules lifted from the handover seed (cosSeed.ts).
+//
+// Tanzania financial year runs 1 July – 30 June (confirmed by owner). So the
+// year-end is 30 June, and returns due "within 6 months of year-end" fall on
+// 31 December. To shift the whole system to a different year-end, change
+// FY_END_MONTH/FY_END_DAY in one place. daily/weekly habits and event-driven
+// duties have no meaningful single date → null.
 // ============================================================================
+
+// 0-based month. June = 5. The "6 months after year-end" filing anchor is
+// therefore 31 December.
+const FY_END_MONTH = 5;
+const FY_END_DAY = 30;
+const FILING_ANCHOR_MONTH = (FY_END_MONTH + 6) % 12; // December (11)
+const FILING_ANCHOR_DAY = 31;
 
 export type ObligationFrequency = "daily" | "weekly" | "monthly" | "quarterly" | "annual" | "event";
 
@@ -141,10 +152,15 @@ export function computeNextDue(ob: NextDueInput, today: Date = new Date()): Date
     case "quarterly":
       return nextQuarterEnd(today);
     case "annual": {
-      if (rule.includes("31 mar")) return nextAnnualAnchor(2, 31, today);
-      if (rule.includes("30 jun") || rule.includes("year-end")) return nextAnnualAnchor(5, 30, today);
+      if (rule.includes("31 mar")) return nextAnnualAnchor(2, 31, today); // e.g. WCF annual return
+      if (rule.includes("start of year of income")) return nextAnnualAnchor(FY_END_MONTH + 1 > 11 ? 0 : FY_END_MONTH + 1, 1, today); // 1 Jul
+      // "within 6 months of year-end" / "by tax-return due date" → 31 Dec.
+      if (rule.includes("year-end") || rule.includes("tax-return") || rule.includes("6 months")) {
+        return nextAnnualAnchor(FILING_ANCHOR_MONTH, FILING_ANCHOR_DAY, today);
+      }
+      if (rule.includes("30 jun")) return nextAnnualAnchor(FY_END_MONTH, FY_END_DAY, today);
       if (rule.includes("per licence") || rule.includes("per brela")) return null; // date varies per entity
-      return nextAnnualAnchor(0, 31, today); // sensible default: 31 Jan
+      return null; // unknown annual rule: leave undated rather than guess
     }
     default:
       return null;
