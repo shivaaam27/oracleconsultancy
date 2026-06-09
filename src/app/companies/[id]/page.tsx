@@ -17,7 +17,7 @@ import { buildCompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
-import { buildCompanyComplianceScores, buildCompanyChecklist } from "@/lib/compliance";
+import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { listDocuments } from "@/lib/documents";
 import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { listAssets } from "@/lib/assets";
@@ -55,7 +55,7 @@ export default async function CompanyPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
   const tab = parseCompanyTab(sp.tab);
-  const [allRows, documents, { data: companyRaw }, { count: teamCount }, { data: companiesRaw }, { data: peopleRaw }] =
+  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }] =
     await Promise.all([
       getAllTasks(),
       listDocuments(),
@@ -64,19 +64,28 @@ export default async function CompanyPage({
         .select("id,name,legal_name,registration_no,tin,address,phone,email,signatory_name,signatory_title")
         .eq("id", companyId)
         .maybeSingle(),
-      sb.from("person_companies").select("person_id", { count: "exact", head: true }).eq("company_id", companyId),
+      sb.from("person_companies").select("person_id").eq("company_id", companyId),
       sb.from("companies").select("id,name").order("name"),
-      sb.from("people").select("id,name").eq("active", true).order("name"),
+      sb.from("people").select("id,name,role,company_id").eq("active", true).order("name"),
     ]);
   const companiesList = (companiesRaw ?? []) as Array<{ id: number; name: string }>;
-  const peopleList = (peopleRaw ?? []) as Array<{ id: number; name: string }>;
+  const peopleList = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
+  const peopleById = new Map(
+    (peopleRaw ?? []).map((p) => [p.id as number, { name: p.name as string, role: (p.role as string | null) ?? null }])
+  );
+  // A person belongs to this company via their primary company_id OR an explicit
+  // person_companies association.
+  const assocPersonIds = new Set<number>((assocRaw ?? []).map((r) => r.person_id as number));
+  for (const p of peopleRaw ?? []) {
+    if ((p.company_id as number | null) === companyId) assocPersonIds.add(p.id as number);
+  }
+  const teamCount = assocPersonIds.size;
   const rows = allRows.filter((r) => r.companyId === companyId);
   if (!rows.length) return notFound();
   const name = rows[0].companyName;
   const accent = rows[0].companyAccent || "hsl(var(--accent))";
-  const complianceScore = buildCompanyComplianceScores(
-    [{ id: companyId, name: (companyRaw?.name as string | undefined) ?? name }],
-    documents
+  const complianceScore = (
+    await buildCompanyRequirementScores([{ id: companyId, name: (companyRaw?.name as string | undefined) ?? name }])
   )[0];
 
   const openRows = rows
@@ -91,6 +100,26 @@ export default async function CompanyPage({
     .map((doc) => ({ doc, status: deriveDocStatus(doc) }))
     .filter((x) => x.status === "Expired" || x.status === "Expiring")
     .sort((a, b) => DEADLINE_RANK(a.doc.expiryDate) - DEADLINE_RANK(b.doc.expiryDate));
+
+  // Staff files: documents owned by people associated with this company,
+  // grouped per person (separate from the company's own documents).
+  const staffGroups = (() => {
+    const byPerson = new Map<number, typeof documents>();
+    for (const doc of documents) {
+      if (doc.personId == null || !assocPersonIds.has(doc.personId)) continue;
+      const list = byPerson.get(doc.personId) ?? [];
+      list.push(doc);
+      byPerson.set(doc.personId, list);
+    }
+    return [...byPerson.entries()]
+      .map(([personId, docs]) => ({
+        personId,
+        personName: peopleById.get(personId)?.name ?? `Person ${personId}`,
+        role: peopleById.get(personId)?.role ?? null,
+        docs,
+      }))
+      .sort((a, b) => a.personName.localeCompare(b.personName));
+  })();
 
   // Overview-only: assets at this company + its suppliers (heavier, so lazy).
   let overviewExtras: null | { assets: AssetRow[]; vendors: VendorRow[] } = null;
@@ -334,7 +363,7 @@ export default async function CompanyPage({
           companyId={companyId}
           companyName={name}
           documents={companyDocs}
-          checklist={buildCompanyChecklist(companyDocs)}
+          staffGroups={staffGroups}
           companies={companiesList}
           people={peopleList}
         />

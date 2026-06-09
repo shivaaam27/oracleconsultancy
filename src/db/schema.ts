@@ -156,6 +156,35 @@ export const personRequirements = pgTable(
   (t) => [uniqueIndex("person_requirements_person_item_idx").on(t.personId, t.itemId)]
 );
 
+// Per-company document compliance checklist. Mirrors person_requirements, but
+// companies have no shared template profiles — each company's list is its own.
+// sourceKey identifies a seeded default item (e.g. "company-registration") so it
+// can be reconciled/hidden without resurrection; custom items have sourceKey null
+// and hard-delete on remove. category maps to DOC_CATEGORIES for doc auto-link.
+export const companyRequirements = pgTable(
+  "company_requirements",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    sourceKey: text("source_key"),
+    label: text("label").notNull(),
+    category: text("category"),
+    mandatory: boolean("mandatory").notNull().default(true),
+    expiryTracked: boolean("expiry_tracked").notNull().default(true),
+    status: text("status").notNull().default("missing"),
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    autoLink: boolean("auto_link").notNull().default(true),
+    requestedAt: timestamp("requested_at", { mode: "date", withTimezone: true }),
+    receivedAt: timestamp("received_at", { mode: "date", withTimezone: true }),
+    verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),
+    verifiedBy: text("verified_by"),
+    waivedReason: text("waived_reason"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("company_requirements_company_source_idx").on(t.companyId, t.sourceKey)]
+);
+
 // Editable onboarding/offboarding step templates, per person type. A person's
 // journey (todos tagged with `kind`) is created from / synced to these rows.
 // kind: "onboarding" | "offboarding"; appliesToType matches person-types.ts.

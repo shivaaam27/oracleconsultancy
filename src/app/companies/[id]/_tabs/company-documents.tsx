@@ -3,11 +3,11 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { FilePlus, X, FileText, ExternalLink, Paperclip, ChevronRight, ShieldCheck, CheckCircle2, AlertTriangle, Circle } from "lucide-react";
+import { FilePlus, X, FileText, ExternalLink, Paperclip, ChevronRight, Users } from "lucide-react";
 import { DocumentForm } from "@/components/document-form";
+import { CompanyRequirementsChecklist } from "@/components/company-requirements-checklist";
 import { getDocumentFileLinkAction } from "@/app/documents/actions";
 import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
-import type { CompanyChecklistItem } from "@/lib/compliance";
 import { useToast } from "@/components/toast";
 
 // Display order for the grouped company file. Categories not listed fall to the
@@ -34,18 +34,25 @@ const STATUS_BADGE: Record<DocStatus, string> = {
   Archived: "bg-bg-muted text-fg-subtle",
 };
 
+export type StaffFileGroup = {
+  personId: number;
+  personName: string;
+  role: string | null;
+  docs: DocumentRow[];
+};
+
 export function CompanyDocuments({
   companyId,
   companyName,
   documents,
-  checklist,
+  staffGroups,
   companies,
   people,
 }: {
   companyId: number;
   companyName: string;
   documents: DocumentRow[];
-  checklist: CompanyChecklistItem[];
+  staffGroups: StaffFileGroup[];
   companies: Array<{ id: number; name: string }>;
   people: Array<{ id: number; name: string }>;
 }) {
@@ -53,7 +60,10 @@ export function CompanyDocuments({
   const { toast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [addCategory, setAddCategory] = useState<string | null>(null);
+  const [addTitle, setAddTitle] = useState<string>("");
   const [opening, startOpen] = useTransition();
+  // Bumped after a document is added so the checklist re-fetches and re-links.
+  const [reloadSignal, setReloadSignal] = useState(0);
 
   // Group by category in the fixed display order; unknown categories last.
   const groups = useMemo(() => {
@@ -84,81 +94,26 @@ export function CompanyDocuments({
     });
   }
 
-  function startAdd(category: string | null) {
-    setAddCategory(category);
+  function startAdd(opts: { title?: string; category: string | null }) {
+    setAddCategory(opts.category);
+    setAddTitle(opts.title ?? "");
     setAddOpen(true);
   }
 
-  const requiredItems = checklist.filter((c) => c.required);
-  const requiredOnFile = requiredItems.filter((c) => c.status !== "missing").length;
+  const linkableDocs = documents.map((d) => ({ id: d.id, title: d.title, category: d.category }));
 
   return (
     <div className="space-y-4">
-      {/* Statutory checklist — what every company should hold, and what's missing. */}
-      <section className="glass elevated rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
-          <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
-            <ShieldCheck size={15} className="text-accent" /> Statutory checklist
-          </h2>
-          <span className="text-[11px] font-medium tabular text-fg-muted">
-            {requiredOnFile}/{requiredItems.length} required on file
-          </span>
-        </div>
-        <ul className="divide-y divide-border/50">
-          {checklist.map((item) => {
-            const tone =
-              item.status === "missing"
-                ? item.required
-                  ? { Icon: Circle, cls: "text-danger" }
-                  : { Icon: Circle, cls: "text-fg-subtle" }
-                : item.status === "expired"
-                ? { Icon: AlertTriangle, cls: "text-danger" }
-                : item.status === "expiring"
-                ? { Icon: AlertTriangle, cls: "text-warn" }
-                : { Icon: CheckCircle2, cls: "text-success" };
-            const Icon = tone.Icon;
-            const needsAction = item.status === "missing" || item.status === "expired" || item.status === "expiring";
-            const actionLabel = item.status === "missing" ? "Add" : "Renew";
-            return (
-              <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
-                <Icon size={16} className={`shrink-0 ${tone.cls}`} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium truncate">{item.label}</span>
-                    {!item.required && (
-                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-fg-subtle">Recommended</span>
-                    )}
-                  </span>
-                  <span className="block truncate text-[11px] text-fg-subtle">
-                    {item.status === "missing"
-                      ? item.hint
-                      : `${item.docTitle ?? item.hint}${item.detail ? ` · ${item.detail}` : ""}`}
-                  </span>
-                </span>
-                {item.status !== "missing" && (
-                  <span
-                    className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                      item.status === "expired" ? "bg-danger-soft text-danger" : item.status === "expiring" ? "bg-warn-soft text-warn" : "bg-success-soft text-success"
-                    }`}
-                  >
-                    {item.status === "valid" ? "On file" : item.status === "expiring" ? "Expiring" : "Expired"}
-                  </span>
-                )}
-                {needsAction && (
-                  <button
-                    type="button"
-                    onClick={() => startAdd(item.categories[0])}
-                    className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-2 py-0.5 hover:bg-accent-soft/40"
-                  >
-                    <FilePlus size={12} /> {actionLabel}
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      {/* Per-company statutory checklist — editable, drives the compliance %. */}
+      <CompanyRequirementsChecklist
+        companyId={companyId}
+        documents={linkableDocs}
+        reloadSignal={reloadSignal}
+        onAddDocument={(o) => startAdd(o)}
+        onChanged={() => router.refresh()}
+      />
 
+      {/* Company documents, grouped by category. */}
       <div className="flex items-center justify-between">
         <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
           <FileText size={13} /> Company file
@@ -168,7 +123,7 @@ export function CompanyDocuments({
         </h2>
         <button
           type="button"
-          onClick={() => startAdd(null)}
+          onClick={() => startAdd({ category: null })}
           className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-2.5 py-1 hover:bg-accent-soft/40"
         >
           <FilePlus size={13} /> Add document
@@ -180,7 +135,7 @@ export function CompanyDocuments({
           <p>No documents filed for {companyName} yet.</p>
           <button
             type="button"
-            onClick={() => startAdd(null)}
+            onClick={() => startAdd({ category: null })}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-3 py-1.5 ring-1 ring-accent/30 hover:bg-accent-soft/40"
           >
             <FilePlus size={13} /> Add the first document
@@ -196,7 +151,7 @@ export function CompanyDocuments({
               </h3>
               <button
                 type="button"
-                onClick={() => startAdd(category)}
+                onClick={() => startAdd({ category })}
                 title={`Add a ${category} document`}
                 className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent transition-colors rounded-full px-2 py-0.5 hover:bg-bg-muted/60"
               >
@@ -256,6 +211,69 @@ export function CompanyDocuments({
         ))
       )}
 
+      {/* Staff files — documents belonging to people at this company, grouped. */}
+      {staffGroups.length > 0 && (
+        <>
+          <div className="flex items-center justify-between pt-2">
+            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
+              <Users size={13} /> Staff files
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+                {staffGroups.reduce((n, g) => n + g.docs.length, 0)}
+              </span>
+            </h2>
+          </div>
+          {staffGroups.map((g) => (
+            <section key={g.personId} className="glass elevated rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+                <h3 className="inline-flex items-center gap-2 text-sm font-semibold min-w-0">
+                  <span className="truncate">{g.personName}</span>
+                  {g.role && <span className="text-[11px] font-normal text-fg-subtle truncate">{g.role}</span>}
+                  <span className="text-[11px] font-normal text-fg-subtle tabular">{g.docs.length}</span>
+                </h3>
+                <a
+                  href={`/people?person=${g.personId}`}
+                  className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent transition-colors rounded-full px-2 py-0.5 hover:bg-bg-muted/60"
+                >
+                  <ExternalLink size={12} /> Open
+                </a>
+              </div>
+              <ul className="divide-y divide-border/50">
+                {g.docs.map((doc) => {
+                  const status = deriveDocStatus(doc);
+                  const exp = expiryLabel(doc);
+                  return (
+                    <li key={doc.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{doc.title}</span>
+                        <span className="block truncate text-[11px] text-fg-subtle">
+                          {[doc.category, doc.referenceNo, exp].filter(Boolean).join(" · ") || "No details"}
+                        </span>
+                      </span>
+                      <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
+                        {status}
+                      </span>
+                      {doc.storagePath ? (
+                        <button
+                          type="button"
+                          onClick={() => openFile(doc.id)}
+                          disabled={opening}
+                          title="Open file"
+                          className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors disabled:opacity-50"
+                        >
+                          <Paperclip size={14} />
+                        </button>
+                      ) : (
+                        <span className="shrink-0 h-7 w-7" aria-hidden />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </>
+      )}
+
       <div className="flex justify-end">
         <a
           href={`/documents?company=${companyId}`}
@@ -299,11 +317,13 @@ export function CompanyDocuments({
                   people={people}
                   initialCompanyId={companyId}
                   initialCategory={addCategory}
+                  initialTitle={addTitle || undefined}
                   onCancel={() => setAddOpen(false)}
                   onComplete={(res) => {
                     if (res.ok) {
                       toast("Document added.", { tone: "success" });
                       setAddOpen(false);
+                      setReloadSignal((n) => n + 1);
                       router.refresh();
                     }
                   }}

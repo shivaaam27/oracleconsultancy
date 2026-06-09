@@ -4,7 +4,7 @@
 import { getAllTasks, computeCompanyKpis, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
 import { listDocuments, type DocumentRow } from "./documents";
-import { buildCompanyComplianceScores } from "./compliance";
+import { buildCompanyRequirementScores } from "./company-requirements";
 import { buildPersonRequirementScores } from "./requirements";
 import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
@@ -299,9 +299,8 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .slice(0, 8)
     .map((r) => ({ id: r.id, actionItem: r.actionItem, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
-  const compliance: BriefCompliance[] = buildCompanyComplianceScores(
-    kpis.map((k) => ({ id: k.id, name: k.name })),
-    documents
+  const compliance: BriefCompliance[] = (
+    await buildCompanyRequirementScores(kpis.map((k) => ({ id: k.id, name: k.name })))
   )
     .filter((score) => score.status !== "Good")
     .sort((a, b) => a.score - b.score || b.expired - a.expired || b.missing - a.missing)

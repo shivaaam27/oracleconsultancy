@@ -5,7 +5,7 @@ import { RequirementTemplatesButton } from "@/components/requirement-templates-b
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
-import { buildCompanyComplianceScores } from "@/lib/compliance";
+import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
@@ -34,7 +34,7 @@ export default async function DocumentsPage({
     name: p.name as string,
     personType: normalizePersonType(p.person_type as string | null),
   }));
-  const companyScores = buildCompanyComplianceScores(companies, documents);
+  const companyScores = await buildCompanyRequirementScores(companies);
   const personScores = await buildPersonRequirementScores();
 
   // Linked renewal/action tasks per document (backward link, mirrors meeting_tasks).

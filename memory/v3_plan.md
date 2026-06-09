@@ -253,6 +253,13 @@ Owner wants each company to become a glanceable **company file** (like the perso
 
 **Company File complete (Phases 1–5).** Tabs: Overview · File · Profile · Tasks · Timeline · Org.
 
+**Phase 6 shipped (File upgrade — per-company custom compliance + staff files):**
+- **DB-backed per-company checklist** replacing the old fixed derived one. New `company_requirements` table (migration `0033`, mirrors `person_requirements`: `source_key` null=custom / set=seeded default, status/document_id/auto_link/verify/waive). `src/lib/company-requirements.ts`: `ensureCompanyRequirements` seeds only the 3 core items (Registration, Tax/TIN, Business licence — **no insurance/lease**, owner adds those), `getCompanyChecklist` (ensure + auto-link company docs by category + score), `buildCompanyRequirementScores` (bulk read-only; **synthesizes the 3 defaults for unseeded companies** so they aren't falsely 100%), plus full mutations (request/link/unlink/verify/unverify/waive/unwaive/add/edit/remove).
+- **Compliance is now DB-backed everywhere** (owner choice): `buildCompanyComplianceScores` + the derived `COMPANY_CHECKLIST`/`COMPANY_REQUIREMENTS` removed from `compliance.ts` (now only shared types + `worstComplianceScores`). Consumers switched to `buildCompanyRequirementScores`: company Overview tile, `/documents`, Home (`cos-home`), Director Brief, Ask COS.
+- **Interactive checklist UI** on the File tab: `company-requirements-checklist.tsx` (mirrors the person one — score ring, add/edit/remove custom items, verify/link/waive, in-place "Add"/"Renew" opens the prefilled DocumentForm modal). API `GET /api/company-requirements?id=`; actions `src/app/companies/[id]/requirement-actions.ts` (`creq*`).
+- **Staff files** section on the File tab: documents owned by people of this company, grouped per person with role + counts + status + "Open" to the person. Person→company link = primary `people.company_id` **or** a `person_companies` association (the `company_id`-only case was the gap that made it look empty). Team tile uses the same union.
+- Verified in preview: checklist auto-links Business licence + Tax/TIN (Received→verify to score), Company registration Missing; custom "VRN" add + remove round-trip clean (test item removed); staff files show on CO01/04/05/06 grouped by person. tsc + migration applied clean.
+
 ## V3 — Letters (shipped: engine + invitation)
 
 System-wide branded PDF letters — per-company letterhead (typed / designed header+footer images / full-page background), Draft→Issue snapshot, full body editing, PDF + optional Outbox draft, no auto-send. First type = Invitation. See `memory/letters.md`.

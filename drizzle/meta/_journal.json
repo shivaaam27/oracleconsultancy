@@ -232,6 +232,13 @@
       "when": 1781002055343,
       "tag": "0032_stale_norman_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781005783648,
+      "tag": "0033_flowery_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

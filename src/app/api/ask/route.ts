@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
-import { buildCompanyComplianceScores, worstComplianceScores } from "@/lib/compliance";
+import { worstComplianceScores } from "@/lib/compliance";
+import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 
@@ -352,7 +353,7 @@ async function buildContext(question: string, page?: PageCtx) {
         issuer: d.issuer,
         reference: d.referenceNo,
       }));
-    const companyScores = buildCompanyComplianceScores(companies, allDocs);
+    const companyScores = await buildCompanyRequirementScores(companies);
     const personScores = await buildPersonRequirementScores();
     complianceCtx = worstComplianceScores([...companyScores, ...personScores], 12).map((score) => ({
       owner: score.ownerName,

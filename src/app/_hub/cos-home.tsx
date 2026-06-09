@@ -6,7 +6,8 @@ import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib
 import { listOutboxDrafts } from "@/lib/outbox-drafts";
 import { listMeetings } from "@/app/meeting/actions";
 import { buildAutomationSuggestions, getDocumentRenewalCandidates, getStaleTasks } from "@/lib/automation-suggestions";
-import { buildCompanyComplianceScores, worstComplianceScores } from "@/lib/compliance";
+import { worstComplianceScores } from "@/lib/compliance";
+import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
@@ -169,7 +170,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     name: p.name as string,
     personType: normalizePersonType(p.person_type as string | null),
   }));
-  const companyComplianceScores = buildCompanyComplianceScores(companies, documents);
+  const companyComplianceScores = await buildCompanyRequirementScores(companies);
   const personComplianceScores = await buildPersonRequirementScores();
   const complianceRisks = worstComplianceScores([
     ...companyComplianceScores,
