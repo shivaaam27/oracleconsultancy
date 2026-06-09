@@ -113,43 +113,28 @@ function statusTone(status: "Good" | "Watch" | "Risk"): Tone {
   return status === "Risk" ? "danger" : status === "Watch" ? "warn" : "success";
 }
 
-/* ---- a single SVG progress ring ---- */
-function Ring({
-  percent,
-  size,
-  stroke,
-  color,
-  children,
-}: {
-  percent: number;
-  size: number;
-  stroke: number;
-  color: string;
-  children?: React.ReactNode;
-}) {
+/* ---- a half-circle (180°) gauge for the headline compliance score ---- */
+function ArcGauge({ percent, color, size = 150, stroke = 13 }: { percent: number; color: string; size?: number; stroke?: number }) {
   const animated = useCountUp(percent, 1100);
   const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const offset = c - (animated / 100) * c;
+  const cy = size / 2;
+  const d = `M ${stroke / 2} ${cy} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${cy}`;
+  const len = Math.PI * r;
+  const offset = len - (animated / 100) * len;
   return (
-    <div className="relative inline-grid place-items-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--border))" strokeOpacity={0.5} strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 0.2s linear" }}
-        />
-      </svg>
-      <div className="absolute inset-0 grid place-items-center">{children}</div>
-    </div>
+    <svg width={size} height={cy + stroke / 2} className="overflow-visible">
+      <path d={d} fill="none" stroke="hsl(var(--border))" strokeOpacity={0.5} strokeWidth={stroke} strokeLinecap="round" />
+      <path
+        d={d}
+        fill="none"
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        strokeDasharray={len}
+        strokeDashoffset={offset}
+        style={{ transition: "stroke-dashoffset 0.2s linear", filter: `drop-shadow(0 0 6px ${color})` }}
+      />
+    </svg>
   );
 }
 
@@ -169,6 +154,7 @@ export function HomeMissionControl({
   pulse,
   queue,
   health,
+  healthStats,
   companyGauges,
 }: {
   greeting: string;
@@ -177,13 +163,19 @@ export function HomeMissionControl({
   pulse: PulseMetric[];
   queue: QueueItem[];
   health: number;
+  healthStats: { missing: number; expiring: number; expired: number };
   companyGauges: CompanyGauge[];
 }) {
   const lead = command[0];
   const rest = command.slice(1, 5);
   const healthTone: Tone = health >= 80 ? "success" : health >= 55 ? "warn" : "danger";
 
-  const [gaugeView, setGaugeView] = useState<"overall" | "company">("overall");
+  // Worst-first so attention lands where the gaps are.
+  const rankedGauges = [...companyGauges].sort((a, b) => a.score - b.score);
+
+  const [showAllCos, setShowAllCos] = useState(false);
+  const visibleGauges = showAllCos ? rankedGauges : rankedGauges.slice(0, 5);
+
   const [filter, setFilter] = useState<QueueGroup | "all">("all");
   const [showAll, setShowAll] = useState(false);
 
@@ -257,69 +249,89 @@ export function HomeMissionControl({
 
       {/* =================== HEALTH + THE ONE THING =================== */}
       <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
-        {/* Portfolio health — both gauge variants behind a toggle */}
+        {/* Portfolio health — arc gauge + ranked company league, one glance */}
         <div className="rounded-3xl glass elevated p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
-              <LayoutGrid size={13} /> Portfolio health
-            </div>
-            <div className="inline-flex rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border/60">
-              {(["overall", "company"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setGaugeView(v)}
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-[11px] font-medium capitalize transition-colors",
-                    gaugeView === v ? "bg-bg-elev text-fg shadow-sm ring-1 ring-border" : "text-fg-muted hover:text-fg"
-                  )}
-                >
-                  {v === "overall" ? "Overall" : "By company"}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
+            <LayoutGrid size={13} /> Portfolio health
           </div>
 
-          {gaugeView === "overall" ? (
-            <div className="mt-4 flex items-center gap-5">
-              <Ring percent={health} size={120} stroke={11} color={toneClass[healthTone].stroke}>
-                <div className="text-center">
-                  <CountUp value={health} className={cn("text-2xl font-semibold tabular", toneClass[healthTone].text)} />
-                  <span className={cn("text-lg font-semibold tabular", toneClass[healthTone].text)}>%</span>
+          <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(150px,0.62fr)_minmax(0,1fr)]">
+            {/* Headline arc gauge + micro-stats */}
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-bg-elev/55 px-3 py-3 ring-1 ring-border/50">
+              <div className="relative grid place-items-center">
+                <ArcGauge percent={health} color={toneClass[healthTone].stroke} />
+                <div className="absolute bottom-0 flex flex-col items-center">
+                  <div className="flex items-baseline">
+                    <CountUp value={health} className={cn("text-3xl font-semibold tabular leading-none", toneClass[healthTone].text)} />
+                    <span className={cn("text-lg font-semibold", toneClass[healthTone].text)}>%</span>
+                  </div>
+                  <span className="mt-0.5 text-[11px] font-medium text-fg-muted">
+                    {health >= 80 ? "Healthy" : health >= 55 ? "Watch" : "At risk"}
+                  </span>
                 </div>
-              </Ring>
-              <div className="min-w-0 space-y-1.5">
-                <p className="text-sm font-medium">
-                  {health >= 80 ? "Portfolio is healthy" : health >= 55 ? "Some attention needed" : "Needs urgent attention"}
-                </p>
-                <p className="text-xs text-fg-muted leading-relaxed">
-                  Average compliance across all companies and people. Switch to <span className="font-medium">By company</span> to see where the gaps are.
-                </p>
+              </div>
+              <div className="grid w-full grid-cols-3 gap-1.5">
+                {([
+                  { label: "Missing", value: healthStats.missing, tone: "muted" as Tone },
+                  { label: "Expiring", value: healthStats.expiring, tone: "warn" as Tone },
+                  { label: "Expired", value: healthStats.expired, tone: "danger" as Tone },
+                ]).map((s) => (
+                  <div key={s.label} className="rounded-xl bg-bg-subtle/60 px-1.5 py-1.5 text-center ring-1 ring-border/50">
+                    <div className={cn("text-base font-semibold tabular leading-none", s.value ? toneClass[s.tone].text : "text-fg-subtle")}>{s.value}</div>
+                    <div className="mt-1 text-[10px] leading-tight text-fg-muted">{s.label}</div>
+                  </div>
+                ))}
               </div>
             </div>
-          ) : (
-            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-              {companyGauges.length === 0 ? (
-                <p className="col-span-full text-xs text-fg-muted">No company compliance data yet.</p>
+
+            {/* Ranked company league */}
+            <div className="min-w-0">
+              {rankedGauges.length === 0 ? (
+                <p className="grid h-full place-items-center text-xs text-fg-muted">No company compliance data yet.</p>
               ) : (
-                companyGauges.map((c) => {
-                  const t = statusTone(c.status);
-                  return (
-                    <Link
-                      key={c.id}
-                      href={`/documents?company=${c.id}`}
-                      className="group flex flex-col items-center gap-1.5 rounded-2xl p-1.5 transition-colors hover:bg-bg-muted/40"
-                    >
-                      <Ring percent={c.score} size={56} stroke={6} color={c.accentColor ?? toneClass[t].stroke}>
-                        <span className={cn("text-[11px] font-semibold tabular", toneClass[t].text)}>{c.score}</span>
-                      </Ring>
-                      <span className="max-w-full truncate text-[11px] font-medium text-fg-muted group-hover:text-accent">{c.name}</span>
-                    </Link>
-                  );
-                })
+                <ul className="space-y-1">
+                  {visibleGauges.map((c) => {
+                    const t = statusTone(c.status);
+                    const bar = c.accentColor ?? toneClass[t].stroke;
+                    return (
+                      <li key={c.id}>
+                        <Link
+                          href={`/documents?company=${c.id}`}
+                          className={cn(
+                            "group flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-bg-muted/45",
+                            c.status === "Risk" && "bg-danger-soft/15"
+                          )}
+                        >
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: bar }} />
+                          <span className="w-[34%] shrink-0 truncate text-xs font-medium group-hover:text-accent">{c.name}</span>
+                          <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-bg-subtle/80 ring-1 ring-border/40">
+                            <span
+                              className="absolute inset-y-0 left-0 rounded-full"
+                              style={{
+                                width: `${Math.max(c.score, 2)}%`,
+                                background: `linear-gradient(90deg, ${bar}55, ${bar})`,
+                                boxShadow: `0 0 8px ${bar}80`,
+                              }}
+                            />
+                          </span>
+                          <span className={cn("w-8 shrink-0 text-right text-xs font-semibold tabular", toneClass[t].text)}>{c.score}%</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {rankedGauges.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllCos((v) => !v)}
+                  className="mt-1.5 w-full rounded-lg py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted/40"
+                >
+                  {showAllCos ? "Show fewer" : `Show all ${rankedGauges.length} companies`}
+                </button>
               )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* The One Thing */}

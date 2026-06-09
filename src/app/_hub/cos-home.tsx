@@ -411,6 +411,10 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const health = allScores.length
     ? Math.round(allScores.reduce((sum, s) => sum + s.score, 0) / allScores.length)
     : 100;
+  const healthStats = allScores.reduce(
+    (a, s) => ({ missing: a.missing + s.missing, expiring: a.expiring + s.expiring, expired: a.expired + s.expired }),
+    { missing: 0, expiring: 0, expired: 0 }
+  );
   const companyScoreById = new Map(companyComplianceScores.map((s) => [s.ownerId, s]));
   const companyGauges: CompanyGauge[] = companies.map((c) => {
     const score = companyScoreById.get(c.id);
@@ -433,6 +437,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         pulse={pulse}
         queue={queue}
         health={health}
+        healthStats={healthStats}
         companyGauges={companyGauges}
       />
     </div>
