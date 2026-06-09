@@ -3,11 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { FilePlus, X, FolderOpen, Users, ExternalLink, Paperclip, ChevronRight, ChevronDown } from "lucide-react";
+import { FilePlus, X, FolderOpen, Users, ExternalLink, Paperclip, Pencil, Trash2, Loader2, ChevronDown } from "lucide-react";
 import { DocumentForm } from "@/components/document-form";
 import { CompanyRequirementsChecklist } from "@/components/company-requirements-checklist";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
-import { getDocumentFileLinkAction } from "@/app/documents/actions";
+import { getDocumentFileLinkAction, archiveDocumentAction } from "@/app/documents/actions";
 import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 import { useToast } from "@/components/toast";
 
@@ -55,8 +55,36 @@ export function CompanyDocuments({
   const [addOpen, setAddOpen] = useState(false);
   const [addCategory, setAddCategory] = useState<string | null>(null);
   const [addTitle, setAddTitle] = useState<string>("");
+  const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [opening, startOpen] = useTransition();
+  const [, startDelete] = useTransition();
   const [reloadSignal, setReloadSignal] = useState(0);
+  const formOpen = addOpen || !!editDoc;
+
+  function closeForm() {
+    setAddOpen(false);
+    setEditDoc(null);
+  }
+
+  function afterChange() {
+    closeForm();
+    setReloadSignal((n) => n + 1);
+    router.refresh();
+  }
+
+  function deleteDoc(doc: DocumentRow) {
+    if (!window.confirm(`Delete “${doc.title}”? It will be archived and removed from this list.`)) return;
+    setDeletingId(doc.id);
+    startDelete(async () => {
+      const res = await archiveDocumentAction(doc.id, true);
+      setDeletingId(null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast("Document deleted.", { tone: "success" });
+      setReloadSignal((n) => n + 1);
+      router.refresh();
+    });
+  }
 
   const sortedDocs = [...documents].sort((a, b) => {
     const r = STATUS_RANK[deriveDocStatus(a)] - STATUS_RANK[deriveDocStatus(b)];
@@ -154,13 +182,23 @@ export function CompanyDocuments({
                     ) : (
                       <span className="shrink-0 h-7 w-7" aria-hidden />
                     )}
-                    <a
-                      href={`/documents?company=${companyId}&doc=${doc.id}`}
+                    <button
+                      type="button"
+                      onClick={() => setEditDoc(doc)}
                       title="Edit document"
                       className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors"
                     >
-                      <ChevronRight size={14} />
-                    </a>
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteDoc(doc)}
+                      disabled={deletingId === doc.id}
+                      title="Delete document"
+                      className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+                    >
+                      {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    </button>
                   </li>
                 );
               })}
@@ -230,8 +268,8 @@ export function CompanyDocuments({
         </a>
       </div>
 
-      {/* Add-document modal, layered over the page (no route change). */}
-      <Dialog.Root open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
+      {/* Add / edit document modal, layered over the page (no route change). */}
+      <Dialog.Root open={formOpen} onOpenChange={(o) => { if (!o) closeForm(); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm
             data-[state=open]:animate-in data-[state=open]:fade-in-0
@@ -246,8 +284,9 @@ export function CompanyDocuments({
           >
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
               <Dialog.Title className="text-sm font-semibold truncate">
-                Add a document for {companyName}
-                {addCategory ? ` · ${addCategory}` : ""}
+                {editDoc
+                  ? `Edit ${editDoc.title}`
+                  : `Add a document for ${companyName}${addCategory ? ` · ${addCategory}` : ""}`}
               </Dialog.Title>
               <Dialog.Close asChild>
                 <button type="button" aria-label="Close"
@@ -257,7 +296,16 @@ export function CompanyDocuments({
               </Dialog.Close>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              {addOpen && (
+              {editDoc ? (
+                <DocumentForm
+                  mode="edit"
+                  doc={editDoc}
+                  companies={companies}
+                  people={people}
+                  onCancel={closeForm}
+                  onComplete={(res) => { if (res.ok) { toast("Document updated.", { tone: "success" }); afterChange(); } }}
+                />
+              ) : addOpen ? (
                 <DocumentForm
                   mode="create"
                   companies={companies}
@@ -265,17 +313,10 @@ export function CompanyDocuments({
                   initialCompanyId={companyId}
                   initialCategory={addCategory}
                   initialTitle={addTitle || undefined}
-                  onCancel={() => setAddOpen(false)}
-                  onComplete={(res) => {
-                    if (res.ok) {
-                      toast("Document added.", { tone: "success" });
-                      setAddOpen(false);
-                      setReloadSignal((n) => n + 1);
-                      router.refresh();
-                    }
-                  }}
+                  onCancel={closeForm}
+                  onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); afterChange(); } }}
                 />
-              )}
+              ) : null}
             </div>
           </Dialog.Content>
         </Dialog.Portal>
