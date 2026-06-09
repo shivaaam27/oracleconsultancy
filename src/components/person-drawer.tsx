@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
-import { IconButton, EmptyState } from "./drawer-kit";
+import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel } from "./drawer-kit";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackBuilder } from "./person-pack-builder";
@@ -440,56 +440,57 @@ export function PersonDrawer() {
   ) : null;
 
   // ── Tasks tab ───────────────────────────────────────────────────────
+  const priorityBar: Record<string, string> = { Critical: "bg-danger", High: "bg-warn", Medium: "bg-info", Low: "bg-fg-subtle" };
   const tasksContent = person && data ? (
     data.assignedTasks.length === 0 && data.recentUpdates.length === 0 ? (
-      <div className="text-center py-10 text-fg-muted text-sm">No tasks assigned and no recent activity.</div>
+      <SectionCard><EmptyState icon={<ListTodo size={20} />} title="No work yet" hint="No tasks assigned and no recent activity." /></SectionCard>
     ) : (
       <>
         {data.assignedTasks.length > 0 && (
-          <div className="glass elevated rounded-2xl overflow-hidden">
+          <SectionCard>
             <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-              <ListTodo size={12} /> Assigned tasks <span className="text-fg-subtle">{data.assignedTasks.length}</span>
+              <ListTodo size={12} /> Assigned tasks
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.assignedTasks.length}</span>
             </div>
             <div className="divide-y divide-border/50">
               {data.assignedTasks.slice(0, 20).map((t) => {
                 const urgent = t.flag === "overdue" || t.flag === "escalate-now";
                 const done = t.status === "Completed" || t.status === "Closed";
-                const dot = urgent ? "bg-danger" : done ? "bg-success" : t.flag === "due-soon" ? "bg-warn" : "bg-fg-subtle";
                 return (
-                  <TaskDrawerLink key={t.id} code={t.code} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-bg-muted/50 transition-colors">
-                    <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dot)} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-medium truncate">{t.actionItem}</span>
-                      <span className="block text-[10px] text-fg-muted truncate"><span className="font-mono">{t.code}</span> · {t.companyName} · <span className={urgent ? "text-danger" : ""}>{t.status}</span></span>
+                  <TaskDrawerLink key={t.id} code={t.code} className="group/row flex w-full items-stretch gap-0 text-left hover:bg-bg-muted/50 transition-colors">
+                    <span className={cn("w-1 shrink-0 rounded-full my-2 ml-2", priorityBar[t.priority] ?? "bg-fg-subtle")} />
+                    <span className="flex-1 min-w-0 flex items-center gap-2.5 px-3 py-2.5">
+                      <span className="min-w-0 flex-1">
+                        <span className={cn("block text-sm font-medium truncate", done && "line-through text-fg-subtle")}>{t.actionItem}</span>
+                        <span className="block text-[11px] text-fg-subtle truncate"><span className="font-mono">{t.code}</span> · {t.companyName} · <span className={urgent ? "text-danger font-medium" : ""}>{t.status}</span></span>
+                      </span>
+                      <Badge tone={priorityTone(t.priority)} className="shrink-0">{t.priority}</Badge>
                     </span>
-                    <Badge tone={priorityTone(t.priority)} className="shrink-0">{t.priority}</Badge>
                   </TaskDrawerLink>
                 );
               })}
             </div>
-          </div>
+          </SectionCard>
         )}
         {data.recentUpdates.length > 0 && (
-          <div className="glass elevated rounded-2xl p-4">
+          <SectionCard className="p-4">
             <div className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5 mb-3"><Activity size={12} /> Recent activity</div>
             <div className="relative pl-4">
               <div className="absolute left-1 top-1.5 bottom-1.5 w-px bg-border" />
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {data.recentUpdates.slice(0, 10).map((u) => (
                   <div key={u.id} className="relative">
-                    <div className="absolute -left-[13px] top-2 w-2 h-2 rounded-full border-2 border-bg bg-accent" />
-                    <div className="bg-accent/5 ring-1 ring-accent/15 rounded-xl px-3 py-2 space-y-1">
-                      <p className="text-xs leading-relaxed">{u.body}</p>
-                      <div className="flex items-center justify-between gap-2 text-[10px] text-fg-subtle">
-                        <Link href={`/task/${u.taskCode}`} className="font-mono hover:text-accent transition-colors">{u.taskCode}</Link>
-                        <span className="tabular">{fmtTime(new Date(u.createdAt))}</span>
-                      </div>
+                    <div className="absolute -left-[13px] top-1.5 w-2 h-2 rounded-full border-2 border-bg bg-accent" />
+                    <p className="text-xs leading-relaxed text-fg">{u.body}</p>
+                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-fg-subtle">
+                      <Link href={`/task/${u.taskCode}`} className="font-mono hover:text-accent transition-colors">{u.taskCode}</Link>
+                      <span className="tabular">{fmtTime(new Date(u.createdAt))}</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
+          </SectionCard>
         )}
       </>
     )
@@ -525,56 +526,61 @@ export function PersonDrawer() {
       </div>
     ) : (
       <>
-        {/* Profile details */}
+        {/* Profile details — grouped definition grids */}
         {(() => {
-          const rows: Array<[string, string | null]> = [
-            ["Date of birth", person.dateOfBirth ? fmtDate(new Date(person.dateOfBirth)) : null],
-            ["Nationality", person.nationality],
-            ["National ID", person.nationalId],
-            ["Passport no.", person.passportNo],
-            ["Address", person.address],
-            ["Emergency contact", [person.emergencyContactName, person.emergencyContactPhone].filter(Boolean).join(" · ") || null],
-            ["Started", person.startDate ? fmtDate(new Date(person.startDate)) : null],
-            ["Probation ends", person.probationEndDate ? fmtDate(new Date(person.probationEndDate)) : null],
-          ];
           const docFor = (kind: "passport" | "nationalId") =>
             data.documents.find((d) => {
               const hay = [d.category, d.docType, d.title].filter(Boolean).join(" ").toLowerCase();
               return kind === "passport" ? d.category === "Passport" || hay.includes("passport") : /national id|nida/.test(hay);
             }) ?? null;
+          const docHint = (kind: "passport" | "nationalId", value: string | null) => {
+            const doc = docFor(kind);
+            if (!doc) return undefined;
+            return (
+              <Link href={`/documents?person=${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent hover:underline max-w-full">
+                <FileText size={10} className="shrink-0" /><span className="truncate">{value ? doc.title : `${doc.title} — on file`}</span>
+              </Link>
+            );
+          };
+          const identity = [
+            { label: "Date of birth", value: person.dateOfBirth ? fmtDate(new Date(person.dateOfBirth)) : null },
+            { label: "Nationality", value: person.nationality },
+            { label: "National ID", value: person.nationalId, hint: docHint("nationalId", person.nationalId) },
+            { label: "Passport no.", value: person.passportNo, hint: docHint("passport", person.passportNo) },
+          ];
+          const contact = [
+            { label: "Address", value: person.address },
+            { label: "Emergency contact", value: [person.emergencyContactName, person.emergencyContactPhone].filter(Boolean).join(" · ") || null },
+            { label: "Email", value: person.email },
+            { label: "WhatsApp", value: person.whatsapp },
+          ];
+          const employment = [
+            { label: "Department", value: person.departmentName },
+            { label: "Started", value: person.startDate ? fmtDate(new Date(person.startDate)) : null },
+            { label: "Probation ends", value: person.probationEndDate ? fmtDate(new Date(person.probationEndDate)) : null },
+            { label: "Type", value: personTypeLabel(person.personType) },
+          ];
           return (
-            <div className="glass elevated rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5"><IdCard size={12} /> Profile details</span>
-                <button type="button" onClick={() => setMode("edit")} className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2 py-1 rounded hover:bg-bg-subtle transition-colors">
+            <SectionCard className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5"><IdCard size={12} /> Details</span>
+                <button type="button" onClick={() => setMode("edit")} className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2 py-1 rounded-lg hover:bg-bg-subtle transition-colors">
                   <Pencil size={11} /> Edit
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-                {rows.map(([label, value]) => {
-                  const doc = label === "Passport no." ? docFor("passport") : label === "National ID" ? docFor("nationalId") : null;
-                  return (
-                    <div key={label}>
-                      <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{label}</div>
-                      <div className={cn("text-sm", value ? "text-fg" : "text-fg-subtle")}>{value || "—"}</div>
-                      {doc && (
-                        <Link href={`/documents?person=${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent hover:underline max-w-full">
-                          <FileText size={10} className="shrink-0" /><span className="truncate">{value ? doc.title : `${doc.title} — on file`}</span>
-                        </Link>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+              <div className="space-y-1.5"><GroupLabel>Identity</GroupLabel><DefGrid rows={identity} /></div>
+              <div className="space-y-1.5"><GroupLabel>Contact</GroupLabel><DefGrid rows={contact} /></div>
+              <div className="space-y-1.5"><GroupLabel>Employment</GroupLabel><DefGrid rows={employment} /></div>
+            </SectionCard>
           );
         })()}
 
         {/* Documents */}
         {data.documents.length > 0 && (
-          <div className="glass elevated rounded-2xl overflow-hidden">
+          <SectionCard>
             <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-              <FileText size={12} /> Documents <span className="text-fg-subtle">{data.documents.length}</span>
+              <FileText size={12} /> Documents
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.documents.length}</span>
             </div>
             <div className="divide-y divide-border/50">
               {data.documents.slice(0, 10).map((doc) => (
@@ -588,11 +594,11 @@ export function PersonDrawer() {
                 </Link>
               ))}
             </div>
-          </div>
+          </SectionCard>
         )}
 
         {/* Manage */}
-        <div className="glass elevated rounded-2xl p-4 space-y-3">
+        <SectionCard className="p-4 space-y-3">
           <div className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5"><Clock size={12} /> Manage</div>
           <div>
             <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Snooze reminders</div>
@@ -612,7 +618,7 @@ export function PersonDrawer() {
               <ExternalLink size={11} /> All tasks
             </Link>
           </div>
-        </div>
+        </SectionCard>
       </>
     )
   ) : null;

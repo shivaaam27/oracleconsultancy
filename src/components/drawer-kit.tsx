@@ -154,3 +154,23 @@ export function EmptyState({ icon, title, hint, tone = "muted", action }: { icon
 export function SectionCard({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn("glass elevated rounded-2xl overflow-hidden", className)}>{children}</div>;
 }
+
+/** A small caption used to head a group within a card. */
+export function GroupLabel({ children }: { children: ReactNode }) {
+  return <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle">{children}</div>;
+}
+
+/** A two-column definition grid (label + value, "—" when empty). */
+export function DefGrid({ rows }: { rows: Array<{ label: string; value: string | null; hint?: ReactNode }> }) {
+  return (
+    <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+      {rows.map((r) => (
+        <div key={r.label}>
+          <div className="text-[10px] uppercase tracking-wider text-fg-subtle">{r.label}</div>
+          <div className={cn("text-sm", r.value ? "text-fg" : "text-fg-subtle")}>{r.value || "—"}</div>
+          {r.hint}
+        </div>
+      ))}
+    </div>
+  );
+}
