@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Laptop, Loader2, RotateCcw, Plus, ChevronDown } from "lucide-react";
+import { Laptop, Loader2, RotateCcw, Plus } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
+import { SectionCard, EmptyState } from "./drawer-kit";
 import type { AssetRow } from "@/lib/assets-shared";
 import { assignAssetAction, returnAssetAction } from "@/app/hrms/assets/actions";
 
@@ -25,8 +26,6 @@ export function PersonAssets({
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [open, setOpen] = useState(false);
-  const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -45,7 +44,6 @@ export function PersonAssets({
   useEffect(() => {
     if (!data) return;
     onSummary?.({ held: data.held.length });
-    if (!autoSet.current) { autoSet.current = true; if (data.held.length > 0) setOpen(true); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
@@ -73,36 +71,31 @@ export function PersonAssets({
   const held = data.held;
 
   return (
-    <details className="group glass elevated rounded-2xl overflow-hidden" open={open}>
-      <summary
-        onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
-        className="list-none cursor-pointer flex items-center gap-2 px-3 py-2.5 select-none"
-      >
-        <Laptop size={15} className="text-accent" />
-        <span className="text-sm font-semibold">Equipment held</span>
-        <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular">
+    <SectionCard>
+      <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-2">
+        <Laptop size={14} className="text-accent" />
+        <span className="text-xs font-medium uppercase tracking-wider text-fg-muted">Equipment held</span>
+        <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
           {held.length}
         </span>
-        <ChevronDown size={16} className={cn("ml-auto shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
-      </summary>
+      </div>
 
-      <div className="border-t border-border/70">
       {held.length > 0 ? (
         <div className="divide-y divide-border/50">
           {held.map((a) => {
             const busy = busyId === a.id;
-            const meta = [a.tag, a.category].filter(Boolean).join(" · ");
+            const meta = [a.tag, a.category, a.serialNo].filter(Boolean).join(" · ");
             return (
-              <div key={a.id} className={cn("flex items-center gap-2.5 px-3 py-2", busy && "opacity-60")}>
-                <span className="h-1.5 w-1.5 rounded-full bg-info shrink-0" />
+              <div key={a.id} className={cn("group/row flex items-center gap-2.5 px-3.5 py-2.5", busy && "opacity-60")}>
+                <span className="h-2 w-2 rounded-full bg-info shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{a.name}</div>
-                  {meta && <div className="text-[11px] text-fg-muted truncate">{meta}</div>}
+                  {meta && <div className="text-[11px] text-fg-subtle truncate">{meta}</div>}
                 </div>
                 <button
                   type="button" disabled={busy}
                   onClick={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted shrink-0"
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 disabled:opacity-50"
                 >
                   {busy ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Return
                 </button>
@@ -111,11 +104,11 @@ export function PersonAssets({
           })}
         </div>
       ) : (
-        <div className="px-3 py-2.5 text-xs text-fg-muted">No equipment assigned yet.</div>
+        <EmptyState icon={<Laptop size={20} />} title="No equipment" hint="Nothing assigned to this person yet." />
       )}
 
       {/* Assign from in-store stock */}
-      <div className="flex items-center gap-2 border-t border-border/70 px-3 py-2">
+      <div className="flex items-center gap-2 border-t border-border/50 px-3.5 py-2">
         <Plus size={13} className="text-fg-subtle shrink-0" />
         {data.available.length > 0 ? (
           <select
@@ -126,7 +119,7 @@ export function PersonAssets({
               if (!Number.isNaN(v)) run(v, () => assignAssetAction(v, personId), "Equipment assigned.");
               e.currentTarget.value = "";
             }}
-            className="flex-1 rounded-md bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1"
+            className="flex-1 rounded-lg bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1.5"
           >
             <option value="" disabled>Assign equipment from store…</option>
             {data.available.map((a) => (
@@ -139,7 +132,6 @@ export function PersonAssets({
           </Link>
         )}
       </div>
-      </div>
-    </details>
+    </SectionCard>
   );
 }
