@@ -173,7 +173,7 @@ export default async function CompanyPage({
       </div>
       <CompanyActions companyId={companyId} companyName={name} />
 
-      <CompanyTabs companyId={companyId} current={tab} openCount={openRows.length} docCount={companyDocs.length} />
+      <CompanyTabs companyId={companyId} current={tab} openCount={openRows.length} />
 
       {tab === "overview" && (
         <>
@@ -358,32 +358,31 @@ export default async function CompanyPage({
         </>
       )}
 
-      {tab === "file" && (
-        <CompanyDocuments
-          companyId={companyId}
-          companyName={name}
-          documents={companyDocs}
-          staffGroups={staffGroups}
-          companies={companiesList}
-          people={peopleList}
-        />
-      )}
-
       {tab === "profile" && (
-        <CompanyProfile
-          companyId={companyId}
-          companyName={name}
-          profile={{
-            legalName: (companyRaw?.legal_name as string | null) ?? null,
-            registrationNo: (companyRaw?.registration_no as string | null) ?? null,
-            tin: (companyRaw?.tin as string | null) ?? null,
-            address: (companyRaw?.address as string | null) ?? null,
-            phone: (companyRaw?.phone as string | null) ?? null,
-            email: (companyRaw?.email as string | null) ?? null,
-            signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
-            signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
-          }}
-        />
+        <div className="space-y-3.5">
+          <CompanyProfile
+            companyId={companyId}
+            companyName={name}
+            profile={{
+              legalName: (companyRaw?.legal_name as string | null) ?? null,
+              registrationNo: (companyRaw?.registration_no as string | null) ?? null,
+              tin: (companyRaw?.tin as string | null) ?? null,
+              address: (companyRaw?.address as string | null) ?? null,
+              phone: (companyRaw?.phone as string | null) ?? null,
+              email: (companyRaw?.email as string | null) ?? null,
+              signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
+              signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
+            }}
+          />
+          <CompanyDocuments
+            companyId={companyId}
+            companyName={name}
+            documents={companyDocs}
+            staffGroups={staffGroups}
+            companies={companiesList}
+            people={peopleList}
+          />
+        </div>
       )}
 
       {tab === "tasks" && (

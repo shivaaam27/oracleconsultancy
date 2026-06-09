@@ -1,30 +1,15 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { FilePlus, X, FileText, ExternalLink, Paperclip, ChevronRight, Users } from "lucide-react";
+import { FilePlus, X, FolderOpen, Users, ExternalLink, Paperclip, ChevronRight, ChevronDown } from "lucide-react";
 import { DocumentForm } from "@/components/document-form";
 import { CompanyRequirementsChecklist } from "@/components/company-requirements-checklist";
+import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { getDocumentFileLinkAction } from "@/app/documents/actions";
 import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 import { useToast } from "@/components/toast";
-
-// Display order for the grouped company file. Categories not listed fall to the
-// end under their own heading; missing categories simply don't render.
-const CATEGORY_ORDER = [
-  "Registration",
-  "Licence",
-  "Permit",
-  "Tax",
-  "Insurance",
-  "Lease",
-  "Contract",
-  "Certificate",
-  "Immigration",
-  "Passport",
-  "Other",
-] as const;
 
 const STATUS_BADGE: Record<DocStatus, string> = {
   Valid: "bg-success-soft text-success",
@@ -34,12 +19,21 @@ const STATUS_BADGE: Record<DocStatus, string> = {
   Archived: "bg-bg-muted text-fg-subtle",
 };
 
+// Sort order: things needing attention first, then the rest, then by title.
+const STATUS_RANK: Record<DocStatus, number> = {
+  Expired: 0, Expiring: 1, Valid: 2, "No expiry": 3, Archived: 4,
+};
+
 export type StaffFileGroup = {
   personId: number;
   personName: string;
   role: string | null;
   docs: DocumentRow[];
 };
+
+function fmtUpdated(d: Date): string {
+  return `Updated ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+}
 
 export function CompanyDocuments({
   companyId,
@@ -62,29 +56,13 @@ export function CompanyDocuments({
   const [addCategory, setAddCategory] = useState<string | null>(null);
   const [addTitle, setAddTitle] = useState<string>("");
   const [opening, startOpen] = useTransition();
-  // Bumped after a document is added so the checklist re-fetches and re-links.
   const [reloadSignal, setReloadSignal] = useState(0);
 
-  // Group by category in the fixed display order; unknown categories last.
-  const groups = useMemo(() => {
-    const byCat = new Map<string, DocumentRow[]>();
-    for (const doc of documents) {
-      const key = doc.category ?? "Other";
-      const arr = byCat.get(key) ?? [];
-      arr.push(doc);
-      byCat.set(key, arr);
-    }
-    const ordered: Array<{ category: string; docs: DocumentRow[] }> = [];
-    for (const cat of CATEGORY_ORDER) {
-      const docs = byCat.get(cat);
-      if (docs?.length) {
-        ordered.push({ category: cat, docs });
-        byCat.delete(cat);
-      }
-    }
-    for (const [category, docs] of byCat) ordered.push({ category, docs });
-    return ordered;
-  }, [documents]);
+  const sortedDocs = [...documents].sort((a, b) => {
+    const r = STATUS_RANK[deriveDocStatus(a)] - STATUS_RANK[deriveDocStatus(b)];
+    return r !== 0 ? r : a.title.localeCompare(b.title);
+  });
+  const staffTotal = staffGroups.reduce((n, g) => n + g.docs.length, 0);
 
   function openFile(id: number) {
     startOpen(async () => {
@@ -103,71 +81,59 @@ export function CompanyDocuments({
   const linkableDocs = documents.map((d) => ({ id: d.id, title: d.title, category: d.category }));
 
   return (
-    <div className="space-y-4">
-      {/* Per-company statutory checklist — editable, drives the compliance %. */}
-      <CompanyRequirementsChecklist
-        companyId={companyId}
-        documents={linkableDocs}
-        reloadSignal={reloadSignal}
-        onAddDocument={(o) => startAdd(o)}
-        onChanged={() => router.refresh()}
-      />
-
-      {/* Company documents, grouped by category. */}
-      <div className="flex items-center justify-between">
-        <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
-          <FileText size={13} /> Company file
-          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+    <div className="space-y-3">
+      {/* ── Company files ─────────────────────────────────────────────── */}
+      <details open className="group glass elevated rounded-2xl overflow-hidden">
+        <summary className="list-none cursor-pointer flex items-center gap-2.5 px-4 py-3 select-none">
+          <FolderOpen size={16} className="text-accent shrink-0" />
+          <span className="text-sm font-semibold">Company files</span>
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular">
             {documents.length}
           </span>
-        </h2>
-        <button
-          type="button"
-          onClick={() => startAdd({ category: null })}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-2.5 py-1 hover:bg-accent-soft/40"
-        >
-          <FilePlus size={13} /> Add document
-        </button>
-      </div>
-
-      {documents.length === 0 ? (
-        <div className="glass elevated rounded-2xl px-4 py-10 text-center text-sm text-fg-muted space-y-3">
-          <p>No documents filed for {companyName} yet.</p>
           <button
             type="button"
-            onClick={() => startAdd({ category: null })}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-3 py-1.5 ring-1 ring-accent/30 hover:bg-accent-soft/40"
+            onClick={(e) => { e.preventDefault(); startAdd({ category: null }); }}
+            className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-2.5 py-1 hover:bg-accent-soft/40"
           >
-            <FilePlus size={13} /> Add the first document
+            <FilePlus size={13} /> Add
           </button>
-        </div>
-      ) : (
-        groups.map(({ category, docs }) => (
-          <section key={category} className="glass elevated rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
-              <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
-                {category}
-                <span className="text-[11px] font-normal text-fg-subtle tabular">{docs.length}</span>
-              </h3>
+          <ChevronDown size={16} className="shrink-0 text-fg-subtle transition-transform group-open:rotate-180" />
+        </summary>
+
+        <div className="border-t border-border/60 p-3 space-y-3">
+          {/* Statutory checklist — kept, collapsed by default. */}
+          <CompanyRequirementsChecklist
+            companyId={companyId}
+            documents={linkableDocs}
+            reloadSignal={reloadSignal}
+            onAddDocument={(o) => startAdd(o)}
+            onChanged={() => router.refresh()}
+            defaultOpen={false}
+          />
+
+          {/* Flat list of every company document (no category grouping). */}
+          {documents.length === 0 ? (
+            <div className="px-2 py-8 text-center text-sm text-fg-muted space-y-3">
+              <p>No documents filed for {companyName} yet.</p>
               <button
                 type="button"
-                onClick={() => startAdd({ category })}
-                title={`Add a ${category} document`}
-                className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent transition-colors rounded-full px-2 py-0.5 hover:bg-bg-muted/60"
+                onClick={() => startAdd({ category: null })}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-3 py-1.5 ring-1 ring-accent/30 hover:bg-accent-soft/40"
               >
-                <FilePlus size={12} /> Add
+                <FilePlus size={13} /> Add the first document
               </button>
             </div>
-            <ul className="divide-y divide-border/50">
-              {docs.map((doc) => {
+          ) : (
+            <ul className="rounded-xl ring-1 ring-border/60 divide-y divide-border/50 overflow-hidden">
+              {sortedDocs.map((doc) => {
                 const status = deriveDocStatus(doc);
                 const exp = expiryLabel(doc);
                 return (
-                  <li key={doc.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <li key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-bg-elev/40">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{doc.title}</span>
                       <span className="block truncate text-[11px] text-fg-subtle">
-                        {[doc.issuer, doc.referenceNo, exp].filter(Boolean).join(" · ") || "No details"}
+                        {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
                       </span>
                     </span>
                     <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
@@ -175,22 +141,14 @@ export function CompanyDocuments({
                     </span>
                     {doc.storagePath ? (
                       <button
-                        type="button"
-                        onClick={() => openFile(doc.id)}
-                        disabled={opening}
-                        title="Open file"
+                        type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
                         className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors disabled:opacity-50"
                       >
                         <Paperclip size={14} />
                       </button>
                     ) : doc.fileUrl ? (
-                      <a
-                        href={doc.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Open link"
-                        className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors"
-                      >
+                      <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
+                        className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors">
                         <ExternalLink size={14} />
                       </a>
                     ) : (
@@ -207,72 +165,61 @@ export function CompanyDocuments({
                 );
               })}
             </ul>
-          </section>
-        ))
-      )}
+          )}
+        </div>
+      </details>
 
-      {/* Staff files — documents belonging to people at this company, grouped. */}
-      {staffGroups.length > 0 && (
-        <>
-          <div className="flex items-center justify-between pt-2">
-            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
-              <Users size={13} /> Staff files
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
-                {staffGroups.reduce((n, g) => n + g.docs.length, 0)}
-              </span>
-            </h2>
-          </div>
-          {staffGroups.map((g) => (
-            <section key={g.personId} className="glass elevated rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
-                <h3 className="inline-flex items-center gap-2 text-sm font-semibold min-w-0">
-                  <span className="truncate">{g.personName}</span>
-                  {g.role && <span className="text-[11px] font-normal text-fg-subtle truncate">{g.role}</span>}
-                  <span className="text-[11px] font-normal text-fg-subtle tabular">{g.docs.length}</span>
-                </h3>
-                <a
-                  href={`/people?person=${g.personId}`}
-                  className="inline-flex items-center gap-1 text-[11px] text-fg-muted hover:text-accent transition-colors rounded-full px-2 py-0.5 hover:bg-bg-muted/60"
-                >
-                  <ExternalLink size={12} /> Open
-                </a>
-              </div>
-              <ul className="divide-y divide-border/50">
-                {g.docs.map((doc) => {
-                  const status = deriveDocStatus(doc);
-                  const exp = expiryLabel(doc);
-                  return (
-                    <li key={doc.id} className="flex items-center gap-3 px-4 py-2.5">
+      {/* ── Staff files ───────────────────────────────────────────────── */}
+      <details className="group glass elevated rounded-2xl overflow-hidden">
+        <summary className="list-none cursor-pointer flex items-center gap-2.5 px-4 py-3 select-none">
+          <Users size={16} className="text-accent shrink-0" />
+          <span className="text-sm font-semibold">Staff files</span>
+          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular">
+            {staffTotal}
+          </span>
+          <ChevronDown size={16} className="ml-auto shrink-0 text-fg-subtle transition-transform group-open:rotate-180" />
+        </summary>
+
+        <div className="border-t border-border/60 p-3">
+          {staffGroups.length === 0 ? (
+            <div className="px-2 py-8 text-center text-sm text-fg-muted">
+              No staff documents on file for this company yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {staffGroups.map((g) => {
+                const expired = g.docs.filter((d) => deriveDocStatus(d) === "Expired").length;
+                const expiring = g.docs.filter((d) => deriveDocStatus(d) === "Expiring").length;
+                const dot = expired ? "bg-danger" : expiring ? "bg-warn" : "bg-success";
+                return (
+                  <PersonDrawerLink
+                    key={g.personId}
+                    id={g.personId}
+                    name={g.personName}
+                    className="w-full text-left rounded-xl ring-1 ring-border/60 bg-bg-elev/40 px-3.5 py-2.5 hover:ring-accent/30 hover:bg-bg-muted/40 transition-all"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{doc.title}</span>
-                        <span className="block truncate text-[11px] text-fg-subtle">
-                          {[doc.category, doc.referenceNo, exp].filter(Boolean).join(" · ") || "No details"}
-                        </span>
+                        <span className="block truncate text-sm font-medium">{g.personName}</span>
+                        {g.role && <span className="block truncate text-[11px] text-fg-subtle">{g.role}</span>}
                       </span>
-                      <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
-                        {status}
+                      <span className="shrink-0 text-[11px] text-fg-muted tabular">
+                        {g.docs.length} file{g.docs.length === 1 ? "" : "s"}
                       </span>
-                      {doc.storagePath ? (
-                        <button
-                          type="button"
-                          onClick={() => openFile(doc.id)}
-                          disabled={opening}
-                          title="Open file"
-                          className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors disabled:opacity-50"
-                        >
-                          <Paperclip size={14} />
-                        </button>
-                      ) : (
-                        <span className="shrink-0 h-7 w-7" aria-hidden />
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </>
-      )}
+                    </span>
+                    {(expired > 0 || expiring > 0) && (
+                      <span className="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-warn-soft text-warn">
+                        {expired > 0 ? `${expired} expired` : `${expiring} expiring`}
+                      </span>
+                    )}
+                  </PersonDrawerLink>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </details>
 
       <div className="flex justify-end">
         <a
@@ -283,7 +230,7 @@ export function CompanyDocuments({
         </a>
       </div>
 
-      {/* Add-document modal, layered over the company page (no route change). */}
+      {/* Add-document modal, layered over the page (no route change). */}
       <Dialog.Root open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false); }}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm

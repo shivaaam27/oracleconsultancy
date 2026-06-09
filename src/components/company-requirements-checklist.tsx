@@ -116,6 +116,7 @@ export function CompanyRequirementsChecklist({
   onAddDocument,
   onChanged,
   reloadSignal,
+  defaultOpen = true,
 }: {
   companyId: number;
   /** This company's saved documents, for the "Link…" dropdown. */
@@ -124,12 +125,14 @@ export function CompanyRequirementsChecklist({
   onAddDocument: (opts: { title: string; category: string | null }) => void;
   onChanged?: () => void;
   reloadSignal?: number;
+  /** Whether the checklist starts expanded. Default true. */
+  defaultOpen?: boolean;
 }) {
   const { toast } = useToast();
   const [data, setData] = useState<Checklist | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
   const [openItem, setOpenItem] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -157,8 +160,8 @@ export function CompanyRequirementsChecklist({
   useEffect(() => {
     if (!data || autoSet.current) return;
     autoSet.current = true;
-    if (data.missingMandatory > 0 || data.expiredMandatory > 0) setOpen(true);
-  }, [data]);
+    if (defaultOpen && (data.missingMandatory > 0 || data.expiredMandatory > 0)) setOpen(true);
+  }, [data, defaultOpen]);
 
   function run(id: number, fn: () => Promise<{ ok: boolean; error?: string }>, okMsg?: string, after?: () => void) {
     setBusyId(id);

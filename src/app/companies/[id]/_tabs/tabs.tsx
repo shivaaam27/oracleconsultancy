@@ -1,21 +1,21 @@
 import Link from "next/link";
-import { LayoutDashboard, FolderOpen, IdCard, ListChecks, Activity, Network } from "lucide-react";
+import { LayoutDashboard, IdCard, ListChecks, Activity, Network } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type CompanyTab = "overview" | "file" | "profile" | "tasks" | "timeline" | "org";
+export type CompanyTab = "overview" | "profile" | "tasks" | "timeline" | "org";
 
-export const COMPANY_TABS: CompanyTab[] = ["overview", "file", "profile", "tasks", "timeline", "org"];
+export const COMPANY_TABS: CompanyTab[] = ["overview", "profile", "tasks", "timeline", "org"];
 
 export function parseCompanyTab(v: string | undefined): CompanyTab {
-  if (v === "file" || v === "profile" || v === "tasks" || v === "timeline" || v === "org") return v;
-  // Legacy "completed" deep-links now land on the Tasks tab (completed folds in there).
+  if (v === "profile" || v === "tasks" || v === "timeline" || v === "org") return v;
+  // Legacy deep-links: the File tab merged into Profile; Completed folds into Tasks.
+  if (v === "file") return "profile";
   if (v === "completed") return "tasks";
   return "overview";
 }
 
 const ICONS: Record<CompanyTab, React.ComponentType<{ size?: number }>> = {
   overview: LayoutDashboard,
-  file: FolderOpen,
   profile: IdCard,
   tasks: ListChecks,
   timeline: Activity,
@@ -24,7 +24,6 @@ const ICONS: Record<CompanyTab, React.ComponentType<{ size?: number }>> = {
 
 const LABELS: Record<CompanyTab, string> = {
   overview: "Overview",
-  file: "File",
   profile: "Profile",
   tasks: "Tasks",
   timeline: "Timeline",
@@ -35,12 +34,10 @@ export function CompanyTabs({
   companyId,
   current,
   openCount,
-  docCount,
 }: {
   companyId: number;
   current: CompanyTab;
   openCount?: number;
-  docCount?: number;
 }) {
   return (
     <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
@@ -64,9 +61,6 @@ export function CompanyTabs({
             {LABELS[t]}
             {t === "tasks" && openCount ? (
               <span className={cn("text-xs tabular", active ? "text-accent-fg/80" : "text-fg-subtle")}>{openCount}</span>
-            ) : null}
-            {t === "file" && docCount ? (
-              <span className={cn("text-xs tabular", active ? "text-accent-fg/80" : "text-fg-subtle")}>{docCount}</span>
             ) : null}
           </Link>
         );
