@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import * as Dialog from "@radix-ui/react-dialog";
-import { Check, ClipboardList, FileText, FileWarning, Loader2, Mail, MessageCircle, PackageCheck, Phone, Plus, Send, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, Check, ClipboardList, FileText, FileWarning, Loader2, Mail, MessageCircle, PackageCheck, Phone, Plus, Send, ShieldCheck, Sliders } from "lucide-react";
 import { Badge, Button } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { createPersonPackDraftAction, savePersonPackPrefsAction } from "@/app/people/pack-actions";
@@ -81,10 +80,15 @@ const purposeNames: Record<PersonPackPurpose, string> = {
   custom: "Custom",
 };
 
+// Real, useful reasons. (The old "Custom" reason was redundant with the
+// "Customise sections" panel below; "Work reminder" is now the one-tap Remind
+// action in the drawer footer — both removed to avoid duplication.)
 const purposeOptions: Array<{ id: PersonPackPurpose; label: string; hint: string }> = [
-  { id: "document-request", label: "Request documents", hint: "Chase the documents still missing." },
-  { id: "task-reminder", label: "Work reminder", hint: "Their open work and dates." },
-  { id: "custom", label: "Custom", hint: "Choose exactly what to include." },
+  { id: "document-request", label: "Documents", hint: "Chase the documents still missing." },
+  { id: "visa-permit", label: "Visa / Permit", hint: "Immigration documents and key dates." },
+  { id: "expat-onboarding", label: "Onboarding", hint: "Everything needed to get set up." },
+  { id: "recruitment", label: "Recruitment", hint: "Candidate file items." },
+  { id: "contract-signing", label: "Contract", hint: "Contract documents to sign." },
 ];
 
 const channelIcons: Record<Channel, typeof MessageCircle> = {
@@ -326,25 +330,25 @@ function ReasonPicker({
   purpose: PersonPackPurpose;
   setPurpose: (purpose: PersonPackPurpose) => void;
 }) {
-  const current = purposeOptions.find((o) => o.id === purpose) ?? purposeOptions[0];
+  const current = purposeOptions.find((o) => o.id === purpose) ?? null;
   return (
     <div className="space-y-1.5">
-      <div className="inline-flex w-full rounded-xl bg-bg-subtle p-1 ring-1 ring-border/60">
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {purposeOptions.map((option) => (
           <button
             key={option.id}
             type="button"
             onClick={() => setPurpose(option.id)}
             className={cn(
-              "flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors",
-              purpose === option.id ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg"
+              "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors",
+              purpose === option.id ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-subtle text-fg-muted ring-border/60 hover:text-fg"
             )}
           >
             {option.label}
           </button>
         ))}
       </div>
-      <p className="px-1 text-[11px] text-fg-subtle">{current.hint}</p>
+      {current && <p className="px-1 text-[11px] text-fg-subtle">{current.hint}</p>}
     </div>
   );
 }
@@ -702,20 +706,19 @@ function DraftMessagePreview({
   );
 }
 
-export function PersonPackBuilder({
+export function PersonPackPanel({
   personId,
   personName,
-  openOnMount = false,
   initialPurpose,
+  onBack,
 }: {
   personId: number;
   personName: string;
-  openOnMount?: boolean;
   initialPurpose?: PersonPackPurpose;
+  onBack: () => void;
 }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
   const [purpose, setPurpose] = useState<PersonPackPurpose>(initialPurpose ?? "document-request");
   const [pack, setPack] = useState<PackResponse | null>(null);
   const [selection, setSelection] = useState<PersonPackSectionSelection | null>(null);
@@ -753,14 +756,6 @@ export function PersonPackBuilder({
   }
 
   useEffect(() => {
-    if (openOnMount) {
-      if (initialPurpose) setPurpose(initialPurpose);
-      setOpen(true);
-    }
-  }, [openOnMount, initialPurpose]);
-
-  useEffect(() => {
-    if (!open) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -795,13 +790,13 @@ export function PersonPackBuilder({
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [open, personId, purpose]);
+  }, [personId, purpose]);
 
   // Persist the operator's choices (sections + unticked request items) per
   // person+purpose, debounced, so they survive reopening and refreshes. Skips
   // the run triggered by applying freshly-loaded prefs.
   useEffect(() => {
-    if (!open || !pack || !selection) return;
+    if (!pack || !selection) return;
     if (skipSaveRef.current) { skipSaveRef.current = false; return; }
     const excluded = pack.compliance.gaps.filter((g) => !selectedGaps.has(g.id)).map((g) => g.label);
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -815,7 +810,7 @@ export function PersonPackBuilder({
     }, 600);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection, selectedGaps, open, pack]);
+  }, [selection, selectedGaps, pack]);
 
   // Re-fetch the pack after a manual change (e.g. a request item was added),
   // keeping the current section choices. Only genuinely-new gaps (absent from
@@ -916,79 +911,47 @@ export function PersonPackBuilder({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity"
-        >
-          <PackageCheck size={12} /> Prepare pack
+    <div className="space-y-3">
+      {/* Back + title */}
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={onBack} aria-label="Back"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full ring-1 ring-border bg-bg-elev/60 text-fg-muted hover:text-accent hover:ring-accent/40 transition-colors">
+          <ArrowLeft size={15} />
         </button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content
-          className="fixed inset-x-0 bottom-0 z-[71] h-[92svh] max-h-[92svh] w-full overflow-hidden rounded-t-2xl glass glass-refract outline-none
-            sm:inset-0 sm:m-auto sm:h-fit sm:max-h-[88svh] sm:w-[calc(100%-1.5rem)] sm:max-w-4xl sm:rounded-2xl"
-        >
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3.5">
-            <div className="min-w-0">
-              <Dialog.Title className="truncate text-sm font-semibold">Reach out to {personName}</Dialog.Title>
-              <Dialog.Description className="mt-0.5 text-xs text-fg-muted">
-                Pick a reason, choose what to send, then save a draft or download a PDF.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted hover:bg-bg-muted hover:text-fg">
-              <X size={15} />
-            </Dialog.Close>
-          </div>
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-1.5 text-sm font-semibold"><PackageCheck size={14} className="text-accent" /> Prepare pack</div>
+          <div className="text-[11px] text-fg-muted truncate">For {personName} · pick a reason and what to include.</div>
+        </div>
+      </div>
 
-          <div className="h-[calc(92svh-61px)] min-h-0 overflow-y-auto md:h-auto md:max-h-[calc(88svh-61px)]">
-            <div className="grid gap-4 p-4 lg:grid-cols-[330px_minmax(0,1fr)]">
-              <div className="space-y-3">
-                <ReasonPicker purpose={purpose} setPurpose={setPurpose} />
-                {selection && (
-                  <details className="group glass elevated rounded-2xl">
-                    <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-fg-subtle">
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg-subtle text-[11px] text-fg-muted">2</span>
-                      Customise sections
-                      <span className="ml-auto text-[11px] font-normal normal-case tracking-normal text-fg-subtle">
-                        optional · pre-filled for the reason
-                      </span>
-                    </summary>
-                    <div className="px-3 pb-3">
-                      <IncludeGroups selection={selection} toggle={toggle} />
-                    </div>
-                  </details>
-                )}
-              </div>
+      <ReasonPicker purpose={purpose} setPurpose={setPurpose} />
 
-              <div className="min-w-0 space-y-3">
-              {loading && (
-                <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-fg-muted">
-                  <Loader2 size={16} className="animate-spin" /> Preparing pack...
-                </div>
-              )}
-              {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
-              {!loading && effPack && selection && (
-                <>
-                  <Preview pack={effPack} selection={selection} gapSelection={selectedGaps} onToggleGap={toggleGap} allGaps={pack?.compliance.gaps ?? []} newItem={newItem} setNewItem={setNewItem} onAddItem={addRequestItem} addingItem={addingItem} />
-                  {messagePreview && (
-                    <DraftMessagePreview pack={effPack} channel={channel} setChannel={setChannel} message={messagePreview} />
-                  )}
-                  <div className="sticky bottom-0 -mx-4 -mb-4 flex flex-wrap justify-end gap-2 border-t border-border bg-bg/80 px-4 py-3 backdrop-blur-md">
-                    <Button type="button" variant="secondary" size="sm" onClick={openPdf}>Download PDF</Button>
-                    <Button type="button" size="sm" onClick={createDraft} loading={draftPending}>
-                      <Send size={13} /> Save draft
-                    </Button>
-                  </div>
-                </>
-              )}
-              </div>
-            </div>
+      {selection && (
+        <details className="group glass elevated rounded-2xl">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-fg-muted">
+            <Sliders size={13} /> Customise sections
+            <span className="ml-auto text-[11px] text-fg-subtle">optional · pre-filled</span>
+          </summary>
+          <div className="px-3 pb-3"><IncludeGroups selection={selection} toggle={toggle} /></div>
+        </details>
+      )}
+
+      {loading && (
+        <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-fg-muted">
+          <Loader2 size={16} className="animate-spin" /> Preparing pack…
+        </div>
+      )}
+      {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
+      {!loading && effPack && selection && (
+        <>
+          <Preview pack={effPack} selection={selection} gapSelection={selectedGaps} onToggleGap={toggleGap} allGaps={pack?.compliance.gaps ?? []} newItem={newItem} setNewItem={setNewItem} onAddItem={addRequestItem} addingItem={addingItem} />
+          {messagePreview && <DraftMessagePreview pack={effPack} channel={channel} setChannel={setChannel} message={messagePreview} />}
+          <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border/70 bg-bg-elev/70 px-4 py-2.5 backdrop-blur">
+            <Button type="button" variant="secondary" size="sm" onClick={openPdf}>Download PDF</Button>
+            <Button type="button" size="sm" onClick={createDraft} loading={draftPending}><Send size={13} /> Save draft</Button>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </>
+      )}
+    </div>
   );
 }

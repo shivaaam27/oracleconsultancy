@@ -7,7 +7,7 @@ import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
-  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle,
+  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -15,7 +15,7 @@ import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel } from "./drawer-kit";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
-import { PersonPackBuilder } from "./person-pack-builder";
+import { PersonPackPanel } from "./person-pack-builder";
 import { RequirementsChecklist } from "./requirements-checklist";
 import { DocumentForm } from "./document-form";
 import { JourneyChecklist } from "./journey-checklist";
@@ -193,6 +193,7 @@ export function PersonDrawer() {
   const [error, setError] = useState(false);
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [activeTab, setActiveTab] = useState("overview");
+  const [packOpen, setPackOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [snoozeInput, setSnoozeInput] = useState<string>("");
   const [actionPending, setActionPending] = useState(false);
@@ -237,7 +238,7 @@ export function PersonDrawer() {
   }, [idStr, refreshKey]);
 
   // Reset to view mode + Overview whenever a new person opens
-  useEffect(() => { setMode("view"); setActiveTab("overview"); setRemindInfo(null); }, [idStr]);
+  useEffect(() => { setMode("view"); setActiveTab("overview"); setRemindInfo(null); setPackOpen(openPack); }, [idStr, openPack]);
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
@@ -624,15 +625,20 @@ export function PersonDrawer() {
   ) : null;
 
   // ── Tabs + action bar ───────────────────────────────────────────────
-  const tabs: DrawerTab[] = person && data ? [
-    { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} />, content: overviewContent },
-    { id: "compliance", label: "Compliance", icon: <ShieldCheck size={14} />, badge: compSum?.missing || undefined,
-      content: <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /> },
-    { id: "journey", label: person.active ? "Journey" : "Exit", icon: <RouteIcon size={14} />,
-      content: <div className="space-y-3"><JourneyChecklist personId={person.id} kind={person.active ? "onboarding" : "offboarding"} onChanged={refresh} onNavigate={close} onSummary={setJourneySum} /><PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} /></div> },
-    { id: "tasks", label: "Tasks", icon: <ListTodo size={14} />, badge: openTasks || undefined, content: tasksContent },
-    { id: "details", label: "Details", icon: <IdCard size={14} />, content: detailsContent },
-  ] : [];
+  // When the pack step is open it takes over the body as a single view.
+  const tabs: DrawerTab[] = !(person && data)
+    ? []
+    : packOpen
+    ? [{ id: "pack", label: "Pack", content: <PersonPackPanel personId={person.id} personName={person.name} initialPurpose={packPurpose} onBack={() => setPackOpen(false)} /> }]
+    : [
+        { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} />, content: overviewContent },
+        { id: "compliance", label: "Compliance", icon: <ShieldCheck size={14} />, badge: compSum?.missing || undefined,
+          content: <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /> },
+        { id: "journey", label: person.active ? "Journey" : "Exit", icon: <RouteIcon size={14} />,
+          content: <div className="space-y-3"><JourneyChecklist personId={person.id} kind={person.active ? "onboarding" : "offboarding"} onChanged={refresh} onNavigate={close} onSummary={setJourneySum} /><PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} /></div> },
+        { id: "tasks", label: "Tasks", icon: <ListTodo size={14} />, badge: openTasks || undefined, content: tasksContent },
+        { id: "details", label: "Details", icon: <IdCard size={14} />, content: detailsContent },
+      ];
 
   const hasOpenTasks = !!data?.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed");
   const actionBar = person && data ? (
@@ -650,7 +656,10 @@ export function PersonDrawer() {
         </div>
       )}
       <div className="flex items-center gap-2">
-        <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} initialPurpose={packPurpose} />
+        <button type="button" onClick={() => setPackOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+          <PackageCheck size={13} /> Prepare pack
+        </button>
         <div className="ml-auto flex items-center gap-1.5">
           {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
           <IconButton icon={<FileText size={15} />} label="Add document" onClick={() => setAddDoc({ category: null })} />
@@ -674,7 +683,7 @@ export function PersonDrawer() {
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}
-      actionBar={mode === "view" ? actionBar : undefined}
+      actionBar={mode === "view" && !packOpen ? actionBar : undefined}
     />
 
     {/* In-place "Add document" — layered above the person, so the flow stays
