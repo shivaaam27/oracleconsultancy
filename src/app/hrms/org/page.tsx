@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/ui";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { OrgChart, type OrgChartCompany } from "@/components/org-chart";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildCompanyTree, type CompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
@@ -66,14 +67,16 @@ export default async function OrgChartPage({
         title="Organogram"
         sub={`${totalPeople} people across ${companies.length} companies · ${totalLines} reporting line${totalLines === 1 ? "" : "s"} set`}
       />
-      <OrgChart
-        companies={companies}
-        trees={trees}
-        extras={extras}
-        webPeople={webPeople}
-        associatedByCompany={associatedByCompany}
-        initialCompanyId={company ? Number(company) : undefined}
-      />
+      <ErrorBoundary label="organogram">
+        <OrgChart
+          companies={companies}
+          trees={trees}
+          extras={extras}
+          webPeople={webPeople}
+          associatedByCompany={associatedByCompany}
+          initialCompanyId={company ? Number(company) : undefined}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

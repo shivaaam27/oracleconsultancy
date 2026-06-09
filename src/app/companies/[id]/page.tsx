@@ -13,6 +13,7 @@ import { OrgChart } from "@/components/org-chart";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildCompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
 import { buildCompanyComplianceScores } from "@/lib/compliance";
 import { listDocuments } from "@/lib/documents";
@@ -169,6 +170,7 @@ export default async function CompanyPage({
       )}
 
       {tab === "org" && orgTab && (
+        <ErrorBoundary label="company-org">
         <OrgChart
           companies={[{ id: companyId, name, accentColor: rows[0].companyAccent ?? null }]}
           trees={{ [companyId]: orgTab.tree }}
@@ -178,6 +180,7 @@ export default async function CompanyPage({
           showSwitcher={false}
           showEveryone={false}
         />
+        </ErrorBoundary>
       )}
     </div>
   );

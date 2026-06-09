@@ -47,6 +47,39 @@ function initials(name: string): string {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 }
 
+/**
+ * Settle a force-directed layout ONCE (synchronous, capped iterations) and
+ * return final positions. Deterministic (seeded), so server and client agree.
+ * No per-frame React re-render — keeps mobile devices from killing the tab.
+ */
+function computeLayout(nodes0: Node[], edges: Edge[]): Map<string, { x: number; y: number }> {
+  const ns = nodes0.map((n) => ({ key: n.key, kind: n.kind, x: n.x, y: n.y, vx: 0, vy: 0 }));
+  const map = new Map(ns.map((n) => [n.key, n]));
+  let a = 1;
+  for (let it = 0; it < 280; it++) {
+    for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
+      const A = ns[i], B = ns[j];
+      const dx = A.x - B.x, dy = A.y - B.y; const d2 = dx * dx + dy * dy || 0.01; const d = Math.sqrt(d2);
+      const f = (4200 * a) / d2; const ux = dx / d, uy = dy / d;
+      A.vx += ux * f; A.vy += uy * f; B.vx -= ux * f; B.vy -= uy * f;
+    }
+    for (const e of edges) {
+      const A = map.get(e.from), B = map.get(e.to); if (!A || !B) continue;
+      const dx = B.x - A.x, dy = B.y - A.y; const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const rest = e.kind === "employment" ? 95 : e.kind === "director" ? 115 : e.kind === "associated" ? 130 : 150;
+      const k = e.kind === "employment" ? 0.08 : 0.045;
+      const f = ((d - rest) / d) * k * a;
+      A.vx += dx * f; A.vy += dy * f; B.vx -= dx * f; B.vy -= dy * f;
+    }
+    for (const n of ns) { n.vx += (W / 2 - n.x) * 0.0016 * a; n.vy += (H / 2 - n.y) * 0.0016 * a; }
+    for (const n of ns) { const damp = n.kind === "company" ? 0.7 : 0.82; n.vx *= damp; n.vy *= damp; n.x += n.vx; n.y += n.vy; }
+    a *= 0.985;
+  }
+  const out = new Map<string, { x: number; y: number }>();
+  for (const n of ns) out.set(n.key, { x: q(n.x), y: q(n.y) });
+  return out;
+}
+
 export function OrgWeb({
   people, companies, extras, onPickCompany,
 }: {
@@ -107,10 +140,13 @@ export function OrgWeb({
     return { nodes0, edges, reportsCount: reports, headcount, neighbors };
   }, [people, companies]);
 
-  const simRef = useRef<Node[]>(nodes0);
-  const alphaRef = useRef(1);
-  useEffect(() => { simRef.current = nodes0.map((n) => ({ ...n })); alphaRef.current = 1; }, [nodes0]);
-  const [, setFrame] = useState(0);
+  // Node metadata (kind/id/radius) keyed for rendering.
+  const meta = useMemo(() => new Map(nodes0.map((n) => [n.key, n])), [nodes0]);
+
+  // Compute a settled layout ONCE (no per-frame React re-render — mobile-safe).
+  const layout = useMemo(() => computeLayout(nodes0, edges), [nodes0, edges]);
+  const [pos, setPos] = useState<Map<string, { x: number; y: number }>>(layout);
+  useEffect(() => { setPos(layout); }, [layout]);
 
   const [t, setT] = useState({ scale: 0.8, x: 0, y: 0 });
   const dragKey = useRef<string | null>(null);
@@ -119,42 +155,7 @@ export function OrgWeb({
   const [query, setQuery] = useState("");
   const [visible, setVisible] = useState<Record<EdgeKind, boolean>>({ director: true, secondary: true, related: true, employment: true, associated: true });
 
-  // Cooling force sim.
-  useEffect(() => {
-    let raf = 0;
-    const byKey = () => { const m = new Map<string, Node>(); for (const n of simRef.current) m.set(n.key, n); return m; };
-    const tick = () => {
-      const ns = simRef.current;
-      const a = alphaRef.current;
-      if (a > 0.02) {
-        const map = byKey();
-        for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
-          const A = ns[i], B = ns[j];
-          const dx = A.x - B.x, dy = A.y - B.y; const d2 = dx * dx + dy * dy || 0.01; const d = Math.sqrt(d2);
-          const f = (4200 * a) / d2; const ux = dx / d, uy = dy / d;
-          A.vx += ux * f; A.vy += uy * f; B.vx -= ux * f; B.vy -= uy * f;
-        }
-        for (const e of edges) {
-          const A = map.get(e.from), B = map.get(e.to); if (!A || !B) continue;
-          const dx = B.x - A.x, dy = B.y - A.y; const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-          const rest = e.kind === "employment" ? 95 : e.kind === "director" ? 115 : e.kind === "associated" ? 130 : 150;
-          const k = e.kind === "employment" ? 0.08 : 0.045;
-          const f = ((d - rest) / d) * k * a;
-          A.vx += dx * f; A.vy += dy * f; B.vx -= dx * f; B.vy -= dy * f;
-        }
-        for (const n of ns) { n.vx += (W / 2 - n.x) * 0.0016 * a; n.vy += (H / 2 - n.y) * 0.0016 * a; }
-        for (const n of ns) { if (n.pinned) { n.vx = 0; n.vy = 0; continue; } const damp = n.kind === "company" ? 0.7 : 0.82; n.vx *= damp; n.vy *= damp; n.x += n.vx; n.y += n.vy; }
-        alphaRef.current = a * 0.985;
-        setFrame((f) => f + 1);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [edges]);
-
-  const ns = simRef.current;
-  const posByKey = new Map(ns.map((n) => [n.key, n]));
+  const posByKey = pos;
 
   const openPerson = (id: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -191,13 +192,19 @@ export function OrgWeb({
   const onDown = (e: React.PointerEvent) => {
     const target = (e.target as Element).closest("[data-key]");
     movedRef.current = false;
-    if (target) { dragKey.current = target.getAttribute("data-key"); const n = posByKey.get(dragKey.current!); if (n) n.pinned = true; }
+    if (target) dragKey.current = target.getAttribute("data-key");
     else panRef.current = { x: e.clientX, y: e.clientY, tx: t.x, ty: t.y };
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch {}
   };
   const onMove = (e: React.PointerEvent) => {
-    if (dragKey.current) { const p = svgPoint(e); const n = posByKey.get(dragKey.current); if (n) { n.x = p.x; n.y = p.y; n.vx = 0; n.vy = 0; } movedRef.current = true; alphaRef.current = Math.max(alphaRef.current, 0.25); setFrame((f) => f + 1); }
-    else if (panRef.current) { const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect(); setT((prev) => ({ ...prev, x: panRef.current!.tx + (e.clientX - panRef.current!.x) * (W / r.width), y: panRef.current!.ty + (e.clientY - panRef.current!.y) * (H / r.height) })); }
+    if (dragKey.current) {
+      const p = svgPoint(e); const key = dragKey.current;
+      setPos((prev) => { const m = new Map(prev); m.set(key, { x: q(p.x), y: q(p.y) }); return m; });
+      movedRef.current = true;
+    } else if (panRef.current) {
+      const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+      setT((prev) => ({ ...prev, x: panRef.current!.tx + (e.clientX - panRef.current!.x) * (W / r.width), y: panRef.current!.ty + (e.clientY - panRef.current!.y) * (H / r.height) }));
+    }
   };
   const onUp = (e: React.PointerEvent) => {
     const target = (e.target as Element).closest("[data-key]");
@@ -207,15 +214,18 @@ export function OrgWeb({
   };
 
   const zoom = (d: number) => setT((p) => ({ ...p, scale: Math.min(2, Math.max(0.35, +(p.scale + d).toFixed(2))) }));
-  const reset = () => { setT({ scale: 0.8, x: 0, y: 0 }); setSelected(null); simRef.current = nodes0.map((n) => ({ ...n })); alphaRef.current = 1; };
-  const fullscreen = () => { if (!document.fullscreenElement) wrapRef.current?.requestFullscreen?.(); else document.exitFullscreen?.(); };
+  const reset = () => { setT({ scale: 0.8, x: 0, y: 0 }); setSelected(null); setPos(new Map(layout)); };
+  const fullscreen = () => {
+    try { if (!document.fullscreenElement) wrapRef.current?.requestFullscreen?.(); else document.exitFullscreen?.(); } catch {}
+  };
 
   const ctrlBtn = "h-8 w-8 inline-flex items-center justify-center rounded-lg bg-bg-subtle/80 ring-1 ring-border text-fg-muted hover:text-fg transition-colors";
 
-  const sel = selected ? posByKey.get(selected) : null;
-  const selPerson = sel?.kind === "person" ? peopleById.get(sel.id) : null;
-  const selCompany = sel?.kind === "company" ? companyById.get(sel.id) : null;
-  const selX = sel ? extras[sel.id] : undefined;
+  const selNode = selected ? meta.get(selected) : null;
+  const selPos = selected ? posByKey.get(selected) : null;
+  const selPerson = selNode?.kind === "person" ? peopleById.get(selNode.id) : null;
+  const selCompany = selNode?.kind === "company" ? companyById.get(selNode.id) : null;
+  const selX = selNode ? extras[selNode.id] : undefined;
 
   return (
     <div className="space-y-3">
@@ -259,13 +269,14 @@ export function OrgWeb({
               const active = isActive(e.from) && isActive(e.to);
               return <line key={i} x1={q(A.x)} y1={q(A.y)} x2={q(B.x)} y2={q(B.y)} stroke={m.color} strokeWidth={m.width} strokeDasharray={m.dash} opacity={anyDim ? (active ? 0.85 : 0.06) : 0.6} />;
             })}
-            {ns.map((n) => {
+            {nodes0.map((n) => {
+              const pp = posByKey.get(n.key); if (!pp) return null;
               const active = isActive(n.key);
               const op = anyDim ? (active ? 1 : 0.18) : 1;
               if (n.kind === "company") {
                 const c = companyById.get(n.id); const accent = c?.accentColor || "hsl(var(--accent))";
                 return (
-                  <g key={n.key} data-key={n.key} transform={`translate(${q(n.x)} ${q(n.y)})`} className="cursor-pointer" opacity={op}>
+                  <g key={n.key} data-key={n.key} transform={`translate(${q(pp.x)} ${q(pp.y)})`} className="cursor-pointer" opacity={op}>
                     <circle r={n.r} fill={accent} stroke="hsl(var(--bg-elev))" strokeWidth={selected === n.key ? 4 : 2} />
                     <text textAnchor="middle" dy="0.35em" fontSize="11" fontWeight={700} fill="#fff">{(c?.name ?? "").split(/\s+/).map((w) => w[0]).join("").slice(0, 3)}</text>
                     <text textAnchor="middle" y={n.r + 14} fontSize="11" fontWeight={600} fill="hsl(var(--fg))">{c?.name}</text>
@@ -275,7 +286,7 @@ export function OrgWeb({
               const p = peopleById.get(n.id); if (!p) return null;
               const external = EXTERNAL_TYPES.has(p.personType);
               return (
-                <g key={n.key} data-key={n.key} transform={`translate(${q(n.x)} ${q(n.y)})`} className="cursor-pointer" opacity={op}>
+                <g key={n.key} data-key={n.key} transform={`translate(${q(pp.x)} ${q(pp.y)})`} className="cursor-pointer" opacity={op}>
                   <circle r={n.r} fill="hsl(var(--bg-elev))" stroke={accentOf(p.companyId)} strokeWidth={selected === n.key ? 3.5 : 2} strokeDasharray={external ? "3 3" : undefined} />
                   <text textAnchor="middle" dy="0.35em" fontSize="10" fontWeight={600} fill="hsl(var(--fg))">{initials(p.name)}</text>
                   <text textAnchor="middle" y={n.r + 12} fontSize="9.5" fill="hsl(var(--fg-muted))">{p.name.split(/\s+/)[0]}</text>
@@ -286,8 +297,8 @@ export function OrgWeb({
         </svg>
 
         {/* selected info card */}
-        {sel && (selPerson || selCompany) && (
-          <div className="absolute z-20 w-60 rounded-xl glass glass-menu elevated p-3" style={{ left: `${((sel.x * t.scale + t.x) / W) * 100}%`, top: `${((sel.y * t.scale + t.y) / H) * 100}%`, transform: "translate(-50%, calc(-100% - 16px))" }}>
+        {selPos && (selPerson || selCompany) && (
+          <div className="absolute z-20 w-60 rounded-xl glass glass-menu elevated p-3" style={{ left: `${((selPos.x * t.scale + t.x) / W) * 100}%`, top: `${((selPos.y * t.scale + t.y) / H) * 100}%`, transform: "translate(-50%, calc(-100% - 16px))" }}>
             {selPerson ? (
               <>
                 <div className="text-[13px] font-semibold text-fg leading-tight">{selPerson.name}</div>
