@@ -246,6 +246,13 @@
       "when": 1781022563126,
       "tag": "0034_lumpy_hannibal_king",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781041631234,
+      "tag": "0035_secret_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,7 @@ import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
+import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import {
@@ -140,7 +141,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     listOutboxDrafts(),
     listMeetings(),
     getRecentActivity(60),
-    sb.from("companies").select("id,name"),
+    sb.from("companies").select("id,name,accent_color"),
     sb.from("people").select("id,name,person_type").eq("active", true),
   ]);
 
@@ -164,7 +165,11 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     .sort((a, b) => (a.dte ?? Infinity) - (b.dte ?? Infinity));
   const expiredDocs = expiringDocs.filter((x) => x.status === "Expired");
   const documentRenewalCandidates = await getDocumentRenewalCandidates(documents);
-  const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  const companies = (companiesRaw ?? []).map((c) => ({
+    id: c.id as number,
+    name: c.name as string,
+    accentColor: (c.accent_color as string | null) ?? null,
+  }));
   const people = (peopleRaw ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
@@ -411,6 +416,13 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   return (
     <div className="space-y-4">
       <HomeActions />
+      <NeedsAttentionPanel
+        documents={documents}
+        companies={companies}
+        people={people}
+        companyScores={companyComplianceScores}
+        personScores={personComplianceScores}
+      />
       <HomeIntelligence
         greeting={greeting(now.getHours())}
         dateLabel={`${dayLabel(now)} · ${settings.weatherCity}`}

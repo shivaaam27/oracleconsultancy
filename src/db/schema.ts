@@ -708,6 +708,42 @@ export const attendance = pgTable(
   (t) => [uniqueIndex("attendance_person_date_idx").on(t.personId, t.date)]
 );
 
+// Recurring statutory / admin obligations — the cadence master list (from the
+// owner's "Recurring Duties" workbook). These are NOT instances: each row is a
+// repeating duty (PAYE monthly, provisional tax quarterly, etc.). When one
+// enters its lead window the suggestion engine offers to materialise the next
+// instance as a normal task (createdBy "recurring"); ticking that task done
+// stamps last_done and rolls next_due forward. Reuse, don't duplicate.
+export const recurringObligations = pgTable("recurring_obligations", {
+  id: serial("id").primaryKey(),
+  label: text("label").notNull(),
+  // Null company = portfolio-wide / all entities.
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+  // daily | weekly | monthly | quarterly | annual | event
+  frequency: text("frequency").notNull(),
+  // Human rule, e.g. "By 7th of next month", "By 20th", "Month-end", "Quarter-end".
+  dueRule: text("due_rule"),
+  // Day-of-month (1–31) for monthly numeric rules; null when rule is month-end etc.
+  dueDay: integer("due_day"),
+  // Task category to stamp on the materialised task (Finance/HR/Legal/Admin…).
+  category: text("category").notNull().default("Admin"),
+  // Why it matters — carried onto the task as context.
+  why: text("why"),
+  // How many days before next_due to start suggesting the task.
+  leadDays: integer("lead_days").notNull().default(14),
+  owner: text("owner"),
+  notes: text("notes"),
+  // Last time this duty was completed (stamped when its task is closed).
+  lastDone: timestamp("last_done", { mode: "date", withTimezone: true }),
+  // Cached next occurrence; recomputed on roll-forward.
+  nextDue: timestamp("next_due", { mode: "date", withTimezone: true }),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
 // System-wide letters. A letter is generated from a template, edited freely as
 // a Draft, then Issued — which freezes a letterhead snapshot + stamps ref/date.
 export const letters = pgTable("letters", {
