@@ -22,6 +22,7 @@ import type { PersonPackSectionSelection } from "@/lib/person-pack-shared";
 import { isPersonPackPurpose } from "@/lib/person-pack-shared";
 import { personTypeLabel } from "@/lib/person-types";
 import { BRAND_NAME } from "@/lib/brand";
+import { getPackPrefs } from "@/lib/person-pack-prefs";
 
 export const dynamic = "force-dynamic";
 
@@ -168,26 +169,35 @@ export default async function PersonPackPage({
   if (!Number.isFinite(personId)) notFound();
 
   const purpose = parsePurpose(sp.purpose);
-  const pack = await getPersonPack(personId, purpose);
+  const [pack, savedPrefs] = await Promise.all([
+    getPersonPack(personId, purpose),
+    getPackPrefs(personId, purpose),
+  ]);
   if (!pack) notFound();
 
-  // Drop the request items the operator unticked in the builder, so the PDF
-  // shows exactly what was selected (and the counts/tiles match).
+  // Drop the request items the operator unticked. The builder passes them via
+  // `exclude`; opening the page directly falls back to the saved preferences,
+  // so the PDF still matches what was chosen for this person.
+  let excludedLabels: string[] | null = null;
   if (sp.exclude) {
     try {
-      const labels: string[] = JSON.parse(decodeURIComponent(atob(sp.exclude)));
-      const excluded = new Set(labels.map((l) => l.trim().toLowerCase()));
-      pack.compliance = {
-        ...pack.compliance,
-        gaps: pack.compliance.gaps.filter((g) => !excluded.has(g.label.trim().toLowerCase())),
-      };
+      excludedLabels = JSON.parse(decodeURIComponent(atob(sp.exclude)));
     } catch {
-      /* malformed param — show the full list rather than failing the print */
+      /* malformed param — fall through to saved prefs / full list */
     }
   }
+  if (excludedLabels == null && savedPrefs) excludedLabels = savedPrefs.excluded;
+  if (excludedLabels && excludedLabels.length) {
+    const excluded = new Set(excludedLabels.map((l) => l.trim().toLowerCase()));
+    pack.compliance = {
+      ...pack.compliance,
+      gaps: pack.compliance.gaps.filter((g) => !excluded.has(g.label.trim().toLowerCase())),
+    };
+  }
 
-  const selection = sp.sections
-    ? parsePersonPackSections(sp.sections)
+  const sectionsParam = sp.sections ?? savedPrefs?.sections ?? undefined;
+  const selection = sectionsParam
+    ? parsePersonPackSections(sectionsParam)
     : defaultPersonPackSelection(purpose, pack.detail.person.personType);
   const person = pack.detail.person;
   const generated = fmtDate(pack.generatedAt);

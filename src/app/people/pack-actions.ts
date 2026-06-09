@@ -5,6 +5,7 @@ import { sb } from "@/db/supabase";
 import { getPersonDetail } from "@/lib/people-queries";
 import { contactForChannel, linkFor, type Channel } from "@/lib/outbox-links";
 import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
+import { savePackPrefs } from "@/lib/person-pack-prefs";
 
 const CHANNELS: Channel[] = ["WHATSAPP", "EMAIL", "SMS"];
 
@@ -41,6 +42,25 @@ function validPurpose(value: string): value is PersonPackPurpose {
 
 function validChannel(value: string): value is Channel {
   return CHANNELS.includes(value as Channel);
+}
+
+/** Remember a person's Prepare-pack choices (sections + unticked items). */
+export async function savePersonPackPrefsAction(input: {
+  personId: number;
+  purpose: PersonPackPurpose;
+  sections: string;
+  excluded: string[];
+}): Promise<{ ok: boolean }> {
+  try {
+    if (!Number.isFinite(input.personId) || !validPurpose(input.purpose)) return { ok: false };
+    await savePackPrefs(input.personId, input.purpose, {
+      sections: input.sections,
+      excluded: input.excluded,
+    });
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 }
 
 export async function createPersonPackDraftAction(input: PersonPackDraftInput): Promise<PersonPackDraftResult> {

@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, ClipboardList, FileText, FileWarning, Loader2, Mail, MessageCircle, PackageCheck, Phone, Plus, Send, ShieldCheck, X } from "lucide-react";
 import { Badge, Button } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { createPersonPackDraftAction } from "@/app/people/pack-actions";
+import { createPersonPackDraftAction, savePersonPackPrefsAction } from "@/app/people/pack-actions";
 import { reqAdd } from "@/app/people/requirement-actions";
 import { cn } from "@/lib/cn";
 import { channelLabel, contactForChannel, pickChannel, type Channel } from "@/lib/outbox-links";
@@ -15,7 +15,7 @@ import type {
   PersonPackSectionKey,
   PersonPackSectionSelection,
 } from "@/lib/person-pack-shared";
-import { serialisePersonPackSections } from "@/lib/person-pack-shared";
+import { serialisePersonPackSections, parsePersonPackSections } from "@/lib/person-pack-shared";
 import { personTypeLabel, type PersonType } from "@/lib/person-types";
 import { BRAND_NAME } from "@/lib/brand";
 
@@ -59,6 +59,7 @@ type PackResponse = {
   personalTodos: Array<{ id: number; title: string; dueAt: string | null; important: boolean; taskCode: string | null }>;
   drafts: Array<{ id: number; status: string; source: string | null; createdAt: string }>;
   recommendedSelection: PersonPackSectionSelection;
+  savedPrefs: { sections: string | null; excluded: string[] } | null;
   counts: {
     missingDocuments: number;
     documentIssues: number;
@@ -727,6 +728,9 @@ export function PersonPackBuilder({
   const [selectedGaps, setSelectedGaps] = useState<Set<string>>(new Set());
   const [newItem, setNewItem] = useState("");
   const [addingItem, setAddingItem] = useState(false);
+  // Guards the first save right after applying loaded prefs; holds the debounce.
+  const skipSaveRef = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The pack with its missing-document list narrowed to the ticked items.
   const effPack = useMemo<PackResponse | null>(() => {
@@ -768,9 +772,21 @@ export function PersonPackBuilder({
       .then((data: PackResponse) => {
         if (cancelled) return;
         setPack(data);
-        setSelection(data.recommendedSelection);
         setChannel(pickChannel(data.detail.person));
-        setSelectedGaps(new Set(data.compliance.gaps.map((g) => g.id)));
+        // Restore the operator's saved choices for this person+purpose; fall
+        // back to the recommended sections + all items ticked.
+        const prefs = data.savedPrefs;
+        const savedSelection = prefs?.sections != null ? parsePersonPackSections(prefs.sections) : null;
+        setSelection(savedSelection ?? data.recommendedSelection);
+        const excluded = new Set((prefs?.excluded ?? []).map((l) => l.trim().toLowerCase()));
+        setSelectedGaps(
+          new Set(
+            data.compliance.gaps
+              .filter((g) => !excluded.has(g.label.trim().toLowerCase()))
+              .map((g) => g.id)
+          )
+        );
+        skipSaveRef.current = true; // don't re-save what we just loaded
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
@@ -780,6 +796,26 @@ export function PersonPackBuilder({
       });
     return () => { cancelled = true; };
   }, [open, personId, purpose]);
+
+  // Persist the operator's choices (sections + unticked request items) per
+  // person+purpose, debounced, so they survive reopening and refreshes. Skips
+  // the run triggered by applying freshly-loaded prefs.
+  useEffect(() => {
+    if (!open || !pack || !selection) return;
+    if (skipSaveRef.current) { skipSaveRef.current = false; return; }
+    const excluded = pack.compliance.gaps.filter((g) => !selectedGaps.has(g.id)).map((g) => g.label);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void savePersonPackPrefsAction({
+        personId,
+        purpose,
+        sections: serialisePersonPackSections(selection),
+        excluded,
+      });
+    }, 600);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, selectedGaps, open, pack]);
 
   // Re-fetch the pack after a manual change (e.g. a request item was added),
   // keeping the current section choices. Only genuinely-new gaps (absent from
