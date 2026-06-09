@@ -665,11 +665,43 @@ export async function addPersonRequirement(
   const label = input.label.trim();
   if (!label) throw new Error("A name is required.");
   const now = new Date().toISOString();
+
+  // De-duplicate against the person's existing checklist (incl. template items)
+  // so manual adds never double up. A case-insensitive label match wins.
+  const { data: rows } = await sb
+    .from("person_requirements")
+    .select("id,label,status")
+    .eq("person_id", personId);
+  const match = (rows ?? []).find(
+    (r) => (r.label as string).trim().toLowerCase() === label.toLowerCase()
+  );
+  if (match) {
+    // Re-adding something removed earlier just un-hides it — minimal, no dupe.
+    if ((match.status as string) === "removed") {
+      await patch(match.id as number, { status: "missing" });
+      return;
+    }
+    throw new Error("That document is already on this person's checklist.");
+  }
+
+  // If no category was given, inherit it from a matching template item so saved
+  // documents of that category still auto-link to the requirement.
+  let category = input.category;
+  if (!category) {
+    const { data: tmpl } = await sb
+      .from("requirement_items")
+      .select("category")
+      .ilike("label", label)
+      .limit(1)
+      .maybeSingle();
+    category = (tmpl?.category as string | null) ?? null;
+  }
+
   const { error } = await sb.from("person_requirements").insert({
     person_id: personId,
     item_id: null,
     label,
-    category: input.category,
+    category,
     mandatory: input.mandatory,
     expiry_tracked: true,
     status: "missing",
