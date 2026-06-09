@@ -149,6 +149,68 @@ export function buildCompanyComplianceScores(
   );
 }
 
+/* ---------------------------------------------------------------------- */
+/* Per-company statutory checklist (derived, no DB)                        */
+/* ---------------------------------------------------------------------- */
+
+export type CompanyChecklistDef = {
+  id: string;
+  label: string;
+  hint: string;
+  categories: string[];
+  /** Required = counts toward compliance + flagged when missing. Recommended =
+   *  monitored only (shown, but a blank doesn't drag the score or read as a gap). */
+  required: boolean;
+};
+
+// Core statutory documents every portfolio company should hold, plus a couple of
+// recommended-but-not-mandatory ones (monitored when present). Mirrors the
+// tuning note in v3_plan.md: registration / tax / licence are strict; insurance
+// and premises lease are recommended.
+export const COMPANY_CHECKLIST: CompanyChecklistDef[] = [
+  { id: "company-registration", label: "Company registration", hint: "Certificate of incorporation / registration", categories: ["Registration"], required: true },
+  { id: "tax-registration", label: "Tax / TIN", hint: "TIN certificate or tax registration", categories: ["Tax"], required: true },
+  { id: "business-licence", label: "Business licence", hint: "Trading licence or sector permit", categories: ["Licence", "Permit"], required: true },
+  { id: "insurance", label: "Insurance", hint: "Cover for premises, assets or liability", categories: ["Insurance"], required: false },
+  { id: "premises-lease", label: "Premises lease", hint: "Lease or tenancy agreement", categories: ["Lease"], required: false },
+];
+
+export type CompanyChecklistItem = CompanyChecklistDef & {
+  status: "valid" | "expiring" | "expired" | "missing";
+  docId: number | null;
+  docTitle: string | null;
+  detail: string | null;
+};
+
+/** Per-requirement status for one company's documents, for the File-tab checklist. */
+export function buildCompanyChecklist(documents: DocumentRow[]): CompanyChecklistItem[] {
+  const live = documents.filter((doc) => !doc.archived);
+  return COMPANY_CHECKLIST.map((def) => {
+    const matches = live.filter((doc) => {
+      const haystack = [doc.category, doc.docType, doc.title].filter(Boolean).join(" ").toLowerCase();
+      return def.categories.some((c) => haystack.includes(c.toLowerCase()));
+    });
+    if (matches.length === 0) {
+      return { ...def, status: "missing", docId: null, docTitle: null, detail: null };
+    }
+    const ranked = matches.map((doc) => ({ doc, s: deriveDocStatus(doc) }));
+    const pick =
+      ranked.find((r) => r.s === "Valid" || r.s === "No expiry") ??
+      ranked.find((r) => r.s === "Expiring") ??
+      ranked.find((r) => r.s === "Expired") ??
+      ranked[0];
+    const status: CompanyChecklistItem["status"] =
+      pick.s === "Valid" || pick.s === "No expiry" ? "valid" : pick.s === "Expiring" ? "expiring" : "expired";
+    return {
+      ...def,
+      status,
+      docId: pick.doc.id,
+      docTitle: pick.doc.title,
+      detail: expiryLabel(pick.doc),
+    };
+  });
+}
+
 export function worstComplianceScores(scores: ComplianceScore[], limit = 5): ComplianceScore[] {
   return scores
     .filter((score) => score.status !== "Good" && (score.required > 0 || score.monitoredDocuments > 0))

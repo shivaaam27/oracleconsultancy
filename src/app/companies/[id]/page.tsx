@@ -5,6 +5,8 @@ import { ViewPublisher } from "@/components/view-publisher";
 import { CompanyTabs, parseCompanyTab } from "./_tabs/tabs";
 import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
+import { CompanyDocuments } from "./_tabs/company-documents";
+import { CompanyProfile } from "./_tabs/company-profile";
 import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
@@ -15,12 +17,29 @@ import { buildCompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
-import { buildCompanyComplianceScores } from "@/lib/compliance";
+import { buildCompanyComplianceScores, buildCompanyChecklist } from "@/lib/compliance";
 import { listDocuments } from "@/lib/documents";
+import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
+import { listAssets } from "@/lib/assets";
+import type { AssetRow } from "@/lib/assets-shared";
+import { listVendors } from "@/lib/vendors";
+import type { VendorRow } from "@/lib/vendors-shared";
 import { sb } from "@/db/supabase";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ExternalLink, ChevronRight, Building2 } from "lucide-react";
+import {
+  ExternalLink,
+  ChevronRight,
+  Building2,
+  Clock,
+  AlertOctagon,
+  Users,
+  FileText,
+  FileWarning,
+  ShieldCheck,
+  Package,
+  Truck,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +55,21 @@ export default async function CompanyPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
   const tab = parseCompanyTab(sp.tab);
-  const [allRows, documents, { data: companyRaw }] = await Promise.all([
-    getAllTasks(),
-    listDocuments(),
-    sb.from("companies").select("id,name").eq("id", companyId).maybeSingle(),
-  ]);
+  const [allRows, documents, { data: companyRaw }, { count: teamCount }, { data: companiesRaw }, { data: peopleRaw }] =
+    await Promise.all([
+      getAllTasks(),
+      listDocuments(),
+      sb
+        .from("companies")
+        .select("id,name,legal_name,registration_no,tin,address,phone,email,signatory_name,signatory_title")
+        .eq("id", companyId)
+        .maybeSingle(),
+      sb.from("person_companies").select("person_id", { count: "exact", head: true }).eq("company_id", companyId),
+      sb.from("companies").select("id,name").order("name"),
+      sb.from("people").select("id,name").eq("active", true).order("name"),
+    ]);
+  const companiesList = (companiesRaw ?? []) as Array<{ id: number; name: string }>;
+  const peopleList = (peopleRaw ?? []) as Array<{ id: number; name: string }>;
   const rows = allRows.filter((r) => r.companyId === companyId);
   if (!rows.length) return notFound();
   const name = rows[0].companyName;
@@ -54,6 +83,24 @@ export default async function CompanyPage({
     .filter((r) => r.status !== "Completed" && r.status !== "Closed")
     .sort((a, b) => DEADLINE_RANK(a.deadline) - DEADLINE_RANK(b.deadline));
   const completedRows = rows.filter((r) => r.status === "Completed" || r.status === "Closed");
+  const overdueCount = openRows.filter((r) => r.flag === "overdue" || r.flag === "escalate-now").length;
+
+  // Company documents (this company's files), with derived lifecycle status.
+  const companyDocs = documents.filter((doc) => doc.companyId === companyId);
+  const attentionDocs = companyDocs
+    .map((doc) => ({ doc, status: deriveDocStatus(doc) }))
+    .filter((x) => x.status === "Expired" || x.status === "Expiring")
+    .sort((a, b) => DEADLINE_RANK(a.doc.expiryDate) - DEADLINE_RANK(b.doc.expiryDate));
+
+  // Overview-only: assets at this company + its suppliers (heavier, so lazy).
+  let overviewExtras: null | { assets: AssetRow[]; vendors: VendorRow[] } = null;
+  if (tab === "overview") {
+    const [assets, vendors] = await Promise.all([listAssets(), listVendors()]);
+    overviewExtras = {
+      assets: assets.filter((a) => a.companyId === companyId || a.assignedToCompanyId === companyId),
+      vendors: vendors.filter((v) => v.companyId === companyId),
+    };
+  }
 
   // Org tab data (only when viewing the Org tab — these queries are heavier).
   let orgTab: null | {
@@ -70,7 +117,7 @@ export default async function CompanyPage({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-[880px] space-y-3.5">
       <HrmsCrumbs from={sp.from} />
 
       {/* Header — company accent identity, count chips, New Task pill */}
@@ -97,40 +144,177 @@ export default async function CompanyPage({
       </div>
       <CompanyActions companyId={companyId} companyName={name} />
 
-      <CompanyTabs companyId={companyId} current={tab} completedCount={completedRows.length} />
+      <CompanyTabs companyId={companyId} current={tab} openCount={openRows.length} docCount={companyDocs.length} />
 
       {tab === "overview" && (
         <>
           {/* Publish this company's open tasks so the assistant can bulk-act on "these". */}
           <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />
-          {/* Compact KPI pills, then the tasks table immediately — data first. */}
-          <CompanyKpiStrip rows={rows} companyName={name} />
+
+          {/* At-a-glance tiles — the company file health in one row. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            <StatTile
+              label="Compliance"
+              value={complianceScore ? `${complianceScore.score}%` : "—"}
+              Icon={ShieldCheck}
+              tone={
+                !complianceScore ? "muted" : complianceScore.status === "Risk" ? "danger" : complianceScore.status === "Watch" ? "warn" : "success"
+              }
+              href={`/documents?company=${companyId}`}
+            />
+            <StatTile label="Open tasks" value={openRows.length} Icon={Clock} tone="info" href={`/companies/${companyId}?tab=tasks`} />
+            <StatTile
+              label="Overdue"
+              value={overdueCount}
+              Icon={AlertOctagon}
+              tone={overdueCount ? "danger" : "muted"}
+              href={`/?tab=tasks&view=table&company=${encodeURIComponent(name)}&flag=overdue`}
+            />
+            <StatTile label="Team" value={teamCount ?? 0} Icon={Users} tone="info" href={`/companies/${companyId}?tab=org`} />
+            <StatTile label="Documents" value={companyDocs.length} Icon={FileText} tone="info" href={`/documents?company=${companyId}`} />
+            <StatTile
+              label="Expiring"
+              value={attentionDocs.length}
+              Icon={FileWarning}
+              tone={attentionDocs.length ? "warn" : "muted"}
+              href={`/documents?company=${companyId}`}
+            />
+          </div>
+
           {complianceScore && <ComplianceSummaryCard score={complianceScore} />}
 
-          <div className="flex items-center justify-between pt-1">
-            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
-              Open tasks
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
-                {openRows.length}
-              </span>
-            </h2>
-            <Link
-              href={`/?tab=tasks&company=${encodeURIComponent(name)}`}
-              className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
-            >
-              <ExternalLink size={12} /> Open in Tasks
-            </Link>
-          </div>
-          {openRows.length === 0 ? (
-            <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
-          ) : (
-            <SelectionProvider>
-              <BulkBar />
-              <TableView rows={openRows} hideCompany />
-            </SelectionProvider>
+          {/* Documents needing attention — expired / expiring company files. */}
+          {attentionDocs.length > 0 && (
+            <section className="glass elevated rounded-2xl p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
+                  <FileWarning size={13} /> Documents needing attention
+                </h2>
+                <Link
+                  href={`/documents?company=${companyId}`}
+                  className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
+                >
+                  <ExternalLink size={12} /> All documents
+                </Link>
+              </div>
+              <ul className="divide-y divide-border/50">
+                {attentionDocs.slice(0, 5).map(({ doc, status }) => (
+                  <li key={doc.id} className="flex items-center gap-3 py-2">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{doc.title}</span>
+                      <span className="block truncate text-[11px] text-fg-subtle">
+                        {doc.category ?? "Uncategorised"}
+                        {expiryLabel(doc) ? ` · ${expiryLabel(doc)}` : ""}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        status === "Expired" ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"
+                      }`}
+                    >
+                      {status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
 
-          {/* Insights — available but collapsed so they never block the tasks. */}
+          {/* Open tasks — compact preview; the full table lives on the Tasks tab. */}
+          <section className="space-y-2">
+            <div className="flex items-center justify-between pt-1">
+              <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
+                Open tasks
+                <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+                  {openRows.length}
+                </span>
+              </h2>
+              <Link
+                href={`/companies/${companyId}?tab=tasks`}
+                className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
+              >
+                <ExternalLink size={12} /> Open in Tasks
+              </Link>
+            </div>
+            <CompanyKpiStrip rows={rows} companyName={name} />
+            {openRows.length === 0 ? (
+              <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
+            ) : (
+              <ul className="glass elevated rounded-2xl divide-y divide-border/50 overflow-hidden">
+                {openRows.slice(0, 5).map((r) => (
+                  <li key={r.code}>
+                    <Link href={`/task/${r.code}`} className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-muted/50 transition-colors">
+                      <span className="text-[11px] font-semibold tabular text-fg-subtle shrink-0">{r.code}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm">{r.actionItem}</span>
+                      {r.deadline && (
+                        <span className="shrink-0 text-[11px] text-fg-subtle tabular">
+                          {r.deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                        </span>
+                      )}
+                      <ChevronRight size={14} className="text-fg-subtle shrink-0" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* Equipment & suppliers — assets at this company and its vendors. */}
+          {overviewExtras && (overviewExtras.assets.length > 0 || overviewExtras.vendors.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {overviewExtras.assets.length > 0 && (
+                <section className="glass elevated rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+                    <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                      <Package size={14} className="text-accent" /> Equipment
+                      <span className="text-[11px] font-normal text-fg-subtle tabular">{overviewExtras.assets.length}</span>
+                    </h2>
+                    <Link href="/hrms/assets" className="text-[11px] text-fg-muted hover:text-accent transition-colors">All</Link>
+                  </div>
+                  <ul className="divide-y divide-border/50">
+                    {overviewExtras.assets.slice(0, 5).map((a) => (
+                      <li key={a.id} className="px-4 py-2">
+                        <span className="block truncate text-sm font-medium">{a.name}</span>
+                        <span className="block truncate text-[11px] text-fg-subtle">
+                          {[a.custodianName ?? a.assignedToName, a.location, a.tag].filter(Boolean).join(" · ") || "Unassigned"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {overviewExtras.vendors.length > 0 && (
+                <section className="glass elevated rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+                    <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                      <Truck size={14} className="text-accent" /> Suppliers
+                      <span className="text-[11px] font-normal text-fg-subtle tabular">{overviewExtras.vendors.length}</span>
+                    </h2>
+                    <Link href="/hrms/assets?tab=vendors" className="text-[11px] text-fg-muted hover:text-accent transition-colors">All</Link>
+                  </div>
+                  <ul className="divide-y divide-border/50">
+                    {overviewExtras.vendors.slice(0, 5).map((v) => (
+                      <li key={v.id} className="flex items-center gap-2 px-4 py-2">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{v.name}</span>
+                          <span className="block truncate text-[11px] text-fg-subtle">
+                            {[v.category, v.docCount ? `${v.docCount} doc${v.docCount === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ") || "Supplier"}
+                          </span>
+                        </span>
+                        {(v.expiredCount > 0 || v.expiringCount > 0) && (
+                          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${v.expiredCount > 0 ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>
+                            {v.expiredCount > 0 ? "Expired" : "Expiring"}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
+
+          {/* Insights — available but collapsed so they never block the snapshot. */}
           <details className="group glass elevated rounded-2xl overflow-hidden mt-2">
             <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-medium list-none">
               <ChevronRight size={14} className="text-fg-muted transition-transform group-open:rotate-90" />
@@ -145,23 +329,80 @@ export default async function CompanyPage({
         </>
       )}
 
-      {tab === "completed" && (
+      {tab === "file" && (
+        <CompanyDocuments
+          companyId={companyId}
+          companyName={name}
+          documents={companyDocs}
+          checklist={buildCompanyChecklist(companyDocs)}
+          companies={companiesList}
+          people={peopleList}
+        />
+      )}
+
+      {tab === "profile" && (
+        <CompanyProfile
+          companyId={companyId}
+          companyName={name}
+          profile={{
+            legalName: (companyRaw?.legal_name as string | null) ?? null,
+            registrationNo: (companyRaw?.registration_no as string | null) ?? null,
+            tin: (companyRaw?.tin as string | null) ?? null,
+            address: (companyRaw?.address as string | null) ?? null,
+            phone: (companyRaw?.phone as string | null) ?? null,
+            email: (companyRaw?.email as string | null) ?? null,
+            signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
+            signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
+          }}
+        />
+      )}
+
+      {tab === "tasks" && (
         <>
-          <div className="flex items-center justify-between pt-2">
-            <h2 className="text-xs font-medium uppercase tracking-wider text-fg-muted">
-              Completed &amp; closed ({completedRows.length})
+          <CompanyKpiStrip rows={rows} companyName={name} />
+          <div className="flex items-center justify-between pt-1">
+            <h2 className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
+              Open tasks
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
+                {openRows.length}
+              </span>
             </h2>
+            <Link
+              href={`/?tab=tasks&company=${encodeURIComponent(name)}`}
+              className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
+            >
+              <ExternalLink size={12} /> Open in hub Tasks
+            </Link>
           </div>
-          {completedRows.length === 0 ? (
-            <div className="text-sm text-fg-muted px-1 py-6 text-center">
-              Nothing completed yet. Finished tasks move here automatically.
-            </div>
+          {openRows.length === 0 ? (
+            <div className="text-sm text-fg-muted px-1 py-6 text-center">No open tasks. 🎉</div>
           ) : (
             <SelectionProvider>
               <BulkBar />
-              <TableView rows={completedRows} hideCompany />
+              <TableView rows={openRows} hideCompany />
             </SelectionProvider>
           )}
+
+          {/* Completed & closed fold in under Tasks rather than a separate tab. */}
+          <details className="group glass elevated rounded-2xl overflow-hidden mt-2">
+            <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 text-sm font-medium list-none">
+              <ChevronRight size={14} className="text-fg-muted transition-transform group-open:rotate-90" />
+              Completed &amp; closed
+              <span className="text-xs text-fg-subtle font-normal tabular">{completedRows.length}</span>
+            </summary>
+            <div className="px-2 pb-2">
+              {completedRows.length === 0 ? (
+                <div className="text-sm text-fg-muted px-2 py-6 text-center">
+                  Nothing completed yet. Finished tasks move here automatically.
+                </div>
+              ) : (
+                <SelectionProvider>
+                  <BulkBar />
+                  <TableView rows={completedRows} hideCompany />
+                </SelectionProvider>
+              )}
+            </div>
+          </details>
         </>
       )}
 
@@ -183,5 +424,41 @@ export default async function CompanyPage({
         </ErrorBoundary>
       )}
     </div>
+  );
+}
+
+type Tone = "info" | "danger" | "warn" | "success" | "muted";
+
+const TONE_CLS: Record<Tone, string> = {
+  info: "text-info",
+  danger: "text-danger",
+  warn: "text-warn",
+  success: "text-success",
+  muted: "text-fg-muted",
+};
+
+function StatTile({
+  label,
+  value,
+  Icon,
+  tone,
+  href,
+}: {
+  label: string;
+  value: string | number;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  tone: Tone;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="glass elevated rounded-2xl p-3 flex flex-col gap-1.5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+        <Icon size={12} className={TONE_CLS[tone]} /> {label}
+      </span>
+      <span className={`text-xl font-semibold tabular ${TONE_CLS[tone]}`}>{value}</span>
+    </Link>
   );
 }

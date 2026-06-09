@@ -224,6 +224,35 @@ First "make the foundation strong" pass over People + Person Packs (balanced: bu
 
 One extraction brain across Inbox/People/Documents. Dropping text/files anywhere can fill the person profile (**blanks-only, always reviewed — never overwrites**), file the document(s) to the right owner (person OR company), and recompute compliance. Bulk multi-file upload on `/documents` ("Add several"); recency-aware duplicate detection (Keep both / Replace+archive). Inbox bundles + unified "Process". `src/app/documents/actions.ts` (extractDocumentFromFile + vision), `src/app/people/actions.ts` (extractPersonFields/enrichPersonProfile).
 
+## V3 — Company File (in progress, 2026-06)
+
+Owner wants each company to become a glanceable **company file** (like the person drawer), not just a task list. Agreed direction (decisions locked): **dashboard-first landing**; **grouped documents + statutory checklist**; **editable profile that feeds Letters**. Reuse-don't-duplicate — the Documents/compliance/assets engines and the `companies` branding columns already exist; the company just never got a "file".
+
+**Phase 1 shipped (dashboard-first restructure):**
+- `/companies/[id]` tabs are now **Overview · Tasks · Timeline · Org** (`_tabs/tabs.tsx`). Tasks moved off the landing into their own **Tasks** tab; the old **Completed** tab was removed and now folds into Tasks as a collapsed `<details>`. `parseCompanyTab` maps legacy `?tab=completed` → `tasks`.
+- **Overview is a real snapshot**, not a task table: six `StatTile`s (Compliance % / Open tasks / Overdue / Team / Documents / Expiring), the `ComplianceSummaryCard`, a "Documents needing attention" section (expired/expiring company docs via `deriveDocStatus`/`expiryLabel`), a compact top-5 open-tasks preview + KPI strip, and the existing insights (`MomentumStrip`/`CompanySummary`) collapsed. Team count = `person_companies` head count for the company.
+- Verified in preview (Overview + Tasks tabs render; tsc clean). The pre-existing "script tag while rendering" console warnings are unrelated (AI briefing block).
+
+**Phase 2 shipped (Company File / Documents tab):**
+- New **File** tab on `/companies/[id]` (`_tabs/tabs.tsx` gained `file`, FolderOpen icon, doc count badge). `CompanyDocuments` client component (`_tabs/company-documents.tsx`) groups the company's documents by category in a fixed display order (Registration → Licence → Permit → Tax → Insurance → Lease → Contract → Certificate → Immigration → Passport → Other; unknowns last), each row showing issuer · ref · expiry countdown, a derived status badge, a paperclip (signed-URL open via `getDocumentFileLinkAction`) or external-link for `fileUrl`, and an edit deep-link to `/documents?company=ID&doc=ID`.
+- **In-place add**: an "Add document" button (top + per-category) opens the shared `DocumentForm` in a Radix modal layered over the page (same pattern as the person drawer), prefilled `initialCompanyId` + `initialCategory`; on save it toasts and `router.refresh()`es — no route change. page.tsx now also fetches the companies+active-people lists for the form.
+- Verified in preview: Dar Spices (CO01) shows grouped Licence/Tax/Immigration/Passport with badges + paperclips; empty-state on Terra Green; add modal mounts the form. tsc clean.
+
+**Phase 3 shipped (statutory checklist):**
+- New `COMPANY_CHECKLIST` + `buildCompanyChecklist(documents)` in `compliance.ts` — derived, no DB. Required: Company registration, Tax/TIN, Business licence (Licence|Permit). Recommended (monitored, don't drag score / not flagged missing): Insurance, Premises lease. Each item resolves to a status (valid/expiring/expired/missing) by matching the company's docs on category/docType/title, picking the best (valid > expiring > expired).
+- Rendered at the top of the **File** tab inside `CompanyDocuments`: a "Statutory checklist" panel with an "X/Y required on file" counter, per-item status icon + badge (On file / Expiring / Expired), Recommended tag, and an **Add/Renew** action that opens the same prefilled `DocumentForm` modal (reuses `startAdd(category)`). Verified on Dar Spices (2/3 required; registration missing → Add; Tax/Licence On file; Insurance/Lease recommended). tsc clean.
+
+**Phase 4 shipped (editable Profile tab):**
+- New **Profile** tab (IdCard icon) on `/companies/[id]`. `CompanyProfile` client form (`_tabs/company-profile.tsx`) edits Identity (legal name, registration no., TIN), Contact (address, phone, email) and Authorised signatory (name, title) — the exact `companies` columns Letters/Letterheads read, so one edit point updates both. Save is dirty-gated, toasts, and `router.refresh()`es.
+- Server action `saveCompanyProfileAction(companyId, fd)` (`_tabs/../actions.ts` → `src/app/companies/[id]/actions.ts`) updates the eight columns and `revalidatePath`s the company + `/letterheads`. Field names kept in sync with `saveCompanyLetterheadAction`. page.tsx widened the company fetch to load these fields.
+- Verified in preview: form renders with live values, dirty-gating works, save persists to DB and reloads (test value written then reverted — no junk left). tsc clean.
+
+**Phase 5 shipped (assets + suppliers on Overview) + UI pass:**
+- Overview now has an **Equipment & suppliers** grid (lazy-fetched only on the overview tab): assets where `company_id` or `assigned_to_company_id` === this company (`listAssets`), and vendors where `company_id` === this company (`listVendors`). Each is a compact glass card (count + top 5 + "All" link to `/hrms/assets`); suppliers show an Expired/Expiring badge from their rolled-up contract docs. Section hides entirely when both are empty (current data: all assets are person-assigned, so it shows on no company yet — correct).
+- **UI/layout pass** (owner: "huge and long, centre it, fix mobile tabs"): company page content constrained to `mx-auto max-w-[880px]` with tighter `space-y-3.5`; the tab pill is now horizontally **scrollable on mobile** (wrapped in an edge-bleed `overflow-x-auto` scroller, pill is `w-max`, tabs `shrink-0`) so all 6 tabs reach on a 375px screen. Verified: content centered (880px, equal margins at 1440); mobile tab scroll works (scrollWidth>clientWidth).
+
+**Company File complete (Phases 1–5).** Tabs: Overview · File · Profile · Tasks · Timeline · Org.
+
 ## V3 — Letters (shipped: engine + invitation)
 
 System-wide branded PDF letters — per-company letterhead (typed / designed header+footer images / full-page background), Draft→Issue snapshot, full body editing, PDF + optional Outbox draft, no auto-send. First type = Invitation. See `memory/letters.md`.
