@@ -1,6 +1,8 @@
 // Channel deep-links + message building for one-off reminders.
 // Times are formatted in the operator's business zone (East Africa Time).
 
+import { BRAND_NAME } from "./brand";
+
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 const BIZ_TZ = "Africa/Nairobi"; // EAT (UTC+3, no DST) — same offset as Dar es Salaam.
 
@@ -78,7 +80,7 @@ export function buildTodoReminderMessage(
   const tail = `${opts.title}${due ? ` — due ${due}` : ""}${opts.company ? ` (${opts.company})` : ""}`;
   const subject = `Reminder: ${opts.title}`;
   if (channel === "EMAIL") {
-    const body = `Hi ${opts.personName},\n\nA quick reminder: ${tail}.\n\nThanks,\nOracle Consultancy`;
+    const body = `Hi ${opts.personName},\n\nA quick reminder: ${tail}.\n\nThanks,\n${BRAND_NAME}`;
     return { subject, body };
   }
   // WhatsApp / SMS — concise.

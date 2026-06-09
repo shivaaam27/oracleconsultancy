@@ -210,6 +210,62 @@ export async function ensurePersonRequirements(personId: number, personType: Per
   if (orphanIds.length) await sb.from("person_requirements").delete().in("id", orphanIds);
 }
 
+/**
+ * Explicit "Sync with template" — pull the person's checklist back in line with
+ * the current requirement profile after the templates were edited in Documents
+ * compliance. Adds brand-new template items AND restores any standard items the
+ * operator had removed earlier but that still belong to the active template.
+ * Verified/linked rows and custom (person-specific) items are left untouched.
+ */
+export async function syncPersonRequirementsToTemplate(
+  personId: number,
+  personType: PersonType
+): Promise<{ added: number; restored: number }> {
+  const [items, { data: rows }] = await Promise.all([
+    getActiveProfileItems(personType),
+    sb.from("person_requirements").select("id,item_id,status").eq("person_id", personId),
+  ]);
+  const targetItemIds = new Set(items.map((i) => i.id));
+  const existing = rows ?? [];
+  const existingItemIds = new Set(
+    existing.map((r) => r.item_id as number | null).filter((x): x is number => x != null)
+  );
+
+  const now = new Date().toISOString();
+  const toInsert = items
+    .filter((it) => !existingItemIds.has(it.id))
+    .map((it) => ({
+      person_id: personId,
+      item_id: it.id,
+      label: it.label,
+      category: it.category,
+      mandatory: it.mandatory,
+      expiry_tracked: it.expiryTracked,
+      status: "missing",
+      created_at: now,
+      updated_at: now,
+    }));
+  if (toInsert.length) await sb.from("person_requirements").insert(toInsert);
+
+  // Bring back previously-removed standard items that are still in the template.
+  const restoreIds = existing
+    .filter((r) => (r.status as string) === "removed" && r.item_id != null && targetItemIds.has(r.item_id as number))
+    .map((r) => r.id as number);
+  if (restoreIds.length) {
+    await sb.from("person_requirements").update({ status: "missing", updated_at: now }).in("id", restoreIds);
+  }
+
+  return { added: toInsert.length, restored: restoreIds.length };
+}
+
+/** Convenience: resolve the person's type, then sync to its template. */
+export async function syncPersonRequirements(personId: number): Promise<{ added: number; restored: number }> {
+  const { data: person } = await sb.from("people").select("person_type").eq("id", personId).maybeSingle();
+  if (!person) return { added: 0, restored: 0 };
+  const type = normalizePersonType(person.person_type as string | null);
+  return syncPersonRequirementsToTemplate(personId, type);
+}
+
 /* ------------------------------------------------------------------ */
 /* Reading the checklist + scoring                                     */
 /* ------------------------------------------------------------------ */

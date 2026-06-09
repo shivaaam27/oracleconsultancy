@@ -5,6 +5,7 @@ import { BriefPeriodFilter } from "@/components/brief-period-filter";
 import { BriefCompanyFilter } from "@/components/brief-company-filter";
 import { BriefDraftButton } from "@/components/brief-draft-button";
 import { getBrief, briefShareText, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function DirectorBriefPage({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
           <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Director Brief</div>
-          <h1 className="text-xl font-semibold tracking-tight">{b.selectedCompanyName ?? "Oracle Consultancy"}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{b.selectedCompanyName ?? BRAND_NAME}</h1>
           <div className="text-xs text-fg-muted mt-0.5">{b.monthLabel} · as at {b.asAt}</div>
         </div>
         <div className="flex items-center gap-2 flex-wrap print-hidden">
@@ -56,7 +57,7 @@ export default async function DirectorBriefPage({
 
       {/* Executive summary — PDF only. */}
       <p className="print-only text-sm leading-relaxed">
-        In {b.monthLabel}, Oracle Consultancy delivered {b.deliveredCount} item{b.deliveredCount === 1 ? "" : "s"} across {b.companyCount} portfolio companies.
+        In {b.monthLabel}, {BRAND_NAME} delivered {b.deliveredCount} item{b.deliveredCount === 1 ? "" : "s"} across {b.companyCount} portfolio companies.
         {" "}{b.openCount} item{b.openCount === 1 ? "" : "s"} remain open ({b.companies.reduce((n, c) => n + c.inProgress, 0)} in progress)
         {b.overdueCount ? `, with ${b.overdueCount} overdue requiring attention` : ", with nothing overdue"}.
         {b.watch.length ? ` ${b.watch.length} item${b.watch.length === 1 ? "" : "s"} are flagged for attention below.` : ""}

@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { signDocumentFile } from "@/lib/documents";
+import { BRAND_NAME } from "@/lib/brand";
 import type { Letterhead, LetterRow, LetterStatus } from "@/lib/letters-shared";
 
 /* ------------------------------------------------------------------ */
@@ -160,7 +161,7 @@ export async function createLetter(type: string, companyId: number | null, perso
       role: (data.role as string | null) ?? null,
     };
   }
-  let company = { name: "Oracle Consultancy", legalName: null as string | null, address: null as string | null, registrationNo: null as string | null, tin: null as string | null };
+  let company = { name: BRAND_NAME, legalName: null as string | null, address: null as string | null, registrationNo: null as string | null, tin: null as string | null };
   if (companyId) {
     const { data } = await sb.from("companies").select("name,legal_name,address,registration_no,tin").eq("id", companyId).maybeSingle();
     if (data) company = { name: data.name as string, legalName: (data.legal_name as string | null) ?? null, address: (data.address as string | null) ?? null, registrationNo: (data.registration_no as string | null) ?? null, tin: (data.tin as string | null) ?? null };

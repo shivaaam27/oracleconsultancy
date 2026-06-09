@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -23,6 +23,7 @@ import {
   reqAdd,
   reqEdit,
   reqRemove,
+  reqSync,
 } from "@/app/people/requirement-actions";
 
 type ReqFields = { label: string; category: string | null; mandatory: boolean };
@@ -149,6 +150,7 @@ export function RequirementsChecklist({
   const [openItem, setOpenItem] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
@@ -206,6 +208,23 @@ export function RequirementsChecklist({
   function doRemove(id: number) {
     run(id, () => reqRemove(id), "Requirement removed.", () => setOpenItem(null));
   }
+  function doSync() {
+    setSyncing(true);
+    startTransition(async () => {
+      const res = await reqSync(personId);
+      setSyncing(false);
+      if (!res.ok) { toast(res.error ?? "Could not sync", { tone: "danger" }); return; }
+      const changed = res.added + res.restored;
+      toast(
+        changed === 0
+          ? "Already up to date with the template."
+          : `Synced — ${[res.added && `${res.added} added`, res.restored && `${res.restored} restored`].filter(Boolean).join(", ")}.`,
+        { tone: changed ? "success" : "default" }
+      );
+      load();
+      onChanged?.();
+    });
+  }
 
   if (loading && !data) {
     return (
@@ -243,7 +262,15 @@ export function RequirementsChecklist({
         <ChevronDown size={16} className={cn("shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
       </summary>
 
-      <div className="divide-y divide-border/50 border-t border-border/70">
+      <div className="flex items-center justify-between gap-2 border-t border-border/70 bg-bg-subtle/30 px-3 py-1.5">
+        <span className="text-[11px] text-fg-subtle">Checklist follows the template for this person type.</span>
+        <button type="button" disabled={syncing} onClick={doSync}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+          {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Sync with template
+        </button>
+      </div>
+
+      <div className="divide-y divide-border/50">
         {data.items.map((item) => {
           const tone = REQUIREMENT_STATUS_TONE[item.effectiveStatus];
           const busy = busyId === item.id;

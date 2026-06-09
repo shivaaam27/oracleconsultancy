@@ -12,11 +12,13 @@ import {
   addPersonRequirement,
   editPersonRequirement,
   removePersonRequirement,
+  syncPersonRequirements,
 } from "@/lib/requirements";
 
 type ReqInput = { label: string; category: string | null; mandatory: boolean };
 
 type Res = { ok: true } | { ok: false; error: string };
+type SyncRes = { ok: true; added: number; restored: number } | { ok: false; error: string };
 
 async function wrap(fn: () => Promise<void>): Promise<Res> {
   try {
@@ -58,4 +60,14 @@ export async function reqEdit(id: number, input: ReqInput) {
 }
 export async function reqRemove(id: number) {
   return wrap(() => removePersonRequirement(id));
+}
+export async function reqSync(personId: number): Promise<SyncRes> {
+  try {
+    const result = await syncPersonRequirements(personId);
+    revalidatePath("/people");
+    revalidatePath("/documents");
+    return { ok: true, ...result };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 }

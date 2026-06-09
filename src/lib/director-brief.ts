@@ -10,6 +10,7 @@ import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
 import { sb } from "@/db/supabase";
+import { BRAND_NAME } from "./brand";
 
 const isClosed = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
 const isOverdue = (r: TaskRow) => r.flag === "overdue" || r.flag === "escalate-now";
@@ -371,7 +372,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
 /** WhatsApp-friendly share text (uses *bold*). Concise and scannable. */
 export function briefShareText(b: BriefData): string {
   const L: string[] = [];
-  L.push(`*Oracle Consultancy — Director Brief*`);
+  L.push(`*${BRAND_NAME} — Director Brief*`);
   L.push(`${b.selectedCompanyName ? `${b.selectedCompanyName} · ` : ""}${b.monthLabel} · as at ${b.asAt}`);
   L.push("");
   L.push(`✅ ${b.deliveredCount} delivered in ${b.monthLabel} · 📋 ${b.openCount} open · ⚠️ ${b.overdueCount} overdue · ${b.companyCount} companies`);
@@ -429,7 +430,7 @@ export function briefShareText(b: BriefData): string {
 /** Email subject + plain-text body (no markdown bold). */
 export function briefEmail(b: BriefData): { subject: string; body: string } {
   return {
-    subject: `Oracle Consultancy — Director Brief${b.selectedCompanyName ? ` · ${b.selectedCompanyName}` : ""} (${b.monthLabel})`,
+    subject: `${BRAND_NAME} — Director Brief${b.selectedCompanyName ? ` · ${b.selectedCompanyName}` : ""} (${b.monthLabel})`,
     body: briefShareText(b).replace(/\*/g, ""),
   };
 }

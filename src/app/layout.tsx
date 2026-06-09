@@ -22,7 +22,7 @@ import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { getAppSettings } from "@/lib/settings";
 
 export const metadata: Metadata = {
-  title: "AUMIO — Oracle Consultancy Operations",
+  title: "Oracle Consultancy Limited — Operations",
   description: "Chief of Staff Command Center",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "AUMIO" },

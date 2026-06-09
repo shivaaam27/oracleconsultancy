@@ -16,6 +16,7 @@ import type {
 } from "@/lib/person-pack-shared";
 import { serialisePersonPackSections } from "@/lib/person-pack-shared";
 import { personTypeLabel, type PersonType } from "@/lib/person-types";
+import { BRAND_NAME } from "@/lib/brand";
 
 type PackResponse = {
   purpose: PersonPackPurpose;
@@ -303,8 +304,8 @@ function buildPersonPackMessage(
     return {
       subject,
       body: actions > 0
-        ? `Hi ${person.name}, Oracle Consultancy reminder: ${actions} selected item${actions === 1 ? "" : "s"} need attention. Please review the pack and send updates.`
-        : `Hi ${person.name}, Oracle Consultancy: your selected HR pack has no action items right now. Thanks.`,
+        ? `Hi ${person.name}, ${BRAND_NAME} reminder: ${actions} selected item${actions === 1 ? "" : "s"} need attention. Please review the pack and send updates.`
+        : `Hi ${person.name}, ${BRAND_NAME}: your selected HR pack has no action items right now. Thanks.`,
     };
   }
 
@@ -312,7 +313,7 @@ function buildPersonPackMessage(
   const intro = channel === "EMAIL"
     ? `Please find below the selected ${title.toLowerCase()} items for your review.`
     : `Here are the selected ${title.toLowerCase()} items for your review.`;
-  const body = [greeting, "", intro, "", ...sections, "", "Thanks,", "Oracle Consultancy"].join("\n");
+  const body = [greeting, "", intro, "", ...sections, "", "Thanks,", BRAND_NAME].join("\n");
   return { subject, body };
 }
 

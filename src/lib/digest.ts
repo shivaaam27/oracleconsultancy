@@ -1,5 +1,6 @@
 import { getAllTasks, computeCompanyKpis, type TaskRow } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
+import { BRAND_NAME } from "@/lib/brand";
 
 function fmtDate(d: Date | null) {
   if (!d) return "—";
@@ -71,7 +72,7 @@ export async function buildDigest(opts?: { companyId?: number | null; companyNam
 
   const headerSub = scopeName
     ? `${scopeName.toUpperCase()} · Chief of Staff briefing`
-    : `Oracle Consultancy · Chief of Staff Command Center`;
+    : `${BRAND_NAME} · Chief of Staff Command Center`;
   const lines: string[] = [
     `📊 AUMIO WEEKLY DIGEST — ${today.toUpperCase()}`,
     headerSub,

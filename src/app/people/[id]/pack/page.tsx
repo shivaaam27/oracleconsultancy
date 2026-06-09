@@ -21,6 +21,7 @@ import {
 import type { PersonPackSectionSelection } from "@/lib/person-pack-shared";
 import { isPersonPackPurpose } from "@/lib/person-pack-shared";
 import { personTypeLabel } from "@/lib/person-types";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -180,24 +181,29 @@ export default async function PersonPackPage({
   const workShown =
     (selection.openTasks ? pack.openTasks.length : 0) +
     (selection.personalTodos ? pack.personalTodos.length : 0);
-  const topRequests = [
-    ...(selection.missingDocuments ? pack.compliance.gaps.map((gap) => gap.label) : []),
-    ...(selection.documentIssues ? pack.compliance.documentIssues.map((doc) => `${doc.title} (${doc.expiryLabel ?? doc.status})`) : []),
-    ...(selection.openTasks ? pack.openTasks.slice(0, 3).map((task) => `${task.code}: ${task.actionItem}`) : []),
-    ...(selection.personalTodos ? pack.personalTodos.slice(0, 3).map((todo) => todo.title) : []),
-  ].slice(0, 6);
-  const complianceValue =
-    !selection.complianceScore
-      ? "Not included"
-      : pack.compliance.required === 0 && pack.compliance.monitoredDocuments === 0
-      ? "None"
-      : `${pack.compliance.score}%`;
   const headlineParts = [
     `${plural(selectedActions, "selected action")}`,
     selection.linkedDocuments ? `${plural(linkedDocsShown, "linked document")}` : null,
     workShown ? `${plural(workShown, "work item")}` : null,
     selection.complianceScore ? complianceText(pack) : null,
   ].filter(Boolean);
+
+  // Only show the summary tiles that correspond to chosen sections, so a
+  // documents-only pack never displays empty Work/Compliance boxes.
+  const showActions = selection.missingDocuments || selection.documentIssues || selection.openTasks || selection.personalTodos;
+  const showWork = selection.openTasks || selection.personalTodos;
+  const complianceValue =
+    pack.compliance.required === 0 && pack.compliance.monitoredDocuments === 0
+      ? "None"
+      : `${pack.compliance.score}%`;
+  const statBoxes: Array<{ label: string; value: number | string; tone?: "warn" | "success" | "default" | "danger"; icon: React.ReactNode }> = [
+    ...(showActions ? [{ label: "Needed", value: selectedActions, tone: (selectedActions ? "warn" : "success") as "warn" | "success", icon: selectedActions ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} /> }] : []),
+    ...(selection.linkedDocuments ? [{ label: "Documents", value: linkedDocsShown, icon: <FileText size={16} /> }] : []),
+    ...(showWork ? [{ label: "Work", value: workShown, tone: (workShown ? "warn" : "default") as "warn" | "default", icon: <ClipboardList size={16} /> }] : []),
+    ...(selection.complianceScore ? [{ label: "Compliance", value: complianceValue, tone: complianceTone(pack.compliance.status), icon: <ShieldCheck size={16} /> }] : []),
+  ];
+  const statGridCols =
+    statBoxes.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : statBoxes.length === 3 ? "grid-cols-3" : statBoxes.length === 2 ? "grid-cols-2" : "grid-cols-1";
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 px-4 pb-28 pt-5 print:max-w-none print:px-0 print:pb-0">
@@ -208,6 +214,10 @@ export default async function PersonPackPage({
         <PersonPackPrintButton />
       </div>
 
+      <div className="border-b border-border/70 pb-3 text-center print:border-slate-300">
+        <div className="text-base font-semibold tracking-wide print:text-slate-900">{BRAND_NAME}</div>
+      </div>
+
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-accent print:text-slate-500">
@@ -215,7 +225,7 @@ export default async function PersonPackPage({
           </div>
           <h1 className="text-xl font-semibold tracking-tight print:text-2xl">{person.name}</h1>
           <div className="mt-0.5 text-xs text-fg-muted print:text-slate-600">
-            {PURPOSE_LABELS[purpose]} - prepared {generated} - Oracle Consultancy
+            {PURPOSE_LABELS[purpose]} - prepared {generated}
           </div>
         </div>
         <Badge tone={person.personType === "expat" ? "warn" : "default"}>
@@ -231,18 +241,19 @@ export default async function PersonPackPage({
       </p>
 
       <p className="print-only text-sm leading-relaxed">
-        {purposeIntro(purpose, person.name)} This PDF contains only the sections selected before printing.
+        {purposeIntro(purpose, person.name)}
         {selectedActions > 0
           ? ` ${plural(selectedActions, "item")} require attention.`
           : " No selected action items currently require attention."}
       </p>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Needed" value={selectedActions} tone={selectedActions ? "warn" : "success"} icon={selectedActions ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />} />
-        <Stat label="Documents" value={linkedDocsShown} icon={<FileText size={16} />} />
-        <Stat label="Work" value={workShown} tone={workShown ? "warn" : "default"} icon={<ClipboardList size={16} />} />
-        <Stat label="Compliance" value={complianceValue} tone={selection.complianceScore ? complianceTone(pack.compliance.status) : "default"} icon={<ShieldCheck size={16} />} />
-      </div>
+      {statBoxes.length > 0 && (
+        <div className={`grid gap-3 ${statGridCols}`}>
+          {statBoxes.map((box) => (
+            <Stat key={box.label} label={box.label} value={box.value} tone={box.tone} icon={box.icon} />
+          ))}
+        </div>
+      )}
 
       <Card className="p-4">
         <p className="text-sm leading-relaxed text-fg-muted print:text-slate-700">
@@ -250,11 +261,6 @@ export default async function PersonPackPage({
             ? "Please review the selected items below and send the requested documents or updates when available."
             : "No selected items currently require action. This pack can be kept as a clean person-specific record of the current status."}
         </p>
-        {topRequests.length > 0 && (
-          <ul className="mt-3 space-y-1.5 text-sm">
-            {topRequests.map((item) => <li key={item}>- {item}</li>)}
-          </ul>
-        )}
       </Card>
 
       <div className="space-y-5">
@@ -384,7 +390,7 @@ export default async function PersonPackPage({
 
         {selection.contactDetails && (
           <Section title="Contact details on record">
-            <Card className="grid gap-2 p-4 text-sm sm:grid-cols-3 print:grid-cols-3">
+            <Card className="grid gap-2 p-4 text-center text-sm sm:grid-cols-3 print:grid-cols-3">
               <div>Email: {person.email ?? "Not recorded"}</div>
               <div>WhatsApp: {person.whatsapp ?? "Not recorded"}</div>
               <div>Phone: {person.phone ?? "Not recorded"}</div>

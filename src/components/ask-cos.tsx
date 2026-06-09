@@ -11,6 +11,7 @@ import type { PageContext } from "@/lib/page-context";
 import { suggestionsFor } from "@/lib/page-suggestions";
 import { useCurrentView } from "@/lib/current-view";
 import { TodayBrief } from "./today-brief";
+import { BRAND_NAME } from "@/lib/brand";
 
 type Message = {
   id: string;
@@ -235,7 +236,7 @@ export function AskCOS({
         return;
       }
       const data = await res.json();
-      const scopeLabel = data.scopeName ? `${data.scopeName} · ` : "Oracle Consultancy · ";
+      const scopeLabel = data.scopeName ? `${data.scopeName} · ` : `${BRAND_NAME} · `;
 
       // Try to enrich with an AI executive narrative (degrades gracefully).
       let narrative = "";
