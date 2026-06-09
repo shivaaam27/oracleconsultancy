@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, FileWarning, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { ProgressTrack, type KitTone } from "./drawer-kit";
 import type { ComplianceScore } from "@/lib/compliance";
 
-function tone(score: ComplianceScore) {
-  if (score.status === "Risk") return { icon: AlertTriangle, text: "text-danger", bg: "bg-danger-soft/60", ring: "ring-danger/25" };
-  if (score.status === "Watch") return { icon: FileWarning, text: "text-warn", bg: "bg-warn-soft/60", ring: "ring-warn/25" };
-  return { icon: CheckCircle2, text: "text-success", bg: "bg-success-soft/60", ring: "ring-success/25" };
+function tone(score: ComplianceScore): { icon: typeof AlertTriangle; text: string; bg: string; ring: string; track: KitTone } {
+  if (score.status === "Risk") return { icon: AlertTriangle, text: "text-danger", bg: "bg-danger-soft/60", ring: "ring-danger/25", track: "danger" };
+  if (score.status === "Watch") return { icon: FileWarning, text: "text-warn", bg: "bg-warn-soft/60", ring: "ring-warn/25", track: "warn" };
+  return { icon: CheckCircle2, text: "text-success", bg: "bg-success-soft/60", ring: "ring-success/25", track: "success" };
 }
 
 export function ComplianceSummaryCard({ score, compact = false }: { score: ComplianceScore; compact?: boolean }) {
@@ -34,8 +35,9 @@ export function ComplianceSummaryCard({ score, compact = false }: { score: Compl
             </span>
             <span className={cn("ml-auto text-lg font-semibold tabular", t.text)}>{score.score}%</span>
           </span>
-          <span className="mt-1 block text-xs text-fg-muted">
-            {score.missing} missing - {score.expired} expired - {score.expiring} expiring
+          <span className="mt-1.5 block"><ProgressTrack value={score.score} total={100} tone={t.track} /></span>
+          <span className="mt-1.5 block text-xs text-fg-muted">
+            {score.missing} missing · {score.expired} expired · {score.expiring} expiring
           </span>
           {next && (
             <span className="mt-1 block truncate text-[11px] text-fg-subtle">
