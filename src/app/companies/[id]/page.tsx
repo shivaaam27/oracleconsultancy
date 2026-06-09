@@ -161,7 +161,7 @@ export default async function CompanyPage({
           extras={await getOrgExtras()}
           initialCompanyId={companyId}
           showSwitcher={false}
-          showGroup={false}
+          showEveryone={false}
         />
       )}
     </div>

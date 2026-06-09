@@ -25,6 +25,22 @@ export default async function OrgChartPage({
     name: c.name as string,
     accentColor: (c.accent_color as string | null) ?? null,
   }));
+  const accentById = new Map(companies.map((c) => [c.id, c.accentColor]));
+
+  // Flat node list for the "Everyone" web view (cross-company links included).
+  const webPeople = people
+    .filter((p) => p.active)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      role: p.role,
+      personType: p.personType,
+      companyId: p.companyId,
+      companyName: p.companyName,
+      accentColor: p.companyId != null ? accentById.get(p.companyId) ?? null : null,
+      managerId: p.managerId,
+      secondary: p.secondaryManagers.map((m) => m.id),
+    }));
 
   // Pre-build one reporting tree per company on the server (plain, serialisable).
   const trees: Record<number, CompanyTree> = {};
@@ -34,7 +50,7 @@ export default async function OrgChartPage({
   const totalLines = Object.values(trees).reduce((s, t) => s + t.withManager, 0);
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <PageHeader
         title="Organogram"
@@ -44,6 +60,7 @@ export default async function OrgChartPage({
         companies={companies}
         trees={trees}
         extras={extras}
+        webPeople={webPeople}
         initialCompanyId={company ? Number(company) : undefined}
       />
     </div>

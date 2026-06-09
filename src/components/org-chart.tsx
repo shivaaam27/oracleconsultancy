@@ -2,18 +2,20 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  Users, ChevronRight, ChevronDown, LayoutGrid, Search, Printer, X,
-  ZoomIn, ZoomOut, Maximize2, Minimize2, Expand, FoldVertical,
-  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle,
+  Users, ChevronRight, ChevronDown, Search, Printer, X,
+  ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
+  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Segmented } from "@/components/macos";
+import { Badge } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import { countNodes, type CompanyTree, type OrgNode } from "@/lib/org-chart";
 import type { OrgPersonExtras } from "@/lib/org-extras";
+import { OrgWeb, type WebPerson } from "@/components/org-web";
 
-type Extras = Record<number, OrgPersonExtras>;
+export type Extras = Record<number, OrgPersonExtras>;
 
 const TYPE_TINT: Record<string, string> = {
   local_staff: "bg-accent-soft text-accent ring-accent/25",
@@ -28,7 +30,6 @@ function initials(name: string): string {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
 }
 
-/** Stable colour per department name (for the dept tint). */
 function deptHue(name: string): number {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
@@ -42,27 +43,100 @@ function waLink(node: OrgNode): string | null {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
+function complianceTone(s: OrgPersonExtras["complianceStatus"]): "success" | "warn" | "danger" {
+  return s === "Risk" ? "danger" : s === "Watch" ? "warn" : "success";
+}
+
 export type OrgChartCompany = { id: number; name: string; accentColor: string | null };
 
 /* ------------------------------------------------------------------ */
-/* Card                                                                */
+/* Hover detail popover — the "peek" with full signals + actions       */
 /* ------------------------------------------------------------------ */
 
-function MiniPill({ tone, label, title }: { tone: string; label: string; title: string }) {
+function HoverDetail({
+  node, extras, companyName, style, onMouseEnter, onMouseLeave,
+}: {
+  node: OrgNode;
+  extras?: OrgPersonExtras;
+  companyName?: string | null;
+  style?: React.CSSProperties;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
+  const x = extras;
+  const wa = waLink(node);
   return (
-    <span title={title} className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium tabular", tone)}>
-      {label}
-    </span>
+    <div
+      style={style}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className="org-pop fixed z-[80] w-64 -translate-x-1/2 rounded-2xl glass glass-menu elevated p-3 text-left print-hidden"
+    >
+      <div className="text-sm font-semibold text-fg leading-snug">{node.name}</div>
+      <div className="text-[11px] text-fg-muted">
+        {node.role || PERSON_TYPE_LABELS[node.personType]}
+        {node.departmentName ? ` · ${node.departmentName}` : ""}
+        {companyName ? ` · ${companyName}` : ""}
+      </div>
+
+      {x && (
+        <>
+          {x.compliancePct != null && (
+            <div className="mt-2">
+              <div className="flex items-center justify-between text-[10px] text-fg-subtle mb-1">
+                <span className="inline-flex items-center gap-1"><ShieldCheck size={11} /> Document compliance</span>
+                <span className="tabular font-medium text-fg">{x.compliancePct}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-bg-muted overflow-hidden">
+                <div className={cn("h-full rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-ok")} style={{ width: `${x.compliancePct}%` }} />
+              </div>
+            </div>
+          )}
+
+          <div className="mt-2 flex flex-wrap gap-1">
+            {x.open > 0 && <Badge tone="info">{x.open} open</Badge>}
+            {x.overdue > 0 && <Badge tone="danger">{x.overdue} overdue</Badge>}
+            {x.notStarted > 0 && <Badge tone="default">{x.notStarted} not started</Badge>}
+            {x.closed > 0 && <Badge tone="success">{x.closed} closed</Badge>}
+            {x.open === 0 && x.closed === 0 && x.notStarted === 0 && <span className="text-[11px] text-fg-subtle italic">No tasks</span>}
+          </div>
+
+          {(x.assetsHeld > 0 || x.onLeaveToday || x.onboarding) && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {x.assetsHeld > 0 && <Badge tone="default"><Laptop size={10} /> {x.assetsHeld} asset{x.assetsHeld === 1 ? "" : "s"}</Badge>}
+              {x.onLeaveToday && <Badge tone="warn"><Plane size={10} /> On leave</Badge>}
+              {x.onboarding && <Badge tone="info"><Sparkles size={10} /> Onboarding</Badge>}
+            </div>
+          )}
+
+          {x.topTask && (
+            <div className="mt-2 flex items-start gap-1.5 text-[11px] text-fg-muted">
+              <AlertTriangle size={12} className="mt-0.5 shrink-0 text-warn" />
+              <span className="leading-snug"><span className="font-medium text-fg">{x.topTask.code}</span> · {x.topTask.title}</span>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="mt-2.5 flex items-center gap-1.5 border-t border-border/50 pt-2">
+        <PersonDrawerLink id={node.id} name={node.name} title="Open profile" className="flex-1 h-7 inline-flex items-center justify-center gap-1 rounded-lg bg-accent text-accent-fg text-[11px] font-medium hover:bg-accent-hover transition-colors">
+          <UserRound size={12} /> Profile
+        </PersonDrawerLink>
+        {wa && (
+          <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-bg-muted/70 text-fg-muted hover:text-ok transition-colors"><MessageCircle size={13} /></a>
+        )}
+        <a href={`/outbox?person=${node.id}`} title="Outbox" className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-bg-muted/70 text-fg-muted hover:text-accent transition-colors"><Send size={13} /></a>
+      </div>
+    </div>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Compact card                                                        */
+/* ------------------------------------------------------------------ */
+
 function NodeCard({
-  node,
-  extras,
-  accentColor,
-  collapsed,
-  onToggle,
-  matched,
+  node, extras, accentColor, collapsed, onToggle, matched, onHoverShow, onHoverHide,
 }: {
   node: OrgNode;
   extras?: OrgPersonExtras;
@@ -70,119 +144,69 @@ function NodeCard({
   collapsed: boolean;
   onToggle: () => void;
   matched: boolean;
+  onHoverShow?: (node: OrgNode, el: HTMLElement) => void;
+  onHoverHide?: () => void;
 }) {
   const hasChildren = node.children.length > 0;
   const accent = accentColor || "hsl(var(--accent))";
   const dept = node.departmentName;
-  const wa = waLink(node);
-  const mailto = node.email ? `mailto:${node.email}` : null;
   const x = extras;
 
-  const compTone = x?.complianceStatus === "Risk" ? "bg-danger-soft text-danger ring-1 ring-danger/30"
-    : x?.complianceStatus === "Watch" ? "bg-warn-soft text-warn ring-1 ring-warn/30"
-    : "bg-ok-soft text-ok ring-1 ring-ok/30";
-
   return (
-    <div
-      className={cn(
-        "org-card group relative w-[17rem] rounded-2xl glass elevated overflow-hidden text-left transition-all hover:-translate-y-0.5 hover:shadow-lg",
-        matched && "ring-2 ring-accent"
-      )}
-    >
-      {/* company accent stripe */}
-      <span className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: accent }} aria-hidden />
-
-      {/* status flags top-right */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 print-hidden">
-        {x?.onLeaveToday && (
-          <span title="On leave today" className="inline-flex items-center gap-0.5 rounded-full bg-warn-soft text-warn ring-1 ring-warn/30 px-1.5 py-0.5 text-[9px] font-semibold">
-            <Plane size={9} /> Leave
-          </span>
+    <div className={cn("org-card group relative", matched && "z-10")}>
+      <div
+        onMouseEnter={(e) => onHoverShow?.(node, e.currentTarget)}
+        onMouseLeave={onHoverHide}
+        className={cn(
+          "relative flex items-center gap-2.5 rounded-xl glass elevated pl-1 pr-2.5 py-1.5 w-[14rem] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:ring-1 hover:ring-accent/30",
+          matched && "ring-2 ring-accent"
         )}
-        {x?.onboarding && (
-          <span title="Onboarding in progress" className="inline-flex items-center gap-0.5 rounded-full bg-info-soft text-info ring-1 ring-info/30 px-1.5 py-0.5 text-[9px] font-semibold">
-            <Sparkles size={9} /> Onboarding
-          </span>
-        )}
-      </div>
+      >
+        {/* company accent rail */}
+        <span className="self-stretch w-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
 
-      <div className="px-3 pt-3 pb-2.5">
-        {/* header */}
-        <div className="flex items-center gap-2.5">
-          <span className={cn("h-11 w-11 rounded-full ring-1 flex items-center justify-center text-sm font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>
-            {initials(node.name)}
-          </span>
-          <div className="min-w-0 flex-1">
-            <PersonDrawerLink id={node.id} name={node.name} className="block text-sm font-semibold text-fg hover:text-accent hover:underline truncate" />
-            <div className="flex items-center gap-1 text-[11px] text-fg-muted truncate">
-              {dept && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: `hsl(${deptHue(dept)} 65% 55%)` }} />}
-              <span className="truncate">{node.role || PERSON_TYPE_LABELS[node.personType]}{dept ? ` · ${dept}` : ""}</span>
-            </div>
-          </div>
-          {hasChildren && (
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-label={collapsed ? "Expand reports" : "Collapse reports"}
-              className="shrink-0 h-6 w-6 rounded-full flex items-center justify-center text-fg-subtle hover:text-fg hover:bg-bg-muted/70 transition-colors print-hidden"
-            >
-              {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
-            </button>
-          )}
-        </div>
-
-        {/* signals */}
-        {x && (
-          <div className="mt-2 flex flex-wrap items-center gap-1">
-            {x.compliancePct != null && (
-              <span title={`Document compliance ${x.compliancePct}%`} className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular", compTone)}>
-                <ShieldCheck size={10} /> {x.compliancePct}%
-              </span>
-            )}
-            {x.open > 0 && <MiniPill tone="bg-info-soft text-info" label={`${x.open} open`} title={`${x.open} open task(s)`} />}
-            {x.overdue > 0 && <MiniPill tone="bg-danger-soft text-danger" label={`${x.overdue} overdue`} title={`${x.overdue} overdue`} />}
-            {x.notStarted > 0 && <MiniPill tone="bg-bg-muted text-fg-muted" label={`${x.notStarted} not started`} title={`${x.notStarted} not started`} />}
-            {x.closed > 0 && <MiniPill tone="bg-ok-soft text-ok" label={`${x.closed} closed`} title={`${x.closed} completed/closed`} />}
-            {x.assetsHeld > 0 && (
-              <span title={`${x.assetsHeld} asset(s) held`} className="inline-flex items-center gap-0.5 rounded-md bg-bg-muted text-fg-muted px-1.5 py-0.5 text-[10px] font-medium tabular">
-                <Laptop size={10} /> {x.assetsHeld}
-              </span>
-            )}
-          </div>
-        )}
-
-        {node.secondaryManagers.length > 0 && (
-          <div className="mt-1.5 inline-flex items-center text-[10px] text-fg-subtle border-l-2 border-dotted border-fg-subtle/50 pl-1.5">
-            also reports to {node.secondaryManagers.map((m) => m.name ?? "—").join(", ")}
-          </div>
-        )}
-
-        {/* hover quick actions */}
-        <div className="mt-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity print-hidden">
-          {wa && (
-            <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="h-6 w-6 rounded-full flex items-center justify-center bg-bg-muted/70 text-fg-muted hover:text-ok hover:bg-ok-soft transition-colors">
-              <MessageCircle size={13} />
-            </a>
-          )}
-          <PersonDrawerLink id={node.id} name={node.name} title="Open profile" className="h-6 w-6 rounded-full flex items-center justify-center bg-bg-muted/70 text-fg-muted hover:text-accent hover:bg-accent-soft transition-colors">
-            <UserRound size={13} />
-          </PersonDrawerLink>
-          <a href={`/outbox?person=${node.id}`} title="Outbox" className="h-6 w-6 rounded-full flex items-center justify-center bg-bg-muted/70 text-fg-muted hover:text-accent hover:bg-accent-soft transition-colors">
-            <Send size={13} />
-          </a>
-          {x?.topTask && (
-            <span title={`Top task — ${x.topTask.code}: ${x.topTask.title}`} className="h-6 px-1.5 inline-flex items-center gap-0.5 rounded-full bg-bg-muted/70 text-fg-muted text-[10px] max-w-[7.5rem] truncate">
-              <AlertTriangle size={11} className="shrink-0 text-warn" /> {x.topTask.code}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {hasChildren && collapsed && (
-        <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-fg-subtle bg-bg-elev rounded-full px-1.5 ring-1 ring-border tabular print-hidden">
-          {countNodes(node.children)}
+        <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-[12px] font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>
+          {initials(node.name)}
         </span>
-      )}
+
+        <div className="min-w-0 flex-1">
+          <PersonDrawerLink id={node.id} name={node.name} className="block text-[13px] font-semibold text-fg hover:text-accent truncate leading-tight" />
+          <div className="flex items-center gap-1 text-[10.5px] text-fg-muted truncate leading-tight">
+            {dept && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: `hsl(${deptHue(dept)} 65% 55%)` }} />}
+            <span className="truncate">{node.role || PERSON_TYPE_LABELS[node.personType]}</span>
+          </div>
+        </div>
+
+        {/* compact signal cluster */}
+        <div className="flex items-center gap-1 shrink-0">
+          {x?.overdue ? (
+            <span title={`${x.overdue} overdue`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger-soft text-danger text-[10px] font-bold tabular">{x.overdue}</span>
+          ) : x?.open ? (
+            <span title={`${x.open} open`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-info-soft text-info text-[10px] font-bold tabular">{x.open}</span>
+          ) : null}
+          {x?.compliancePct != null && (
+            <span title={`Compliance ${x.compliancePct}%`} className={cn("w-2 h-2 rounded-full", x.complianceStatus === "Risk" ? "bg-danger" : x.complianceStatus === "Watch" ? "bg-warn" : "bg-ok")} />
+          )}
+          {x?.onLeaveToday && <Plane size={11} className="text-warn" />}
+        </div>
+
+        {hasChildren && (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={collapsed ? "Expand reports" : "Collapse reports"}
+            className="shrink-0 h-5 w-5 -mr-1 rounded-full flex items-center justify-center text-fg-subtle hover:text-fg hover:bg-bg-muted/70 transition-colors print-hidden"
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+        )}
+
+        {hasChildren && collapsed && (
+          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-fg-subtle bg-bg-elev rounded-full px-1.5 ring-1 ring-border tabular print-hidden">
+            {countNodes(node.children)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -192,7 +216,7 @@ function NodeCard({
 /* ------------------------------------------------------------------ */
 
 function Subtree({
-  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand,
+  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand, onHoverShow, onHoverHide,
 }: {
   node: OrgNode;
   extras: Extras;
@@ -201,26 +225,23 @@ function Subtree({
   toggle: (id: number) => void;
   matchIds: Set<number>;
   forceExpand: boolean;
+  onHoverShow: (node: OrgNode, el: HTMLElement) => void;
+  onHoverHide: () => void;
 }) {
   const hasChildren = node.children.length > 0;
   const collapsed = !forceExpand && collapsedIds.has(node.id);
   const showChildren = hasChildren && !collapsed;
-
   return (
     <li>
-      <NodeCard
-        node={node}
-        extras={extras[node.id]}
-        accentColor={accentColor}
-        collapsed={collapsed}
-        onToggle={() => toggle(node.id)}
-        matched={matchIds.has(node.id)}
-      />
+      <NodeCard node={node} extras={extras[node.id]} accentColor={accentColor}
+        collapsed={collapsed} onToggle={() => toggle(node.id)} matched={matchIds.has(node.id)}
+        onHoverShow={onHoverShow} onHoverHide={onHoverHide} />
       {showChildren && (
         <ul>
           {node.children.map((c) => (
             <Subtree key={c.id} node={c} extras={extras} accentColor={accentColor}
-              collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={forceExpand} />
+              collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={forceExpand}
+              onHoverShow={onHoverShow} onHoverHide={onHoverHide} />
           ))}
         </ul>
       )}
@@ -228,7 +249,6 @@ function Subtree({
   );
 }
 
-/** ids of every node that has children (collapsible). */
 function collapsibleIds(roots: OrgNode[]): number[] {
   const out: number[] = [];
   const walk = (n: OrgNode) => { if (n.children.length) { out.push(n.id); n.children.forEach(walk); } };
@@ -236,7 +256,7 @@ function collapsibleIds(roots: OrgNode[]): number[] {
   return out;
 }
 
-function TreeView({ tree, extras, accentColor }: { tree: CompanyTree; extras: Extras; accentColor: string | null }) {
+function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null }) {
   const [collapsedIds, setCollapsed] = useState<Set<number>>(new Set());
   const [query, setQuery] = useState("");
   const [scale, setScale] = useState(1);
@@ -244,12 +264,26 @@ function TreeView({ tree, extras, accentColor }: { tree: CompanyTree; extras: Ex
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
+  // Single fixed-position hovercard (escapes the canvas overflow clip).
+  const [hovered, setHovered] = useState<{ node: OrgNode; left: number; top: number } | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showHover = (node: OrgNode, el: HTMLElement) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    const r = el.getBoundingClientRect();
+    const half = 132; // ~half popover width; keep it on-screen
+    const left = Math.min(window.innerWidth - half - 8, Math.max(half + 8, r.left + r.width / 2));
+    // Flip above the card if there isn't room below.
+    const below = r.bottom + 8;
+    const top = below + 230 > window.innerHeight ? Math.max(8, r.top - 8 - 230) : below;
+    setHovered({ node, left, top });
+  };
+  const hideHover = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHovered(null), 140);
+  };
+
   const toggle = (id: number) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+    setCollapsed((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
 
   const q = query.trim().toLowerCase();
   const matchIds = useMemo(() => {
@@ -268,16 +302,13 @@ function TreeView({ tree, extras, accentColor }: { tree: CompanyTree; extras: Ex
   const resetView = () => { setScale(1); setPan({ x: 0, y: 0 }); };
   const zoom = (d: number) => setScale((s) => Math.min(1.6, Math.max(0.5, +(s + d).toFixed(2))));
   const print = () => { expandAll(); setTimeout(() => window.print(), 60); };
-
   const toggleFullscreen = () => {
-    const el = canvasRef.current?.parentElement; // the bordered stage wrapper
-    if (!document.fullscreenElement) el?.requestFullscreen?.();
-    else document.exitFullscreen?.();
+    const el = canvasRef.current?.parentElement;
+    if (!document.fullscreenElement) el?.requestFullscreen?.(); else document.exitFullscreen?.();
   };
 
-  // drag-to-pan
   const onPointerDown = (e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest("button,a,input")) return;
+    if ((e.target as HTMLElement).closest("button,a,input,.org-card")) return;
     drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
     canvasRef.current?.classList.add("dragging");
   };
@@ -287,15 +318,12 @@ function TreeView({ tree, extras, accentColor }: { tree: CompanyTree; extras: Ex
   }, []);
   const endDrag = () => { drag.current = null; canvasRef.current?.classList.remove("dragging"); };
 
-  if (tree.total === 0) {
-    return <p className="text-sm text-fg-subtle italic py-6 text-center">No active people in this company.</p>;
-  }
+  if (tree.total === 0) return <p className="text-sm text-fg-subtle italic py-6 text-center">No active people in this company.</p>;
   const hasStructure = tree.roots.length > 0;
   const ctrlBtn = "h-8 w-8 inline-flex items-center justify-center rounded-lg bg-bg-subtle/80 ring-1 ring-border text-fg-muted hover:text-fg transition-colors";
 
   return (
     <div className="space-y-3">
-      {/* toolbar */}
       <div className="flex items-center justify-between gap-2 flex-wrap print-hidden">
         <div className="text-[11px] text-fg-subtle tabular">
           {tree.total} active · {tree.withManager} with a manager · {tree.total - tree.withManager} unassigned
@@ -303,15 +331,9 @@ function TreeView({ tree, extras, accentColor }: { tree: CompanyTree; extras: Ex
         <div className="flex items-center gap-1.5">
           <div className="relative">
             <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a person…"
-              className="h-8 w-40 rounded-full bg-bg-subtle/70 ring-1 ring-border pl-7 pr-7 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-accent/40"
-            />
-            {query && (
-              <button type="button" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg" aria-label="Clear search"><X size={12} /></button>
-            )}
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a person…"
+              className="h-8 w-40 rounded-full bg-bg-subtle/70 ring-1 ring-border pl-7 pr-7 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-accent/40" />
+            {query && <button type="button" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg" aria-label="Clear search"><X size={12} /></button>}
           </div>
           {hasStructure && (
             <>
@@ -332,20 +354,14 @@ function TreeView({ tree, extras, accentColor }: { tree: CompanyTree; extras: Ex
 
       {hasStructure ? (
         <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
-          <div
-            ref={canvasRef}
-            className="org-canvas overflow-auto"
-            style={{ maxHeight: "70vh" }}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={endDrag}
-            onPointerLeave={endDrag}
-          >
-            <div className="org-stage inline-block min-w-full p-6" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}>
+          <div ref={canvasRef} className="org-canvas overflow-auto" style={{ maxHeight: "72vh" }}
+            onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
+            <div className="org-stage inline-block min-w-full p-8" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}>
               <ul className="org-tree mx-auto w-max">
                 {tree.roots.map((n) => (
                   <Subtree key={n.id} node={n} extras={extras} accentColor={accentColor}
-                    collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={!!q} />
+                    collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={!!q}
+                    onHoverShow={showHover} onHoverHide={hideHover} />
                 ))}
               </ul>
             </div>
@@ -365,57 +381,23 @@ function TreeView({ tree, extras, accentColor }: { tree: CompanyTree; extras: Ex
           </div>
           <div className="flex flex-wrap gap-2.5">
             {tree.unassigned.map((n) => (
-              <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)} />
+              <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
+                onHoverShow={showHover} onHoverHide={hideHover} />
             ))}
           </div>
         </div>
       )}
-    </div>
-  );
-}
 
-/* ------------------------------------------------------------------ */
-/* Group overview                                                      */
-/* ------------------------------------------------------------------ */
-
-function companyLead(tree: CompanyTree): { node: OrgNode; reports: number } | null {
-  if (tree.roots.length === 0) return null;
-  let best = tree.roots[0];
-  let bestReports = countNodes(best.children);
-  for (const r of tree.roots.slice(1)) {
-    const reports = countNodes(r.children);
-    if (reports > bestReports) { best = r; bestReports = reports; }
-  }
-  return { node: best, reports: bestReports };
-}
-
-function GroupOverview({ companies, trees, onPick }: { companies: OrgChartCompany[]; trees: Record<number, CompanyTree>; onPick: (companyId: number) => void; }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {companies.map((c) => {
-        const tree = trees[c.id];
-        const lead = tree ? companyLead(tree) : null;
-        const accent = c.accentColor || "hsl(var(--accent))";
-        return (
-          <button key={c.id} type="button" onClick={() => onPick(c.id)} className="group text-left rounded-2xl glass elevated p-4 hover:ring-1 hover:ring-accent/30 transition-all">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: accent }} />
-                <span className="font-medium text-fg truncate">{c.name}</span>
-              </div>
-              <ChevronRight size={15} className="text-fg-subtle group-hover:text-accent group-hover:translate-x-0.5 transition-all shrink-0" />
-            </div>
-            <div className="mt-2 text-[11px] text-fg-subtle tabular">
-              {tree?.total ?? 0} people · {tree?.withManager ?? 0} reporting line{(tree?.withManager ?? 0) === 1 ? "" : "s"}
-            </div>
-            <div className="mt-1.5 text-xs text-fg-muted truncate">
-              {lead
-                ? <>Lead: <span className="text-fg">{lead.node.name}</span>{lead.reports > 0 && <span className="text-fg-subtle"> · {lead.reports} report{lead.reports === 1 ? "" : "s"}</span>}</>
-                : <span className="italic text-fg-subtle">No reporting lines yet</span>}
-            </div>
-          </button>
-        );
-      })}
+      {hovered && (
+        <HoverDetail
+          node={hovered.node}
+          extras={extras[hovered.node.id]}
+          companyName={companyName}
+          style={{ left: hovered.left, top: hovered.top }}
+          onMouseEnter={() => { if (hoverTimer.current) clearTimeout(hoverTimer.current); }}
+          onMouseLeave={hideHover}
+        />
+      )}
     </div>
   );
 }
@@ -425,37 +407,40 @@ function GroupOverview({ companies, trees, onPick }: { companies: OrgChartCompan
 /* ------------------------------------------------------------------ */
 
 export function OrgChart({
-  companies, trees, extras = {}, initialCompanyId, showSwitcher = true, showGroup = true,
+  companies, trees, extras = {}, webPeople, initialCompanyId, showSwitcher = true, showEveryone = true,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
   extras?: Extras;
+  webPeople?: WebPerson[];
   initialCompanyId?: number;
   showSwitcher?: boolean;
-  showGroup?: boolean;
+  showEveryone?: boolean;
 }) {
-  const [view, setView] = useState<"group" | number>(
-    initialCompanyId != null ? initialCompanyId : showGroup ? "group" : (companies[0]?.id ?? 0)
+  const everyoneOn = showEveryone && !!webPeople;
+  const [view, setView] = useState<"everyone" | number>(
+    initialCompanyId != null ? initialCompanyId : everyoneOn ? "everyone" : (companies[0]?.id ?? 0)
   );
 
   const options = [
-    ...(showGroup ? [{ value: "group", label: "Group", icon: <LayoutGrid size={13} /> }] : []),
+    ...(everyoneOn ? [{ value: "everyone", label: "Everyone", icon: <Share2 size={13} /> }] : []),
     ...companies.map((c) => ({ value: String(c.id), label: c.name })),
   ];
+  const companyName = (id: number) => companies.find((c) => c.id === id)?.name ?? null;
   const accentFor = (id: number) => companies.find((c) => c.id === id)?.accentColor ?? null;
 
   return (
     <div className="space-y-4">
       {showSwitcher && options.length > 1 && (
         <div className="overflow-x-auto -mx-1 px-1 no-scrollbar print-hidden">
-          <Segmented value={view === "group" ? "group" : String(view)} onChange={(v) => setView(v === "group" ? "group" : Number(v))} size="sm" className="min-w-max" options={options} />
+          <Segmented value={view === "everyone" ? "everyone" : String(view)} onChange={(v) => setView(v === "everyone" ? "everyone" : Number(v))} size="sm" className="min-w-max" options={options} />
         </div>
       )}
 
-      {view === "group" ? (
-        <GroupOverview companies={companies} trees={trees} onPick={(id) => setView(id)} />
-      ) : trees[view] ? (
-        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} />
+      {view === "everyone" && webPeople ? (
+        <OrgWeb people={webPeople} companies={companies} extras={extras} onPickCompany={(id) => setView(id)} />
+      ) : typeof view === "number" && trees[view] ? (
+        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} />
       ) : (
         <p className="text-sm text-fg-subtle italic py-6 text-center">Select a company.</p>
       )}
