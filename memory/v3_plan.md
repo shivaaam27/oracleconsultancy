@@ -254,7 +254,7 @@ Owner wants each company to become a glanceable **company file** (like the perso
 **Company File complete (Phases 1–5).** Tabs: ~~Overview · File · Profile · Tasks · Timeline · Org~~ — see Files-into-Profile restructure below.
 
 ### Files-into-Profile restructure (owner: "too much and long; 2 dropdowns")
-Owner wanted the File tab gone and everything under **two dropdowns inside Profile**. Locked decisions: keep full checklist but **collapsed**; clicking a staff person **reuses the Person drawer**; "updates" = current info + last-updated (no history store). Build order: 1 merge & declutter (DONE) · 2 inline edit/delete on company rows (DONE) · 3 staff cards polish (DONE) · 4 auto-fill company profile from uploaded docs.
+Owner wanted the File tab gone and everything under **two dropdowns inside Profile**. Locked decisions: keep full checklist but **collapsed**; clicking a staff person **reuses the Person drawer**; "updates" = current info + last-updated (no history store). Build order: 1 merge & declutter (DONE) · 2 inline edit/delete on company rows (DONE) · 3 staff cards polish (DONE) · 4 auto-fill company profile from uploaded docs (DONE).
 
 **Phase 1 shipped (merge & declutter):**
 - **File tab removed**; tabs are now **Overview · Profile · Tasks · Timeline · Org** (`tabs.tsx`). Legacy `?tab=file` → Profile.
@@ -264,6 +264,14 @@ Owner wanted the File tab gone and everything under **two dropdowns inside Profi
 **Phase 2 shipped (inline edit/delete):** company file rows now have a Pencil (opens `DocumentForm` mode="edit" with the row's `doc` in the same in-place modal — no hop to `/documents`) and a Trash (`archiveDocumentAction(id,true)` soft-delete behind a `window.confirm`, then reloadSignal + refresh). The add/edit modal is unified (`formOpen = addOpen || !!editDoc`). Verified: edit opens prefilled. tsc clean.
 
 **Phase 3 shipped (staff cards polish):** staff cards now have an initials avatar colour-toned by worst doc status (accent/warn/danger), name + role, file count, and status pills (N valid / expiring / expired). Cards are ordered **issues-first** (`staffSeverity`: expired → expiring → rest, then name). Still open the Person drawer on click. tsc clean.
+
+**Phase 4 shipped (profile auto-fill + Key documents):**
+- New `companies` columns `vrn` + `incorporation_date` (migration `0034`). Profile form gained **VRN / VAT** and **Incorporation date** fields; `saveCompanyProfileAction` + page fetch updated.
+- **Key documents panel** (`_tabs/company-key-documents.tsx`, derived read-only) on the Profile tab between the record and the dropdowns: named rows **Registration · TIN · VRN/VAT · Business licence · Lease agreement**, each showing the headline number (typed value or the matched document's reference) + the document title + expiry/status, or "Not on file". `buildCompanyKeyDocuments` in `src/lib/company-profile.ts` maps docs by category (Registration also matches a Certificate titled incorporation/registration; Tax split into VRN vs TIN by title/`/vrn|vat/`).
+- **Auto-fill on document save** (`backfillCompanyProfileFromDocument`, blanks-only, never overwrites): `createDocumentAction`/`updateDocumentAction` call it whenever `companyId` is set — Registration doc → `registration_no` (+ `incorporation_date` from issue date); Tax doc → `vrn` if titled VRN/VAT else `tin`. So uploading company docs (single or bulk, in the Documents centre or in-place) fills the profile. Revalidates `/companies/{id}`.
+- Verified: Key documents panel pulls TIN (40-011748-I), Business licence (BL…·in 118 days·Valid) and Registration (56059 from Certificate of Incorporation); VRN + Incorporation date fields present. tsc + migration clean.
+
+**Files-into-Profile restructure complete (Phases 1–4).**
 
 **Phase 6 shipped (File upgrade — per-company custom compliance + staff files):**
 - **DB-backed per-company checklist** replacing the old fixed derived one. New `company_requirements` table (migration `0033`, mirrors `person_requirements`: `source_key` null=custom / set=seeded default, status/document_id/auto_link/verify/waive). `src/lib/company-requirements.ts`: `ensureCompanyRequirements` seeds only the 3 core items (Registration, Tax/TIN, Business licence — **no insurance/lease**, owner adds those), `getCompanyChecklist` (ensure + auto-link company docs by category + score), `buildCompanyRequirementScores` (bulk read-only; **synthesizes the 3 defaults for unseeded companies** so they aren't falsely 100%), plus full mutations (request/link/unlink/verify/unverify/waive/unwaive/add/edit/remove).

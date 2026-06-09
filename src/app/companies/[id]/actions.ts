@@ -16,10 +16,13 @@ function str(fd: FormData, key: string): string | null {
  * saveCompanyLetterheadAction in /letterheads/actions.ts.
  */
 export async function saveCompanyProfileAction(companyId: number, fd: FormData): Promise<Result> {
+  const incDate = str(fd, "incorporationDate");
   const patch = {
     legal_name: str(fd, "legalName"),
     registration_no: str(fd, "registrationNo"),
     tin: str(fd, "tin"),
+    vrn: str(fd, "vrn"),
+    incorporation_date: incDate ? new Date(incDate).toISOString() : null,
     address: str(fd, "address"),
     phone: str(fd, "phone"),
     email: str(fd, "email"),

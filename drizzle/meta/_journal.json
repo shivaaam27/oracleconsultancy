@@ -239,6 +239,13 @@
       "when": 1781005783648,
       "tag": "0033_flowery_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781022563126,
+      "tag": "0034_lumpy_hannibal_king",
+      "breakpoints": true
     }
   ]
 }

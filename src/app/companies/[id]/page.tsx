@@ -7,6 +7,8 @@ import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
 import { CompanyDocuments } from "./_tabs/company-documents";
 import { CompanyProfile } from "./_tabs/company-profile";
+import { CompanyKeyDocuments } from "./_tabs/company-key-documents";
+import { buildCompanyKeyDocuments } from "@/lib/company-profile";
 import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
@@ -61,7 +63,7 @@ export default async function CompanyPage({
       listDocuments(),
       sb
         .from("companies")
-        .select("id,name,legal_name,registration_no,tin,address,phone,email,signatory_name,signatory_title")
+        .select("id,name,legal_name,registration_no,tin,vrn,incorporation_date,address,phone,email,signatory_name,signatory_title")
         .eq("id", companyId)
         .maybeSingle(),
       sb.from("person_companies").select("person_id").eq("company_id", companyId),
@@ -367,12 +369,23 @@ export default async function CompanyPage({
               legalName: (companyRaw?.legal_name as string | null) ?? null,
               registrationNo: (companyRaw?.registration_no as string | null) ?? null,
               tin: (companyRaw?.tin as string | null) ?? null,
+              vrn: (companyRaw?.vrn as string | null) ?? null,
+              incorporationDate: companyRaw?.incorporation_date
+                ? new Date(companyRaw.incorporation_date as string).toISOString().slice(0, 10)
+                : null,
               address: (companyRaw?.address as string | null) ?? null,
               phone: (companyRaw?.phone as string | null) ?? null,
               email: (companyRaw?.email as string | null) ?? null,
               signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
               signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
             }}
+          />
+          <CompanyKeyDocuments
+            rows={buildCompanyKeyDocuments(companyDocs, {
+              registrationNo: (companyRaw?.registration_no as string | null) ?? null,
+              tin: (companyRaw?.tin as string | null) ?? null,
+              vrn: (companyRaw?.vrn as string | null) ?? null,
+            })}
           />
           <CompanyDocuments
             companyId={companyId}

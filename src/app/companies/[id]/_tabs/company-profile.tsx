@@ -11,6 +11,8 @@ export type CompanyProfile = {
   legalName: string | null;
   registrationNo: string | null;
   tin: string | null;
+  vrn: string | null;
+  incorporationDate: string | null;
   address: string | null;
   phone: string | null;
   email: string | null;
@@ -73,8 +75,16 @@ export function CompanyProfile({
             <input id="registrationNo" name="registrationNo" defaultValue={profile.registrationNo ?? ""} className={inputCls} />
           </div>
           <div>
+            <label className={labelCls} htmlFor="incorporationDate">Incorporation date</label>
+            <input id="incorporationDate" name="incorporationDate" type="date" defaultValue={profile.incorporationDate ?? ""} className={inputCls} />
+          </div>
+          <div>
             <label className={labelCls} htmlFor="tin">TIN</label>
             <input id="tin" name="tin" defaultValue={profile.tin ?? ""} className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="vrn">VRN / VAT</label>
+            <input id="vrn" name="vrn" defaultValue={profile.vrn ?? ""} className={inputCls} />
           </div>
         </div>
       </section>

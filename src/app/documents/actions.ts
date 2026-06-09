@@ -16,6 +16,7 @@ import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
+import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import type { PersonProfileFields } from "@/app/people/actions";
 
 export type OwnerDocMatch = {
@@ -122,6 +123,15 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
     const id = await createDocument(parsed);
     const file = fileFromForm(fd);
     if (file) await uploadDocumentFile(id, file);
+    if (parsed.companyId) {
+      await backfillCompanyProfileFromDocument(parsed.companyId, {
+        category: parsed.category ?? null,
+        title: parsed.title ?? null,
+        referenceNo: parsed.referenceNo ?? null,
+        issueDate: parsed.issueDate ?? null,
+      });
+      revalidatePath(`/companies/${parsed.companyId}`);
+    }
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -137,6 +147,15 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
     const file = fileFromForm(fd);
     if (file) await uploadDocumentFile(id, file);
     else if (fd.get("removeFile") === "1") await removeDocumentFile(id);
+    if (parsed.companyId) {
+      await backfillCompanyProfileFromDocument(parsed.companyId, {
+        category: parsed.category ?? null,
+        title: parsed.title ?? null,
+        referenceNo: parsed.referenceNo ?? null,
+        issueDate: parsed.issueDate ?? null,
+      });
+      revalidatePath(`/companies/${parsed.companyId}`);
+    }
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {

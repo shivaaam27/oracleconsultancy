@@ -15,6 +15,9 @@ export const companies = pgTable("companies", {
   email: text("email"),
   registrationNo: text("registration_no"),
   tin: text("tin"),
+  // VAT/VRN registration number + incorporation date (HR/compliance profile).
+  vrn: text("vrn"),
+  incorporationDate: timestamp("incorporation_date", { mode: "date", withTimezone: true }),
   logoPath: text("logo_path"),
   signatoryName: text("signatory_name"),
   signatoryTitle: text("signatory_title"),
