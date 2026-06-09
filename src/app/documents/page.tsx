@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/ui";
 import { DocumentsTable } from "@/components/documents-table";
 import { ComplianceScorePanel } from "@/components/compliance-score-panel";
+import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
@@ -66,6 +67,13 @@ export default async function DocumentsPage({
         }
       />
       <ComplianceScorePanel companyScores={companyScores} personScores={personScores} />
+      <NeedsAttentionPanel
+        documents={documents}
+        companies={companies}
+        people={people}
+        companyScores={companyScores}
+        personScores={personScores}
+      />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>
   );

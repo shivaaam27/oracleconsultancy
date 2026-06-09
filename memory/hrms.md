@@ -45,6 +45,15 @@ Agreed phased plan after the nav move: **1 (DONE)** HRMS nav tab + briefcase ico
 
 Shared bits: `src/components/hrms/hrms-dialog.tsx` (drawer), design uses the standard `ui.tsx` primitives + tokens (no Excel styling). British English. Currency = **TZS** (`fmtMoney` in `stock-shared.ts`).
 
+### Documents & Compliance — overview upgrade (DONE)
+Owner asked to evolve `/documents` in place but apply the modern pop-up design language. `compliance-score-panel.tsx` rebuilt: a glass hero card with an SVG **portfolio ring** + soft accent glow + four stat tiles (Missing/Expired/Expiring/All clear); a glass **segmented Companies⇄People toggle** (with per-scope attention-count badges) showing the **full** owner list worst-first (not the old top-4), each row with a tone-coloured mini progress bar + gap preview, healthy owners tucked behind a collapsible "N all clear". The detail pop-up now uses the shared **`EntityDrawer`** shell (status-tinted hero glow + its own ring, single Detail tab, sticky action bar) so it matches the company/person drawers. Deep-link helpers (add-doc / prepare-pack) unchanged.
+
+**Phased roadmap for `/documents` (agreed):** P1 compliance overview+detail drawer — **DONE**. P2 table & status polish — **DONE** (status summary now has 5 filter chips incl. **Valid** + **No expiry** with live counts; active chip toggles back to All; list/empty cards lifted to `rounded-3xl`). P3 needs-attention worklist — **DONE** (`needs-attention-panel.tsx`, placed between compliance panel and table): one prioritised portfolio-wide queue — expired (most-overdue first) → expiring → missing-required (from compliance gaps), with All/Expired/Expiring/Missing filter chips + count, inline **Renew** (company docs, `renewDocumentAction`) / **Add** (missing, deep-link) / **View** (person/company-less docs) actions, capped to 8 with "Show all N", calm empty state. P4 group + expiry-timeline table views — pending. P5 bulk actions (select-mode archive/restore/renew, mirror People) — pending. P6 refresh the two "Manage…" template dialogs onto the `EntityDrawer` shell — pending. P7 per-company compliance PDF/CSV export — pending.
+
+Mobile fix (shared, app-wide): `PageHeader` in `ui.tsx` now stacks (`flex-col` → `sm:flex-row`) so wide page-action buttons drop below the title on phones instead of crushing the title/sub-line. Verified no horizontal overflow at 375px on `/documents`.
+
+Note: open_issues "Documents AI can't read Word/Excel" is **stale** — `documents/actions.ts` `extractOfficeText` (mammoth + xlsx) already reads .docx/.xlsx/.xls/.csv.
+
 ---
 
 ## OECR — Office Equipment Control Registry (`/hrms/oecr`) — COMPLETE

@@ -190,7 +190,13 @@ export function DocumentsTable({
   const counts = useMemo(() => {
     const live = documents.filter((d) => !d.archived);
     const tally = (s: DocStatus) => live.filter((d) => deriveDocStatus(d) === s).length;
-    return { all: live.length, expired: tally("Expired"), expiring: tally("Expiring") };
+    return {
+      all: live.length,
+      expired: tally("Expired"),
+      expiring: tally("Expiring"),
+      valid: tally("Valid"),
+      noExpiry: tally("No expiry"),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents]);
 
@@ -250,18 +256,22 @@ export function DocumentsTable({
           { key: "all" as StatusFilter, label: "All", count: counts.all, tone: "default" as const },
           { key: "Expired" as StatusFilter, label: "Expired", count: counts.expired, tone: "danger" as const },
           { key: "Expiring" as StatusFilter, label: "Expiring soon", count: counts.expiring, tone: "warn" as const },
+          { key: "Valid" as StatusFilter, label: "Valid", count: counts.valid, tone: "success" as const },
+          { key: "No expiry" as StatusFilter, label: "No expiry", count: counts.noExpiry, tone: "default" as const },
         ].map(({ key, label, count, tone }) => {
           const active = statusFilter === key;
           const tint = active
             ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
               : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
+              : tone === "success" ? "bg-success-soft/70 ring-2 ring-success/40 text-success"
               : "bg-accent-soft/70 ring-2 ring-accent/40 text-accent"
             : count === 0 ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
             : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
             : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
+            : tone === "success" ? "bg-success-soft/50 ring-1 ring-success/25 text-success hover:ring-2"
             : "bg-bg-subtle/60 ring-1 ring-border/60 text-fg-muted hover:ring-2 hover:ring-border";
           return (
-            <button key={key} type="button" onClick={() => setStatusFilter(key)}
+            <button key={key} type="button" onClick={() => setStatusFilter(active && key !== "all" ? "all" : key)}
               className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}>
               <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">{count}</span>
               <span className="font-medium">{label}</span>
@@ -276,7 +286,7 @@ export function DocumentsTable({
 
       {/* List */}
       {filtered.length > 0 ? (
-        <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <div className="glass elevated rounded-3xl overflow-hidden divide-y divide-border/60">
           {filtered.map((doc) => {
             const dte = daysToExpiry(doc);
             const urgent = dte !== null && dte < 0;
@@ -328,7 +338,7 @@ export function DocumentsTable({
           })}
         </div>
       ) : documents.length === 0 ? (
-        <div className="glass elevated rounded-2xl text-center py-14 px-6">
+        <div className="glass elevated rounded-3xl text-center py-14 px-6">
           <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-bg-muted/60 flex items-center justify-center text-fg-subtle">
             <FileText size={22} />
           </div>
@@ -340,7 +350,7 @@ export function DocumentsTable({
           </button>
         </div>
       ) : (
-        <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
+        <div className="glass elevated rounded-3xl text-center py-12 text-fg-muted text-sm">
           No documents match these filters.
         </div>
       )}

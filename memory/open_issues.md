@@ -16,7 +16,7 @@ metadata:
 - **PWA not complete.** Layout has PWA-ready meta, but there is no manifest/service worker/icon set yet.
 - **Director Brief Phase 5 (optional).** `/brief` ships with this-month window + WhatsApp/Email/Copy + PDF; period filter (week/all), per-company brief, and scheduled auto-send are future.
 - **OCR Phases 3–5 outstanding.** Cleaning registry has data + the daily checklist; history/dashboard, area management, and photos/reminders/export are future (see `hrms.md`).
-- **Documents AI** reads PDFs + images (incl. scanned), but **not Word/Excel** files yet.
+- **Documents AI** reads PDFs + images (incl. scanned) **and Word/Excel/CSV** (`extractOfficeText` — mammoth + xlsx in `documents/actions.ts`).
 - **Daily snapshots need production verification.** `daily_snapshots` and `/api/cron/snapshots` exist, but scheduling/production execution should be confirmed. (Same applies to the new `/api/cron/notify` job.)
 - **Push notifications need prod env vars.** Code is complete, but production won't send alerts until `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and `CRON_SECRET` are added to Vercel. Keys are generated locally in `.env.local` (gitignored). Push also requires HTTPS (Vercel) — won't fully work in local dev. iOS requires the app be added to the Home Screen first.
 - **Corrections table has no UI.** Schema exists but no correction workflow is exposed.
