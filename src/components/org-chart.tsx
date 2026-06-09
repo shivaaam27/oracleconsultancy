@@ -7,7 +7,6 @@ import {
   MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
-import { Segmented } from "@/components/macos";
 import { Badge } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
@@ -268,6 +267,8 @@ function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTre
   const [hovered, setHovered] = useState<{ node: OrgNode; left: number; top: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showHover = (node: OrgNode, el: HTMLElement) => {
+    // Touch devices have no hover; a tap on the name opens the drawer instead.
+    if (typeof window !== "undefined" && !window.matchMedia("(hover: hover)").matches) return;
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     const r = el.getBoundingClientRect();
     const half = 132; // ~half popover width; keep it on-screen
@@ -308,6 +309,8 @@ function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTre
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
+    // On touch, let the native scroll container handle panning (smoother, momentum).
+    if (e.pointerType !== "mouse") return;
     if ((e.target as HTMLElement).closest("button,a,input,.org-card")) return;
     drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
     canvasRef.current?.classList.add("dragging");
@@ -324,15 +327,15 @@ function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTre
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2 flex-wrap print-hidden">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print-hidden">
         <div className="text-[11px] text-fg-subtle tabular">
           {tree.total} active · {tree.withManager} with a manager · {tree.total - tree.withManager} unassigned
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="relative">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="relative flex-1 min-w-[9rem] sm:flex-none">
             <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Find a person…"
-              className="h-8 w-40 rounded-full bg-bg-subtle/70 ring-1 ring-border pl-7 pr-7 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-accent/40" />
+              className="h-8 w-full sm:w-40 rounded-full bg-bg-subtle/70 ring-1 ring-border pl-7 pr-7 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-accent/40" />
             {query && <button type="button" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg" aria-label="Clear search"><X size={12} /></button>}
           </div>
           {hasStructure && (
@@ -403,6 +406,52 @@ function TreeView({ tree, extras, accentColor, companyName }: { tree: CompanyTre
 }
 
 /* ------------------------------------------------------------------ */
+/* Switcher — responsive, touch-friendly tab bar                       */
+/* ------------------------------------------------------------------ */
+
+function OrgSwitcher({
+  view, setView, companies, everyoneOn,
+}: {
+  view: "everyone" | number;
+  setView: (v: "everyone" | number) => void;
+  companies: OrgChartCompany[];
+  everyoneOn: boolean;
+}) {
+  const chip = "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-all active:scale-95";
+  return (
+    <div className="-mx-1 px-1 overflow-x-auto no-scrollbar print-hidden">
+      <div className="flex items-center gap-1.5 w-max snap-x snap-mandatory">
+        {everyoneOn && (
+          <button
+            type="button"
+            onClick={() => setView("everyone")}
+            className={cn(chip, view === "everyone" ? "bg-accent text-accent-fg ring-accent shadow-sm" : "bg-bg-elev/60 text-fg-muted ring-border hover:text-fg")}
+          >
+            <Share2 size={13} /> Everyone
+          </button>
+        )}
+        {companies.map((c) => {
+          const active = view === c.id;
+          const accent = c.accentColor || "hsl(var(--accent))";
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setView(c.id)}
+              style={active ? { backgroundColor: accent, color: "#fff", borderColor: accent } : undefined}
+              className={cn(chip, active ? "shadow-sm ring-transparent" : "bg-bg-elev/60 text-fg-muted ring-border hover:text-fg")}
+            >
+              {!active && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accent }} />}
+              {c.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Main                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -422,19 +471,14 @@ export function OrgChart({
     initialCompanyId != null ? initialCompanyId : everyoneOn ? "everyone" : (companies[0]?.id ?? 0)
   );
 
-  const options = [
-    ...(everyoneOn ? [{ value: "everyone", label: "Everyone", icon: <Share2 size={13} /> }] : []),
-    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
-  ];
+  const showBar = everyoneOn || companies.length > 1;
   const companyName = (id: number) => companies.find((c) => c.id === id)?.name ?? null;
   const accentFor = (id: number) => companies.find((c) => c.id === id)?.accentColor ?? null;
 
   return (
     <div className="space-y-4">
-      {showSwitcher && options.length > 1 && (
-        <div className="overflow-x-auto -mx-1 px-1 no-scrollbar print-hidden">
-          <Segmented value={view === "everyone" ? "everyone" : String(view)} onChange={(v) => setView(v === "everyone" ? "everyone" : Number(v))} size="sm" className="min-w-max" options={options} />
-        </div>
+      {showSwitcher && showBar && (
+        <OrgSwitcher view={view} setView={setView} companies={companies} everyoneOn={everyoneOn} />
       )}
 
       {view === "everyone" && webPeople ? (
