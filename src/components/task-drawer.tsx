@@ -3,16 +3,12 @@
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ModalShell } from "./modal-shell";
+import { EntityDrawer, type DrawerTab } from "./entity-drawer";
+import { SectionCard } from "./drawer-kit";
 import { TimelineEntry } from "./timeline-entry";
 import {
-  ExternalLink,
-  MessageSquarePlus,
-  Loader2,
-  AlertCircle,
-  FileText,
-  ChevronDown,
-  History,
+  ExternalLink, MessageSquarePlus, FileText, ChevronDown, History,
+  LayoutDashboard, CheckCircle2, RotateCcw, AlertOctagon, Trash2, Loader2, X,
 } from "lucide-react";
 import { PeekQuickUpdate } from "./peek-quick-update";
 import { DeadlineEditor } from "./deadline-editor";
@@ -22,53 +18,16 @@ import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
 import { inlineUpdateTask, deleteTaskQuick } from "@/app/task/actions";
-import { CheckCircle2, RotateCcw, AlertOctagon, Trash2 } from "lucide-react";
 import {
-  sortTimeline,
-  mergeStatusIntoUpdates,
-  suppressUpdateMetaAudits,
-  groupFieldEdits,
-  liftPinnedUpdates,
-  type TimelineItem,
+  sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
+  groupFieldEdits, liftPinnedUpdates, type TimelineItem,
 } from "@/lib/timeline";
 import type { TaskRow } from "@/lib/queries";
 
-/* -------------------------------------------------------------------------
- * Types for the API response
- * ---------------------------------------------------------------------- */
-type DrawerUpdate = {
-  id: number;
-  body: string;
-  created_at: string;
-  created_by: string | null;
-  edited_at: string | null;
-  original_body: string | null;
-  pinned_at: string | null;
-};
-type DrawerAudit = {
-  id: number;
-  field: string | null;
-  old_value: string | null;
-  new_value: string | null;
-  change_reason: string | null;
-  entry_type: string | null;
-  created_at: string;
-  created_by: string | null;
-};
-type DrawerData = {
-  task: TaskRow;
-  updates: DrawerUpdate[];
-  audit: DrawerAudit[];
-  sourceMeeting: {
-    id: number;
-    title: string;
-    meeting_date: string;
-  } | null;
-};
+type DrawerUpdate = { id: number; body: string; created_at: string; created_by: string | null; edited_at: string | null; original_body: string | null; pinned_at: string | null };
+type DrawerAudit = { id: number; field: string | null; old_value: string | null; new_value: string | null; change_reason: string | null; entry_type: string | null; created_at: string; created_by: string | null };
+type DrawerData = { task: TaskRow; updates: DrawerUpdate[]; audit: DrawerAudit[]; sourceMeeting: { id: number; title: string; meeting_date: string } | null };
 
-/* -------------------------------------------------------------------------
- * Helpers
- * ---------------------------------------------------------------------- */
 function statusTone(s: string): "default" | "success" | "warn" | "danger" | "info" {
   if (s === "Completed" || s === "Closed") return "success";
   if (s === "Blocked" || s === "Escalated") return "danger";
@@ -76,68 +35,28 @@ function statusTone(s: string): "default" | "success" | "warn" | "danger" | "inf
   if (s === "In Progress") return "info";
   return "default";
 }
-
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
   if (p === "High") return "warn";
   if (p === "Medium") return "info";
   return "default";
 }
-
-function fmtDate(d: Date) {
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function fmtTime(d: Date) {
-  return d.toLocaleString("en-GB", {
-    day: "numeric", month: "short",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
+function fmtDate(d: Date) { return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
 
 function buildTimeline(data: DrawerData): TimelineItem[] {
   const raw: TimelineItem[] = [
-    ...data.updates.map<TimelineItem>((u) => ({
-      kind: "update",
-      id: u.id,
-      taskId: data.task.id,
-      taskCode: data.task.code,
-      body: u.body,
-      createdAt: new Date(u.created_at),
-      createdBy: u.created_by,
-      editedAt: u.edited_at ? new Date(u.edited_at) : null,
-      originalBody: u.original_body,
-      pinnedAt: u.pinned_at ? new Date(u.pinned_at) : null,
-    })),
-    ...data.audit.map<TimelineItem>((a) => ({
-      kind: "audit",
-      id: a.id,
-      taskId: data.task.id,
-      taskCode: data.task.code,
-      field: a.field,
-      oldValue: a.old_value,
-      newValue: a.new_value,
-      changeReason: a.change_reason,
-      entryType: a.entry_type,
-      createdAt: new Date(a.created_at),
-      createdBy: a.created_by,
-    })),
+    ...data.updates.map<TimelineItem>((u) => ({ kind: "update", id: u.id, taskId: data.task.id, taskCode: data.task.code, body: u.body, createdAt: new Date(u.created_at), createdBy: u.created_by, editedAt: u.edited_at ? new Date(u.edited_at) : null, originalBody: u.original_body, pinnedAt: u.pinned_at ? new Date(u.pinned_at) : null })),
+    ...data.audit.map<TimelineItem>((a) => ({ kind: "audit", id: a.id, taskId: data.task.id, taskCode: data.task.code, field: a.field, oldValue: a.old_value, newValue: a.new_value, changeReason: a.change_reason, entryType: a.entry_type, createdAt: new Date(a.created_at), createdBy: a.created_by })),
   ];
-  return liftPinnedUpdates(
-    groupFieldEdits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw))))
-  ).slice(0, 12);
+  return liftPinnedUpdates(groupFieldEdits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw))))).slice(0, 12);
 }
 
-/* -------------------------------------------------------------------------
- * TaskDrawer — mounts in layout, reads ?task= from URL
- * ---------------------------------------------------------------------- */
 export function TaskDrawer() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
 
   const code = searchParams.get("task");
-  // Don't show drawer on the full task detail page (the page IS the detail)
   const isTaskPage = /^\/task\/[A-Z]{2}\d{2}-\d{3}$/.test(pathname);
   const open = !!code && !isTaskPage;
 
@@ -146,7 +65,19 @@ export function TaskDrawer() {
   const [error, setError] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [acting, setActing] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
   const { toast } = useToast();
+
+  const close = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("task");
+    const q = params.toString();
+    router.push(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => { setActiveTab("overview"); setConfirmDel(false); setShowUpdate(false); }, [code]);
 
   async function quickAction(kind: "complete" | "escalate") {
     if (!data) return;
@@ -157,13 +88,8 @@ export function TaskDrawer() {
       : await inlineUpdateTask(data.task.code, "escalation", "Yes");
     setActing(null);
     if (res.ok) {
-      toast(
-        kind === "complete" ? (isDone ? `${data.task.code} reopened` : `${data.task.code} completed`) : `${data.task.code} escalated`,
-        {
-          tone: "success", duration: 6000,
-          action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); setRefreshKey((k) => k + 1); router.refresh(); } } : undefined,
-        }
-      );
+      toast(kind === "complete" ? (isDone ? `${data.task.code} reopened` : `${data.task.code} completed`) : `${data.task.code} escalated`,
+        { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); setRefreshKey((k) => k + 1); router.refresh(); } } : undefined });
       setRefreshKey((k) => k + 1);
       router.refresh();
     } else {
@@ -171,285 +97,183 @@ export function TaskDrawer() {
     }
   }
 
-  const close = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("task");
-    const q = params.toString();
-    router.push(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [pathname, router, searchParams]);
-
-  const [confirmDel, setConfirmDel] = useState(false);
-  const [showUpdate, setShowUpdate] = useState(false);
   async function handleDelete() {
     if (!data) return;
     setActing("delete");
     const res = await deleteTaskQuick(data.task.code);
     setActing(null);
     if (res.ok) {
-      const code = data.task.code;
+      const c = data.task.code;
       close();
-      toast(`${code} deleted`, { tone: "success", duration: 8000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
+      toast(`${c} deleted`, { tone: "success", duration: 8000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
       router.refresh();
     } else {
       toast(res.error || "Could not delete", { tone: "warn", duration: 3000 });
     }
   }
 
-  // Fetch task data whenever code or refreshKey changes
   useEffect(() => {
     if (!code || isTaskPage) { setData(null); return; }
     setLoading(true);
     setError(false);
     fetch(`/api/task-detail?code=${encodeURIComponent(code)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("not found");
-        return r.json();
-      })
-      .then((d: DrawerData) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError(true);
-        setLoading(false);
-      });
+      .then((r) => { if (!r.ok) throw new Error("not found"); return r.json(); })
+      .then((d: DrawerData) => { setData(d); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, refreshKey, isTaskPage]);
 
+  const t = data?.task;
+  const urgent = !!t && (t.flag === "overdue" || t.escalation === "Yes" || (typeof t.daysToDeadline === "number" && t.daysToDeadline < 0));
+  const done = !!t && (t.status === "Completed" || t.status === "Closed");
+  const tone: "accent" | "success" | "warn" | "danger" = done ? "success" : urgent ? "danger" : "accent";
   const timeline = data ? buildTimeline(data) : [];
 
+  const heroNode = t ? (
+    <div className="pr-8 space-y-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="font-mono text-[11px] font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">{t.code}</span>
+        <Link href={`/companies/${t.companyId}?from=task:${t.code}`} onClick={close} className="text-xs text-fg-muted hover:text-accent truncate transition-colors">{t.companyName}</Link>
+      </div>
+      <h2 className="text-base font-semibold leading-snug">{t.actionItem}</h2>
+      <div className="flex flex-wrap gap-1.5">
+        <Badge tone={statusTone(t.status)}>{t.status}</Badge>
+        <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
+        {t.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
+      </div>
+    </div>
+  ) : <div className="h-12" />;
+
+  const overviewContent = t ? (
+    <>
+      <SectionCard className="p-4 space-y-3.5">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Deadline</span>
+            <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} />
+          </div>
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Accountable</span>
+            {t.assignees.length ? <AssigneeList names={t.assignees} ids={t.assigneeIds} className="font-medium text-fg text-[13px] truncate" /> : <span className="font-medium text-fg text-[13px]">—</span>}
+          </div>
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Department</span>
+            <span className="font-medium text-fg text-[13px] truncate">{t.department || "—"}</span>
+          </div>
+          <div className="flex flex-col gap-1 min-w-0">
+            <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Category</span>
+            <span className="font-medium text-fg text-[13px] truncate">{t.category || "—"}</span>
+          </div>
+        </div>
+
+        {t.comments && t.comments.trim() && (
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">Description</div>
+            <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap"><CodeLinkedText text={t.comments} /></p>
+          </div>
+        )}
+        {t.latestUpdate && (
+          <div className="rounded-xl bg-bg-subtle/60 px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">Latest update</div>
+            <p className="text-sm leading-relaxed"><CodeLinkedText text={t.latestUpdate} /></p>
+          </div>
+        )}
+
+        <div className="-mx-4 px-4 pt-0.5 border-t border-border/60">
+          <button type="button" onClick={() => setShowUpdate((s) => !s)} aria-expanded={showUpdate}
+            className="w-full flex items-center gap-2 py-2 text-xs font-medium text-fg-muted hover:text-fg transition-colors">
+            <MessageSquarePlus size={13} className="text-accent" /> Quick update
+            <ChevronDown size={14} className={`ml-auto transition-transform ${showUpdate ? "rotate-180" : ""}`} />
+          </button>
+          {showUpdate && <div className="pb-1"><PeekQuickUpdate row={t} onPosted={() => { setRefreshKey((k) => k + 1); setShowUpdate(false); }} /></div>}
+        </div>
+      </SectionCard>
+
+      {data!.sourceMeeting && (
+        <Link href={`/workbook?tab=meetings&open=${data!.sourceMeeting.id}`} onClick={close}
+          className="group glass elevated rounded-2xl px-3 py-2.5 flex items-start gap-2.5 hover:ring-1 hover:ring-accent/40 transition-all">
+          <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0"><FileText size={13} /></div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Source meeting</div>
+            <p className="truncate text-sm font-medium group-hover:text-accent transition-colors">{data!.sourceMeeting.title}</p>
+            <p className="text-xs text-fg-muted">{fmtDate(new Date(data!.sourceMeeting.meeting_date))}</p>
+          </div>
+          <ExternalLink size={12} className="text-fg-subtle group-hover:text-accent shrink-0 mt-0.5" />
+        </Link>
+      )}
+    </>
+  ) : null;
+
+  const historyContent = timeline.length > 0 ? (
+    <SectionCard className="p-4">
+      <ol className="mt-1">
+        {timeline.map((item, i) => (
+          <TimelineEntry key={`${item.kind}-${item.id}`} item={item} isLast={i === timeline.length - 1} onChanged={() => setRefreshKey((k) => k + 1)} />
+        ))}
+      </ol>
+    </SectionCard>
+  ) : (
+    <div className="py-10 text-center text-sm text-fg-muted">No history yet.</div>
+  );
+
+  const tabs: DrawerTab[] = t ? [
+    { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} />, content: overviewContent },
+    { id: "history", label: "History", icon: <History size={14} />, badge: timeline.length || undefined, content: historyContent },
+  ] : [];
+
+  const actionBar = t ? (
+    <div className="space-y-2">
+      {confirmDel && (
+        <div className="flex items-center gap-2 rounded-xl bg-danger-soft/50 ring-1 ring-danger/25 px-3 py-1.5 text-xs">
+          <Trash2 size={14} className="text-danger shrink-0" />
+          <span className="min-w-0 flex-1">Delete this task permanently?</span>
+          <button type="button" onClick={() => setConfirmDel(false)} className="shrink-0 text-fg-muted hover:text-fg">Cancel</button>
+          <button type="button" onClick={handleDelete} disabled={acting === "delete"} className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-danger text-white font-medium hover:opacity-90 disabled:opacity-50">
+            {acting === "delete" ? <Loader2 size={12} className="animate-spin" /> : "Delete"}
+          </button>
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <button type="button" onClick={() => quickAction("complete")} disabled={acting !== null}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
+          {acting === "complete" ? <Loader2 size={14} className="animate-spin" /> : done ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
+          {done ? "Reopen" : "Complete"}
+        </button>
+        {t.escalation !== "Yes" && (
+          <button type="button" onClick={() => quickAction("escalate")} disabled={acting !== null}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg ring-1 ring-danger/30 text-danger hover:bg-danger-soft/50 transition-colors disabled:opacity-50">
+            {acting === "escalate" ? <Loader2 size={14} className="animate-spin" /> : <AlertOctagon size={14} />} Escalate
+          </button>
+        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          <button type="button" onClick={() => setConfirmDel((v) => !v)} aria-label="Delete"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-border bg-bg-elev/60 transition-colors hover:ring-danger/40 ${confirmDel ? "text-danger" : "text-fg-muted hover:text-danger"}`}>
+            <Trash2 size={15} />
+          </button>
+          <Link href={`/task/${t.code}`} onClick={close} aria-label="Open full page"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-border bg-bg-elev/60 text-fg-muted hover:text-accent hover:ring-accent/40 transition-colors">
+            <ExternalLink size={15} />
+          </Link>
+        </div>
+      </div>
+    </div>
+  ) : undefined;
+
   return (
-    <ModalShell
+    <EntityDrawer
       open={open}
       onClose={close}
-      ariaLabel={data?.task ? data.task.actionItem : code ? `Task ${code}` : "Task"}
-      maxWidthClass="sm:max-w-[560px]"
-      headerLeading={
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-mono text-[11px] font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
-            {code}
-          </span>
-          {data?.task && (
-            <Link
-              href={`/companies/${data.task.companyId}?from=task:${code}`}
-              onClick={close}
-              className="text-xs text-fg-muted hover:text-accent truncate transition-colors"
-            >
-              {data.task.companyName}
-            </Link>
-          )}
-        </div>
-      }
-      headerTrailing={
-        code ? (
-          <Link
-            href={`/task/${code}`}
-            onClick={close}
-            className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2.5 py-1.5 rounded-full hover:bg-bg-muted transition-colors"
-          >
-            <ExternalLink size={11} /> Full page
-          </Link>
-        ) : undefined
-      }
-    >
-      {/* ── Body — scrollable ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-            {/* Loading skeleton — also covers the brief pre-fetch frame so the
-                drawer never renders as a thin header-only bar. */}
-            {!data && !error && (
-              <div className="flex flex-col items-center justify-center h-40 gap-2 text-fg-muted">
-                <Loader2 size={18} className="animate-spin" />
-                <span className="text-sm">Loading…</span>
-              </div>
-            )}
-
-            {/* Error */}
-            {error && (
-              <div className="flex flex-col items-center justify-center h-40 gap-2 text-fg-muted">
-                <AlertCircle size={18} className="text-danger" />
-                <span className="text-sm">Couldn&apos;t load task.</span>
-              </div>
-            )}
-
-            {/* Content */}
-            {data?.task && (
-              <div className="p-4 space-y-3">
-                {/* Info card — mirrors the system hero: glass + soft colour wash */}
-                <div className="glass elevated rounded-3xl p-4 sm:p-5 space-y-3.5 relative overflow-hidden">
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute -top-16 -right-16 h-44 w-44 rounded-full blur-3xl opacity-60"
-                    style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }}
-                  />
-                  <div
-                    aria-hidden
-                    className={`pointer-events-none absolute -bottom-20 -left-20 h-52 w-52 rounded-full blur-3xl opacity-50 ${
-                      data.task.flag === "overdue" || data.task.escalation === "Yes" || (typeof data.task.daysToDeadline === "number" && data.task.daysToDeadline < 0) ? "" : "hidden"
-                    }`}
-                    style={{ background: "radial-gradient(circle, hsl(var(--danger) / 0.28), transparent 70%)" }}
-                  />
-                  <div className="relative space-y-2">
-                    <h2 className="text-base font-semibold leading-snug">{data.task.actionItem}</h2>
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge tone={statusTone(data.task.status)}>{data.task.status}</Badge>
-                      <Badge tone={priorityTone(data.task.priority)}>{data.task.priority}</Badge>
-                      {data.task.escalation === "Yes" && <Badge tone="danger">Escalated</Badge>}
-                    </div>
-                  </div>
-
-                  {/* Meta — interactive deadline, consistent typography */}
-                  <div className="relative grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Deadline</span>
-                      <DeadlineEditor
-                        code={data.task.code}
-                        deadline={data.task.deadline ? new Date(data.task.deadline) : null}
-                        daysToDeadline={data.task.daysToDeadline}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Accountable</span>
-                      {data.task.assignees.length ? (
-                        <AssigneeList names={data.task.assignees} ids={data.task.assigneeIds} className="font-medium text-fg text-[13px] truncate" />
-                      ) : (
-                        <span className="font-medium text-fg text-[13px]">—</span>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Department</span>
-                      <span className="font-medium text-fg text-[13px] truncate">{data.task.department || "—"}</span>
-                    </div>
-                    <div className="flex flex-col gap-1 min-w-0">
-                      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Category</span>
-                      <span className="font-medium text-fg text-[13px] truncate">{data.task.category || "—"}</span>
-                    </div>
-                  </div>
-
-                  {/* Description — the task's standing context (the main message). */}
-                  {data.task.comments && data.task.comments.trim() && (
-                    <div className="relative">
-                      <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">Description</div>
-                      <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap"><CodeLinkedText text={data.task.comments} /></p>
-                    </div>
-                  )}
-
-                  {/* Latest update */}
-                  {data.task.latestUpdate && (
-                    <div className="relative rounded-xl bg-bg-subtle/60 px-3 py-2.5">
-                      <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">Latest update</div>
-                      <p className="text-sm leading-relaxed"><CodeLinkedText text={data.task.latestUpdate} /></p>
-                    </div>
-                  )}
-
-                  {/* Quick update — collapsible, minimal (no nested box) */}
-                  <div className="relative -mx-4 sm:-mx-5 px-4 sm:px-5 pt-0.5 border-t border-border/60">
-                    <button
-                      type="button"
-                      onClick={() => setShowUpdate((s) => !s)}
-                      aria-expanded={showUpdate}
-                      className="w-full flex items-center gap-2 py-2 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
-                    >
-                      <MessageSquarePlus size={13} className="text-accent" /> Quick update
-                      <ChevronDown size={14} className={`ml-auto transition-transform ${showUpdate ? "rotate-180" : ""}`} />
-                    </button>
-                    {showUpdate && (
-                      <div className="pb-1">
-                        <PeekQuickUpdate
-                          row={data.task}
-                          onPosted={() => { setRefreshKey((k) => k + 1); setShowUpdate(false); }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions — single horizontal row */}
-                <div className="glass elevated rounded-2xl p-1.5 flex items-stretch gap-1">
-                  {(() => {
-                    const isDone = data.task.status === "Completed" || data.task.status === "Closed";
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => quickAction("complete")}
-                        disabled={acting !== null}
-                        className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium text-accent hover:bg-accent-soft/50 active:scale-95 transition-all disabled:opacity-50"
-                      >
-                        {acting === "complete" ? <Loader2 size={15} className="animate-spin" /> : isDone ? <RotateCcw size={15} /> : <CheckCircle2 size={15} />}
-                        {isDone ? "Reopen" : "Complete"}
-                      </button>
-                    );
-                  })()}
-                  {data.task.escalation !== "Yes" && (
-                    <button
-                      type="button"
-                      onClick={() => quickAction("escalate")}
-                      disabled={acting !== null}
-                      className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium text-danger hover:bg-danger-soft/50 active:scale-95 transition-all disabled:opacity-50"
-                    >
-                      {acting === "escalate" ? <Loader2 size={15} className="animate-spin" /> : <AlertOctagon size={15} />}
-                      Escalate
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDel((v) => !v)}
-                    className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium active:scale-95 transition-all ${confirmDel ? "bg-danger-soft/60 text-danger" : "text-fg-muted hover:bg-bg-muted/60"}`}
-                  >
-                    <Trash2 size={15} /> Delete
-                  </button>
-                </div>
-
-                {/* Delete confirm */}
-                {confirmDel && (
-                  <div className="glass elevated rounded-2xl px-4 py-2.5 flex items-center gap-2 bg-danger-soft/40">
-                    <Trash2 size={14} className="text-danger shrink-0" />
-                    <span className="flex-1 text-sm text-danger min-w-0">Delete this task permanently?</span>
-                    <button type="button" onClick={() => setConfirmDel(false)} className="px-2 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg">Cancel</button>
-                    <button type="button" onClick={handleDelete} disabled={acting === "delete"} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-danger text-white hover:opacity-90 disabled:opacity-50">
-                      {acting === "delete" ? <Loader2 size={13} className="animate-spin" /> : "Delete"}
-                    </button>
-                  </div>
-                )}
-
-                {data.sourceMeeting && (
-                  <Link
-                    href={`/workbook?tab=meetings&open=${data.sourceMeeting.id}`}
-                    onClick={close}
-                    className="group glass elevated rounded-2xl px-3 py-2.5 flex items-start gap-2.5 hover:ring-1 hover:ring-accent/40 transition-all"
-                  >
-                    <div className="mt-0.5 h-7 w-7 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
-                      <FileText size={13} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Source meeting</div>
-                      <p className="truncate text-sm font-medium group-hover:text-accent transition-colors">{data.sourceMeeting.title}</p>
-                      <p className="text-xs text-fg-muted">{fmtDate(new Date(data.sourceMeeting.meeting_date))}</p>
-                    </div>
-                    <ExternalLink size={12} className="text-fg-subtle group-hover:text-accent shrink-0 mt-0.5" />
-                  </Link>
-                )}
-
-                {/* History — collapsible */}
-                {timeline.length > 0 && (
-                  <details className="group glass elevated rounded-2xl overflow-hidden" open>
-                    <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
-                      <History size={13} className="text-fg-subtle" />
-                      History
-                      <span className="text-fg-subtle normal-case tracking-normal">· {timeline.length}</span>
-                      <ChevronDown size={14} className="ml-auto text-fg-subtle transition-transform group-open:rotate-180" />
-                    </summary>
-                    <div className="px-4 pb-4">
-                      <ol className="mt-1">
-                        {timeline.map((item, i) => (
-                          <TimelineEntry key={`${item.kind}-${item.id}`} item={item} isLast={i === timeline.length - 1} onChanged={() => setRefreshKey((k) => k + 1)} />
-                        ))}
-                      </ol>
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
-      </div>
-    </ModalShell>
+      title={t ? t.actionItem : code ? `Task ${code}` : "Task"}
+      tone={tone}
+      loading={loading && !data}
+      error={error}
+      errorLabel="Couldn't load task."
+      maxWidth="560px"
+      hero={heroNode}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      actionBar={actionBar}
+    />
   );
 }
