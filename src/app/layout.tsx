@@ -13,6 +13,7 @@ import { PageTransition } from "@/components/page-transition";
 import { ContextActionsProvider } from "@/components/context-actions";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
+import { CompanyDrawer } from "@/components/company-drawer";
 import { FloatingAssistant } from "@/components/floating-assistant";
 import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
@@ -79,6 +80,9 @@ export default async function RootLayout({ children, modal }: { children: React.
               </Suspense>
               <Suspense>
                 <PersonDrawer />
+              </Suspense>
+              <Suspense>
+                <CompanyDrawer />
               </Suspense>
               <Suspense>
                 <FloatingAssistant operatorName={operatorName} />

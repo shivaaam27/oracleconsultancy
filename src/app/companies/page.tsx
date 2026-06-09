@@ -1,7 +1,7 @@
 import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
 import { PageHeader } from "@/components/ui";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
-import Link from "next/link";
+import { CompanyDrawerLink } from "@/components/company-drawer-link";
 import { Building2, AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export default async function CompaniesPage({
           const accent = c.accent || "hsl(var(--accent))";
           const risk = riskTint(c.riskScore);
           return (
-            <Link key={c.id} href={`/companies/${c.id}`} className="group">
+            <CompanyDrawerLink key={c.id} id={c.id} className="group block w-full text-left">
               <div className="glass elevated relative overflow-hidden rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
                 {/* accent wash keyed to the company colour */}
                 <div
@@ -75,7 +75,7 @@ export default async function CompaniesPage({
                   </div>
                 </div>
               </div>
-            </Link>
+            </CompanyDrawerLink>
           );
         })}
       </div>
