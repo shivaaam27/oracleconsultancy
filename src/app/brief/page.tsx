@@ -1,4 +1,4 @@
-import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users } from "lucide-react";
+import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users, CalendarClock } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
@@ -180,6 +180,28 @@ export default async function DirectorBriefPage({
                   </div>
                 </div>
                 <Badge tone={c.status === "Risk" ? "danger" : "warn"}>{c.score}%</Badge>
+              </div>
+            ))}
+          </Card>
+        </div>
+      )}
+
+      {/* Statutory deadlines — portfolio-wide tax/filing cadence coming up. */}
+      {b.statutory.length > 0 && (
+        <div className="print-hidden">
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+            <CalendarClock size={13} className="text-accent" /> Statutory deadlines · {b.statutory.length}
+          </div>
+          <Card className="divide-y divide-border/70">
+            {b.statutory.map((s, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{s.label}</div>
+                  <div className="text-[11px] text-fg-subtle">{s.dueDate ? fmtDay(s.dueDate) : "—"}</div>
+                </div>
+                <Badge tone={s.flag === "overdue" ? "danger" : s.flag === "dueNow" ? "danger" : "warn"}>
+                  {s.flag === "overdue" ? "Overdue" : s.flag === "dueNow" ? "Due now" : "Soon"}
+                </Badge>
               </div>
             ))}
           </Card>

@@ -12,6 +12,7 @@ import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
+import { listObligations, splitObligations } from "@/lib/recurring";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import {
@@ -136,11 +137,12 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
 
-  const [documents, drafts, meetings, activity, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+  const [documents, drafts, meetings, activity, obligations, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments(),
     listOutboxDrafts(),
     listMeetings(),
     getRecentActivity(60),
+    listObligations(),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("people").select("id,name,person_type").eq("active", true),
   ]);
@@ -198,6 +200,14 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       return updated >= todayStart - 3 * 86400000 && m.taskCount > 0;
     })
     .slice(0, 3);
+
+  // Statutory deadlines coming up — derived from the recurring obligations
+  // cadence (see Command Centre). Surface only those inside their warning window.
+  const { deadlines: allDeadlines } = splitObligations(obligations, now);
+  const upcomingDeadlines = allDeadlines.filter((d) => d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon");
+  const overdueDeadlines = upcomingDeadlines.filter((d) => d.flag === "overdue");
+  const dueNowDeadlines = upcomingDeadlines.filter((d) => d.flag === "dueNow");
+  const nextDeadline = upcomingDeadlines[0];
 
   const overdueDraftSuggestion = automationSuggestions.find((s) => s.id === "overdue-reminder-drafts");
 
@@ -268,6 +278,17 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       actionLabel: "Open People",
       tone: personPackNeeds.some((score) => score.status === "Risk") ? "danger" : "warn",
       count: personPackNeeds.length,
+    },
+    upcomingDeadlines.length > 0 && {
+      id: "statutory-deadlines",
+      title: `${upcomingDeadlines.length} statutory deadline${upcomingDeadlines.length === 1 ? "" : "s"} coming up`,
+      detail: nextDeadline
+        ? `Next: ${nextDeadline.label}${nextDeadline.dueDate ? ` — ${nextDeadline.dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}.`
+        : "Tax and statutory filings inside their warning window.",
+      href: "/hrms/command-centre",
+      actionLabel: "Open Command Centre",
+      tone: overdueDeadlines.length ? "danger" : dueNowDeadlines.length ? "warn" : "accent",
+      count: upcomingDeadlines.length,
     },
     complianceRisks.length > 0 && {
       id: "compliance-gaps",
@@ -366,6 +387,16 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     due: expiryLabel(d),
   }));
 
+  const deadlineFocus: FocusItem[] = upcomingDeadlines.slice(0, 4).map((d) => ({
+    id: `deadline-${d.id}`,
+    title: d.label,
+    meta: [d.category, "Statutory"].filter(Boolean).join(" · "),
+    href: "/hrms/command-centre",
+    kind: "document",
+    tone: d.flag === "overdue" || d.flag === "dueNow" ? "danger" : "warn",
+    due: d.dueDate ? d.dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
+  }));
+
   const personPackFocus: FocusItem[] = personPackNeeds.slice(0, 4).map((score) => {
     const firstIssue = score.gaps[0]?.label ?? score.documentIssues[0]?.title ?? "Personal document follow-up";
     return {
@@ -399,7 +430,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     due: null,
   }));
 
-  const focus = [...taskFocus, ...docFocus, ...personPackFocus, ...complianceFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
+  const focus = [...taskFocus, ...deadlineFocus, ...docFocus, ...personPackFocus, ...complianceFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
 
   const pulse: PulseMetric[] = [
     { label: "Open tasks", value: kpis.open },
@@ -408,6 +439,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     { label: "Due today", value: dueToday.length, tone: dueToday.length ? "warn" : "muted" },
     { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
     { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
+    { label: "Statutory due", value: upcomingDeadlines.length, tone: overdueDeadlines.length ? "danger" : upcomingDeadlines.length ? "warn" : "success" },
     { label: "Compliance issues", value: complianceIssues, tone: complianceIssues ? "warn" : "success" },
     { label: "Person packs", value: personPackNeeds.length, tone: personPackNeeds.length ? "warn" : "success" },
     { label: "Stale tasks", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success" },

@@ -9,6 +9,8 @@ import { buildPersonRequirementScores } from "./requirements";
 import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
+import { listObligations, splitObligations } from "./recurring";
+import { type CcFlag } from "./command-centre";
 import { sb } from "@/db/supabase";
 import { BRAND_NAME } from "./brand";
 
@@ -106,6 +108,13 @@ export type BriefHr = {
   probationEnding: Array<{ name: string; companyName: string | null; endDate: Date }>;
 };
 
+export type BriefStatutory = {
+  label: string;
+  dueDate: Date | null;
+  daysLeft: number | null;
+  flag: CcFlag;
+};
+
 export type BriefData = {
   period: BriefPeriod;
   selectedCompanyId: number | null;
@@ -124,6 +133,7 @@ export type BriefData = {
   delivered: BriefDelivered[];
   watch: BriefWatch[];
   compliance: BriefCompliance[];
+  statutory: BriefStatutory[];
   directorActions: BriefDirectorAction[];
   hr: BriefHr;
 };
@@ -316,6 +326,14 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
       issues: score.documentIssues.map((doc) => `${doc.title}${doc.expiryLabel ? ` (${doc.expiryLabel})` : ""}`),
     }));
 
+  // Statutory deadlines coming up — portfolio-wide tax/filing cadence inside
+  // its warning window (see Command Centre). Soonest first, top few.
+  const { deadlines: statDeadlines } = splitObligations(await listObligations(), now);
+  const statutory: BriefStatutory[] = statDeadlines
+    .filter((d) => d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon")
+    .slice(0, 6)
+    .map((d) => ({ label: d.label, dueDate: d.dueDate, daysLeft: d.daysLeft, flag: d.flag }));
+
   const directorActions: BriefDirectorAction[] = [
     ...[...openTasks]
       .filter((r) => sev(r) > 0)
@@ -364,7 +382,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     overdueCount: overdueOpen.length,
     companyCount: kpis.length,
     atRiskCount: kpis.filter((k) => k.riskScore > 20).length,
-    companies, delivered, watch, compliance, directorActions, hr,
+    companies, delivered, watch, compliance, statutory, directorActions, hr,
   };
 }
 
@@ -412,6 +430,15 @@ export function briefShareText(b: BriefData): string {
         c.expiring ? `${c.expiring} expiring` : null,
       ].filter(Boolean).join(" · ");
       L.push(`• ${c.companyName} — ${c.score}% · ${detail || c.status}`);
+    }
+  }
+  if (b.statutory.length) {
+    L.push("");
+    L.push(`*Statutory deadlines*`);
+    for (const s of b.statutory) {
+      const when = s.dueDate ? fmtDay(s.dueDate) : "—";
+      const flag = s.flag === "overdue" ? "overdue" : s.flag === "dueNow" ? "due now" : "soon";
+      L.push(`• ${s.label} — ${when} · ${flag}`);
     }
   }
   const hr = b.hr;
