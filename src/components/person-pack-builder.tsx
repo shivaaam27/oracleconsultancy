@@ -185,6 +185,28 @@ function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/**
+ * Per-reason relevance — makes each pack genuinely tailored instead of showing
+ * the same lists. Returns a predicate over a document/requirement's text
+ * (category + type + title), or null for reasons that cover everything.
+ */
+function purposeRelevance(purpose: PersonPackPurpose): ((text: string) => boolean) | null {
+  switch (purpose) {
+    case "visa-permit":
+    case "work-permit-renewal":
+      return (s) => /visa|permit|immigration|residence|passport|work\s*permit/i.test(s);
+    case "recruitment":
+      return (s) => /\bcv\b|r[eé]sum|curriculum|certificate|national\s*id|nida|passport|reference|photo|academic|transcript|qualification/i.test(s);
+    case "contract-signing":
+      return (s) => /contract|agreement|engagement|offer\s*letter|\bnda\b|terms/i.test(s);
+    // Documents + Onboarding cover the full set.
+    case "document-request":
+    case "expat-onboarding":
+    default:
+      return null;
+  }
+}
+
 function documentFileLabel(doc: PackResponse["documents"][number]) {
   if (doc.fileUrl) return "External link";
   if (doc.fileName) return doc.fileName;
@@ -735,12 +757,19 @@ export function PersonPackPanel({
   const skipSaveRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // The pack with its missing-document list narrowed to the ticked items.
+  const relevant = useMemo(() => purposeRelevance(purpose), [purpose]);
+
+  // The pack narrowed to (a) the ticked request items and (b) only the
+  // documents/issues relevant to the chosen reason, so each pack is tailored.
   const effPack = useMemo<PackResponse | null>(() => {
     if (!pack) return null;
-    const gaps = pack.compliance.gaps.filter((g) => selectedGaps.has(g.id));
-    return { ...pack, compliance: { ...pack.compliance, gaps } };
-  }, [pack, selectedGaps]);
+    const docText = (d: PackResponse["documents"][number]) => [d.category, d.docType, d.title].filter(Boolean).join(" ");
+    const gaps = pack.compliance.gaps.filter((g) => selectedGaps.has(g.id) && (!relevant || relevant(g.label)));
+    if (!relevant) return { ...pack, compliance: { ...pack.compliance, gaps } };
+    const documentIssues = pack.compliance.documentIssues.filter((d) => relevant(d.title));
+    const documents = pack.documents.filter((d) => relevant(docText(d)));
+    return { ...pack, compliance: { ...pack.compliance, gaps, documentIssues }, documents };
+  }, [pack, selectedGaps, relevant]);
 
   const messagePreview = useMemo(
     () => (effPack && selection ? buildPersonPackMessage(effPack, selection, purpose, channel) : null),
@@ -858,7 +887,7 @@ export function PersonPackPanel({
     // Carry the unticked request items so the PDF matches the preview exactly.
     // Encoded (encodeURIComponent → base64) to survive accents/punctuation.
     const excluded = (pack?.compliance.gaps ?? [])
-      .filter((g) => !selectedGaps.has(g.id))
+      .filter((g) => !selectedGaps.has(g.id) || (relevant ? !relevant(g.label) : false))
       .map((g) => g.label);
     if (excluded.length) params.set("exclude", btoa(encodeURIComponent(JSON.stringify(excluded))));
     const url = `/people/${personId}/pack?${params.toString()}`;
@@ -944,7 +973,7 @@ export function PersonPackPanel({
       {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
       {!loading && effPack && selection && (
         <>
-          <Preview pack={effPack} selection={selection} gapSelection={selectedGaps} onToggleGap={toggleGap} allGaps={pack?.compliance.gaps ?? []} newItem={newItem} setNewItem={setNewItem} onAddItem={addRequestItem} addingItem={addingItem} />
+          <Preview pack={effPack} selection={selection} gapSelection={selectedGaps} onToggleGap={toggleGap} allGaps={(pack?.compliance.gaps ?? []).filter((g) => !relevant || relevant(g.label))} newItem={newItem} setNewItem={setNewItem} onAddItem={addRequestItem} addingItem={addingItem} />
           {messagePreview && <DraftMessagePreview pack={effPack} channel={channel} setChannel={setChannel} message={messagePreview} />}
           <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-border/70 bg-bg-elev/70 px-4 py-2.5 backdrop-blur">
             <Button type="button" variant="secondary" size="sm" onClick={openPdf}>Download PDF</Button>
