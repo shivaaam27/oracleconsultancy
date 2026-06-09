@@ -8,7 +8,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search, X,
   Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText, Laptop, CalendarDays,
-  ClipboardList, Network, Map, type LucideIcon,
+  ClipboardList, Network, Map, CalendarClock, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -56,6 +56,7 @@ function NavTab({
 
 const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/hrms", label: "HRMS Hub", icon: LayoutGrid },
+  { href: "/hrms/command-centre", label: "Command Centre", icon: CalendarClock },
   { href: "/hrms/org", label: "Organogram", icon: Network },
   { href: "/hrms/oecr", label: "OECR", icon: Package },
   { href: "/hrms/assets", label: "Assets & Vendors", icon: Laptop },
