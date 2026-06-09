@@ -782,15 +782,18 @@ export function PersonPackBuilder({
   }, [open, personId, purpose]);
 
   // Re-fetch the pack after a manual change (e.g. a request item was added),
-  // keeping the current section choices and ticking any newly-appeared gaps.
+  // keeping the current section choices. Only genuinely-new gaps (absent from
+  // the previous pack) are auto-ticked — items you deliberately unticked stay
+  // unticked rather than snapping back to checked.
   async function reloadPack() {
     const res = await fetch(`/api/person-pack?id=${personId}&purpose=${purpose}`);
     if (!res.ok) return;
     const data: PackResponse = await res.json();
+    const prevGapIds = new Set((pack?.compliance.gaps ?? []).map((g) => g.id));
     setPack(data);
     setSelectedGaps((prev) => {
       const next = new Set(prev);
-      for (const g of data.compliance.gaps) if (!prev.has(g.id)) next.add(g.id);
+      for (const g of data.compliance.gaps) if (!prevGapIds.has(g.id)) next.add(g.id);
       return next;
     });
   }
@@ -821,6 +824,12 @@ export function PersonPackBuilder({
   function openPdf() {
     if (!selection) return;
     const params = new URLSearchParams({ purpose, sections: serialisePersonPackSections(selection) });
+    // Carry the unticked request items so the PDF matches the preview exactly.
+    // Encoded (encodeURIComponent → base64) to survive accents/punctuation.
+    const excluded = (pack?.compliance.gaps ?? [])
+      .filter((g) => !selectedGaps.has(g.id))
+      .map((g) => g.label);
+    if (excluded.length) params.set("exclude", btoa(encodeURIComponent(JSON.stringify(excluded))));
     const url = `/people/${personId}/pack?${params.toString()}`;
     const existing = document.getElementById("pack-print-frame");
     if (existing) existing.remove();

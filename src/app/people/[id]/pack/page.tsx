@@ -161,7 +161,7 @@ export default async function PersonPackPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ purpose?: string; sections?: string }>;
+  searchParams: Promise<{ purpose?: string; sections?: string; exclude?: string }>;
 }) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const personId = Number(id);
@@ -170,6 +170,21 @@ export default async function PersonPackPage({
   const purpose = parsePurpose(sp.purpose);
   const pack = await getPersonPack(personId, purpose);
   if (!pack) notFound();
+
+  // Drop the request items the operator unticked in the builder, so the PDF
+  // shows exactly what was selected (and the counts/tiles match).
+  if (sp.exclude) {
+    try {
+      const labels: string[] = JSON.parse(decodeURIComponent(atob(sp.exclude)));
+      const excluded = new Set(labels.map((l) => l.trim().toLowerCase()));
+      pack.compliance = {
+        ...pack.compliance,
+        gaps: pack.compliance.gaps.filter((g) => !excluded.has(g.label.trim().toLowerCase())),
+      };
+    } catch {
+      /* malformed param — show the full list rather than failing the print */
+    }
+  }
 
   const selection = sp.sections
     ? parsePersonPackSections(sp.sections)
