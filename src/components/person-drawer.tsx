@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
+import { IconButton, EmptyState } from "./drawer-kit";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackBuilder } from "./person-pack-builder";
@@ -195,6 +196,8 @@ export function PersonDrawer() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [snoozeInput, setSnoozeInput] = useState<string>("");
   const [actionPending, setActionPending] = useState(false);
+  // One-tap Remind result, shown as an inline confirmation in the footer.
+  const [remindInfo, setRemindInfo] = useState<{ created: boolean; link: string | null; contactMissing: boolean } | null>(null);
   // In-place "add document" — layered over the person so the flow stays
   // immersive (no navigation to /documents, no background page switch).
   const [addDoc, setAddDoc] = useState<{ title?: string; category: string | null } | null>(null);
@@ -234,7 +237,7 @@ export function PersonDrawer() {
   }, [idStr, refreshKey]);
 
   // Reset to view mode + Overview whenever a new person opens
-  useEffect(() => { setMode("view"); setActiveTab("overview"); }, [idStr]);
+  useEffect(() => { setMode("view"); setActiveTab("overview"); setRemindInfo(null); }, [idStr]);
 
   const refresh = () => setRefreshKey((k) => k + 1);
 
@@ -281,11 +284,8 @@ export function PersonDrawer() {
     });
     setActionPending(false);
     if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-    toast(
-      res.created ? "Reminder draft saved in Outbox." : "A reminder draft already exists today.",
-      { tone: res.contactMissing ? "warn" : "success" }
-    );
-    if (res.link) window.open(res.link, "_blank", "noopener,noreferrer");
+    // One-tap: don't auto-open — show an inline confirmation with next steps.
+    setRemindInfo({ created: res.created, link: res.link ?? null, contactMissing: !!res.contactMissing });
   };
 
   const person = data?.person;
@@ -346,23 +346,11 @@ export function PersonDrawer() {
           })()}
           {snoozed && person.snoozedUntil && <Badge tone="warn"><MoonStar size={10} className="inline mr-0.5" /> Snoozed</Badge>}
         </div>
-        {/* Contact quick links */}
+        {/* Contact quick links — compact icon buttons */}
         <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
-          {person.email && (
-            <a href={`mailto:${person.email}`} title={person.email} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
-              <Mail size={12} /> Email
-            </a>
-          )}
-          {person.whatsapp && (
-            <a href={whatsappHref(person.whatsapp)} target="_blank" rel="noreferrer" title={person.whatsapp} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
-              <MessageCircle size={12} /> WhatsApp
-            </a>
-          )}
-          {person.phone && (
-            <a href={`tel:${person.phone}`} title={person.phone} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
-              <Phone size={12} /> Call
-            </a>
-          )}
+          {person.email && <IconButton icon={<Mail size={15} />} label={person.email} href={`mailto:${person.email}`} />}
+          {person.whatsapp && <IconButton icon={<MessageCircle size={15} />} label={person.whatsapp} href={whatsappHref(person.whatsapp)} external />}
+          {person.phone && <IconButton icon={<Phone size={15} />} label={person.phone} href={`tel:${person.phone}`} />}
           {!person.email && !person.whatsapp && !person.phone && (
             <span className="text-xs text-danger inline-flex items-center gap-1"><AlertCircleMini /> No contact info</span>
           )}
@@ -423,9 +411,7 @@ export function PersonDrawer() {
       <div className="glass elevated rounded-2xl overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted">Needs attention</div>
         {attention.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-fg-muted inline-flex items-center justify-center gap-2 w-full">
-            <CheckCircle2 size={15} className="text-success" /> All clear — nothing needs action.
-          </div>
+          <EmptyState icon={<CheckCircle2 size={20} />} tone="success" title="All clear" hint="Nothing needs action right now." />
         ) : (
           <ul className="divide-y divide-border/50">
             {attention.map((a) => (
@@ -642,19 +628,28 @@ export function PersonDrawer() {
     { id: "details", label: "Details", icon: <IdCard size={14} />, content: detailsContent },
   ] : [];
 
+  const hasOpenTasks = !!data?.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed");
   const actionBar = person && data ? (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {data.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed") && (
-        <button type="button" onClick={handleRemind} disabled={actionPending}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
-          <Send size={13} /> Remind
-        </button>
+    <div className="space-y-2">
+      {remindInfo && (
+        <div className="flex items-center gap-2 rounded-xl bg-success-soft/50 ring-1 ring-success/25 px-3 py-1.5 text-xs">
+          <CheckCircle2 size={14} className="text-success shrink-0" />
+          <span className="min-w-0 flex-1 truncate">
+            {remindInfo.created ? "Reminder draft saved" : "A reminder draft already exists today"}
+            {remindInfo.contactMissing ? " · no contact saved" : ""}
+          </span>
+          <Link href="/outbox" onClick={close} className="shrink-0 font-medium text-accent hover:underline">Outbox</Link>
+          {remindInfo.link && <a href={remindInfo.link} target="_blank" rel="noreferrer" className="shrink-0 font-medium text-accent hover:underline">Send</a>}
+          <button type="button" onClick={() => setRemindInfo(null)} className="shrink-0 text-fg-subtle hover:text-fg" aria-label="Dismiss"><X size={13} /></button>
+        </div>
       )}
-      <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} initialPurpose={packPurpose} />
-      <button type="button" onClick={() => setAddDoc({ category: null })}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors">
-        <FileText size={13} /> Add doc
-      </button>
+      <div className="flex items-center gap-2">
+        <PersonPackBuilder personId={person.id} personName={person.name} openOnMount={openPack} initialPurpose={packPurpose} />
+        <div className="ml-auto flex items-center gap-1.5">
+          {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
+          <IconButton icon={<FileText size={15} />} label="Add document" onClick={() => setAddDoc({ category: null })} />
+        </div>
+      </div>
     </div>
   ) : undefined;
 
