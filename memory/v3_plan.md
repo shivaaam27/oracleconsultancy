@@ -271,7 +271,13 @@ Owner wanted the File tab gone and everything under **two dropdowns inside Profi
 - **Auto-fill on document save** (`backfillCompanyProfileFromDocument`, blanks-only, never overwrites): `createDocumentAction`/`updateDocumentAction` call it whenever `companyId` is set — Registration doc → `registration_no` (+ `incorporation_date` from issue date); Tax doc → `vrn` if titled VRN/VAT else `tin`. So uploading company docs (single or bulk, in the Documents centre or in-place) fills the profile. Revalidates `/companies/{id}`.
 - Verified: Key documents panel pulls TIN (40-011748-I), Business licence (BL…·in 118 days·Valid) and Registration (56059 from Certificate of Incorporation); VRN + Incorporation date fields present. tsc + migration clean.
 
-**Files-into-Profile restructure complete (Phases 1–4).**
+**Phase 5 shipped (AI content extraction → company profile):**
+- The document extractor now reads **company identity** from a document's contents, not just reference numbers by category. `ExtractedFields.company?: CompanyProfileFields`; `extractPrompt` asks for a nested `companyProfile` object (legalName, registrationNo, tin, vrn, incorporationDate, address, phone, email) on business documents; `coerceFields` parses it (text + vision paths).
+- `enrichCompanyProfile(companyId, fields)` in `src/app/companies/[id]/actions.ts` — blanks-only, returns filled labels (mirror of `enrichPersonProfile`).
+- `DocumentForm` shows an "Also found company details in this document → Update the company profile" banner (shown when owner is company/both, requires a selected company), `companyProfile` state stashed from `f.company`. Always reviewed, never overwrites.
+- This complements Phase 4's deterministic category backfill: category mapping fills reg/TIN/VRN numbers automatically on save; the AI banner adds legal name, address, contacts, etc. from the document text/scan. tsc clean; form mounts clean in preview.
+
+**Files-into-Profile restructure complete (Phases 1–5).**
 
 **Phase 6 shipped (File upgrade — per-company custom compliance + staff files):**
 - **DB-backed per-company checklist** replacing the old fixed derived one. New `company_requirements` table (migration `0033`, mirrors `person_requirements`: `source_key` null=custom / set=seeded default, status/document_id/auto_link/verify/waive). `src/lib/company-requirements.ts`: `ensureCompanyRequirements` seeds only the 3 core items (Registration, Tax/TIN, Business licence — **no insurance/lease**, owner adds those), `getCompanyChecklist` (ensure + auto-link company docs by category + score), `buildCompanyRequirementScores` (bulk read-only; **synthesizes the 3 defaults for unseeded companies** so they aren't falsely 100%), plus full mutations (request/link/unlink/verify/unverify/waive/unwaive/add/edit/remove).

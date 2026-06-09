@@ -18,6 +18,7 @@ import { getGroqKey } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import type { PersonProfileFields } from "@/app/people/actions";
+import type { CompanyProfileFields } from "@/app/companies/[id]/actions";
 
 export type OwnerDocMatch = {
   id: number;
@@ -201,6 +202,9 @@ export type ExtractedFields = {
   // from the document (e.g. DOB/nationality/passport no on a passport scan). The
   // form uses this to offer "also update {person}'s profile" — fill-blanks-only.
   person?: PersonProfileFields;
+  // V3 Phase 5: company identity details read from a company document (legal
+  // name, address, etc.), for the "also update {company}'s profile" banner.
+  company?: CompanyProfileFields;
 };
 
 type Entity = { id: number; name: string };
@@ -354,6 +358,25 @@ function coerceFields(
     const trimmed = Object.fromEntries(Object.entries(person).filter(([, v]) => v != null)) as PersonProfileFields;
     if (Object.keys(trimmed).length) f.person = trimmed;
   }
+  // Company profile sub-object (Phase 5) — identity details read from a company
+  // document (legal name, address, contacts, reg numbers).
+  const cp = parsed.companyProfile;
+  if (cp && typeof cp === "object") {
+    const cr = cp as Record<string, unknown>;
+    const date10 = (v: unknown) => { const x = s(v, 10); return x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : undefined; };
+    const company: CompanyProfileFields = {
+      legalName: s(cr.legalName, 120),
+      registrationNo: s(cr.registrationNo, 80),
+      tin: s(cr.tin, 60),
+      vrn: s(cr.vrn, 60),
+      incorporationDate: date10(cr.incorporationDate),
+      address: s(cr.address, 300),
+      phone: s(cr.phone, 60),
+      email: s(cr.email, 120),
+    };
+    const trimmed = Object.fromEntries(Object.entries(company).filter(([, v]) => v != null)) as CompanyProfileFields;
+    if (Object.keys(trimmed).length) f.company = trimmed;
+  }
   // Backfill anything missing from the rule extractor + entity scan.
   if (fallbackText) {
     const ruled = ruleExtract(fallbackText);
@@ -383,6 +406,7 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
 - person: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "person" object for company-only documents.
+- companyProfile: IF the document is about a BUSINESS/COMPANY (e.g. certificate of incorporation, business licence, TIN/VRN certificate, tax document, lease), a nested JSON object with any of these you can read about THAT company: { legalName (the full registered name), registrationNo, tin, vrn (VAT/VRN number), incorporationDate (YYYY-MM-DD), address, phone, email }. Omit the whole "companyProfile" object for personal documents.
 Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
 }
 

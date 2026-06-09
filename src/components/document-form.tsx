@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
 import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findOwnerDocuments, archiveDocumentAction, type ExtractedFields, type OwnerDocMatch } from "@/app/documents/actions";
 import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
+import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
 import { Segmented } from "@/components/macos";
 import { cn } from "@/lib/cn";
@@ -118,6 +119,7 @@ export function DocumentForm({
   // Person profile enrichment (unified intake): profile details read from the
   // document, offered as a one-tap "update {name}'s profile" (fill-blanks-only).
   const [personProfile, setPersonProfile] = useState<PersonProfileFields | null>(null);
+  const [companyProfile, setCompanyProfile] = useState<CompanyProfileFields | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [enrichNote, setEnrichNote] = useState<string | null>(null);
 
@@ -138,6 +140,37 @@ export function DocumentForm({
     const v = (formRef.current?.elements.namedItem("personId") as HTMLSelectElement | null)?.value;
     const n = parseInt(v || "", 10);
     return Number.isNaN(n) ? null : n;
+  }
+
+  const COMPANY_PROFILE_LABELS: Record<keyof CompanyProfileFields, string> = {
+    legalName: "Legal name", registrationNo: "Registration no.", tin: "TIN", vrn: "VRN / VAT",
+    incorporationDate: "Incorporation date", address: "Address", phone: "Phone", email: "Email",
+  };
+  function companyProfileSummary(c: CompanyProfileFields): string {
+    return (Object.keys(c) as Array<keyof CompanyProfileFields>)
+      .filter((k) => c[k]).map((k) => COMPANY_PROFILE_LABELS[k]).join(", ");
+  }
+  function selectedCompanyId(): number | null {
+    const v = (formRef.current?.elements.namedItem("companyId") as HTMLSelectElement | null)?.value;
+    const n = parseInt(v || "", 10);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  async function applyCompanyProfile() {
+    const cid = selectedCompanyId();
+    if (!cid || !companyProfile) return;
+    setEnriching(true);
+    try {
+      const res = await enrichCompanyProfile(cid, companyProfile);
+      if (res.ok) {
+        setEnrichNote(res.filled.length ? `Updated ${res.filled.length} company field${res.filled.length === 1 ? "" : "s"}: ${res.filled.join(", ")}.` : "Company profile already had those details — nothing changed.");
+        setCompanyProfile(null);
+      } else {
+        setEnrichNote(res.error ?? "Couldn't update the company profile.");
+      }
+    } finally {
+      setEnriching(false);
+    }
   }
 
   async function applyProfile() {
@@ -224,6 +257,11 @@ export function DocumentForm({
     // "also update {name}'s profile" review banner (only when a person owner).
     if (f.person && Object.keys(f.person).length) {
       setPersonProfile(f.person);
+      setEnrichNote(null);
+    }
+    // Stash company identity details for the "also update {company}'s profile" banner.
+    if (f.company && Object.keys(f.company).length) {
+      setCompanyProfile(f.company);
       setEnrichNote(null);
     }
     void recheckDup();
@@ -499,6 +537,27 @@ export function DocumentForm({
             </div>
             <p className="text-[11px] text-fg-subtle">
               {selectedPersonId() ? "Only empty fields are filled — nothing already on record is changed." : "Pick the person above first, then update their profile."}
+            </p>
+          </div>
+        )}
+        {/* Company intake: identity details found in the document → offer to fill
+            the company's blank profile fields (always reviewed, never overwrites). */}
+        {ownerMode !== "person" && companyProfile && (
+          <div className="col-span-2 rounded-lg bg-accent-soft/40 ring-1 ring-accent/30 p-2.5 text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 font-medium text-accent">
+              <Sparkles size={13} /> Also found company details in this document
+            </div>
+            <p className="text-fg-muted">{companyProfileSummary(companyProfile)}.</p>
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <button type="button" onClick={applyCompanyProfile} disabled={enriching || !selectedCompanyId()}
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+                {enriching ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Update the company profile
+              </button>
+              <button type="button" onClick={() => { setCompanyProfile(null); setEnrichNote(null); }}
+                className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg">Dismiss</button>
+            </div>
+            <p className="text-[11px] text-fg-subtle">
+              {selectedCompanyId() ? "Only empty fields are filled — nothing already on record is changed." : "Pick the company above first, then update its profile."}
             </p>
           </div>
         )}
