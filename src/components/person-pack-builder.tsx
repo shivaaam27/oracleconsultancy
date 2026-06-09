@@ -7,6 +7,7 @@ import { Check, ClipboardList, FileText, FileWarning, Loader2, Mail, MessageCirc
 import { Badge, Button } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { createPersonPackDraftAction } from "@/app/people/pack-actions";
+import { reqAdd } from "@/app/people/requirement-actions";
 import { cn } from "@/lib/cn";
 import { channelLabel, contactForChannel, pickChannel, type Channel } from "@/lib/outbox-links";
 import type {
@@ -448,12 +449,20 @@ function Preview({
   gapSelection,
   onToggleGap,
   allGaps,
+  newItem,
+  setNewItem,
+  onAddItem,
+  addingItem,
 }: {
   pack: PackResponse;
   selection: PersonPackSectionSelection;
   gapSelection: Set<string>;
   onToggleGap: (id: string) => void;
   allGaps: PackResponse["compliance"]["gaps"];
+  newItem: string;
+  setNewItem: (v: string) => void;
+  onAddItem: (label: string) => void;
+  addingItem: boolean;
 }) {
   const included = useMemo(() => sectionLabels.filter((s) => selection[s.key]), [selection]);
 
@@ -499,6 +508,24 @@ function Preview({
                 : "No missing required documents — all good."}
             </p>
           )}
+          {/* Add a request item manually — saved to the person's checklist. */}
+          <div className="mt-2.5 flex items-center gap-1.5 border-t border-border/60 pt-2.5">
+            <input
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") onAddItem(newItem); }}
+              placeholder="Add an item to request…"
+              className="min-w-0 flex-1 rounded-md bg-bg-subtle/60 px-2.5 py-1.5 text-xs ring-1 ring-border/60 focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+            <button
+              type="button"
+              disabled={addingItem || !newItem.trim()}
+              onClick={() => onAddItem(newItem)}
+              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
+            >
+              {addingItem ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add
+            </button>
+          </div>
         </div>
       )}
 
@@ -698,6 +725,8 @@ export function PersonPackBuilder({
   // Which missing items to actually request (default: all). Lets you chase
   // only the few you want. Everything downstream uses the filtered pack.
   const [selectedGaps, setSelectedGaps] = useState<Set<string>>(new Set());
+  const [newItem, setNewItem] = useState("");
+  const [addingItem, setAddingItem] = useState(false);
 
   // The pack with its missing-document list narrowed to the ticked items.
   const effPack = useMemo<PackResponse | null>(() => {
@@ -751,6 +780,38 @@ export function PersonPackBuilder({
       });
     return () => { cancelled = true; };
   }, [open, personId, purpose]);
+
+  // Re-fetch the pack after a manual change (e.g. a request item was added),
+  // keeping the current section choices and ticking any newly-appeared gaps.
+  async function reloadPack() {
+    const res = await fetch(`/api/person-pack?id=${personId}&purpose=${purpose}`);
+    if (!res.ok) return;
+    const data: PackResponse = await res.json();
+    setPack(data);
+    setSelectedGaps((prev) => {
+      const next = new Set(prev);
+      for (const g of data.compliance.gaps) if (!prev.has(g.id)) next.add(g.id);
+      return next;
+    });
+  }
+
+  async function addRequestItem(label: string) {
+    const trimmed = label.trim();
+    if (!trimmed || addingItem) return;
+    setAddingItem(true);
+    try {
+      const res = await reqAdd(personId, { label: trimmed, category: null, mandatory: true });
+      if (!res.ok) {
+        toast(res.error, { tone: "danger" });
+        return;
+      }
+      await reloadPack();
+      setNewItem("");
+      toast("Added to this person's checklist.", { tone: "success" });
+    } finally {
+      setAddingItem(false);
+    }
+  }
 
   function toggle(key: PersonPackSectionKey) {
     setSelection((current) => current ? { ...current, [key]: !current[key] } : current);
@@ -866,7 +927,7 @@ export function PersonPackBuilder({
               {error && <div className="rounded-xl bg-danger-soft p-3 text-sm text-danger">{error}</div>}
               {!loading && effPack && selection && (
                 <>
-                  <Preview pack={effPack} selection={selection} gapSelection={selectedGaps} onToggleGap={toggleGap} allGaps={pack?.compliance.gaps ?? []} />
+                  <Preview pack={effPack} selection={selection} gapSelection={selectedGaps} onToggleGap={toggleGap} allGaps={pack?.compliance.gaps ?? []} newItem={newItem} setNewItem={setNewItem} onAddItem={addRequestItem} addingItem={addingItem} />
                   {messagePreview && (
                     <DraftMessagePreview pack={effPack} channel={channel} setChannel={setChannel} message={messagePreview} />
                   )}

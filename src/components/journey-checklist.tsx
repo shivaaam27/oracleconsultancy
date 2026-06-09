@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, ChevronDown, Pencil, Trash2, Plus } from "lucide-react";
+import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, ChevronDown, Pencil, Trash2, Plus, RefreshCw } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -14,6 +14,7 @@ import {
   addJourneyStepAction,
   editJourneyStepAction,
   deleteJourneyStepAction,
+  syncJourneyAction,
 } from "@/app/people/onboarding-actions";
 
 type StepFields = { label: string; dueAt: string | null };
@@ -172,6 +173,19 @@ export function JourneyChecklist({
     });
   }
 
+  function doSync() {
+    setBusyId(-4);
+    startTransition(async () => {
+      const res = await syncJourneyAction(personId, kind);
+      setBusyId(null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast(res.added === 0 ? "Already up to date with the template." : `Synced — ${res.added} step${res.added === 1 ? "" : "s"} added.`,
+        { tone: res.added ? "success" : "default" });
+      load();
+      onChanged?.();
+    });
+  }
+
   if (loading && !data) {
     return (
       <div className="glass elevated rounded-2xl p-4 flex items-center gap-2 text-sm text-fg-muted">
@@ -291,14 +305,24 @@ export function JourneyChecklist({
       </div>
 
       <div className="flex items-center justify-between border-t border-border/70 px-3 py-2">
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          disabled={adding}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-50"
-        >
-          <Plus size={12} /> Add step
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            disabled={adding}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:opacity-80 transition-opacity disabled:opacity-50"
+          >
+            <Plus size={12} /> Add step
+          </button>
+          <button
+            type="button"
+            onClick={doSync}
+            disabled={busyId === -4}
+            className="inline-flex items-center gap-1 text-[11px] font-medium text-fg-muted hover:text-accent transition-colors disabled:opacity-50"
+          >
+            {busyId === -4 ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Sync with template
+          </button>
+        </div>
         <button
           type="button"
           onClick={clearAll}

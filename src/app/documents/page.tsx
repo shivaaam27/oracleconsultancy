@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui";
 import { DocumentsTable } from "@/components/documents-table";
 import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
+import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { buildCompanyComplianceScores } from "@/lib/compliance";
@@ -54,7 +55,16 @@ export default async function DocumentsPage({
   return (
     <div className="space-y-4 max-w-4xl">
       <HrmsCrumbs from={from} />
-      <PageHeader title="Documents & Compliance" sub={sub} action={<RequirementTemplatesButton />} />
+      <PageHeader
+        title="Documents & Compliance"
+        sub={sub}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <RequirementTemplatesButton />
+            <JourneyTemplatesButton />
+          </div>
+        }
+      />
       <ComplianceScorePanel companyScores={companyScores} personScores={personScores} />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>

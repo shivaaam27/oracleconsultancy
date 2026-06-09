@@ -141,7 +141,10 @@ One tick per (day, area). `id, day_id (FK cleaning_days, cascade), area_id (FK c
 A profile per person type (`applies_to_type`) lists the documents that type must/may provide. Items: `label, category, mandatory, expiry_tracked, default_lead_days, sort_order`. Seeded via `scripts/seed-requirement-profiles.ts`. See `src/lib/requirements.ts`.
 
 ### person_requirements
-Snapshot of a person's checklist (so later profile edits don't rewrite history). Per item: `status` (missing/requested/received/verified/waived) + optional `document_id`. Effective status derives expiry; score = verified-mandatory / mandatory → 100%. Unique on `(person_id, item_id)`.
+Snapshot of a person's checklist (so later profile edits don't rewrite history). Per item: `status` (missing/requested/received/verified/waived, plus `removed` to hide a standard item) + optional `document_id`. Effective status derives expiry; score = verified-mandatory / mandatory → 100%. Unique on `(person_id, item_id)`. **Sync with template** (`syncPersonRequirements` in `src/lib/requirements.ts`) re-adds new profile items and restores previously-removed standard items on demand; surfaced as a button on the person drawer Document compliance section and an inline "add an item to request" in Prepare pack (saves a real person requirement).
+
+### journey_step_templates — migration 0031
+Editable onboarding/offboarding step templates, **per person type**. `kind` (onboarding|offboarding), `applies_to_type`, `label`, `offset_days` (days from anchor: start date for onboarding, today for offboarding), `active`, `sort_order`. Seeded once from the hard-coded defaults in `src/lib/onboarding.ts` (`seedJourneyTemplates`); thereafter edited via **Documents → Manage onboarding steps** (`/api/journey-templates`, `JourneyTemplatesButton`). `startJourney` creates a person's journey (todos tagged `kind`) from these; **Sync with template** (`syncJourneyToTemplate`) appends missing template steps to an existing journey (matched by label). Edits/deletes don't rewrite journeys already created.
 
 ## HRMS — Assets & Vendors — migrations 0022/0023
 

@@ -153,6 +153,23 @@ export const personRequirements = pgTable(
   (t) => [uniqueIndex("person_requirements_person_item_idx").on(t.personId, t.itemId)]
 );
 
+// Editable onboarding/offboarding step templates, per person type. A person's
+// journey (todos tagged with `kind`) is created from / synced to these rows.
+// kind: "onboarding" | "offboarding"; appliesToType matches person-types.ts.
+// offsetDays = days from the anchor date (start date for onboarding, today for
+// offboarding) used to seed each step's due date.
+export const journeyStepTemplates = pgTable("journey_step_templates", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull(),
+  appliesToType: text("applies_to_type").notNull(),
+  label: text("label").notNull(),
+  offsetDays: integer("offset_days").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+});
+
 export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),

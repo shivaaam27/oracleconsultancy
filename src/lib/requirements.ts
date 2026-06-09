@@ -258,6 +258,24 @@ export async function syncPersonRequirementsToTemplate(
   return { added: toInsert.length, restored: restoreIds.length };
 }
 
+/**
+ * Propagate template edits to EVERYONE: reconcile each active person's checklist
+ * to their type's current profile (adds new items, cleans un-actioned orphans
+ * whose item was removed). Verified/linked/removed rows are preserved. This is
+ * what makes a "Manage requirements" save show up in the Documents compliance
+ * scores and every person drawer without opening each one. Returns # of people.
+ */
+export async function syncAllPersonRequirements(): Promise<{ people: number }> {
+  const { data: people } = await sb.from("people").select("id,person_type").eq("active", true);
+  let count = 0;
+  for (const p of people ?? []) {
+    const type = normalizePersonType(p.person_type as string | null);
+    await ensurePersonRequirements(p.id as number, type);
+    count++;
+  }
+  return { people: count };
+}
+
 /** Convenience: resolve the person's type, then sync to its template. */
 export async function syncPersonRequirements(personId: number): Promise<{ added: number; restored: number }> {
   const { data: person } = await sb.from("people").select("person_type").eq("id", personId).maybeSingle();

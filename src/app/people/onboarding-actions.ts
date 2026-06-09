@@ -8,12 +8,14 @@ import {
   addJourneyStep,
   editJourneyStep,
   deleteJourneyStep,
+  syncJourneyToTemplate,
   type JourneyKind,
 } from "@/lib/onboarding";
 
 type StepInput = { label: string; dueAt: string | null };
 
 type Result = { ok: true; created?: number } | { ok: false; error: string };
+type SyncResult = { ok: true; added: number } | { ok: false; error: string };
 
 function invalidate() {
   revalidatePath("/people");
@@ -78,5 +80,15 @@ export async function deleteJourneyStepAction(id: number): Promise<Result> {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not delete the step." };
+  }
+}
+
+export async function syncJourneyAction(personId: number, kind: JourneyKind): Promise<SyncResult> {
+  try {
+    const res = await syncJourneyToTemplate(personId, kind);
+    invalidate();
+    return { ok: true, added: res.added };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not sync the checklist." };
   }
 }

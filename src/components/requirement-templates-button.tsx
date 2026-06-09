@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { ListChecks, Loader2, X, Plus, Pencil, Trash2, Check, Info } from "lucide-react";
+import { ListChecks, Loader2, X, Plus, Pencil, Trash2, Check, Info, RefreshCw } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { DOC_CATEGORIES } from "@/lib/documents-shared";
-import { tmplAddItem, tmplEditItem, tmplDeleteItem } from "@/app/documents/template-actions";
+import { tmplAddItem, tmplEditItem, tmplDeleteItem, tmplSyncEveryone } from "@/app/documents/template-actions";
 
 type Item = { id: number; label: string; category: string | null; mandatory: boolean; sortOrder: number };
 type Profile = { id: number; name: string; appliesToType: string; description: string | null; items: Item[] };
@@ -58,6 +58,8 @@ export function RequirementTemplatesButton() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [addingProfile, setAddingProfile] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -78,8 +80,20 @@ export function RequirementTemplatesButton() {
       setBusyId(null);
       if (!res.ok) { toast(res.error ?? "Something went wrong", { tone: "danger" }); return; }
       toast(okMsg, { tone: "success" });
+      setDirty(true);
       after?.();
       load();
+    });
+  }
+
+  function syncEveryone() {
+    setSyncing(true);
+    startTransition(async () => {
+      const res = await tmplSyncEveryone();
+      setSyncing(false);
+      if (!res.ok) { toast(res.error ?? "Could not sync", { tone: "danger" }); return; }
+      setDirty(false);
+      toast(`Saved — applied to ${res.people} ${res.people === 1 ? "person" : "people"}.`, { tone: "success" });
     });
   }
 
@@ -180,6 +194,17 @@ export function RequirementTemplatesButton() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 shrink-0">
+            <span className="text-[11px] text-fg-muted">
+              {dirty ? "Unsaved changes — save to apply to everyone." : "Edits auto-save to the template."}
+            </span>
+            <button type="button" onClick={syncEveryone} disabled={syncing}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+              {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              Save &amp; sync to everyone
+            </button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
