@@ -35,6 +35,26 @@ function fmtUpdated(d: Date): string {
   return `Updated ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Severity for ordering staff cards: people with issues first.
+function staffSeverity(g: StaffFileGroup): number {
+  if (g.docs.some((d) => deriveDocStatus(d) === "Expired")) return 0;
+  if (g.docs.some((d) => deriveDocStatus(d) === "Expiring")) return 1;
+  return 2;
+}
+
+function Pill({ cls, children }: { cls: string; children: React.ReactNode }) {
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cls}`}>{children}</span>
+  );
+}
+
 export function CompanyDocuments({
   companyId,
   companyName,
@@ -91,6 +111,10 @@ export function CompanyDocuments({
     return r !== 0 ? r : a.title.localeCompare(b.title);
   });
   const staffTotal = staffGroups.reduce((n, g) => n + g.docs.length, 0);
+  const sortedStaff = [...staffGroups].sort((a, b) => {
+    const s = staffSeverity(a) - staffSeverity(b);
+    return s !== 0 ? s : a.personName.localeCompare(b.personName);
+  });
 
   function openFile(id: number) {
     startOpen(async () => {
@@ -225,32 +249,40 @@ export function CompanyDocuments({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {staffGroups.map((g) => {
+              {sortedStaff.map((g) => {
                 const expired = g.docs.filter((d) => deriveDocStatus(d) === "Expired").length;
                 const expiring = g.docs.filter((d) => deriveDocStatus(d) === "Expiring").length;
-                const dot = expired ? "bg-danger" : expiring ? "bg-warn" : "bg-success";
+                const valid = g.docs.length - expired - expiring;
+                const ring = expired ? "ring-danger/30" : expiring ? "ring-warn/30" : "ring-border/60";
+                const avatarCls = expired
+                  ? "bg-danger-soft text-danger"
+                  : expiring
+                  ? "bg-warn-soft text-warn"
+                  : "bg-accent-soft text-accent";
                 return (
                   <PersonDrawerLink
                     key={g.personId}
                     id={g.personId}
                     name={g.personName}
-                    className="w-full text-left rounded-xl ring-1 ring-border/60 bg-bg-elev/40 px-3.5 py-2.5 hover:ring-accent/30 hover:bg-bg-muted/40 transition-all"
+                    className={`group/card w-full text-left rounded-xl ring-1 bg-bg-elev/40 px-3 py-2.5 hover:-translate-y-0.5 hover:shadow-sm hover:ring-accent/30 transition-all ${ring}`}
                   >
-                    <span className="flex items-center gap-2">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
+                    <span className="flex items-center gap-2.5">
+                      <span className={`h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-full text-[11px] font-semibold ${avatarCls}`}>
+                        {initials(g.personName)}
+                      </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{g.personName}</span>
+                        <span className="block truncate text-sm font-medium group-hover/card:text-accent transition-colors">{g.personName}</span>
                         {g.role && <span className="block truncate text-[11px] text-fg-subtle">{g.role}</span>}
                       </span>
                       <span className="shrink-0 text-[11px] text-fg-muted tabular">
                         {g.docs.length} file{g.docs.length === 1 ? "" : "s"}
                       </span>
                     </span>
-                    {(expired > 0 || expiring > 0) && (
-                      <span className="mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-warn-soft text-warn">
-                        {expired > 0 ? `${expired} expired` : `${expiring} expiring`}
-                      </span>
-                    )}
+                    <span className="mt-2 flex flex-wrap items-center gap-1">
+                      {expired > 0 && <Pill cls="bg-danger-soft text-danger">{expired} expired</Pill>}
+                      {expiring > 0 && <Pill cls="bg-warn-soft text-warn">{expiring} expiring</Pill>}
+                      {valid > 0 && <Pill cls="bg-success-soft text-success">{valid} valid</Pill>}
+                    </span>
                   </PersonDrawerLink>
                 );
               })}
