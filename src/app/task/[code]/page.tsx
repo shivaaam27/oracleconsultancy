@@ -6,6 +6,7 @@ import { UpdateBox } from "@/components/update-box";
 import { PolishedInput } from "@/components/polished-input";
 import { DraftEmailButton } from "@/components/draft-email-button";
 import { SimilarTasks } from "@/components/similar-tasks";
+import { CompanyDrawerLink } from "@/components/company-drawer-link";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
@@ -186,7 +187,7 @@ export default async function TaskPage({
           <ArrowLeft size={16} />
         </Link>
         <div className="flex items-center gap-2 text-xs text-fg-muted min-w-0">
-          <Link href={`/companies/${r.companyId}?from=task:${r.code}`} className="truncate hover:text-accent transition-colors">{r.companyName}</Link>
+          <CompanyDrawerLink id={r.companyId} className="truncate hover:text-accent transition-colors text-left">{r.companyName}</CompanyDrawerLink>
           <span className="text-fg-subtle">·</span>
           <span className="font-mono">{r.code}</span>
         </div>

@@ -2,6 +2,7 @@ import { getAllTasks, statusBreakdown, priorityBreakdown, type TaskRow } from "@
 import { PageHeader } from "@/components/ui";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { sb } from "@/db/supabase";
+import { CompanyDrawerLink } from "@/components/company-drawer-link";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -79,11 +80,11 @@ export default async function InsightsPage() {
           {companyRows.length === 0 ? (
             <p className="text-sm text-fg-muted py-2">No open tasks. 🎉</p>
           ) : companyRows.map((c) => (
-            <Link key={c.id} href={`/companies/${c.id}`} className="grid grid-cols-[140px_1fr_auto] items-center gap-3 text-sm group">
+            <CompanyDrawerLink key={c.id} id={c.id} className="grid grid-cols-[140px_1fr_auto] items-center gap-3 text-sm group w-full text-left">
               <div className="truncate text-fg group-hover:text-accent transition-colors">{c.name}</div>
               <Bar value={c.open} max={maxCompanyOpen} />
               {c.overdue > 0 && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-danger-soft/60 ring-1 ring-danger/25 text-danger shrink-0">{c.overdue} overdue</span>}
-            </Link>
+            </CompanyDrawerLink>
           ))}
         </div>
       </section>

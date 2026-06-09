@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { SectionCard } from "./drawer-kit";
+import { CompanyDrawerLink } from "./company-drawer-link";
 import { TimelineEntry } from "./timeline-entry";
 import {
   ExternalLink, MessageSquarePlus, FileText, ChevronDown, History,
@@ -133,7 +134,7 @@ export function TaskDrawer() {
     <div className="pr-8 space-y-2">
       <div className="flex items-center gap-2 min-w-0">
         <span className="font-mono text-[11px] font-medium text-fg-muted px-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">{t.code}</span>
-        <Link href={`/companies/${t.companyId}?from=task:${t.code}`} onClick={close} className="text-xs text-fg-muted hover:text-accent truncate transition-colors">{t.companyName}</Link>
+        <CompanyDrawerLink id={t.companyId} className="text-xs text-fg-muted hover:text-accent truncate transition-colors text-left">{t.companyName}</CompanyDrawerLink>
       </div>
       <h2 className="text-base font-semibold leading-snug">{t.actionItem}</h2>
       <div className="flex flex-wrap gap-1.5">

@@ -13,6 +13,7 @@ import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel } from "./drawer-kit";
+import { CompanyDrawerLink } from "./company-drawer-link";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackPanel } from "./person-pack-builder";
@@ -325,9 +326,9 @@ export function PersonDrawer() {
           {person.companyName && person.companyId && (
             <>
               {person.role && <span className="text-fg-subtle">·</span>}
-              <Link href={`/companies/${person.companyId}`} onClick={close} className="inline-flex items-center gap-1 hover:text-accent transition-colors">
+              <CompanyDrawerLink id={person.companyId} className="inline-flex items-center gap-1 hover:text-accent transition-colors">
                 <Building2 size={11} /> {person.companyName}
-              </Link>
+              </CompanyDrawerLink>
             </>
           )}
           {person.managerName && person.managerId && (
