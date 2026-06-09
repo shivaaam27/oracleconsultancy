@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { DOC_CATEGORIES } from "@/lib/documents-shared";
+import { ProgressTrack, EmptyState, SectionCard, type KitTone } from "./drawer-kit";
 import {
   REQUIREMENT_STATUS_LABELS,
   REQUIREMENT_STATUS_TONE,
@@ -39,14 +40,14 @@ function ReqEditor({ initial, onSave, onCancel, busy }: {
   const [category, setCategory] = useState(initial?.category ?? "");
   const [mandatory, setMandatory] = useState(initial?.mandatory ?? true);
   return (
-    <div className="flex flex-col gap-2 bg-bg-subtle/50 px-3 py-2.5">
+    <div className="flex flex-col gap-2 rounded-xl bg-bg-subtle/50 px-3 py-2.5">
       <input value={label} onChange={(e) => setLabel(e.target.value)} autoFocus
         onKeyDown={(e) => { if (e.key === "Enter" && label.trim()) onSave({ label: label.trim(), category: category || null, mandatory }); if (e.key === "Escape") onCancel(); }}
         placeholder="Document name (e.g. Driving licence)"
-        className="rounded-md bg-bg-elev text-sm ring-1 ring-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
+        className="rounded-lg bg-bg-elev text-sm ring-1 ring-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
       <div className="flex flex-wrap items-center gap-2">
         <select value={category} onChange={(e) => setCategory(e.target.value)}
-          className="rounded-md bg-bg-elev text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1">
+          className="rounded-lg bg-bg-elev text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1">
           <option value="">No category</option>
           {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -55,10 +56,10 @@ function ReqEditor({ initial, onSave, onCancel, busy }: {
         </label>
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" onClick={onCancel} disabled={busy}
-            className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
+            className="rounded-lg px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
           <button type="button" disabled={busy || !label.trim()}
             onClick={() => onSave({ label: label.trim(), category: category || null, mandatory })}
-            className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+            className="inline-flex items-center gap-1 rounded-lg bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
             {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
           </button>
         </div>
@@ -103,26 +104,10 @@ function addDocHref(personId: number, item: ChecklistItem) {
   return `/documents?${p.toString()}`;
 }
 
-const bandTone = { Good: "success", Watch: "warn", Risk: "danger" } as const;
+const bandTone: Record<"Good" | "Watch" | "Risk", KitTone> = { Good: "success", Watch: "warn", Risk: "danger" };
+const bandBadge = { Good: "success", Watch: "warn", Risk: "danger" } as const;
 
-function ScoreRing({ score, band }: { score: number; band: "Good" | "Watch" | "Risk" }) {
-  const r = 26;
-  const c = 2 * Math.PI * r;
-  const dash = (score / 100) * c;
-  const colour = band === "Good" ? "var(--success)" : band === "Watch" ? "var(--warn)" : "var(--danger)";
-  return (
-    <div className="relative h-16 w-16 shrink-0">
-      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
-        <circle cx="32" cy="32" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="6" />
-        <circle
-          cx="32" cy="32" r={r} fill="none" stroke={`hsl(${colour})`} strokeWidth="6" strokeLinecap="round"
-          strokeDasharray={`${dash} ${c}`} style={{ transition: "stroke-dasharray 0.5s ease" }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular">{score}%</div>
-    </div>
-  );
-}
+const IN_PLACE = new Set<EffectiveStatus>(["verified", "waived"]);
 
 export function RequirementsChecklist({
   personId,
@@ -136,22 +121,18 @@ export function RequirementsChecklist({
   onChanged?: () => void;
   onNavigate?: () => void;
   onSummary?: (s: { score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number }) => void;
-  /** When provided, "Add"/"Renew" open the document form in place (over the person)
-   *  instead of navigating to /documents. Keeps the flow immersive. */
   onAddDocument?: (opts: { title: string; category: string | null }) => void;
-  /** Bump to force a reload (e.g. after a document was added in the drawer). */
   reloadSignal?: number;
 }) {
   const { toast } = useToast();
   const [data, setData] = useState<Checklist | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [open, setOpen] = useState(false);
   const [openItem, setOpenItem] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [showInPlace, setShowInPlace] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -167,22 +148,15 @@ export function RequirementsChecklist({
 
   useEffect(() => load(), [load]);
 
-  // Reload when the parent signals a change (e.g. a document was just added in
-  // the drawer) so the new file auto-links and the score updates in place.
   useEffect(() => {
     if (reloadSignal === undefined) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadSignal]);
 
-  // Report summary up + smart auto-open once (when something needs attention).
   useEffect(() => {
     if (!data) return;
     onSummary?.({ score: data.score, band: data.band, missing: data.missingMandatory, total: data.mandatoryTotal });
-    if (!autoSet.current) {
-      autoSet.current = true;
-      if (data.missingMandatory > 0 || data.expiredMandatory > 0) setOpen(true);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
@@ -199,15 +173,9 @@ export function RequirementsChecklist({
     });
   }
 
-  function doAdd(v: ReqFields) {
-    run(-1, () => reqAdd(personId, v), "Requirement added.", () => setAdding(false));
-  }
-  function doEdit(id: number, v: ReqFields) {
-    run(id, () => reqEdit(id, v), "Requirement updated.", () => setEditingId(null));
-  }
-  function doRemove(id: number) {
-    run(id, () => reqRemove(id), "Requirement removed.", () => setOpenItem(null));
-  }
+  function doAdd(v: ReqFields) { run(-1, () => reqAdd(personId, v), "Requirement added.", () => setAdding(false)); }
+  function doEdit(id: number, v: ReqFields) { run(id, () => reqEdit(id, v), "Requirement updated.", () => setEditingId(null)); }
+  function doRemove(id: number) { run(id, () => reqRemove(id), "Requirement removed.", () => setOpenItem(null)); }
   function doSync() {
     setSyncing(true);
     startTransition(async () => {
@@ -215,12 +183,7 @@ export function RequirementsChecklist({
       setSyncing(false);
       if (!res.ok) { toast(res.error ?? "Could not sync", { tone: "danger" }); return; }
       const changed = res.added + res.restored;
-      toast(
-        changed === 0
-          ? "Already up to date with the template."
-          : `Synced — ${[res.added && `${res.added} added`, res.restored && `${res.restored} restored`].filter(Boolean).join(", ")}.`,
-        { tone: changed ? "success" : "default" }
-      );
+      toast(changed === 0 ? "Already up to date with the template." : `Synced — ${[res.added && `${res.added} added`, res.restored && `${res.restored} restored`].filter(Boolean).join(", ")}.`, { tone: changed ? "success" : "default" });
       load();
       onChanged?.();
     });
@@ -235,167 +198,148 @@ export function RequirementsChecklist({
   }
   if (!data) return null;
 
-  const subtleBtn = "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors";
-  const actionBtn = "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors";
+  const needsAction = data.items.filter((it) => !IN_PLACE.has(it.effectiveStatus));
+  const inPlace = data.items.filter((it) => IN_PLACE.has(it.effectiveStatus));
 
   return (
-    <details className="group glass elevated rounded-2xl overflow-hidden" open={open}>
-      <summary
-        onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
-        className="list-none cursor-pointer flex items-center gap-3 p-3 select-none"
-      >
-        <ScoreRing score={data.score} band={data.band} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={15} className="text-accent" />
-            <span className="text-sm font-semibold">Document compliance</span>
-            <Badge tone={bandTone[data.band]}>{data.band}</Badge>
-          </div>
-          <p className="mt-0.5 text-xs text-fg-muted">
-            {data.mandatoryTotal === 0
-              ? "No required documents for this person type."
-              : `${data.mandatoryVerified} of ${data.mandatoryTotal} required verified` +
-                (data.missingMandatory ? ` · ${data.missingMandatory} missing` : "") +
-                (data.expiredMandatory ? ` · ${data.expiredMandatory} expired` : "")}
-          </p>
+    <div className="space-y-3">
+      {/* Pulse header */}
+      <SectionCard className="p-3.5 space-y-2.5">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={15} className="text-accent" />
+          <span className="text-sm font-semibold">Document compliance</span>
+          <Badge tone={bandBadge[data.band]}>{data.band}</Badge>
+          <span className={cn("ml-auto text-lg font-semibold tabular", data.band === "Good" ? "text-success" : data.band === "Watch" ? "text-warn" : "text-danger")}>{data.score}%</span>
         </div>
-        <ChevronDown size={16} className={cn("shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
-      </summary>
+        <ProgressTrack value={data.mandatoryVerified} total={data.mandatoryTotal} tone={bandTone[data.band]} />
+        <div className="flex items-center justify-between text-[11px] text-fg-muted">
+          <span>
+            {data.mandatoryTotal === 0 ? "No required documents for this person type."
+              : `${data.mandatoryVerified}/${data.mandatoryTotal} verified${data.missingMandatory ? ` · ${data.missingMandatory} missing` : ""}${data.expiredMandatory ? ` · ${data.expiredMandatory} expired` : ""}`}
+          </span>
+          <button type="button" disabled={syncing} onClick={doSync}
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+            {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Sync
+          </button>
+        </div>
+      </SectionCard>
 
-      <div className="flex items-center justify-between gap-2 border-t border-border/70 bg-bg-subtle/30 px-3 py-1.5">
-        <span className="text-[11px] text-fg-subtle">Checklist follows the template for this person type.</span>
-        <button type="button" disabled={syncing} onClick={doSync}
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
-          {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Sync with template
-        </button>
-      </div>
-
-      <div className="divide-y divide-border/50">
-        {data.items.map((item) => {
-          const tone = REQUIREMENT_STATUS_TONE[item.effectiveStatus];
-          const busy = busyId === item.id;
-          const expanded = openItem === item.id;
-          const linkable = data.documents.filter((d) => d.id !== item.documentId);
-          const needsDoc = item.effectiveStatus === "missing" || item.effectiveStatus === "requested";
-          const dot = tone === "success" ? "bg-success" : tone === "warn" ? "bg-warn" : tone === "danger" ? "bg-danger" : tone === "info" ? "bg-info" : "bg-fg-subtle";
-          const subtitle = item.documentTitle
-            ? [item.documentTitle, item.expiryLabel].filter(Boolean).join(" · ")
-            : item.mandatory ? "Required" : "Optional";
-          const addCat = item.category && SPECIFIC.has(item.category) ? item.category : null;
-          // In-place add (over the person) when a handler is given; else navigate.
-          const renderAdd = (label: string) =>
-            onAddDocument ? (
-              <button type="button" disabled={busy}
-                onClick={() => onAddDocument({ title: item.label, category: addCat })}
-                className={cn(actionBtn, "bg-accent text-accent-fg ring-transparent hover:opacity-90")}>
-                <Plus size={12} /> {label}
-              </button>
-            ) : (
-              <Link href={addDocHref(personId, item)} onClick={onNavigate}
-                className={cn(actionBtn, "bg-accent text-accent-fg ring-transparent hover:opacity-90")}>
-                <Plus size={12} /> {label}
-              </Link>
-            );
-          return (
-            <div key={item.id} className={cn(busy && "opacity-60")}>
-              {editingId === item.id ? (
-                <ReqEditor
-                  initial={{ label: item.label, category: item.category, mandatory: item.mandatory }}
-                  onSave={(v) => doEdit(item.id, v)}
-                  onCancel={() => setEditingId(null)}
-                  busy={busy}
-                />
-              ) : (
-                <>
-              {/* Compact one-line row — tap to reveal actions */}
-              <button
-                type="button"
-                onClick={() => setOpenItem(expanded ? null : item.id)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-bg-muted/40 transition-colors"
-              >
-                <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium truncate">{item.label}</span>
-                  <span className={cn("block text-[11px] truncate", item.docStatus === "Expired" ? "text-danger" : item.docStatus === "Expiring" ? "text-warn" : "text-fg-muted")}>{subtitle}</span>
-                </span>
-                <Badge tone={tone}>{REQUIREMENT_STATUS_LABELS[item.effectiveStatus]}</Badge>
-                <ChevronDown size={14} className={cn("shrink-0 text-fg-subtle transition-transform", expanded && "rotate-180")} />
-              </button>
-
-              {expanded && (
-                <div className="flex flex-wrap items-center gap-1.5 pl-[26px] pr-3 pb-2.5">
-                  {item.effectiveStatus === "received" && (
-                    <button type="button" disabled={busy} onClick={() => run(item.id, () => reqVerify(item.id), "Verified.")}
-                      className={cn(actionBtn, "bg-success-soft text-success ring-success/25 hover:bg-success-soft/80")}>
-                      <Check size={12} /> Verify
-                    </button>
-                  )}
-                  {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring") && (
-                    <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnverify(item.id))} className={subtleBtn}>Unverify</button>
-                  )}
-                  {item.effectiveStatus === "expired" && renderAdd("Renew")}
-                  {needsDoc && (
-                    <>
-                      {renderAdd("Add")}
-                      {linkable.length > 0 && (
-                        <select
-                          disabled={busy}
-                          defaultValue=""
-                          onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) run(item.id, () => reqLinkDocument(item.id, v), "Document linked."); }}
-                          className="rounded-md bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1 max-w-[8.5rem]"
-                        >
-                          <option value="" disabled>Link…</option>
-                          {linkable.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-                        </select>
-                      )}
-                      {item.effectiveStatus === "missing" && (
-                        <button type="button" disabled={busy} onClick={() => run(item.id, () => reqMarkRequested(item.id), "Marked as requested.")} className={subtleBtn}>
-                          <Send size={11} /> Requested
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {item.documentId && item.effectiveStatus !== "verified" && item.effectiveStatus !== "expiring" && (
-                    <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnlinkDocument(item.id))} className={subtleBtn}>
-                      <Link2 size={11} /> Unlink
-                    </button>
-                  )}
-                  {item.effectiveStatus === "waived" ? (
-                    <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnwaive(item.id))} className={subtleBtn}>
-                      <RotateCcw size={11} /> Restore
-                    </button>
-                  ) : needsDoc ? (
-                    <button type="button" disabled={busy} onClick={() => run(item.id, () => reqWaive(item.id, null))} className={subtleBtn}>
-                      <Ban size={11} /> Waive
-                    </button>
-                  ) : null}
-                  <span className="mx-0.5 h-3 w-px bg-border/70" />
-                  <button type="button" disabled={busy} onClick={() => setEditingId(item.id)} className={subtleBtn}>
-                    <Pencil size={11} /> Edit
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => doRemove(item.id)}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50">
-                    <Trash2 size={11} /> Remove
-                  </button>
-                  {busy && <Loader2 size={12} className="animate-spin text-fg-subtle" />}
-                </div>
-              )}
-                </>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Add a custom, person-specific requirement. */}
+      {/* Needs action */}
+      <SectionCard>
+        <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5 w-full">
+          Needs action
+          {needsAction.length > 0 && <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{needsAction.length}</span>}
+        </div>
+        {needsAction.length === 0 ? (
+          <EmptyState icon={<CheckCircle2 size={20} />} tone="success" title="All caught up" hint="Every required document is in place." />
+        ) : (
+          <div className="divide-y divide-border/50">
+            {needsAction.map((item) => <ItemRow key={item.id} item={item} />)}
+          </div>
+        )}
+        {/* Add custom item */}
         {adding ? (
-          <ReqEditor onSave={doAdd} onCancel={() => setAdding(false)} busy={busyId === -1} />
+          <div className="border-t border-border/50 p-2"><ReqEditor onSave={doAdd} onCancel={() => setAdding(false)} busy={busyId === -1} /></div>
         ) : (
           <button type="button" onClick={() => setAdding(true)}
-            className="w-full flex items-center gap-2 px-3 py-2.5 text-left text-[11px] font-medium text-accent hover:bg-bg-muted/40 transition-colors">
-            <Plus size={13} /> Add a requirement
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[11px] font-medium text-accent hover:bg-bg-muted/40 transition-colors border-t border-border/50">
+            <Plus size={13} /> Add a required document
           </button>
         )}
-      </div>
-    </details>
+      </SectionCard>
+
+      {/* In place — collapsed */}
+      {inPlace.length > 0 && (
+        <SectionCard>
+          <button type="button" onClick={() => setShowInPlace((s) => !s)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-fg-muted hover:bg-bg-muted/40 transition-colors">
+            <CheckCircle2 size={13} className="text-success" /> In place
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{inPlace.length}</span>
+            <ChevronDown size={14} className={cn("ml-auto text-fg-subtle transition-transform", showInPlace && "rotate-180")} />
+          </button>
+          {showInPlace && <div className="divide-y divide-border/50 border-t border-border/50">{inPlace.map((item) => <ItemRow key={item.id} item={item} />)}</div>}
+        </SectionCard>
+      )}
+    </div>
   );
+
+  function ItemRow({ item }: { item: ChecklistItem }) {
+    const tone = REQUIREMENT_STATUS_TONE[item.effectiveStatus];
+    const busy = busyId === item.id;
+    const expanded = openItem === item.id;
+    const linkable = data!.documents.filter((d) => d.id !== item.documentId);
+    const needsDoc = item.effectiveStatus === "missing" || item.effectiveStatus === "requested";
+    const dot = tone === "success" ? "bg-success" : tone === "warn" ? "bg-warn" : tone === "danger" ? "bg-danger" : tone === "info" ? "bg-info" : "bg-fg-subtle";
+    const subtitle = item.documentTitle ? [item.documentTitle, item.expiryLabel].filter(Boolean).join(" · ") : item.mandatory ? "Required" : "Optional";
+    const addCat = item.category && SPECIFIC.has(item.category) ? item.category : null;
+
+    if (editingId === item.id) {
+      return <div className="p-2"><ReqEditor initial={{ label: item.label, category: item.category, mandatory: item.mandatory }} onSave={(v) => doEdit(item.id, v)} onCancel={() => setEditingId(null)} busy={busy} /></div>;
+    }
+
+    const primaryAdd = (label: string) =>
+      onAddDocument ? (
+        <button type="button" disabled={busy} onClick={(e) => { e.stopPropagation(); onAddDocument({ title: item.label, category: addCat }); }}
+          className="inline-flex items-center gap-1 rounded-lg bg-accent text-accent-fg px-2 py-1 text-[11px] font-medium hover:opacity-90">
+          <Plus size={12} /> {label}
+        </button>
+      ) : (
+        <Link href={addDocHref(personId, item)} onClick={(e) => { e.stopPropagation(); onNavigate?.(); }}
+          className="inline-flex items-center gap-1 rounded-lg bg-accent text-accent-fg px-2 py-1 text-[11px] font-medium hover:opacity-90">
+          <Plus size={12} /> {label}
+        </Link>
+      );
+
+    return (
+      <div className={cn(busy && "opacity-60")}>
+        <div className="group/row flex items-center gap-2.5 px-3.5 py-2.5">
+          <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
+          <button type="button" onClick={() => setOpenItem(expanded ? null : item.id)} className="min-w-0 flex-1 text-left">
+            <span className="block text-sm font-medium truncate">{item.label}</span>
+            <span className={cn("block text-[11px] truncate", item.docStatus === "Expired" ? "text-danger" : item.docStatus === "Expiring" ? "text-warn" : "text-fg-subtle")}>{subtitle}</span>
+          </button>
+          {/* Contextual primary action, always visible */}
+          {item.effectiveStatus === "received" && (
+            <button type="button" disabled={busy} onClick={() => run(item.id, () => reqVerify(item.id), "Verified.")}
+              className="inline-flex items-center gap-1 rounded-lg bg-success-soft text-success px-2 py-1 text-[11px] font-medium ring-1 ring-success/25 hover:bg-success-soft/80"><Check size={12} /> Verify</button>
+          )}
+          {item.effectiveStatus === "expired" && primaryAdd("Renew")}
+          {needsDoc && primaryAdd("Add")}
+          <Badge tone={tone}>{REQUIREMENT_STATUS_LABELS[item.effectiveStatus]}</Badge>
+          <button type="button" onClick={() => setOpenItem(expanded ? null : item.id)} aria-label="More" className="shrink-0 text-fg-subtle hover:text-fg">
+            <ChevronDown size={14} className={cn("transition-transform", expanded && "rotate-180")} />
+          </button>
+        </div>
+        {expanded && (
+          <div className="flex flex-wrap items-center gap-1.5 px-3.5 pb-2.5 pl-[26px]">
+            {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring") && (
+              <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnverify(item.id))} className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted">Unverify</button>
+            )}
+            {needsDoc && linkable.length > 0 && (
+              <select disabled={busy} defaultValue="" onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) run(item.id, () => reqLinkDocument(item.id, v), "Document linked."); }}
+                className="rounded-md bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1 max-w-[8.5rem]">
+                <option value="" disabled>Link…</option>
+                {linkable.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+              </select>
+            )}
+            {item.effectiveStatus === "missing" && (
+              <button type="button" disabled={busy} onClick={() => run(item.id, () => reqMarkRequested(item.id), "Marked as requested.")} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted"><Send size={11} /> Requested</button>
+            )}
+            {item.documentId && item.effectiveStatus !== "verified" && item.effectiveStatus !== "expiring" && (
+              <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnlinkDocument(item.id))} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted"><Link2 size={11} /> Unlink</button>
+            )}
+            {item.effectiveStatus === "waived" ? (
+              <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnwaive(item.id))} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted"><RotateCcw size={11} /> Restore</button>
+            ) : needsDoc ? (
+              <button type="button" disabled={busy} onClick={() => run(item.id, () => reqWaive(item.id, null))} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted"><Ban size={11} /> Waive</button>
+            ) : null}
+            <span className="mx-0.5 h-3 w-px bg-border/70" />
+            <button type="button" disabled={busy} onClick={() => setEditingId(item.id)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted"><Pencil size={11} /> Edit</button>
+            <button type="button" disabled={busy} onClick={() => doRemove(item.id)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-danger hover:bg-danger/10"><Trash2 size={11} /> Remove</button>
+            {busy && <Loader2 size={12} className="animate-spin text-fg-subtle" />}
+          </div>
+        )}
+      </div>
+    );
+  }
 }
