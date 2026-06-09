@@ -1,5 +1,5 @@
-import type { TaskRow, RawActivity } from "@/lib/queries";
-import { computeGlobalKpis, getRecentActivity } from "@/lib/queries";
+import type { TaskRow } from "@/lib/queries";
+import { computeGlobalKpis } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { getAppSettings } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
@@ -11,17 +11,16 @@ import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
-import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
 import { listObligations, splitObligations } from "@/lib/recurring";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import {
-  HomeIntelligence,
+  HomeMissionControl,
   type CommandAction,
-  type FocusItem,
-  type MovementItem,
+  type CompanyGauge,
   type PulseMetric,
-} from "@/components/home-intelligence";
+  type QueueItem,
+} from "@/components/home-mission-control";
 
 const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
 
@@ -66,7 +65,9 @@ function deadlineLabel(r: TaskRow): string | null {
   return r.deadline ? r.deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null;
 }
 
-function taskTone(r: TaskRow): FocusItem["tone"] {
+type Tone = "danger" | "warn" | "accent" | "success" | "muted";
+
+function taskTone(r: TaskRow): Tone {
   if (r.flag === "escalate-now" || r.flag === "overdue" || r.status === "Escalated") return "danger";
   if (r.flag === "due-soon" || r.status === "Blocked" || r.flag === "stalled") return "warn";
   if (r.priority === "Critical") return "danger";
@@ -86,62 +87,16 @@ function taskScore(r: TaskRow) {
   );
 }
 
-function relTime(d: Date): string {
-  const s = Math.round((Date.now() - d.getTime()) / 1000);
-  if (s < 45) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const days = Math.round(h / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
-
-function buildMovement(activity: RawActivity, rows: TaskRow[]): MovementItem[] {
-  const taskById = new Map(rows.map((r) => [r.id, r]));
-  const updates = activity.updates.map((u): MovementItem & { at: Date } => {
-    const task = taskById.get(u.task_id);
-    const at = new Date(u.created_at);
-    return {
-      id: `u-${u.id}`,
-      title: task ? `${task.code} updated` : "Task updated",
-      meta: `${task?.actionItem ?? u.body.slice(0, 70)} · ${relTime(at)}`,
-      href: task ? `/?task=${encodeURIComponent(task.code)}` : undefined,
-      tone: "accent",
-      at,
-    };
-  });
-  const audits = activity.audit.map((a): MovementItem & { at: Date } => {
-    const task = a.task_id ? taskById.get(a.task_id) : rows.find((r) => r.code === a.task_code || r.legacyCode === a.task_code);
-    const at = new Date(a.created_at);
-    const field = a.entry_type === "CREATE" ? "created" : (a.field || a.entry_type || "changed").toLowerCase();
-    return {
-      id: `a-${a.id}`,
-      title: task ? `${task.code} ${field}` : `Task ${field}`,
-      meta: `${task?.actionItem ?? a.task_code ?? "Operational history"} · ${relTime(at)}`,
-      href: task ? `/?task=${encodeURIComponent(task.code)}` : undefined,
-      tone: a.entry_type === "CREATE" ? "success" : a.field === "Escalation" || a.new_value === "Escalated" ? "danger" : "muted",
-      at,
-    };
-  });
-  return [...updates, ...audits]
-    .sort((a, b) => b.at.getTime() - a.at.getTime())
-    .slice(0, 8)
-    .map(({ at: _at, ...item }) => item);
-}
-
 export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const settings = await getAppSettings();
   const now = new Date();
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
 
-  const [documents, drafts, meetings, activity, obligations, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+  const [documents, drafts, meetings, obligations, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments(),
     listOutboxDrafts(),
     listMeetings(),
-    getRecentActivity(60),
     listObligations(),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("people").select("id,name,person_type").eq("active", true),
@@ -342,95 +297,98 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     .sort((a, b) => taskScore(b) - taskScore(a))
     .slice(0, 8);
   const focusedTaskIds = new Set(focusedTaskRows.map((r) => r.id));
-  const taskFocus: FocusItem[] = focusedTaskRows.map((r) => ({
+  const taskQueue: QueueItem[] = focusedTaskRows.map((r) => ({
     id: `task-${r.id}`,
     title: r.actionItem,
     meta: `${r.code} · ${r.companyName} · ${r.priority}`,
     href: `/?task=${encodeURIComponent(r.code)}`,
-    kind: "task",
+    group: "task",
     tone: taskTone(r),
     due: deadlineLabel(r),
   }));
 
   // Exclude stale tasks already shown in the main task focus, so the same task
   // can't occupy two rows in the queue.
-  const staleFocus: FocusItem[] = staleTasks.filter((r) => !focusedTaskIds.has(r.id)).slice(0, 4).map((r) => ({
+  const staleQueue: QueueItem[] = staleTasks.filter((r) => !focusedTaskIds.has(r.id)).slice(0, 4).map((r) => ({
     id: `stale-${r.id}`,
     title: `Update needed: ${r.actionItem}`,
     meta: `${r.code} · ${r.companyName} · no recent update`,
     href: `/?task=${encodeURIComponent(r.code)}`,
-    kind: "task",
+    group: "task",
     tone: "warn",
     due: r.lastUpdatedAt ? `${Math.floor((Date.now() - r.lastUpdatedAt.getTime()) / 86400000)}d quiet` : null,
   }));
 
-  const todoFocus: FocusItem[] = todayTodos.slice(0, 4).map((t) => {
+  const todoQueue: QueueItem[] = todayTodos.slice(0, 4).map((t) => {
     const due = t.dueAt ? new Date(t.dueAt) : null;
     return {
       id: `todo-${t.id}`,
       title: t.title,
       meta: [t.companyName, t.personName, "Personal to-do"].filter(Boolean).join(" · "),
       href: "/workbook?tab=todo",
-      kind: "todo",
+      group: "task",
       tone: due && due.getTime() < todayStart ? "warn" : "accent",
       due: due ? due.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
     };
   });
 
-  const docFocus: FocusItem[] = expiringDocs.slice(0, 4).map(({ d, status }) => ({
+  const docQueue: QueueItem[] = expiringDocs.slice(0, 4).map(({ d, status }) => ({
     id: `doc-${d.id}`,
     title: d.title,
     meta: [d.category, status].filter(Boolean).join(" · "),
     href: "/documents",
-    kind: "document",
+    group: "document",
     tone: status === "Expired" ? "danger" : "warn",
     due: expiryLabel(d),
   }));
 
-  const deadlineFocus: FocusItem[] = upcomingDeadlines.slice(0, 4).map((d) => ({
+  const deadlineQueue: QueueItem[] = upcomingDeadlines.slice(0, 4).map((d) => ({
     id: `deadline-${d.id}`,
     title: d.label,
     meta: [d.category, "Statutory"].filter(Boolean).join(" · "),
     href: "/hrms/command-centre",
-    kind: "document",
+    group: "statutory",
     tone: d.flag === "overdue" || d.flag === "dueNow" ? "danger" : "warn",
     due: d.dueDate ? d.dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : null,
   }));
 
-  const personPackFocus: FocusItem[] = personPackNeeds.slice(0, 4).map((score) => {
+  const personPackQueue: QueueItem[] = personPackNeeds.slice(0, 4).map((score) => {
     const firstIssue = score.gaps[0]?.label ?? score.documentIssues[0]?.title ?? "Personal document follow-up";
     return {
       id: `person-pack-${score.ownerId}`,
       title: `Person pack: ${score.ownerName}`,
       meta: `${firstIssue} · ${score.missing} missing · ${score.expired} expired · ${score.expiring} expiring`,
       href: `/people?person=${score.ownerId}&pack=1`,
-      kind: "document",
+      group: "people",
       tone: score.status === "Risk" ? "danger" : "warn",
       due: personTypeById.get(score.ownerId) === "expat" ? "Expat" : score.documentIssues[0]?.expiryLabel ?? null,
     };
   });
 
-  const complianceFocus: FocusItem[] = complianceRisks.filter((score) => score.ownerType === "company").slice(0, 4).map((score) => ({
+  const complianceQueue: QueueItem[] = complianceRisks.filter((score) => score.ownerType === "company").slice(0, 4).map((score) => ({
     id: `compliance-${score.ownerType}-${score.ownerId}`,
     title: `${score.ownerName}: ${score.score}% compliance`,
     meta: `${score.missing} missing · ${score.expired} expired · ${score.expiring} expiring`,
     href: `/documents?company=${score.ownerId}`,
-    kind: "document",
+    group: "document",
     tone: score.status === "Risk" ? "danger" : "warn",
     due: score.gaps[0]?.label ?? null,
   }));
 
-  const draftFocus: FocusItem[] = drafts.slice(0, 3).map((d) => ({
+  const draftQueue: QueueItem[] = drafts.slice(0, 3).map((d) => ({
     id: `draft-${d.id}`,
     title: d.recipientName ? `Draft for ${d.recipientName}` : "Draft waiting to send",
     meta: [d.channel, d.company, d.source].filter(Boolean).join(" · "),
     href: "/outbox",
-    kind: "draft",
+    group: "draft",
     tone: "accent",
     due: null,
   }));
 
-  const focus = [...taskFocus, ...deadlineFocus, ...docFocus, ...personPackFocus, ...complianceFocus, ...todoFocus, ...draftFocus, ...staleFocus].slice(0, 12);
+  const queue: QueueItem[] = [
+    ...taskQueue, ...deadlineQueue, ...docQueue, ...personPackQueue,
+    ...complianceQueue, ...todoQueue, ...draftQueue, ...staleQueue,
+  ];
 
   const pulse: PulseMetric[] = [
     { label: "Open tasks", value: kpis.open },
@@ -440,28 +398,42 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
     { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
     { label: "Statutory due", value: upcomingDeadlines.length, tone: overdueDeadlines.length ? "danger" : upcomingDeadlines.length ? "warn" : "success" },
-    { label: "Compliance issues", value: complianceIssues, tone: complianceIssues ? "warn" : "success" },
+    { label: "Compliance", value: complianceIssues, tone: complianceIssues ? "warn" : "success" },
     { label: "Person packs", value: personPackNeeds.length, tone: personPackNeeds.length ? "warn" : "success" },
-    { label: "Stale tasks", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success" },
+    { label: "Stale", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success" },
   ];
+
+  // Portfolio health — overall average of every compliance score, plus a
+  // per-company gauge set so the operator can compare at a glance.
+  const allScores = [...companyComplianceScores, ...personComplianceScores].filter(
+    (s) => s.required > 0 || s.monitoredDocuments > 0
+  );
+  const health = allScores.length
+    ? Math.round(allScores.reduce((sum, s) => sum + s.score, 0) / allScores.length)
+    : 100;
+  const companyScoreById = new Map(companyComplianceScores.map((s) => [s.ownerId, s]));
+  const companyGauges: CompanyGauge[] = companies.map((c) => {
+    const score = companyScoreById.get(c.id);
+    return {
+      id: c.id,
+      name: c.name,
+      accentColor: c.accentColor,
+      score: score?.score ?? 100,
+      status: score?.status ?? "Good",
+    };
+  });
 
   return (
     <div className="space-y-4">
       <HomeActions />
-      <NeedsAttentionPanel
-        documents={documents}
-        companies={companies}
-        people={people}
-        companyScores={companyComplianceScores}
-        personScores={personComplianceScores}
-      />
-      <HomeIntelligence
+      <HomeMissionControl
         greeting={greeting(now.getHours())}
         dateLabel={`${dayLabel(now)} · ${settings.weatherCity}`}
         command={command}
         pulse={pulse}
-        focus={focus}
-        movement={buildMovement(activity, rows)}
+        queue={queue}
+        health={health}
+        companyGauges={companyGauges}
       />
     </div>
   );
