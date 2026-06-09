@@ -11,6 +11,8 @@ import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
+import { getPortfolioTrends } from "@/lib/trends";
+import { recordHealthPoint } from "@/lib/health-history";
 import { listObligations, splitObligations } from "@/lib/recurring";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
@@ -93,11 +95,12 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
 
-  const [documents, drafts, meetings, obligations, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+  const [documents, drafts, meetings, obligations, trends, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments(),
     listOutboxDrafts(),
     listMeetings(),
     listObligations(),
+    getPortfolioTrends(),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("people").select("id,name,person_type").eq("active", true),
   ]);
@@ -391,9 +394,9 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   ];
 
   const pulse: PulseMetric[] = [
-    { label: "Open tasks", value: kpis.open },
-    { label: "Overdue", value: kpis.overdue, tone: kpis.overdue ? "danger" : "success" },
-    { label: "Critical", value: kpis.critical, tone: kpis.critical ? "danger" : "success" },
+    { label: "Open tasks", value: kpis.open, trend: trends.open ? { delta: trends.open.delta } : null },
+    { label: "Overdue", value: kpis.overdue, tone: kpis.overdue ? "danger" : "success", trend: trends.overdue ? { delta: trends.overdue.delta, goodWhenDown: true } : null },
+    { label: "Critical", value: kpis.critical, tone: kpis.critical ? "danger" : "success", trend: trends.critical ? { delta: trends.critical.delta, goodWhenDown: true } : null },
     { label: "Due today", value: dueToday.length, tone: dueToday.length ? "warn" : "muted" },
     { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
     { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
@@ -415,6 +418,11 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     (a, s) => ({ missing: a.missing + s.missing, expiring: a.expiring + s.expiring, expired: a.expired + s.expired }),
     { missing: 0, expiring: 0, expired: 0 }
   );
+  // Persist today's health so the gauge can show a real "vs last reading"
+  // delta. Returns the most recent earlier-day value (null on the first day).
+  const prevHealth = await recordHealthPoint(health);
+  const healthDelta = prevHealth === null ? null : health - prevHealth;
+
   const companyScoreById = new Map(companyComplianceScores.map((s) => [s.ownerId, s]));
   const companyGauges: CompanyGauge[] = companies.map((c) => {
     const score = companyScoreById.get(c.id);
@@ -438,6 +446,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         queue={queue}
         health={health}
         healthStats={healthStats}
+        healthDelta={healthDelta}
         companyGauges={companyGauges}
       />
     </div>

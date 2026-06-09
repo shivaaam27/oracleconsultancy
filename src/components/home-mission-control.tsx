@@ -21,8 +21,9 @@ import { cn } from "@/lib/cn";
 import { Badge, LinkButton } from "@/components/ui";
 import { AutomationActionButton } from "@/components/automation-action-button";
 import { PlanMyDayButton } from "@/components/plan-my-day-button";
+import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";
 
-type Tone = "danger" | "warn" | "accent" | "success" | "muted";
+const toneClass = TONE;
 
 export type CommandAction = {
   id: string;
@@ -35,10 +36,13 @@ export type CommandAction = {
   automationAction?: "overdue-reminders" | "document-renewals";
 };
 
+export type MetricTrend = { delta: number; goodWhenDown?: boolean } | null;
+
 export type PulseMetric = {
   label: string;
   value: number;
   tone?: Tone;
+  trend?: MetricTrend;
 };
 
 export type QueueGroup = "task" | "document" | "people" | "statutory" | "draft";
@@ -59,14 +63,6 @@ export type CompanyGauge = {
   accentColor: string | null;
   score: number;
   status: "Good" | "Watch" | "Risk";
-};
-
-const toneClass: Record<Tone, { text: string; bg: string; ring: string; bar: string; stroke: string }> = {
-  danger: { text: "text-danger", bg: "bg-danger-soft/60", ring: "ring-danger/20", bar: "bg-danger", stroke: "hsl(var(--danger))" },
-  warn: { text: "text-warn", bg: "bg-warn-soft/60", ring: "ring-warn/20", bar: "bg-warn", stroke: "hsl(var(--warn))" },
-  accent: { text: "text-accent", bg: "bg-accent-soft/70", ring: "ring-accent/20", bar: "bg-accent", stroke: "hsl(var(--accent))" },
-  success: { text: "text-success", bg: "bg-success-soft/70", ring: "ring-success/20", bar: "bg-success", stroke: "hsl(var(--success))" },
-  muted: { text: "text-fg-muted", bg: "bg-bg-subtle/70", ring: "ring-border/60", bar: "bg-fg-subtle", stroke: "hsl(var(--fg-subtle))" },
 };
 
 const groupMeta: Record<QueueGroup, { label: string; icon: typeof ClipboardList }> = {
@@ -155,6 +151,7 @@ export function HomeMissionControl({
   queue,
   health,
   healthStats,
+  healthDelta,
   companyGauges,
 }: {
   greeting: string;
@@ -164,6 +161,7 @@ export function HomeMissionControl({
   queue: QueueItem[];
   health: number;
   healthStats: { missing: number; expiring: number; expired: number };
+  healthDelta: number | null;
   companyGauges: CompanyGauge[];
 }) {
   const lead = command[0];
@@ -199,61 +197,54 @@ export function HomeMissionControl({
   return (
     <div className="max-w-full space-y-4 overflow-hidden">
       {/* ============================== HERO ============================== */}
-      <section className="relative w-full overflow-hidden rounded-3xl glass elevated p-4 sm:p-6">
-        {/* Aurora mesh */}
-        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div
-            className="aurora-a absolute -right-24 -top-28 h-80 w-80 rounded-full blur-3xl"
-            style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.28), transparent 70%)" }}
-          />
-          <div
-            className="aurora-b absolute -bottom-32 -left-24 h-72 w-72 rounded-full blur-3xl"
-            style={{ background: "radial-gradient(circle, hsl(var(--info) / 0.22), transparent 72%)" }}
-          />
-          <div
-            className="aurora-a absolute left-1/3 top-10 h-56 w-56 rounded-full blur-3xl"
-            style={{ background: `radial-gradient(circle, hsl(var(--${healthTone === "success" ? "success" : healthTone}) / 0.14), transparent 72%)` }}
-          />
-        </div>
-
-        <div className="relative flex flex-col gap-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight leading-tight">{greeting}</h1>
-              <p className="mt-1 text-sm text-fg-muted">{dateLabel}</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <LinkButton href="/?capture=open" variant="primary" size="sm">
-                <Sparkles size={14} /> Create
-              </LinkButton>
-              <LinkButton href="/brief" variant="secondary" size="sm">
-                <BriefcaseBusiness size={14} /> Director Brief
-              </LinkButton>
-            </div>
-          </div>
-
-          {/* Metric rail — horizontal scroll on mobile, no stacking */}
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {pulse.map((m) => (
-              <div
-                key={m.label}
-                className="min-w-[88px] flex-1 shrink-0 rounded-2xl bg-bg-elev/70 px-3 py-2.5 ring-1 ring-border/60 backdrop-blur-sm"
-              >
+      <Hero
+        title={greeting}
+        subtitle={dateLabel}
+        accentTone={healthTone}
+        actions={
+          <>
+            <LinkButton href="/?capture=open" variant="primary" size="sm">
+              <Sparkles size={14} /> Create
+            </LinkButton>
+            <LinkButton href="/brief" variant="secondary" size="sm">
+              <BriefcaseBusiness size={14} /> Director Brief
+            </LinkButton>
+          </>
+        }
+      >
+        {/* Metric rail — horizontal scroll on mobile, no stacking */}
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {pulse.map((m) => (
+            <div
+              key={m.label}
+              className="min-w-[92px] flex-1 shrink-0 rounded-2xl bg-bg-elev/70 px-3 py-2.5 ring-1 ring-border/60 backdrop-blur-sm"
+            >
+              <div className="flex items-baseline justify-between gap-1">
                 <CountUp value={m.value} className={cn("block text-xl font-semibold tabular leading-none", m.tone ? toneClass[m.tone].text : "text-fg")} />
-                <span className="mt-1 block text-[11px] leading-tight text-fg-muted">{m.label}</span>
+                {m.trend && <TrendChip delta={m.trend.delta} goodWhenDown={m.trend.goodWhenDown} />}
               </div>
-            ))}
-          </div>
+              <span className="mt-1 block text-[11px] leading-tight text-fg-muted">{m.label}</span>
+            </div>
+          ))}
         </div>
-      </section>
+      </Hero>
 
       {/* =================== HEALTH + THE ONE THING =================== */}
       <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
         {/* Portfolio health — arc gauge + ranked company league, one glance */}
-        <div className="rounded-3xl glass elevated p-4 sm:p-5">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
-            <LayoutGrid size={13} /> Portfolio health
-          </div>
+        <Panel glass className="p-4 sm:p-5">
+          <SectionLabel
+            icon={<LayoutGrid size={13} />}
+            action={
+              healthDelta !== null && healthDelta !== 0 ? (
+                <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted">
+                  <TrendChip delta={healthDelta} suffix="%" /> vs last
+                </span>
+              ) : undefined
+            }
+          >
+            Portfolio health
+          </SectionLabel>
 
           <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(150px,0.62fr)_minmax(0,1fr)]">
             {/* Headline arc gauge + micro-stats */}
@@ -332,13 +323,11 @@ export function HomeMissionControl({
               )}
             </div>
           </div>
-        </div>
+        </Panel>
 
         {/* The One Thing */}
-        <div className="rounded-3xl bg-bg-elev ring-1 ring-border elevated p-4 sm:p-5">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
-            <Target size={13} /> Today's priority
-          </div>
+        <Panel className="p-4 sm:p-5">
+          <SectionLabel icon={<Target size={13} />}>Today's priority</SectionLabel>
           {lead ? (
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
               <CommandIcon tone={lead.tone} />
@@ -390,11 +379,11 @@ export function HomeMissionControl({
               ))}
             </div>
           )}
-        </div>
+        </Panel>
       </section>
 
       {/* ===================== FOCUS QUEUE ===================== */}
-      <section className="rounded-3xl bg-bg-elev ring-1 ring-border elevated overflow-hidden">
+      <Panel className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-sm font-semibold">Focus queue</h2>
@@ -473,7 +462,7 @@ export function HomeMissionControl({
             <ArrowRight size={13} className={cn("transition-transform", showAll ? "-rotate-90" : "rotate-90")} />
           </button>
         )}
-      </section>
+      </Panel>
     </div>
   );
 }
