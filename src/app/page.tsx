@@ -20,6 +20,7 @@ type Sp = {
   q?: string;
   all?: string;
   unread?: string;
+  group?: string;
 };
 
 export default async function HubPage({ searchParams }: { searchParams: Promise<Sp> }) {
@@ -33,7 +34,7 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
       <TasksSection
         sp={{
           company: sp.company, priority: sp.priority, flag: sp.flag, status: sp.status,
-          noOwner: sp.noOwner, closed: sp.closed, view: sp.view, month: sp.month, q: sp.q, all: sp.all, unread: sp.unread,
+          noOwner: sp.noOwner, closed: sp.closed, view: sp.view, month: sp.month, q: sp.q, all: sp.all, unread: sp.unread, group: sp.group,
         }}
       />
     );

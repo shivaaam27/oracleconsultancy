@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ExternalLink, CheckCircle2, AlertOctagon, Clock } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
@@ -59,7 +59,26 @@ function Stop({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
-export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hideCompany?: boolean }) {
+type GroupBy = "company" | "status" | "person" | null;
+
+function groupLabelFor(r: TaskRow, by: GroupBy): string {
+  if (by === "company") return r.companyName || "—";
+  if (by === "status") return r.status;
+  if (by === "person") return r.assignees[0] || "Unassigned";
+  return "";
+}
+
+export function TableView({ rows, hideCompany = false, groupBy = null }: { rows: TaskRow[]; hideCompany?: boolean; groupBy?: GroupBy }) {
+  // Precompute, per row, whether it starts a new group (rows arrive pre-sorted
+  // by the group key from the server).
+  const headerAt = new Map<number, string>();
+  if (groupBy) {
+    let last: string | null = null;
+    for (const r of rows) {
+      const label = groupLabelFor(r, groupBy);
+      if (label !== last) { headerAt.set(r.id, label); last = label; }
+    }
+  }
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -129,10 +148,13 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
       {/* Mobile: one compiled card per task (no horizontal scroll) */}
       <div className="sm:hidden space-y-2.5">
         {rows.map((r) => (
+          <div key={r.id} className="space-y-2.5">
+          {headerAt.has(r.id) && (
+            <p className="px-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{headerAt.get(r.id)}</p>
+          )}
           <TaskCard
-            key={r.id}
             row={r}
-            hideCompany={hideCompany}
+            hideCompany={hideCompany || groupBy === "company"}
             onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
             onPointerDown={(e) => onRowPointerDown(r, e)}
             onPointerMove={onRowPointerMove}
@@ -140,6 +162,7 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
             onPointerLeave={clearPress}
             onPointerCancel={clearPress}
           />
+          </div>
         ))}
       </div>
 
@@ -162,8 +185,15 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
           </thead>
           <tbody>
             {rows.map((r) => (
+              <Fragment key={r.id}>
+              {headerAt.has(r.id) && (
+                <tr className="bg-bg-subtle/50">
+                  <td colSpan={hideCompany ? 9 : 10} className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+                    {headerAt.get(r.id)}
+                  </td>
+                </tr>
+              )}
               <tr
-                key={r.id}
                 onPointerDown={(e) => onRowPointerDown(r, e)}
                 onPointerMove={onRowPointerMove}
                 onPointerUp={clearPress}
@@ -230,6 +260,7 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
                   <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
                 </Td>
               </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>

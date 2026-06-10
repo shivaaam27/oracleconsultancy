@@ -28,6 +28,7 @@ type Sp = {
   q?: string;
   all?: string;
   unread?: string;
+  group?: string;
 };
 
 /** Builds a hub URL for the tasks tab, preserving all task filter params. */
@@ -46,6 +47,7 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.q) u.set("q", next.q);
   if (next.all) u.set("all", next.all);
   if (next.unread) u.set("unread", next.unread);
+  if (next.group) u.set("group", next.group);
   return `/?${u.toString()}`;
 }
 
@@ -153,6 +155,18 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     });
   }
 
+  // Group-by (table view only): sort rows by the group key so TableView can
+  // emit section headers. Stable within a group by keeping the prior order.
+  const groupBy = (["company", "status", "person"].includes(sp.group || "") ? sp.group : null) as
+    | "company" | "status" | "person" | null;
+  if (groupBy && view === "table") {
+    const keyOf = (r: (typeof rows)[number]) =>
+      groupBy === "company" ? r.companyName || "~"
+      : groupBy === "status" ? r.status
+      : r.assignees[0] || "~~Unassigned";
+    rows = [...rows].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+  }
+
   const total = rows.length;
   // For SavedViewsBar — strip the tab= prefix so saved views stay compatible
   const currentQuery = (() => {
@@ -257,6 +271,32 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           );
         })}
           </div>
+
+          {/* Group-by — organise the table into labelled sections (table view) */}
+          {view === "table" && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-fg-subtle">Group</span>
+              <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-bg-subtle/70 ring-1 ring-border/60">
+                {([
+                  { key: null, label: "None" },
+                  { key: "company", label: "Company" },
+                  { key: "status", label: "Status" },
+                  { key: "person", label: "Person" },
+                ] as const).map((g) => {
+                  const on = (groupBy ?? null) === g.key;
+                  return (
+                    <Link
+                      key={g.label}
+                      href={buildHref(sp, { group: g.key ?? undefined })}
+                      className={`px-2.5 py-1 rounded-full transition-colors ${on ? "bg-accent text-accent-fg font-medium" : "text-fg-muted hover:text-fg"}`}
+                    >
+                      {g.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </Hero>
 
@@ -307,7 +347,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           {view === "board" ? (
             <BoardView rows={rows} showClosed={showClosed} />
           ) : (
-            <TableView rows={rows} />
+            <TableView rows={rows} groupBy={view === "table" ? groupBy : null} hideCompany={view === "table" && groupBy === "company"} />
           )}
         </SelectionProvider>
       )}
