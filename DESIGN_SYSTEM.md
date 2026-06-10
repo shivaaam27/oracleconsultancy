@@ -84,6 +84,9 @@ Panels/sheets = 16 → cards/tables = 12 → controls = 10/8.
 | `SwipeRow` | `components/swipe-row.tsx` | iOS swipe actions (configurable). Used by `AttentionList`. |
 | `PeekPreview` + `useLongPress` | `components/peek-preview.tsx`, `lib/use-long-press.ts` | Long-press peek & pop. Used by the Tasks table; reusable for People/Notes/Meetings. |
 | `WelcomeHero` | `components/welcome-hero.tsx` | COS Home Tier-3 wash header + inline KPIs. |
+| **`EntityDrawer`** | `components/entity-drawer.tsx` | **The reusable cockpit shell** — rounded-3xl glass dialog, status-tinted hero glow, glass segmented tab pill (`layoutId` morph), all-tabs-mounted body (instant switching, active tab fades in), sticky action bar. **Adopted by person + task + company drawers.** Build every new drawer/pop-up on this. Props: `title` (sr-only Dialog.Title), `tone`, `hero`, `tabs[]`, `activeTab`/`onTabChange`, `actionBar`, `loading`/`error`. |
+| **`drawer-kit`** | `components/drawer-kit.tsx` | Shared drawer primitives: `IconButton`, `ProgressTrack`, `SectionPulse`, `StatusChip`, `DrawerRow` (hover-revealed actions), `EmptyState` (celebratory all-clear), `SectionCard`, `DefGrid`, `GroupLabel`. Use these inside `EntityDrawer` tabs — don't hand-roll rows/cards. |
+| **`surface-kit`** | `components/surface-kit.tsx` | Page-level surfaces: `Hero`, `Panel`, `SectionLabel`, `TrendChip`, and the `TONE`/`Tone` severity colour map (`danger/warn/accent/success/muted/info`). First adopter = Home Mission Control. Reuse `TONE` for any severity-coloured UI. |
 
 ---
 
@@ -150,6 +153,18 @@ on-screen-only controls with `print-hidden`; mark PDF-only sections `print-only`
 ### Typography
 Base body has smoothing + tuned letter-spacing; headings use `text-wrap: balance`
 and paragraphs `text-wrap: pretty` for even, orphan-free wrapping system-wide.
+
+## 10. The signals engine (the "nervous system") — `src/lib/signals.ts`
+
+The single producer of operational signals: `gatherHomeSignals(rows, todos)`
+derives the command cards, focus queue, pulse metrics and portfolio health from
+the portfolio's raw state (tasks, documents, drafts, meetings, statutory
+obligations, compliance scores, person packs, to-dos). **Home, the command bar,
+the Director Brief and Automation must read from this one source** — do not
+re-derive "what needs attention" anywhere else. It is side-effect-light (no
+persistence; callers persist trend via `recordHealthPoint`). The normalized
+signal shape is `Signal` (an alias of `CommandAction`: `id/title/detail/href/
+actionLabel/tone/count/automationAction?`).
 
 ### Touch hygiene (learned on real iPhones)
 - Long-press / swipe rows carry `select-none`; globally `.select-none` also sets

@@ -38,7 +38,6 @@ export async function createDirectorBriefDraftAction(input: {
       status: "Draft",
       source,
       created_at: new Date().toISOString(),
-      created_by: "web-ui",
     });
     if (error) throw new Error(error.message);
 

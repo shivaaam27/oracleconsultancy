@@ -99,7 +99,20 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
   // Detect intent type from query
   const trimmed = query.trim();
   const isQuestion = /^(what|who|when|where|why|how|which|whose|do|does|did|is|are|was|were|can|could|should|would|tell me|show me|list|find|any)\b|\?$/i.test(trimmed);
-  const isAction = /^(mark|complete|escalate|create|add|update|set|change|open|go to|show me task|navigate)/i.test(trimmed);
+  // "who is missing a passport" style — handled deterministically by /api/action
+  // (find_missing), so route it to runAction rather than the free-text Ask.
+  const isMissingQuery =
+    /\b(missing|without|doesn'?t have|don'?t have|lacks?|haven'?t)\b/i.test(trimmed) &&
+    /\b(who|which|anyone|everyone|list|staff|people|employees?)\b/i.test(trimmed);
+  // "who is on leave today" style — handled deterministically by /api/action
+  // (leave_status), excluding "log/book leave" and balance questions.
+  const isLeaveQuery =
+    /\b(on leave|off (?:today|this week|work)|who'?s off|away (?:today|this week))\b/i.test(trimmed) &&
+    !/\b(log|book|request|apply|how (?:much|many)|balance|entitle|remaining|left)\b/i.test(trimmed);
+  const isAction =
+    /^(mark|complete|escalate|create|add|update|set|change|open|go to|show me task|navigate|remind|chase|nudge|ping|follow[\s-]?up|reach out|draft|prepare|generate|build)\b/i.test(trimmed);
+  // Exactly one of the two AI affordances shows.
+  const routeToAction = isAction || isMissingQuery || isLeaveQuery;
 
   async function runAsk() {
     if (!trimmed) return;
@@ -134,10 +147,12 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
         setAiMode("actionPreview");
         return;
       }
-      if (data.executed && data.redirect) {
+      if (data.executed || data.ok) {
         setActionMessage(data.message || "Done");
         setAiMode("actionDone");
-        setTimeout(() => { setIsOpen(false); router.push(data.redirect); }, 500);
+        // Read-only answers (e.g. "who is missing a passport") return no
+        // redirect — keep the palette open so the answer stays readable.
+        if (data.redirect) setTimeout(() => { setIsOpen(false); router.push(data.redirect); }, 700);
         return;
       }
       setActionMessage(data.message || "Could not run command");
@@ -212,7 +227,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                       heading="AI"
                       className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                     >
-                      {(isQuestion || (!isAction)) && (
+                      {!routeToAction && (
                         <Command.Item
                           value={`__ai_ask__ ${trimmed}`}
                           onSelect={runAsk}
@@ -223,7 +238,7 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                           <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
                         </Command.Item>
                       )}
-                      {isAction && (
+                      {routeToAction && (
                         <Command.Item
                           value={`__ai_action__ ${trimmed}`}
                           onSelect={() => runAction(false)}
@@ -319,6 +334,32 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                         <FilePlus2 size={14} className="text-accent" />
                         <span className="flex-1">Quick Capture</span>
                       </Command.Item>
+                    </Command.Group>
+                  )}
+
+                  {/* Try a command — discoverable natural-language actions.
+                      Clicking populates the input so it can be reviewed/edited
+                      before running (mutations still confirm first). */}
+                  {!trimmed && (
+                    <Command.Group
+                      heading="Try a command"
+                      className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                    >
+                      {[
+                        { icon: <MessageSquarePlus size={14} className="text-accent" />, label: "Remind someone…", q: "remind " },
+                        { icon: <Zap size={14} className="text-accent" />, label: "Draft the Director Brief for this month", q: "draft brief for this month" },
+                        { icon: <Sparkles size={14} className="text-accent" />, label: "Who is missing a passport?", q: "who is missing a passport" },
+                      ].map((ex) => (
+                        <Command.Item
+                          key={ex.q}
+                          value={`__try ${ex.label}`}
+                          onSelect={() => setQuery(ex.q)}
+                          className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                        >
+                          {ex.icon}
+                          <span className="flex-1 text-fg-muted">{ex.label}</span>
+                        </Command.Item>
+                      ))}
                     </Command.Group>
                   )}
 

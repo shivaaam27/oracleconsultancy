@@ -10,6 +10,8 @@ import {
   ArrowRight,
   HelpCircle,
   Layers,
+  Send,
+  BriefcaseBusiness,
 } from "lucide-react";
 
 // Mirrors the ParsedIntent union in /api/action. Kept loose (`any`) because the
@@ -103,6 +105,24 @@ function describe(intent: Intent): {
         rows: [{ label: "Tasks", value: codes.join(", ") }].filter((r) => r.value),
       };
     }
+    case "remind":
+      return {
+        icon: <Send size={15} className="text-accent" />,
+        title: "Draft a reminder (not sent)",
+        rows: [
+          { label: "Person", value: s("personName") },
+          { label: "About", value: s("about") },
+        ].filter((r) => r.value),
+      };
+    case "draft_brief":
+      return {
+        icon: <BriefcaseBusiness size={15} className="text-accent" />,
+        title: "Draft the Director Brief (not sent)",
+        rows: [
+          { label: "Scope", value: s("companyName") || "Whole portfolio" },
+          { label: "Period", value: s("period") || "This month" },
+        ],
+      };
     case "navigate":
       return {
         icon: <ArrowRight size={15} className="text-accent" />,
