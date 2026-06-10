@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, CheckCheck, Crown, MessageSquare, Pin, PinOff, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, CheckCheck, Crown, MessageSquare, Pin, PinOff, Users } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { LiveSync } from "@/components/live-sync";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
-import { portalAddUpdate, portalTogglePin } from "../../../actions";
+import { portalAcknowledge, portalAddUpdate, portalTogglePin } from "../../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +84,24 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       .order("created_at", { ascending: false }),
     sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
   ]);
+
+  // Acknowledgements ("Understood") for this task's pinned instructions.
+  const pinnedIds = (updates ?? []).filter((u) => u.pinned_at).map((u) => u.id as number);
+  const ackMap = new Map<number, string[]>();
+  const myAcks = new Set<number>();
+  if (pinnedIds.length > 0) {
+    const { data: acks } = await sb
+      .from("update_acks")
+      .select("update_id,person_id,people(name)")
+      .in("update_id", pinnedIds);
+    for (const a of acks ?? []) {
+      const uid = a.update_id as number;
+      const pid = a.person_id as number;
+      const nm = (a.people as unknown as { name: string } | null)?.name ?? "Someone";
+      ackMap.set(uid, [...(ackMap.get(uid) ?? []), pid === me.id ? "You" : nm]);
+      if (pid === me.id) myAcks.add(uid);
+    }
+  }
 
   const team = (assignees ?? [])
     .map((a) => {
@@ -167,6 +185,29 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           <p className="mt-1.5 flex items-center gap-1 text-[11px] text-fg-subtle">
             <CheckCheck size={12} className="text-info" /> Seen by {seenLabel.join(", ")}
           </p>
+        )}
+        {u.pinned_at && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2">
+            {myAcks.has(u.id) ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
+                <CheckCheck size={12} /> You confirmed you&apos;ve read this
+              </span>
+            ) : (
+              <form action={portalAcknowledge}>
+                <input type="hidden" name="updateId" value={u.id} />
+                <input type="hidden" name="code" value={task.code as string} />
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-fg px-3 py-1.5 text-[11px] font-semibold hover:opacity-90 transition-opacity"
+                >
+                  <Check size={12} /> Understood
+                </button>
+              </form>
+            )}
+            {(ackMap.get(u.id)?.length ?? 0) > 0 && (
+              <span className="text-[11px] text-fg-subtle">Read by {ackMap.get(u.id)!.join(", ")}</span>
+            )}
+          </div>
         )}
       </div>
     );

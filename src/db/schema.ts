@@ -251,6 +251,19 @@ export const taskAssignees = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.personId] })]
 );
 
+// Read-receipts for a specific update (used for pinned instructions): a
+// person taps "Understood" and we record it, so managers/the owner can see
+// who has acknowledged without chasing.
+export const updateAcks = pgTable(
+  "update_acks",
+  {
+    updateId: integer("update_id").notNull().references(() => taskUpdates.id, { onDelete: "cascade" }),
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    acknowledgedAt: timestamp("acknowledged_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.updateId, t.personId] })]
+);
+
 // Who last viewed a task and when — powers the "Seen" indicator. Viewer is
 // "admin" (the owner's command centre) or "person:<id>" (a portal user).
 export const taskViews = pgTable(

@@ -33,6 +33,13 @@ A standalone, locked-down view for staff members — see only your own tasks, po
 - **Profile** `/portal/profile`: read-only HR details (name/role/email/company) + accessibility controls + sign out.
 - **Accessibility** `src/components/portal-prefs.tsx`: per-device (localStorage) text size (base/large/xlarge → `data-text-size` on `<html>`, root font 16/18/20px), motion (full/reduced → `data-motion="reduced"`), density (reuses `DensityToggle`). Flash-prevention via `PortalPrefsScript` in the root layout `<head>` (beside `DensityScript`). CSS rules in `globals.css` under "Accessibility".
 
+## Phase 5a — Acknowledge ("Understood") on pinned instructions (June 2026)
+
+- `update_acks` table (`update_id` + `person_id` + `acknowledged_at`, PK both; migration `0039`). Action `portalAcknowledge` (idempotent upsert; verifies `personCanSeeTask`).
+- Portal task page: on **pinned** updates, staff who haven't acked see an "Understood" button; once done → "You confirmed you've read this"; everyone sees "Read by …".
+- Admin `/task/[code]`: pinned update blocks show "✓ Read by …" so the owner sees who has read without chasing.
+- Only pinned updates carry the ack UI (pinned = "the current instruction"). Remaining Phase 5 ideas (push to staff, @mentions, leave requests, file attachments) not yet built.
+
 ## Owner (admin) sign-in
 
 The whole admin side is now behind a single owner password:

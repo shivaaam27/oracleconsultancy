@@ -14,7 +14,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
-import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, FileText, AlignLeft } from "lucide-react";
+import { ArrowLeft, Save, Trash2, MessageSquarePlus, GitCommitHorizontal, FileText, AlignLeft, CheckCheck } from "lucide-react";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
@@ -117,6 +117,21 @@ export default async function TaskPage({
       .in("audit_log_id", auditIds);
     for (const c of corrRows ?? []) {
       if (c.audit_log_id != null) correctedMap.set(c.audit_log_id as number, new Date(c.created_at as string));
+    }
+  }
+
+  // Acknowledgements on pinned instructions, so the owner sees who has read.
+  const pinnedUpdateIds = (updateRaw ?? []).filter((u) => u.pinned_at).map((u) => u.id as number);
+  const ackMap = new Map<number, string[]>();
+  if (pinnedUpdateIds.length > 0) {
+    const { data: acks } = await sb
+      .from("update_acks")
+      .select("update_id,people(name)")
+      .in("update_id", pinnedUpdateIds);
+    for (const a of acks ?? []) {
+      const uid = a.update_id as number;
+      const nm = (a.people as unknown as { name: string } | null)?.name ?? "Someone";
+      ackMap.set(uid, [...(ackMap.get(uid) ?? []), nm]);
     }
   }
 
@@ -503,6 +518,11 @@ export default async function TaskPage({
                               <span className="text-fg-subtle">→</span>
                               <span className="text-fg font-medium">{item.statusChange.to}</span>
                             </div>
+                          )}
+                          {item.pinnedAt && (ackMap.get(item.id)?.length ?? 0) > 0 && (
+                            <p className="inline-flex items-center gap-1 text-[11px] text-success">
+                              <CheckCheck size={11} /> Read by {ackMap.get(item.id)!.join(", ")}
+                            </p>
                           )}
                           <p className="text-xs text-fg-muted">{fmt(item.createdAt)}</p>
                         </div>

@@ -136,6 +136,35 @@ export async function portalAddUpdate(formData: FormData) {
   revalidatePath("/portal");
 }
 
+/** Any portal person on the task: confirm they have read an update
+ *  ("Understood"). Idempotent — re-tapping is harmless. */
+export async function portalAcknowledge(formData: FormData) {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+
+  const updateId = Number(formData.get("updateId"));
+  const code = String(formData.get("code") ?? "");
+  if (!Number.isFinite(updateId)) return;
+
+  const { data: u } = await sb
+    .from("task_updates")
+    .select("id,task_id")
+    .eq("id", updateId)
+    .maybeSingle();
+  if (!u) return;
+  if (!(await personCanSeeTask(me, u.task_id as number))) return;
+
+  await sb
+    .from("update_acks")
+    .upsert(
+      { update_id: updateId, person_id: me.id, acknowledged_at: new Date().toISOString() },
+      { onConflict: "update_id,person_id" }
+    );
+
+  revalidatePath(`/portal/task/${code}`);
+  revalidatePath(`/task/${code}`);
+}
+
 /** Managers only: pin/unpin an update so the current instruction stays on
  *  top of the timeline for the whole team. */
 export async function portalTogglePin(formData: FormData) {
