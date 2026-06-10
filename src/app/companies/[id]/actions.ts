@@ -32,7 +32,7 @@ export async function saveCompanyProfileAction(companyId: number, fd: FormData):
   const { error } = await sb.from("companies").update(patch).eq("id", companyId);
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/companies/${companyId}`);
-  revalidatePath("/letterheads");
+  revalidatePath("/letters");
   return { ok: true };
 }
 
@@ -90,7 +90,7 @@ export async function enrichCompanyProfile(
     const { error } = await sb.from("companies").update(patch).eq("id", companyId);
     if (error) throw new Error(error.message);
     revalidatePath(`/companies/${companyId}`);
-    revalidatePath("/letterheads");
+    revalidatePath("/letters");
     return { ok: true, filled };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update the profile." };

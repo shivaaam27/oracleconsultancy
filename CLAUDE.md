@@ -101,7 +101,7 @@ See `memory/database_schema.md`.
 - `/meeting` - Meeting Workspace
 - `/workbook` - Meetings / Notes / To-do (see `memory/todos.md`)
 - `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
-- `/hrms` - **HRMS hub** (V2): registry cards. See `memory/hrms.md`.
+- `/hrms` - redirects to `/hrms/command-centre` (old hub page removed; the launcher covers all destinations). See `memory/hrms.md`.
 - `/hrms/oecr` - OECR (Office Equipment Control Registry) — consumable stock control
 - `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle
 - `/hrms/leave` - **Leave & Attendance** — leave types/requests/approvals (ELR Act-accurate), balances, public-holiday calendar (attendance register tab pending). See `memory/hrms.md`.
@@ -110,15 +110,15 @@ See `memory/database_schema.md`.
 - `/people` - person record now has HR profile fields + a glanceable drawer (hero tiles + accordion sections: Document compliance, Onboarding/Offboarding, Equipment held, Profile details, Documents, Tasks, Activity, Manage)
 - `/documents` - Documents & Compliance (+ "Add several" bulk multi-file upload via the full doc form; recency-aware duplicate detection)
 - `/letters`, `/letters/[id]` (editor), `/letters/[id]/print` - **system-wide PDF letters** (Draft→Issue, per-company branded; first type = Invitation). See `memory/letters.md`.
-- `/letterheads` - **Company letterheads** setup (typed / designed header+footer images / full-page background, per company)
+- `/letterheads` - redirects to `/letters?view=letterheads` — letterhead setup (typed / designed header+footer images / full-page background) is now a tab on `/letters`; server actions remain in `src/app/letterheads/actions.ts`
 - `/outbox`
 - `/inbox` - smart intake: "Add to inbox" (paste + multi-file bundle); unified "Process" → review queue files docs + enrich person profile (blanks-only)
 - `/insights`
 - `/settings`
 
-Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (HRMS Hub, OECR, **Assets & Vendors, Leave & Attendance**, OCR, Companies, People, Documents, **Letters, Company Letterheads**, Outbox, Inbox, Insights, Settings). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (Command Centre, Organogram, OECR, **Assets & Vendors, Leave & Attendance**, OCR, Companies, People, Documents, **Letters & Letterheads**, Outbox, Inbox, Insights, Settings). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
-Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`. The desktop sidebar and the dedicated Companies nav tab were removed.
+Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and standalone `/letterheads`. The desktop sidebar and the dedicated Companies nav tab were removed.
 
 ## Meeting Workspace
 
@@ -168,7 +168,7 @@ One extraction brain across Inbox/People/Documents. Dropping text or files anywh
 
 ## Letters (V3)
 
-System-wide branded PDF letters. `letters` table + `/letters` editor + `/letters/[id]/print` route. Per-company letterhead (`/letterheads`): typed fields, or a designed **header+footer image** (repeats each page), or a **full-page A4 background**. **Draft → Issue** freezes a letterhead snapshot + stamps a ref (`PREFIX/INV/YYYY/NNN`); reprints are identical. **Full body editing**; PDF (in-place iframe print) + optional Outbox draft; no auto-send. Letter font matches the Director Brief (system sans-serif). New types = add to `LETTER_TEMPLATES` + a `buildBody` fn in `src/lib/letters.ts`. First type = Invitation (auto-pulls invitee name/nationality/passport/DOB/role). See `memory/letters.md`.
+System-wide branded PDF letters. `letters` table + `/letters` editor + `/letters/[id]/print` route. Per-company letterhead (Letterheads tab on `/letters`): typed fields, or a designed **header+footer image** (repeats each page), or a **full-page A4 background**. **Draft → Issue** freezes a letterhead snapshot + stamps a ref (`PREFIX/INV/YYYY/NNN`); reprints are identical. **Full body editing**; PDF (in-place iframe print) + optional Outbox draft; no auto-send. Letter font matches the Director Brief (system sans-serif). New types = add to `LETTER_TEMPLATES` + a `buildBody` fn in `src/lib/letters.ts`. First type = Invitation (auto-pulls invitee name/nationality/passport/DOB/role). See `memory/letters.md`.
 
 ## AI Conventions
 

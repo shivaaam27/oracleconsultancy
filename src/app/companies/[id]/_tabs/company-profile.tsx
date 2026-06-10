@@ -127,7 +127,7 @@ export function CompanyProfile({
 
       <div className="flex items-center justify-between gap-3">
         <Link
-          href="/letterheads"
+          href="/letters?view=letterheads"
           className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60"
         >
           <ExternalLink size={12} /> Branding &amp; letterhead

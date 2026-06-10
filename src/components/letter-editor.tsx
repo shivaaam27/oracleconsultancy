@@ -121,7 +121,7 @@ export function LetterEditor({ letter, companies }: { letter: LetterDetail; comp
             {lh && (
               <p className="mt-1 text-[11px] text-fg-subtle">
                 {lh.mode === "typed" ? "Typed letterhead" : lh.mode === "images" ? "Designed header/footer" : "Full-page background"}
-                {" · "}<Link href="/letterheads" className="text-accent hover:underline">edit letterhead</Link>
+                {" · "}<Link href="/letters?view=letterheads" className="text-accent hover:underline">edit letterhead</Link>
               </p>
             )}
           </div>

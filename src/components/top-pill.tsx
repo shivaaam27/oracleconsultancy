@@ -6,9 +6,9 @@ import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObje
 import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence } from "framer-motion";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  Home, CheckSquare, NotebookPen, Briefcase, LayoutGrid, Search, X,
+  Home, CheckSquare, NotebookPen, Briefcase, Search, X,
   Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText, Laptop, CalendarDays,
-  ClipboardList, Network, Map, CalendarClock, type LucideIcon,
+  ClipboardList, Network, CalendarClock, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -55,7 +55,6 @@ function NavTab({
 /* --------------------------------------------------------------------- */
 
 const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/hrms", label: "HRMS Hub", icon: LayoutGrid },
   { href: "/hrms/command-centre", label: "Command Centre", icon: CalendarClock },
   { href: "/hrms/org", label: "Organogram", icon: Network },
   { href: "/hrms/oecr", label: "OECR", icon: Package },
@@ -65,13 +64,11 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/people", label: "People", icon: Users },
   { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/letters", label: "Letters", icon: FileText },
-  { href: "/letterheads", label: "Company Letterheads", icon: Building2 },
+  { href: "/letters", label: "Letters & Letterheads", icon: FileText },
   { href: "/outbox", label: "Outbox", icon: Send },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/system-map", label: "System Map", icon: Map },
 ];
 
 function HrmsLauncher({ active }: { active: boolean }) {
