@@ -9,7 +9,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function htmlBody(text: string): string {
   const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.5;white-space:pre-wrap">${esc.replace(/\n/g, "<br>")}</div>`;
+  // A simple, well-spaced container that reads cleanly in every mail client.
+  // The signature footer is appended centrally in src/lib/email.ts.
+  return (
+    `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;` +
+    `color:#1f2937;line-height:1.6;max-width:600px;white-space:pre-wrap">` +
+    `${esc.replace(/\n/g, "<br>")}</div>`
+  );
 }
 
 /**

@@ -8,12 +8,18 @@
 
 import nodemailer from "nodemailer";
 import { getEmailConfig, type EmailConfig } from "@/lib/settings";
+import { sb } from "@/db/supabase";
+import { DOCUMENTS_BUCKET } from "@/lib/documents";
 
 export type EmailAttachment = {
   filename: string;
-  /** UTF-8 text content (e.g. an .ics file). Encoded to base64 for Resend. */
+  /** Content. UTF-8 text by default (e.g. an .ics file); base64 when encoding="base64". */
   content: string;
   contentType?: string;
+  /** How `content` is encoded. Defaults to "utf8". Use "base64" for binary (images). */
+  encoding?: "utf8" | "base64";
+  /** Content-ID for inline embedding (referenced from html as src="cid:<cid>"). */
+  cid?: string;
 };
 
 export type SendEmailInput = {
@@ -38,6 +44,72 @@ export type SendEmailResult =
 
 const VALID_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Marker that flags an html body we've already signed, so we never double-sign.
+const SIG_MARKER = "<!--cos-signature-->";
+const SIG_CID = "cos-signature-image";
+
+/** Download a stored signature image and return it as an inline attachment. */
+async function loadSignatureImage(path: string): Promise<EmailAttachment | null> {
+  try {
+    const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).download(path);
+    if (error || !data) return null;
+    const buffer = Buffer.from(await data.arrayBuffer());
+    const contentType = data.type || "image/png";
+    const ext = (contentType.split("/")[1] || "png").split("+")[0];
+    return {
+      filename: `signature.${ext}`,
+      content: buffer.toString("base64"),
+      encoding: "base64",
+      contentType,
+      cid: SIG_CID,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Append the configured signature (text and/or branded image) to an email's
+ * text + html parts. The system sends via SMTP, which does NOT add the Gmail
+ * web signature, so this is the only way a sign-off reaches the recipient.
+ * The image is embedded inline (CID) so it always renders, even months later.
+ */
+async function withSignature(input: SendEmailInput, cfg: EmailConfig): Promise<SendEmailInput> {
+  const sig = cfg.signature.trim();
+  const imagePath = cfg.signatureImagePath.trim();
+  if (!sig && !imagePath) return input;
+  if (input.html?.includes(SIG_MARKER)) return input; // already signed
+
+  const image = imagePath ? await loadSignatureImage(imagePath) : null;
+
+  // Plain-text part: text signature only (images can't render in text/plain).
+  const text =
+    sig && input.text && !input.text.includes(sig)
+      ? `${input.text.replace(/\s+$/, "")}\n\n—\n${sig}`
+      : input.text;
+
+  // HTML part: divider, then the branded image (if any), then the text sign-off.
+  let html = input.html;
+  if (html) {
+    const parts: string[] = [SIG_MARKER];
+    if (image)
+      parts.push(`<img src="cid:${SIG_CID}" alt="Signature" style="max-width:360px;height:auto;border:0;display:block" />`);
+    if (sig)
+      parts.push(
+        `<div style="margin-top:${image ? 8 : 0}px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:13px;color:#6b7280;line-height:1.5">${escapeHtml(sig).replace(/\n/g, "<br>")}</div>`
+      );
+    html = `${html}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb">${parts.join("")}</div>`;
+  }
+
+  const attachments = image ? [...(input.attachments ?? []), image] : input.attachments;
+
+  return { ...input, text, html, attachments };
+}
+
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   const cfg = await getEmailConfig();
   if (!cfg) return { ok: false, reason: "not-configured" };
@@ -47,9 +119,11 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     .filter((s) => VALID_EMAIL.test(s));
   if (to.length === 0) return { ok: false, reason: "no-recipients" };
 
+  const finalInput = await withSignature(input, cfg);
+
   return cfg.provider === "smtp"
-    ? sendViaSmtp(cfg, to, input)
-    : sendViaResend(cfg, to, input);
+    ? sendViaSmtp(cfg, to, finalInput)
+    : sendViaResend(cfg, to, finalInput);
 }
 
 async function sendViaSmtp(
@@ -73,8 +147,9 @@ async function sendViaSmtp(
       replyTo: input.replyTo,
       attachments: input.attachments?.map((a) => ({
         filename: a.filename,
-        content: a.content,
+        content: a.encoding === "base64" ? Buffer.from(a.content, "base64") : a.content,
         contentType: a.contentType,
+        ...(a.cid ? { cid: a.cid } : {}),
       })),
       // Inline invitation (text/calendar; method=REQUEST) → RSVP UI + auto-add.
       ...(input.calendar
@@ -119,8 +194,10 @@ async function sendViaResend(
   if (atts.length) {
     body.attachments = atts.map((a) => ({
       filename: a.filename,
-      content: Buffer.from(a.content, "utf-8").toString("base64"),
+      // Resend always wants base64; convert text parts, pass binary through.
+      content: a.encoding === "base64" ? a.content : Buffer.from(a.content, "utf-8").toString("base64"),
       ...(a.contentType ? { content_type: a.contentType } : {}),
+      ...(a.cid ? { content_id: a.cid } : {}),
     }));
   }
 

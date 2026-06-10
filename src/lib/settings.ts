@@ -36,6 +36,18 @@ export type AppSettings = {
   /** Sender identity for real outbound email. Changeable any time. */
   emailFrom: string;
   emailFromName: string;
+  /**
+   * Footer/signature appended to every outgoing email. Plain text (line breaks
+   * preserved). Recipients never see the Gmail web signature because the system
+   * sends via SMTP, so this is how a professional sign-off reaches them. When
+   * blank, a simple sign-off is built from the sender name + address.
+   */
+  emailSignature: string;
+  /**
+   * Storage path (in the documents bucket) of a branded signature image to embed
+   * at the foot of outgoing email. Embedded inline (CID) so it always renders.
+   */
+  emailSignatureImagePath: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -63,6 +75,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   operatorName: "",
   emailFrom: "admin@oracle.co.tz",
   emailFromName: "Oracle Consultancy",
+  emailSignature: "",
+  emailSignatureImagePath: "",
 };
 
 /** Map of canonical setting field → storage key. */
@@ -81,6 +95,8 @@ const KEY: Record<keyof AppSettings, string> = {
   operatorName: "v2.operatorName",
   emailFrom: "v2.emailFrom",
   emailFromName: "v2.emailFromName",
+  emailSignature: "v2.emailSignature",
+  emailSignatureImagePath: "v2.emailSignatureImagePath",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -119,6 +135,8 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     operatorName: map.get(KEY.operatorName) ?? d.operatorName,
     emailFrom: map.get(KEY.emailFrom) ?? d.emailFrom,
     emailFromName: map.get(KEY.emailFromName) ?? d.emailFromName,
+    emailSignature: map.get(KEY.emailSignature) ?? d.emailSignature,
+    emailSignatureImagePath: map.get(KEY.emailSignatureImagePath) ?? d.emailSignatureImagePath,
   };
 });
 
@@ -149,6 +167,10 @@ export type EmailConfig = {
   from: string;
   fromAddress: string;
   fromName: string;
+  /** Footer text appended to outgoing mail (may be empty). */
+  signature: string;
+  /** Storage path of a branded signature image to embed inline (may be empty). */
+  signatureImagePath: string;
 } & (
   | { provider: "resend"; apiKey: string }
   | { provider: "smtp"; host: string; port: number; user: string; pass: string }
@@ -166,12 +188,20 @@ export type EmailConfig = {
  * - **Resend**: RESEND_API_KEY (needs a DNS-verified domain).
  */
 export async function getEmailConfig(): Promise<EmailConfig | null> {
-  const { emailFrom, emailFromName } = await getAppSettings();
+  const { emailFrom, emailFromName, emailSignature, emailSignatureImagePath } = await getAppSettings();
   const fromAddress = emailFrom || DEFAULT_SETTINGS.emailFrom;
   const fromName = emailFromName || DEFAULT_SETTINGS.emailFromName;
+  const signatureImagePath = emailSignatureImagePath.trim();
+  // Fall back to a simple sign-off built from the sender identity so recipients
+  // always see a footer — but only when neither custom text nor a branded image
+  // is set (the image usually already contains the name/contact details).
+  const sigText = emailSignature.trim();
+  const signature = sigText || (signatureImagePath ? "" : [fromName, fromAddress].filter(Boolean).join("\n"));
   const identity = {
     fromAddress,
     fromName,
+    signature,
+    signatureImagePath,
     from: fromName ? `${fromName} <${fromAddress}>` : fromAddress,
   };
 

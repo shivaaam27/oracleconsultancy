@@ -6,6 +6,11 @@ import { sb } from "@/db/supabase";
 import { hashPassword } from "@/lib/portal-auth";
 import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
 import { disconnectGoogle } from "@/lib/google";
+import { DOCUMENTS_BUCKET } from "@/lib/documents";
+
+function safeName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 100) || "signature";
+}
 
 /** Disconnect the Google Calendar account (clears the stored refresh token). */
 export async function disconnectGoogleAction(): Promise<void> {
@@ -43,7 +48,21 @@ export async function saveSettings(fd: FormData): Promise<void> {
     operatorName: ((fd.get("operatorName") as string | null) ?? "").trim(),
     emailFrom: (fd.get("emailFrom") as string | null)?.trim() || undefined,
     emailFromName: (fd.get("emailFromName") as string | null)?.trim() || undefined,
+    emailSignature: ((fd.get("emailSignature") as string | null) ?? "").trim(),
   };
+
+  // Signature image: upload a new file, or clear it when "remove" is ticked.
+  const sigImg = fd.get("emailSignatureImage");
+  if (sigImg instanceof File && sigImg.size > 0) {
+    const path = `email-signature/${Date.now()}-${safeName(sigImg.name)}`;
+    const buffer = Buffer.from(await sigImg.arrayBuffer());
+    const { error } = await sb.storage
+      .from(DOCUMENTS_BUCKET)
+      .upload(path, buffer, { contentType: sigImg.type || "image/png", upsert: true });
+    if (!error) patch.emailSignatureImagePath = path;
+  } else if (fd.get("remove_emailSignatureImage") === "1") {
+    patch.emailSignatureImagePath = "";
+  }
 
   await saveAppSettings(patch);
   revalidatePath("/");

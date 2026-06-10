@@ -4,6 +4,7 @@ import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { getAppSettings, SWIPE_ACTIONS } from "@/lib/settings";
 import { getGoogleStatus } from "@/lib/google";
+import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
 import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction } from "./actions";
 import { adminChangePassword, adminLogout } from "../login/actions";
@@ -27,6 +28,9 @@ export default async function SettingsPage({
       .eq("active", true)
       .order("name"),
   ]);
+  const signatureImageUrl = s.emailSignatureImagePath
+    ? await signDocumentFile(s.emailSignatureImagePath, 3600)
+    : null;
   const portalPeople = (peopleRows ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
@@ -136,6 +140,41 @@ export default async function SettingsPage({
               <FieldLabel>Sender email address</FieldLabel>
               <Input name="emailFrom" type="email" defaultValue={s.emailFrom} placeholder="admin@oracle.co.tz" />
             </div>
+          </div>
+          <div className="max-w-xl">
+            <FieldLabel>Email signature / footer</FieldLabel>
+            <Textarea
+              name="emailSignature"
+              rows={4}
+              defaultValue={s.emailSignature}
+              placeholder={"Oracle Consultancy\nadmin@oracle.co.tz\n+255 ..."}
+            />
+            <p className="text-xs text-fg-muted mt-1">
+              Added to the bottom of every email the system sends. Your normal Gmail signature is
+              not included on these messages, so set it here. Leave blank to use the sender name and
+              address.
+            </p>
+          </div>
+          <div className="max-w-xl space-y-2">
+            <FieldLabel>Signature image (logo / branded sign-off)</FieldLabel>
+            {signatureImageUrl ? (
+              <div className="flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={signatureImageUrl}
+                  alt="Current signature"
+                  className="max-h-20 rounded border border-border bg-white p-1"
+                />
+                <label className="flex items-center gap-1.5 text-xs text-danger cursor-pointer">
+                  <input type="checkbox" name="remove_emailSignatureImage" value="1" /> Remove image
+                </label>
+              </div>
+            ) : null}
+            <Input name="emailSignatureImage" type="file" accept="image/png,image/jpeg,image/gif,image/webp" />
+            <p className="text-xs text-fg-muted">
+              Embedded inline at the foot of each email (PNG/JPG). It always renders for the
+              recipient. Use a wide image up to ~360px; transparent PNG looks best.
+            </p>
           </div>
         </div>
 
