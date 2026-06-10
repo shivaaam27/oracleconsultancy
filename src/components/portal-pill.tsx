@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Home, ListTodo, User, type LucideIcon } from "lucide-react";
+import { Home, ListTodo, Plus, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -36,7 +36,7 @@ function PillTab({ href, icon: Icon, label, active }: { href: string; icon: Luci
   );
 }
 
-export function PortalPill() {
+export function PortalPill({ canCreate = false }: { canCreate?: boolean }) {
   const pathname = usePathname() || "/portal";
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task");
   const onActivity = pathname.startsWith("/portal/activity");
@@ -53,6 +53,16 @@ export function PortalPill() {
         <PillTab href="/portal" icon={Home} label="Home" active={onHome} />
         <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} />
         <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} />
+        {canCreate && (
+          <Link
+            href="/portal/task/new"
+            aria-label="New task"
+            title="New task"
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-fg shrink-0 hover:opacity-90 transition-opacity mx-0.5"
+          >
+            <Plus size={20} strokeWidth={2.4} />
+          </Link>
+        )}
         <span className="mx-1 h-7 w-px bg-border" />
         <div className="px-0.5">
           <NotificationBell to="/portal/task" />

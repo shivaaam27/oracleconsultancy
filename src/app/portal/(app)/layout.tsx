@@ -32,7 +32,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </form>
       </header>
       {children}
-      <PortalPill />
+      <PortalPill canCreate={me.portalRole === "manager"} />
     </div>
   );
 }

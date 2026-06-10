@@ -3,12 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
-import { logChangeSb } from "@/lib/db-helpers";
+import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
 import { createTaskAttachment } from "@/lib/documents";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import {
   clearSessionCookie,
+  directReportIds,
   getPortalPerson,
   personCanSeeTask,
   setSessionCookie,
@@ -69,6 +70,114 @@ export async function portalLogin(
 export async function portalLogout() {
   await clearSessionCookie();
   redirect("/portal/login");
+}
+
+/* ----------------------------------------------------------------------
+ * T5 — managers create & assign tasks from the portal. A manager can only
+ * assign to themselves + their direct reports, and only within companies
+ * those people belong to. The instruction becomes the first pinned message.
+ * ---------------------------------------------------------------------- */
+
+function idList(formData: FormData, key: string): number[] {
+  return formData
+    .getAll(key)
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+export async function portalCreateTask(
+  _prev: { error: string } | null,
+  formData: FormData
+): Promise<{ error: string } | null> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "manager") return { error: "Only managers can create tasks." };
+
+  const actionItem = String(formData.get("actionItem") ?? "").trim();
+  const companyId = Number(formData.get("companyId"));
+  const priority = String(formData.get("priority") ?? "Medium");
+  const deadlineRaw = String(formData.get("deadline") ?? "").trim();
+  const accountableId = Number(formData.get("accountableId"));
+  const workingIds = idList(formData, "workingIds");
+  const instruction = String(formData.get("instruction") ?? "").trim();
+  if (!actionItem) return { error: "Give the task a title." };
+  if (!Number.isFinite(companyId)) return { error: "Choose a company." };
+
+  // Who/what this manager may touch.
+  const allowedPeople = new Set([me.id, ...(await directReportIds(me.id))]);
+  if (!allowedPeople.has(accountableId)) return { error: "You can only assign to yourself or your team." };
+  const workings = workingIds.filter((id) => allowedPeople.has(id) && id !== accountableId);
+
+  // Restrict the company to ones the allowed people belong to.
+  const { data: peopleRows } = await sb.from("people").select("company_id").in("id", [...allowedPeople]);
+  const allowedCompanies = new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean));
+  if (!allowedCompanies.has(companyId)) return { error: "You can't create tasks for that company." };
+
+  const { data: company } = await sb.from("companies").select("code,code_prefix").eq("id", companyId).maybeSingle();
+  if (!company) return { error: "Company not found." };
+
+  const now = new Date();
+  const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
+  const createdBy = `portal-mgr:${me.name}`;
+
+  const task = await insertTaskWithUniqueCodeSb(companyId, (company.code_prefix as string | null) || (company.code as string), {
+    actionItem,
+    ownerId: accountableId,
+    status: "Not Started",
+    priority,
+    deadline: deadline && !isNaN(deadline.getTime()) ? deadline : null,
+    createdDate: now,
+    lastUpdatedAt: now,
+    latestUpdate: instruction || null,
+    archived: false,
+  });
+
+  // Assignees: the accountable person + working people.
+  const rows = [
+    { task_id: task.id, person_id: accountableId, role: "accountable" },
+    ...workings.map((id) => ({ task_id: task.id, person_id: id, role: "working" })),
+  ];
+  await sb.from("task_assignees").upsert(rows, { onConflict: "task_id,person_id", ignoreDuplicates: true });
+
+  // The instruction becomes the first pinned message.
+  if (instruction) {
+    await sb.from("task_updates").insert({
+      task_id: task.id,
+      body: instruction,
+      created_at: now.toISOString(),
+      created_by: createdBy,
+      pinned_at: now.toISOString(),
+    });
+  }
+
+  await sb.from("audit_log").insert({
+    task_id: task.id,
+    task_code: task.code,
+    company_id: companyId,
+    entry_type: "CREATE",
+    field: "Task",
+    old_value: null,
+    new_value: actionItem,
+    change_reason: null,
+    created_at: now.toISOString(),
+    created_by: createdBy,
+  });
+
+  // Notify the assignees (except the creator) + the owner's bell.
+  const recipients = [accountableId, ...workings].filter((id) => id !== me.id).map(personRecipient);
+  recipients.push("admin");
+  await notifyMany(recipients, {
+    kind: "assigned",
+    taskId: task.id,
+    taskCode: task.code,
+    title: `${me.name} assigned you a task`,
+    body: actionItem,
+    actor: me.name,
+  });
+
+  revalidatePath("/portal");
+  revalidatePath("/");
+  redirect(`/portal/task/${task.code}`);
 }
 
 export async function portalAddUpdate(formData: FormData) {
