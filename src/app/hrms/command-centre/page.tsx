@@ -1,4 +1,4 @@
-import { PageHeader } from "@/components/ui";
+import { Hero, TONE, type Tone } from "@/components/surface-kit";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CommandCentreView } from "@/components/command-centre-view";
 import { listObligations, splitObligations, buildDeadlinesWithCompanies, loadObligationCompany, type CompanyLite } from "@/lib/recurring";
@@ -86,15 +86,45 @@ export default async function CommandCentrePage({
     lastDone: h.lastDone ? h.lastDone.toISOString() : null,
   }));
 
-  const overdue = deadlines.filter((d) => d.flag === "overdue").length;
-  const dueNow = deadlines.filter((d) => d.flag === "dueNow").length;
-  const soon = deadlines.filter((d) => d.flag === "soon").length;
-  const sub = `${overdue} overdue · ${dueNow} due now · ${soon} coming up`;
+  const overdue = deadlinesWithCompanies.filter((d) => d.flag === "overdue").length;
+  const dueNow = deadlinesWithCompanies.filter((d) => d.flag === "dueNow").length;
+  const soon = deadlinesWithCompanies.filter((d) => d.flag === "soon").length;
+  // Outstanding company-ticks across all in-window deadlines (the real workload).
+  const outstanding = deadlinesWithCompanies
+    .filter((d) => d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon")
+    .reduce((sum, d) => sum + Math.max(0, d.applicableCount - d.doneCount), 0);
+  const permitAlerts = permits.filter((p) => p.flag === "overdue" || p.flag === "dueNow" || p.flag === "soon").length;
+  const avgRegistration = registrations.length
+    ? Math.round(registrations.reduce((s, r) => s + r.score, 0) / registrations.length)
+    : 100;
+  const heroTone: Tone = overdue ? "danger" : dueNow ? "warn" : "accent";
+
+  const metrics: Array<{ label: string; value: string | number; tone: Tone }> = [
+    { label: "Overdue", value: overdue, tone: overdue ? "danger" : "muted" },
+    { label: "Due now", value: dueNow, tone: dueNow ? "warn" : "muted" },
+    { label: "Coming up", value: soon, tone: soon ? "accent" : "muted" },
+    { label: "Outstanding", value: outstanding, tone: outstanding ? "warn" : "success" },
+    { label: "Permit alerts", value: permitAlerts, tone: permitAlerts ? "danger" : "success" },
+    { label: "Avg registration", value: `${avgRegistration}%`, tone: avgRegistration >= 80 ? "success" : avgRegistration >= 50 ? "warn" : "danger" },
+  ];
 
   return (
     <div className="space-y-4 max-w-4xl">
       <HrmsCrumbs from={from} />
-      <PageHeader title="Command Centre" sub={sub} />
+      <Hero
+        title="Command Centre"
+        subtitle={`${overdue} overdue · ${dueNow} due now · ${soon} coming up`}
+        accentTone={heroTone}
+      >
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {metrics.map((m) => (
+            <div key={m.label} className="min-w-[92px] flex-1 shrink-0 rounded-2xl bg-bg-elev/70 px-3 py-2.5 ring-1 ring-border/60 backdrop-blur-sm">
+              <div className={`text-xl font-semibold tabular leading-none ${TONE[m.tone].text}`}>{m.value}</div>
+              <span className="mt-1 block truncate text-[11px] leading-tight text-fg-muted">{m.label}</span>
+            </div>
+          ))}
+        </div>
+      </Hero>
       <CommandCentreView
         initial={view === "permits" ? "permits" : view === "registrations" ? "registrations" : "deadlines"}
         habits={habitRows}

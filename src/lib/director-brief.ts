@@ -9,7 +9,7 @@ import { buildPersonRequirementScores } from "./requirements";
 import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
-import { listObligations, splitObligations } from "./recurring";
+import { listObligations, outstandingDeadlines } from "./recurring";
 import { type CcFlag } from "./command-centre";
 import { sb } from "@/db/supabase";
 import { BRAND_NAME } from "./brand";
@@ -113,6 +113,8 @@ export type BriefStatutory = {
   dueDate: Date | null;
   daysLeft: number | null;
   flag: CcFlag;
+  doneCount: number;
+  applicableCount: number;
 };
 
 export type BriefData = {
@@ -326,13 +328,14 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
       issues: score.documentIssues.map((doc) => `${doc.title}${doc.expiryLabel ? ` (${doc.expiryLabel})` : ""}`),
     }));
 
-  // Statutory deadlines coming up — portfolio-wide tax/filing cadence inside
-  // its warning window (see Command Centre). Soonest first, top few.
-  const { deadlines: statDeadlines } = splitObligations(await listObligations(), now);
-  const statutory: BriefStatutory[] = statDeadlines
-    .filter((d) => d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon")
+  // Statutory deadlines coming up — per-company aware: inside the warning window
+  // with an applicable company still outstanding this period (see Command Centre).
+  const statutory: BriefStatutory[] = (await outstandingDeadlines(await listObligations(), now))
     .slice(0, 6)
-    .map((d) => ({ label: d.label, dueDate: d.dueDate, daysLeft: d.daysLeft, flag: d.flag }));
+    .map((d) => ({
+      label: d.label, dueDate: d.dueDate, daysLeft: d.daysLeft, flag: d.flag,
+      doneCount: d.doneCount, applicableCount: d.applicableCount,
+    }));
 
   const directorActions: BriefDirectorAction[] = [
     ...[...openTasks]
@@ -438,7 +441,7 @@ export function briefShareText(b: BriefData): string {
     for (const s of b.statutory) {
       const when = s.dueDate ? fmtDay(s.dueDate) : "—";
       const flag = s.flag === "overdue" ? "overdue" : s.flag === "dueNow" ? "due now" : "soon";
-      L.push(`• ${s.label} — ${when} · ${flag}`);
+      L.push(`• ${s.label} — ${when} · ${flag} · ${s.doneCount}/${s.applicableCount} done`);
     }
   }
   const hr = b.hr;

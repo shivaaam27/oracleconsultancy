@@ -197,7 +197,9 @@ export default async function DirectorBriefPage({
               <div key={i} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{s.label}</div>
-                  <div className="text-[11px] text-fg-subtle">{s.dueDate ? fmtDay(s.dueDate) : "—"}</div>
+                  <div className="text-[11px] text-fg-subtle">
+                    {s.dueDate ? fmtDay(s.dueDate) : "—"} · {s.doneCount}/{s.applicableCount} companies done
+                  </div>
                 </div>
                 <Badge tone={s.flag === "overdue" ? "danger" : s.flag === "dueNow" ? "danger" : "warn"}>
                   {s.flag === "overdue" ? "Overdue" : s.flag === "dueNow" ? "Due now" : "Soon"}

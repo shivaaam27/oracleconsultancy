@@ -187,6 +187,31 @@ export function buildDeadlinesWithCompanies(
   });
 }
 
+/**
+ * Self-contained: dated obligations inside their warning window that still have
+ * at least one applicable company NOT done this period. Loads companies +
+ * obligation_company itself so call sites (Home, Brief) stay one line and share
+ * exactly the same definition of "outstanding". Soonest first.
+ */
+export async function outstandingDeadlines(
+  obligations: RecurringObligation[],
+  today: Date = new Date(),
+): Promise<DeadlineWithCompanies[]> {
+  const [{ data: companiesRaw }, ocMap] = await Promise.all([
+    sb.from("companies").select("id,name,accent_color,vrn").eq("active", true).order("name"),
+    loadObligationCompany(),
+  ]);
+  const companies: CompanyLite[] = (companiesRaw ?? []).map((c) => ({
+    id: c.id as number,
+    name: c.name as string,
+    accent: (c.accent_color as string | null) ?? null,
+    vatRegistered: !!(c.vrn as string | null),
+  }));
+  return buildDeadlinesWithCompanies(obligations, companies, ocMap, today)
+    .filter((d) => (d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon")
+      && d.applicableCount > 0 && d.doneCount < d.applicableCount);
+}
+
 /** Split obligations into in-place habits (daily/weekly) and dated deadlines. */
 export function splitObligations(
   obligations: RecurringObligation[],

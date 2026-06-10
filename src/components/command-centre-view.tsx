@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/cn";
 import { useToast } from "./toast";
 import { FLAG_META, daysLabel, type CcFlag } from "@/lib/command-centre";
+import { Panel, SectionLabel } from "@/components/surface-kit";
 import {
   tickHabitAction,
   toggleObligationCompanyAction,
@@ -186,9 +187,9 @@ export function CommandCentreView({
       {/* ---------------- DEADLINES ---------------- */}
       {tab === "deadlines" && (
         <div className="space-y-4">
-          <section className="glass elevated overflow-hidden rounded-3xl">
-            <div className="border-b border-border/60 px-4 py-3 text-sm font-semibold flex items-center gap-2">
-              <CalendarClock size={16} className="text-accent" /> Dated obligations
+          <Panel glass className="overflow-hidden">
+            <div className="border-b border-border/60 px-4 py-3">
+              <SectionLabel icon={<CalendarClock size={13} className="text-accent" />}>Dated obligations</SectionLabel>
             </div>
             <div className="divide-y divide-border/40">
               {deadlines.length === 0 && <Empty label="No upcoming statutory deadlines." />}
@@ -277,14 +278,16 @@ export function CommandCentreView({
                 );
               })}
             </div>
-          </section>
+          </Panel>
 
           {/* Habit tick-lists (daily/weekly routines — ticked in place) */}
           {(dailyHabits.length > 0 || weeklyHabits.length > 0) && (
-            <section className="glass elevated overflow-hidden rounded-3xl">
-              <div className="border-b border-border/60 px-4 py-3 text-sm font-semibold flex items-center gap-2">
-                <ListChecks size={16} className="text-accent" /> Routine duties
-                <span className="text-[11px] font-normal text-fg-subtle">tick as you go — they don't become tasks</span>
+            <Panel className="overflow-hidden">
+              <div className="border-b border-border/60 px-4 py-3">
+                <SectionLabel icon={<ListChecks size={13} className="text-accent" />}
+                  action={<span className="text-[11px] font-normal normal-case tracking-normal text-fg-subtle">tick as you go — they don&apos;t become tasks</span>}>
+                  Routine duties
+                </SectionLabel>
               </div>
               <div className="divide-y divide-border/40">
                 {[...dailyHabits, ...weeklyHabits].map((h) => (
@@ -311,17 +314,19 @@ export function CommandCentreView({
                   </button>
                 ))}
               </div>
-            </section>
+            </Panel>
           )}
         </div>
       )}
 
       {/* ---------------- PERMIT WATCH ---------------- */}
       {tab === "permits" && (
-        <section className="glass elevated overflow-hidden rounded-3xl">
-          <div className="border-b border-border/60 px-4 py-3 text-sm font-semibold flex items-center gap-2">
-            <Plane size={16} className="text-accent" /> Work / residence permits
-            <span className="text-[11px] font-normal text-fg-subtle">90 / 60 / 30-day early warning</span>
+        <Panel glass className="overflow-hidden">
+          <div className="border-b border-border/60 px-4 py-3">
+            <SectionLabel icon={<Plane size={13} className="text-accent" />}
+              action={<span className="text-[11px] font-normal normal-case tracking-normal text-fg-subtle">90 / 60 / 30-day early warning</span>}>
+              Work / residence permits
+            </SectionLabel>
           </div>
           <div className="divide-y divide-border/40">
             {permits.length === 0 && <Empty label="No permit or immigration documents on file yet." />}
@@ -343,15 +348,17 @@ export function CommandCentreView({
               </div>
             ))}
           </div>
-        </section>
+        </Panel>
       )}
 
       {/* ---------------- REGISTRATIONS ---------------- */}
       {tab === "registrations" && (
-        <section className="glass elevated overflow-hidden rounded-3xl">
-          <div className="border-b border-border/60 px-4 py-3 text-sm font-semibold flex items-center gap-2">
-            <Building2 size={16} className="text-accent" /> Registrations & renewals
-            <span className="text-[11px] font-normal text-fg-subtle">statutory standing per company</span>
+        <Panel glass className="overflow-hidden">
+          <div className="border-b border-border/60 px-4 py-3">
+            <SectionLabel icon={<Building2 size={13} className="text-accent" />}
+              action={<span className="text-[11px] font-normal normal-case tracking-normal text-fg-subtle">statutory standing per company</span>}>
+              Registrations &amp; renewals
+            </SectionLabel>
           </div>
           <div className="divide-y divide-border/40">
             {registrations.length === 0 && <Empty label="No companies to show." />}
@@ -387,7 +394,7 @@ export function CommandCentreView({
               </div>
             ))}
           </div>
-        </section>
+        </Panel>
       )}
     </div>
   );

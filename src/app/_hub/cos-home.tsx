@@ -13,7 +13,7 @@ import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 import { getPortfolioTrends } from "@/lib/trends";
 import { recordHealthPoint } from "@/lib/health-history";
-import { listObligations, splitObligations } from "@/lib/recurring";
+import { listObligations, outstandingDeadlines } from "@/lib/recurring";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import {
@@ -163,10 +163,10 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     })
     .slice(0, 3);
 
-  // Statutory deadlines coming up — derived from the recurring obligations
-  // cadence (see Command Centre). Surface only those inside their warning window.
-  const { deadlines: allDeadlines } = splitObligations(obligations, now);
-  const upcomingDeadlines = allDeadlines.filter((d) => d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon");
+  // Statutory deadlines coming up — per-company aware: only obligations inside
+  // their warning window that still have an applicable company not done this
+  // period (see Command Centre). Shared definition via outstandingDeadlines.
+  const upcomingDeadlines = await outstandingDeadlines(obligations, now);
   const overdueDeadlines = upcomingDeadlines.filter((d) => d.flag === "overdue");
   const dueNowDeadlines = upcomingDeadlines.filter((d) => d.flag === "dueNow");
   const nextDeadline = upcomingDeadlines[0];
