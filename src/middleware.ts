@@ -87,5 +87,7 @@ export const config = {
   // Everything EXCEPT: the staff portal, the admin login page, Next.js
   // internals, and static files (anything with a dot: sw.js, manifest.json,
   // icons, fonts). The portal has its own lock in src/lib/portal-auth.ts.
-  matcher: ["/((?!portal|login|_next|.*\\..*).*)"],
+  // api/portal is excluded too: those routes serve portal users and verify
+  // the portal (or admin) cookie themselves.
+  matcher: ["/((?!portal|login|api/portal|_next|.*\\..*).*)"],
 };

@@ -1,6 +1,7 @@
 import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { recordTaskView } from "@/lib/portal-auth";
+import { LiveSync } from "@/components/live-sync";
 import { flagLabel } from "@/lib/derive";
 import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { UpdateBox } from "@/components/update-box";
@@ -200,6 +201,7 @@ export default async function TaskPage({
 
   return (
     <div className="space-y-5 max-w-5xl pb-24 lg:pb-6">
+      <LiveSync taskId={r.id} seconds={6} />
       {/* Top bar: circular back + breadcrumb (mobile-first iOS feel) */}
       <div className="flex items-center justify-between gap-3">
         <Link

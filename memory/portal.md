@@ -13,7 +13,8 @@ A standalone, locked-down view for staff members — see only your own tasks, po
 - `/portal` — guarded by `src/app/portal/(app)/layout.tsx` (redirects to login). Hero with open/due-this-week/overdue/completed tiles + "My tasks" list (assignee or owner, unarchived). Surface-kit design, own minimal header with sign-out.
 - `/portal/task/[code]` — task detail. **Hard gate**: `personOnTask()` checks assignee/owner server-side on every read and write — guessing URLs gets you redirected. Team strip when >1 assignee. Timeline: pinned updates first, then day-grouped (Today/Yesterday open, older days collapsed `<details>`); management posts (created_by `web-ui`/`ai-command`) get accent styling.
 - Update composer: posts stamped `created_by = "portal:<Name>"` (admin timeline shows just the name via `actorLabel` in `timeline-entry.tsx`). Optional status move limited to In Progress / Under Review / Blocked — never Completed/Closed (manager confirms via Under Review). No edit/delete of tasks, no deleting updates.
-- "Live" feel: `src/components/auto-refresh.tsx` re-fetches every 15–25 s and on tab focus.
+- "Live" feel: task pages (portal AND admin `/task/[code]`) use `src/components/live-sync.tsx` — probes `/api/portal/sync?taskId=` (tiny stamp of status/last_updated/deadline/priority/update-count) every 5–6 s, `router.refresh()` on change. The endpoint checks admin OR portal cookies itself and is excluded from the middleware matcher (`api/portal`). Portal home still uses `auto-refresh.tsx` (25 s). True websocket realtime deliberately avoided (would need anon key + RLS rework).
+- Sign-in screens share `src/components/auth-shell.tsx` (aurora + glass + theme toggle) and `auth-fields.tsx` (show/hide password, Caps Lock warning, shake on error, staff remember-name). Portal header has a ThemeToggle.
 
 ## Admin chrome isolation
 

@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarDays, CheckCheck, Crown, MessageSquare, Pin, PinOff,
 import { sb } from "@/db/supabase";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
-import { AutoRefresh } from "@/components/auto-refresh";
+import { LiveSync } from "@/components/live-sync";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
 import { portalAddUpdate, portalTogglePin } from "../../../actions";
 
@@ -174,7 +174,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   return (
     <div className="flex flex-col gap-4">
-      <AutoRefresh seconds={15} />
+      <LiveSync taskId={task.id as number} seconds={5} />
 
       <Link href="/portal" className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
         <ArrowLeft size={15} /> My tasks
