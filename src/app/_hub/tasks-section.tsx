@@ -4,7 +4,7 @@ import { getSavedViews } from "@/lib/task-views";
 import { Card, EmptyState } from "@/components/ui";
 import { TaskActions } from "./task-actions";
 import { SavedViewsBar } from "@/components/saved-views-bar";
-import { TaskFilters } from "@/components/task-filters";
+import { TaskToolbar } from "@/components/task-toolbar";
 import { ViewPublisher } from "@/components/view-publisher";
 import { ViewSwitcher, parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
@@ -184,8 +184,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     return u.toString();
   })();
 
-  const resetHref = view === "table" ? "/?tab=tasks" : `/?tab=tasks&view=${view}`;
-
   const viewLabel = dayMode
     ? "needing attention"
     : (() => {
@@ -208,6 +206,20 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         actions={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
       >
         <div className="space-y-3">
+          {/* Toolbar — search · company · filters · show closed (consolidated). */}
+          <TaskToolbar
+            view={view}
+            q={sp.q || ""}
+            company={sp.company}
+            priority={sp.priority}
+            status={sp.status}
+            showClosed={showClosed}
+            closedCount={closedCount}
+            companies={companyList}
+            priorities={priorities}
+            statuses={["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"]}
+          />
+
           {/* Focus / All toggle — segmented pill */}
           {!hasFilters && (view === "table" || view === "board") && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -299,27 +311,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           )}
         </div>
       </Hero>
-
-      {/* Filters bar — inline on desktop, collapses to a sheet on mobile */}
-      <TaskFilters
-        view={view}
-        q={sp.q || ""}
-        company={sp.company}
-        priority={sp.priority}
-        status={sp.status}
-        flag={sp.flag}
-        noOwner={sp.noOwner}
-        closed={sp.closed}
-        month={sp.month}
-        companies={companyList}
-        priorities={priorities}
-        statuses={["Not Started","In Progress","Under Review","Waiting External","Blocked","Escalated","Completed","Closed"]}
-        showClosed={showClosed}
-        closedCount={closedCount}
-        resetHref={resetHref}
-        toggleClosedHref={buildHref(sp, { closed: showClosed ? undefined : "1" })}
-        activeCount={[sp.company, sp.priority, sp.status, sp.q, sp.flag, sp.noOwner].filter(Boolean).length}
-      />
 
       <SavedViewsBar
         initialViews={savedViews}

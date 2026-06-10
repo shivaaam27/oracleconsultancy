@@ -22,6 +22,8 @@ Owner's #1 priority: turn the task page from a "form + diary" into a glanceable,
 
 Order: T1 → T2 → T3 → T4 → T5 → T6.
 
+- **Header redesign (June 2026):** consolidated the messy 5-row / 2-card Task Management header into ONE glass Hero card. New `src/components/task-toolbar.tsx` (search · Company dropdown that filters IN PLACE via `company` param · Filters popover for Priority/Status with active badge · Show-closed toggle) replaces the old standalone `task-filters.tsx` (deleted). Company kept as a visible dropdown (owner often focuses one company); priority/status tucked into the popover. All inside the Hero, above the Focus/All toggle + KPI chips + Group control. Responsive (flex-wrap) + dark-mode verified. TODO: apply the same toolbar pattern to the staff portal task list (currently still the plain hero + tiles).
+
 ## T1 Staff IDs — shipped
 
 Format `<companyPrefix>-<roleLetter><NN>` e.g. `CZ-E04`, `OC-AH01`, `OC-D02`.
