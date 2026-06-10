@@ -5,7 +5,7 @@ import { sb } from "@/db/supabase";
 import { Panel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { LiveSync } from "@/components/live-sync";
-import { PortalConversation, type ConvoMessage } from "@/components/portal-conversation";
+import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
@@ -78,6 +78,32 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
     getStaffIdMap(),
   ]);
+
+  // System events (status/deadline/priority/etc.) → thin inline markers.
+  const { data: auditRows } = await sb
+    .from("audit_log")
+    .select("id,field,old_value,new_value,created_at")
+    .eq("task_code", task.code as string)
+    .eq("entry_type", "CHANGE")
+    .in("field", ["status", "deadline", "priority", "risk", "escalation"])
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+  const fmtDate = (v: string) => {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  };
+  const events: ConvoEvent[] = (auditRows ?? []).map((a) => {
+    const f = a.field as string;
+    const nv = (a.new_value as string | null) ?? "";
+    let text: string;
+    if (f === "status") text = `Status → ${nv}`;
+    else if (f === "deadline") text = nv ? `Deadline → ${fmtDate(nv)}` : "Deadline cleared";
+    else if (f === "priority") text = `Priority → ${nv}`;
+    else if (f === "risk") text = `Risk → ${nv}`;
+    else if (f === "escalation") text = nv ? `Escalation → ${nv}` : "Escalation cleared";
+    else text = `${f} → ${nv}`;
+    return { id: `a${a.id}`, at: a.created_at as string, text };
+  });
 
   const all = (updates ?? []) as Update[];
 
@@ -204,6 +230,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         statusOptions={statusOptions}
         currentStatus={task.status as string}
         messages={messages}
+        events={events}
         latestId={latest?.id ?? null}
         seenLabel={seenLabel}
         team={team.map((p) => ({ id: p.id, name: p.name }))}

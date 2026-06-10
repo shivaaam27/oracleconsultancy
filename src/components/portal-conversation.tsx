@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pin, PinOff, Send, X } from "lucide-react";
 import { portalAcknowledge, portalAddUpdate, portalTogglePin } from "@/app/portal/actions";
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
+import { VoiceButton } from "./voice-button";
 
 /* T2 conversation view for a portal task: chat-style messages with replies,
  * a pinned-instruction banner, Understood/Read-by, and a composer that can
@@ -23,6 +24,13 @@ export type ConvoMessage = {
   attachment: { name: string } | null;
 };
 
+/** A thin inline system marker (status/deadline change, escalation, …). */
+export type ConvoEvent = {
+  id: string;
+  at: string; // ISO
+  text: string;
+};
+
 type Props = {
   taskId: number;
   code: string;
@@ -31,6 +39,7 @@ type Props = {
   statusOptions: string[];
   currentStatus: string;
   messages: ConvoMessage[]; // newest first
+  events: ConvoEvent[]; // system markers, interleaved by time
   latestId: number | null;
   seenLabel: string[];
   team: MentionCandidate[]; // for @mention autocomplete + highlighting
@@ -52,7 +61,7 @@ function time(iso: string): string {
 }
 
 export function PortalConversation(props: Props) {
-  const { taskId, code, isManager, closed, statusOptions, currentStatus, messages, latestId, seenLabel, team } = props;
+  const { taskId, code, isManager, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team } = props;
   const [replyTo, setReplyTo] = useState<{ id: number; author: string; snippet: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -61,6 +70,14 @@ export function PortalConversation(props: Props) {
   function clearFile() {
     if (fileRef.current) fileRef.current.value = "";
     setFileName(null);
+  }
+
+  function appendDictation(text: string) {
+    const el = taRef.current;
+    if (!el) return;
+    const sep = el.value && !el.value.endsWith(" ") ? " " : "";
+    el.value = el.value + sep + text;
+    el.focus();
   }
 
   // @mention autocomplete: when the caret is in an "@partial" token, show
@@ -94,13 +111,20 @@ export function PortalConversation(props: Props) {
   const pinned = messages.filter((m) => m.pinned);
   const rest = messages.filter((m) => !m.pinned);
 
-  // Group the non-pinned messages by day (newest first).
-  const groups: Array<{ label: string; items: ConvoMessage[] }> = [];
-  for (const m of rest) {
-    const label = dayLabel(m.at);
+  // Merge messages + system events into one stream, newest first.
+  type Item = { kind: "msg"; at: string; m: ConvoMessage } | { kind: "event"; at: string; e: ConvoEvent };
+  const merged: Item[] = [
+    ...rest.map((m) => ({ kind: "msg" as const, at: m.at, m })),
+    ...events.map((e) => ({ kind: "event" as const, at: e.at, e })),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+  // Group by day (newest first).
+  const groups: Array<{ label: string; items: Item[] }> = [];
+  for (const it of merged) {
+    const label = dayLabel(it.at);
     const last = groups[groups.length - 1];
-    if (last && last.label === label) last.items.push(m);
-    else groups.push({ label, items: [m] });
+    if (last && last.label === label) last.items.push(it);
+    else groups.push({ label, items: [it] });
   }
 
   function startReply(m: ConvoMessage) {
@@ -130,6 +154,17 @@ export function PortalConversation(props: Props) {
       {m.ackNames.length > 0 && <span className="text-[11px] text-fg-subtle">Read by {m.ackNames.join(", ")}</span>}
     </div>
   );
+
+  const EventMarker = ({ e }: { e: ConvoEvent }) => (
+    <div className="flex items-center gap-2 px-1 py-0.5 text-[11px] text-fg-subtle">
+      <span className="h-px grow bg-border/60" />
+      <span className="shrink-0">{e.text} · {time(e.at)}</span>
+      <span className="h-px grow bg-border/60" />
+    </div>
+  );
+
+  const renderItem = (it: Item) =>
+    it.kind === "msg" ? <Bubble key={`m${it.m.id}`} m={it.m} /> : <EventMarker key={it.e.id} e={it.e} />;
 
   const Bubble = ({ m }: { m: ConvoMessage }) => (
     <div
@@ -296,6 +331,11 @@ export function PortalConversation(props: Props) {
                 >
                   <Paperclip size={14} />
                 </button>
+                <VoiceButton
+                  onResult={appendDictation}
+                  title="Dictate your update"
+                  className="inline-flex items-center justify-center rounded-lg bg-bg-subtle ring-1 ring-border h-8 w-8 text-fg-muted hover:text-accent transition-colors"
+                />
                 <label className="flex items-center gap-2 text-xs text-fg-muted">
                   Status
                   <select name="newStatus" defaultValue="" className="rounded-xl bg-bg-subtle ring-1 ring-border px-2.5 py-1.5 text-xs outline-none">
@@ -333,14 +373,14 @@ export function PortalConversation(props: Props) {
           i < 2 ? (
             <div key={g.label} className="flex flex-col gap-2">
               <p className="px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">{g.label}</p>
-              {g.items.map((m) => <Bubble key={m.id} m={m} />)}
+              {g.items.map(renderItem)}
             </div>
           ) : (
             <details key={g.label}>
               <summary className="cursor-pointer list-none px-1 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle hover:text-fg-muted transition-colors">
-                {g.label} · {g.items.length} message{g.items.length === 1 ? "" : "s"} — tap to show
+                {g.label} · {g.items.length} item{g.items.length === 1 ? "" : "s"} — tap to show
               </summary>
-              <div className="mt-1 flex flex-col gap-2">{g.items.map((m) => <Bubble key={m.id} m={m} />)}</div>
+              <div className="mt-1 flex flex-col gap-2">{g.items.map(renderItem)}</div>
             </details>
           )
         )}
