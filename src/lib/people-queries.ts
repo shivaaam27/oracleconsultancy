@@ -51,6 +51,8 @@ export type Person = {
   staffId: string | null;
   /** Comma-separated former staff IDs (kept after a company move). */
   previousStaffIds: string | null;
+  /** Explicit staff-ID category override, or null to derive from role. */
+  staffCategory: string | null;
 };
 
 export type PersonWorkload = {
@@ -124,7 +126,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category"
       ),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("person_id,company_id,relationship"),
@@ -194,6 +196,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     secondaryManagers: secMgrByPerson.get(p.id as number) ?? [],
     staffId: staffIds.get(p.id as number) ?? null,
     previousStaffIds: (p.previous_staff_ids as string | null) ?? null,
+    staffCategory: (p.staff_category as string | null) ?? null,
   }));
 
   return people.map((p) => ({
@@ -230,7 +233,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category"
       )
       .eq("id", id)
       .maybeSingle(),
@@ -309,6 +312,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     secondaryManagers,
     staffId: (await getStaffIdMap()).get(rawPerson.id as number) ?? null,
     previousStaffIds: (rawPerson.previous_staff_ids as string | null) ?? null,
+    staffCategory: (rawPerson.staff_category as string | null) ?? null,
   };
 
   const assignedTasks = tasks.filter((t) => isInvolved(person, t));

@@ -80,6 +80,9 @@ export const people = pgTable("people", {
   // Comma-separated former staff IDs, stamped when the person moves company,
   // so old references (e.g. CZ-E04) stay traceable. See lib/staff-id.ts.
   previousStaffIds: text("previous_staff_ids"),
+  // Explicit staff-ID category override: "director"|"manager"|"admin_hr"|
+  // "employee". Null = derive the letter from the role text. See lib/staff-id.ts.
+  staffCategory: text("staff_category"),
 });
 
 // Additional company associations beyond a person's primary companyId, each with a
@@ -293,6 +296,9 @@ export const taskUpdates = pgTable("task_updates", {
   deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
   /** When set, sort this update to the top of its task's timeline. */
   pinnedAt: timestamp("pinned_at", { mode: "date", withTimezone: true }),
+  /** Reply target: the update this one is answering (one level only — no
+   *  nested threads). Null for top-level messages. (T2 conversation.) */
+  parentUpdateId: integer("parent_update_id"),
 });
 
 export const meetings = pgTable("meetings", {

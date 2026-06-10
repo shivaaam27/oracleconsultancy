@@ -68,6 +68,7 @@ type DrawerPerson = {
   secondaryManagers: Array<{ id: number; name: string | null }>;
   staffId: string | null;
   previousStaffIds: string | null;
+  staffCategory: string | null;
 };
 
 type DrawerData = {
@@ -515,7 +516,7 @@ export function PersonDrawer() {
           compact
           defaults={{
             name: person.name, email: person.email, phone: person.phone, whatsapp: person.whatsapp,
-            preferredChannel: person.preferredChannel, role: person.role, companyId: person.companyId,
+            preferredChannel: person.preferredChannel, role: person.role, staffCategory: person.staffCategory, companyId: person.companyId,
             department: person.departmentName, startDate: person.startDate ? person.startDate.slice(0, 10) : null,
             dateOfBirth: person.dateOfBirth ? person.dateOfBirth.slice(0, 10) : null, nationality: person.nationality,
             nationalId: person.nationalId, passportNo: person.passportNo, address: person.address,

@@ -7,6 +7,7 @@ import { extractDocumentFromFile } from "@/app/documents/actions";
 import type { PersonProfileFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
+import { STAFF_CATEGORIES } from "@/lib/staff-id";
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 
@@ -19,6 +20,7 @@ type Defaults = Partial<{
   whatsapp: string | null;
   preferredChannel: string | null;
   role: string | null;
+  staffCategory: string | null;
   companyId: number | null;
   department: string | null;
   startDate: string | null;
@@ -283,6 +285,16 @@ export function PersonForm({
             className={inputCls}
             placeholder="e.g. Operations Manager"
           />
+        </div>
+
+        <div>
+          <label className={labelCls}>Staff ID category</label>
+          <select name="staffCategory" defaultValue={defaults?.staffCategory ?? ""} className={inputCls}>
+            {STAFF_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
         </div>
 
         <div>

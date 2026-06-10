@@ -25,6 +25,22 @@ const STAFF_TYPES = ["local_staff", "expat"];
 
 export type RoleLetter = "D" | "M" | "AH" | "E";
 
+/** The explicit category values stored in people.staff_category. */
+export const STAFF_CATEGORIES = [
+  { value: "", label: "Auto (from role/title)" },
+  { value: "director", label: "Director (D)" },
+  { value: "manager", label: "Manager (M)" },
+  { value: "admin_hr", label: "Admin & HR (AH)" },
+  { value: "employee", label: "Employee (E)" },
+] as const;
+
+const CATEGORY_LETTER: Record<string, RoleLetter> = {
+  director: "D",
+  manager: "M",
+  admin_hr: "AH",
+  employee: "E",
+};
+
 /** Map a free-text role to its category letter. Precedence matters:
  *  Director beats everything; Admin/HR beats Manager (so "Admin and HR
  *  Manager" → AH, not M). */
@@ -37,6 +53,12 @@ export function roleLetter(role: string | null | undefined): RoleLetter {
   return "E";
 }
 
+/** The category letter, preferring an explicit override, else derived. */
+export function categoryLetter(staffCategory: string | null | undefined, role: string | null | undefined): RoleLetter {
+  if (staffCategory && CATEGORY_LETTER[staffCategory]) return CATEGORY_LETTER[staffCategory];
+  return roleLetter(role);
+}
+
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -45,7 +67,7 @@ function pad2(n: number): string {
  *  Returns an empty map if there is no data. */
 export async function getStaffIdMap(): Promise<Map<number, string>> {
   const [{ data: people }, { data: companies }] = await Promise.all([
-    sb.from("people").select("id,company_id,role,person_type").order("id", { ascending: true }),
+    sb.from("people").select("id,company_id,role,person_type,staff_category").order("id", { ascending: true }),
     sb.from("companies").select("id,code_prefix"),
   ]);
 
@@ -65,7 +87,8 @@ export async function getStaffIdMap(): Promise<Map<number, string>> {
     if (!prefix) continue;
     const next = (seqByCompany.get(companyId) ?? 0) + 1;
     seqByCompany.set(companyId, next);
-    out.set(p.id as number, `${prefix}-${roleLetter(p.role as string | null)}${pad2(next)}`);
+    const letter = categoryLetter(p.staff_category as string | null, p.role as string | null);
+    out.set(p.id as number, `${prefix}-${letter}${pad2(next)}`);
   }
   return out;
 }
