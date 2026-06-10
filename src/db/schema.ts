@@ -512,6 +512,44 @@ export const todos = pgTable("todos", {
   completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
 });
 
+// Calendar events — a standalone, app-owned calendar. Each event can generate
+// an .ics file (the universal calendar format every mail/calendar app reads) so
+// recipients' own calendars save it automatically, plus an optional Google Meet
+// link. Times are stored as timestamptz (UTC); all-day events use `allDay`.
+// `attendees` is a JSON array of { personId?, name, email? } so we know who to
+// send to and how. `source` discriminates manual vs derived (meeting/task).
+export const calendarEvents = pgTable("calendar_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  // Where: a physical place OR a meeting URL. `meetLink` is the canonical
+  // video link; `location` is free text for in-person events.
+  location: text("location"),
+  meetLink: text("meet_link"),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  startAt: timestamp("start_at", { mode: "date", withTimezone: true }).notNull(),
+  endAt: timestamp("end_at", { mode: "date", withTimezone: true }),
+  allDay: boolean("all_day").notNull().default(false),
+  // Minutes before start to fire a reminder (VALARM in the .ics + in-app). NULL = none.
+  reminderMinutes: integer("reminder_minutes"),
+  // JSON array: [{ personId?: number, name: string, email?: string }]
+  attendees: text("attendees"),
+  // "manual" | "meeting" | "task" — keeps provenance for back-links.
+  source: text("source").notNull().default("manual"),
+  meetingId: integer("meeting_id").references(() => meetings.id, { onDelete: "set null" }),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
+  // Stable UID used in the .ics so re-sends update (not duplicate) the event in
+  // the recipient's calendar. Set once at creation.
+  uid: text("uid").notNull(),
+  // Bumps each time the event is edited; written into the .ics SEQUENCE so
+  // calendars treat a re-send as an update to the same event.
+  sequence: integer("sequence").notNull().default(0),
+  status: text("status").notNull().default("confirmed"), // confirmed | cancelled
+  createdBy: text("created_by").notNull().default("web-ui"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+});
+
 // Compliance & Documents centre — tracks licences, contracts, certificates,
 // registrations, insurance, leases, permits, immigration/visas, tax filings, etc.
 // Owner decision: track details only (file_url is an optional link to where the

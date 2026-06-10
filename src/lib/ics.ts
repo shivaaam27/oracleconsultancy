@@ -1,0 +1,164 @@
+// .ics calendar-file generator — the universal calendar format (RFC 5545) that
+// every mail/calendar app understands. Attach the output to an email or serve it
+// from /api/calendar/[id] and the recipient's own calendar saves the event
+// automatically (the "airline ticket" behaviour). Pure, dependency-free, and
+// safe to call from any server path. Also builds an "Add to Google Calendar"
+// template URL for a one-tap web fallback.
+
+export type IcsAttendee = { name: string; email?: string };
+
+export type IcsEvent = {
+  uid: string;
+  title: string;
+  description?: string | null;
+  /** Physical place or a video URL shown as LOCATION. */
+  location?: string | null;
+  /** Canonical meeting link; appended to the description + used as URL. */
+  meetLink?: string | null;
+  start: Date;
+  /** Defaults to start + 1h for timed events, or start + 1 day for all-day. */
+  end?: Date | null;
+  allDay?: boolean;
+  /** Minutes before start to alarm. Omitted = no VALARM. */
+  reminderMinutes?: number | null;
+  attendees?: IcsAttendee[];
+  organizerName?: string | null;
+  organizerEmail?: string | null;
+  /** Bumped on edit so a re-send updates (not duplicates) the calendar entry. */
+  sequence?: number;
+  /** "confirmed" (default) or "cancelled" to retract a previously sent event. */
+  status?: "confirmed" | "cancelled";
+};
+
+// RFC 5545 text escaping: backslash, semicolon, comma, newline.
+function esc(v: string): string {
+  return v
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+// UTC timestamp form: 20260615T140000Z
+function dtUtc(d: Date): string {
+  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+// All-day date form (no time): 20260615
+function dtDate(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}${m}${day}`;
+}
+
+// Fold long lines at 75 octets per spec (continuation lines start with a space).
+function fold(line: string): string {
+  if (line.length <= 75) return line;
+  const parts: string[] = [];
+  let rest = line;
+  parts.push(rest.slice(0, 75));
+  rest = rest.slice(75);
+  while (rest.length > 0) {
+    parts.push(" " + rest.slice(0, 74));
+    rest = rest.slice(74);
+  }
+  return parts.join("\r\n");
+}
+
+/** Build a full VCALENDAR document for a single event. */
+export function buildIcs(ev: IcsEvent): string {
+  const now = new Date();
+  const allDay = !!ev.allDay;
+  const end =
+    ev.end ??
+    (allDay
+      ? new Date(ev.start.getTime() + 24 * 60 * 60 * 1000)
+      : new Date(ev.start.getTime() + 60 * 60 * 1000));
+
+  const descParts: string[] = [];
+  if (ev.description) descParts.push(ev.description);
+  if (ev.meetLink) descParts.push(`Join: ${ev.meetLink}`);
+  const description = descParts.join("\n\n");
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//COS System//Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${esc(ev.uid)}`,
+    `DTSTAMP:${dtUtc(now)}`,
+    `SEQUENCE:${ev.sequence ?? 0}`,
+    `STATUS:${(ev.status ?? "confirmed").toUpperCase()}`,
+    allDay
+      ? `DTSTART;VALUE=DATE:${dtDate(ev.start)}`
+      : `DTSTART:${dtUtc(ev.start)}`,
+    allDay ? `DTEND;VALUE=DATE:${dtDate(end)}` : `DTEND:${dtUtc(end)}`,
+    `SUMMARY:${esc(ev.title)}`,
+  ];
+
+  if (description) lines.push(`DESCRIPTION:${esc(description)}`);
+  if (ev.location || ev.meetLink)
+    lines.push(`LOCATION:${esc(ev.location || ev.meetLink || "")}`);
+  if (ev.meetLink) lines.push(`URL:${esc(ev.meetLink)}`);
+
+  if (ev.organizerEmail)
+    lines.push(
+      `ORGANIZER;CN=${esc(ev.organizerName || ev.organizerEmail)}:mailto:${ev.organizerEmail}`
+    );
+
+  for (const a of ev.attendees ?? []) {
+    if (!a.email) continue;
+    lines.push(
+      `ATTENDEE;CN=${esc(a.name || a.email)};RSVP=TRUE:mailto:${a.email}`
+    );
+  }
+
+  if (ev.reminderMinutes != null && ev.reminderMinutes > 0) {
+    lines.push(
+      "BEGIN:VALARM",
+      "ACTION:DISPLAY",
+      `DESCRIPTION:${esc(ev.title)}`,
+      `TRIGGER:-PT${Math.round(ev.reminderMinutes)}M`,
+      "END:VALARM"
+    );
+  }
+
+  lines.push("END:VEVENT", "END:VCALENDAR");
+  return lines.map(fold).join("\r\n") + "\r\n";
+}
+
+/**
+ * "Add to Google Calendar" template URL — a one-tap web fallback for recipients
+ * who'd rather click than open an attachment. Google parses these parameters and
+ * pre-fills its event composer; the user just hits Save.
+ */
+export function googleCalendarUrl(ev: IcsEvent): string {
+  const allDay = !!ev.allDay;
+  const end =
+    ev.end ??
+    (allDay
+      ? new Date(ev.start.getTime() + 24 * 60 * 60 * 1000)
+      : new Date(ev.start.getTime() + 60 * 60 * 1000));
+
+  const dates = allDay
+    ? `${dtDate(ev.start)}/${dtDate(end)}`
+    : `${dtUtc(ev.start)}/${dtUtc(end)}`;
+
+  const detailsParts: string[] = [];
+  if (ev.description) detailsParts.push(ev.description);
+  if (ev.meetLink) detailsParts.push(`Join: ${ev.meetLink}`);
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: ev.title,
+    dates,
+  });
+  if (detailsParts.length) params.set("details", detailsParts.join("\n\n"));
+  if (ev.location || ev.meetLink)
+    params.set("location", ev.location || ev.meetLink || "");
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}

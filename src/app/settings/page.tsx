@@ -3,22 +3,24 @@ import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { getAppSettings, SWIPE_ACTIONS } from "@/lib/settings";
+import { getGoogleStatus } from "@/lib/google";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, revokePortalAccess } from "./actions";
+import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction } from "./actions";
 import { adminChangePassword, adminLogout } from "../login/actions";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; portal?: string; owner?: string }>;
+  searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string }>;
 }) {
-  const [s, sp, { data: peopleRows }] = await Promise.all([
+  const [s, sp, googleStatus, { data: peopleRows }] = await Promise.all([
     getAppSettings(),
     searchParams,
+    getGoogleStatus(),
     sb
       .from("people")
       .select("id,name,portal_password_hash,portal_last_login_at")
@@ -47,6 +49,59 @@ export default async function SettingsPage({
         </div>
       )}
 
+      {sp.google && (
+        <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 border ${
+          sp.google === "connected"
+            ? "text-success bg-success/10 border-success/30"
+            : "text-warn bg-warn/10 border-warn/30"
+        }`}>
+          <Check size={14} />
+          {sp.google === "connected" && "Google Calendar connected."}
+          {sp.google === "disconnected" && "Google Calendar disconnected."}
+          {sp.google === "denied" && "Google connection was cancelled."}
+          {sp.google === "norefresh" && "Google didn't return a refresh token — try again (it forces a fresh consent)."}
+          {sp.google === "unconfigured" && "Google isn't configured yet (missing client credentials)."}
+          {sp.google === "error" && "Something went wrong connecting Google. Please try again."}
+        </div>
+      )}
+
+      {/* Google Calendar connection */}
+      <div className="glass elevated rounded-2xl p-5 space-y-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <CalendarCheck size={14} className="text-accent" /> Google Calendar
+          </h2>
+          <p className="text-xs text-fg-muted mt-1">
+            Connect a Google account so events created in COS appear in guests&rsquo; calendars
+            automatically and generate real Google Meet links. When connected, invites are sent
+            through Google; otherwise they go out as email invitations.
+          </p>
+        </div>
+        {!googleStatus.configured ? (
+          <p className="text-xs text-warn">
+            Not configured yet — the Google client credentials need adding to the app before this can be switched on.
+          </p>
+        ) : googleStatus.connected ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-success">
+              <Check size={14} /> Connected{googleStatus.email ? ` as ${googleStatus.email}` : ""}
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/api/google/connect" className="text-xs text-fg-muted hover:text-fg underline">
+                Reconnect / switch account
+              </Link>
+              <form action={disconnectGoogleAction}>
+                <Button type="submit" variant="secondary" size="sm">Disconnect</Button>
+              </form>
+            </div>
+          </div>
+        ) : (
+          <Link href="/api/google/connect">
+            <Button type="button" className="gap-1.5"><CalendarCheck size={15} /> Connect Google Calendar</Button>
+          </Link>
+        )}
+      </div>
+
       <form action={saveSettings} className="space-y-5">
         {/* About you */}
         <div className="glass elevated rounded-2xl p-5 space-y-4">
@@ -59,6 +114,28 @@ export default async function SettingsPage({
           <div className="max-w-xs">
             <FieldLabel>Your name</FieldLabel>
             <Input name="operatorName" defaultValue={s.operatorName} placeholder="e.g. Sunny" />
+          </div>
+        </div>
+
+        {/* Email sending */}
+        <div className="glass elevated rounded-2xl p-5 space-y-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <Sparkles size={14} className="text-accent" /> Email sending
+            </h2>
+            <p className="text-xs text-fg-muted mt-1">
+              The name and address your outgoing email (e.g. calendar invites) is sent from. You can change this any time.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+            <div>
+              <FieldLabel>Sender name</FieldLabel>
+              <Input name="emailFromName" defaultValue={s.emailFromName} placeholder="Oracle Consultancy" />
+            </div>
+            <div>
+              <FieldLabel>Sender email address</FieldLabel>
+              <Input name="emailFrom" type="email" defaultValue={s.emailFrom} placeholder="admin@oracle.co.tz" />
+            </div>
           </div>
         </div>
 

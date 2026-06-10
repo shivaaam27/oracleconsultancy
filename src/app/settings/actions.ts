@@ -5,6 +5,14 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { hashPassword } from "@/lib/portal-auth";
 import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
+import { disconnectGoogle } from "@/lib/google";
+
+/** Disconnect the Google Calendar account (clears the stored refresh token). */
+export async function disconnectGoogleAction(): Promise<void> {
+  await disconnectGoogle();
+  revalidatePath("/settings");
+  redirect("/settings?google=disconnected");
+}
 
 const SWIPE_VALUES: SwipeAction[] = ["none", "complete", "escalate", "snooze", "archive", "delete", "open", "update"];
 function swipe(fd: FormData, key: string): SwipeAction | undefined {
@@ -33,6 +41,8 @@ export async function saveSettings(fd: FormData): Promise<void> {
     swipeRightAction: swipe(fd, "swipeRightAction"),
     swipeLeftAction: swipe(fd, "swipeLeftAction"),
     operatorName: ((fd.get("operatorName") as string | null) ?? "").trim(),
+    emailFrom: (fd.get("emailFrom") as string | null)?.trim() || undefined,
+    emailFromName: (fd.get("emailFromName") as string | null)?.trim() || undefined,
   };
 
   await saveAppSettings(patch);

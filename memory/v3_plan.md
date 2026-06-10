@@ -324,6 +324,35 @@ Locked decisions: header contact = **compact icon buttons**; **Prepare pack fold
 
 System-wide branded PDF letters — per-company letterhead (typed / designed header+footer images / full-page background), Draft→Issue snapshot, full body editing, PDF + optional Outbox draft, no auto-send. First type = Invitation. See `memory/letters.md`.
 
+## V3 — Outbound comms / Calendar (in progress, 2026-06)
+
+Owner wants in-app meeting creation that sends out and auto-saves into recipients'
+own calendars (the "airline ticket" `.ics` behaviour), plus real email + WhatsApp
+later. Decisions: **standalone Calendar** at `/calendar` (also works admin-side);
+**Google Meet = Option B** (real OAuth auto-Meet-room, built later as a swappable
+setting); email provider = **Resend** (sending-domain decision still open).
+
+**Step 1 shipped (.ics engine + standalone calendar + reminders, no Google needed):**
+- `calendar_events` table (migration `0046`, applied) with `uid`/`sequence` so
+  re-sent invites update not duplicate.
+- `src/lib/ics.ts` (RFC-5545 `.ics` builder + `googleCalendarUrl` fallback),
+  `src/lib/calendar.ts` (data layer + `toIcsEvent`), `src/app/calendar/actions.ts`.
+- `/api/calendar/[id].ics` serves the calendar file (email attach / share link).
+- `/calendar` page (agenda + create/edit form + share row: .ics / Google / copy /
+  WhatsApp; reminders + attendees). Added to the HRMS launcher.
+- tsc clean; `.ics` output validated. UI preview pending (preview was on a portal
+  session). Next = step 2: email send with `.ics` attached via Resend.
+
+**Step 2 shipped (real email send, code-complete):** sender = single shared
+`admin@oracle.co.tz` for now (changeable in Settings → Email sending).
+- `src/lib/email.ts` `sendEmail()` via Resend REST API; degrades to manual links
+  when `RESEND_API_KEY` unset (mirrors `getGroqKey`). `getEmailConfig()` in
+  `settings.ts`; new settings `emailFrom`/`emailFromName`.
+- `sendEventInviteAction` emails attendees-with-email the `.ics` (html+text+attach)
+  and logs a Sent `outbox` row (`source=calendar:<id>`). "Send invite" button per
+  event. tsc clean. **Go-live needs one-time setup:** Resend account + verify
+  `oracle.co.tz` (SPF/DKIM DNS) + `RESEND_API_KEY` env. Until then = graceful fallback.
+
 ## Guardrails
 
 - Do not add a new Control Tower page unless the owner explicitly asks.

@@ -61,6 +61,7 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/hrms/oecr", label: "OECR", icon: Package },
   { href: "/hrms/assets", label: "Assets & Vendors", icon: Laptop },
   { href: "/hrms/leave", label: "Leave & Attendance", icon: CalendarDays },
+  { href: "/calendar", label: "Calendar", icon: CalendarClock },
   { href: "/hrms/ocr", label: "OCR", icon: Sparkles },
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/people", label: "People", icon: Users },

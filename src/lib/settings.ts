@@ -33,6 +33,9 @@ export type AppSettings = {
   swipeRightAction: SwipeAction;
   swipeLeftAction: SwipeAction;
   operatorName: string;
+  /** Sender identity for real outbound email. Changeable any time. */
+  emailFrom: string;
+  emailFromName: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -58,6 +61,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   swipeRightAction: "complete",
   swipeLeftAction: "escalate",
   operatorName: "",
+  emailFrom: "admin@oracle.co.tz",
+  emailFromName: "Oracle Consultancy",
 };
 
 /** Map of canonical setting field → storage key. */
@@ -74,6 +79,8 @@ const KEY: Record<keyof AppSettings, string> = {
   swipeRightAction: "v2.swipeRightAction",
   swipeLeftAction: "v2.swipeLeftAction",
   operatorName: "v2.operatorName",
+  emailFrom: "v2.emailFrom",
+  emailFromName: "v2.emailFromName",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -110,6 +117,8 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     swipeRightAction: (map.get(KEY.swipeRightAction) as AppSettings["swipeRightAction"]) ?? d.swipeRightAction,
     swipeLeftAction: (map.get(KEY.swipeLeftAction) as AppSettings["swipeLeftAction"]) ?? d.swipeLeftAction,
     operatorName: map.get(KEY.operatorName) ?? d.operatorName,
+    emailFrom: map.get(KEY.emailFrom) ?? d.emailFrom,
+    emailFromName: map.get(KEY.emailFromName) ?? d.emailFromName,
   };
 });
 
@@ -133,4 +142,54 @@ export async function getGroqKey(): Promise<string | undefined> {
   if (!key) return undefined;
   const { aiEnabled } = await getAppSettings();
   return aiEnabled ? key : undefined;
+}
+
+export type EmailConfig = {
+  /** Sender identity (from settings; changeable any time). */
+  from: string;
+  fromAddress: string;
+  fromName: string;
+} & (
+  | { provider: "resend"; apiKey: string }
+  | { provider: "smtp"; host: string; port: number; user: string; pass: string }
+);
+
+/**
+ * Resolves the live email-send config plus the sender identity. Returns null
+ * when no provider is configured so callers degrade gracefully to manual links —
+ * exactly like getGroqKey for AI.
+ *
+ * Two providers, picked from env (SMTP preferred — it's the no-DNS Gmail route):
+ * - **SMTP / Gmail**: GMAIL_USER + GMAIL_APP_PASSWORD (sends through the real
+ *   admin@oracle.co.tz mailbox; optional SMTP_HOST/SMTP_PORT override the Gmail
+ *   defaults for any other SMTP server).
+ * - **Resend**: RESEND_API_KEY (needs a DNS-verified domain).
+ */
+export async function getEmailConfig(): Promise<EmailConfig | null> {
+  const { emailFrom, emailFromName } = await getAppSettings();
+  const fromAddress = emailFrom || DEFAULT_SETTINGS.emailFrom;
+  const fromName = emailFromName || DEFAULT_SETTINGS.emailFromName;
+  const identity = {
+    fromAddress,
+    fromName,
+    from: fromName ? `${fromName} <${fromAddress}>` : fromAddress,
+  };
+
+  const smtpUser = process.env.GMAIL_USER;
+  const smtpPass = process.env.GMAIL_APP_PASSWORD;
+  if (smtpUser && smtpPass) {
+    return {
+      ...identity,
+      provider: "smtp",
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: Number(process.env.SMTP_PORT) || 587,
+      user: smtpUser,
+      pass: smtpPass.replace(/\s+/g, ""), // app passwords are shown with spaces
+    };
+  }
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (apiKey) return { ...identity, provider: "resend", apiKey };
+
+  return null;
 }
