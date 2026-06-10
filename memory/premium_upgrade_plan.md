@@ -159,9 +159,17 @@ clean. ✅ **Phase 0 complete.**
    `CompanyDrawerLink` sites (companies page, insights, task page, person drawer).
    Fixed a shape bug (`documents.attention` is an array, not a count). Verified
    live: focus → "Loading…" → "Terra Green · 0% Risk · 6 open/1 overdue …", click
-   opens drawer, no console errors. **Next:** same pattern for `person-drawer-link`
-   (`/api/people-detail`) and `task-drawer-link`/`code-linked-text`
-   (`/api/task-detail`).
+   opens drawer, no console errors.
+   **All three DONE (2026-06-11):** extracted a generic `src/components/hover-preview.tsx`
+   (Radix Tooltip + lazy fetch + shared module cache + retry-on-error, keyboard
+   accessible, click preserved). Refactored `company-drawer-link` onto it and
+   added `person-drawer-link` (`/api/people-detail` → name, role·company, open/
+   overdue/blocked, docs expiring/expired) and `task-drawer-link`
+   (`/api/task-detail` → title, code·company, status·priority·deadline, assignees,
+   latest update). Verified live for all three (company on /companies, person via
+   task-drawer assignees, task via person-drawer Tasks tab); no console errors.
+   **Next (optional):** wrap inline task-code mentions (`code-linked-text.tsx`)
+   in the same task hover.
 3. **Connections view** — a tab in `entity-drawer` listing one-hop neighbours
    (person→company→tasks→docs→meetings→assets), all already linked in the DB.
 

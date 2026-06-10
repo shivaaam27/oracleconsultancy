@@ -1,12 +1,10 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import * as Tooltip from "@radix-ui/react-tooltip";
-import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { HoverPreview } from "./hover-preview";
 
-// Module-level cache so repeated hovers over the same company don't refetch.
 type CompanyPreview = {
   company: { id: number; name: string; accent: string | null };
   compliance: { score: number; status: "Good" | "Watch" | "Risk"; missing: number; expired: number; expiring: number } | null;
@@ -14,7 +12,6 @@ type CompanyPreview = {
   documents: { count: number; attention: unknown[] };
   teamCount: number;
 };
-const previewCache = new Map<number, CompanyPreview>();
 
 const statusTone: Record<"Good" | "Watch" | "Risk", string> = {
   Good: "text-success",
@@ -22,15 +19,7 @@ const statusTone: Record<"Good" | "Watch" | "Risk", string> = {
   Risk: "text-danger",
 };
 
-function PreviewBody({ data, loading }: { data: CompanyPreview | null; loading: boolean }) {
-  if (loading && !data) {
-    return (
-      <div className="flex items-center gap-2 text-xs text-fg-muted">
-        <Loader2 size={13} className="animate-spin text-accent" /> Loading…
-      </div>
-    );
-  }
-  if (!data) return <div className="text-xs text-fg-muted">No preview available.</div>;
+function CompanyPreviewBody(data: CompanyPreview) {
   const c = data.compliance;
   return (
     <div className="space-y-2">
@@ -78,9 +67,6 @@ export function CompanyDrawerLink({
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const [data, setData] = useState<CompanyPreview | null>(() => previewCache.get(id) ?? null);
-  const [loading, setLoading] = useState(false);
-  const fetched = useRef(previewCache.has(id));
 
   const open = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -90,45 +76,11 @@ export function CompanyDrawerLink({
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  const load = async () => {
-    if (fetched.current) return;
-    fetched.current = true;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/company-detail?id=${id}`);
-      if (res.ok) {
-        const json = (await res.json()) as CompanyPreview;
-        previewCache.set(id, json);
-        setData(json);
-      }
-    } catch {
-      fetched.current = false; // allow a retry on next hover
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <Tooltip.Provider delayDuration={350}>
-      <Tooltip.Root onOpenChange={(o) => o && load()}>
-        <Tooltip.Trigger asChild>
-          <button type="button" onClick={open} className={className} title={title}>
-            {children}
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Portal>
-          <Tooltip.Content
-            side="top"
-            align="start"
-            sideOffset={8}
-            collisionPadding={12}
-            className="z-[120] w-60 rounded-2xl glass-menu p-3 shadow-pill ring-1 ring-border/70"
-          >
-            <PreviewBody data={data} loading={loading} />
-            <Tooltip.Arrow className="fill-[var(--bg-elev)]" />
-          </Tooltip.Content>
-        </Tooltip.Portal>
-      </Tooltip.Root>
-    </Tooltip.Provider>
+    <HoverPreview<CompanyPreview> cacheKey={`company:${id}`} url={`/api/company-detail?id=${id}`} render={CompanyPreviewBody}>
+      <button type="button" onClick={open} className={className} title={title}>
+        {children}
+      </button>
+    </HoverPreview>
   );
 }
