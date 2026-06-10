@@ -34,7 +34,7 @@ export function NewTaskForm({
   const fields = (
     <>
       {/* Primary card */}
-      <div className="glass elevated relative overflow-hidden rounded-3xl p-4 sm:p-5 space-y-3 sm:space-y-4">
+      <div className="bg-bg-elev ring-1 ring-border elevated relative overflow-hidden rounded-3xl p-4 sm:p-5 space-y-3 sm:space-y-4">
         <div
           aria-hidden
           className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full blur-3xl opacity-50"
@@ -86,8 +86,8 @@ export function NewTaskForm({
       </div>
 
       {/* Advanced — collapsible, keeps the form minimal */}
-      <details className="group glass elevated rounded-3xl overflow-hidden">
-        <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+      <details className="group bg-bg-elev ring-1 ring-border elevated rounded-3xl overflow-hidden">
+        <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted select-none">
           <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90" />
           More details
           <span className="text-fg-subtle normal-case tracking-normal font-normal">status, risk, category &amp; department</span>

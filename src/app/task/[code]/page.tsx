@@ -281,7 +281,7 @@ export default async function TaskPage({
 
       {/* Description — the task's standing context (the main message). */}
       {r.comments && r.comments.trim() && (
-        <div className="glass elevated rounded-2xl px-4 py-3 flex items-start gap-3">
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl px-4 py-3 flex items-start gap-3">
           <div className="mt-0.5 h-8 w-8 rounded-full bg-bg-muted text-fg-muted flex items-center justify-center shrink-0">
             <AlignLeft size={15} />
           </div>
@@ -294,7 +294,7 @@ export default async function TaskPage({
 
       {/* Latest update callout */}
       {r.latestUpdate && (
-        <div className="glass elevated rounded-2xl px-4 py-3 flex items-start gap-3">
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl px-4 py-3 flex items-start gap-3">
           <div className="mt-0.5 h-8 w-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
             <MessageSquarePlus size={15} />
           </div>
@@ -325,8 +325,8 @@ export default async function TaskPage({
         <UpdateBox taskId={r.id} taskCode={r.code} currentStatus={r.status} />
 
         {/* Edit form (collapsible, full width) */}
-        <details className="group glass elevated rounded-3xl overflow-hidden">
-          <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+        <details className="group bg-bg-elev ring-1 ring-border elevated rounded-3xl overflow-hidden">
+          <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted select-none">
             <Pencil size={12} /> Edit task
             <span className="ml-auto text-fg-subtle text-base leading-none transition-transform group-open:rotate-180 normal-case tracking-normal">⌄</span>
           </summary>
@@ -406,8 +406,8 @@ export default async function TaskPage({
         </details>
 
         {/* History */}
-        <details className="group glass elevated rounded-2xl overflow-hidden" open>
-            <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-wider text-fg-muted select-none">
+        <details className="group bg-bg-elev ring-1 ring-border elevated rounded-3xl overflow-hidden" open>
+            <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted select-none">
               <MessageSquarePlus size={12} /> History
               <span className="text-fg-subtle normal-case tracking-normal">· {counts.all}</span>
               <span className="ml-auto text-fg-subtle text-base leading-none transition-transform group-open:rotate-180 normal-case tracking-normal">⌄</span>

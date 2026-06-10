@@ -8,6 +8,7 @@ import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { SnoozeSheet } from "@/components/snooze-sheet";
 import { FluidSelect } from "@/components/fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
+import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";
 
 /**
  * /design — the living Liquid Glass gallery. A single place to see every token,
@@ -66,6 +67,53 @@ export default function DesignPage() {
           and to try ideas before rolling them out. Full notes live in <code className="text-xs">DESIGN_SYSTEM.md</code>.
         </p>
       </header>
+
+      {/* Surface kit — the page-level design language. COPY FROM HERE. */}
+      <Section
+        title="Surface kit — the page language"
+        hint="Every page is built from these four pieces: Hero on top, SectionLabel + Panel for each section, TrendChip for deltas. This is the canonical reference — copy from here, not from older pages."
+      >
+        <Hero
+          title="Page title"
+          subtitle="One quiet sentence about what this page is for."
+          actions={<Button size="sm">Primary action</Button>}
+        >
+          <div className="flex flex-wrap gap-4">
+            {([
+              { label: "Open", value: 12, tone: "accent" as Tone, delta: 3 },
+              { label: "Overdue", value: 2, tone: "danger" as Tone, delta: -1 },
+              { label: "Done", value: 9, tone: "success" as Tone, delta: 4 },
+            ]).map((m) => (
+              <div key={m.label} className="flex items-baseline gap-1.5">
+                <span className={`text-xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
+                <span className="text-[11px] text-fg-muted">{m.label}</span>
+                <TrendChip delta={m.delta} goodWhenDown={m.label === "Overdue"} />
+              </div>
+            ))}
+          </div>
+        </Hero>
+
+        <div className="space-y-2">
+          <SectionLabel icon={<Sparkles size={13} className="text-accent" />} action={<span className="text-[11px] text-accent">Action →</span>}>
+            Section label
+          </SectionLabel>
+          <Panel className="p-4">
+            <p className="text-sm">A standard <code className="text-xs">Panel</code> — solid, ring border, large radius. Content lives here.</p>
+          </Panel>
+          <Panel glass className="p-4">
+            <p className="text-sm">A <code className="text-xs">glass</code> Panel — only for the lifted top-of-page tier.</p>
+          </Panel>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(TONE) as Tone[]).map((t) => (
+            <span key={t} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${TONE[t].bg} ${TONE[t].text} ${TONE[t].ring}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${TONE[t].bar}`} />
+              {t}
+            </span>
+          ))}
+        </div>
+      </Section>
 
       {/* Colour tokens */}
       <Section title="Colour" hint="Accent is the only tint — reserved for primary actions and focus.">

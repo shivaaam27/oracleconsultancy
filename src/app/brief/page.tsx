@@ -1,5 +1,6 @@
 import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users, CalendarClock } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
+import { Hero, TONE } from "@/components/surface-kit";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
 import { BriefCompanyFilter } from "@/components/brief-company-filter";
@@ -30,30 +31,43 @@ export default async function DirectorBriefPage({
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto pb-10">
-      {/* Header + share */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Director Brief</div>
-          <h1 className="text-xl font-semibold tracking-tight">{b.selectedCompanyName ?? BRAND_NAME}</h1>
-          <div className="text-xs text-fg-muted mt-0.5">{b.monthLabel} · as at {b.asAt}</div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap print-hidden">
-          <BriefDraftButton period={b.period} companyId={b.selectedCompanyId} />
-          <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
-        </div>
-      </div>
-      <div className="space-y-2 print-hidden">
+      {/* Hero — screen only; the PDF keeps its own header + stat overview. */}
+      <div className="print-hidden space-y-2">
+        <Hero
+          title={b.selectedCompanyName ?? BRAND_NAME}
+          subtitle={`Director Brief · ${b.monthLabel} · as at ${b.asAt}`}
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <BriefDraftButton period={b.period} companyId={b.selectedCompanyId} />
+              <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
+            </div>
+          }
+        >
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {([
+              { label: "Delivered", value: b.deliveredCount, tone: "success" as const },
+              { label: "Open", value: b.openCount, tone: "accent" as const },
+              { label: "Overdue", value: b.overdueCount, tone: b.overdueCount ? ("danger" as const) : ("muted" as const) },
+              { label: "Companies", value: b.companyCount, tone: "muted" as const },
+              ...(b.atRiskCount ? [{ label: "Need watching", value: b.atRiskCount, tone: "warn" as const }] : []),
+            ]).map((m) => (
+              <div key={m.label} className="flex items-baseline gap-1.5">
+                <span className={`text-xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
+                <span className="text-[11px] text-fg-muted">{m.label}</span>
+              </div>
+            ))}
+          </div>
+        </Hero>
         <BriefPeriodFilter period={b.period} />
         <BriefCompanyFilter period={b.period} selectedCompanyId={b.selectedCompanyId} companies={b.companyOptions} />
       </div>
 
-      {/* Headline line */}
-      <p className="text-sm text-fg-muted print-hidden">
-        <b className="text-success">{b.deliveredCount} delivered</b> in {b.monthLabel} ·{" "}
-        <b className="text-fg">{b.openCount} open</b> ·{" "}
-        <b className={b.overdueCount ? "text-danger" : "text-fg"}>{b.overdueCount} overdue</b> across{" "}
-        {b.companyCount} compan{b.companyCount === 1 ? "y" : "ies"}{b.atRiskCount ? <> · <b className="text-warn">{b.atRiskCount} need watching</b></> : null}.
-      </p>
+      {/* PDF header — print only. */}
+      <div className="print-only">
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Director Brief</div>
+        <h1 className="text-xl font-semibold tracking-tight">{b.selectedCompanyName ?? BRAND_NAME}</h1>
+        <div className="text-xs text-fg-muted mt-0.5">{b.monthLabel} · as at {b.asAt}</div>
+      </div>
 
       {/* Executive summary — PDF only. */}
       <p className="print-only text-sm leading-relaxed">
@@ -65,8 +79,8 @@ export default async function DirectorBriefPage({
         {b.compliance.length ? ` ${b.compliance.length} compan${b.compliance.length === 1 ? "y has" : "ies have"} compliance issues.` : ""}
       </p>
 
-      {/* Top-line stat cards — kept in the PDF as the visual overview. */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Top-line stat cards — PDF only now; the Hero metric rail covers the screen. */}
+      <div className="print-only grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Delivered" value={b.deliveredCount} tone="success" icon={<CircleCheck size={16} />} />
         <Stat label="Open" value={b.openCount} icon={<ListTodo size={16} />} />
         <Stat label="Overdue" value={b.overdueCount} tone={b.overdueCount ? "danger" : "default"} icon={<AlertTriangle size={16} />} />

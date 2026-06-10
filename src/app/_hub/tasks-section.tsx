@@ -13,6 +13,7 @@ import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
 import { CheckSquare, Sparkles, Clock, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X } from "lucide-react";
+import { Hero } from "@/components/surface-kit";
 
 type Sp = {
   company?: string;
@@ -161,46 +162,42 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     <div className="space-y-4">
       <TaskActions />
       <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
-      {/* Header row */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-tight">Task Management</h2>
-          <p className="text-xs text-fg-muted mt-0.5">
-            {dayMode
-              ? `${total} item${total === 1 ? "" : "s"} need attention`
-              : `${total} ${showClosed ? "task" : "open task"}${total === 1 ? "" : "s"}`}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-2 sm:justify-end">
-          <ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />
-        </div>
-      </div>
-
-      {/* Focus / All toggle — segmented pill (matches the rest of the system) */}
-      {!hasFilters && (view === "table" || view === "board") && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="inline-flex items-center gap-1 p-1 rounded-full glass elevated text-xs">
-            <Link
-              href="/?tab=tasks"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${dayMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
-            >
-              <Sparkles size={13} /> Focus
-            </Link>
-            <Link
-              href="/?tab=tasks&all=1"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${!dayMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
-            >
-              All tasks
-            </Link>
-          </div>
-          {dayMode && (
-            <span className="hidden sm:inline text-[11px] text-fg-muted">Overdue, due-soon, escalated &amp; critical across all companies.</span>
+      {/* Hero — shared surface-kit header, same language as Home */}
+      <Hero
+        title="Task Management"
+        subtitle={
+          dayMode
+            ? `${total} item${total === 1 ? "" : "s"} need attention`
+            : `${total} ${showClosed ? "task" : "open task"}${total === 1 ? "" : "s"}`
+        }
+        actions={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
+      >
+        <div className="space-y-3">
+          {/* Focus / All toggle — segmented pill */}
+          {!hasFilters && (view === "table" || view === "board") && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="inline-flex items-center gap-1 p-1 rounded-full bg-bg-subtle/70 ring-1 ring-border/60 text-xs">
+                <Link
+                  href="/?tab=tasks"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${dayMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+                >
+                  <Sparkles size={13} /> Focus
+                </Link>
+                <Link
+                  href="/?tab=tasks&all=1"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${!dayMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+                >
+                  All tasks
+                </Link>
+              </div>
+              {dayMode && (
+                <span className="hidden sm:inline text-[11px] text-fg-muted">Overdue, due-soon, escalated &amp; critical across all companies.</span>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {/* KPI chips — one horizontal-scroll row on mobile, wraps on desktop */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+          {/* KPI chips — one horizontal-scroll row on mobile, wraps on desktop */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {[
           { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: Clock },
           { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
@@ -237,7 +234,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             </Link>
           );
         })}
-      </div>
+          </div>
+        </div>
+      </Hero>
 
       {/* Filters bar — inline on desktop, collapses to a sheet on mobile */}
       <TaskFilters

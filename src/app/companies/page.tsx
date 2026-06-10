@@ -1,5 +1,5 @@
 import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
-import { PageHeader } from "@/components/ui";
+import { Hero, TONE } from "@/components/surface-kit";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CompanyDrawerLink } from "@/components/company-drawer-link";
 import { Building2, AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
@@ -20,10 +20,27 @@ export default async function CompaniesPage({
   const { from } = await searchParams;
   const rows = await getAllTasks();
   const companies = computeCompanyKpis(rows);
+  const totals = companies.reduce(
+    (a, c) => ({ open: a.open + c.open, overdue: a.overdue + c.overdue, completed: a.completed + c.completed }),
+    { open: 0, overdue: 0, completed: 0 }
+  );
   return (
     <div className="space-y-5">
       <HrmsCrumbs from={from} />
-      <PageHeader title="Companies" sub={`${companies.length} companies tracked`} />
+      <Hero title="Companies" subtitle={`${companies.length} companies tracked across the portfolio`}>
+        <div className="flex flex-wrap gap-5">
+          {([
+            { label: "Open tasks", value: totals.open, tone: "accent" as const },
+            { label: "Overdue", value: totals.overdue, tone: totals.overdue ? ("danger" as const) : ("muted" as const) },
+            { label: "Completed", value: totals.completed, tone: "success" as const },
+          ]).map((m) => (
+            <div key={m.label} className="flex items-baseline gap-1.5">
+              <span className={`text-xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
+              <span className="text-[11px] text-fg-muted">{m.label}</span>
+            </div>
+          ))}
+        </div>
+      </Hero>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {companies.map((c) => {
@@ -31,7 +48,7 @@ export default async function CompaniesPage({
           const risk = riskTint(c.riskScore);
           return (
             <CompanyDrawerLink key={c.id} id={c.id} className="group block w-full text-left">
-              <div className="glass elevated relative overflow-hidden rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
+              <div className="bg-bg-elev ring-1 ring-border elevated relative overflow-hidden rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md">
                 {/* accent wash keyed to the company colour */}
                 <div
                   aria-hidden
