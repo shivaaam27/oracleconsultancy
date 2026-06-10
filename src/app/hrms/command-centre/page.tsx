@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/ui";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CommandCentreView } from "@/components/command-centre-view";
-import { listObligations, splitObligations } from "@/lib/recurring";
+import { listObligations, splitObligations, buildDeadlinesWithCompanies, loadObligationCompany, type CompanyLite } from "@/lib/recurring";
 import { listDocuments } from "@/lib/documents";
 import { permitFlag, daysUntil, type CcFlag } from "@/lib/command-centre";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
@@ -20,10 +20,11 @@ export default async function CommandCentrePage({
   const { from, view } = await searchParams;
   const now = new Date();
 
-  const [obligations, documents, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+  const [obligations, documents, ocMap, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listObligations(),
     listDocuments(),
-    sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
+    loadObligationCompany(),
+    sb.from("companies").select("id,name,accent_color,vrn").eq("active", true).order("name"),
     sb.from("people").select("id,name").eq("active", true),
   ]);
 
@@ -32,11 +33,17 @@ export default async function CommandCentrePage({
     name: c.name as string,
     accentColor: (c.accent_color as string | null) ?? null,
   }));
-  const companyName = (id: number | null) => companies.find((c) => c.id === id)?.name ?? null;
+  const companiesLite: CompanyLite[] = (companiesRaw ?? []).map((c) => ({
+    id: c.id as number,
+    name: c.name as string,
+    accent: (c.accent_color as string | null) ?? null,
+    vatRegistered: !!(c.vrn as string | null),
+  }));
   const companyAccent = (id: number | null) => companies.find((c) => c.id === id)?.accentColor ?? null;
   const people = new Map((peopleRaw ?? []).map((p) => [p.id as number, p.name as string]));
 
   const { habits, deadlines } = splitObligations(obligations, now);
+  const deadlinesWithCompanies = buildDeadlinesWithCompanies(obligations, companiesLite, ocMap, now);
 
   // Permit Watch — person immigration documents, flagged on the wider bands.
   const permits = documents
@@ -69,8 +76,8 @@ export default async function CommandCentrePage({
     }))
     .sort((a, b) => a.score - b.score);
 
-  // Serialise deadline dates for the client component.
-  const deadlineRows = deadlines.map((d) => ({
+  // Serialise deadline dates for the client component (with per-company status).
+  const deadlineRows = deadlinesWithCompanies.map((d) => ({
     ...d,
     dueDate: d.dueDate ? d.dueDate.toISOString() : null,
   }));

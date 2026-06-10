@@ -25,8 +25,12 @@ import { Badge, LinkButton } from "@/components/ui";
 import { AutomationActionButton } from "@/components/automation-action-button";
 import { PlanMyDayButton } from "@/components/plan-my-day-button";
 import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";
+import { InsightPopover, InsightBody } from "@/components/insight-popover";
+import { WeatherChip } from "@/components/weather-chip";
 
 const toneClass = TONE;
+
+type InsightRow = { label: string; value: string | number; tone?: Tone };
 
 export type CommandAction = {
   id: string;
@@ -46,6 +50,13 @@ export type PulseMetric = {
   value: number;
   tone?: Tone;
   trend?: MetricTrend;
+  /** One-line description shown in the hover/tap insight. */
+  hint?: string;
+  /** Previous value + window, for the "vs N days ago" delta line. */
+  previous?: number;
+  days?: number;
+  /** Optional breakdown rows. */
+  rows?: InsightRow[];
 };
 
 export type QueueGroup = "task" | "document" | "people" | "statutory" | "draft";
@@ -66,6 +77,9 @@ export type CompanyGauge = {
   accentColor: string | null;
   score: number;
   status: "Good" | "Watch" | "Risk";
+  missing: number;
+  expiring: number;
+  expired: number;
 };
 
 const groupMeta: Record<QueueGroup, { label: string; icon: typeof ClipboardList }> = {
@@ -112,6 +126,33 @@ function statusTone(status: "Good" | "Watch" | "Risk"): Tone {
   return status === "Risk" ? "danger" : status === "Watch" ? "warn" : "success";
 }
 
+/** Build the hover/tap insight body for a single metric card. */
+function metricInsight(m: PulseMetric): React.ReactNode {
+  const delta = m.trend?.delta;
+  const hasDelta = typeof delta === "number" && typeof m.previous === "number";
+  const caption = (
+    <span className="block space-y-1">
+      {m.hint && <span className="block">{m.hint}</span>}
+      {hasDelta && (
+        <span className="block">
+          {delta === 0
+            ? "No change"
+            : `${delta! > 0 ? "Up" : "Down"} ${Math.abs(delta!)} from ${m.previous}`}
+          {m.days ? ` over ${m.days} day${m.days === 1 ? "" : "s"}` : ""}.
+        </span>
+      )}
+    </span>
+  );
+  return (
+    <InsightBody
+      title={m.label}
+      value={m.value}
+      caption={caption}
+      rows={m.rows?.map((r) => ({ label: r.label, value: r.value, tone: r.tone ? toneClass[r.tone].text : undefined }))}
+    />
+  );
+}
+
 /* ---- a half-circle (180°) gauge for the headline compliance score ---- */
 function ArcGauge({ percent, color, size = 150, stroke = 13 }: { percent: number; color: string; size?: number; stroke?: number }) {
   const animated = useCountUp(percent, 1100);
@@ -137,6 +178,46 @@ function ArcGauge({ percent, color, size = 150, stroke = 13 }: { percent: number
   );
 }
 
+function QueueRow({ item, index }: { item: QueueItem; index: number }) {
+  const Icon = groupMeta[item.group].icon;
+  const stroke = toneClass[item.tone].stroke;
+  return (
+    <li className="animate-[fadeIn_0.3s_ease-out_both]" style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}>
+      <Link
+        href={item.href}
+        className="group relative flex items-center gap-3 overflow-hidden rounded-2xl py-2.5 pl-4 pr-3 transition-all hover:bg-gradient-to-r hover:from-bg-muted/60 hover:to-transparent hover:ring-1 hover:ring-border/60"
+      >
+        <span
+          aria-hidden
+          className="absolute inset-y-2 left-0.5 w-1 rounded-full opacity-80 transition-opacity group-hover:opacity-100"
+          style={{ background: stroke, boxShadow: `0 0 10px ${stroke}` }}
+        />
+        <span
+          className={cn(
+            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-105",
+            toneClass[item.tone].bg,
+            toneClass[item.tone].ring
+          )}
+        >
+          <Icon size={16} className={toneClass[item.tone].text} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium transition-transform group-hover:translate-x-0.5 group-hover:text-accent">
+            {item.title}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-fg-muted">{item.meta}</span>
+        </span>
+        {item.due && (
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ring-1", toneClass[item.tone].bg, toneClass[item.tone].text, toneClass[item.tone].ring)}>
+            {item.due}
+          </span>
+        )}
+        <ChevronRight size={16} className="shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100" />
+      </Link>
+    </li>
+  );
+}
+
 function CommandIcon({ tone }: { tone: Tone }) {
   const Icon = tone === "danger" ? AlertTriangle : tone === "warn" ? CalendarClock : tone === "success" ? CheckCircle2 : Sparkles;
   return (
@@ -156,6 +237,8 @@ export function HomeMissionControl({
   healthStats,
   healthDelta,
   companyGauges,
+  clearedToday,
+  weather,
 }: {
   greeting: string;
   dateLabel: string;
@@ -166,6 +249,8 @@ export function HomeMissionControl({
   healthStats: { missing: number; expiring: number; expired: number };
   healthDelta: number | null;
   companyGauges: CompanyGauge[];
+  clearedToday: number;
+  weather: { city: string; lat: number; lon: number };
 }) {
   const lead = command[0];
   const rest = command.slice(1, 5);
@@ -206,6 +291,7 @@ export function HomeMissionControl({
         accentTone={healthTone}
         actions={
           <>
+            <WeatherChip city={weather.city} lat={weather.lat} lon={weather.lon} />
             <LinkButton href="/?capture=open" variant="primary" size="sm">
               <Sparkles size={14} /> Create
             </LinkButton>
@@ -215,19 +301,23 @@ export function HomeMissionControl({
           </>
         }
       >
-        {/* Metric rail — horizontal scroll on mobile, no stacking */}
+        {/* Metric rail — horizontal scroll on mobile, no stacking. Each card
+            reveals a detailed insight on hover (desktop) or tap (mobile). */}
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {pulse.map((m) => (
-            <div
+            <InsightPopover
               key={m.label}
-              className="min-w-[92px] flex-1 shrink-0 rounded-2xl bg-bg-elev/70 px-3 py-2.5 ring-1 ring-border/60 backdrop-blur-sm"
+              content={metricInsight(m)}
+              className="min-w-[92px] flex-1 shrink-0"
             >
-              <div className="flex items-baseline justify-between gap-1">
-                <CountUp value={m.value} className={cn("block text-xl font-semibold tabular leading-none", m.tone ? toneClass[m.tone].text : "text-fg")} />
-                {m.trend && <TrendChip delta={m.trend.delta} goodWhenDown={m.trend.goodWhenDown} />}
+              <div className="w-full rounded-2xl bg-bg-elev/70 px-3 py-2.5 text-left ring-1 ring-border/60 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:ring-accent/30">
+                <div className="flex items-baseline justify-between gap-1">
+                  <CountUp value={m.value} className={cn("block text-xl font-semibold tabular leading-none", m.tone ? toneClass[m.tone].text : "text-fg")} />
+                  {m.trend && <TrendChip delta={m.trend.delta} goodWhenDown={m.trend.goodWhenDown} />}
+                </div>
+                <span className="mt-1 block truncate text-[11px] leading-tight text-fg-muted">{m.label}</span>
               </div>
-              <span className="mt-1 block text-[11px] leading-tight text-fg-muted">{m.label}</span>
-            </div>
+            </InsightPopover>
           ))}
         </div>
       </Hero>
@@ -249,67 +339,118 @@ export function HomeMissionControl({
             Portfolio health
           </SectionLabel>
 
-          <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(150px,0.62fr)_minmax(0,1fr)]">
-            {/* Headline arc gauge + micro-stats */}
-            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-bg-elev/55 px-3 py-3 ring-1 ring-border/50">
-              <div className="relative grid place-items-center">
-                <ArcGauge percent={health} color={toneClass[healthTone].stroke} />
-                <div className="absolute bottom-0 flex flex-col items-center">
-                  <div className="flex items-baseline">
-                    <CountUp value={health} className={cn("text-3xl font-semibold tabular leading-none", toneClass[healthTone].text)} />
-                    <span className={cn("text-lg font-semibold", toneClass[healthTone].text)}>%</span>
+          <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(168px,0.66fr)_minmax(0,1fr)]">
+            {/* Headline arc gauge + status pill + consistent stat strip */}
+            <div className="flex flex-col rounded-2xl bg-gradient-to-b from-bg-elev/70 to-bg-subtle/30 p-3 ring-1 ring-border/50">
+              <InsightPopover
+                align="center"
+                content={
+                  <InsightBody
+                    title="Portfolio compliance"
+                    value={`${health}%`}
+                    caption={
+                      healthDelta === null
+                        ? "Average compliance across every company and person. A second reading appears tomorrow for trend."
+                        : `${healthDelta === 0 ? "No change" : `${healthDelta > 0 ? "Up" : "Down"} ${Math.abs(healthDelta)}%`} since the last reading.`
+                    }
+                    rows={[
+                      { label: "Missing", value: healthStats.missing },
+                      { label: "Expiring soon", value: healthStats.expiring, tone: "text-warn" },
+                      { label: "Expired", value: healthStats.expired, tone: "text-danger" },
+                    ]}
+                  />
+                }
+                className="mx-auto"
+              >
+                <div className="relative grid cursor-help place-items-center pb-1">
+                  <ArcGauge percent={health} color={toneClass[healthTone].stroke} />
+                  <div className="absolute bottom-1 flex flex-col items-center">
+                    <div className="flex items-baseline">
+                      <CountUp value={health} className={cn("text-[28px] font-semibold tabular leading-none", toneClass[healthTone].text)} />
+                      <span className={cn("text-base font-semibold", toneClass[healthTone].text)}>%</span>
+                    </div>
                   </div>
-                  <span className="mt-0.5 text-[11px] font-medium text-fg-muted">
-                    {health >= 80 ? "Healthy" : health >= 55 ? "Watch" : "At risk"}
-                  </span>
                 </div>
+              </InsightPopover>
+
+              <div className="-mt-1 flex justify-center">
+                <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1", toneClass[healthTone].bg, toneClass[healthTone].text, toneClass[healthTone].ring)}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full", toneClass[healthTone].bar)} />
+                  {health >= 80 ? "Healthy" : health >= 55 ? "Watch" : "At risk"}
+                </span>
               </div>
-              <div className="grid w-full grid-cols-3 gap-1.5">
+
+              {/* One consistent segmented strip — no mismatched tiles */}
+              <div className="mt-3 flex divide-x divide-border/50 overflow-hidden rounded-xl bg-bg-subtle/50 ring-1 ring-border/50">
                 {([
                   { label: "Missing", value: healthStats.missing, tone: "muted" as Tone },
                   { label: "Expiring", value: healthStats.expiring, tone: "warn" as Tone },
                   { label: "Expired", value: healthStats.expired, tone: "danger" as Tone },
                 ]).map((s) => (
-                  <div key={s.label} className="rounded-xl bg-bg-subtle/60 px-1.5 py-1.5 text-center ring-1 ring-border/50">
-                    <div className={cn("text-base font-semibold tabular leading-none", s.value ? toneClass[s.tone].text : "text-fg-subtle")}>{s.value}</div>
-                    <div className="mt-1 text-[10px] leading-tight text-fg-muted">{s.label}</div>
+                  <div key={s.label} className="flex-1 px-1 py-2 text-center">
+                    <div className={cn("text-lg font-semibold tabular leading-none", s.value ? toneClass[s.tone].text : "text-fg-subtle")}>{s.value}</div>
+                    <div className="mt-1 flex items-center justify-center gap-1 text-[10px] leading-tight text-fg-muted">
+                      <span className={cn("h-1 w-1 rounded-full", s.value ? toneClass[s.tone].bar : "bg-fg-subtle/40")} />
+                      {s.label}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Ranked company league */}
+            {/* Ranked company league — each row reveals a breakdown on hover/tap */}
             <div className="min-w-0">
               {rankedGauges.length === 0 ? (
                 <p className="grid h-full place-items-center text-xs text-fg-muted">No company compliance data yet.</p>
               ) : (
-                <ul className="space-y-1">
+                <ul className="space-y-0.5">
                   {visibleGauges.map((c) => {
                     const t = statusTone(c.status);
                     const bar = c.accentColor ?? toneClass[t].stroke;
                     return (
                       <li key={c.id}>
-                        <Link
-                          href={`/documents?company=${c.id}`}
-                          className={cn(
-                            "group flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-bg-muted/45",
-                            c.status === "Risk" && "bg-danger-soft/15"
-                          )}
+                        <InsightPopover
+                          align="center"
+                          className="w-full"
+                          content={
+                            <div className="space-y-2.5">
+                              <InsightBody
+                                title={c.name}
+                                value={`${c.score}%`}
+                                caption={`${c.status} · compliance score`}
+                                rows={[
+                                  { label: "Missing", value: c.missing },
+                                  { label: "Expiring soon", value: c.expiring, tone: "text-warn" },
+                                  { label: "Expired", value: c.expired, tone: "text-danger" },
+                                ]}
+                              />
+                              <Link href={`/documents?company=${c.id}`} className="flex items-center justify-center gap-1 rounded-lg bg-accent/10 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
+                                Open documents <ArrowRight size={12} />
+                              </Link>
+                            </div>
+                          }
                         >
-                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: bar }} />
-                          <span className="w-[34%] shrink-0 truncate text-xs font-medium group-hover:text-accent">{c.name}</span>
-                          <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-bg-subtle/80 ring-1 ring-border/40">
-                            <span
-                              className="absolute inset-y-0 left-0 rounded-full"
-                              style={{
-                                width: `${Math.max(c.score, 2)}%`,
-                                background: `linear-gradient(90deg, ${bar}55, ${bar})`,
-                                boxShadow: `0 0 8px ${bar}80`,
-                              }}
-                            />
-                          </span>
-                          <span className={cn("w-8 shrink-0 text-right text-xs font-semibold tabular", toneClass[t].text)}>{c.score}%</span>
-                        </Link>
+                          <div
+                            className={cn(
+                              "group flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-bg-muted/45",
+                              c.status === "Risk" && "bg-danger-soft/15"
+                            )}
+                          >
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: bar }} />
+                            <span className="w-[30%] shrink-0 truncate text-xs font-medium group-hover:text-accent">{c.name}</span>
+                            <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-bg-subtle/80 ring-1 ring-border/40">
+                              <span
+                                className="absolute inset-y-0 left-0 rounded-full"
+                                style={{
+                                  width: `${Math.max(c.score, 2)}%`,
+                                  background: `linear-gradient(90deg, ${bar}55, ${bar})`,
+                                  boxShadow: `0 0 8px ${bar}80`,
+                                }}
+                              />
+                            </span>
+                            <span className={cn("w-8 shrink-0 text-right text-xs font-semibold tabular", toneClass[t].text)}>{c.score}%</span>
+                          </div>
+                        </InsightPopover>
                       </li>
                     );
                   })}
@@ -319,7 +460,7 @@ export function HomeMissionControl({
                 <button
                   type="button"
                   onClick={() => setShowAllCos((v) => !v)}
-                  className="mt-1.5 w-full rounded-lg py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted/40"
+                  className="mt-1.5 w-full rounded-lg py-1 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted/40 hover:text-accent"
                 >
                   {showAllCos ? "Show fewer" : `Show all ${rankedGauges.length} companies`}
                 </button>
@@ -330,9 +471,20 @@ export function HomeMissionControl({
 
         {/* The One Thing */}
         <Panel className="p-4 sm:p-5">
-          <SectionLabel icon={<Target size={13} />}>Today's priority</SectionLabel>
+          <SectionLabel
+            icon={<Target size={13} />}
+            action={
+              clearedToday > 0 ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-soft/60 px-2 py-0.5 text-[11px] font-semibold text-success ring-1 ring-success/20">
+                  <CheckCircle2 size={11} /> {clearedToday} cleared today
+                </span>
+              ) : undefined
+            }
+          >
+            Today's priority
+          </SectionLabel>
           {lead ? (
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
+            <div className={cn("mt-3 flex flex-col gap-3 rounded-2xl p-3 ring-1 sm:flex-row sm:items-start", toneClass[lead.tone].bg, toneClass[lead.tone].ring)}>
               <CommandIcon tone={lead.tone} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -355,31 +507,39 @@ export function HomeMissionControl({
               </div>
             </div>
           ) : (
-            <div className="mt-3 rounded-2xl bg-bg-subtle/60 px-4 py-6 text-center ring-1 ring-border/60">
+            <div className="mt-3 rounded-2xl bg-success-soft/30 px-4 py-6 text-center ring-1 ring-success/20">
               <CheckCircle2 size={24} className="mx-auto text-success" />
               <p className="mt-2 text-sm font-medium">The desk is clear.</p>
               <p className="mt-1 text-xs text-fg-muted">No urgent work is asking for attention right now.</p>
             </div>
           )}
 
-          {/* At-a-glance — the next few commands, compact */}
+          {/* Up next — the following priorities, as quick links */}
           {rest.length > 0 && (
-            <div className="mt-4 grid gap-2 border-t border-border/60 pt-3 sm:grid-cols-2">
-              {rest.map((item) => (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className="group flex items-center gap-2.5 rounded-xl bg-bg-subtle/50 px-2.5 py-2 ring-1 ring-border/50 transition-all hover:ring-accent/25"
-                >
-                  <span className={cn("h-7 w-1 shrink-0 rounded-full", toneClass[item.tone].bar)} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-medium group-hover:text-accent">{item.title}</span>
-                  </span>
-                  {typeof item.count === "number" && (
-                    <span className={cn("shrink-0 text-xs font-semibold tabular", toneClass[item.tone].text)}>{item.count}</span>
-                  )}
-                </Link>
-              ))}
+            <div className="mt-3 border-t border-border/60 pt-3">
+              <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">Up next</div>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {rest.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className="group relative flex items-center gap-2.5 overflow-hidden rounded-xl bg-bg-subtle/50 py-2 pl-3 pr-2.5 ring-1 ring-border/50 transition-all hover:-translate-y-0.5 hover:ring-accent/25"
+                  >
+                    <span
+                      aria-hidden
+                      className="absolute inset-y-1.5 left-0 w-1 rounded-full"
+                      style={{ background: toneClass[item.tone].stroke, boxShadow: `0 0 8px ${toneClass[item.tone].stroke}` }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-medium group-hover:text-accent">{item.title}</span>
+                    </span>
+                    {typeof item.count === "number" && (
+                      <span className={cn("shrink-0 rounded-full px-1.5 text-[11px] font-semibold tabular", toneClass[item.tone].bg, toneClass[item.tone].text)}>{item.count}</span>
+                    )}
+                    <ChevronRight size={14} className="shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100" />
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </Panel>
@@ -447,62 +607,34 @@ export function HomeMissionControl({
             <p className="mt-3 text-sm font-medium">Nothing in this view</p>
             <p className="mt-0.5 text-xs text-fg-muted">Good place to be.</p>
           </div>
+        ) : filter === "all" ? (
+          // Grouped by area with quiet section headers.
+          <div className="px-2 py-2">
+            {(Object.keys(groupMeta) as QueueGroup[])
+              .map((g) => ({ g, items: shown.filter((it) => it.group === g) }))
+              .filter((x) => x.items.length > 0)
+              .map(({ g, items }) => {
+                const GIcon = groupMeta[g].icon;
+                return (
+                  <div key={g} className="mb-1 last:mb-0">
+                    <div className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-subtle">
+                      <GIcon size={11} /> {groupMeta[g].label}
+                      <span className="text-fg-subtle/70">· {items.length}</span>
+                    </div>
+                    <ul>
+                      {items.map((item, i) => (
+                        <QueueRow key={item.id} item={item} index={i} />
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+          </div>
         ) : (
           <ul className="px-2 py-2">
-            {shown.map((item, i) => {
-              const Icon = groupMeta[item.group].icon;
-              const stroke = toneClass[item.tone].stroke;
-              return (
-                <li
-                  key={item.id}
-                  className="animate-[fadeIn_0.3s_ease-out_both]"
-                  style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
-                >
-                  <Link
-                    href={item.href}
-                    className="group relative flex items-center gap-3 overflow-hidden rounded-2xl py-2.5 pl-4 pr-3 transition-all hover:bg-gradient-to-r hover:from-bg-muted/60 hover:to-transparent hover:ring-1 hover:ring-border/60"
-                  >
-                    {/* glowing accent edge */}
-                    <span
-                      aria-hidden
-                      className="absolute inset-y-2 left-0.5 w-1 rounded-full opacity-80 transition-opacity group-hover:opacity-100"
-                      style={{ background: stroke, boxShadow: `0 0 10px ${stroke}` }}
-                    />
-                    <span
-                      className={cn(
-                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-105",
-                        toneClass[item.tone].bg,
-                        toneClass[item.tone].ring
-                      )}
-                    >
-                      <Icon size={16} className={toneClass[item.tone].text} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium transition-transform group-hover:translate-x-0.5 group-hover:text-accent">
-                        {item.title}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-fg-muted">{item.meta}</span>
-                    </span>
-                    {item.due && (
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ring-1",
-                          toneClass[item.tone].bg,
-                          toneClass[item.tone].text,
-                          toneClass[item.tone].ring
-                        )}
-                      >
-                        {item.due}
-                      </span>
-                    )}
-                    <ChevronRight
-                      size={16}
-                      className="shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100"
-                    />
-                  </Link>
-                </li>
-              );
-            })}
+            {shown.map((item, i) => (
+              <QueueRow key={item.id} item={item} index={i} />
+            ))}
           </ul>
         )}
 

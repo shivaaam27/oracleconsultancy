@@ -744,6 +744,29 @@ export const recurringObligations = pgTable("recurring_obligations", {
   createdBy: text("created_by").notNull().default("web-ui"),
 });
 
+// Per-(obligation, company) state for recurring obligations. An obligation is a
+// portfolio template; this table records, per company: whether it APPLIES (the
+// opt-out — absent row means applicable by default) and the last time that
+// company completed it (lastDone). "Done this period" is derived by comparing
+// lastDone to the start of the current cadence period — so it resets and
+// reappears each period with no unbounded per-period rows. The per-company tick
+// grid replaces the single-company "promote to task" as the primary flow.
+export const obligationCompany = pgTable(
+  "obligation_company",
+  {
+    id: serial("id").primaryKey(),
+    obligationId: integer("obligation_id").notNull().references(() => recurringObligations.id, { onDelete: "cascade" }),
+    companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    // false = operator marked it not applicable for this company (opt-out).
+    applicable: boolean("applicable").notNull().default(true),
+    // Last time this company completed this obligation (UTC). Null = never.
+    lastDone: timestamp("last_done", { mode: "date", withTimezone: true }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [uniqueIndex("obligation_company_idx").on(t.obligationId, t.companyId)]
+);
+
 // System-wide letters. A letter is generated from a template, edited freely as
 // a Draft, then Issued — which freezes a letterhead snapshot + stamps ref/date.
 export const letters = pgTable("letters", {

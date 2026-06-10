@@ -3,6 +3,7 @@ import {
   computeNextDue,
   deadlineFlag,
   daysUntil,
+  doneThisPeriod,
   type CcFlag,
   type ObligationFrequency,
 } from "@/lib/command-centre";
@@ -88,6 +89,103 @@ export type Deadline = {
   /** Statutory monthly+ items are eligible to be promoted to a task. */
   taskable: boolean;
 };
+
+/* ------------------------------------------------------------------ */
+/* Per-company applicability + completion (obligation_company).        */
+/* An obligation is a portfolio template; each company applies to it by */
+/* default unless opted out, and completes it per period (tick grid).   */
+/* ------------------------------------------------------------------ */
+
+export type CompanyLite = { id: number; name: string; accent: string | null; vatRegistered: boolean };
+
+export type CompanyStatus = {
+  companyId: number;
+  name: string;
+  accent: string | null;
+  applicable: boolean;
+  /** Set when applicability is forced off automatically (not an operator opt-out). */
+  autoReason: string | null;
+  done: boolean;
+};
+
+export type DeadlineWithCompanies = Deadline & {
+  companies: CompanyStatus[];
+  applicableCount: number;
+  doneCount: number;
+};
+
+type OcState = { applicable: boolean; lastDone: Date | null };
+
+/** Load the per-(obligation,company) state as a lookup keyed "obId:coId". */
+export async function loadObligationCompany(): Promise<Map<string, OcState>> {
+  const { data } = await sb.from("obligation_company").select("obligation_id,company_id,applicable,last_done");
+  const map = new Map<string, OcState>();
+  for (const r of data ?? []) {
+    map.set(`${r.obligation_id}:${r.company_id}`, {
+      applicable: (r.applicable as boolean) ?? true,
+      lastDone: r.last_done ? new Date(r.last_done as string) : null,
+    });
+  }
+  return map;
+}
+
+/** An obligation is VAT-specific if its label mentions VAT (only VAT-registered companies apply). */
+function isVatObligation(ob: RecurringObligation): boolean {
+  return /\bvat\b/i.test(ob.label);
+}
+
+/** Build per-company status for one obligation. */
+export function companyStatuses(
+  ob: RecurringObligation,
+  companies: CompanyLite[],
+  ocMap: Map<string, OcState>,
+  today: Date = new Date(),
+): CompanyStatus[] {
+  const vat = isVatObligation(ob);
+  // A company-scoped obligation (company_id set) only applies to that company.
+  const scoped = ob.companyId != null;
+  return companies
+    .filter((c) => !scoped || c.id === ob.companyId)
+    .map((c) => {
+      const oc = ocMap.get(`${ob.id}:${c.id}`);
+      let applicable = oc?.applicable ?? true;
+      let autoReason: string | null = null;
+      if (vat && !c.vatRegistered) {
+        applicable = false;
+        autoReason = "Not VAT-registered";
+      }
+      return {
+        companyId: c.id,
+        name: c.name,
+        accent: c.accent,
+        applicable,
+        autoReason,
+        done: doneThisPeriod(ob.frequency, oc?.lastDone ?? null, today),
+      };
+    });
+}
+
+/** Dated deadlines enriched with per-company applicability + completion. */
+export function buildDeadlinesWithCompanies(
+  obligations: RecurringObligation[],
+  companies: CompanyLite[],
+  ocMap: Map<string, OcState>,
+  today: Date = new Date(),
+): DeadlineWithCompanies[] {
+  const { deadlines } = splitObligations(obligations, today);
+  const byId = new Map(obligations.map((o) => [o.id, o]));
+  return deadlines.map((d) => {
+    const ob = byId.get(d.id)!;
+    const companyList = companyStatuses(ob, companies, ocMap, today);
+    const applicable = companyList.filter((c) => c.applicable);
+    return {
+      ...d,
+      companies: companyList,
+      applicableCount: applicable.length,
+      doneCount: applicable.filter((c) => c.done).length,
+    };
+  });
+}
 
 /** Split obligations into in-place habits (daily/weekly) and dated deadlines. */
 export function splitObligations(

@@ -129,6 +129,49 @@ function nextAnnualAnchor(month: number, day: number, today: Date): Date {
   return new Date(today.getFullYear() + 1, month, day);
 }
 
+/**
+ * Start of the current cadence period — used to decide whether a per-company
+ * completion (lastDone) counts for "this period". Ticking sets lastDone=now;
+ * once the next period begins, lastDone falls before this boundary and the item
+ * shows outstanding again. This is the "it always reappears" guarantee.
+ */
+export function periodStart(frequency: ObligationFrequency, today: Date = new Date()): Date | null {
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+  switch (frequency) {
+    case "daily":
+      return new Date(y, m, d);
+    case "weekly": {
+      // Week starts Monday.
+      const dow = today.getDay(); // 0 Sun … 6 Sat
+      const back = dow === 0 ? 6 : dow - 1;
+      return new Date(y, m, d - back);
+    }
+    case "monthly":
+      return new Date(y, m, 1);
+    case "quarterly":
+      return new Date(y, Math.floor(m / 3) * 3, 1);
+    case "annual": {
+      // Financial year starts the month after FY_END_MONTH (1 July).
+      const fyStartMonth = (FY_END_MONTH + 1) % 12; // July (6)
+      const afterStart = m > fyStartMonth || (m === fyStartMonth && d >= 1);
+      return new Date(afterStart ? y : y - 1, fyStartMonth, 1);
+    }
+    case "event":
+    default:
+      return null;
+  }
+}
+
+/** Whether a per-company lastDone counts as done within the current period. */
+export function doneThisPeriod(frequency: ObligationFrequency, lastDone: Date | null, today: Date = new Date()): boolean {
+  if (!lastDone) return false;
+  const start = periodStart(frequency, today);
+  if (!start) return false;
+  return lastDone.getTime() >= start.getTime();
+}
+
 export type NextDueInput = {
   frequency: ObligationFrequency;
   dueDay?: number | null;

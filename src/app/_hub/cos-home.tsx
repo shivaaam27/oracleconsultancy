@@ -111,6 +111,10 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   const critical = openRows.filter((r) => r.priority === "Critical");
   const blocked = openRows.filter((r) => r.status === "Blocked" || r.flag === "stalled");
   const dueToday = openRows.filter((r) => r.daysToDeadline === 0);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const isDone = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
+  const completedThisMonth = rows.filter((r) => isDone(r) && r.closedDate && r.closedDate.getTime() >= monthStart).length;
+  const clearedToday = rows.filter((r) => isDone(r) && r.closedDate && r.closedDate.getTime() >= todayStart).length;
   const staleTasks = getStaleTasks(rows);
   const automationSuggestions = buildAutomationSuggestions(rows);
 
@@ -393,17 +397,34 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     ...complianceQueue, ...todoQueue, ...draftQueue, ...staleQueue,
   ];
 
+  const prev = (current: number, t: { delta: number } | null) => (t ? current - t.delta : undefined);
   const pulse: PulseMetric[] = [
-    { label: "Open tasks", value: kpis.open, trend: trends.open ? { delta: trends.open.delta } : null },
-    { label: "Overdue", value: kpis.overdue, tone: kpis.overdue ? "danger" : "success", trend: trends.overdue ? { delta: trends.overdue.delta, goodWhenDown: true } : null },
-    { label: "Critical", value: kpis.critical, tone: kpis.critical ? "danger" : "success", trend: trends.critical ? { delta: trends.critical.delta, goodWhenDown: true } : null },
-    { label: "Due today", value: dueToday.length, tone: dueToday.length ? "warn" : "muted" },
-    { label: "Drafts", value: drafts.length, tone: drafts.length ? "accent" : "muted" },
-    { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success" },
-    { label: "Statutory due", value: upcomingDeadlines.length, tone: overdueDeadlines.length ? "danger" : upcomingDeadlines.length ? "warn" : "success" },
-    { label: "Compliance", value: complianceIssues, tone: complianceIssues ? "warn" : "success" },
-    { label: "Person packs", value: personPackNeeds.length, tone: personPackNeeds.length ? "warn" : "success" },
-    { label: "Stale", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success" },
+    {
+      label: "Open tasks", value: kpis.open, trend: trends.open ? { delta: trends.open.delta } : null,
+      hint: "Everything still in play across the portfolio.", previous: prev(kpis.open, trends.open), days: trends.open?.days,
+    },
+    {
+      label: "Overdue", value: kpis.overdue, tone: kpis.overdue ? "danger" : "success",
+      trend: trends.overdue ? { delta: trends.overdue.delta, goodWhenDown: true } : null,
+      hint: "Past their deadline — chase these first.", previous: prev(kpis.overdue, trends.overdue), days: trends.overdue?.days,
+      rows: [{ label: "Escalated", value: kpis.escalated, tone: "danger" }],
+    },
+    {
+      label: "Critical", value: kpis.critical, tone: kpis.critical ? "danger" : "success",
+      trend: trends.critical ? { delta: trends.critical.delta, goodWhenDown: true } : null,
+      hint: "Critical-priority work still open.", previous: prev(kpis.critical, trends.critical), days: trends.critical?.days,
+    },
+    { label: "Due today", value: dueToday.length, tone: dueToday.length ? "warn" : "muted", hint: "Deadlines landing today." },
+    {
+      label: "Completed", value: completedThisMonth, tone: completedThisMonth ? "success" : "muted",
+      hint: "Tasks completed or closed since the 1st of the month.",
+      rows: [{ label: "Cleared today", value: clearedToday, tone: "success" }],
+    },
+    { label: "Doc alerts", value: expiringDocs.length, tone: expiringDocs.length ? "warn" : "success", hint: "Documents expired or expiring soon.", rows: [{ label: "Expired", value: expiredDocs.length, tone: "danger" }] },
+    { label: "Statutory due", value: upcomingDeadlines.length, tone: overdueDeadlines.length ? "danger" : upcomingDeadlines.length ? "warn" : "success", hint: "Tax & statutory filings inside their warning window.", rows: [{ label: "Overdue", value: overdueDeadlines.length, tone: "danger" }] },
+    { label: "Compliance", value: complianceIssues, tone: complianceIssues ? "warn" : "success", hint: "Open issues across required-document checklists." },
+    { label: "Person packs", value: personPackNeeds.length, tone: personPackNeeds.length ? "warn" : "success", hint: "People with personal-document follow-ups." },
+    { label: "Stale", value: staleTasks.length, tone: staleTasks.length ? "warn" : "success", hint: "Open tasks with no recent update." },
   ];
 
   // Portfolio health — overall average of every compliance score, plus a
@@ -432,6 +453,9 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
       accentColor: c.accentColor,
       score: score?.score ?? 100,
       status: score?.status ?? "Good",
+      missing: score?.missing ?? 0,
+      expiring: score?.expiring ?? 0,
+      expired: score?.expired ?? 0,
     };
   });
 
@@ -448,6 +472,8 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         healthStats={healthStats}
         healthDelta={healthDelta}
         companyGauges={companyGauges}
+        clearedToday={clearedToday}
+        weather={{ city: settings.weatherCity, lat: settings.weatherLat, lon: settings.weatherLon }}
       />
     </div>
   );

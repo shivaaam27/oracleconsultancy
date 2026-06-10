@@ -5,12 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock, Plane, Building2, User as UserIcon, CheckCircle2, Circle,
-  Plus, Loader2, ExternalLink, ListChecks,
+  Plus, Loader2, ExternalLink, ListChecks, ChevronDown, MinusCircle, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "./toast";
 import { FLAG_META, daysLabel, type CcFlag } from "@/lib/command-centre";
-import { tickHabitAction, createTaskFromObligationAction } from "@/app/hrms/command-centre/actions";
+import {
+  tickHabitAction,
+  toggleObligationCompanyAction,
+  setObligationApplicableAction,
+  createTaskFromObligationAction,
+} from "@/app/hrms/command-centre/actions";
 
 type Habit = {
   id: number;
@@ -20,6 +25,14 @@ type Habit = {
   why: string | null;
   lastDone: string | null;
   fresh: boolean;
+};
+type CompanyStatus = {
+  companyId: number;
+  name: string;
+  accent: string | null;
+  applicable: boolean;
+  autoReason: string | null;
+  done: boolean;
 };
 type Deadline = {
   id: number;
@@ -32,6 +45,15 @@ type Deadline = {
   daysLeft: number | null;
   flag: CcFlag;
   taskable: boolean;
+  companies: CompanyStatus[];
+  applicableCount: number;
+  doneCount: number;
+};
+
+const PERIOD_LABEL: Record<string, string> = {
+  monthly: "this month",
+  quarterly: "this quarter",
+  annual: "this year",
 };
 type Permit = {
   id: number;
@@ -90,6 +112,7 @@ export function CommandCentreView({
   const { toast } = useToast();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<number | null>(null);
   const [, startAction] = useTransition();
 
   const companyName = (id: number | null) => companies.find((c) => c.id === id)?.name ?? "All entities";
@@ -110,10 +133,28 @@ export function CommandCentreView({
       else toast(res.error, { tone: "warn" });
     });
   }
-  function promote(id: number) {
-    setBusy(`deadline-${id}`);
+  function tickCompany(obligationId: number, companyId: number, done: boolean) {
+    setBusy(`oc-${obligationId}-${companyId}`);
     startAction(async () => {
-      const res = await createTaskFromObligationAction(id);
+      const res = await toggleObligationCompanyAction(obligationId, companyId, done);
+      setBusy(null);
+      if (res.ok) router.refresh();
+      else toast(res.error, { tone: "warn" });
+    });
+  }
+  function setApplicable(obligationId: number, companyId: number, applicable: boolean) {
+    setBusy(`oc-${obligationId}-${companyId}`);
+    startAction(async () => {
+      const res = await setObligationApplicableAction(obligationId, companyId, applicable);
+      setBusy(null);
+      if (res.ok) router.refresh();
+      else toast(res.error, { tone: "warn" });
+    });
+  }
+  function promote(obligationId: number, companyId: number) {
+    setBusy(`oc-${obligationId}-${companyId}`);
+    startAction(async () => {
+      const res = await createTaskFromObligationAction(obligationId, companyId);
       setBusy(null);
       toast(res.ok ? `Task ${res.code} created` : res.error, { tone: res.ok ? "success" : "warn", duration: 4500 });
       if (res.ok) router.refresh();
@@ -151,35 +192,90 @@ export function CommandCentreView({
             </div>
             <div className="divide-y divide-border/40">
               {deadlines.length === 0 && <Empty label="No upcoming statutory deadlines." />}
-              {deadlines.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 px-3.5 py-2.5">
-                  {companyAccent(d.companyId)
-                    ? <span className="h-8 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: companyAccent(d.companyId)! }} />
-                    : <span className="h-8 w-1.5 shrink-0" />}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{d.label}</div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-subtle">
-                      <span className="inline-flex items-center gap-1"><Building2 size={11} />{companyName(d.companyId)}</span>
-                      <span className="capitalize">{d.frequency}</span>
-                      <span>· {d.category}</span>
-                      {d.dueDate && <span>· {fmtDate(d.dueDate)}</span>}
-                    </div>
-                  </div>
-                  <span className="shrink-0 text-[11px] tabular text-fg-muted">{daysLabel(d.daysLeft)}</span>
-                  <Pill flag={d.flag} />
-                  {d.taskable && (
+              {deadlines.map((d) => {
+                const open = openId === d.id;
+                const allDone = d.applicableCount > 0 && d.doneCount === d.applicableCount;
+                const period = PERIOD_LABEL[d.frequency] ?? "this period";
+                return (
+                  <div key={d.id}>
                     <button
                       type="button"
-                      disabled={busy === `deadline-${d.id}`}
-                      onClick={() => promote(d.id)}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
-                      title="Create a task for this obligation"
+                      onClick={() => setOpenId(open ? null : d.id)}
+                      className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-bg-muted/40"
                     >
-                      {busy === `deadline-${d.id}` ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Task
+                      <span className="h-8 w-1.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{d.label}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-fg-subtle">
+                          <span className="capitalize">{d.frequency}</span>
+                          <span>· {d.category}</span>
+                          {d.dueDate && <span>· {fmtDate(d.dueDate)}</span>}
+                        </div>
+                      </div>
+                      {/* Per-company completion badge — the guarantee you can see. */}
+                      <span className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1",
+                        allDone ? "bg-success-soft/60 text-success ring-success/20" : "bg-bg-muted/70 text-fg-muted ring-border/50",
+                      )}>
+                        {d.doneCount}/{d.applicableCount} {period}
+                      </span>
+                      <span className="hidden sm:inline shrink-0 text-[11px] tabular text-fg-muted">{daysLabel(d.daysLeft)}</span>
+                      <Pill flag={d.flag} />
+                      <ChevronDown size={15} className={cn("shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
                     </button>
-                  )}
-                </div>
-              ))}
+
+                    {/* Expanded per-company tick grid */}
+                    {open && (
+                      <div className="bg-bg-subtle/40 px-3.5 pb-3 pt-1">
+                        <div className="mb-1.5 px-1 text-[11px] text-fg-subtle">
+                          Tick each company once it&apos;s done {period}. Resets next period.
+                        </div>
+                        <div className="space-y-1">
+                          {d.companies.map((c) => {
+                            const cbusy = busy === `oc-${d.id}-${c.companyId}`;
+                            if (!c.applicable) {
+                              return (
+                                <div key={c.companyId} className="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 opacity-60">
+                                  {c.accent ? <span className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: c.accent }} /> : <span className="h-5 w-1 shrink-0" />}
+                                  <span className="min-w-0 flex-1 truncate text-sm line-through">{c.name}</span>
+                                  <span className="text-[11px] text-fg-subtle">{c.autoReason ?? "Not applicable"}</span>
+                                  {!c.autoReason && (
+                                    <button type="button" disabled={cbusy} onClick={() => setApplicable(d.id, c.companyId, true)}
+                                      className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50" title="Mark applicable again">
+                                      <RotateCcw size={12} /> Restore
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={c.companyId} className="flex items-center gap-2.5 rounded-xl bg-bg-elev/60 px-2.5 py-1.5 ring-1 ring-border/40">
+                                {c.accent ? <span className="h-5 w-1 shrink-0 rounded-full" style={{ backgroundColor: c.accent }} /> : <span className="h-5 w-1 shrink-0" />}
+                                <button type="button" disabled={cbusy} onClick={() => tickCompany(d.id, c.companyId, !c.done)} className="inline-flex min-w-0 flex-1 items-center gap-2 text-left disabled:opacity-50">
+                                  {cbusy ? <Loader2 size={16} className="shrink-0 animate-spin text-fg-muted" />
+                                    : c.done ? <CheckCircle2 size={16} className="shrink-0 text-success" />
+                                    : <Circle size={16} className="shrink-0 text-fg-subtle" />}
+                                  <span className={cn("truncate text-sm", c.done && "text-fg-muted line-through")}>{c.name}</span>
+                                </button>
+                                {d.taskable && !c.done && (
+                                  <button type="button" disabled={cbusy} onClick={() => promote(d.id, c.companyId)}
+                                    className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent transition-colors hover:bg-accent/20 disabled:opacity-50" title="Make a trackable task for this company">
+                                    <Plus size={12} /> Task
+                                  </button>
+                                )}
+                                <button type="button" disabled={cbusy} onClick={() => setApplicable(d.id, c.companyId, false)}
+                                  className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-fg-subtle ring-1 ring-border/60 transition-colors hover:bg-bg-muted disabled:opacity-50" title="Not applicable to this company">
+                                  <MinusCircle size={12} /> N/A
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
 
