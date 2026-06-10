@@ -8,10 +8,13 @@ import {
   BriefcaseBusiness,
   CalendarClock,
   CheckCircle2,
+  ChevronRight,
   ClipboardList,
   FileWarning,
   Landmark,
+  Layers,
   LayoutGrid,
+  ListChecks,
   Send,
   Sparkles,
   Target,
@@ -385,9 +388,14 @@ export function HomeMissionControl({
       {/* ===================== FOCUS QUEUE ===================== */}
       <Panel className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold">Focus queue</h2>
-            <p className="text-xs text-fg-muted">Everything asking for attention, in one place.</p>
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-accent-soft/70 text-accent ring-1 ring-accent/20">
+              <ListChecks size={16} />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold leading-tight">Focus queue</h2>
+              <p className="text-xs text-fg-muted">Everything asking for attention, in one place.</p>
+            </div>
           </div>
           <Link href="/?tab=tasks" className="hidden items-center gap-1 text-xs text-fg-muted hover:text-accent sm:inline-flex">
             All tasks <ArrowRight size={12} />
@@ -396,9 +404,10 @@ export function HomeMissionControl({
 
         {/* Segmented filter */}
         {queue.length > 0 && (
-          <div className="flex gap-1.5 overflow-x-auto border-b border-border/50 px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-1.5 overflow-x-auto border-b border-border/50 px-3 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {segments.map((s) => {
               const active = filter === s.key;
+              const ChipIcon = s.key === "all" ? Layers : groupMeta[s.key].icon;
               return (
                 <button
                   key={s.key}
@@ -408,14 +417,22 @@ export function HomeMissionControl({
                     setShowAll(false);
                   }}
                   className={cn(
-                    "inline-flex shrink-0 items-center gap-1.5 rounded-full py-1 pl-2 pr-2.5 text-xs font-medium transition-all",
-                    active ? "bg-accent-soft/70 text-accent ring-1 ring-accent/30" : "bg-bg-subtle/60 text-fg-muted ring-1 ring-border/50 hover:ring-border"
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-full py-1.5 pl-2 pr-3 text-xs font-medium transition-all active:scale-95",
+                    active
+                      ? "bg-accent text-accent-fg shadow-sm ring-1 ring-accent/40"
+                      : "bg-bg-subtle/60 text-fg-muted ring-1 ring-border/50 hover:-translate-y-px hover:text-fg hover:ring-border"
                   )}
                 >
-                  <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/40 px-1 text-[10px] font-semibold tabular dark:bg-black/25">
+                  <ChipIcon size={13} className={active ? "opacity-90" : "opacity-70"} />
+                  {s.label}
+                  <span
+                    className={cn(
+                      "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular",
+                      active ? "bg-white/25" : "bg-bg-elev/80 ring-1 ring-border/50"
+                    )}
+                  >
                     {s.n}
                   </span>
-                  {s.label}
                 </button>
               );
             })}
@@ -423,43 +440,80 @@ export function HomeMissionControl({
         )}
 
         {filtered.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <CheckCircle2 size={26} className="mx-auto text-success" />
-            <p className="mt-2 text-sm text-fg-muted">Nothing in this view. Good place to be.</p>
+          <div className="px-4 py-14 text-center">
+            <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-success-soft/50 text-success ring-1 ring-success/20">
+              <CheckCircle2 size={24} />
+            </span>
+            <p className="mt-3 text-sm font-medium">Nothing in this view</p>
+            <p className="mt-0.5 text-xs text-fg-muted">Good place to be.</p>
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
-            {shown.map((item) => {
+          <ul className="px-2 py-2">
+            {shown.map((item, i) => {
               const Icon = groupMeta[item.group].icon;
+              const stroke = toneClass[item.tone].stroke;
               return (
-                <Link
+                <li
                   key={item.id}
-                  href={item.href}
-                  className="group relative flex items-center gap-3 py-3 pl-4 pr-4 transition-colors hover:bg-bg-muted/45"
+                  className="animate-[fadeIn_0.3s_ease-out_both]"
+                  style={{ animationDelay: `${Math.min(i, 8) * 35}ms` }}
                 >
-                  <span className={cn("absolute inset-y-0 left-0 w-[3px]", toneClass[item.tone].bar)} />
-                  <span className={cn("inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1", toneClass[item.tone].bg, toneClass[item.tone].ring)}>
-                    <Icon size={15} className={toneClass[item.tone].text} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium group-hover:text-accent transition-colors">{item.title}</span>
-                    <span className="mt-0.5 block truncate text-xs text-fg-muted">{item.meta}</span>
-                  </span>
-                  {item.due && <span className={cn("shrink-0 text-[11px] font-medium tabular", toneClass[item.tone].text)}>{item.due}</span>}
-                </Link>
+                  <Link
+                    href={item.href}
+                    className="group relative flex items-center gap-3 overflow-hidden rounded-2xl py-2.5 pl-4 pr-3 transition-all hover:bg-gradient-to-r hover:from-bg-muted/60 hover:to-transparent hover:ring-1 hover:ring-border/60"
+                  >
+                    {/* glowing accent edge */}
+                    <span
+                      aria-hidden
+                      className="absolute inset-y-2 left-0.5 w-1 rounded-full opacity-80 transition-opacity group-hover:opacity-100"
+                      style={{ background: stroke, boxShadow: `0 0 10px ${stroke}` }}
+                    />
+                    <span
+                      className={cn(
+                        "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-105",
+                        toneClass[item.tone].bg,
+                        toneClass[item.tone].ring
+                      )}
+                    >
+                      <Icon size={16} className={toneClass[item.tone].text} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium transition-transform group-hover:translate-x-0.5 group-hover:text-accent">
+                        {item.title}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-fg-muted">{item.meta}</span>
+                    </span>
+                    {item.due && (
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ring-1",
+                          toneClass[item.tone].bg,
+                          toneClass[item.tone].text,
+                          toneClass[item.tone].ring
+                        )}
+                      >
+                        {item.due}
+                      </span>
+                    )}
+                    <ChevronRight
+                      size={16}
+                      className="shrink-0 -translate-x-1 text-fg-subtle opacity-0 transition-all group-hover:translate-x-0 group-hover:text-accent group-hover:opacity-100"
+                    />
+                  </Link>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
 
         {filtered.length > 6 && (
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
-            className="flex w-full items-center justify-center gap-1.5 border-t border-border/50 py-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted/40"
+            className="flex w-full items-center justify-center gap-1.5 border-t border-border/50 py-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-muted/40 hover:text-accent"
           >
             {showAll ? "Show less" : `Show all ${filtered.length}`}
-            <ArrowRight size={13} className={cn("transition-transform", showAll ? "-rotate-90" : "rotate-90")} />
+            <ChevronRight size={13} className={cn("transition-transform", showAll ? "-rotate-90" : "rotate-90")} />
           </button>
         )}
       </Panel>
