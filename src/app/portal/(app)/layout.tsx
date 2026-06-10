@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { portalLogout } from "../actions";
 
@@ -18,6 +19,8 @@ export default async function PortalLayout({ children }: { children: React.React
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">Oracle Consultancy · Staff portal</p>
           <p className="truncate text-sm font-semibold">{me.name}</p>
         </div>
+        <div className="flex items-center gap-1.5">
+        <ThemeToggle />
         <form action={portalLogout}>
           <button
             type="submit"
@@ -27,6 +30,7 @@ export default async function PortalLayout({ children }: { children: React.React
             Sign out
           </button>
         </form>
+        </div>
       </header>
       {children}
     </div>
