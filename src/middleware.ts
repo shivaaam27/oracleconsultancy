@@ -89,5 +89,5 @@ export const config = {
   // icons, fonts). The portal has its own lock in src/lib/portal-auth.ts.
   // api/portal is excluded too: those routes serve portal users and verify
   // the portal (or admin) cookie themselves.
-  matcher: ["/((?!portal|login|api/portal|api/notifications|api/push|_next|.*\\..*).*)"],
+  matcher: ["/((?!portal|login|e/|api/calendar|api/portal|api/notifications|api/push|_next|.*\\..*).*)"],
 };

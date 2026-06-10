@@ -130,12 +130,12 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   const [copied, setCopied] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const icsUrl = origin + event.icsPath;
+  const shareUrl = `${origin}/e/${event.id}`;
 
   function copyLink() {
-    navigator.clipboard.writeText(icsUrl).then(() => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
-      toast("Calendar link copied", { tone: "success" });
+      toast("Share link copied", { tone: "success" });
       setTimeout(() => setCopied(false), 1500);
     });
   }
@@ -145,7 +145,7 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
       `📅 ${event.title}`,
       `${fmtDayLabel(event.startAt)}${event.allDay ? "" : ` · ${fmtTime(event.startAt)}`}`,
       event.meetLink ? `Join: ${event.meetLink}` : null,
-      `Add to your calendar: ${icsUrl}`,
+      `Details & add to your calendar: ${shareUrl}`,
     ].filter(Boolean);
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
   }
@@ -403,6 +403,15 @@ function EventForm({
               );
             })}
           </div>
+          {picked.filter((a) => !a.email).length > 0 && (
+            <p className="text-xs text-warn flex items-start gap-1.5">
+              <Mail size={13} className="mt-0.5 shrink-0" />
+              <span>
+                No email on file for {picked.filter((a) => !a.email).map((a) => a.name).join(", ")} — they
+                won&rsquo;t get an automatic invite. Add it on their People profile, or share the event link with them.
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 pt-1">

@@ -8,6 +8,6 @@ import { usePathname } from "next/navigation";
  *  in cannot reach admin data through it. */
 export function HideOnPortal({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
-  if (pathname.startsWith("/portal") || pathname === "/login") return null;
+  if (pathname.startsWith("/portal") || pathname.startsWith("/e/") || pathname === "/login") return null;
   return <>{children}</>;
 }
