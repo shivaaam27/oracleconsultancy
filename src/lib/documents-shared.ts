@@ -13,6 +13,7 @@ export const DOC_CATEGORIES = [
   "Immigration",
   "Passport",
   "Tax",
+  "Attachment",
   "Other",
 ] as const;
 export type DocCategory = (typeof DOC_CATEGORIES)[number];
@@ -29,6 +30,7 @@ export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Contract: 30,
   Certificate: 30,
   Tax: 30,
+  Attachment: 30,
   Other: 30,
 };
 

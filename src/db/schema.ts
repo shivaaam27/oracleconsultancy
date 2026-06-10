@@ -309,6 +309,9 @@ export const taskUpdates = pgTable("task_updates", {
   /** Reply target: the update this one is answering (one level only — no
    *  nested threads). Null for top-level messages. (T2 conversation.) */
   parentUpdateId: integer("parent_update_id"),
+  /** Optional file attached to this message — stored as a real `documents`
+   *  row (so it appears in the Documents centre and is linked to the task). */
+  attachmentDocumentId: integer("attachment_document_id"),
 });
 
 export const meetings = pgTable("meetings", {

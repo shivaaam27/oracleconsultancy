@@ -46,6 +46,7 @@ type Update = {
   created_by: string | null;
   pinned_at: string | null;
   parent_update_id: number | null;
+  attachment_document_id: number | null;
 };
 
 export default async function PortalTaskPage({ params }: { params: Promise<{ code: string }> }) {
@@ -70,7 +71,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     sb.from("task_assignees").select("role,people(id,name)").eq("task_id", task.id),
     sb
       .from("task_updates")
-      .select("id,body,created_at,created_by,pinned_at,parent_update_id")
+      .select("id,body,created_at,created_by,pinned_at,parent_update_id,attachment_document_id")
       .eq("task_id", task.id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
@@ -125,6 +126,14 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // Body lookup for reply previews.
   const bodyById = new Map(all.map((u) => [u.id, { body: u.body, author: authorOf(u.created_by, me.name).name }]));
 
+  // Attachment file names for messages that carry a document.
+  const attachIds = all.map((u) => u.attachment_document_id).filter((x): x is number => x != null);
+  const attachName = new Map<number, string>();
+  if (attachIds.length > 0) {
+    const { data: docs } = await sb.from("documents").select("id,file_name,title").in("id", attachIds);
+    for (const d of docs ?? []) attachName.set(d.id as number, (d.file_name as string | null) || (d.title as string) || "Attachment");
+  }
+
   const messages: ConvoMessage[] = all.map((u) => {
     const a = authorOf(u.created_by, me.name);
     const parentRef = u.parent_update_id ? bodyById.get(u.parent_update_id) : null;
@@ -139,6 +148,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       parent: parentRef ? { authorName: parentRef.author, snippet: parentRef.body.slice(0, 80) } : null,
       ackNames: u.pinned_at ? ackMap.get(u.id) ?? [] : [],
       iAcked: myAcks.has(u.id),
+      attachment: u.attachment_document_id ? { name: attachName.get(u.attachment_document_id) ?? "Attachment" } : null,
     };
   });
 

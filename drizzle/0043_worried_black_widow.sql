@@ -1,0 +1,1 @@
+ALTER TABLE "task_updates" ADD COLUMN "attachment_document_id" integer;

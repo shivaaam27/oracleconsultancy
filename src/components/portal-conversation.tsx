@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, CheckCheck, CornerUpLeft, MessageSquare, Pin, PinOff, Send, X } from "lucide-react";
+import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pin, PinOff, Send, X } from "lucide-react";
 import { portalAcknowledge, portalAddUpdate, portalTogglePin } from "@/app/portal/actions";
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
 
@@ -20,6 +20,7 @@ export type ConvoMessage = {
   parent: { authorName: string; snippet: string } | null;
   ackNames: string[];
   iAcked: boolean;
+  attachment: { name: string } | null;
 };
 
 type Props = {
@@ -53,7 +54,14 @@ function time(iso: string): string {
 export function PortalConversation(props: Props) {
   const { taskId, code, isManager, closed, statusOptions, currentStatus, messages, latestId, seenLabel, team } = props;
   const [replyTo, setReplyTo] = useState<{ id: number; author: string; snippet: string } | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function clearFile() {
+    if (fileRef.current) fileRef.current.value = "";
+    setFileName(null);
+  }
 
   // @mention autocomplete: when the caret is in an "@partial" token, show
   // matching team members; clicking one completes "@Full Name ".
@@ -173,6 +181,18 @@ export function PortalConversation(props: Props) {
         )}
       </p>
 
+      {m.attachment && (
+        <a
+          href={`/api/portal/attachment?updateId=${m.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex items-center gap-2 rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2 text-xs hover:ring-accent/40 transition-colors"
+        >
+          <Paperclip size={14} className="text-accent shrink-0" />
+          <span className="truncate max-w-[16rem] font-medium">{m.attachment.name}</span>
+          <span className="text-fg-subtle">· view</span>
+        </a>
+      )}
       {latestId === m.id && seenLabel.length > 0 && (
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-fg-subtle">
           <CheckCheck size={12} className="text-info" /> Seen by {seenLabel.join(", ")}
@@ -221,15 +241,22 @@ export function PortalConversation(props: Props) {
               <button type="button" onClick={() => setReplyTo(null)} className="text-fg-subtle hover:text-fg"><X size={13} /></button>
             </div>
           )}
-          <form action={portalAddUpdate} onSubmit={() => setTimeout(() => setReplyTo(null), 0)} className="flex flex-col gap-2.5">
+          <form action={portalAddUpdate} onSubmit={() => setTimeout(() => { setReplyTo(null); clearFile(); }, 0)} className="flex flex-col gap-2.5">
             <input type="hidden" name="taskId" value={taskId} />
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="parentUpdateId" value={replyTo?.id ?? ""} />
+            <input
+              ref={fileRef}
+              type="file"
+              name="attachment"
+              className="hidden"
+              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            />
             <div className="relative">
               <textarea
                 ref={taRef}
                 name="body"
-                required
+                required={!fileName}
                 rows={2}
                 onChange={onComposerChange}
                 onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
@@ -251,16 +278,34 @@ export function PortalConversation(props: Props) {
                 </div>
               )}
             </div>
+            {fileName && (
+              <div className="flex items-center gap-2 rounded-lg bg-bg-subtle px-2.5 py-1.5 text-xs">
+                <Paperclip size={12} className="text-accent" />
+                <span className="truncate max-w-[16rem] font-medium">{fileName}</span>
+                <span className="grow" />
+                <button type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg"><X size={13} /></button>
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="flex items-center gap-2 text-xs text-fg-muted">
-                Status
-                <select name="newStatus" defaultValue="" className="rounded-xl bg-bg-subtle ring-1 ring-border px-2.5 py-1.5 text-xs outline-none">
-                  <option value="">No change</option>
-                  {statusOptions.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  title="Attach a file or photo"
+                  className="inline-flex items-center justify-center rounded-lg bg-bg-subtle ring-1 ring-border h-8 w-8 text-fg-muted hover:text-accent transition-colors"
+                >
+                  <Paperclip size={14} />
+                </button>
+                <label className="flex items-center gap-2 text-xs text-fg-muted">
+                  Status
+                  <select name="newStatus" defaultValue="" className="rounded-xl bg-bg-subtle ring-1 ring-border px-2.5 py-1.5 text-xs outline-none">
+                    <option value="">No change</option>
+                    {statusOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <button type="submit" className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-fg px-4 py-2 text-xs font-semibold hover:opacity-90 transition-opacity">
                 <Send size={13} /> {replyTo ? "Reply" : "Post"}
               </button>

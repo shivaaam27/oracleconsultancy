@@ -92,7 +92,7 @@ export default async function TaskPage({
       .order("created_at", { ascending: false }),
     sb
       .from("task_updates")
-      .select("id,body,created_at,created_by,edited_at,original_body,pinned_at,parent_update_id")
+      .select("id,body,created_at,created_by,edited_at,original_body,pinned_at,parent_update_id,attachment_document_id")
       .eq("task_id", r.id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
@@ -141,6 +141,19 @@ export default async function TaskPage({
   for (const u of updateRaw ?? []) {
     const pid = u.parent_update_id as number | null;
     if (pid && updBodyById.has(pid)) replyQuote.set(u.id as number, updBodyById.get(pid)!.slice(0, 90));
+  }
+
+  // Attachment file names for messages carrying a document.
+  const attIds = (updateRaw ?? []).map((u) => u.attachment_document_id as number | null).filter((x): x is number => x != null);
+  const attachName = new Map<number, string>();
+  if (attIds.length > 0) {
+    const { data: docs } = await sb.from("documents").select("id,file_name,title").in("id", attIds);
+    for (const d of docs ?? []) attachName.set(d.id as number, (d.file_name as string | null) || (d.title as string) || "Attachment");
+  }
+  const attachByUpdate = new Map<number, string>();
+  for (const u of updateRaw ?? []) {
+    const aid = u.attachment_document_id as number | null;
+    if (aid && attachName.has(aid)) attachByUpdate.set(u.id as number, attachName.get(aid)!);
   }
 
   const rawTimeline: TimelineItem[] = [
@@ -504,6 +517,18 @@ export default async function TaskPage({
                           <p className="text-sm leading-relaxed">
                             <CodeLinkedText text={item.body} />
                           </p>
+                          {attachByUpdate.has(item.id) && (
+                            <a
+                              href={`/api/portal/attachment?updateId=${item.id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle ring-1 ring-border px-2.5 py-1.5 text-[11px] hover:ring-accent/40 transition-colors w-fit"
+                            >
+                              <FileText size={12} className="text-accent" />
+                              <span className="truncate max-w-[14rem] font-medium">{attachByUpdate.get(item.id)}</span>
+                              <span className="text-fg-subtle">· view</span>
+                            </a>
+                          )}
                           {item.editedAt && (
                             item.originalBody ? (
                               <details className="text-[11px] -mt-0.5">

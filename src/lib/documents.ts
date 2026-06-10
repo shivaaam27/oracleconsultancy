@@ -220,3 +220,28 @@ export async function linkDocumentTask(documentId: number, taskId: number): Prom
     );
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Store a file dropped into a task conversation as a first-class Document:
+ * creates the row (category "Attachment", owned by the task's company),
+ * uploads the file to the private bucket, and links it to the task — so it
+ * is findable forever in the Documents centre. Returns the document id.
+ */
+export async function createTaskAttachment(opts: {
+  taskId: number;
+  companyId: number | null;
+  file: File;
+  createdBy: string;
+}): Promise<number> {
+  const docId = await createDocument(
+    {
+      title: opts.file.name,
+      companyId: opts.companyId ?? null,
+      category: "Attachment",
+    },
+    opts.createdBy
+  );
+  await uploadDocumentFile(docId, opts.file);
+  await linkDocumentTask(docId, opts.taskId);
+  return docId;
+}

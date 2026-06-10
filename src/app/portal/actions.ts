@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
+import { createTaskAttachment } from "@/lib/documents";
 import {
   clearSessionCookie,
   getPortalPerson,
@@ -78,7 +79,10 @@ export async function portalAddUpdate(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   const newStatus = String(formData.get("newStatus") ?? "").trim();
   const parentRaw = Number(formData.get("parentUpdateId"));
-  if (!Number.isFinite(taskId) || !body) return;
+  const fileEntry = formData.get("attachment");
+  const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
+  // A message must have text OR a file.
+  if (!Number.isFinite(taskId) || (!body && !file)) return;
   if (!(await personCanSeeTask(me, taskId))) return;
 
   // Validate the reply target belongs to this same task.
@@ -106,14 +110,28 @@ export async function portalAddUpdate(formData: FormData) {
   const createdBy = `${isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
+  // Store an attached file as a real Document (linked to this task).
+  let attachmentDocumentId: number | null = null;
+  if (file) {
+    attachmentDocumentId = await createTaskAttachment({
+      taskId,
+      companyId: t.company_id as number | null,
+      file,
+      createdBy,
+    });
+  }
+
+  const messageBody = body || `📎 ${file?.name ?? "Attachment"}`;
+
   const { data: inserted, error: insErr } = await sb
     .from("task_updates")
     .insert({
       task_id: taskId,
-      body,
+      body: messageBody,
       created_at: now,
       created_by: createdBy,
       parent_update_id: parentUpdateId,
+      attachment_document_id: attachmentDocumentId,
     })
     .select("id")
     .single();
@@ -135,7 +153,7 @@ export async function portalAddUpdate(formData: FormData) {
       .insert(mentionIds.map((personId) => ({ update_id: inserted.id as number, person_id: personId })));
   }
 
-  const patch: Record<string, unknown> = { latest_update: body, last_updated_at: now };
+  const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
 
   // Optional status change, limited to the role's allowed set, and never
   // on a task that is already Completed/Closed.
