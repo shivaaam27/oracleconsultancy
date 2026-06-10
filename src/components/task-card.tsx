@@ -70,6 +70,7 @@ export function TaskCard({
         <span onClick={(e) => e.stopPropagation()} className="shrink-0">
           <SelectCheckbox code={row.code} />
         </span>
+        {row.unread && <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent" />}
         <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-medium text-fg-muted pl-1.5 pr-2 py-0.5 rounded-full bg-bg-subtle/80 ring-1 ring-border/60 shrink-0">
           <span className={`h-1.5 w-1.5 rounded-full ${flagDot(row.flag)}`} />
           {row.code}

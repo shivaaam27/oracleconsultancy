@@ -177,7 +177,10 @@ export function TableView({ rows, hideCompany = false }: { rows: TaskRow[]; hide
                   <Stop><SelectCheckbox code={r.code} /></Stop>
                 </Td>
                 <Td className="whitespace-nowrap">
-                  <span className="inline-flex items-center font-mono text-[11px] font-medium tracking-wide tabular px-1.5 py-0.5 rounded-md bg-bg-subtle/70 text-fg-muted ring-1 ring-border/50 transition-colors group-hover:text-accent group-hover:ring-accent/30">{r.code}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {r.unread && <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent" />}
+                    <span className="inline-flex items-center font-mono text-[11px] font-medium tracking-wide tabular px-1.5 py-0.5 rounded-md bg-bg-subtle/70 text-fg-muted ring-1 ring-border/50 transition-colors group-hover:text-accent group-hover:ring-accent/30">{r.code}</span>
+                  </span>
                 </Td>
                 {!hideCompany && (
                   <Td className="whitespace-nowrap">

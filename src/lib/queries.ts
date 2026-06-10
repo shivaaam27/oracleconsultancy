@@ -33,6 +33,8 @@ export type TaskRow = {
   daysOpen: number | null;
   daysToDeadline: number | "done" | null;
   flag: ReturnType<typeof flag>;
+  /** Set by the hub when the owner has unseen activity (Seen system). */
+  unread?: boolean;
 };
 
 // Migrated to Supabase JS (HTTP / PostgREST) — no persistent socket, no

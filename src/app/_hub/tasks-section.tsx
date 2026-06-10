@@ -1,4 +1,5 @@
 import { getAllTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
+import { sb } from "@/db/supabase";
 import { getSavedViews } from "@/lib/task-views";
 import { Card, EmptyState } from "@/components/ui";
 import { TaskActions } from "./task-actions";
@@ -26,6 +27,7 @@ type Sp = {
   month?: string;
   q?: string;
   all?: string;
+  unread?: string;
 };
 
 /** Builds a hub URL for the tasks tab, preserving all task filter params. */
@@ -43,6 +45,7 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.month) u.set("month", next.month);
   if (next.q) u.set("q", next.q);
   if (next.all) u.set("all", next.all);
+  if (next.unread) u.set("unread", next.unread);
   return `/?${u.toString()}`;
 }
 
@@ -64,11 +67,27 @@ function queryWithoutView(sp: Sp): string {
 export async function TasksSection({ sp }: { sp: Sp }) {
   // Hub Tasks tab is always global — no scope filtering. The scope cookie
   // applies to /task (standalone) but the hub shows all companies by design.
-  const [all, savedViews, taskSources] = await Promise.all([
+  const [all, savedViews, taskSources, adminViews] = await Promise.all([
     getAllTasks(),
     getSavedViews(),
     getTaskSources(),
+    sb.from("task_views").select("task_id,last_viewed_at").eq("viewer", "admin"),
   ]);
+
+  // Unread = activity since the owner last opened the task (powered by the
+  // Seen system). Marks tasks where someone posted and you haven't looked.
+  const adminViewAt = new Map<number, number>();
+  for (const v of adminViews.data ?? []) {
+    adminViewAt.set(v.task_id as number, new Date(v.last_viewed_at as string).getTime());
+  }
+  for (const r of all) {
+    const upd = r.lastUpdatedAt ? r.lastUpdatedAt.getTime() : 0;
+    const seen = adminViewAt.get(r.id);
+    // Unread = you've opened this task before AND there's been activity since
+    // (i.e. someone posted after you last looked). Tasks never opened are not
+    // flagged, so the system doesn't flood on first use.
+    r.unread = seen !== undefined && upd > seen && r.status !== "Closed" && r.status !== "Completed";
+  }
   const view = parseViewMode(sp.view);
   // The global activity feed only needs loading for the Timeline view.
   const activity = view === "timeline" ? await getRecentActivity() : null;
@@ -84,6 +103,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   if (sp.flag) rows = rows.filter((r) => r.flag === sp.flag);
   if (sp.status) rows = rows.filter((r) => r.status === sp.status);
   if (sp.noOwner === "1") rows = rows.filter((r) => r.assignees.length === 0);
+  if (sp.unread === "1") rows = rows.filter((r) => r.unread);
   if (sp.q) {
     const q = sp.q.toLowerCase();
     rows = rows.filter(
@@ -111,10 +131,11 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     noDeadline: baseForKpis.filter((r) => r.flag === "no-deadline").length,
     critical: baseForKpis.filter((r) => r.priority === "Critical").length,
     noOwner: baseForKpis.filter((r) => r.assignees.length === 0).length,
+    unread: baseForKpis.filter((r) => r.unread).length,
   };
   const closedCount = all.filter((r) => r.status === "Closed").length;
 
-  const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q);
+  const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread);
 
   const dayMode = !hasFilters && sp.all !== "1" && view !== "calendar" && view !== "timeline";
   if (dayMode) {
@@ -199,6 +220,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           {/* KPI chips — one horizontal-scroll row on mobile, wraps on desktop */}
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
         {[
+          { label: "Unread",      count: kpi.unread,      key: "1",           filterKey: "unread" as const,  tone: "info" as const,   Icon: Sparkles },
           { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: Clock },
           { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
           { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const, Icon: PauseCircle },
