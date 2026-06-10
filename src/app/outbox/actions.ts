@@ -3,6 +3,56 @@ import { revalidatePath, updateTag } from "next/cache";
 import { markSent } from "@/lib/outbox-gen";
 import { mutate } from "@/lib/mutate";
 import { sb } from "@/db/supabase";
+import { sendEmail } from "@/lib/email";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function htmlBody(text: string): string {
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.5;white-space:pre-wrap">${esc.replace(/\n/g, "<br>")}</div>`;
+}
+
+/**
+ * Actually send an EMAIL draft through the configured provider (Gmail), then
+ * mark it Sent. Returns a not-configured hint so the UI can fall back to the
+ * manual mailto link. Reads the latest body/subject from the row (the client
+ * saves edits before calling this).
+ */
+export async function sendDraftEmail(
+  id: number
+): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-email" | "not-email" }> {
+  const { data: row, error } = await sb
+    .from("outbox")
+    .select("channel,recipient_contact,subject,body")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!row) return { ok: false, error: "Draft not found." };
+  if (row.channel !== "EMAIL") return { ok: false, reason: "not-email", error: "This draft isn't an email." };
+
+  const to = (row.recipient_contact as string | null)?.trim() ?? "";
+  if (!EMAIL_RE.test(to))
+    return { ok: false, reason: "no-email", error: "No valid email address on this draft." };
+
+  const body = (row.body as string) ?? "";
+  const result = await sendEmail({
+    to,
+    subject: (row.subject as string | null)?.trim() || "Message from Oracle Consultancy",
+    text: body,
+    html: htmlBody(body),
+  });
+
+  if (!result.ok) {
+    if (result.reason === "not-configured")
+      return { ok: false, reason: "not-configured", error: "Email sending isn't switched on — use Open email instead." };
+    return { ok: false, error: result.error ?? "Could not send the email." };
+  }
+
+  await sb.from("outbox").update({ status: "Sent", sent_at: new Date().toISOString() }).eq("id", id);
+  revalidatePath("/outbox");
+  updateTag("outbox");
+  return { ok: true };
+}
 
 export async function recordSent(
   formData: FormData

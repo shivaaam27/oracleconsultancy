@@ -6,7 +6,9 @@ import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { linkFor, channelLabel, type Channel } from "@/lib/outbox-links";
 import type { OutboxDraftRow } from "@/lib/outbox-drafts";
-import { sendDraft, updateDraft, deleteDraft } from "./actions";
+import { sendDraft, sendDraftEmail, updateDraft, deleteDraft } from "./actions";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const channelIcon: Record<Channel, typeof MessageCircle> = { WHATSAPP: MessageCircle, EMAIL: Mail, SMS: Phone };
 
@@ -94,6 +96,21 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
     toast("Draft discarded", { tone: "default", duration: 3000 });
   }
 
+  const canEmail = draft.channel === "EMAIL" && EMAIL_RE.test(draft.recipientContact ?? "");
+
+  function onSendEmail() {
+    saveIfNeeded();
+    startTransition(async () => {
+      const res = await sendDraftEmail(draft.id);
+      if (res.ok) {
+        toast(`Email sent to ${draft.recipientName ?? draft.recipientContact}`, { tone: "success", duration: 4000 });
+        onGone();
+      } else {
+        toast(res.error || "Could not send", { tone: res.reason === "not-configured" ? "warn" : "danger", duration: 6000 });
+      }
+    });
+  }
+
   return (
     <div className="bg-bg-elev border border-border border-l-[3px] border-l-accent/70 rounded-xl elevated px-3 py-2.5 space-y-2">
       <div className="flex items-center gap-2">
@@ -127,8 +144,13 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
             </a>
           </>
         )}
+        {canEmail && (
+          <button type="button" onClick={onSendEmail} disabled={pending} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50" title="Send this email now from admin@oracle.co.tz">
+            <Send size={12} /> Send email
+          </button>
+        )}
         {link && (
-          <a href={link} target="_blank" rel="noopener noreferrer" onClick={saveIfNeeded} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity" title={`Open ${channelLabel(draft.channel)}`}>
+          <a href={link} target="_blank" rel="noopener noreferrer" onClick={saveIfNeeded} className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md transition-opacity hover:opacity-90", canEmail ? "bg-bg-muted text-fg-muted hover:text-fg" : "bg-accent text-accent-fg")} title={`Open ${channelLabel(draft.channel)}`}>
             <ExternalLink size={12} /> Open {channelLabel(draft.channel)}
           </a>
         )}
