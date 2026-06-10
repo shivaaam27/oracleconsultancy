@@ -2,6 +2,7 @@ import { createTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
 import { Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { ActionItemField } from "@/components/action-item-field";
+import { PersonPicker, type PickerPerson } from "@/components/person-picker";
 import Link from "next/link";
 import { Plus, ChevronRight } from "lucide-react";
 
@@ -17,11 +18,13 @@ import { Plus, ChevronRight } from "lucide-react";
  */
 export function NewTaskForm({
   companies,
+  people,
   presetCompany,
   returnTo,
   variant = "page",
 }: {
   companies: Array<{ id: number; name: string }>;
+  people: PickerPerson[];
   presetCompany?: number;
   returnTo?: string;
   variant?: "page" | "modal";
@@ -77,7 +80,7 @@ export function NewTaskForm({
           </div>
           <div className="col-span-2">
             <FieldLabel>Accountable</FieldLabel>
-            <Input name="accountable" placeholder="e.g. Jitesh, Vishal" />
+            <PersonPicker people={people} placeholder="Search people, or type a new name…" />
           </div>
         </div>
       </div>

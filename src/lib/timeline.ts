@@ -155,7 +155,7 @@ export function suppressUpdateMetaAudits(items: TimelineItem[]): TimelineItem[] 
  * Escalation changes, and any entry that DOES have a change_reason.
  */
 /** Meta-events that must always remain visible even without a reason. */
-const ALWAYS_VISIBLE_AUDIT_FIELDS = new Set(["Task deleted", "Task created"]);
+const ALWAYS_VISIBLE_AUDIT_FIELDS = new Set(["Task deleted", "Task created", "Company", "Task code"]);
 
 export function suppressNoReasonAudits(items: TimelineItem[]): TimelineItem[] {
   return items.filter((i) => {
@@ -299,6 +299,8 @@ const NON_GROUPABLE_FIELDS = new Set([
   "Status",
   "Escalation",
   "Correction",
+  "Company",
+  "Task code",
   "Task deleted",
   "Task created",
   "Update edited",

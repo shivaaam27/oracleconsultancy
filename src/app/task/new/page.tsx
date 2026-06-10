@@ -7,8 +7,12 @@ export const dynamic = "force-dynamic";
 
 export default async function NewTaskPage({ searchParams }: { searchParams: Promise<{ companyId?: string; returnTo?: string }> }) {
   const sp = await searchParams;
-  const { data: rows } = await sb.from("companies").select("id,name").order("name");
+  const [{ data: rows }, { data: ppl }] = await Promise.all([
+    sb.from("companies").select("id,name").order("name"),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
+  ]);
   const companies = (rows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  const people = (ppl ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
   const presetCompany = sp.companyId ? parseInt(sp.companyId, 10) : companies[0]?.id;
 
   return (
@@ -23,7 +27,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams: Prom
         <p className="text-xs text-fg-muted mt-0.5">Create an action item tracked across the portfolio.</p>
       </div>
 
-      <NewTaskForm companies={companies} presetCompany={presetCompany} returnTo={sp.returnTo} />
+      <NewTaskForm companies={companies} people={people} presetCompany={presetCompany} returnTo={sp.returnTo} />
     </div>
   );
 }

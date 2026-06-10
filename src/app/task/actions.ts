@@ -92,12 +92,38 @@ export async function updateTask(code: string, formData: FormData) {
   const latestUpdate = str(formData.get("latestUpdate"));
   const accountableRaw = str(formData.get("accountable"));
   const changeReason = str(formData.get("changeReason"));
+  const companyIdField = formData.has("companyId") ? parseInt(String(formData.get("companyId")), 10) : NaN;
 
   const result = await mutate({
     kind: "task.update",
     run: async () => {
       const t = await findTaskByCode(code);
       if (!t) throw new Error("Task not found");
+
+      // Company change: the task moves to the new company and gets a fresh code
+      // under that company's prefix. The old code is kept in legacy_code so any
+      // saved link or reference still redirects here. History follows the task.
+      const movingCompany = Number.isFinite(companyIdField) && companyIdField !== t.company_id;
+      const finalCompanyId = movingCompany ? companyIdField : t.company_id;
+      let finalCode = t.code;
+      if (movingCompany) {
+        const [{ data: newComp }, { data: oldComp }, { data: existingCodes }] = await Promise.all([
+          sb.from("companies").select("name,code,code_prefix").eq("id", finalCompanyId).maybeSingle(),
+          sb.from("companies").select("name").eq("id", t.company_id).maybeSingle(),
+          sb.from("tasks").select("code").eq("company_id", finalCompanyId),
+        ]);
+        if (!newComp) throw new Error("Company not found");
+        const prefix = (newComp.code_prefix as string | null) || (newComp.code as string);
+        let maxNum = 0;
+        for (const row of existingCodes ?? []) {
+          const m = (row.code as string).match(/(\d+)$/);
+          if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+        }
+        finalCode = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
+
+        await logChangeSb(t.id, t.code, t.company_id, "Company", (oldComp?.name as string) ?? String(t.company_id), newComp.name as string, changeReason);
+        await logChangeSb(t.id, t.code, t.company_id, "Task code", t.code, finalCode, "Re-issued after company change");
+      }
 
       const actionItem = actionItemField || t.action_item;
       const departmentId = await getOrCreateDeptSb(departmentName);
@@ -141,34 +167,53 @@ export async function updateTask(code: string, formData: FormData) {
           ? null
           : t.closed_date;
 
-      await sb
-        .from("tasks")
-        .update({
-          action_item: actionItem,
-          department_id: departmentId,
-          status,
-          priority,
-          risk,
-          escalation,
-          category,
-          deadline: isoOrNull(deadline),
-          meeting_date: isoOrNull(meetingDate),
-          comments,
-          latest_update: latestUpdate,
-          last_updated_at: new Date().toISOString(),
-          closed_date: newClosedDate,
-        })
-        .eq("id", t.id);
+      const baseUpdate = {
+        action_item: actionItem,
+        department_id: departmentId,
+        status,
+        priority,
+        risk,
+        escalation,
+        category,
+        deadline: isoOrNull(deadline),
+        meeting_date: isoOrNull(meetingDate),
+        comments,
+        latest_update: latestUpdate,
+        last_updated_at: new Date().toISOString(),
+        closed_date: newClosedDate,
+      };
+
+      if (movingCompany) {
+        // Retry on code collision (someone created a task in the new company
+        // between our read and this write).
+        let applied = false;
+        for (let attempt = 0; attempt < 5 && !applied; attempt++) {
+          const { error } = await sb
+            .from("tasks")
+            .update({ ...baseUpdate, company_id: finalCompanyId, code: finalCode, legacy_code: t.code })
+            .eq("id", t.id);
+          if (!error) { applied = true; break; }
+          if (!/duplicate key|unique/i.test(error.message || "")) throw new Error(error.message);
+          const m = finalCode.match(/^(.*-)(\d+)$/);
+          if (!m) throw new Error(error.message);
+          finalCode = `${m[1]}${String(parseInt(m[2], 10) + 1).padStart(3, "0")}`;
+        }
+        if (!applied) throw new Error("Could not allocate a unique task code in the new company.");
+        // History follows the task: re-point every audit entry to the new code.
+        await sb.from("audit_log").update({ task_code: finalCode, company_id: finalCompanyId }).eq("task_id", t.id);
+      } else {
+        await sb.from("tasks").update(baseUpdate).eq("id", t.id);
+      }
 
       const newNames = splitNames(accountableRaw);
       const pMap = await allPeopleMap();
       const oldNamesStr = beforeAssignees.map((id) => pMap.get(id)).filter(Boolean).join(", ");
       const newNamesStr = newNames.join(", ");
       if (oldNamesStr !== newNamesStr) {
-        await logChangeSb(t.id, t.code, t.company_id, "Accountable", oldNamesStr, newNamesStr, changeReason);
+        await logChangeSb(t.id, finalCode, finalCompanyId, "Accountable", oldNamesStr, newNamesStr, changeReason);
         await sb.from("task_assignees").delete().eq("task_id", t.id);
         for (const n of newNames) {
-          const pid = await getOrCreatePersonSb(n, t.company_id);
+          const pid = await getOrCreatePersonSb(n, finalCompanyId);
           await sb
             .from("task_assignees")
             .upsert({ task_id: t.id, person_id: pid }, { ignoreDuplicates: true });
@@ -176,7 +221,7 @@ export async function updateTask(code: string, formData: FormData) {
       }
 
       return {
-        result: { code: t.code },
+        result: { code: finalCode },
         undo: {
           kind: "task.update",
           taskId: t.id,
@@ -209,11 +254,15 @@ export async function updateTask(code: string, formData: FormData) {
   if (!result.ok) throw new Error(result.error);
   if (result.undoToken) await setUndoCookie(result.undoToken, "Task updated.");
 
+  // After a company change the task lives at its new code; the old code path
+  // still redirects via legacy_code.
+  const finalCode = result.result.code;
   revalidatePath(`/task/${code}`);
+  if (finalCode !== code) revalidatePath(`/task/${finalCode}`);
   revalidatePath("/registry");
   revalidatePath("/");
   updateTag("tasks");
-  redirect(`/task/${code}`);
+  redirect(`/task/${finalCode}`);
 }
 
 export async function createTask(formData: FormData) {

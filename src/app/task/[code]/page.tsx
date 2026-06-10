@@ -7,6 +7,7 @@ import { PolishedInput } from "@/components/polished-input";
 import { DraftEmailButton } from "@/components/draft-email-button";
 import { SimilarTasks } from "@/components/similar-tasks";
 import { CompanyDrawerLink } from "@/components/company-drawer-link";
+import { PersonPicker } from "@/components/person-picker";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { updateTask, deleteTask } from "../actions";
@@ -77,7 +78,7 @@ export default async function TaskPage({
     return notFound();
   }
 
-  const [{ data: auditRaw }, { data: updateRaw }, { data: sourceMeeting }] = await Promise.all([
+  const [{ data: auditRaw }, { data: updateRaw }, { data: sourceMeeting }, { data: pplRaw }, { data: compRaw }] = await Promise.all([
     sb
       .from("audit_log")
       .select("id,field,old_value,new_value,change_reason,entry_type,created_at,created_by")
@@ -95,7 +96,11 @@ export default async function TaskPage({
       .select("meetings(id,title,meeting_date)")
       .eq("task_id", r.id)
       .maybeSingle(),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
+    sb.from("companies").select("id,name").order("name"),
   ]);
+  const pickerPeople = (pplRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
+  const companyOptions = (compRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
 
   // Which audit entries have been corrected by a later CORRECTION entry?
   const auditIds = (auditRaw ?? []).map((a) => a.id as number);
@@ -333,6 +338,12 @@ export default async function TaskPage({
                 <PolishedInput name="actionItem" defaultValue={r.actionItem} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <FieldLabel>Company <span className="text-fg-subtle normal-case font-normal">— changing it issues a new task code; the old code keeps redirecting here</span></FieldLabel>
+                  <Select name="companyId" defaultValue={r.companyId}>
+                    {companyOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </div>
                 <div>
                   <FieldLabel>Status</FieldLabel>
                   <Select name="status" defaultValue={r.status}>
@@ -376,8 +387,8 @@ export default async function TaskPage({
                 </div>
               </div>
               <div>
-                <FieldLabel>Accountable (comma-separated)</FieldLabel>
-                <Input name="accountable" defaultValue={r.assignees.join(", ")} />
+                <FieldLabel>Accountable</FieldLabel>
+                <PersonPicker people={pickerPeople} defaultNames={r.assignees} placeholder="Search people, or type a new name…" />
               </div>
               <div>
                 <FieldLabel>Comments</FieldLabel>
