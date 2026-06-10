@@ -14,7 +14,9 @@ import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
 import { CheckSquare, Sparkles, Clock, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X } from "lucide-react";
-import { Hero } from "@/components/surface-kit";
+import { WidgetCard, WidgetHeader, ChipRail } from "@/components/widget-card";
+import { ArcGauge } from "@/components/arc-gauge";
+import { StatTile, BigStat, StackBar, MiniRing } from "@/components/stat-tiles";
 
 type Sp = {
   company?: string;
@@ -137,6 +139,30 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   };
   const closedCount = all.filter((r) => r.status === "Closed").length;
 
+  // Workload pulse metrics (respect the active company filter).
+  const scoped = all.filter((r) => !sp.company || r.companyName === sp.company);
+  const openScoped = scoped.filter((r) => r.status !== "Completed" && r.status !== "Closed");
+  const onTrack = openScoped.filter(
+    (r) => !["overdue", "escalate-now", "escalated", "stalled"].includes(r.flag) && r.status !== "Blocked" && r.status !== "Escalated"
+  ).length;
+  const onTrackPct = openScoped.length === 0 ? 100 : Math.round((onTrack / openScoped.length) * 100);
+  const now = new Date();
+  const completedThisMonth = scoped.filter(
+    (r) => (r.status === "Completed" || r.status === "Closed") && r.closedDate &&
+      r.closedDate.getMonth() === now.getMonth() && r.closedDate.getFullYear() === now.getFullYear()
+  ).length;
+  const donePct = completedThisMonth + openScoped.length === 0
+    ? 0
+    : Math.round((completedThisMonth / (completedThisMonth + openScoped.length)) * 100);
+  const needYou = kpi.overdue + kpi.escalated;
+  // Status mix of open tasks — the mini stacked bar on the "Open" tile.
+  const statusMix = [
+    { value: openScoped.filter((r) => r.status === "In Progress").length, color: "hsl(var(--info))", label: "In progress" },
+    { value: openScoped.filter((r) => r.status === "Under Review" || r.status === "Waiting External").length, color: "hsl(var(--warn))", label: "In review" },
+    { value: openScoped.filter((r) => r.status === "Blocked" || r.status === "Escalated").length, color: "hsl(var(--danger))", label: "Blocked" },
+    { value: openScoped.filter((r) => !["In Progress", "Under Review", "Waiting External", "Blocked", "Escalated"].includes(r.status)).length, color: "hsl(var(--fg-subtle))", label: "To start" },
+  ];
+
   const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread);
 
   const dayMode = !hasFilters && sp.all !== "1" && view !== "calendar" && view !== "timeline";
@@ -195,17 +221,49 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     <div className="space-y-4">
       <TaskActions />
       <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
-      {/* Hero — shared surface-kit header, same language as Home */}
-      <Hero
-        title="Task Management"
-        subtitle={
-          dayMode
-            ? `${total} item${total === 1 ? "" : "s"} need attention`
-            : `${total} ${showClosed ? "task" : "open task"}${total === 1 ? "" : "s"}`
-        }
-        actions={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
-      >
+      {/* The Task Management widget — pulse gauge, controls, signal rail. */}
+      <WidgetCard>
+        <WidgetHeader
+          title="Task management"
+          actions={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
+        >
         <div className="space-y-3">
+          {/* Living stat tiles — glanceable widgets that fill the width. */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <StatTile title="On track" tone={onTrackPct >= 70 ? "success" : onTrackPct >= 40 ? "warn" : "danger"}>
+              <ArcGauge
+                percent={onTrackPct}
+                color={onTrackPct >= 70 ? "hsl(var(--success))" : onTrackPct >= 40 ? "hsl(var(--warn))" : "hsl(var(--danger))"}
+                size={104}
+                stroke={10}
+              />
+            </StatTile>
+
+            <StatTile title="Open" tone="accent" footer={<StackBar segments={statusMix} />}>
+              <BigStat value={openScoped.length} unit="tasks" />
+            </StatTile>
+
+            <StatTile
+              title="Needs you"
+              tone={needYou > 0 ? "danger" : "muted"}
+              href={needYou > 0 ? buildHref({ ...sp, all: "1" }, { flag: "overdue" }) : undefined}
+              footer={<span className="text-[11px] text-fg-muted">{kpi.overdue} overdue · {kpi.escalated} escalated</span>}
+            >
+              <BigStat value={needYou} unit={needYou > 0 ? "now" : "clear"} tone={needYou > 0 ? "danger" : undefined} />
+            </StatTile>
+
+            <StatTile
+              title="Done · month"
+              tone="info"
+              footer={<span className="text-[11px] text-fg-muted">{donePct}% of this month</span>}
+            >
+              <div className="flex items-center gap-2.5">
+                <BigStat value={completedThisMonth} />
+                <MiniRing percent={donePct} color="hsl(var(--info))" />
+              </div>
+            </StatTile>
+          </div>
+
           {/* Toolbar — search · company · filters · show closed (consolidated). */}
           <TaskToolbar
             view={view}
@@ -243,18 +301,18 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             </div>
           )}
 
-          {/* KPI chips — one horizontal-scroll row on mobile, wraps on desktop */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-        {[
+          {/* Secondary quick-filters — only the ones that actually have tasks,
+              so the rail stays short and non-repetitive (the tiles carry the
+              headline signals like Overdue/Done). */}
+          <ChipRail className="sm:flex-wrap sm:[mask-image:none]">
+        {([
           { label: "Unread",      count: kpi.unread,      key: "1",           filterKey: "unread" as const,  tone: "info" as const,   Icon: Sparkles },
-          { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: Clock },
           { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
           { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const, Icon: PauseCircle },
-          { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
           { label: "No Deadline", count: kpi.noDeadline,  key: "no-deadline", filterKey: "flag" as const,    tone: "warn" as const,   Icon: CalendarOff },
           { label: "Critical",    count: kpi.critical,    key: "Critical",    filterKey: "priority" as const, tone: "danger" as const, Icon: Flame },
           { label: "No Owner",    count: kpi.noOwner,     key: "1",           filterKey: "noOwner" as const,  tone: "info" as const,   Icon: UserMinus },
-        ].map(({ label, count, key, filterKey, tone, Icon }) => {
+        ]).filter((c) => c.count > 0 || sp[c.filterKey] === c.key).map(({ label, count, key, filterKey, tone, Icon }) => {
           const active = sp[filterKey] === key;
           const href = buildHref(sp, { [filterKey]: active ? undefined : key });
           const tint = active
@@ -282,7 +340,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             </Link>
           );
         })}
-          </div>
+          </ChipRail>
 
           {/* Group-by — organise the table into labelled sections (table view) */}
           {view === "table" && (
@@ -310,7 +368,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             </div>
           )}
         </div>
-      </Hero>
+        </WidgetHeader>
+      </WidgetCard>
 
       <SavedViewsBar
         initialViews={savedViews}
