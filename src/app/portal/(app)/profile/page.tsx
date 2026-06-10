@@ -4,6 +4,7 @@ import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { AccessibilityControls } from "@/components/portal-prefs";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { staffIdFor } from "@/lib/staff-id";
 import { portalLogout } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +17,11 @@ export default async function PortalProfile() {
     const { data } = await sb.from("companies").select("name").eq("id", me.companyId).maybeSingle();
     companyName = (data?.name as string | null) ?? null;
   }
+  const staffId = await staffIdFor(me.id);
 
   const details: Array<{ label: string; value: string }> = [
     { label: "Name", value: me.name },
+    ...(staffId ? [{ label: "Staff ID", value: staffId }] : []),
     ...(me.role ? [{ label: "Role", value: me.role }] : []),
     ...(me.email ? [{ label: "Email", value: me.email }] : []),
     ...(companyName ? [{ label: "Company", value: companyName }] : []),

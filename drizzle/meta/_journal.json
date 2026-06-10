@@ -281,6 +281,13 @@
       "when": 1781104048478,
       "tag": "0039_harsh_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781106075494,
+      "tag": "0040_tiresome_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

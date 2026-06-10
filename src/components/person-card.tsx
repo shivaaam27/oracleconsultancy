@@ -3,6 +3,7 @@
 import { Mail, MessageCircle, Phone, AlertCircle, MoonStar, UserX } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
+import { StaffIdChip } from "./staff-id-chip";
 import type { PersonRow } from "@/lib/people-queries";
 
 function whatsappHref(num: string) {
@@ -80,6 +81,7 @@ export function PersonCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="font-medium text-sm leading-tight truncate group-hover:text-accent transition-colors">{p.name}</span>
+          <StaffIdChip id={p.staffId} className="shrink-0" />
           {!p.active && <UserX size={12} className="text-fg-subtle shrink-0" />}
           {snoozed && <MoonStar size={12} className="text-warn shrink-0" />}
         </div>

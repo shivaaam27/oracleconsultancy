@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel } from "./drawer-kit";
 import { CompanyDrawerLink } from "./company-drawer-link";
+import { StaffIdChip } from "./staff-id-chip";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { PersonForm } from "./person-form";
 import { PersonPackPanel } from "./person-pack-builder";
@@ -65,6 +66,8 @@ type DrawerPerson = {
   relatedPersonName: string | null;
   associations: Array<{ companyId: number; companyName: string | null; relationship: string | null }>;
   secondaryManagers: Array<{ id: number; name: string | null }>;
+  staffId: string | null;
+  previousStaffIds: string | null;
 };
 
 type DrawerData = {
@@ -320,7 +323,10 @@ export function PersonDrawer() {
         {initials(person.name)}
       </span>
       <div className="min-w-0 flex-1 space-y-1">
-        <h2 className="text-lg font-semibold leading-tight truncate">{person.name}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold leading-tight truncate">{person.name}</h2>
+          <StaffIdChip id={person.staffId} />
+        </div>
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted">
           {person.role && <span className="inline-flex items-center gap-1"><Briefcase size={11} /> {person.role}</span>}
           {person.companyName && person.companyId && (

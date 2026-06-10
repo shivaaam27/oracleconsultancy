@@ -77,6 +77,9 @@ export const people = pgTable("people", {
   // "staff" (own tasks only) or "manager" (own + direct reports' tasks,
   // may complete tasks and pin instructions). Only meaningful with access.
   portalRole: text("portal_role").notNull().default("staff"),
+  // Comma-separated former staff IDs, stamped when the person moves company,
+  // so old references (e.g. CZ-E04) stay traceable. See lib/staff-id.ts.
+  previousStaffIds: text("previous_staff_ids"),
 });
 
 // Additional company associations beyond a person's primary companyId, each with a

@@ -8,6 +8,7 @@ import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPerson } from "@/lib/assets";
 import { getGroqKey } from "@/lib/settings";
+import { staffIdFor } from "@/lib/staff-id";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -375,9 +376,23 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   const whatsapp = s(formData, "whatsapp");
   const departmentId = await resolveDepartmentId(formData);
 
+  // If the person is moving to a different company, remember their current
+  // staff ID so old references (e.g. CZ-E04) stay traceable.
+  const newCompanyId = n(formData, "companyId");
+  let previousStaffIds: string | undefined;
+  const { data: before } = await sb.from("people").select("company_id,previous_staff_ids").eq("id", id).maybeSingle();
+  if (before && before.company_id != null && newCompanyId !== before.company_id) {
+    const oldId = await staffIdFor(id);
+    if (oldId) {
+      const existing = (before.previous_staff_ids as string | null) ?? "";
+      previousStaffIds = existing ? `${existing},${oldId}` : oldId;
+    }
+  }
+
   const { error } = await sb
     .from("people")
     .update({
+      ...(previousStaffIds !== undefined ? { previous_staff_ids: previousStaffIds } : {}),
       name,
       email,
       phone,

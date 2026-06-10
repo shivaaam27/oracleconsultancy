@@ -3,6 +3,7 @@ import { getAllTasks, type TaskRow } from "./queries";
 import { isOpen } from "./derive";
 import { deriveDocStatus, expiryLabel, type DocStatus } from "./documents-shared";
 import { normalizePersonType, type PersonType } from "./person-types";
+import { getStaffIdMap } from "./staff-id";
 
 export type { PersonType };
 
@@ -46,6 +47,10 @@ export type Person = {
   associations: CompanyAssociation[];
   /** Secondary / dotted-line managers this person ALSO reports to (organogram). */
   secondaryManagers: Array<{ id: number; name: string | null }>;
+  /** System-wide staff ID (e.g. CZ-E04), or null for non-staff. */
+  staffId: string | null;
+  /** Comma-separated former staff IDs (kept after a company move). */
+  previousStaffIds: string | null;
 };
 
 export type PersonWorkload = {
@@ -119,7 +124,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids"
       ),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("person_id,company_id,relationship"),
@@ -154,6 +159,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     secMgrByPerson.set(pid, list);
   }
 
+  const staffIds = await getStaffIdMap();
   const people: Person[] = (rawPeople ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
@@ -186,6 +192,8 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     relatedPersonName: p.related_person_id ? nameById.get(p.related_person_id as number) ?? null : null,
     associations: assocByPerson.get(p.id as number) ?? [],
     secondaryManagers: secMgrByPerson.get(p.id as number) ?? [],
+    staffId: staffIds.get(p.id as number) ?? null,
+    previousStaffIds: (p.previous_staff_ids as string | null) ?? null,
   }));
 
   return people.map((p) => ({
@@ -222,7 +230,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids"
       )
       .eq("id", id)
       .maybeSingle(),
@@ -299,6 +307,8 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     relatedPersonName,
     associations,
     secondaryManagers,
+    staffId: (await getStaffIdMap()).get(rawPerson.id as number) ?? null,
+    previousStaffIds: (rawPerson.previous_staff_ids as string | null) ?? null,
   };
 
   const assignedTasks = tasks.filter((t) => isInvolved(person, t));

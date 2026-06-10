@@ -6,6 +6,8 @@ import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { LiveSync } from "@/components/live-sync";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
+import { getStaffIdMap } from "@/lib/staff-id";
+import { StaffIdChip } from "@/components/staff-id-chip";
 import { portalAcknowledge, portalAddUpdate, portalTogglePin } from "../../../actions";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +76,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // Record my view — powers the "Seen" indicator for everyone else.
   await recordTaskView(task.id as number, `person:${me.id}`);
 
-  const [{ data: assignees }, { data: updates }, { data: views }] = await Promise.all([
+  const [{ data: assignees }, { data: updates }, { data: views }, staffIds] = await Promise.all([
     sb.from("task_assignees").select("role,people(id,name)").eq("task_id", task.id),
     sb
       .from("task_updates")
@@ -83,6 +85,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
+    getStaffIdMap(),
   ]);
 
   // Acknowledgements ("Understood") for this task's pinned instructions.
@@ -241,9 +244,10 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             <span className="inline-flex flex-wrap items-center gap-1.5">
               <Users size={12} />
               {team.map((p) => (
-                <span key={p.id} className="inline-flex items-center gap-0.5">
+                <span key={p.id} className="inline-flex items-center gap-1">
                   {p.accountable && <Crown size={11} className="text-warn" />}
                   {p.id === me.id ? "You" : p.name}
+                  <StaffIdChip id={staffIds.get(p.id)} />
                 </span>
               ))}
             </span>
