@@ -7,7 +7,7 @@ import { extractDocumentFromFile } from "@/app/documents/actions";
 import type { PersonProfileFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
-import { STAFF_CATEGORIES } from "@/lib/staff-id";
+import { STAFF_CATEGORIES } from "@/lib/staff-id-shared";
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 

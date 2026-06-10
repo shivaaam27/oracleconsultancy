@@ -1,63 +1,25 @@
 import { sb } from "@/db/supabase";
+import { categoryLetter } from "./staff-id-shared";
 
 /* ------------------------------------------------------------------ *
  * Staff IDs — a formal, system-wide identifier per staff member.
  *
  * Format:  <companyPrefix>-<roleLetter><NN>   e.g. CZ-E04, OC-D01, DS-AH02
  *   companyPrefix  the person's primary company code_prefix (CZ, DS, OC…)
- *   roleLetter     derived live from their role text:
- *                    D  Director
- *                    AH Admin & Human Resources
- *                    M  Manager
- *                    E  Employee (default)
- *   NN             2-digit chronological number — the person's rank among
- *                  their company's STAFF, ordered by when they entered the
- *                  system (id ascending). Stable: id never changes, so the
- *                  number never shifts for existing people.
+ *   roleLetter     D Director, AH Admin & HR, M Manager, E Employee —
+ *                  derived live from role text, or an explicit override
+ *                  (people.staff_category). See staff-id-shared.ts.
+ *   NN             2-digit chronological number — rank among the company's
+ *                  STAFF ordered by id ascending. Stable (id never changes).
  *
- * Everything is computed live from current data, so changing a person's
- * role updates the letter, and moving them to another company updates the
- * prefix + number automatically. Only staff (local_staff / expat) are
- * numbered; outsiders/candidates get no ID.
+ * Pure helpers (roleLetter, categoryLetter, STAFF_CATEGORIES) live in
+ * staff-id-shared.ts so client components can import them without pulling
+ * in the server-only Supabase client. This file is server-only.
  * ------------------------------------------------------------------ */
 
+export * from "./staff-id-shared";
+
 const STAFF_TYPES = ["local_staff", "expat"];
-
-export type RoleLetter = "D" | "M" | "AH" | "E";
-
-/** The explicit category values stored in people.staff_category. */
-export const STAFF_CATEGORIES = [
-  { value: "", label: "Auto (from role/title)" },
-  { value: "director", label: "Director (D)" },
-  { value: "manager", label: "Manager (M)" },
-  { value: "admin_hr", label: "Admin & HR (AH)" },
-  { value: "employee", label: "Employee (E)" },
-] as const;
-
-const CATEGORY_LETTER: Record<string, RoleLetter> = {
-  director: "D",
-  manager: "M",
-  admin_hr: "AH",
-  employee: "E",
-};
-
-/** Map a free-text role to its category letter. Precedence matters:
- *  Director beats everything; Admin/HR beats Manager (so "Admin and HR
- *  Manager" → AH, not M). */
-export function roleLetter(role: string | null | undefined): RoleLetter {
-  const r = (role ?? "").toLowerCase();
-  // Director / C-suite (CFO, CEO, CTO, COO, CIO, CMO, "chief …").
-  if (/director|chief|\b(cfo|ceo|cto|coo|cio|cmo)\b/.test(r)) return "D";
-  if (/admin|hr|human resourc/.test(r)) return "AH";
-  if (/manager|head|lead/.test(r)) return "M";
-  return "E";
-}
-
-/** The category letter, preferring an explicit override, else derived. */
-export function categoryLetter(staffCategory: string | null | undefined, role: string | null | undefined): RoleLetter {
-  if (staffCategory && CATEGORY_LETTER[staffCategory]) return CATEGORY_LETTER[staffCategory];
-  return roleLetter(role);
-}
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
