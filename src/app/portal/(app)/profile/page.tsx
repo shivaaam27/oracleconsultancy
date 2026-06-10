@@ -1,4 +1,5 @@
-import { LogOut, Settings2, UserRound } from "lucide-react";
+import { Bell, LogOut, Settings2, UserRound } from "lucide-react";
+import { DevicePushToggle } from "@/components/device-push-toggle";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -46,6 +47,14 @@ export default async function PortalProfile() {
         <p className="px-1 text-[11px] text-fg-subtle">
           Need a detail changed? Ask your administrator — these come from your HR record.
         </p>
+      </section>
+
+      <section className="flex flex-col gap-2.5">
+        <SectionLabel icon={<Bell size={13} />}>Notifications</SectionLabel>
+        <Panel className="p-4">
+          <DevicePushToggle />
+        </Panel>
+        <p className="px-1 text-[11px] text-fg-subtle">Get a phone alert when you&apos;re mentioned, replied to, or assigned a task.</p>
       </section>
 
       <section className="flex flex-col gap-2.5">

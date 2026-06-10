@@ -109,3 +109,62 @@ export async function sendToAll(
   }
   return { sent, pruned: dead.length, total: subs.length, errors };
 }
+
+/* ------------------------------------------------------------------ *
+ * Per-recipient subscriptions (T4b) — push to a specific person OR the
+ * owner, keyed like notifications ("admin" | "person:<id>"). Stored in the
+ * push_subscriptions table. Powers the notification-bell push to phones.
+ * ------------------------------------------------------------------ */
+
+export async function addRecipientSubscription(
+  recipient: string,
+  sub: { endpoint: string; keys: { p256dh: string; auth: string } }
+): Promise<void> {
+  await sb.from("push_subscriptions").upsert(
+    {
+      endpoint: sub.endpoint,
+      recipient,
+      p256dh: sub.keys.p256dh,
+      auth: sub.keys.auth,
+      created_at: new Date().toISOString(),
+    },
+    { onConflict: "endpoint" }
+  );
+}
+
+export async function removeRecipientSubscription(endpoint: string): Promise<void> {
+  await sb.from("push_subscriptions").delete().eq("endpoint", endpoint);
+}
+
+/** Send a push to every device registered for one recipient. Best-effort;
+ *  prunes dead endpoints. No-op if push isn't configured. */
+export async function sendToRecipient(recipient: string, payload: PushPayload): Promise<number> {
+  if (!configurePush()) return 0;
+  const { data } = await sb
+    .from("push_subscriptions")
+    .select("endpoint,p256dh,auth")
+    .eq("recipient", recipient);
+  const subs = data ?? [];
+  if (subs.length === 0) return 0;
+
+  const body = JSON.stringify(payload);
+  const dead: string[] = [];
+  let sent = 0;
+  await Promise.all(
+    subs.map(async (s) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: s.endpoint as string, keys: { p256dh: s.p256dh as string, auth: s.auth as string } },
+          body,
+          { urgency: "high", TTL: 600 }
+        );
+        sent += 1;
+      } catch (err: unknown) {
+        const code = (err as { statusCode?: number })?.statusCode;
+        if (code === 404 || code === 410) dead.push(s.endpoint as string);
+      }
+    })
+  );
+  if (dead.length > 0) await sb.from("push_subscriptions").delete().in("endpoint", dead);
+  return sent;
+}

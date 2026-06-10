@@ -257,6 +257,17 @@ export const taskAssignees = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.personId] })]
 );
 
+// Web-push device subscriptions per recipient ("admin" or "person:<id>").
+// Powers push-to-phone for the notification bell (T4b). The owner's older
+// overdue-alert push still uses the settings blob in lib/push.ts.
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  endpoint: text("endpoint").primaryKey(),
+  recipient: text("recipient").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+});
+
 // In-app notifications (T4). Recipient is "admin" (the owner) or
 // "person:<id>" (a portal user), matching the task_views convention.
 export const notifications = pgTable("notifications", {

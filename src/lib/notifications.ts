@@ -1,5 +1,6 @@
 import "server-only";
 import { sb } from "@/db/supabase";
+import { sendToRecipient } from "./push";
 
 /* ------------------------------------------------------------------ *
  * In-app notifications (T4). Recipient is "admin" (the owner) or
@@ -76,6 +77,15 @@ export async function createNotification(input: {
       body: (input.body ?? "").slice(0, 200) || null,
       actor: input.actor ?? null,
       created_at: new Date().toISOString(),
+    });
+    // Push to the recipient's phone(s) too (T4b). Best-effort, no-op if push
+    // isn't configured or they have no devices registered.
+    const url = input.recipient === "admin" ? `/task/${input.taskCode}` : `/portal/task/${input.taskCode}`;
+    await sendToRecipient(input.recipient, {
+      title: input.title,
+      body: input.body ?? "",
+      url,
+      tag: `task-${input.taskCode}`,
     });
   } catch {
     /* swallow — best effort */
