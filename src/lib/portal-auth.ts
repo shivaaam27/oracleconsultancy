@@ -80,12 +80,15 @@ export async function clearSessionCookie() {
   jar.set(COOKIE_NAME, "", { httpOnly: true, path: "/", maxAge: 0 });
 }
 
+export type PortalRole = "staff" | "manager";
+
 export type PortalPerson = {
   id: number;
   name: string;
   email: string | null;
   role: string | null;
   companyId: number | null;
+  portalRole: PortalRole;
 };
 
 /** Returns the signed-in portal person, or null. Re-checks that portal
@@ -97,7 +100,7 @@ export async function getPortalPerson(): Promise<PortalPerson | null> {
   if (!personId) return null;
   const { data, error } = await sb
     .from("people")
-    .select("id,name,email,role,company_id,active,portal_password_hash")
+    .select("id,name,email,role,company_id,active,portal_password_hash,portal_role")
     .eq("id", personId)
     .maybeSingle();
   if (error || !data) return null;
@@ -108,7 +111,65 @@ export async function getPortalPerson(): Promise<PortalPerson | null> {
     email: (data.email as string | null) ?? null,
     role: (data.role as string | null) ?? null,
     companyId: (data.company_id as number | null) ?? null,
+    portalRole: data.portal_role === "manager" ? "manager" : "staff",
   };
+}
+
+/** Direct reports of a manager: primary line (people.manager_id) plus any
+ *  dotted lines (reporting_lines). Active people only. */
+export async function directReportIds(managerId: number): Promise<number[]> {
+  const [{ data: primary }, { data: dotted }] = await Promise.all([
+    sb.from("people").select("id").eq("manager_id", managerId).eq("active", true),
+    sb.from("reporting_lines").select("person_id").eq("manager_id", managerId),
+  ]);
+  return Array.from(
+    new Set([
+      ...(primary ?? []).map((r) => r.id as number),
+      ...(dotted ?? []).map((r) => r.person_id as number),
+    ])
+  );
+}
+
+/** Every task id this portal person may see: their own (assignee or owner),
+ *  plus — for managers — their direct reports' tasks. */
+export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
+  const ids = [person.id];
+  if (person.portalRole === "manager") ids.push(...(await directReportIds(person.id)));
+  const [{ data: assigned }, { data: owned }] = await Promise.all([
+    sb.from("task_assignees").select("task_id").in("person_id", ids),
+    sb.from("tasks").select("id").in("owner_id", ids).eq("archived", false),
+  ]);
+  return Array.from(
+    new Set([
+      ...(assigned ?? []).map((r) => r.task_id as number),
+      ...(owned ?? []).map((r) => r.id as number),
+    ])
+  );
+}
+
+/** May this portal person see/touch this task? Staff: on the task. Manager:
+ *  on the task or a direct report is. */
+export async function personCanSeeTask(person: PortalPerson, taskId: number): Promise<boolean> {
+  if (await personOnTask(person.id, taskId)) return true;
+  if (person.portalRole !== "manager") return false;
+  const reports = await directReportIds(person.id);
+  if (reports.length === 0) return false;
+  const [{ data: assignee }, { data: task }] = await Promise.all([
+    sb.from("task_assignees").select("person_id").eq("task_id", taskId).in("person_id", reports).limit(1),
+    sb.from("tasks").select("owner_id").eq("id", taskId).maybeSingle(),
+  ]);
+  return (assignee ?? []).length > 0 || reports.includes((task?.owner_id as number | null) ?? -1);
+}
+
+/** Upsert the viewer's last-viewed stamp — powers the "Seen" indicator.
+ *  Viewer is "admin" or "person:<id>". Fire-and-forget semantics. */
+export async function recordTaskView(taskId: number, viewer: string): Promise<void> {
+  await sb
+    .from("task_views")
+    .upsert(
+      { task_id: taskId, viewer, last_viewed_at: new Date().toISOString() },
+      { onConflict: "task_id,viewer" }
+    );
 }
 
 /** True when this person is an assignee (or owner) of the task. Used by

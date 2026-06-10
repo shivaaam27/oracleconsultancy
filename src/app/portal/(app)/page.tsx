@@ -4,7 +4,7 @@ import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -35,44 +35,67 @@ type Row = {
   latest_update: string | null;
   company: { name: string } | null;
   teamSize: number;
+  mine: boolean;
 };
+
+function taskCard(t: Row, now: Date) {
+  const od = t.deadline && new Date(t.deadline) < now;
+  return (
+    <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
+      <Panel className="p-4 transition-shadow group-hover:ring-accent/40">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
+          {t.company && <span className="text-xs text-fg-subtle">· {t.company.name}</span>}
+          <span className="grow" />
+          <Badge tone={statusTone(t.status)}>{t.status}</Badge>
+          <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
+        </div>
+        <p className="mt-1.5 text-sm font-medium leading-snug">{t.action_item}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+          {t.deadline && (
+            <span className={od ? "text-danger font-medium" : undefined}>
+              <CalendarDays size={12} className="mr-1 inline -mt-px" />
+              Due {new Date(t.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+              {od ? " · overdue" : ""}
+            </span>
+          )}
+          {t.teamSize > 1 && (
+            <span>
+              <Users size={12} className="mr-1 inline -mt-px" />
+              Team of {t.teamSize}
+            </span>
+          )}
+          {t.latest_update && <span className="truncate max-w-[24rem]">“{t.latest_update}”</span>}
+        </div>
+      </Panel>
+    </Link>
+  );
+}
 
 export default async function PortalHome() {
   const me = (await getPortalPerson())!;
 
-  // Tasks where I am an assignee or the accountable owner.
-  const { data: assigneeRows } = await sb
-    .from("task_assignees")
-    .select("task_id")
-    .eq("person_id", me.id);
-  const { data: ownedRows } = await sb
-    .from("tasks")
-    .select("id")
-    .eq("owner_id", me.id)
-    .eq("archived", false);
-  const ids = Array.from(
-    new Set([
-      ...(assigneeRows ?? []).map((r) => r.task_id as number),
-      ...(ownedRows ?? []).map((r) => r.id as number),
-    ])
-  );
+  // My own tasks; managers also see their direct reports' tasks.
+  const ids = await visibleTaskIds(me);
 
   let tasks: Row[] = [];
   if (ids.length > 0) {
     const { data } = await sb
       .from("tasks")
-      .select("id,code,action_item,status,priority,deadline,latest_update,archived,companies(name)")
+      .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,archived,companies(name)")
       .in("id", ids)
       .eq("archived", false)
       .order("deadline", { ascending: true, nullsFirst: false });
     const { data: teams } = await sb
       .from("task_assignees")
-      .select("task_id")
+      .select("task_id,person_id")
       .in("task_id", ids);
     const teamCount = new Map<number, number>();
+    const onTask = new Set<number>();
     for (const r of teams ?? []) {
       const tid = r.task_id as number;
       teamCount.set(tid, (teamCount.get(tid) ?? 0) + 1);
+      if ((r.person_id as number) === me.id) onTask.add(tid);
     }
     tasks = (data ?? []).map((t) => ({
       id: t.id as number,
@@ -84,11 +107,14 @@ export default async function PortalHome() {
       latest_update: t.latest_update as string | null,
       company: (t.companies as unknown as { name: string } | null) ?? null,
       teamSize: teamCount.get(t.id as number) ?? 1,
+      mine: onTask.has(t.id as number) || (t.owner_id as number | null) === me.id,
     }));
   }
 
   const open = tasks.filter((t) => !OPEN_EXCLUDED.includes(t.status));
   const done = tasks.filter((t) => OPEN_EXCLUDED.includes(t.status));
+  const myOpen = open.filter((t) => t.mine);
+  const teamOpen = open.filter((t) => !t.mine); // managers: direct reports' tasks
   const now = new Date();
   const weekAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const overdue = open.filter((t) => t.deadline && new Date(t.deadline) < now);
@@ -131,43 +157,18 @@ export default async function PortalHome() {
 
       <section className="flex flex-col gap-2.5">
         <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
-        {open.length === 0 && (
+        {myOpen.length === 0 && (
           <Panel className="p-6 text-center text-sm text-fg-muted">No open tasks assigned to you right now.</Panel>
         )}
-        {open.map((t) => {
-          const od = t.deadline && new Date(t.deadline) < now;
-          return (
-            <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
-              <Panel className="p-4 transition-shadow group-hover:ring-accent/40">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
-                  {t.company && <span className="text-xs text-fg-subtle">· {t.company.name}</span>}
-                  <span className="grow" />
-                  <Badge tone={statusTone(t.status)}>{t.status}</Badge>
-                  <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
-                </div>
-                <p className="mt-1.5 text-sm font-medium leading-snug">{t.action_item}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-fg-muted">
-                  {t.deadline && (
-                    <span className={od ? "text-danger font-medium" : undefined}>
-                      <CalendarDays size={12} className="mr-1 inline -mt-px" />
-                      Due {new Date(t.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                      {od ? " · overdue" : ""}
-                    </span>
-                  )}
-                  {t.teamSize > 1 && (
-                    <span>
-                      <Users size={12} className="mr-1 inline -mt-px" />
-                      Team of {t.teamSize}
-                    </span>
-                  )}
-                  {t.latest_update && <span className="truncate max-w-[24rem]">“{t.latest_update}”</span>}
-                </div>
-              </Panel>
-            </Link>
-          );
-        })}
+        {myOpen.map((t) => taskCard(t, now))}
       </section>
+
+      {teamOpen.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Users size={13} />}>My team&apos;s tasks</SectionLabel>
+          {teamOpen.map((t) => taskCard(t, now))}
+        </section>
+      )}
 
       {done.length > 0 && (
         <section className="flex flex-col gap-2.5">

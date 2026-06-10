@@ -74,6 +74,9 @@ export const people = pgTable("people", {
   portalPasswordHash: text("portal_password_hash"),
   portalEnabledAt: timestamp("portal_enabled_at", { mode: "date", withTimezone: true }),
   portalLastLoginAt: timestamp("portal_last_login_at", { mode: "date", withTimezone: true }),
+  // "staff" (own tasks only) or "manager" (own + direct reports' tasks,
+  // may complete tasks and pin instructions). Only meaningful with access.
+  portalRole: text("portal_role").notNull().default("staff"),
 });
 
 // Additional company associations beyond a person's primary companyId, each with a
@@ -240,8 +243,24 @@ export const taskAssignees = pgTable(
   {
     taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
     personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    // "accountable" (answers for the task) or "working" (doing the task).
+    // tasks.owner_id remains the FIRST accountable person for back-compat;
+    // additional accountable people are assignees with this role.
+    role: text("role").notNull().default("working"),
   },
   (t) => [primaryKey({ columns: [t.taskId, t.personId] })]
+);
+
+// Who last viewed a task and when — powers the "Seen" indicator. Viewer is
+// "admin" (the owner's command centre) or "person:<id>" (a portal user).
+export const taskViews = pgTable(
+  "task_views",
+  {
+    taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    viewer: text("viewer").notNull(),
+    lastViewedAt: timestamp("last_viewed_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.viewer] })]
 );
 
 export const taskUpdates = pgTable("task_updates", {

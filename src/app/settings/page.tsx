@@ -285,7 +285,7 @@ export default async function SettingsPage({
           </div>
         )}
 
-        <form action={setPortalAccess} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+        <form action={setPortalAccess} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-3 items-end">
           <div>
             <FieldLabel>Person</FieldLabel>
             <Select name="personId" defaultValue="">
@@ -293,6 +293,13 @@ export default async function SettingsPage({
               {portalPeople.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}{p.enabled ? " (has access — reset password)" : ""}</option>
               ))}
+            </Select>
+          </div>
+          <div>
+            <FieldLabel>Access level</FieldLabel>
+            <Select name="portalRole" defaultValue="staff">
+              <option value="staff">Staff — own tasks only</option>
+              <option value="manager">Manager — own + direct reports&apos; tasks, can complete</option>
             </Select>
           </div>
           <div>

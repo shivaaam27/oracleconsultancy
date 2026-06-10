@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
+import { recordTaskView } from "@/lib/portal-auth";
 import { flagLabel } from "@/lib/derive";
 import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { UpdateBox } from "@/components/update-box";
@@ -77,6 +78,9 @@ export default async function TaskPage({
     if (legacy) redirect(`/task/${legacy.code}${sp.tl ? `?tl=${sp.tl}` : ""}`);
     return notFound();
   }
+
+  // Stamp the owner's view so portal users see "Seen by Management".
+  await recordTaskView(r.id, "admin");
 
   const [{ data: auditRaw }, { data: updateRaw }, { data: sourceMeeting }, { data: pplRaw }, { data: compRaw }] = await Promise.all([
     sb

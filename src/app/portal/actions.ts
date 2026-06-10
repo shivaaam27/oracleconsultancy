@@ -7,17 +7,19 @@ import { logChangeSb } from "@/lib/db-helpers";
 import {
   clearSessionCookie,
   getPortalPerson,
-  personOnTask,
+  personCanSeeTask,
   setSessionCookie,
   verifyPassword,
 } from "@/lib/portal-auth";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
- * the person is actually on the task — never trust the URL or the form. */
+ * the person is actually allowed on the task — never trust the URL/form. */
 
-// Statuses a staff member may set themselves. Completed/Closed stay
-// owner-only: staff signal "done" via Under Review.
-const PORTAL_STATUSES = ["In Progress", "Under Review", "Blocked"];
+// Statuses a staff member may set themselves: Completed/Closed need a
+// manager or the owner — staff signal "done" via Under Review.
+const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
+// Managers may additionally complete a task outright.
+const MANAGER_STATUSES = [...STAFF_STATUSES, "Completed"];
 
 export async function portalLogin(
   _prev: { error: string } | null,
@@ -75,7 +77,7 @@ export async function portalAddUpdate(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   const newStatus = String(formData.get("newStatus") ?? "").trim();
   if (!Number.isFinite(taskId) || !body) return;
-  if (!(await personOnTask(me.id, taskId))) return;
+  if (!(await personCanSeeTask(me, taskId))) return;
 
   const { data: t, error: tErr } = await sb
     .from("tasks")
@@ -84,7 +86,11 @@ export async function portalAddUpdate(formData: FormData) {
     .maybeSingle();
   if (tErr || !t) return;
 
-  const createdBy = `portal:${me.name}`;
+  const isManager = me.portalRole === "manager";
+  // Managers are stamped distinctly so their posts get the management accent
+  // everywhere (see authorOf in the portal task page and actorLabel in
+  // timeline-entry.tsx).
+  const createdBy = `${isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
   const { error: insErr } = await sb.from("task_updates").insert({
@@ -97,17 +103,19 @@ export async function portalAddUpdate(formData: FormData) {
 
   const patch: Record<string, unknown> = { latest_update: body, last_updated_at: now };
 
-  // Optional status change, limited to the staff-allowed set, and never
+  // Optional status change, limited to the role's allowed set, and never
   // on a task that is already Completed/Closed.
+  const allowed = isManager ? MANAGER_STATUSES : STAFF_STATUSES;
   const currentStatus = t.status as string;
   const canChange =
     newStatus &&
-    PORTAL_STATUSES.includes(newStatus) &&
+    allowed.includes(newStatus) &&
     newStatus !== currentStatus &&
     currentStatus !== "Completed" &&
     currentStatus !== "Closed";
   if (canChange) {
     patch.status = newStatus;
+    if (newStatus === "Completed") patch.closed_date = now;
     await logChangeSb(
       taskId,
       t.code as string,
@@ -115,7 +123,7 @@ export async function portalAddUpdate(formData: FormData) {
       "status",
       currentStatus,
       newStatus,
-      "Updated from staff portal",
+      isManager ? "Completed/updated from manager portal" : "Updated from staff portal",
       createdBy
     );
   }
@@ -126,4 +134,32 @@ export async function portalAddUpdate(formData: FormData) {
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);
   revalidatePath("/portal");
+}
+
+/** Managers only: pin/unpin an update so the current instruction stays on
+ *  top of the timeline for the whole team. */
+export async function portalTogglePin(formData: FormData) {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "manager") return;
+
+  const updateId = Number(formData.get("updateId"));
+  const code = String(formData.get("code") ?? "");
+  if (!Number.isFinite(updateId)) return;
+
+  const { data: u } = await sb
+    .from("task_updates")
+    .select("id,task_id,pinned_at")
+    .eq("id", updateId)
+    .maybeSingle();
+  if (!u) return;
+  if (!(await personCanSeeTask(me, u.task_id as number))) return;
+
+  await sb
+    .from("task_updates")
+    .update({ pinned_at: u.pinned_at ? null : new Date().toISOString() })
+    .eq("id", updateId);
+
+  revalidatePath(`/portal/task/${code}`);
+  revalidatePath(`/task/${code}`);
 }

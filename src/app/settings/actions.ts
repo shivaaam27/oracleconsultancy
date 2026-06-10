@@ -45,6 +45,7 @@ export async function saveSettings(fd: FormData): Promise<void> {
 export async function setPortalAccess(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));
   const password = String(fd.get("password") ?? "");
+  const role = fd.get("portalRole") === "manager" ? "manager" : "staff";
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
   if (password.length < 6) redirect("/settings?portal=short");
 
@@ -53,6 +54,7 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
     .update({
       portal_password_hash: hashPassword(password),
       portal_enabled_at: new Date().toISOString(),
+      portal_role: role,
     })
     .eq("id", personId);
   if (error) throw new Error(error.message);

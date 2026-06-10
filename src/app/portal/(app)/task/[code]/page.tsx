@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, MessageSquare, Pin, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCheck, Crown, MessageSquare, Pin, PinOff, Users } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson, personOnTask } from "@/lib/portal-auth";
-import { portalAddUpdate } from "../../../actions";
+import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
+import { portalAddUpdate, portalTogglePin } from "../../../actions";
 
 export const dynamic = "force-dynamic";
 
-const PORTAL_STATUSES = ["In Progress", "Under Review", "Blocked"];
+const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
+const MANAGER_STATUSES = [...STAFF_STATUSES, "Completed"];
 
 function statusTone(s: string): "default" | "success" | "warn" | "danger" | "info" {
   if (s === "Completed" || s === "Closed") return "success";
@@ -21,9 +22,13 @@ function statusTone(s: string): "default" | "success" | "warn" | "danger" | "inf
 }
 
 /** Maps a created_by stamp to a display name + whether it is "management"
- *  (the owner/admin side) — management posts get the accent treatment. */
+ *  (owner/admin or a portal manager) — management posts get the accent. */
 function authorOf(createdBy: string | null, myName: string): { name: string; management: boolean; me: boolean } {
   if (!createdBy) return { name: "System", management: false, me: false };
+  if (createdBy.startsWith("portal-mgr:")) {
+    const name = createdBy.slice(11);
+    return { name: name === myName ? "You" : name, management: true, me: name === myName };
+  }
   if (createdBy.startsWith("portal:")) {
     const name = createdBy.slice(7);
     return { name: name === myName ? "You" : name, management: false, me: name === myName };
@@ -54,36 +59,61 @@ type Update = {
 export default async function PortalTaskPage({ params }: { params: Promise<{ code: string }> }) {
   const me = (await getPortalPerson())!;
   const { code } = await params;
+  const isManager = me.portalRole === "manager";
 
   const { data: task } = await sb
     .from("tasks")
-    .select("id,code,action_item,status,priority,deadline,comments,created_date,companies(name)")
+    .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,companies(name)")
     .eq("code", decodeURIComponent(code))
     .maybeSingle();
   if (!task) notFound();
 
-  // Hard gate: only people on this task may see it.
-  if (!(await personOnTask(me.id, task.id as number))) redirect("/portal");
+  // Hard gate: own tasks, or (managers) a direct report's task.
+  if (!(await personCanSeeTask(me, task.id as number))) redirect("/portal");
 
-  const [{ data: assignees }, { data: updates }] = await Promise.all([
-    sb.from("task_assignees").select("people(id,name)").eq("task_id", task.id),
+  // Record my view — powers the "Seen" indicator for everyone else.
+  await recordTaskView(task.id as number, `person:${me.id}`);
+
+  const [{ data: assignees }, { data: updates }, { data: views }] = await Promise.all([
+    sb.from("task_assignees").select("role,people(id,name)").eq("task_id", task.id),
     sb
       .from("task_updates")
       .select("id,body,created_at,created_by,pinned_at")
       .eq("task_id", task.id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
+    sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
   ]);
 
   const team = (assignees ?? [])
-    .map((a) => (a.people as unknown as { id: number; name: string } | null))
-    .filter((p): p is { id: number; name: string } => Boolean(p));
+    .map((a) => {
+      const p = a.people as unknown as { id: number; name: string } | null;
+      return p ? { ...p, accountable: a.role === "accountable" || p.id === (task.owner_id as number | null) } : null;
+    })
+    .filter((p): p is { id: number; name: string; accountable: boolean } => Boolean(p));
 
+  // Who has seen the task since the latest update was posted (excluding me).
   const all = (updates ?? []) as Update[];
+  const latest = all[0] ?? null;
+  const nameById = new Map(team.map((p) => [p.id, p.name]));
+  const seenBy: string[] = [];
+  if (latest) {
+    for (const v of views ?? []) {
+      if (new Date(v.last_viewed_at as string) < new Date(latest.created_at)) continue;
+      const viewer = v.viewer as string;
+      if (viewer === "admin") {
+        seenBy.push("Management");
+      } else if (viewer.startsWith("person:")) {
+        const pid = Number(viewer.slice(7));
+        if (pid !== me.id) seenBy.push(nameById.get(pid) ?? "");
+      }
+    }
+  }
+  const seenLabel = seenBy.filter(Boolean);
+
   const pinned = all.filter((u) => u.pinned_at);
   const rest = all.filter((u) => !u.pinned_at);
 
-  // Group by day, newest first. Today + yesterday open; older days collapsed.
   const groups: Array<{ label: string; items: Update[] }> = [];
   for (const u of rest) {
     const label = dayLabel(u.created_at);
@@ -94,6 +124,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   const closed = task.status === "Completed" || task.status === "Closed";
   const company = task.companies as unknown as { name: string } | null;
+  const statusOptions = (isManager ? MANAGER_STATUSES : STAFF_STATUSES).filter((s) => s !== task.status);
 
   const renderUpdate = (u: Update) => {
     const a = authorOf(u.created_by, me.name);
@@ -114,11 +145,29 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             </span>
           )}
           <span className="grow" />
+          {isManager && (
+            <form action={portalTogglePin}>
+              <input type="hidden" name="updateId" value={u.id} />
+              <input type="hidden" name="code" value={task.code as string} />
+              <button
+                type="submit"
+                title={u.pinned_at ? "Unpin" : "Pin as the current instruction"}
+                className="text-fg-subtle hover:text-accent transition-colors"
+              >
+                {u.pinned_at ? <PinOff size={13} /> : <Pin size={13} />}
+              </button>
+            </form>
+          )}
           <span className="text-fg-subtle">
             {new Date(u.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
         <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{u.body}</p>
+        {latest && u.id === latest.id && seenLabel.length > 0 && (
+          <p className="mt-1.5 flex items-center gap-1 text-[11px] text-fg-subtle">
+            <CheckCheck size={12} className="text-info" /> Seen by {seenLabel.join(", ")}
+          </p>
+        )}
       </div>
     );
   };
@@ -147,10 +196,15 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
               Due {new Date(task.deadline as string).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
             </span>
           )}
-          {team.length > 1 && (
-            <span className="inline-flex items-center gap-1">
-              <Users size={12} /> Team:{" "}
-              {team.map((p) => (p.id === me.id ? "You" : p.name)).join(", ")}
+          {team.length > 0 && (
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              <Users size={12} />
+              {team.map((p) => (
+                <span key={p.id} className="inline-flex items-center gap-0.5">
+                  {p.accountable && <Crown size={11} className="text-warn" />}
+                  {p.id === me.id ? "You" : p.name}
+                </span>
+              ))}
             </span>
           )}
         </div>
@@ -179,7 +233,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
                   className="rounded-xl bg-bg-subtle ring-1 ring-border px-2.5 py-1.5 text-xs outline-none"
                 >
                   <option value="">No change</option>
-                  {PORTAL_STATUSES.filter((s) => s !== task.status).map((s) => (
+                  {statusOptions.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -194,7 +248,9 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
               </button>
             </div>
             <p className="text-[11px] text-fg-subtle">
-              Marking work finished? Choose <span className="font-medium">Under Review</span> — your manager confirms completion.
+              {isManager
+                ? "As a manager you can mark this task Completed once you're satisfied."
+                : "Marking work finished? Choose Under Review — your manager confirms completion."}
             </p>
           </form>
         </Panel>

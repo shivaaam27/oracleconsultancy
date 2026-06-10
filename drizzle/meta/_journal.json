@@ -267,6 +267,13 @@
       "when": 1781093553456,
       "tag": "0037_absent_the_professor",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1781098354301,
+      "tag": "0038_lowly_gateway",
+      "breakpoints": true
     }
   ]
 }
