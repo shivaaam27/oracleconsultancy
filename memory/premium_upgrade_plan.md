@@ -151,7 +151,17 @@ clean. ✅ **Phase 0 complete.**
    why the deterministic parsers matter — all the above work AI-off.
 2. **Entity hover-preview** anywhere a person/company/task/doc is named — a
    lightweight popover (extend `task-hover.tsx`/`peek-preview.tsx`), one tap to
-   open the full drawer.
+   open the full drawer. **Companies DONE (2026-06-11):** `company-drawer-link.tsx`
+   now wraps its button in a Radix Tooltip that lazy-fetches `/api/company-detail`
+   on first hover/focus (module-level cache, retry-on-error) and renders a glass
+   preview card (compliance %/status tone, open/overdue tasks, team + docs
+   attention). Click still opens the drawer. Rolled out free to all 4
+   `CompanyDrawerLink` sites (companies page, insights, task page, person drawer).
+   Fixed a shape bug (`documents.attention` is an array, not a count). Verified
+   live: focus → "Loading…" → "Terra Green · 0% Risk · 6 open/1 overdue …", click
+   opens drawer, no console errors. **Next:** same pattern for `person-drawer-link`
+   (`/api/people-detail`) and `task-drawer-link`/`code-linked-text`
+   (`/api/task-detail`).
 3. **Connections view** — a tab in `entity-drawer` listing one-hop neighbours
    (person→company→tasks→docs→meetings→assets), all already linked in the DB.
 
