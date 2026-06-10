@@ -1,26 +1,26 @@
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { PortalPill } from "@/components/portal-pill";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { portalLogout } from "../actions";
 
 /* Guarded shell for every staff-portal page. No admin chrome here — the
- * portal has its own minimal header, and the global pill/assistant hide
- * themselves on /portal routes. */
+ * portal has its own minimal header + its own bottom pill (PortalPill);
+ * the global admin pill/assistant hide themselves on /portal routes. */
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 pb-28">
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">Oracle Consultancy · Staff portal</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
+            Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : "Staff portal"}
+          </p>
           <p className="truncate text-sm font-semibold">{me.name}</p>
         </div>
-        <div className="flex items-center gap-1.5">
-        <ThemeToggle />
         <form action={portalLogout}>
           <button
             type="submit"
@@ -30,9 +30,9 @@ export default async function PortalLayout({ children }: { children: React.React
             Sign out
           </button>
         </form>
-        </div>
       </header>
       {children}
+      <PortalPill />
     </div>
   );
 }

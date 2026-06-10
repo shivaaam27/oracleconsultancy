@@ -1,0 +1,62 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
+import { Home, ListTodo, User, type LucideIcon } from "lucide-react";
+import { cn } from "@/lib/cn";
+import { ThemeToggle } from "./theme-toggle";
+
+/* The staff portal's own bottom-floating pill. Same liquid-glass language
+ * as the admin pill (top-pill.tsx) but a deliberately tiny, fixed menu —
+ * only safe destinations exist here, so staff can never reach admin pages. */
+
+function PillTab({ href, icon: Icon, label, active }: { href: string; icon: LucideIcon; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "relative inline-flex flex-col items-center justify-center h-12 w-16 rounded-2xl shrink-0 transition-colors",
+        active ? "text-accent" : "text-fg-muted hover:text-fg"
+      )}
+    >
+      {active && (
+        <motion.span
+          layoutId="portalpill"
+          className="absolute inset-0 rounded-2xl bg-accent-soft"
+          transition={{ type: "spring", stiffness: 500, damping: 36 }}
+        />
+      )}
+      <Icon size={19} strokeWidth={active ? 2.4 : 2} className="relative" />
+      <span className="relative mt-0.5 text-[10px] font-medium">{label}</span>
+    </Link>
+  );
+}
+
+export function PortalPill() {
+  const pathname = usePathname() || "/portal";
+  const onHome = pathname === "/portal" || pathname.startsWith("/portal/task");
+  const onActivity = pathname.startsWith("/portal/activity");
+  const onProfile = pathname.startsWith("/portal/profile");
+
+  return (
+    <div className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 flex justify-center px-2 pointer-events-none">
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+        className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-2 h-16"
+      >
+        <PillTab href="/portal" icon={Home} label="Home" active={onHome} />
+        <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} />
+        <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} />
+        <span className="mx-1 h-7 w-px bg-border" />
+        <div className="px-1">
+          <ThemeToggle />
+        </div>
+      </motion.div>
+    </div>
+  );
+}

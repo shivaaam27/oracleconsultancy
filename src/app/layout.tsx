@@ -9,6 +9,7 @@ import { RecentsTracker } from "@/components/recents-tracker";
 import { ToastProvider } from "@/components/toast";
 import { UndoBanner } from "@/components/undo-banner";
 import { DensityScript } from "@/components/density-toggle";
+import { PortalPrefsScript } from "@/components/portal-prefs";
 import { PageTransition } from "@/components/page-transition";
 import { ContextActionsProvider } from "@/components/context-actions";
 import { TaskDrawer } from "@/components/task-drawer";
@@ -57,6 +58,7 @@ export default async function RootLayout({ children, modal }: { children: React.
     <html lang="en" suppressHydrationWarning>
       <head>
         <DensityScript />
+        <PortalPrefsScript />
       </head>
       <body>
         <ThemeProvider>

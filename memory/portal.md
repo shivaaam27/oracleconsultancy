@@ -26,6 +26,13 @@ A standalone, locked-down view for staff members — see only your own tasks, po
 - **Portal access levels**: `people.portal_role` = `staff` | `manager` (picked in Settings → Staff portal access). Managers see own tasks + direct reports' tasks (primary `manager_id` + dotted `reporting_lines`; helpers `directReportIds`/`visibleTaskIds`/`personCanSeeTask` in `portal-auth.ts`), get a separate "My team's tasks" section, may set **Completed** (sets `closed_date`), and can pin/unpin updates (`portalTogglePin`). Manager posts are stamped `portal-mgr:<Name>` and get the management accent everywhere.
 - **Seen indicator**: `task_views` table (`task_id` + `viewer` "admin"/"person:<id>" + `last_viewed_at`); recorded on portal task view and admin `/task/[code]` view; portal shows "Seen by …" under the latest update (viewers whose stamp is newer than it).
 
+## Phase 3 — Portal app shell (June 2026)
+
+- **Own bottom pill** `src/components/portal-pill.tsx` (glass, same language as admin `top-pill.tsx` but a fixed 3-item menu + theme toggle): Home (`/portal`, also active on `/portal/task/*`) · Activity · Profile. Mounted in the `(app)` layout; admin pill stays hidden on `/portal` via `HideOnPortal`. Layout wrapper has `pb-28` for clearance.
+- **Activity** `/portal/activity`: all updates across the person's visible tasks (manager = own + reports), day-grouped, management posts accented, links to the task. 20 s auto-refresh.
+- **Profile** `/portal/profile`: read-only HR details (name/role/email/company) + accessibility controls + sign out.
+- **Accessibility** `src/components/portal-prefs.tsx`: per-device (localStorage) text size (base/large/xlarge → `data-text-size` on `<html>`, root font 16/18/20px), motion (full/reduced → `data-motion="reduced"`), density (reuses `DensityToggle`). Flash-prevention via `PortalPrefsScript` in the root layout `<head>` (beside `DensityScript`). CSS rules in `globals.css` under "Accessibility".
+
 ## Owner (admin) sign-in
 
 The whole admin side is now behind a single owner password:
