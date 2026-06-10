@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb } from "@/lib/db-helpers";
+import { parseMentionIds } from "@/lib/mentions";
 import {
   clearSessionCookie,
   getPortalPerson,
@@ -105,14 +106,34 @@ export async function portalAddUpdate(formData: FormData) {
   const createdBy = `${isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
-  const { error: insErr } = await sb.from("task_updates").insert({
-    task_id: taskId,
-    body,
-    created_at: now,
-    created_by: createdBy,
-    parent_update_id: parentUpdateId,
-  });
+  const { data: inserted, error: insErr } = await sb
+    .from("task_updates")
+    .insert({
+      task_id: taskId,
+      body,
+      created_at: now,
+      created_by: createdBy,
+      parent_update_id: parentUpdateId,
+    })
+    .select("id")
+    .single();
   if (insErr) throw new Error(insErr.message);
+
+  // Record @mentions — re-parsed server-side against this task's people, so
+  // we never trust the client's list. Drives highlight now, notifications (T4).
+  const { data: taskPeople } = await sb
+    .from("task_assignees")
+    .select("people(id,name)")
+    .eq("task_id", taskId);
+  const candidates = (taskPeople ?? [])
+    .map((r) => r.people as unknown as { id: number; name: string } | null)
+    .filter((p): p is { id: number; name: string } => Boolean(p));
+  const mentionIds = parseMentionIds(body, candidates).filter((id) => id !== me.id);
+  if (mentionIds.length > 0) {
+    await sb
+      .from("update_mentions")
+      .insert(mentionIds.map((personId) => ({ update_id: inserted.id as number, person_id: personId })));
+  }
 
   const patch: Record<string, unknown> = { latest_update: body, last_updated_at: now };
 

@@ -257,6 +257,16 @@ export const taskAssignees = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.personId] })]
 );
 
+// People @mentioned in an update — drives highlight now, notifications in T4.
+export const updateMentions = pgTable(
+  "update_mentions",
+  {
+    updateId: integer("update_id").notNull().references(() => taskUpdates.id, { onDelete: "cascade" }),
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.updateId, t.personId] })]
+);
+
 // Read-receipts for a specific update (used for pinned instructions): a
 // person taps "Understood" and we record it, so managers/the owner can see
 // who has acknowledged without chasing.

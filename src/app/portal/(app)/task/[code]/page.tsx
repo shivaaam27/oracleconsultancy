@@ -196,6 +196,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         messages={messages}
         latestId={latest?.id ?? null}
         seenLabel={seenLabel}
+        team={team.map((p) => ({ id: p.id, name: p.name }))}
       />
     </div>
   );

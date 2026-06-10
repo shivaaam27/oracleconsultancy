@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Check, CheckCheck, CornerUpLeft, MessageSquare, Pin, PinOff, Send, X } from "lucide-react";
 import { portalAcknowledge, portalAddUpdate, portalTogglePin } from "@/app/portal/actions";
+import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
 
 /* T2 conversation view for a portal task: chat-style messages with replies,
  * a pinned-instruction banner, Understood/Read-by, and a composer that can
@@ -31,6 +32,7 @@ type Props = {
   messages: ConvoMessage[]; // newest first
   latestId: number | null;
   seenLabel: string[];
+  team: MentionCandidate[]; // for @mention autocomplete + highlighting
 };
 
 function dayLabel(iso: string): string {
@@ -49,9 +51,37 @@ function time(iso: string): string {
 }
 
 export function PortalConversation(props: Props) {
-  const { taskId, code, isManager, closed, statusOptions, currentStatus, messages, latestId, seenLabel } = props;
+  const { taskId, code, isManager, closed, statusOptions, currentStatus, messages, latestId, seenLabel, team } = props;
   const [replyTo, setReplyTo] = useState<{ id: number; author: string; snippet: string } | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // @mention autocomplete: when the caret is in an "@partial" token, show
+  // matching team members; clicking one completes "@Full Name ".
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const mentionMatches =
+    mentionQuery === null
+      ? []
+      : team.filter((m) => m.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6);
+
+  function onComposerChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const el = e.target;
+    const upto = el.value.slice(0, el.selectionStart ?? el.value.length);
+    const m = /@([\p{L}\p{N}' ]{0,30})$/u.exec(upto);
+    setMentionQuery(m ? m[1] : null);
+  }
+
+  function pickMention(name: string) {
+    const el = taRef.current;
+    if (!el) return;
+    const caret = el.selectionStart ?? el.value.length;
+    const before = el.value.slice(0, caret).replace(/@([\p{L}\p{N}' ]{0,30})$/u, `@${name} `);
+    const after = el.value.slice(caret);
+    el.value = before + after;
+    const pos = before.length;
+    el.setSelectionRange(pos, pos);
+    el.focus();
+    setMentionQuery(null);
+  }
 
   const pinned = messages.filter((m) => m.pinned);
   const rest = messages.filter((m) => !m.pinned);
@@ -133,7 +163,15 @@ export function PortalConversation(props: Props) {
         </div>
       )}
 
-      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
+        {segmentMentions(m.body, team).map((seg, i) =>
+          seg.mention ? (
+            <span key={i} className="rounded bg-accent-soft px-0.5 font-medium text-accent">{seg.text}</span>
+          ) : (
+            <span key={i}>{seg.text}</span>
+          )
+        )}
+      </p>
 
       {latestId === m.id && seenLabel.length > 0 && (
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-fg-subtle">
@@ -187,14 +225,32 @@ export function PortalConversation(props: Props) {
             <input type="hidden" name="taskId" value={taskId} />
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="parentUpdateId" value={replyTo?.id ?? ""} />
-            <textarea
-              ref={taRef}
-              name="body"
-              required
-              rows={2}
-              placeholder={replyTo ? `Reply to ${replyTo.author}…` : "Write an update… keep it short and factual."}
-              className="w-full resize-y rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-2.5 text-sm outline-none focus:ring-accent/50"
-            />
+            <div className="relative">
+              <textarea
+                ref={taRef}
+                name="body"
+                required
+                rows={2}
+                onChange={onComposerChange}
+                onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
+                placeholder={replyTo ? `Reply to ${replyTo.author}…` : "Write an update… use @ to mention a teammate."}
+                className="w-full resize-y rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-2.5 text-sm outline-none focus:ring-accent/50"
+              />
+              {mentionMatches.length > 0 && (
+                <div className="absolute left-2 top-full z-10 mt-1 w-56 overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-pill">
+                  {mentionMatches.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); pickMention(m.name); }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent-soft/60 transition-colors"
+                    >
+                      <span className="font-medium">{m.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="flex items-center gap-2 text-xs text-fg-muted">
                 Status
