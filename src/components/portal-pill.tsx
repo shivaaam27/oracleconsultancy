@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Home, ListTodo, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
 
 /* The staff portal's own bottom-floating pill. Same liquid-glass language
  * as the admin pill (top-pill.tsx) but a deliberately tiny, fixed menu —
@@ -53,6 +54,9 @@ export function PortalPill() {
         <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} />
         <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} />
         <span className="mx-1 h-7 w-px bg-border" />
+        <div className="px-0.5">
+          <NotificationBell to="/portal/task" />
+        </div>
         <div className="px-1">
           <ThemeToggle />
         </div>

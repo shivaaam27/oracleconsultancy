@@ -6,6 +6,7 @@ import { sb } from "@/db/supabase";
 import { logChangeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
 import { createTaskAttachment } from "@/lib/documents";
+import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import {
   clearSessionCookie,
   getPortalPerson,
@@ -87,13 +88,17 @@ export async function portalAddUpdate(formData: FormData) {
 
   // Validate the reply target belongs to this same task.
   let parentUpdateId: number | null = null;
+  let parentCreatedBy: string | null = null;
   if (Number.isFinite(parentRaw) && parentRaw > 0) {
     const { data: parent } = await sb
       .from("task_updates")
-      .select("task_id")
+      .select("task_id,created_by")
       .eq("id", parentRaw)
       .maybeSingle();
-    if (parent && (parent.task_id as number) === taskId) parentUpdateId = parentRaw;
+    if (parent && (parent.task_id as number) === taskId) {
+      parentUpdateId = parentRaw;
+      parentCreatedBy = (parent.created_by as string | null) ?? null;
+    }
   }
 
   const { data: t, error: tErr } = await sb
@@ -151,6 +156,31 @@ export async function portalAddUpdate(formData: FormData) {
     await sb
       .from("update_mentions")
       .insert(mentionIds.map((personId) => ({ update_id: inserted.id as number, person_id: personId })));
+  }
+
+  // Notifications: @mention → mentioned people; reply → the replied-to author.
+  const code2 = t.code as string;
+  await notifyMany(mentionIds.map(personRecipient), {
+    kind: "mention",
+    taskId,
+    taskCode: code2,
+    title: `${me.name} mentioned you`,
+    body,
+    actor: me.name,
+  });
+  if (parentUpdateId) {
+    const target = await recipientForCreatedBy(parentCreatedBy);
+    if (target && target !== personRecipient(me.id)) {
+      await createNotification({
+        recipient: target,
+        kind: "reply",
+        taskId,
+        taskCode: code2,
+        title: `${me.name} replied to you`,
+        body,
+        actor: me.name,
+      });
+    }
   }
 
   const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
@@ -236,10 +266,16 @@ export async function portalTogglePin(formData: FormData) {
   if (!u) return;
   if (!(await personCanSeeTask(me, u.task_id as number))) return;
 
+  const wasPinned = Boolean(u.pinned_at);
   await sb
     .from("task_updates")
-    .update({ pinned_at: u.pinned_at ? null : new Date().toISOString() })
+    .update({ pinned_at: wasPinned ? null : new Date().toISOString() })
     .eq("id", updateId);
+
+  // Pinning a NEW instruction notifies the task's people (except the pinner).
+  if (!wasPinned) {
+    await notifyPinned(u.task_id as number, code, me.name, me.id);
+  }
 
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);

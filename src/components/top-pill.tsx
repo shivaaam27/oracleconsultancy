@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
 import { useRegisteredActions } from "./context-actions";
 
 /* --------------------------------------------------------------------- */
@@ -424,6 +425,10 @@ export function TopPill() {
         >
           <Search size={19} />
         </button>
+
+        <div className="shrink-0 flex items-center md:[&>div>button]:h-11 md:[&>div>button]:w-11">
+          <NotificationBell to="/task" />
+        </div>
 
         <div className="shrink-0 flex items-center md:[&_button]:h-11 md:[&_button]:w-11">
           <ThemeToggle />

@@ -257,6 +257,21 @@ export const taskAssignees = pgTable(
   (t) => [primaryKey({ columns: [t.taskId, t.personId] })]
 );
 
+// In-app notifications (T4). Recipient is "admin" (the owner) or
+// "person:<id>" (a portal user), matching the task_views convention.
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  recipient: text("recipient").notNull(),
+  kind: text("kind").notNull(), // mention | reply | pinned | assigned
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  taskCode: text("task_code"),
+  title: text("title").notNull(),
+  body: text("body"),
+  actor: text("actor"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  readAt: timestamp("read_at", { mode: "date", withTimezone: true }),
+});
+
 // People @mentioned in an update — drives highlight now, notifications in T4.
 export const updateMentions = pgTable(
   "update_mentions",

@@ -14,6 +14,7 @@ import { mutate } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 import { createTaskAttachment } from "@/lib/documents";
 import { parseMentionIds } from "@/lib/mentions";
+import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
@@ -525,9 +526,13 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
   // Validate reply target is on the same task.
   let parentUpdateId: number | null = null;
+  let parentCreatedBy: string | null = null;
   if (Number.isFinite(parentRaw) && parentRaw > 0) {
-    const { data: parent } = await sb.from("task_updates").select("task_id").eq("id", parentRaw).maybeSingle();
-    if (parent && (parent.task_id as number) === taskId) parentUpdateId = parentRaw;
+    const { data: parent } = await sb.from("task_updates").select("task_id,created_by").eq("id", parentRaw).maybeSingle();
+    if (parent && (parent.task_id as number) === taskId) {
+      parentUpdateId = parentRaw;
+      parentCreatedBy = (parent.created_by as string | null) ?? null;
+    }
   }
 
   const now = new Date().toISOString();
@@ -568,6 +573,22 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
     await sb.from("update_mentions").insert(mentionIds.map((personId) => ({ update_id: inserted.id as number, person_id: personId })));
   }
 
+  // Notifications (actor "Management" from the staff perspective).
+  await notifyMany(mentionIds.map(personRecipient), {
+    kind: "mention",
+    taskId,
+    taskCode,
+    title: "Management mentioned you",
+    body,
+    actor: "Management",
+  });
+  if (parentUpdateId) {
+    const target = await recipientForCreatedBy(parentCreatedBy);
+    if (target && target !== "admin") {
+      await createNotification({ recipient: target, kind: "reply", taskId, taskCode, title: "Management replied to you", body, actor: "Management" });
+    }
+  }
+
   const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
   if (newStatus && newStatus !== t.status) {
     const wasClosed = t.status === "Completed" || t.status === "Closed";
@@ -597,7 +618,14 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
 export async function adminTogglePin(formData: FormData): Promise<void> {
   const updateId = Number(formData.get("updateId"));
-  if (Number.isFinite(updateId)) await toggleUpdatePin(updateId);
+  if (!Number.isFinite(updateId)) return;
+  const { data: u } = await sb.from("task_updates").select("task_id,pinned_at").eq("id", updateId).maybeSingle();
+  const wasPinned = Boolean(u?.pinned_at);
+  const res = await toggleUpdatePin(updateId);
+  if (res.ok && !wasPinned && u) {
+    const { data: t } = await sb.from("tasks").select("code").eq("id", u.task_id as number).maybeSingle();
+    if (t) await notifyPinned(u.task_id as number, t.code as string, "Management", null);
+  }
 }
 
 /* ----------------------------------------------------------------------
