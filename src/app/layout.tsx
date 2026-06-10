@@ -20,6 +20,7 @@ import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
 import { LiquidGlassDefs } from "@/components/liquid-glass";
+import { HideOnPortal } from "@/components/hide-on-portal";
 import { getAppSettings } from "@/lib/settings";
 
 export const metadata: Metadata = {
@@ -71,31 +72,37 @@ export default async function RootLayout({ children, modal }: { children: React.
                   </div>
                 </main>
                 {modal}
-                <Suspense>
-                  <TopPillServer />
-                </Suspense>
+                <HideOnPortal>
+                  <Suspense>
+                    <TopPillServer />
+                  </Suspense>
+                </HideOnPortal>
               </ContextActionsProvider>
-              <Suspense>
-                <TaskDrawer />
-              </Suspense>
-              <Suspense>
-                <PersonDrawer />
-              </Suspense>
-              <Suspense>
-                <CompanyDrawer />
-              </Suspense>
-              <Suspense>
-                <FloatingAssistant operatorName={operatorName} />
-              </Suspense>
-              <Suspense>
-                <AssistantSuggestions />
-              </Suspense>
+              <HideOnPortal>
+                <Suspense>
+                  <TaskDrawer />
+                </Suspense>
+                <Suspense>
+                  <PersonDrawer />
+                </Suspense>
+                <Suspense>
+                  <CompanyDrawer />
+                </Suspense>
+                <Suspense>
+                  <FloatingAssistant operatorName={operatorName} />
+                </Suspense>
+                <Suspense>
+                  <AssistantSuggestions />
+                </Suspense>
+              </HideOnPortal>
               <ServiceWorkerRegister />
               <IosResume />
               <LiquidGlassDefs />
-              <Suspense>
-                <CaptureWizardMount />
-              </Suspense>
+              <HideOnPortal>
+                <Suspense>
+                  <CaptureWizardMount />
+                </Suspense>
+              </HideOnPortal>
             </CommandPaletteProvider>
           </ToastProvider>
           </MotionConfig>

@@ -1,7 +1,7 @@
 "use client";
 import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -29,6 +29,9 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
   const [actionMessage, setActionMessage] = useState<string>("");
   const { pins, toggle } = usePins();
   const router = useRouter();
+  // The staff portal and sign-in screens must not expose admin-wide search.
+  const palettePath = usePathname() || "";
+  const onPortal = palettePath.startsWith("/portal") || palettePath === "/login";
 
   function resetAI() {
     setAiMode(null);
@@ -43,12 +46,12 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
     const onKey = (e: KeyboardEvent) => {
       if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setIsOpen((o) => !o);
+        if (!onPortal) setIsOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [onPortal]);
 
   // Fetch recents whenever palette opens
   useEffect(() => {

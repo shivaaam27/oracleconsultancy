@@ -69,6 +69,11 @@ export const people = pgTable("people", {
   personType: text("person_type").notNull().default("local_staff"),
   // Soft self-reference: e.g. an immigration agent → the expat they are helping, or vice-versa.
   relatedPersonId: integer("related_person_id"),
+  // Staff portal sign-in (scrypt hash, set by the owner from Settings).
+  // Null hash = no portal access. See src/lib/portal-auth.ts.
+  portalPasswordHash: text("portal_password_hash"),
+  portalEnabledAt: timestamp("portal_enabled_at", { mode: "date", withTimezone: true }),
+  portalLastLoginAt: timestamp("portal_last_login_at", { mode: "date", withTimezone: true }),
 });
 
 // Additional company associations beyond a person's primary companyId, each with a

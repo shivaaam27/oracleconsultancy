@@ -14,7 +14,7 @@ Chief-of-Staff command centre for Oracle Consultancy's 7 portfolio companies (th
 - CO06 MES Ltd
 - CO07 Pamoja Plus
 
-Single operator, no auth. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; Meeting Workspace task creation uses `"meeting-mode"`.
+Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/middleware.ts`, cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). See `memory/portal.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; Meeting Workspace task creation uses `"meeting-mode"`; staff-portal posts use `"portal:<Name>"`.
 
 The system replaces an Excel workbook with:
 
@@ -111,6 +111,7 @@ See `memory/database_schema.md`.
 - `/documents` - Documents & Compliance (+ "Add several" bulk multi-file upload via the full doc form; recency-aware duplicate detection)
 - `/letters`, `/letters/[id]` (editor), `/letters/[id]/print` - **system-wide PDF letters** (Draft→Issue, per-company branded; first type = Invitation). See `memory/letters.md`.
 - `/letterheads` - redirects to `/letters?view=letterheads` — letterhead setup (typed / designed header+footer images / full-page background) is now a tab on `/letters`; server actions remain in `src/app/letterheads/actions.ts`
+- `/portal`, `/portal/login`, `/portal/task/[code]` - **Staff portal**: per-person sign-in (password set in Settings → Staff portal access; scrypt hash on `people.portal_password_hash`, signed cookie session), staff see only their own tasks, post updates (`created_by: "portal:<Name>"`), limited status moves (never Completed/Closed). Admin chrome hidden on portal routes. See `memory/portal.md`.
 - `/outbox`
 - `/inbox` - smart intake: "Add to inbox" (paste + multi-file bundle); unified "Process" → review queue files docs + enrich person profile (blanks-only)
 - `/insights`

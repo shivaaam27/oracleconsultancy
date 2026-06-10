@@ -78,6 +78,8 @@ function actorLabel(by: string | null | undefined): string | null {
   if (by === "web-ui") return "You";
   if (by === "ai-command") return "AI";
   if (by === "meeting-mode") return "Meeting";
+  // Staff-portal posts are stamped "portal:<Name>" — show just the name.
+  if (by.startsWith("portal:")) return by.slice(7);
   return by;
 }
 
