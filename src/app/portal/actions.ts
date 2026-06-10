@@ -76,8 +76,20 @@ export async function portalAddUpdate(formData: FormData) {
   const code = String(formData.get("code") ?? "");
   const body = String(formData.get("body") ?? "").trim();
   const newStatus = String(formData.get("newStatus") ?? "").trim();
+  const parentRaw = Number(formData.get("parentUpdateId"));
   if (!Number.isFinite(taskId) || !body) return;
   if (!(await personCanSeeTask(me, taskId))) return;
+
+  // Validate the reply target belongs to this same task.
+  let parentUpdateId: number | null = null;
+  if (Number.isFinite(parentRaw) && parentRaw > 0) {
+    const { data: parent } = await sb
+      .from("task_updates")
+      .select("task_id")
+      .eq("id", parentRaw)
+      .maybeSingle();
+    if (parent && (parent.task_id as number) === taskId) parentUpdateId = parentRaw;
+  }
 
   const { data: t, error: tErr } = await sb
     .from("tasks")
@@ -98,6 +110,7 @@ export async function portalAddUpdate(formData: FormData) {
     body,
     created_at: now,
     created_by: createdBy,
+    parent_update_id: parentUpdateId,
   });
   if (insErr) throw new Error(insErr.message);
 

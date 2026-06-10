@@ -92,7 +92,7 @@ export default async function TaskPage({
       .order("created_at", { ascending: false }),
     sb
       .from("task_updates")
-      .select("id,body,created_at,created_by,edited_at,original_body,pinned_at")
+      .select("id,body,created_at,created_by,edited_at,original_body,pinned_at,parent_update_id")
       .eq("task_id", r.id)
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
@@ -133,6 +133,14 @@ export default async function TaskPage({
       const nm = (a.people as unknown as { name: string } | null)?.name ?? "Someone";
       ackMap.set(uid, [...(ackMap.get(uid) ?? []), nm]);
     }
+  }
+
+  // Reply previews: child update id → its parent's snippet (T2 conversation).
+  const updBodyById = new Map((updateRaw ?? []).map((u) => [u.id as number, u.body as string]));
+  const replyQuote = new Map<number, string>();
+  for (const u of updateRaw ?? []) {
+    const pid = u.parent_update_id as number | null;
+    if (pid && updBodyById.has(pid)) replyQuote.set(u.id as number, updBodyById.get(pid)!.slice(0, 90));
   }
 
   const rawTimeline: TimelineItem[] = [
@@ -488,6 +496,11 @@ export default async function TaskPage({
                               pinned={!!item.pinnedAt}
                             />
                           </div>
+                          {replyQuote.has(item.id) && (
+                            <div className="rounded border-l-2 border-accent/40 bg-bg-subtle/60 px-2 py-1 text-[11px] italic text-fg-muted">
+                              ↪ {replyQuote.get(item.id)}{(replyQuote.get(item.id)?.length ?? 0) >= 90 ? "…" : ""}
+                            </div>
+                          )}
                           <p className="text-sm leading-relaxed">
                             <CodeLinkedText text={item.body} />
                           </p>
