@@ -26,7 +26,7 @@ Source files:
 
 ## Sending
 
-Still no server-side dispatch. Drafts send via **channel deep-links** (`linkFor` → `wa.me` / `mailto:` / `sms:` in `outbox-links.ts`) that open the app pre-filled, then the operator marks it sent. Preferred channel is picked from the person's contact details (`pickChannel`).
+**Email now dispatches server-side** (2026-06): `sendDraftEmail(id)` (`outbox/actions.ts`) sends EMAIL drafts through `src/lib/email.ts` (Gmail SMTP via App Password / Resend fallback — see `memory/project_outbound_comms` and `src/lib/settings.ts getEmailConfig`) and marks the row Sent; the DraftCard shows a primary **Send email** button. WhatsApp/SMS still use **channel deep-links** (`linkFor` → `wa.me` / `sms:` in `outbox-links.ts`) that open pre-filled for a manual tap-send (WhatsApp Cloud API is paid + heavy — deferred). `mailto:` remains as a manual fallback ("Open Email") when the provider isn't configured. Preferred channel is picked from the person's contact details (`pickChannel`).
 
 ## Draft Generation
 
