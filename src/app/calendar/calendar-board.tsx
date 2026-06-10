@@ -5,7 +5,8 @@ import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, X, CalendarDays, Mail,
 } from "lucide-react";
-import { Button, Card, EmptyState } from "@/components/ui";
+import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { AttendeePicker } from "@/components/attendee-picker";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
@@ -278,14 +279,6 @@ function EventForm({
   const [allDay, setAllDay] = useState(editing?.allDay ?? false);
   const [picked, setPicked] = useState<CalendarAttendee[]>(editing?.attendees ?? []);
 
-  function togglePerson(p: Person) {
-    setPicked((cur) => {
-      const exists = cur.find((a) => a.personId === p.id);
-      if (exists) return cur.filter((a) => a.personId !== p.id);
-      return [...cur, { personId: p.id, name: p.name, email: p.email ?? undefined }];
-    });
-  }
-
   function submit(fd: FormData) {
     fd.set("attendees", JSON.stringify(picked));
     if (allDay) fd.set("allDay", "1");
@@ -301,122 +294,100 @@ function EventForm({
     });
   }
 
-  const inputCls = "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40";
-  const labelCls = "text-xs font-medium text-fg-muted";
-
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold">{editing ? "Edit event" : "New event"}</h3>
-        <button onClick={onClose} className="p-1 rounded-lg hover:bg-bg-muted"><X size={16} /></button>
+    <Card className="overflow-hidden p-0">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border bg-bg-muted/40">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <CalendarPlus size={16} className="text-accent" />
+          {editing ? "Edit event" : "New event"}
+        </h3>
+        <button onClick={onClose} className="p-1.5 -mr-1 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors" aria-label="Close">
+          <X size={16} />
+        </button>
       </div>
-      <form action={submit} className="space-y-3">
-        <div className="space-y-1">
-          <label className={labelCls}>Title</label>
-          <input name="title" required defaultValue={editing?.title ?? ""} className={inputCls} placeholder="e.g. Q3 review with Dar Spices" />
-        </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} /> All-day
-        </label>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className={labelCls}>Start</label>
-            <input
-              name="startAt"
-              required
-              type={allDay ? "date" : "datetime-local"}
-              defaultValue={isoToLocalInput(editing?.startAt ?? null, allDay)}
-              className={inputCls}
-            />
+      <form action={submit} className="p-5 space-y-5">
+        {/* Title + when */}
+        <div className="space-y-4">
+          <div>
+            <FieldLabel>Title</FieldLabel>
+            <Input name="title" required defaultValue={editing?.title ?? ""} placeholder="e.g. Q3 review with Dar Spices" className="font-medium" />
           </div>
-          {!allDay && (
-            <div className="space-y-1">
-              <label className={labelCls}>End (optional)</label>
-              <input
-                name="endAt"
-                type="datetime-local"
-                defaultValue={isoToLocalInput(editing?.endAt ?? null, false)}
-                className={inputCls}
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[180px]">
+              <FieldLabel>{allDay ? "Date" : "Start"}</FieldLabel>
+              <Input
+                name="startAt"
+                required
+                type={allDay ? "date" : "datetime-local"}
+                defaultValue={isoToLocalInput(editing?.startAt ?? null, allDay)}
               />
             </div>
-          )}
+            {!allDay && (
+              <div className="flex-1 min-w-[180px]">
+                <FieldLabel>End</FieldLabel>
+                <Input name="endAt" type="datetime-local" defaultValue={isoToLocalInput(editing?.endAt ?? null, false)} />
+              </div>
+            )}
+            <label className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-bg-elev text-sm cursor-pointer select-none hover:border-border-strong transition-colors">
+              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} className="h-3.5 w-3.5 accent-[hsl(var(--accent))]" />
+              All-day
+            </label>
+          </div>
         </div>
 
+        {/* Where */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className={labelCls}>Meeting link (Meet/Zoom/Teams)</label>
-            <input name="meetLink" defaultValue={editing?.meetLink ?? ""} className={inputCls} placeholder="https://meet.google.com/..." />
+          <div>
+            <FieldLabel>Meeting link</FieldLabel>
+            <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Meet / Zoom / Teams URL" />
+            <p className="mt-1 text-[11px] text-fg-subtle">Leave blank and Google creates a Meet link on send.</p>
           </div>
-          <div className="space-y-1">
-            <label className={labelCls}>Location (in person)</label>
-            <input name="location" defaultValue={editing?.location ?? ""} className={inputCls} placeholder="Office, address…" />
+          <div>
+            <FieldLabel>Location</FieldLabel>
+            <Input name="location" defaultValue={editing?.location ?? ""} placeholder="Office, address…" />
           </div>
         </div>
 
+        {/* Company + reminder */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className={labelCls}>Company</label>
-            <select name="companyId" defaultValue={editing?.companyId ?? ""} className={inputCls}>
+          <div>
+            <FieldLabel>Company</FieldLabel>
+            <Select name="companyId" defaultValue={editing?.companyId ?? ""}>
               <option value="">—</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            </Select>
           </div>
-          <div className="space-y-1">
-            <label className={labelCls}>Reminder</label>
-            <select name="reminderMinutes" defaultValue={editing?.reminderMinutes ?? ""} className={inputCls}>
+          <div>
+            <FieldLabel>Reminder</FieldLabel>
+            <Select name="reminderMinutes" defaultValue={editing?.reminderMinutes ?? ""}>
               <option value="">No reminder</option>
               <option value="0">At start</option>
               <option value="10">10 minutes before</option>
               <option value="30">30 minutes before</option>
               <option value="60">1 hour before</option>
               <option value="1440">1 day before</option>
-            </select>
+            </Select>
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className={labelCls}>Description</label>
-          <textarea name="description" defaultValue={editing?.description ?? ""} rows={2} className={inputCls} placeholder="Agenda, notes…" />
+        {/* Description */}
+        <div>
+          <FieldLabel>Description</FieldLabel>
+          <Textarea name="description" defaultValue={editing?.description ?? ""} rows={2} placeholder="Agenda, notes…" />
         </div>
 
-        <div className="space-y-1.5">
-          <label className={labelCls}>Attendees (their email is used in the invite)</label>
-          <div className="flex flex-wrap gap-1.5">
-            {people.map((p) => {
-              const on = !!picked.find((a) => a.personId === p.id);
-              return (
-                <button
-                  type="button"
-                  key={p.id}
-                  onClick={() => togglePerson(p)}
-                  className={cn(
-                    "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                    on ? "bg-accent text-white border-accent" : "border-border hover:bg-bg-muted",
-                    !p.email && "opacity-70"
-                  )}
-                  title={p.email ?? "No email on file — will appear as a guest without an invite"}
-                >
-                  {p.name}
-                </button>
-              );
-            })}
-          </div>
-          {picked.filter((a) => !a.email).length > 0 && (
-            <p className="text-xs text-warn flex items-start gap-1.5">
-              <Mail size={13} className="mt-0.5 shrink-0" />
-              <span>
-                No email on file for {picked.filter((a) => !a.email).map((a) => a.name).join(", ")} — they
-                won&rsquo;t get an automatic invite. Add it on their People profile, or share the event link with them.
-              </span>
-            </p>
-          )}
+        {/* Attendees */}
+        <div>
+          <FieldLabel>Attendees</FieldLabel>
+          <AttendeePicker people={people} value={picked} onChange={setPicked} />
         </div>
 
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex justify-end gap-2 pt-1 border-t border-border -mx-5 px-5 -mb-5 py-4 bg-bg-muted/30">
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={pending}>{editing ? "Save" : "Create event"}</Button>
+          <Button type="submit" loading={pending}>{editing ? "Save changes" : "Create event"}</Button>
         </div>
       </form>
     </Card>
