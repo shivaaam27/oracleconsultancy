@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { splitCodeRefs } from "@/lib/timeline";
-import { cn } from "@/lib/cn";
+import { TaskDrawerLink } from "./task-drawer-link";
 
 /**
- * Renders body text with any COxx-NNN references turned into in-app links.
- * Pure server component so it works inside server-rendered timeline cells.
+ * Renders body text with any task-code references turned into in-app links.
+ * Server component; the code refs render a client `TaskDrawerLink` (only
+ * serializable props), so each mention gets a hover preview and opens the task
+ * drawer in place — consistent with task links elsewhere.
  */
 export function CodeLinkedText({
   text,
@@ -18,13 +19,13 @@ export function CodeLinkedText({
     <span className={className}>
       {segs.map((s, i) =>
         s.isCode ? (
-          <Link
+          <TaskDrawerLink
             key={i}
-            href={`/task/${s.text}`}
-            className="font-mono text-[0.92em] text-accent hover:underline"
+            code={s.text}
+            className="font-mono text-[0.92em] text-accent align-baseline hover:underline"
           >
             {s.text}
-          </Link>
+          </TaskDrawerLink>
         ) : (
           <span key={i}>{s.text}</span>
         )

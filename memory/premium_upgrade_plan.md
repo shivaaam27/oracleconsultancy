@@ -168,8 +168,14 @@ clean. ✅ **Phase 0 complete.**
    (`/api/task-detail` → title, code·company, status·priority·deadline, assignees,
    latest update). Verified live for all three (company on /companies, person via
    task-drawer assignees, task via person-drawer Tasks tab); no console errors.
-   **Next (optional):** wrap inline task-code mentions (`code-linked-text.tsx`)
-   in the same task hover.
+   **Inline task-code mentions DONE (2026-06-11):** `code-linked-text.tsx` now
+   renders code refs (e.g. `DS-001` in update/comment/audit text) as
+   `TaskDrawerLink` instead of a full-page `<Link>` — mentions get the hover
+   preview and open the task drawer in place. Server component renders the client
+   link with serializable props only. Zero-risk for existing content (text
+   without codes renders unchanged); task page + timelines verified to render
+   with no console errors. No current record has an inline code, so nothing live
+   to demo — it activates for future text referencing a code.
 3. **Connections view** — a tab in `entity-drawer` listing one-hop neighbours
    (person→company→tasks→docs→meetings→assets), all already linked in the DB.
    **Company DONE (2026-06-11):** company quick-view drawer (`company-drawer.tsx`)
