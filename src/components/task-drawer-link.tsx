@@ -70,6 +70,7 @@ export function TaskDrawerLink({ code, children, className }: Props) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("task", code);
     params.delete("person"); // one drawer at a time
+    params.delete("company");
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 

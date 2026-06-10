@@ -67,6 +67,7 @@ export function PersonDrawerLink({ id, name, className, children, title, ...rest
     const params = new URLSearchParams(searchParams.toString());
     params.set("person", String(id));
     params.delete("task"); // one drawer at a time
+    params.delete("company");
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 

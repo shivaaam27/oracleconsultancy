@@ -172,6 +172,16 @@ clean. ✅ **Phase 0 complete.**
    in the same task hover.
 3. **Connections view** — a tab in `entity-drawer` listing one-hop neighbours
    (person→company→tasks→docs→meetings→assets), all already linked in the DB.
+   **Company DONE (2026-06-11):** company quick-view drawer (`company-drawer.tsx`)
+   gained a **Connections** tab — linked **People** (team, each a hover-previewable
+   `PersonDrawerLink`) + **Open tasks** (`TaskDrawerLink`). `/api/company-detail`
+   now returns a `team[]` (id/name/role, active, capped 50). Made
+   `PersonDrawerLink`/`TaskDrawerLink` also clear the `company` param so opening a
+   neighbour closes the company drawer (true one-drawer-at-a-time). Verified live:
+   Dar Spices → Connections → 7 people + 3 tasks, all hover-previewable; clicking
+   Diptobrato Bagchi swapped `?company=1`→`?person=48` and opened his drawer; no
+   console errors. **Next (optional):** Connections tabs on the person + task
+   drawers (person→company/manager/reports/tasks/docs; task→company/people/meeting).
 
 Acceptance: a command like "remind Shivam about his permit" drafts + confirms
 without leaving the screen; every named entity is hover-previewable.

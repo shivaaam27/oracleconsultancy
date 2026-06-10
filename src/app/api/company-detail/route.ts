@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     listDocuments(),
     sb.from("companies").select("id,name,accent_color,legal_name,registration_no,tin,vrn,address,phone,email").eq("id", companyId).maybeSingle(),
     sb.from("person_companies").select("person_id").eq("company_id", companyId),
-    sb.from("people").select("id,company_id").eq("active", true),
+    sb.from("people").select("id,company_id,name,role").eq("active", true),
   ]);
 
   const rows = allRows.filter((r) => r.companyId === companyId);
@@ -41,6 +41,13 @@ export async function GET(req: NextRequest) {
 
   const teamIds = new Set<number>((assocRaw ?? []).map((r) => r.person_id as number));
   for (const p of peopleRaw ?? []) if ((p.company_id as number | null) === companyId) teamIds.add(p.id as number);
+
+  // Named team list (active people in the team) for the drawer Connections tab.
+  const team = (peopleRaw ?? [])
+    .filter((p) => teamIds.has(p.id as number))
+    .map((p) => ({ id: p.id as number, name: (p.name as string) ?? "—", role: (p.role as string | null) ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .slice(0, 50);
 
   const score = (await buildCompanyRequirementScores([{ id: companyId, name }]))[0] ?? null;
 
@@ -64,5 +71,6 @@ export async function GET(req: NextRequest) {
     },
     documents: { count: companyDocs.length, attention },
     teamCount: teamIds.size,
+    team,
   });
 }
