@@ -505,6 +505,7 @@ export async function buildPersonRequirementScores(): Promise<ComplianceScore[]>
     let verified = 0;
     let expired = 0;
     let expiring = 0;
+    let inProgress = 0;
     const gaps: ComplianceGap[] = [];
 
     for (const r of rows ?? []) {
@@ -518,6 +519,7 @@ export async function buildPersonRequirementScores(): Promise<ComplianceScore[]>
       if (eff === "verified" || eff === "expiring") verified++;
       if (eff === "expiring") expiring++;
       if (eff === "expired") expired++;
+      if (eff === "requested" || eff === "received") inProgress++;
       if (eff === "missing" || eff === "requested" || eff === "received" || eff === "expired") {
         gaps.push({
           id: `req-${r.person_id}-${(r.label as string)}`,
@@ -546,7 +548,8 @@ export async function buildPersonRequirementScores(): Promise<ComplianceScore[]>
       score,
       required: mandatoryTotal,
       present: verified,
-      missing: gaps.length,
+      missing: gaps.length - inProgress,
+      inProgress,
       expired,
       expiring,
       monitoredDocuments: personDocs.length,
@@ -596,6 +599,9 @@ export async function getPersonRequirementScore(
 
   const expired = checklist.items.filter((it) => it.effectiveStatus === "expired").length;
   const expiring = checklist.items.filter((it) => it.effectiveStatus === "expiring").length;
+  const inProgress = checklist.items.filter(
+    (it) => it.mandatory && (it.effectiveStatus === "requested" || it.effectiveStatus === "received")
+  ).length;
 
   return {
     ownerId: personId,
@@ -605,6 +611,7 @@ export async function getPersonRequirementScore(
     required: checklist.mandatoryTotal,
     present: checklist.mandatoryVerified,
     missing: gaps.length,
+    inProgress,
     expired,
     expiring,
     monitoredDocuments: checklist.documents.length,

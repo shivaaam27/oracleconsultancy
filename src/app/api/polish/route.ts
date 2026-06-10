@@ -1,3 +1,4 @@
+import { GROQ_FAST } from "@/lib/ai-models";
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqKey } from "@/lib/settings";
 import { polishActionItem } from "@/lib/smart-parse";
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: text },

@@ -1,3 +1,4 @@
+import { GROQ_FAST } from "@/lib/ai-models";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: `Write the executive briefing for this company:\n\n${JSON.stringify(snapshot, null, 2)}` },

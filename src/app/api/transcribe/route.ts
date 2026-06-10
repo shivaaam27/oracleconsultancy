@@ -1,3 +1,4 @@
+import { GROQ_WHISPER } from "@/lib/ai-models";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppSettings, getGroqKey } from "@/lib/settings";
 
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     const groqForm = new FormData();
     const filename = (audio as File).name || "dictation.webm";
     groqForm.set("file", audio, filename);
-    groqForm.set("model", "whisper-large-v3-turbo");
+    groqForm.set("model", GROQ_WHISPER);
     groqForm.set("response_format", "json");
     groqForm.set("temperature", "0");
     const hint = LANGUAGE_HINT[language];

@@ -1,3 +1,4 @@
+import { GROQ_FAST } from "@/lib/ai-models";
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqKey } from "@/lib/settings";
 
@@ -35,7 +36,7 @@ ${JSON.stringify(stats, null, 2)}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },

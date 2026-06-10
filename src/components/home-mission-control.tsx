@@ -246,7 +246,7 @@ export function HomeMissionControl({
   pulse: PulseMetric[];
   queue: QueueItem[];
   health: number;
-  healthStats: { missing: number; expiring: number; expired: number };
+  healthStats: { missing: number; inProgress: number; expiring: number; expired: number };
   healthDelta: number | null;
   companyGauges: CompanyGauge[];
   clearedToday: number;
@@ -355,6 +355,7 @@ export function HomeMissionControl({
                     }
                     rows={[
                       { label: "Missing", value: healthStats.missing },
+                      { label: "Awaiting verification", value: healthStats.inProgress, tone: "text-info" },
                       { label: "Expiring soon", value: healthStats.expiring, tone: "text-warn" },
                       { label: "Expired", value: healthStats.expired, tone: "text-danger" },
                     ]}

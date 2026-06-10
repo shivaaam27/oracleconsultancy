@@ -7,10 +7,13 @@ export type DeriveInput = {
 };
 
 const DAY = 86400 * 1000;
+const DAR_OFFSET_MS = 3 * 3600 * 1000; // Dar es Salaam is UTC+3 all year (no DST)
 const today = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  // Midnight in Dar es Salaam regardless of where the server runs (Vercel is UTC).
+  const shifted = new Date(Date.now() + DAR_OFFSET_MS);
+  return new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - DAR_OFFSET_MS
+  );
 };
 
 export const DUE_SOON_DAYS = 3;

@@ -41,6 +41,8 @@ export type TimelineAudit = {
   entryType: string | null;
   createdAt: Date;
   createdBy: string | null;
+  /** Set when a later CORRECTION entry points at this row (corrections table). */
+  correctedAt?: Date | null;
 };
 
 /** A bulk-run row produced by groupBulkRuns — represents N collapsed audit rows. */
@@ -160,6 +162,7 @@ export function suppressNoReasonAudits(items: TimelineItem[]): TimelineItem[] {
     if (i.kind !== "audit") return true;
     if (i.entryType === "CREATE") return true;
     if (i.entryType === "ESCALATION") return true;
+    if (i.entryType === "CORRECTION") return true;
     if (i.field === "Status") return true;
     if (i.field === "Escalation") return true;
     if (i.field && ALWAYS_VISIBLE_AUDIT_FIELDS.has(i.field)) return true;
@@ -295,6 +298,7 @@ const EDIT_GROUP_MIN_RUN = 2;
 const NON_GROUPABLE_FIELDS = new Set([
   "Status",
   "Escalation",
+  "Correction",
   "Task deleted",
   "Task created",
   "Update edited",
@@ -308,6 +312,7 @@ function isGroupableAudit(it: TimelineItem): it is TimelineAudit {
     it.kind === "audit" &&
     it.entryType !== "CREATE" &&
     it.entryType !== "ESCALATION" &&
+    it.entryType !== "CORRECTION" &&
     !it.changeReason?.toLowerCase().startsWith("bulk") &&
     !(it.field != null && NON_GROUPABLE_FIELDS.has(it.field))
   );

@@ -230,6 +230,11 @@ export default async function DirectorBriefPage({
                 Probation ending: {b.hr.probationEnding.slice(0, 4).map((p) => `${p.name} (${fmtDay(p.endDate)})`).join(" · ")}
               </div>
             )}
+            {b.hr.birthdays.length > 0 && (
+              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
+                🎂 Birthdays: {b.hr.birthdays.slice(0, 4).map((p) => `${p.name} (${fmtDay(p.date)})`).join(" · ")}
+              </div>
+            )}
           </Card>
         </div>
       )}
@@ -433,6 +438,20 @@ export default async function DirectorBriefPage({
                   <tbody>
                     {b.hr.probationEnding.map((p, i) => (
                       <tr key={`${p.name}-${i}`}><td>{p.name}</td><td>{p.companyName ?? "—"}</td><td>{fmtDay(p.endDate)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {b.hr.birthdays.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold mb-1 report-h3">Upcoming birthdays (next 14 days)</h3>
+                <table className="report-table">
+                  <thead><tr><th style={{ width: "34%" }}>Person</th><th>Company</th><th style={{ width: "20%" }}>Birthday</th></tr></thead>
+                  <tbody>
+                    {b.hr.birthdays.map((p, i) => (
+                      <tr key={`${p.name}-${i}`}><td>{p.name}</td><td>{p.companyName ?? "—"}</td><td>{fmtDay(p.date)}</td></tr>
                     ))}
                   </tbody>
                 </table>

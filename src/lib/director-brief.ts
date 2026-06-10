@@ -106,6 +106,7 @@ export type BriefHr = {
   onLeaveToday: number;
   pendingLeave: Array<{ name: string; type: string; days: number; start: string; end: string }>;
   probationEnding: Array<{ name: string; companyName: string | null; endDate: Date }>;
+  birthdays: Array<{ name: string; companyName: string | null; date: Date }>;
 };
 
 export type BriefStatutory = {
@@ -152,7 +153,7 @@ async function buildHrBrief(
   companyNameById: Map<number, string>
 ): Promise<BriefHr> {
   const [{ data: pplRows }, scores, leave, pendingReqs] = await Promise.all([
-    sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date").eq("active", true),
+    sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date,date_of_birth").eq("active", true),
     buildPersonRequirementScores(),
     leaveMetrics(),
     listLeaveRequests({ status: "Pending" }),
@@ -165,6 +166,7 @@ async function buildHrBrief(
     companyId: (p.company_id as number | null) ?? null,
     startDate: p.start_date ? new Date(p.start_date as string) : null,
     probationEnd: p.probation_end_date ? new Date(p.probation_end_date as string) : null,
+    dateOfBirth: p.date_of_birth ? new Date(p.date_of_birth as string) : null,
   }));
   if (selectedCompanyId) people = people.filter((p) => p.companyId === selectedCompanyId);
   const idSet = new Set(people.map((p) => p.id));
@@ -232,6 +234,20 @@ async function buildHrBrief(
     .sort((a, b) => (a.probationEnd!.getTime() - b.probationEnd!.getTime()))
     .map((p) => ({ name: p.name, companyName: p.companyId ? companyNameById.get(p.companyId) ?? null : null, endDate: p.probationEnd! }));
 
+  // Birthdays in the next 14 days (the stored year is ignored — only day/month
+  // matter, with a year-end wrap so late-December birthdays show in December).
+  const bdayHorizon = new Date(now); bdayHorizon.setDate(bdayHorizon.getDate() + 14);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const birthdays = people
+    .filter((p) => p.dateOfBirth)
+    .map((p) => {
+      const next = new Date(now.getFullYear(), p.dateOfBirth!.getMonth(), p.dateOfBirth!.getDate());
+      if (next < startOfToday) next.setFullYear(next.getFullYear() + 1);
+      return { name: p.name, companyName: p.companyId ? companyNameById.get(p.companyId) ?? null : null, date: next };
+    })
+    .filter((b) => b.date <= bdayHorizon)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
   return {
     headcount: people.length,
     byType,
@@ -243,6 +259,7 @@ async function buildHrBrief(
     onLeaveToday: leave.onLeaveToday,
     pendingLeave,
     probationEnding,
+    birthdays,
   };
 }
 
@@ -452,6 +469,7 @@ export function briefShareText(b: BriefData): string {
     if (hr.belowFullCount) L.push(`• ${hr.belowFullCount} below full document compliance`);
     if (hr.expiringDocs.length) L.push(`• ${hr.expiringDocs.length} staff document${hr.expiringDocs.length === 1 ? "" : "s"} expiring/expired`);
     for (const p of hr.probationEnding.slice(0, 5)) L.push(`• Probation ending: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.endDate)}`);
+    for (const p of hr.birthdays.slice(0, 5)) L.push(`• 🎂 Birthday: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.date)}`);
   }
   return L.join("\n");
 }

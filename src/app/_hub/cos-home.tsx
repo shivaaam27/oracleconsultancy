@@ -436,8 +436,13 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     ? Math.round(allScores.reduce((sum, s) => sum + s.score, 0) / allScores.length)
     : 100;
   const healthStats = allScores.reduce(
-    (a, s) => ({ missing: a.missing + s.missing, expiring: a.expiring + s.expiring, expired: a.expired + s.expired }),
-    { missing: 0, expiring: 0, expired: 0 }
+    (a, s) => ({
+      missing: a.missing + s.missing,
+      inProgress: a.inProgress + s.inProgress,
+      expiring: a.expiring + s.expiring,
+      expired: a.expired + s.expired,
+    }),
+    { missing: 0, inProgress: 0, expiring: 0, expired: 0 }
   );
   // Persist today's health so the gauge can show a real "vs last reading"
   // delta. Returns the most recent earlier-day value (null on the first day).

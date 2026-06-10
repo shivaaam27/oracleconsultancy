@@ -4,12 +4,13 @@ import { useState } from "react";
 import {
   MessageSquare, Plus, GitCommitHorizontal, CheckCircle2, AlertOctagon,
   Pencil, CalendarClock, Layers, Pin, ChevronDown, Trash2, MoreHorizontal, Loader2,
+  Eraser,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CodeLinkedText } from "./code-linked-text";
 import { useToast } from "./toast";
 import { deleteTaskUpdate } from "@/app/task/actions";
-import { deleteAuditEntry } from "@/app/audit/actions";
+import { deleteAuditEntry, recordCorrection } from "@/app/audit/actions";
 import {
   formatAuditValue, summariseEditGroup,
   type TimelineItem, type TimelineUpdate,
@@ -36,6 +37,7 @@ function visual(item: TimelineItem): { Icon: typeof Plus; tone: Tone } {
   if (item.kind === "editgroup") return { Icon: Pencil, tone: "muted" };
   if (item.kind === "bulk") return { Icon: Layers, tone: "muted" };
   // audit
+  if (item.entryType === "CORRECTION" || item.field === "Correction") return { Icon: Eraser, tone: "warn" };
   if (item.entryType === "CREATE") return { Icon: Plus, tone: "info" };
   if (item.field === "Task deleted" || item.entryType === "DELETE") return { Icon: Trash2, tone: "danger" };
   if (item.entryType === "ESCALATION" || item.newValue === "Escalated" || item.field === "Escalation") return { Icon: AlertOctagon, tone: "danger" };
@@ -113,6 +115,8 @@ export function TimelineEntry({
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
+  const [correctionNote, setCorrectionNote] = useState("");
 
   if (item.kind === "bulk") return null;
   const { Icon, tone } = visual(item);
@@ -131,6 +135,30 @@ export function TimelineEntry({
     toast("Deleted permanently", { tone: "success", duration: 3000 });
   }
 
+  // Corrections only make sense on a single plain audit entry (not updates,
+  // groups, CREATEs, or entries that are themselves corrections).
+  const canCorrect =
+    item.kind === "audit" &&
+    item.entryType !== "CREATE" &&
+    item.entryType !== "CORRECTION" &&
+    item.field !== "Correction" &&
+    !item.correctedAt;
+
+  async function doCorrect() {
+    if (item.kind !== "audit") return;
+    setBusy(true);
+    const res = await recordCorrection(item.id, correctionNote);
+    setBusy(false);
+    if (res.ok) {
+      setCorrecting(false);
+      setCorrectionNote("");
+      onChanged?.();
+      toast("Correction recorded", { tone: "success", duration: 3000 });
+    } else {
+      toast(res.error ?? "Couldn't record the correction.", { tone: "danger" });
+    }
+  }
+
   const menu = canDelete ? (
     <div className="relative">
       <button
@@ -145,7 +173,16 @@ export function TimelineEntry({
       {menuOpen && (
         <>
           <button type="button" aria-hidden tabIndex={-1} onClick={() => setMenuOpen(false)} className="fixed inset-0 z-[60] cursor-default" />
-          <div className="absolute right-0 top-full mt-1 z-[61] glass glass-menu rounded-lg p-1 min-w-[130px] shadow-lg">
+          <div className="absolute right-0 top-full mt-1 z-[61] glass glass-menu rounded-lg p-1 min-w-[150px] shadow-lg">
+            {canCorrect && (
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); setCorrecting(true); }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-fg hover:bg-bg-muted/60 transition-colors"
+              >
+                <Eraser size={12} /> Record correction
+              </button>
+            )}
             <button type="button" onClick={doDelete} className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-danger hover:bg-danger-soft/50 transition-colors">
               <Trash2 size={12} /> Delete entry
             </button>
@@ -187,6 +224,40 @@ export function TimelineEntry({
       {/* Content */}
       <div className="flex-1 min-w-0 pb-3">
         <Body item={item} taskChip={taskChip} meta={meta} />
+        {correcting && (
+          <div className="mt-2 space-y-1.5">
+            <textarea
+              autoFocus
+              value={correctionNote}
+              onChange={(e) => setCorrectionNote(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") doCorrect();
+                if (e.key === "Escape") { setCorrecting(false); setCorrectionNote(""); }
+              }}
+              rows={2}
+              placeholder="What is actually correct? The original entry stays for the record."
+              className="w-full rounded-md border border-border bg-bg-elev px-2.5 py-2 text-xs leading-relaxed focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40"
+            />
+            <div className="flex items-center justify-end gap-1.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => { setCorrecting(false); setCorrectionNote(""); }}
+                disabled={busy}
+                className="px-2 py-1 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={doCorrect}
+                disabled={busy || correctionNote.trim().length === 0}
+                className="px-2.5 py-1 rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-40"
+              >
+                Save correction
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </li>
   );
@@ -249,6 +320,7 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
 
   // audit
   const isCreate = item.entryType === "CREATE";
+  const isCorrection = item.entryType === "CORRECTION" || item.field === "Correction";
   return (
     <div className="rounded-xl bg-bg-subtle/50 ring-1 ring-border/50 px-3 py-2">
       <div className="flex items-center justify-between gap-2">
@@ -258,12 +330,25 @@ function Body({ item, taskChip, meta }: { item: TimelineItem; taskChip: React.Re
       <div className="text-xs mt-0.5">
         {isCreate ? (
           <span className="text-fg-muted">Task created</span>
+        ) : isCorrection ? (
+          <span className="inline-flex items-start gap-1.5 flex-wrap">
+            <span className="font-medium text-warn shrink-0">Correction{item.oldValue ? ` ${item.oldValue}` : ""}</span>
+            {item.newValue && <span className="text-fg leading-relaxed">{item.newValue}</span>}
+          </span>
         ) : (
           <span className="inline-flex items-center gap-1 flex-wrap">
             <span className="font-medium text-fg">{item.field || item.entryType}</span>
             {item.oldValue && <span className="text-fg-muted">{formatAuditValue(item.field, item.oldValue)}</span>}
             {item.oldValue && item.newValue && <GitCommitHorizontal size={9} className="text-fg-subtle" />}
             {item.newValue && <span className="font-medium text-fg">{formatAuditValue(item.field, item.newValue)}</span>}
+            {item.correctedAt && (
+              <span
+                title={`Corrected ${exactTime(item.correctedAt)} — see the Correction entry above`}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-warn-soft/70 text-warn text-[10px] font-medium"
+              >
+                <Eraser size={9} /> Corrected
+              </span>
+            )}
           </span>
         )}
       </div>

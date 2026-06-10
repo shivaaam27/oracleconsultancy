@@ -4,6 +4,7 @@
 //   POST { command: "..." }              → parses, returns intent JSON for confirmation
 //   POST { command, confirm: true }      → parses AND executes
 
+import { GROQ_FAST } from "@/lib/ai-models";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -119,7 +120,7 @@ async function parseCommand(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
+      model: GROQ_FAST,
       messages,
       max_tokens: 200,
       temperature: 0.1,

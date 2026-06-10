@@ -261,7 +261,7 @@ function synthDefaultScore(
   const score = mandatoryTotal === 0 ? 100 : Math.round((verified / mandatoryTotal) * 100);
   return {
     ownerId: c.id, ownerName: c.name, ownerType: "company", score,
-    required: mandatoryTotal, present: verified, missing: gaps.length, expired, expiring,
+    required: mandatoryTotal, present: verified, missing: gaps.length, inProgress: 0, expired, expiring,
     monitoredDocuments: companyDocs.length, status: complianceBand(score, expired > 0), gaps, documentIssues,
   };
 }
@@ -314,6 +314,7 @@ export async function buildCompanyRequirementScores(
     let verified = 0;
     let expired = 0;
     let expiring = 0;
+    let inProgress = 0;
     const gaps: ComplianceGap[] = [];
 
     for (const r of rows) {
@@ -327,6 +328,7 @@ export async function buildCompanyRequirementScores(
       if (eff === "verified" || eff === "expiring") verified++;
       if (eff === "expiring") expiring++;
       if (eff === "expired") expired++;
+      if (eff === "requested" || eff === "received") inProgress++;
       if (eff === "missing" || eff === "requested" || eff === "received" || eff === "expired") {
         gaps.push({
           id: `creq-${c.id}-${r.label as string}`,
@@ -354,7 +356,8 @@ export async function buildCompanyRequirementScores(
       score,
       required: mandatoryTotal,
       present: verified,
-      missing: gaps.length,
+      missing: gaps.length - inProgress,
+      inProgress,
       expired,
       expiring,
       monitoredDocuments: companyDocs.length,

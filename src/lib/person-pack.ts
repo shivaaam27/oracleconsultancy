@@ -274,6 +274,7 @@ export async function getPersonPack(
       required: 0,
       present: 0,
       missing: 0,
+      inProgress: 0,
       expired: 0,
       expiring: 0,
       monitoredDocuments: 0,

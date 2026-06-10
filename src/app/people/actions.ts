@@ -1,5 +1,6 @@
 "use server";
 
+import { GROQ_FAST } from "@/lib/ai-models";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { normalizePersonType } from "@/lib/person-types";
@@ -245,7 +246,7 @@ ${trimmed.slice(0, 6000)}`;
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           { role: "system", content: "You extract structured data and reply with strict JSON only." },
           { role: "user", content: prompt },

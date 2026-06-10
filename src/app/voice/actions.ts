@@ -1,5 +1,6 @@
 "use server";
 
+import { GROQ_FAST, GROQ_SMART } from "@/lib/ai-models";
 import { getAppSettings, getGroqKey, saveAppSettings } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 
@@ -61,7 +62,7 @@ function stripModelChrome(text: string): string {
 // corrections best, but its per-model rate limit is tighter; when it is
 // throttled (429) we fall through to the faster 8b model — which still does a
 // solid job — before giving up to the raw transcript.
-const DICTATION_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+const DICTATION_MODELS = [GROQ_SMART, GROQ_FAST];
 
 async function groqOnce(
   apiKey: string,

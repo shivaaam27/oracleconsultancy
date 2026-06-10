@@ -1,5 +1,6 @@
 "use server";
 
+import { GROQ_FAST } from "@/lib/ai-models";
 import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
 import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
@@ -174,7 +175,7 @@ export async function generateMeetingMinutes(input: {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           {
             role: "system",
@@ -234,7 +235,7 @@ export async function improveMeetingNotes(input: {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           {
             role: "system",
@@ -315,7 +316,7 @@ export async function generateMeetingInsight(input: {
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           {
             role: "system",
@@ -402,7 +403,7 @@ Example — notes: "caught up w/ dipto. he'll send the TRA invoice by fri. also 
       method: "POST",
       headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: GROQ_FAST,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: notes },

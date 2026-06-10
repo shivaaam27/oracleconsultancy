@@ -97,6 +97,19 @@ export default async function TaskPage({
       .maybeSingle(),
   ]);
 
+  // Which audit entries have been corrected by a later CORRECTION entry?
+  const auditIds = (auditRaw ?? []).map((a) => a.id as number);
+  const correctedMap = new Map<number, Date>();
+  if (auditIds.length > 0) {
+    const { data: corrRows } = await sb
+      .from("corrections")
+      .select("audit_log_id,created_at")
+      .in("audit_log_id", auditIds);
+    for (const c of corrRows ?? []) {
+      if (c.audit_log_id != null) correctedMap.set(c.audit_log_id as number, new Date(c.created_at as string));
+    }
+  }
+
   const rawTimeline: TimelineItem[] = [
     ...(updateRaw ?? []).map<TimelineItem>((u) => ({
       kind: "update",
@@ -122,6 +135,7 @@ export default async function TaskPage({
       entryType: (a.entry_type as string | null) ?? null,
       createdAt: new Date(a.created_at as string),
       createdBy: (a.created_by as string | null) ?? null,
+      correctedAt: correctedMap.get(a.id as number) ?? null,
     })),
   ];
 

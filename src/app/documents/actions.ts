@@ -1,5 +1,6 @@
 "use server";
 
+import { GROQ_FAST, GROQ_VISION } from "@/lib/ai-models";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import {
@@ -442,7 +443,7 @@ export async function extractDocumentFields(text: string): Promise<{ ok: boolean
       { role: "system", content: "You extract structured data and reply with strict JSON only." },
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${trimmed.slice(0, 6000)}` },
     ],
-    "llama-3.1-8b-instant",
+    GROQ_FAST,
     apiKey
   );
   if (!content) return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
@@ -485,7 +486,7 @@ async function groqVision(imageUrls: string[], prompt: string, apiKey: string): 
     { type: "text", text: prompt },
     ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
   ];
-  return groqJson([{ role: "user", content }], "meta-llama/llama-4-scout-17b-16e-instruct", apiKey);
+  return groqJson([{ role: "user", content }], GROQ_VISION, apiKey);
 }
 
 async function fieldsFromText(
@@ -503,7 +504,7 @@ async function fieldsFromText(
       { role: "system", content: "You extract structured data and reply with strict JSON only." },
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
     ],
-    "llama-3.1-8b-instant",
+    GROQ_FAST,
     apiKey
   );
   if (!content) return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
