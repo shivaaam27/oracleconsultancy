@@ -9,6 +9,7 @@ import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/compon
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
+import { portalAddUpdate, portalTogglePin, portalAcknowledge } from "../../../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -225,7 +226,6 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       <PortalConversation
         taskId={task.id as number}
         code={task.code as string}
-        isManager={isManager}
         closed={closed}
         statusOptions={statusOptions}
         currentStatus={task.status as string}
@@ -234,6 +234,16 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         latestId={latest?.id ?? null}
         seenLabel={seenLabel}
         team={team.map((p) => ({ id: p.id, name: p.name }))}
+        addAction={portalAddUpdate}
+        pinAction={portalTogglePin}
+        ackAction={portalAcknowledge}
+        canPin={isManager}
+        canAck={true}
+        composerHint={
+          isManager
+            ? "As a manager you can mark this task Completed once you're satisfied."
+            : "Marking work finished? Choose Under Review — your manager confirms completion."
+        }
       />
     </div>
   );

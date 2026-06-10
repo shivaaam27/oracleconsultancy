@@ -12,6 +12,8 @@ import {
 } from "@/lib/db-helpers";
 import { mutate } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
+import { createTaskAttachment } from "@/lib/documents";
+import { parseMentionIds } from "@/lib/mentions";
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
@@ -496,6 +498,106 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
   revalidatePath("/registry");
   revalidatePath("/");
   updateTag("tasks");
+}
+
+/* ----------------------------------------------------------------------
+ * Admin conversation (T3) — FormData actions for the shared conversation
+ * component, mirroring the portal ones but with full admin powers (any
+ * status; createdBy "web-ui"). Supports reply, @mentions, and attachments.
+ * ---------------------------------------------------------------------- */
+
+export async function adminAddUpdate(formData: FormData): Promise<void> {
+  const taskId = Number(formData.get("taskId"));
+  const taskCode = String(formData.get("code") ?? "");
+  const body = String(formData.get("body") ?? "").trim();
+  const newStatus = String(formData.get("newStatus") ?? "").trim();
+  const parentRaw = Number(formData.get("parentUpdateId"));
+  const fileEntry = formData.get("attachment");
+  const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
+  if (!Number.isFinite(taskId) || (!body && !file)) return;
+
+  const { data: t } = await sb
+    .from("tasks")
+    .select("id,status,company_id,code")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!t) return;
+
+  // Validate reply target is on the same task.
+  let parentUpdateId: number | null = null;
+  if (Number.isFinite(parentRaw) && parentRaw > 0) {
+    const { data: parent } = await sb.from("task_updates").select("task_id").eq("id", parentRaw).maybeSingle();
+    if (parent && (parent.task_id as number) === taskId) parentUpdateId = parentRaw;
+  }
+
+  const now = new Date().toISOString();
+
+  let attachmentDocumentId: number | null = null;
+  if (file) {
+    attachmentDocumentId = await createTaskAttachment({
+      taskId,
+      companyId: t.company_id as number | null,
+      file,
+      createdBy: "web-ui",
+    });
+  }
+
+  const messageBody = body || `📎 ${file?.name ?? "Attachment"}`;
+
+  const { data: inserted, error: insErr } = await sb
+    .from("task_updates")
+    .insert({
+      task_id: taskId,
+      body: messageBody,
+      created_at: now,
+      created_by: "web-ui",
+      parent_update_id: parentUpdateId,
+      attachment_document_id: attachmentDocumentId,
+    })
+    .select("id")
+    .single();
+  if (insErr) throw new Error(insErr.message);
+
+  // @mentions — re-parsed against the task's people.
+  const { data: taskPeople } = await sb.from("task_assignees").select("people(id,name)").eq("task_id", taskId);
+  const candidates = (taskPeople ?? [])
+    .map((r) => r.people as unknown as { id: number; name: string } | null)
+    .filter((p): p is { id: number; name: string } => Boolean(p));
+  const mentionIds = parseMentionIds(messageBody, candidates);
+  if (mentionIds.length > 0) {
+    await sb.from("update_mentions").insert(mentionIds.map((personId) => ({ update_id: inserted.id as number, person_id: personId })));
+  }
+
+  const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
+  if (newStatus && newStatus !== t.status) {
+    const wasClosed = t.status === "Completed" || t.status === "Closed";
+    const isClosed = newStatus === "Completed" || newStatus === "Closed";
+    patch.status = newStatus;
+    if (isClosed && !wasClosed) patch.closed_date = now;
+    else if (!isClosed && wasClosed) patch.closed_date = null;
+    await sb.from("audit_log").insert({
+      task_id: taskId,
+      task_code: taskCode,
+      company_id: t.company_id as number,
+      entry_type: "CHANGE",
+      field: "Status",
+      old_value: t.status,
+      new_value: newStatus,
+      change_reason: body || null,
+      created_at: now,
+      created_by: "web-ui",
+    });
+  }
+  await sb.from("tasks").update(patch).eq("id", taskId);
+
+  revalidatePath(`/task/${taskCode}`);
+  revalidatePath("/");
+  updateTag("tasks");
+}
+
+export async function adminTogglePin(formData: FormData): Promise<void> {
+  const updateId = Number(formData.get("updateId"));
+  if (Number.isFinite(updateId)) await toggleUpdatePin(updateId);
 }
 
 /* ----------------------------------------------------------------------

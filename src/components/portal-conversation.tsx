@@ -2,13 +2,17 @@
 
 import { useRef, useState } from "react";
 import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pin, PinOff, Send, X } from "lucide-react";
-import { portalAcknowledge, portalAddUpdate, portalTogglePin } from "@/app/portal/actions";
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
 import { VoiceButton } from "./voice-button";
 
-/* T2 conversation view for a portal task: chat-style messages with replies,
- * a pinned-instruction banner, Understood/Read-by, and a composer that can
- * target a reply. Server precomputes display fields so this stays simple. */
+/* Shared conversation view for a task — used by BOTH the staff portal and the
+ * admin control centre. Chat-style messages with replies, @mentions, file
+ * attachments, voice dictation, inline system-event markers, and a pinned
+ * instruction banner. The server precomputes display fields; the page injects
+ * its own server actions + capability flags, so the same component serves the
+ * limited staff view and the full-powered admin view. */
+
+type ServerAction = (formData: FormData) => void | Promise<void>;
 
 export type ConvoMessage = {
   id: number;
@@ -34,7 +38,6 @@ export type ConvoEvent = {
 type Props = {
   taskId: number;
   code: string;
-  isManager: boolean;
   closed: boolean;
   statusOptions: string[];
   currentStatus: string;
@@ -43,6 +46,14 @@ type Props = {
   latestId: number | null;
   seenLabel: string[];
   team: MentionCandidate[]; // for @mention autocomplete + highlighting
+  // Injected server actions (portal or admin variants).
+  addAction: ServerAction;
+  pinAction: ServerAction;
+  ackAction?: ServerAction;
+  // Capabilities.
+  canPin: boolean; // show pin/unpin controls
+  canAck: boolean; // show the "Understood" button (staff/managers, not admin)
+  composerHint?: string;
 };
 
 function dayLabel(iso: string): string {
@@ -61,7 +72,10 @@ function time(iso: string): string {
 }
 
 export function PortalConversation(props: Props) {
-  const { taskId, code, isManager, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team } = props;
+  const {
+    taskId, code, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team,
+    addAction, pinAction, ackAction, canPin, canAck, composerHint,
+  } = props;
   const [replyTo, setReplyTo] = useState<{ id: number; author: string; snippet: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -135,12 +149,13 @@ export function PortalConversation(props: Props) {
 
   const AckRow = ({ m }: { m: ConvoMessage }) => (
     <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2">
-      {m.iAcked ? (
+      {canAck && ackAction && m.iAcked && (
         <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success">
           <CheckCheck size={12} /> You confirmed you&apos;ve read this
         </span>
-      ) : (
-        <form action={portalAcknowledge}>
+      )}
+      {canAck && ackAction && !m.iAcked && (
+        <form action={ackAction}>
           <input type="hidden" name="updateId" value={m.id} />
           <input type="hidden" name="code" value={code} />
           <button
@@ -152,6 +167,9 @@ export function PortalConversation(props: Props) {
         </form>
       )}
       {m.ackNames.length > 0 && <span className="text-[11px] text-fg-subtle">Read by {m.ackNames.join(", ")}</span>}
+      {canAck === false && m.ackNames.length === 0 && (
+        <span className="text-[11px] text-fg-subtle">Not yet acknowledged</span>
+      )}
     </div>
   );
 
@@ -187,8 +205,8 @@ export function PortalConversation(props: Props) {
             <CornerUpLeft size={13} />
           </button>
         )}
-        {isManager && (
-          <form action={portalTogglePin}>
+        {canPin && (
+          <form action={pinAction}>
             <input type="hidden" name="updateId" value={m.id} />
             <input type="hidden" name="code" value={code} />
             <button type="submit" title={m.pinned ? "Unpin" : "Pin as the current instruction"} className="text-fg-subtle hover:text-accent transition-colors">
@@ -247,8 +265,8 @@ export function PortalConversation(props: Props) {
               <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
                 <Pin size={12} /> Current instruction
                 <span className="grow" />
-                {isManager && (
-                  <form action={portalTogglePin}>
+                {canPin && (
+                  <form action={pinAction}>
                     <input type="hidden" name="updateId" value={m.id} />
                     <input type="hidden" name="code" value={code} />
                     <button type="submit" title="Unpin" className="text-accent/70 hover:text-accent">
@@ -276,7 +294,7 @@ export function PortalConversation(props: Props) {
               <button type="button" onClick={() => setReplyTo(null)} className="text-fg-subtle hover:text-fg"><X size={13} /></button>
             </div>
           )}
-          <form action={portalAddUpdate} onSubmit={() => setTimeout(() => { setReplyTo(null); clearFile(); }, 0)} className="flex flex-col gap-2.5">
+          <form action={addAction} onSubmit={() => setTimeout(() => { setReplyTo(null); clearFile(); }, 0)} className="flex flex-col gap-2.5">
             <input type="hidden" name="taskId" value={taskId} />
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="parentUpdateId" value={replyTo?.id ?? ""} />
@@ -350,11 +368,7 @@ export function PortalConversation(props: Props) {
                 <Send size={13} /> {replyTo ? "Reply" : "Post"}
               </button>
             </div>
-            <p className="text-[11px] text-fg-subtle">
-              {isManager
-                ? "As a manager you can mark this task Completed once you're satisfied."
-                : "Marking work finished? Choose Under Review — your manager confirms completion."}
-            </p>
+            {composerHint && <p className="text-[11px] text-fg-subtle">{composerHint}</p>}
           </form>
         </div>
       )}

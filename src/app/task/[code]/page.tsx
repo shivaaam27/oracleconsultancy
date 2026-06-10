@@ -2,9 +2,10 @@ import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { recordTaskView } from "@/lib/portal-auth";
 import { LiveSync } from "@/components/live-sync";
+import { PortalConversation as TaskConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
+import { adminAddUpdate, adminTogglePin } from "../actions";
 import { flagLabel } from "@/lib/derive";
 import { Card, PageHeader, Badge, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
-import { UpdateBox } from "@/components/update-box";
 import { PolishedInput } from "@/components/polished-input";
 import { DraftEmailButton } from "@/components/draft-email-button";
 import { SimilarTasks } from "@/components/similar-tasks";
@@ -156,6 +157,80 @@ export default async function TaskPage({
     if (aid && attachName.has(aid)) attachByUpdate.set(u.id as number, attachName.get(aid)!);
   }
 
+  /* ---- T3 conversation: build messages + events for the admin chat ---- */
+  // Team (assignees) for @mention autocomplete + name resolution.
+  const convoTeam = r.assigneeIds.map((id, i) => ({ id, name: r.assignees[i] }));
+  const teamName = new Map(convoTeam.map((p) => [p.id, p.name]));
+
+  // Who has seen since the latest message (portal viewers), + record my view.
+  await recordTaskView(r.id, "admin");
+  const { data: viewRows } = await sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", r.id);
+  const latestUpd = (updateRaw ?? [])[0] ?? null;
+  const adminSeen: string[] = [];
+  if (latestUpd) {
+    for (const v of viewRows ?? []) {
+      if (new Date(v.last_viewed_at as string) < new Date(latestUpd.created_at as string)) continue;
+      const viewer = v.viewer as string;
+      if (viewer.startsWith("person:")) {
+        const nm = teamName.get(Number(viewer.slice(7)));
+        if (nm) adminSeen.push(nm);
+      }
+    }
+  }
+
+  const adminAuthorOf = (by: string | null): { name: string; management: boolean; me: boolean } => {
+    if (!by) return { name: "System", management: false, me: false };
+    if (by === "web-ui") return { name: "You", management: true, me: true };
+    if (by === "ai-command") return { name: "COS Assistant", management: true, me: false };
+    if (by === "meeting-mode") return { name: "Meeting", management: true, me: false };
+    if (by.startsWith("portal-mgr:")) return { name: by.slice(11), management: true, me: false };
+    if (by.startsWith("portal:")) return { name: by.slice(7), management: false, me: false };
+    return { name: by, management: true, me: false };
+  };
+
+  const convoMessages: ConvoMessage[] = (updateRaw ?? []).map((u) => {
+    const a = adminAuthorOf(u.created_by as string | null);
+    const pid = u.parent_update_id as number | null;
+    const parent = pid && updBodyById.has(pid)
+      ? { authorName: adminAuthorOf(((updateRaw ?? []).find((x) => x.id === pid)?.created_by as string | null) ?? null).name, snippet: updBodyById.get(pid)!.slice(0, 80) }
+      : null;
+    const aid = u.attachment_document_id as number | null;
+    return {
+      id: u.id as number,
+      body: u.body as string,
+      at: u.created_at as string,
+      authorName: a.name,
+      management: a.management,
+      me: a.me,
+      pinned: Boolean(u.pinned_at),
+      parent,
+      ackNames: u.pinned_at ? ackMap.get(u.id as number) ?? [] : [],
+      iAcked: false,
+      attachment: aid && attachName.has(aid) ? { name: attachName.get(aid)! } : null,
+    };
+  });
+
+  const fmtEvDate = (v: string) => {
+    const dd = new Date(v);
+    return isNaN(dd.getTime()) ? v : dd.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  };
+  const convoEvents: ConvoEvent[] = (auditRaw ?? [])
+    .filter((a) => (a.entry_type as string) === "CHANGE" && ["status", "deadline", "priority", "risk", "escalation"].includes(String(a.field).toLowerCase()))
+    .map((a) => {
+      const f = String(a.field).toLowerCase();
+      const nv = (a.new_value as string | null) ?? "";
+      let text: string;
+      if (f === "status") text = `Status → ${nv}`;
+      else if (f === "deadline") text = nv ? `Deadline → ${fmtEvDate(nv)}` : "Deadline cleared";
+      else if (f === "priority") text = `Priority → ${nv}`;
+      else if (f === "risk") text = `Risk → ${nv}`;
+      else text = nv ? `Escalation → ${nv}` : "Escalation cleared";
+      return { id: `a${a.id}`, at: a.created_at as string, text };
+    });
+
+  const convoClosed = r.status === "Completed" || r.status === "Closed";
+  const convoStatusOptions = STATUSES.filter((s) => s !== r.status);
+
   const rawTimeline: TimelineItem[] = [
     ...(updateRaw ?? []).map<TimelineItem>((u) => ({
       kind: "update",
@@ -236,7 +311,7 @@ export default async function TaskPage({
     : "bg-bg-subtle/60 ring-1 ring-border";
 
   return (
-    <div className="space-y-5 max-w-5xl pb-24 lg:pb-6">
+    <div className="space-y-5 max-w-6xl pb-24 lg:pb-6">
       <LiveSync taskId={r.id} seconds={6} />
       {/* Top bar: circular back + breadcrumb (mobile-first iOS feel) */}
       <div className="flex items-center justify-between gap-3">
@@ -256,6 +331,10 @@ export default async function TaskPage({
           <DraftEmailButton taskId={r.id} />
         </div>
       </div>
+
+      {/* Two-pane control centre: conversation (left) + facts (right). */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] items-start">
+      <div className="space-y-5 min-w-0">
 
       {/* Hero card */}
       <div className="glass elevated rounded-3xl p-5 sm:p-6 space-y-4 relative overflow-hidden">
@@ -295,8 +374,32 @@ export default async function TaskPage({
         </div>
       </div>
 
+      {/* The conversation — chat with the team (replies, @mentions, files, voice). */}
+      <TaskConversation
+        taskId={r.id}
+        code={r.code}
+        closed={convoClosed}
+        statusOptions={convoStatusOptions}
+        currentStatus={r.status}
+        messages={convoMessages}
+        events={convoEvents}
+        latestId={latestUpd ? (latestUpd.id as number) : null}
+        seenLabel={adminSeen}
+        team={convoTeam}
+        addAction={adminAddUpdate}
+        pinAction={adminTogglePin}
+        canPin={true}
+        canAck={false}
+        composerHint="You can set any status, pin the current instruction, attach files, and @mention the team."
+      />
+
+      </div>{/* end left column */}
+
+      {/* Right pane — facts & controls */}
+      <aside className="space-y-4 lg:sticky lg:top-4 h-fit">
+
       {/* Stat pills — colour-tinted per status / priority / DTD severity */}
-      <div className="-mx-1 px-1 overflow-x-auto scrollbar-none">
+      <div className="-mx-1 px-1 overflow-x-auto scrollbar-none lg:overflow-visible">
         <div className="flex gap-2.5 sm:flex-wrap min-w-min">
           {[
             { label: "Status",     value: r.status,   tint: statusTint[r.status] ?? "" },
@@ -334,19 +437,6 @@ export default async function TaskPage({
         </div>
       )}
 
-      {/* Latest update callout */}
-      {r.latestUpdate && (
-        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl px-4 py-3 flex items-start gap-3">
-          <div className="mt-0.5 h-8 w-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
-            <MessageSquarePlus size={15} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-wider text-fg-muted mb-0.5">Latest update · {fmt(r.lastUpdatedAt)}</div>
-            <p className="text-sm leading-relaxed"><CodeLinkedText text={r.latestUpdate} /></p>
-          </div>
-        </div>
-      )}
-
       {(sourceMeeting as any)?.meetings && (
         <div className="rounded-xl border border-border bg-bg-elev px-4 py-3 flex items-start gap-3 elevated">
           <div className="mt-0.5 h-8 w-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
@@ -362,11 +452,7 @@ export default async function TaskPage({
 
       <SimilarTasks query={r.actionItem} excludeId={r.id} />
 
-      <div className="space-y-4">
-        {/* Post update — primary action, above the edit form */}
-        <UpdateBox taskId={r.id} taskCode={r.code} currentStatus={r.status} />
-
-        {/* Edit form (collapsible, full width) */}
+        {/* Edit task (collapsible) */}
         <details className="group bg-bg-elev ring-1 ring-border elevated rounded-3xl overflow-hidden">
           <summary className="list-none cursor-pointer flex items-center gap-2 px-5 py-4 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted select-none">
             <Pencil size={12} /> Edit task
@@ -447,10 +533,14 @@ export default async function TaskPage({
           </div>
         </details>
 
-        {/* History */}
-        <details className="group bg-bg-elev ring-1 ring-border elevated rounded-3xl overflow-hidden" open>
+      </aside>{/* end right pane */}
+      </div>{/* end two-pane grid */}
+
+        {/* Full history & audit — the complete governance trail, with
+            per-entry edit / delete / correct and filters. */}
+        <details className="group bg-bg-elev ring-1 ring-border elevated rounded-3xl overflow-hidden">
             <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted select-none">
-              <MessageSquarePlus size={12} /> History
+              <MessageSquarePlus size={12} /> Full history &amp; audit
               <span className="text-fg-subtle normal-case tracking-normal">· {counts.all}</span>
               <span className="ml-auto text-fg-subtle text-base leading-none transition-transform group-open:rotate-180 normal-case tracking-normal">⌄</span>
             </summary>
@@ -597,7 +687,6 @@ export default async function TaskPage({
           </div>
             </div>
           </details>
-      </div>
     </div>
   );
 }
