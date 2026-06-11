@@ -134,5 +134,17 @@ export function useThreadChannel(
     }
   }, [meName]);
 
-  return { typing, sendTyping };
+  // Tell peers something changed (a new message, or that we've read). self:false
+  // means we never receive our own — so no echo/refetch loop on the sender.
+  const notify = useCallback((type: "message" | "read") => {
+    const ch = channelRef.current;
+    if (!ch) return;
+    try {
+      ch.send({ type: "broadcast", event: "thread", payload: { type } });
+    } catch {
+      /* best effort — polling fallback covers delivery */
+    }
+  }, []);
+
+  return { typing, sendTyping, notify };
 }

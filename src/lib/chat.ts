@@ -1,7 +1,6 @@
 import "server-only";
+import { after } from "next/server";
 import { sb } from "@/db/supabase";
-import { createNotification } from "./notifications";
-import { broadcastToThread } from "./chat-broadcast";
 
 /* ------------------------------------------------------------------ *
  * Chat — free-standing messaging, separate from task `task_updates`.
@@ -384,11 +383,10 @@ export async function sendMessage(input: {
       .insert(mentionIds.map((personId) => ({ message_id: messageId, person_id: personId })));
   }
 
-  // Notify the other participants (best-effort) + broadcast for live update.
-  await Promise.all([
-    notifyParticipants(input.threadId, input.sender, input.body, mentionIds),
-    broadcastToThread(input.threadId, { type: "message", id: messageId, at: now }),
-  ]);
+  // Notifications + push are NOT on the critical path — defer them so the
+  // composer gets its response immediately. Live delivery to open clients is
+  // handled by a peer broadcast from the sender's browser (no server echo).
+  after(() => notifyParticipants(input.threadId, input.sender, input.body, mentionIds));
   return messageId;
 }
 
@@ -458,14 +456,13 @@ async function createChatNotification(input: {
 }
 
 export async function markRead(threadId: number, viewer: string): Promise<void> {
-  const now = new Date().toISOString();
   await sb
     .from("chat_participants")
-    .update({ last_read_at: now })
+    .update({ last_read_at: new Date().toISOString() })
     .eq("thread_id", threadId)
     .eq("participant", viewer);
-  // Nudge the other side so "seen" ticks update live.
-  await broadcastToThread(threadId, { type: "read", id: 0, at: now });
+  // Live "seen" nudge to the other side is sent as a peer broadcast from the
+  // client (chat-surface) after this returns — keeps it off the server path.
 }
 
 export async function editMessage(messageId: number, sender: string, body: string): Promise<boolean> {

@@ -121,6 +121,8 @@ export function ChatSurface(props: Props) {
   const [filter, setFilter] = useState("");
   const [dialog, setDialog] = useState<null | "dm" | "group">(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Assigned from the realtime hook below; used by callbacks defined before it.
+  const notifyRef = useRef<(t: "message" | "read") => void>(() => {});
 
   const reloadList = useCallback(async () => {
     setThreads(await actions.listMyThreads());
@@ -153,9 +155,19 @@ export function ChatSurface(props: Props) {
   useEffect(() => {
     reloadList();
   }, [reloadList]);
+  // Keep the inbox (previews + unread badges) fresh while sitting on the list —
+  // the realtime socket only attaches to an OPEN thread, so without this the
+  // list would look stale until a manual refresh.
+  useEffect(() => {
+    if (selected != null) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") reloadList();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [selected, reloadList]);
   useEffect(() => {
     setPending([]);
-    if (selected != null) reloadThread(selected);
+    if (selected != null) reloadThread(selected).then(() => notifyRef.current("read"));
   }, [selected, reloadThread]);
 
   // A live event arrived. For "read" events we only refresh ticks (detail) and
@@ -169,12 +181,18 @@ export function ChatSurface(props: Props) {
       }
       refresh(selected);
       reloadList();
-      if (type !== "read") actions.markThreadRead(selected);
+      if (type !== "read") {
+        // We're looking at it → clear our badge, and tell the peer we've read
+        // (peer-to-peer; their handler only refreshes ticks, never re-marks).
+        actions.markThreadRead(selected);
+        notifyRef.current("read");
+      }
     },
     [selected, refresh, reloadList, actions]
   );
 
-  const { typing, sendTyping } = useThreadChannel(selected, { onChange: onRealtime, meName });
+  const { typing, sendTyping, notify } = useThreadChannel(selected, { onChange: onRealtime, meName });
+  notifyRef.current = notify;
 
   const display: DisplayMessage[] = [...messages, ...pending];
 
@@ -208,15 +226,22 @@ export function ChatSurface(props: Props) {
       for (const f of files) fd.append("file", f);
       const res = await actions.postMessage(fd);
       if (res.ok) {
-        await refresh(selected);
+        // Atomic swap: fetch canonical messages and drop the optimistic copy in
+        // the SAME render so the bubble never appears twice.
+        const fresh = await actions.refreshThread(selected);
+        if (fresh.ok) {
+          setMessages(fresh.messages ?? []);
+          setDetail(fresh.detail ?? null);
+        }
         setPending((p) => p.filter((m) => m.id !== tempId));
+        notify("message"); // instant peer delivery (self:false → no echo to us)
         reloadList();
         return null;
       }
       setPending((p) => p.filter((m) => m.id !== tempId));
       return res.error ?? "Could not send.";
     },
-    [selected, me, meName, actions, refresh, reloadList]
+    [selected, me, meName, actions, notify, reloadList]
   );
 
   const shown = threads.filter((t) => t.title.toLowerCase().includes(filter.toLowerCase()));
