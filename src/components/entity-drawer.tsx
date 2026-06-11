@@ -2,8 +2,10 @@
 
 import { type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { motion } from "framer-motion";
 import { X, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { spring } from "@/lib/motion";
 
 export type DrawerTab = {
   id: string;
@@ -63,16 +65,15 @@ export function EntityDrawer({
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-200
             data-[state=open]:opacity-100 data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none"
         />
-        <Dialog.Content
-          forceMount
-          aria-describedby={undefined}
-          style={{ maxWidth }}
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[51] max-h-[90dvh] w-[calc(100%-1.5rem)]
-            flex flex-col overflow-hidden glass glass-refract rounded-3xl outline-none
-            transition-all duration-200 ease-out
-            data-[state=open]:opacity-100 data-[state=open]:scale-100
-            data-[state=closed]:opacity-0 data-[state=closed]:scale-[0.97] data-[state=closed]:pointer-events-none"
-        >
+        <Dialog.Content forceMount aria-describedby={undefined} asChild>
+          <motion.div
+            style={{ maxWidth, pointerEvents: open ? "auto" : "none" }}
+            initial={false}
+            animate={{ x: "-50%", y: "-50%", opacity: open ? 1 : 0, scale: open ? 1 : 0.88 }}
+            transition={spring}
+            className="fixed left-1/2 top-1/2 z-[51] max-h-[90dvh] w-[calc(100%-1.5rem)]
+              flex flex-col overflow-hidden glass glass-refract rounded-3xl outline-none"
+          >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           {/* Close button floats over the hero */}
           <Dialog.Close asChild>
@@ -162,6 +163,7 @@ export function EntityDrawer({
               )}
             </>
           )}
+          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

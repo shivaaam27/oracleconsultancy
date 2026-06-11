@@ -1,6 +1,7 @@
 import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users, CalendarClock } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { Hero, TONE } from "@/components/surface-kit";
+import { CountUp } from "@/components/arc-gauge";
 import { ShareBrief } from "@/components/hrms/share-brief";
 import { BriefPeriodFilter } from "@/components/brief-period-filter";
 import { BriefCompanyFilter } from "@/components/brief-company-filter";
@@ -52,7 +53,7 @@ export default async function DirectorBriefPage({
               ...(b.atRiskCount ? [{ label: "Need watching", value: b.atRiskCount, tone: "warn" as const }] : []),
             ]).map((m) => (
               <div key={m.label} className="flex items-baseline gap-1.5">
-                <span className={`text-xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
+                <CountUp value={m.value} className={`text-xl font-semibold tabular ${TONE[m.tone].text}`} />
                 <span className="text-[11px] text-fg-muted">{m.label}</span>
               </div>
             ))}

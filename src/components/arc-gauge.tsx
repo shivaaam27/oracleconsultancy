@@ -33,6 +33,13 @@ export function useCountUp(target: number, duration = 1000): number {
   return value;
 }
 
+/** A number that counts up to its value on mount/change. Reduced-motion safe
+ *  (snaps instantly via useCountUp). For use from server components. */
+export function CountUp({ value, duration = 1000, className }: { value: number; duration?: number; className?: string }) {
+  const v = useCountUp(value, duration);
+  return <span className={className}>{v}</span>;
+}
+
 export function ArcGauge({
   percent,
   color,

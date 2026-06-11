@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
+  BellRing,
   BriefcaseBusiness,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
@@ -15,15 +18,24 @@ import {
   Layers,
   LayoutGrid,
   ListChecks,
+  Loader2,
+  RefreshCw,
   Send,
   Sparkles,
   Target,
   Users,
+  X,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/cn";
-import { Badge, LinkButton } from "@/components/ui";
+import { spring } from "@/lib/motion";
+import { Badge, Button, LinkButton } from "@/components/ui";
+import { useToast } from "@/components/toast";
 import { AutomationActionButton } from "@/components/automation-action-button";
 import { PlanMyDayButton } from "@/components/plan-my-day-button";
+import { channelLabel } from "@/lib/outbox-links";
+import type { MorningPlanItem } from "@/lib/automation-suggestions";
+import { approveReminderAction, approveRenewalAction } from "@/app/automation/actions";
 import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";
 import { InsightPopover, InsightBody } from "@/components/insight-popover";
 import { WeatherChip } from "@/components/weather-chip";
@@ -227,6 +239,183 @@ function CommandIcon({ tone }: { tone: Tone }) {
   );
 }
 
+/* ---- Morning Run: per-item, confirm-first agent tray (Phase 4) ---- */
+
+function dueLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" });
+}
+
+type RowState = { status: "idle" | "working" | "done" | "dismissed"; link?: string | null; channel?: string };
+
+function MorningRunRow({
+  item,
+  state,
+  onApprove,
+  onDismiss,
+}: {
+  item: MorningPlanItem;
+  state: RowState;
+  onApprove: () => void;
+  onDismiss: () => void;
+}) {
+  const isReminder = item.kind === "reminder";
+  const tone: Tone = isReminder ? "danger" : item.status === "Expired" ? "danger" : "warn";
+  const Icon = isReminder ? BellRing : RefreshCw;
+
+  const title = isReminder ? `Remind ${item.personName}` : `Renew: ${item.title}`;
+  const meta = isReminder
+    ? `${item.taskCount} overdue task${item.taskCount === 1 ? "" : "s"} · ${channelLabel(item.channel)}${item.company ? ` · ${item.company}` : ""}`
+    : `${item.status}${item.companyName ? ` · ${item.companyName}` : ""}${item.deadline ? ` · expires ${dueLabel(item.deadline)}` : ""}`;
+
+  if (state.status === "done") {
+    return (
+      <motion.li
+        layout
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, x: 24 }}
+        transition={spring}
+        className="flex items-center gap-3 rounded-2xl bg-success-soft/20 px-3 py-2.5 ring-1 ring-success/20"
+      >
+        <motion.span
+          initial={{ scale: 0.4, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ ...spring, delay: 0.05 }}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-success-soft/60 text-success ring-1 ring-success/25"
+        >
+          <Check size={15} />
+        </motion.span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{isReminder ? `Draft ready for ${item.personName}` : `Renewal task created`}</span>
+          <span className="block truncate text-xs text-fg-muted">{isReminder ? "Saved to Outbox — send when you're ready." : title}</span>
+        </span>
+        {isReminder && state.link ? (
+          <a
+            href={state.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/20"
+          >
+            <Send size={12} /> Send
+          </a>
+        ) : (
+          <Link href={isReminder ? "/outbox" : "/?tab=tasks&view=table"} className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-fg-muted hover:text-accent">
+            Open <ArrowRight size={12} />
+          </Link>
+        )}
+      </motion.li>
+    );
+  }
+
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 24 }}
+      transition={spring}
+      className={cn("flex flex-col gap-2 rounded-2xl p-3 ring-1 sm:flex-row sm:items-center", toneClass[tone].bg, toneClass[tone].ring)}
+    >
+      <span className={cn("inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1", toneClass[tone].bg, toneClass[tone].ring)}>
+        <Icon size={15} className={toneClass[tone].text} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{title}</span>
+        <span className="block truncate text-xs text-fg-muted">{meta}</span>
+      </span>
+      <div className="flex shrink-0 gap-1.5">
+        <Button type="button" size="sm" variant="primary" loading={state.status === "working"} onClick={onApprove}>
+          {state.status === "working" ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+          Approve
+        </Button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          disabled={state.status === "working"}
+          aria-label="Dismiss"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-subtle ring-1 ring-border/50 transition-colors hover:bg-bg-muted/50 hover:text-fg disabled:opacity-40"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    </motion.li>
+  );
+}
+
+function MorningRun({ items }: { items: MorningPlanItem[] }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [, startTransition] = useTransition();
+  const [states, setStates] = useState<Record<string, RowState>>({});
+  // Snapshot approved items so they stay visible (with the inline Send link)
+  // even after router.refresh() drops them from the server-built plan.
+  const [done, setDone] = useState<Record<string, MorningPlanItem>>({});
+
+  function setRow(id: string, patch: Partial<RowState>) {
+    setStates((s) => ({ ...s, [id]: { ...(s[id] ?? { status: "idle" }), ...patch } }));
+  }
+
+  function approve(item: MorningPlanItem) {
+    setRow(item.id, { status: "working" });
+    startTransition(async () => {
+      const res =
+        item.kind === "reminder"
+          ? await approveReminderAction(item.personId)
+          : await approveRenewalAction(item.documentId);
+      if (!res.ok) {
+        toast(res.error, { tone: "warn", duration: 4000 });
+        setRow(item.id, { status: "idle" });
+        return;
+      }
+      const link = (res as { link?: string | null }).link ?? null;
+      setRow(item.id, { status: "done", link });
+      setDone((d) => ({ ...d, [item.id]: item }));
+      if (!res.created) {
+        toast(res.reason === "already" ? "Already prepared today." : "Nothing left to prepare for this item.", { tone: "default", duration: 3500 });
+      } else {
+        toast(item.kind === "reminder" ? `Draft ready for ${item.personName}.` : "Renewal task created.", { tone: "success", duration: 4000 });
+      }
+      router.refresh();
+    });
+  }
+
+  // Merge server-built items with locally-approved snapshots (which the server
+  // no longer returns), so approved rows persist until dismissed.
+  const merged = [...items];
+  for (const id of Object.keys(done)) {
+    if (!merged.some((m) => m.id === id)) merged.push(done[id]);
+  }
+  const visible = merged.filter((it) => states[it.id]?.status !== "dismissed");
+  if (visible.length === 0) return null;
+
+  const pending = visible.filter((it) => (states[it.id]?.status ?? "idle") === "idle").length;
+
+  return (
+    <div className="mt-3 border-t border-border/60 pt-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+          <Sparkles size={12} className="text-accent" /> Ready to action
+        </div>
+        {pending > 0 && <span className="text-[11px] text-fg-muted">{pending} to review</span>}
+      </div>
+      <ul className="space-y-1.5">
+        <AnimatePresence initial={false}>
+          {visible.map((item) => (
+            <MorningRunRow
+              key={item.id}
+              item={item}
+              state={states[item.id] ?? { status: "idle" }}
+              onApprove={() => approve(item)}
+              onDismiss={() => setRow(item.id, { status: "dismissed" })}
+            />
+          ))}
+        </AnimatePresence>
+      </ul>
+    </div>
+  );
+}
+
 export function HomeMissionControl({
   greeting,
   dateLabel,
@@ -239,6 +428,7 @@ export function HomeMissionControl({
   companyGauges,
   clearedToday,
   weather,
+  morningPlan = [],
 }: {
   greeting: string;
   dateLabel: string;
@@ -251,9 +441,14 @@ export function HomeMissionControl({
   companyGauges: CompanyGauge[];
   clearedToday: number;
   weather: { city: string; lat: number; lon: number };
+  morningPlan?: MorningPlanItem[];
 }) {
-  const lead = command[0];
-  const rest = command.slice(1, 5);
+  // The Morning Run tray now owns the bulk automation actions, so drop those
+  // command cards here to avoid showing both the tray rows and the old button.
+  const actionable = command.filter((c) => !c.automationAction);
+  const lead = actionable[0];
+  const rest = actionable.slice(1, 5);
+  const hasPlan = morningPlan.length > 0;
   const healthTone: Tone = health >= 80 ? "success" : health >= 55 ? "warn" : "danger";
 
   // Worst-first so attention lands where the gaps are.
@@ -482,7 +677,7 @@ export function HomeMissionControl({
               ) : undefined
             }
           >
-            Today's priority
+            {hasPlan ? "Morning run" : "Today's priority"}
           </SectionLabel>
           {lead ? (
             <div className={cn("mt-3 flex flex-col gap-3 rounded-2xl p-3 ring-1 sm:flex-row sm:items-start", toneClass[lead.tone].bg, toneClass[lead.tone].ring)}>
@@ -507,13 +702,16 @@ export function HomeMissionControl({
                 </div>
               </div>
             </div>
-          ) : (
+          ) : !hasPlan ? (
             <div className="mt-3 rounded-2xl bg-success-soft/30 px-4 py-6 text-center ring-1 ring-success/20">
               <CheckCircle2 size={24} className="mx-auto text-success" />
               <p className="mt-2 text-sm font-medium">The desk is clear.</p>
               <p className="mt-1 text-xs text-fg-muted">No urgent work is asking for attention right now.</p>
             </div>
-          )}
+          ) : null}
+
+          {/* Morning run — pre-prepared work to approve, one item at a time */}
+          {hasPlan && <MorningRun items={morningPlan} />}
 
           {/* Up next — the following priorities, as quick links */}
           {rest.length > 0 && (

@@ -3,6 +3,10 @@ import { PageHeader } from "@/components/ui";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { sb } from "@/db/supabase";
 import { CompanyDrawerLink } from "@/components/company-drawer-link";
+import { gatherInsightForecast } from "@/lib/forecast";
+import { Reveal } from "@/components/reveal";
+import { CountUp } from "@/components/arc-gauge";
+import { CalendarClock, FileWarning, RefreshCw, UserCheck } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -70,9 +74,128 @@ export default async function InsightsPage() {
   const docCompanyRows = [...docAgg.values()].sort((a, b) => (b.expired - a.expired) || (b.expiring - a.expiring) || b.total - a.total);
   const totalDocs = documents.length;
 
+  // Forward-looking signals: leave liability, compliance decay, renewals, probation.
+  const forecast = await gatherInsightForecast(documents, compNameById);
+  const fc = forecast;
+
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" });
+  const dueChip = (daysLeft: number) =>
+    daysLeft < 0 ? { label: `${Math.abs(daysLeft)}d ago`, tone: "danger" as const }
+      : daysLeft === 0 ? { label: "today", tone: "danger" as const }
+        : daysLeft <= 7 ? { label: `${daysLeft}d`, tone: "warn" as const }
+          : { label: `${daysLeft}d`, tone: "info" as const };
+  const chipCls: Record<"danger" | "warn" | "info", string> = {
+    danger: "bg-danger-soft/60 text-danger ring-danger/25",
+    warn: "bg-warn-soft/60 text-warn ring-warn/25",
+    info: "bg-info-soft/60 text-info ring-info/25",
+  };
+  const hasForecast =
+    fc.leaveLiability !== null || fc.complianceDecay.items.length > 0 || fc.renewals.length > 0 || fc.probation.length > 0;
+
   return (
     <div className="space-y-5 max-w-3xl">
-      <PageHeader title="Insights" sub="Portfolio distribution across companies, status, and priority." />
+      <PageHeader title="Insights" sub="What's coming, plus portfolio distribution across companies, status, and priority." />
+
+      {hasForecast && (
+        <section className="space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">Looking ahead</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Annual-leave liability */}
+            {fc.leaveLiability && (
+              <Reveal delay={0} className="glass elevated rounded-2xl p-4">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-fg-muted">
+                  <CalendarClock size={13} className="text-info" /> {fc.leaveLiability.typeName} liability
+                </div>
+                <div className="mt-2 flex items-baseline gap-1.5">
+                  <CountUp value={fc.leaveLiability.outstanding} className="text-2xl font-semibold tabular" />
+                  <span className="text-sm text-fg-muted">days still owed</span>
+                </div>
+                <p className="mt-1 text-xs text-fg-subtle leading-relaxed">
+                  {fc.leaveLiability.staffCount} staff × {fc.leaveLiability.entitlement} days
+                  = {fc.leaveLiability.totalEntitled} entitled, {fc.leaveLiability.taken} taken this cycle.
+                </p>
+                <Link href="/hrms/leave" className="mt-2 inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent">View leave →</Link>
+              </Reveal>
+            )}
+
+            {/* Compliance decay */}
+            <Reveal delay={0.05} className="glass elevated rounded-2xl p-4">
+              <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-fg-muted">
+                <FileWarning size={13} className="text-warn" /> Compliance decay
+              </div>
+              {fc.complianceDecay.items.length === 0 ? (
+                <p className="mt-2 text-sm text-fg-muted">No documents expire in the next {fc.complianceDecay.horizonDays} days. 🎉</p>
+              ) : (
+                <>
+                  <p className="mt-2 text-xs text-fg-subtle">
+                    {fc.complianceDecay.items.length} document{fc.complianceDecay.items.length === 1 ? "" : "s"} expire within {fc.complianceDecay.horizonDays} days — score will drop unless renewed.
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {fc.complianceDecay.items.slice(0, 5).map((d) => {
+                      const c = dueChip(d.daysLeft);
+                      return (
+                        <li key={d.documentId} className="flex items-center gap-2 text-sm">
+                          <span className="min-w-0 flex-1 truncate">{d.title}{d.companyName ? <span className="text-fg-subtle"> · {d.companyName}</span> : null}</span>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ring-1 ${chipCls[c.tone]}`}>{c.label}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {fc.complianceDecay.items.length > 5 && (
+                    <Link href="/documents" className="mt-2 inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent">+{fc.complianceDecay.items.length - 5} more →</Link>
+                  )}
+                </>
+              )}
+            </Reveal>
+
+            {/* Renewals radar */}
+            {fc.renewals.length > 0 && (
+              <Reveal delay={0.1} className="glass elevated rounded-2xl p-4">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-fg-muted">
+                  <RefreshCw size={13} className="text-info" /> Renewals radar
+                </div>
+                <ul className="mt-2 space-y-1.5">
+                  {fc.renewals.slice(0, 5).map((r) => {
+                    const c = dueChip(r.daysLeft);
+                    return (
+                      <li key={r.id} className="flex items-center gap-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{r.label}<span className="text-fg-subtle"> · {fmtDate(r.dueDate)}</span></span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ring-1 ${chipCls[c.tone]}`}>{c.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {fc.renewals.length > 5 && (
+                  <p className="mt-2 text-xs text-fg-subtle">+{fc.renewals.length - 5} more upcoming</p>
+                )}
+              </Reveal>
+            )}
+
+            {/* Probation / notice deadlines */}
+            {fc.probation.length > 0 && (
+              <Reveal delay={0.15} className="glass elevated rounded-2xl p-4">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-fg-muted">
+                  <UserCheck size={13} className="text-accent" /> Probation reviews due
+                </div>
+                <ul className="mt-2 space-y-1.5">
+                  {fc.probation.slice(0, 5).map((p) => {
+                    const c = dueChip(p.daysLeft);
+                    return (
+                      <li key={p.personId} className="flex items-center gap-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate">{p.name}<span className="text-fg-subtle"> · {fmtDate(p.date)}</span></span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ring-1 ${chipCls[c.tone]}`}>{c.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {fc.probation.length > 5 && (
+                  <Link href="/people" className="mt-2 inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent">+{fc.probation.length - 5} more →</Link>
+                )}
+              </Reveal>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="space-y-2">
         <p className="text-[11px] font-medium uppercase tracking-wider text-fg-muted px-1">Open by company</p>

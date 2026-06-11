@@ -308,10 +308,63 @@ add-new, selecting adds a chip and updates the value; no console errors.
 1. **Morning agent run:** one reviewable plan from `signals.ts` — pre-written
    Outbox drafts, proposed tasks, queued reminders — in a confirm-first tray
    (extend `/automation` + `automation-action-button`). Approve/dismiss per item.
+   **DONE (2026-06-11) — Morning Run tray on Home Mission Control (owner-chosen
+   home; approve→inline-send).** Split the all-or-nothing automation into a
+   per-item, confirm-first tray:
+   - `automation-suggestions.ts` gained read-only **`previewMorningPlan(rows,
+     documents)`** (returns `MorningPlanItem[]` = reminder + renewal items with
+     full preview text, **writes nothing**; excludes people already drafted today)
+     plus single-item commits **`commitReminderDraftFor(personId, rows)`** (returns
+     the channel deep-link for inline send) and **`commitRenewalTaskFor(documentId,
+     documents)`** (reuses the proven `createDocumentRenewalTasks` on one doc).
+     All reuse existing builders (`pickChannel`/`messageFor`/`linkFor`/
+     `getOverdueReminderCandidates`/`getDocumentRenewalCandidates`) — no new
+     business logic, AI-off-safe. Bulk actions left untouched.
+   - `app/automation/actions.ts`: `getMorningPlanAction`, `approveReminderAction`,
+     `approveRenewalAction` (each refreshes `/`/`/outbox`/`/documents` + tags).
+   - `home-mission-control.tsx`: new `MorningRun` + `MorningRunRow` client
+     components on `surface-kit` (`TONE`/`Button`/toast/`useTransition`). Each row
+     = Approve (writes one item) + Dismiss (×); approved rows flip to a green
+     "done" state and reminders show an inline **Send** (wa.me/mailto) link.
+     **Approved rows are snapshotted in local state** so they persist after
+     `router.refresh()` drops them from the server plan (key fix — else the Send
+     link vanished on refresh). Panel retitles to "Morning run" when a plan
+     exists; command cards with `automationAction` are filtered out of the
+     lead/Up-next list (tray now owns them). Inner sub-header "Ready to action".
+   - `_hub/cos-home.tsx`: fetches `listDocuments()` + `previewMorningPlan`, passes
+     `morningPlan` down.
+   - tsc clean. Verified live: 8 reminder + 7 renewal rows; Dismiss removes a row
+     + decrements the "N to review" count; Approve creates a real Outbox draft and
+     the done row persists with a working `wa.me/255…` Send link through refresh.
+     (Renewal-approve not run on live data — reuses the proven single-doc creator;
+     two test reminder drafts created during verification were deleted after.)
+   - **Still TODO in Part 1:** stale-task nudges intentionally *not* in the tray
+     (already in the Focus queue). The `/automation` route still has no `page.tsx`
+     (actions only) — owner chose Home as the tray's home.
 2. **Predictive Insights** (`/insights`, `trends.ts`, `health-history.ts`):
    forecast annual-leave liability (from `leave.ts` balances), compliance-score
    decay (docs expiring before next brief), renewals radar (`recurring.ts`),
    probation/notice deadlines.
+   **DONE (2026-06-11) — "Looking ahead" section on `/insights`.** New read-only,
+   AI-free `src/lib/forecast.ts` → `gatherInsightForecast(documents,
+   companyNameById)` returns four forward-looking signals, reusing existing libs
+   (no new business logic, nothing mutates):
+   - **Annual-leave liability** — active staff (`person_type` local_staff/expat)
+     × the Annual leave type's `defaultDays` (ELR 28/12mo) − approved Annual days
+     this cycle = days still owed. (Verified live: 44 staff × 28 = 1232 owed.)
+   - **Compliance decay** — docs valid today but expiring within 30 days (score
+     will drop before the next monthly brief), soonest first, company-labelled.
+   - **Renewals radar** — `listObligations()` with `nextDue` within 60 days.
+     (Conditional — hidden when empty, as it was in the test data.)
+   - **Probation reviews due** — active staff `probation_end_date` from −7d
+     (overdue) through +30d.
+   Rendered as a responsive 2-col grid of `glass elevated` cards at the top of
+   `app/insights/page.tsx` (reuses the page's existing `documents` +
+   `compNameById`; one extra `gatherInsightForecast` await). Due chips are
+   tone-coded (danger ≤today/overdue, warn ≤7d, info beyond). Whole section is
+   gated behind `hasForecast`. tsc clean; verified live — liability + decay (3
+   docs, 1d/19d/28d chips) + probation (Sanjay Kaushik 16d) all render, no console
+   errors. **Phase 4 complete.**
 
 ## Phase 5 — Motion & spatial polish
 
@@ -320,6 +373,59 @@ add-new, selecting adds a chip and updates the value; no console errors.
   lane; numbers count up. Reuse `arc-gauge.tsx`, `motion.ts`.
 - Adaptive density (extend `density-toggle.tsx`) + optional focus mode.
 - All gated by `prefers-reduced-motion`.
+
+**Slice 1 — entrance & data motion on the new V4 surfaces (DONE 2026-06-11).**
+Lowest-risk, additive first step (one screen):
+- New reusable **`src/components/reveal.tsx`** — `<Reveal delay={...}>` wraps any
+  children in a `motion.div` with the `fadeUp` variant + `easeOut` (`motion.ts`).
+  Reduced-motion safe via the global `<MotionConfig reducedMotion="user">`
+  (strips the y-transform, keeps a gentle fade). Usable from server components
+  (children passed in).
+- Added a shared **`CountUp`** to `arc-gauge.tsx` (wraps the existing `useCountUp`,
+  which already snaps instantly under reduced-motion) for server-rendered numbers.
+- Adopted both on the `/insights` "Looking ahead" section: the four forecast cards
+  now stagger-rise in (delays 0/0.05/0.1/0.15) and the leave-liability figure
+  counts up to its value. tsc clean; verified live (cards reveal, number animates
+  to 1232, 7 glass cards render, no *current* console errors — note Turbopack's
+  error buffer is append-only, so transient mid-edit parse errors linger in the
+  log even after a clean recompile; confirmed balanced by reading the file).
+**Slice 2 — Morning Run row motion + Brief count-up (DONE 2026-06-11).**
+- `home-mission-control.tsx`: `MorningRunRow` now returns `motion.li` (both the
+  pending and done branches) with `layout` + `initial/animate/exit` (fade-rise in,
+  slide-out on dismiss) on the `spring` preset; the list is wrapped in
+  `<AnimatePresence initial={false}>`. Approving flips the same keyed row to the
+  green done state — `layout` animates the reorder to the bottom and the check
+  badge scale-pops in. Reduced-motion safe (MotionConfig disables transform +
+  layout, keeps the fade). Verified live: dismiss slides a row out then removes it
+  (15→14), approve animates to the persisted done row with the wa.me Send link, no
+  runtime errors (one test draft created + deleted).
+- `app/brief/page.tsx`: the Hero metric rail (Delivered/Open/Overdue/Companies/
+  Need-watching) now uses `<CountUp>` — numbers tick up on load. Print/PDF
+  untouched (only the screen Hero). Verified live (9/33/3/6 render + count).
+  *Note:* Turbopack's console error buffer is append-only — after these multi-edit
+  sessions it keeps surfacing stale mid-edit `</li>` parse errors even though the
+  live file (and tsc) are clean and the page renders/animates correctly.
+**Slice 3 — drawer "grow open" spring (DONE 2026-06-11).** Decision: a *true*
+shared-element `layoutId` morph (card → drawer) was **deliberately not attempted** —
+`EntityDrawer` is a Radix Dialog rendered through a portal with CSS `data-state`
+transitions; a real morph would mean rewriting the dialog mount mechanics + tagging
+every card across the app with matching layout IDs (cross-cutting, high risk,
+against the guardrails). Shipped the contained, every-drawer-benefits version
+instead: `entity-drawer.tsx` `Dialog.Content` is now `asChild` wrapping a
+`motion.div` that springs from `scale 0.88 → 1` + opacity (the `spring` preset),
+replacing the old barely-there CSS `scale-[0.97]` fade. Framer now owns the full
+transform, so centering moved to `animate={{ x:"-50%", y:"-50%" }}` (the Tailwind
+`-translate-*` classes were removed — they'd be clobbered by framer's inline
+transform). `pointerEvents` gated on `open`; `initial={false}` so it doesn't
+animate on first paint. Radix still owns mount/focus-trap/Escape/overlay.
+Reduced-motion safe via MotionConfig. tsc clean; verified live on `/companies`
+(Terra Green drawer springs open, content renders, Close removes it, reopen works,
+no *current* console errors — the line-166 stale parse error is the usual
+append-only-buffer artefact from between the asChild edit and its `</motion.div>`).
+**Remaining Phase 5 slices:** (4) data-driven motion on verify (compliance ring) +
+status change (task to Completed lane); (5) adaptive density + optional focus mode
+(`density-toggle.tsx`). Optional future: revisit true card→drawer morph only if the
+drawer system is ever migrated off the Radix portal.
 
 ## Phase 6 — Offline-first PWA + real dispatch go-live
 

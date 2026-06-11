@@ -2,6 +2,8 @@ import type { TaskRow } from "@/lib/queries";
 import { getAppSettings } from "@/lib/settings";
 import { recordHealthPoint } from "@/lib/health-history";
 import { gatherHomeSignals } from "@/lib/signals";
+import { listDocuments } from "@/lib/documents";
+import { previewMorningPlan } from "@/lib/automation-suggestions";
 import { HomeActions } from "./home-actions";
 import type { Todo } from "@/app/todos/actions";
 import { HomeMissionControl } from "@/components/home-mission-control";
@@ -24,10 +26,12 @@ function dayLabel(d: Date) {
 
 export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const now = new Date();
-  const [settings, signals] = await Promise.all([
+  const [settings, signals, documents] = await Promise.all([
     getAppSettings(),
     gatherHomeSignals(rows, todos),
+    listDocuments(),
   ]);
+  const morningPlan = await previewMorningPlan(rows, documents);
 
   // Persist today's health so the gauge can show a real "vs last reading"
   // delta. Returns the most recent earlier-day value (null on the first day).
@@ -49,6 +53,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         companyGauges={signals.companyGauges}
         clearedToday={signals.clearedToday}
         weather={{ city: settings.weatherCity, lat: settings.weatherLat, lon: settings.weatherLon }}
+        morningPlan={morningPlan}
       />
     </div>
   );
