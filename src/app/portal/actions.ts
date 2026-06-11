@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
@@ -60,10 +61,12 @@ export async function portalLogin(
   }
 
   await setSessionCookie(person.id as number);
-  await sb
-    .from("people")
-    .update({ portal_last_login_at: new Date().toISOString() })
-    .eq("id", person.id);
+  // The "last login" stamp isn't needed before the redirect — defer it so the
+  // staff member lands on their portal a round-trip sooner.
+  const personId = person.id as number;
+  after(() => {
+    sb.from("people").update({ portal_last_login_at: new Date().toISOString() }).eq("id", personId);
+  });
   redirect("/portal");
 }
 
