@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { motion, LayoutGroup } from "framer-motion";
 import { ExternalLink, Clock } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
+import { spring } from "@/lib/motion";
 import { Badge } from "@/components/ui";
 import { InlineEdit } from "@/components/inline-edit";
 import { DeadlineEditor } from "@/components/deadline-editor";
@@ -120,6 +122,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   return (
     <>
       <OrderRegistrar codes={orderedCodes} />
+      <LayoutGroup>
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
         {columns.map((col) => (
           <div
@@ -144,8 +147,8 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
 
             <div className="space-y-1.5 min-h-[60px] px-0.5 pb-1">
               {col.items.map((r) => (
+                <motion.div key={r.id} layout layoutId={r.code} transition={spring}>
                 <div
-                  key={r.id}
                   draggable
                   onDragStart={(e) => { clearPress(); setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
                   onDragEnd={() => { setDragCode(null); setOverStatus(null); }}
@@ -189,6 +192,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                     </span>
                   </div>
                 </div>
+                </motion.div>
               ))}
 
               {col.items.length === 0 && (
@@ -200,6 +204,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
           </div>
         ))}
       </div>
+      </LayoutGroup>
 
       <PeekPreview
         open={!!peek}

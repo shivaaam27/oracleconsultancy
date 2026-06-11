@@ -13,6 +13,8 @@ import {
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
+import { DensityToggle } from "./density-toggle";
+import { FocusToggle } from "./focus-mode";
 import { NotificationBell } from "./notification-bell";
 import { useRegisteredActions } from "./context-actions";
 
@@ -138,6 +140,16 @@ function HrmsLauncher({ active }: { active: boolean }) {
                 </button>
               );
             })}
+          </div>
+          {/* Preferences — appearance + comfort controls, consolidated here so
+              the nav pill stays minimal (especially on mobile). */}
+          <div className="mt-3 flex items-center gap-1 rounded-2xl border border-border bg-bg-elev/60 px-2 py-1.5">
+            <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">Preferences</span>
+            <div className="ml-auto flex items-center gap-0.5">
+              <ThemeToggle />
+              <DensityToggle />
+              <FocusToggle withLabel />
+            </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
@@ -429,10 +441,6 @@ export function TopPill() {
 
         <div className="shrink-0 flex items-center md:[&>div>button]:h-11 md:[&>div>button]:w-11">
           <NotificationBell to="/task" />
-        </div>
-
-        <div className="shrink-0 flex items-center md:[&_button]:h-11 md:[&_button]:w-11">
-          <ThemeToggle />
         </div>
       </motion.div>
     </div>

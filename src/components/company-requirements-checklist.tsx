@@ -5,6 +5,7 @@ import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, Chevron
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
+import { CountUp } from "./arc-gauge";
 import { DOC_CATEGORIES } from "@/lib/documents-shared";
 import {
   REQUIREMENT_STATUS_LABELS,
@@ -105,7 +106,7 @@ function ScoreRing({ score, band }: { score: number; band: "Good" | "Watch" | "R
         <circle cx="32" cy="32" r={r} fill="none" stroke={`hsl(${colour})`} strokeWidth="6" strokeLinecap="round"
           strokeDasharray={`${dash} ${c}`} style={{ transition: "stroke-dasharray 0.5s ease" }} />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular">{score}%</div>
+      <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular"><CountUp value={score} duration={600} />%</div>
     </div>
   );
 }

@@ -422,10 +422,50 @@ Reduced-motion safe via MotionConfig. tsc clean; verified live on `/companies`
 (Terra Green drawer springs open, content renders, Close removes it, reopen works,
 no *current* console errors — the line-166 stale parse error is the usual
 append-only-buffer artefact from between the asChild edit and its `</motion.div>`).
-**Remaining Phase 5 slices:** (4) data-driven motion on verify (compliance ring) +
-status change (task to Completed lane); (5) adaptive density + optional focus mode
-(`density-toggle.tsx`). Optional future: revisit true card→drawer morph only if the
-drawer system is ever migrated off the Radix portal.
+**Slice 4 — data-driven motion on verify + status change (DONE 2026-06-11).**
+- *Compliance ring fills on verify:* the company `ScoreRing`
+  (`company-requirements-checklist.tsx`) already animated its stroke
+  (`transition: stroke-dasharray 0.5s`); the static `{score}%` number now uses
+  `<CountUp duration={600}>` so the figure climbs in sync with the ring. Same
+  `<CountUp>` applied to the person checklist header score
+  (`requirements-checklist.tsx`). Both components stay mounted across the
+  post-action `load()` refetch, so CountUp climbs old→new on each verify.
+- *Task flies to its lane:* `board-view.tsx` cards are now wrapped in a
+  `motion.div` (`layout` + `layoutId={r.code}`, `spring`) inside a `<LayoutGroup>`,
+  so an optimistic status move (`moved[code]`) animates the card gliding to the new
+  column instead of snapping. Kept the draggable `<div>` as the inner child —
+  framer reserves `onDrag*` for its own gesture system, so the native HTML5 DnD +
+  `e.dataTransfer` stays on the plain inner div (the wrapper does layout only).
+  Reduced-motion safe via MotionConfig.
+- tsc clean; board verified live (23 cards render in lanes, gauge/ring intact, no
+  *current* console errors — the line-195 parse error is the usual stale
+  append-only-buffer artefact). Not exercised live: an actual drag-drop fly (hard
+  to simulate HTML5 DnD via eval) and a live compliance verify (would mutate data)
+  — both reuse proven patterns (framer layout / the CountUp shipped in slices 1–2).
+**Slice 5 — adaptive density + focus mode + nav-pill declutter + mobile pass
+(DONE 2026-06-11).**
+- *Focus mode:* new `src/components/focus-mode.tsx` (mirrors `density-toggle` —
+  `cos-focus` localStorage, `data-focus` on `<html>`, `FocusScript` pre-hydration
+  in `layout.tsx`). globals.css: `:root[data-focus="on"] [data-focus-hide],
+  [data-suggest-reveal] { display:none!important }`. `data-focus-hide` added to the
+  FloatingAssistant launcher button; the AssistantSuggestions wrapper already had
+  `data-suggest-reveal`. So Focus = a calm view that hides the two floating bubbles
+  (which also de-clutters mobile, where they stacked over the pill). Verified live
+  on mobile (375px): toggling on sets both bubbles `display:none`, off restores.
+- *Nav pill (`top-pill.tsx`):* the HRMS "Go to" launcher gained a **Preferences**
+  footer (Theme · Density · Focus, the latter `withLabel`). **Removed the standalone
+  ThemeToggle from the pill** (now in Preferences) → pill went 359px→307px on a
+  375px screen (was pinned to max-width/overflowing; now 8 items, breathing room).
+- *Mobile responsiveness pass:* audited Home, tasks **table** + **board**, and
+  Insights at 375px — no page-level horizontal overflow anywhere; the tasks table
+  already collapses to a card layout, hero metric rails scroll intentionally. The
+  crowded pill was the one real issue and is fixed. (Targeted spot-check, not an
+  every-page audit.)
+- tsc clean throughout. *Quirk:* editing `globals.css` mid-session didn't recompile
+  in Turbopack until the file was touched a second time — the focus CSS only landed
+  after a no-op re-save + reload (worth knowing for future CSS edits in dev).
+**Phase 5 complete** (slices 1–5). Optional future: true card→drawer `layoutId`
+morph only if the drawer ever moves off the Radix portal.
 
 ## Phase 6 — Offline-first PWA + real dispatch go-live
 

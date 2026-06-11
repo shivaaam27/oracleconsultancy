@@ -97,6 +97,7 @@ export function AssistantSuggestions() {
   return (
     <div
       data-suggest-reveal
+      data-focus-hide
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       className="fixed z-[58] right-4 sm:right-5 bottom-[calc(8.6rem+env(safe-area-inset-bottom))] sm:bottom-[calc(4.6rem+env(safe-area-inset-bottom))] w-[min(17.5rem,calc(100vw-2rem))] flex flex-col items-end pointer-events-none"

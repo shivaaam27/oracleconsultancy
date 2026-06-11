@@ -191,6 +191,7 @@ export function FloatingAssistant({ operatorName }: { operatorName?: string }) {
       {/* Launcher — glass, accent icon, a breathing aura (no flat blue fill) */}
       <motion.button
         type="button"
+        data-focus-hide
         aria-label={open ? "Close AUMIO assistant" : "Open AUMIO assistant"}
         onClick={() => setOpen((o) => !o)}
         initial={{ scale: 0, opacity: 0 }}

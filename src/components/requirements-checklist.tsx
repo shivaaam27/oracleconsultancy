@@ -6,6 +6,7 @@ import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, Chevron
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
+import { CountUp } from "./arc-gauge";
 import { DOC_CATEGORIES } from "@/lib/documents-shared";
 import { ProgressTrack, EmptyState, SectionCard, type KitTone } from "./drawer-kit";
 import {
@@ -209,7 +210,7 @@ export function RequirementsChecklist({
           <ShieldCheck size={15} className="text-accent" />
           <span className="text-sm font-semibold">Document compliance</span>
           <Badge tone={bandBadge[data.band]}>{data.band}</Badge>
-          <span className={cn("ml-auto text-lg font-semibold tabular", data.band === "Good" ? "text-success" : data.band === "Watch" ? "text-warn" : "text-danger")}>{data.score}%</span>
+          <span className={cn("ml-auto text-lg font-semibold tabular", data.band === "Good" ? "text-success" : data.band === "Watch" ? "text-warn" : "text-danger")}><CountUp value={data.score} duration={600} />%</span>
         </div>
         <ProgressTrack value={data.mandatoryVerified} total={data.mandatoryTotal} tone={bandTone[data.band]} />
         <div className="flex items-center justify-between text-[11px] text-fg-muted">
