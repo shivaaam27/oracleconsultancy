@@ -3,7 +3,7 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { OrgChart, type OrgChartCompany } from "@/components/org-chart";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
-import { buildCompanyTree, type CompanyTree } from "@/lib/org-chart";
+import { buildCompanyTree, buildPortfolioTree, type CompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
 import { sb } from "@/db/supabase";
 
@@ -57,6 +57,9 @@ export default async function OrgChartPage({
   const trees: Record<number, CompanyTree> = {};
   for (const c of companies) trees[c.id] = buildCompanyTree(people, c.id);
 
+  // One portfolio-wide tree (cross-company chain of command up to the owner).
+  const portfolioTree = buildPortfolioTree(people, accentById);
+
   const totalPeople = Object.values(trees).reduce((s, t) => s + t.total, 0);
   const totalLines = Object.values(trees).reduce((s, t) => s + t.withManager, 0);
 
@@ -71,6 +74,7 @@ export default async function OrgChartPage({
         <OrgChart
           companies={companies}
           trees={trees}
+          portfolioTree={portfolioTree}
           extras={extras}
           webPeople={webPeople}
           associatedByCompany={associatedByCompany}

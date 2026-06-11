@@ -10,6 +10,9 @@ export type OrgNode = {
   role: string | null;
   personType: PersonType;
   departmentName: string | null;
+  /** The node's own company (used by the portfolio tree, which spans companies). */
+  companyName: string | null;
+  companyAccent: string | null;
   /** Primary manager (solid line) — null for roots. */
   managerId: number | null;
   /** Primary manager's name + company, for annotating cross-company lines. */
@@ -44,13 +47,15 @@ export type CompanyTree = {
   reportingOut: number;
 };
 
-function toNode(p: Person, managerName: string | null, managerCompanyName: string | null, reportsOutOfCompany: boolean): OrgNode {
+function toNode(p: Person, managerName: string | null, managerCompanyName: string | null, reportsOutOfCompany: boolean, companyAccent: string | null = null): OrgNode {
   return {
     id: p.id,
     name: p.name,
     role: p.role,
     personType: p.personType,
     departmentName: p.departmentName,
+    companyName: p.companyName,
+    companyAccent,
     managerId: p.managerId,
     managerName,
     managerCompanyName,
@@ -122,6 +127,51 @@ export function buildCompanyTree(people: Person[], companyId: number): CompanyTr
   unassigned.sort(byName);
 
   return { roots, unassigned, total: members.length, withManager, linesInTree: nestedIds.size, reportingOut };
+}
+
+/**
+ * Build ONE reporting tree across the whole portfolio, nesting by primary
+ * manager regardless of company — the real chain of command (everyone up to
+ * the owner). Each node carries its own company name/accent so the chart can
+ * colour mixed-company branches. Cycle-safe.
+ */
+export function buildPortfolioTree(people: Person[], accentById?: Map<number, string | null>): CompanyTree {
+  const active = people.filter((p) => p.active);
+  const ids = new Set(active.map((p) => p.id));
+  const personById = new Map(active.map((p) => [p.id, p]));
+  const nodes = new Map<number, OrgNode>(
+    active.map((m) => {
+      const mgr = m.managerId != null ? personById.get(m.managerId) : undefined;
+      const accent = m.companyId != null ? accentById?.get(m.companyId) ?? null : null;
+      return [m.id, toNode(m, mgr?.name ?? m.managerName ?? null, null, false, accent)];
+    })
+  );
+
+  let withManager = 0;
+  const nestedIds = new Set<number>();
+  for (const m of active) {
+    const mgrId = m.managerId;
+    if (mgrId != null) withManager++;
+    if (mgrId != null && ids.has(mgrId) && mgrId !== m.id && !createsCycle(nodes, m.id, mgrId)) {
+      nodes.get(mgrId)!.children.push(nodes.get(m.id)!);
+      nestedIds.add(m.id);
+    }
+  }
+
+  const roots: OrgNode[] = [];
+  const unassigned: OrgNode[] = [];
+  for (const m of active) {
+    if (nestedIds.has(m.id)) continue;
+    const node = nodes.get(m.id)!;
+    (node.children.length > 0 ? roots : unassigned).push(node);
+  }
+
+  const byName = (a: OrgNode, b: OrgNode) => a.name.localeCompare(b.name);
+  const sortDeep = (n: OrgNode) => { n.children.sort(byName); n.children.forEach(sortDeep); };
+  roots.sort(byName); roots.forEach(sortDeep);
+  unassigned.sort(byName);
+
+  return { roots, unassigned, total: active.length, withManager, linesInTree: nestedIds.size, reportingOut: 0 };
 }
 
 /** Would making `managerId` the parent of `personId` create a cycle? */

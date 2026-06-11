@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
-  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp,
+  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp, Network,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Badge } from "@/components/ui";
@@ -132,7 +132,7 @@ function HoverDetail({
 /* ------------------------------------------------------------------ */
 
 function NodeCard({
-  node, extras, accentColor, collapsed, onToggle, matched, onHoverShow, onHoverHide,
+  node, extras, accentColor, collapsed, onToggle, matched, onHoverShow, onHoverHide, showCompany,
 }: {
   node: OrgNode;
   extras?: OrgPersonExtras;
@@ -142,9 +142,10 @@ function NodeCard({
   matched: boolean;
   onHoverShow?: (node: OrgNode, el: HTMLElement) => void;
   onHoverHide?: () => void;
+  showCompany?: boolean;
 }) {
   const hasChildren = node.children.length > 0;
-  const accent = accentColor || "hsl(var(--accent))";
+  const accent = node.companyAccent || accentColor || "hsl(var(--accent))";
   const dept = node.departmentName;
   const x = extras;
 
@@ -171,10 +172,19 @@ function NodeCard({
             {dept && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: `hsl(${deptHue(dept)} 65% 55%)` }} />}
             <span className="truncate">{node.role || PERSON_TYPE_LABELS[node.personType]}</span>
           </div>
+          {showCompany && node.companyName && (
+            <div className="text-[10px] font-medium truncate leading-tight" style={{ color: accent }}>{node.companyName}</div>
+          )}
           {node.reportsOutOfCompany && node.managerName && (
             <div className="flex items-center gap-1 text-[10px] text-fg-subtle truncate leading-tight" title={`Reports to ${node.managerName}${node.managerCompanyName ? ` at ${node.managerCompanyName}` : ""}`}>
               <CornerLeftUp size={10} className="shrink-0" />
               <span className="truncate">{node.managerName}{node.managerCompanyName ? ` · ${node.managerCompanyName}` : ""}</span>
+            </div>
+          )}
+          {node.secondaryManagers.length > 0 && (
+            <div className="flex items-center gap-1 text-[10px] text-info/80 truncate leading-tight" title={`Also reports to ${node.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ")}`}>
+              <Link2 size={10} className="shrink-0" />
+              <span className="truncate">also: {node.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ")}</span>
             </div>
           )}
         </div>
@@ -218,7 +228,7 @@ function NodeCard({
 /* ------------------------------------------------------------------ */
 
 function Subtree({
-  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand, onHoverShow, onHoverHide,
+  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand, onHoverShow, onHoverHide, showCompany,
 }: {
   node: OrgNode;
   extras: Extras;
@@ -229,6 +239,7 @@ function Subtree({
   forceExpand: boolean;
   onHoverShow: (node: OrgNode, el: HTMLElement) => void;
   onHoverHide: () => void;
+  showCompany?: boolean;
 }) {
   const hasChildren = node.children.length > 0;
   const collapsed = !forceExpand && collapsedIds.has(node.id);
@@ -237,13 +248,13 @@ function Subtree({
     <li>
       <NodeCard node={node} extras={extras[node.id]} accentColor={accentColor}
         collapsed={collapsed} onToggle={() => toggle(node.id)} matched={matchIds.has(node.id)}
-        onHoverShow={onHoverShow} onHoverHide={onHoverHide} />
+        onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany} />
       {showChildren && (
         <ul>
           {node.children.map((c) => (
             <Subtree key={c.id} node={c} extras={extras} accentColor={accentColor}
               collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={forceExpand}
-              onHoverShow={onHoverShow} onHoverHide={onHoverHide} />
+              onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany} />
           ))}
         </ul>
       )}
@@ -258,7 +269,7 @@ function collapsibleIds(roots: OrgNode[]): number[] {
   return out;
 }
 
-function TreeView({ tree, extras, accentColor, companyName, associated = [] }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[] }) {
+function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean }) {
   const [collapsedIds, setCollapsed] = useState<Set<number>>(new Set());
   const [query, setQuery] = useState("");
   const [scale, setScale] = useState(1);
@@ -300,6 +311,16 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [] }: {
     [...tree.roots, ...tree.unassigned].forEach(walk);
     return ids;
   }, [q, tree]);
+
+  // Item 4: group the roster by department (visual boxes; no schema head yet).
+  const deptGroups = useMemo(() => {
+    const map = new Map<string, OrgNode[]>();
+    for (const n of tree.unassigned) {
+      const key = n.departmentName || "No department";
+      (map.get(key) ?? map.set(key, []).get(key)!).push(n);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [tree.unassigned]);
 
   const expandAll = () => setCollapsed(new Set());
   const collapseAll = () => setCollapsed(new Set(collapsibleIds(tree.roots)));
@@ -369,7 +390,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [] }: {
                 {tree.roots.map((n) => (
                   <Subtree key={n.id} node={n} extras={extras} accentColor={accentColor}
                     collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={!!q}
-                    onHoverShow={showHover} onHoverHide={hideHover} />
+                    onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
                 ))}
               </ul>
             </div>
@@ -386,16 +407,34 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [] }: {
       )}
 
       {tree.unassigned.length > 0 && (
-        <div className="pt-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle mb-2">
+        <div className="pt-1 space-y-3">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
             <Users size={12} /> {hasStructure ? `Unassigned (${tree.unassigned.length})` : `People (${tree.unassigned.length})`}
           </div>
-          <div className="flex flex-wrap gap-2.5">
-            {tree.unassigned.map((n) => (
-              <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
-                onHoverShow={showHover} onHoverHide={hideHover} />
-            ))}
-          </div>
+          {deptGroups.length > 1 ? (
+            deptGroups.map(([dept, members]) => (
+              <div key={dept}>
+                <div className="flex items-center gap-1.5 text-[11px] text-fg-muted mb-1.5">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dept === "No department" ? "hsl(var(--border-strong))" : `hsl(${deptHue(dept)} 65% 55%)` }} />
+                  <span className="font-medium">{dept}</span>
+                  <span className="text-fg-subtle tabular">· {members.length}</span>
+                </div>
+                <div className="flex flex-wrap gap-2.5">
+                  {members.map((n) => (
+                    <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
+                      onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-wrap gap-2.5">
+              {tree.unassigned.map((n) => (
+                <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
+                  onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -439,12 +478,13 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [] }: {
 /* ------------------------------------------------------------------ */
 
 function OrgSwitcher({
-  view, setView, companies, everyoneOn,
+  view, setView, companies, everyoneOn, portfolioOn,
 }: {
-  view: "everyone" | number;
-  setView: (v: "everyone" | number) => void;
+  view: "everyone" | "portfolio" | number;
+  setView: (v: "everyone" | "portfolio" | number) => void;
   companies: OrgChartCompany[];
   everyoneOn: boolean;
+  portfolioOn: boolean;
 }) {
   const chip = "snap-start shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium ring-1 transition-all active:scale-95";
   return (
@@ -457,6 +497,15 @@ function OrgSwitcher({
             className={cn(chip, view === "everyone" ? "bg-accent text-accent-fg ring-accent shadow-sm" : "bg-bg-elev/60 text-fg-muted ring-border hover:text-fg")}
           >
             <Share2 size={13} /> Everyone
+          </button>
+        )}
+        {portfolioOn && (
+          <button
+            type="button"
+            onClick={() => setView("portfolio")}
+            className={cn(chip, view === "portfolio" ? "bg-accent text-accent-fg ring-accent shadow-sm" : "bg-bg-elev/60 text-fg-muted ring-border hover:text-fg")}
+          >
+            <Network size={13} /> Portfolio
           </button>
         )}
         {companies.map((c) => {
@@ -485,10 +534,11 @@ function OrgSwitcher({
 /* ------------------------------------------------------------------ */
 
 export function OrgChart({
-  companies, trees, extras = {}, webPeople, associatedByCompany = {}, initialCompanyId, showSwitcher = true, showEveryone = true,
+  companies, trees, portfolioTree, extras = {}, webPeople, associatedByCompany = {}, initialCompanyId, showSwitcher = true, showEveryone = true,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
+  portfolioTree?: CompanyTree;
   extras?: Extras;
   webPeople?: WebPerson[];
   associatedByCompany?: Record<number, AssociatedPerson[]>;
@@ -497,22 +547,25 @@ export function OrgChart({
   showEveryone?: boolean;
 }) {
   const everyoneOn = showEveryone && !!webPeople;
-  const [view, setView] = useState<"everyone" | number>(
+  const portfolioOn = showEveryone && !!portfolioTree;
+  const [view, setView] = useState<"everyone" | "portfolio" | number>(
     initialCompanyId != null ? initialCompanyId : everyoneOn ? "everyone" : (companies[0]?.id ?? 0)
   );
 
-  const showBar = everyoneOn || companies.length > 1;
+  const showBar = everyoneOn || portfolioOn || companies.length > 1;
   const companyName = (id: number) => companies.find((c) => c.id === id)?.name ?? null;
   const accentFor = (id: number) => companies.find((c) => c.id === id)?.accentColor ?? null;
 
   return (
     <div className="space-y-4">
       {showSwitcher && showBar && (
-        <OrgSwitcher view={view} setView={setView} companies={companies} everyoneOn={everyoneOn} />
+        <OrgSwitcher view={view} setView={setView} companies={companies} everyoneOn={everyoneOn} portfolioOn={portfolioOn} />
       )}
 
       {view === "everyone" && webPeople ? (
         <OrgWeb people={webPeople} companies={companies} extras={extras} onPickCompany={(id) => setView(id)} />
+      ) : view === "portfolio" && portfolioTree ? (
+        <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio />
       ) : typeof view === "number" && trees[view] ? (
         <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} />
       ) : (

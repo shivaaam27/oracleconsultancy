@@ -189,6 +189,26 @@ export function OrgWeb({
     return { x: ((e.clientX - rect.left) / rect.width * W - t.x) / t.scale, y: ((e.clientY - rect.top) / rect.height * H - t.y) / t.scale };
   };
   const movedRef = useRef(false);
+  // Coalesce pointermove → at most one state update per animation frame.
+  // Without this, dragging fires setPos ~60×/s, re-rendering every node and
+  // edge each time, which freezes/crashes low-end phones.
+  const rafRef = useRef<number | null>(null);
+  const pendingDrag = useRef<{ key: string; x: number; y: number } | null>(null);
+  const pendingPan = useRef<{ x: number; y: number } | null>(null);
+  const flush = () => {
+    rafRef.current = null;
+    if (pendingDrag.current) {
+      const d = pendingDrag.current; pendingDrag.current = null;
+      setPos((prev) => { const m = new Map(prev); m.set(d.key, { x: d.x, y: d.y }); return m; });
+    }
+    if (pendingPan.current) {
+      const pn = pendingPan.current; pendingPan.current = null;
+      setT((prev) => ({ ...prev, x: pn.x, y: pn.y }));
+    }
+  };
+  const schedule = () => { if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush); };
+  useEffect(() => () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); }, []);
+
   const onDown = (e: React.PointerEvent) => {
     const target = (e.target as Element).closest("[data-key]");
     movedRef.current = false;
@@ -198,15 +218,20 @@ export function OrgWeb({
   };
   const onMove = (e: React.PointerEvent) => {
     if (dragKey.current) {
-      const p = svgPoint(e); const key = dragKey.current;
-      setPos((prev) => { const m = new Map(prev); m.set(key, { x: q(p.x), y: q(p.y) }); return m; });
+      const p = svgPoint(e);
+      pendingDrag.current = { key: dragKey.current, x: q(p.x), y: q(p.y) };
       movedRef.current = true;
+      schedule();
     } else if (panRef.current) {
       const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
-      setT((prev) => ({ ...prev, x: panRef.current!.tx + (e.clientX - panRef.current!.x) * (W / r.width), y: panRef.current!.ty + (e.clientY - panRef.current!.y) * (H / r.height) }));
+      pendingPan.current = { x: panRef.current.tx + (e.clientX - panRef.current.x) * (W / r.width), y: panRef.current.ty + (e.clientY - panRef.current.y) * (H / r.height) };
+      movedRef.current = true;
+      schedule();
     }
   };
   const onUp = (e: React.PointerEvent) => {
+    if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    flush();
     const target = (e.target as Element).closest("[data-key]");
     if (target && !movedRef.current) setSelected((s) => (s === target.getAttribute("data-key") ? null : target.getAttribute("data-key")));
     else if (!target && !movedRef.current && panRef.current) setSelected(null);
@@ -260,7 +285,7 @@ export function OrgWeb({
 
       <div ref={wrapRef} className="relative rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full touch-none select-none" style={{ height: "72vh", cursor: dragKey.current ? "grabbing" : "grab" }}
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={(e) => { dragKey.current = null; panRef.current = null; }}>
+          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={() => { if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; } dragKey.current = null; panRef.current = null; }}>
           <g transform={`translate(${t.x} ${t.y}) scale(${t.scale})`}>
             {edges.map((e, i) => {
               if (!visible[e.kind]) return null;
