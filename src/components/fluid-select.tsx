@@ -41,7 +41,28 @@ export function FluidSelect({
   const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const optsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const current = options.find((o) => o.value === value);
+
+  // On open, move focus to the selected option so the keyboard can drive the menu.
+  useEffect(() => {
+    if (!open) return;
+    const idx = Math.max(0, options.findIndex((o) => o.value === value));
+    const id = requestAnimationFrame(() => optsRef.current[idx]?.focus());
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Arrow / Home / End roving focus within the open menu.
+  function onMenuKeyDown(e: React.KeyboardEvent) {
+    const els = optsRef.current.filter(Boolean) as HTMLButtonElement[];
+    if (els.length === 0) return;
+    const cur = els.findIndex((el) => el === document.activeElement);
+    if (e.key === "ArrowDown") { e.preventDefault(); els[Math.min(els.length - 1, (cur < 0 ? -1 : cur) + 1)]?.focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); els[Math.max(0, (cur < 0 ? els.length : cur) - 1)]?.focus(); }
+    else if (e.key === "Home") { e.preventDefault(); els[0]?.focus(); }
+    else if (e.key === "End") { e.preventDefault(); els[els.length - 1]?.focus(); }
+  }
 
   useEffect(() => setMounted(true), []);
 
@@ -64,7 +85,7 @@ export function FluidSelect({
       if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
       setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); btnRef.current?.focus(); } };
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
     document.addEventListener("mousedown", onDoc);
@@ -84,6 +105,7 @@ export function FluidSelect({
         ref={btnRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => { if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !open) { e.preventDefault(); setOpen(true); } }}
         aria-haspopup="listbox"
         aria-expanded={open}
         className={cn(
@@ -108,6 +130,7 @@ export function FluidSelect({
               exit={{ opacity: 0, scale: 0.97, y: -2 }}
               transition={spring}
               role="listbox"
+              onKeyDown={onMenuKeyDown}
               style={{
                 position: "fixed",
                 top: pos.top,
@@ -118,15 +141,17 @@ export function FluidSelect({
               }}
               className="max-h-[60vh] overflow-y-auto p-1.5 glass glass-menu rounded-xl shadow-lg"
             >
-              {options.map((opt) => {
+              {options.map((opt, i) => {
                 const active = opt.value === value;
                 return (
                   <button
                     key={opt.value || "__all"}
+                    ref={(el) => { optsRef.current[i] = el; }}
                     type="button"
                     role="option"
+                    tabIndex={-1}
                     aria-selected={active}
-                    onClick={() => { onSelect(opt.value); setOpen(false); }}
+                    onClick={() => { onSelect(opt.value); setOpen(false); btnRef.current?.focus(); }}
                     className={cn(
                       "w-full flex items-center gap-2 text-left text-sm px-2.5 py-2 rounded-lg transition-colors",
                       active ? "bg-accent/12 text-fg font-medium" : "text-fg-muted hover:bg-bg-muted hover:text-fg"

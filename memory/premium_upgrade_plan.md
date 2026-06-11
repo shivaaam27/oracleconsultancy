@@ -246,8 +246,24 @@ Swahili/Hindi/Gujarati). Applied to the **document form** (notes), **person form
 `EnterHint`. Deliberately **excluded** long-form areas (letter body, meeting
 notes, AskCOS chat). Verified live on the document form: plain Enter →
 submit (blocked by empty required title, so nothing created); Shift/Alt+Enter →
-newline; hint renders; no console errors. **Remaining forms-pass items:** inline
-validation, smart defaults, broader keyboard nav.
+newline; hint renders; no console errors.
+
+**Forms pass — smart defaults + keyboard nav (2026-06-11):** survey showed the
+forms were already well-defaulted (document: title autofocus on create + lead-days
+by category; person: name autofocus + person-type default). Added the one clearly
+safe smart default: **new-task Priority "Low" → "Medium"**. Deliberately did NOT
+auto-fill issue date / start date / nationality (silent-wrong-data risk on
+back-dated docs and expats — violates the "visible & safe" rule).
+**Keyboard nav — `FluidSelect` (high leverage, used across Tasks/People/Documents
+filters + inline edits):** the open menu was previously mouse-only. Added full
+keyboard support — ArrowDown/Up from the trigger opens; on open, focus moves to
+the selected option; Arrow/Home/End rove between options (roving focus on the
+option buttons, `tabIndex={-1}`); Enter/Space selects (native on focused button);
+Escape closes and returns focus to the trigger; selecting also returns focus.
+Verified live on the Documents company filter (open via ArrowDown, focus lands on
+"All Companies", ArrowDown → "Cocozuri Chocolat", Escape closes + focus restored);
+tsc clean, no console errors. **Remaining:** inline validation; per-form keyboard
+audit of the other custom controls (PersonPicker, ActionItemField, Segmented).
 
 ## Phase 4 — Automation V2 + predictive Insights
 

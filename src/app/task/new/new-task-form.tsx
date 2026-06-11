@@ -71,7 +71,7 @@ export function NewTaskForm({
           </div>
           <div>
             <FieldLabel>Priority</FieldLabel>
-            <Select name="priority" defaultValue="Low">
+            <Select name="priority" defaultValue="Medium">
               {PRIORITIES.map((s) => <option key={s}>{s}</option>)}
             </Select>
           </div>
