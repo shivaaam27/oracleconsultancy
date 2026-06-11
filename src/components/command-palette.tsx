@@ -15,6 +15,10 @@ import { derivePageContext } from "@/lib/page-context";
 import { suggestionsFor } from "@/lib/page-suggestions";
 import { useCurrentView } from "@/lib/current-view";
 import { friendlyAIError } from "@/lib/ai-errors";
+import dynamic from "next/dynamic";
+
+// Lazy: the WebGL aurora only loads (and only ships) once the palette opens.
+const CommandBackdrop = dynamic(() => import("./command-backdrop").then((m) => m.CommandBackdrop), { ssr: false });
 
 type Ctx = { open: () => void; close: () => void; ask: (q: string) => void };
 const CommandCtx = createContext<Ctx>({ open: () => {}, close: () => {}, ask: () => {} });
@@ -109,6 +113,29 @@ export function CommandPaletteProvider({
 
   const threadRef = useRef<Msg[]>([]);
   threadRef.current = thread;
+  const panelRef = useRef<HTMLDivElement>(null);
+  const sheenRef = useRef<HTMLSpanElement>(null);
+
+  // GSAP open choreography — a sheen sweep + a staggered content reveal. Lazy
+  // imports gsap so it costs nothing until the surface is first opened. Skipped
+  // under reduce-motion.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let killed = false;
+    const id = window.setTimeout(async () => {
+      const { gsap } = await import("gsap");
+      if (killed || !panelRef.current) return;
+      const groups = panelRef.current.querySelectorAll<HTMLElement>("[cmdk-group], [data-stagger]");
+      if (groups.length) {
+        gsap.fromTo(groups, { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.04, ease: "power3.out", overwrite: true });
+      }
+      if (sheenRef.current) {
+        gsap.fromTo(sheenRef.current, { xPercent: 0, opacity: 0 }, { keyframes: [{ opacity: 1, duration: 0.15 }, { xPercent: 520, opacity: 0, duration: 0.85, ease: "power2.inOut" }] });
+      }
+    }, 20);
+    return () => { killed = true; window.clearTimeout(id); };
+  }, [isOpen, mode]);
 
   // ⌘K / Ctrl+K hotkey
   useEffect(() => {
@@ -345,21 +372,28 @@ export function CommandPaletteProvider({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              className="absolute inset-0 bg-black/35 backdrop-blur-sm"
+              transition={{ duration: 0.25 }}
+              className="absolute inset-0"
               onClick={() => setIsOpen(false)}
-            />
+            >
+              <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" />
+              <CommandBackdrop />
+            </motion.div>
             <motion.div
+              ref={panelRef}
               layout
-              initial={{ opacity: 0, y: -10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.98 }}
-              transition={{ type: "spring", stiffness: 480, damping: 34 }}
+              initial={{ opacity: 0, y: -10, scale: 0.97, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -8, scale: 0.98, filter: "blur(4px)" }}
+              transition={{ type: "spring", stiffness: 460, damping: 32 }}
               className={cn(
                 "relative w-full glass rounded-2xl shadow-lg overflow-hidden flex flex-col",
                 mode === "chat" ? "max-w-2xl h-[72vh] max-h-[680px]" : "max-w-xl",
               )}
             >
+              {/* GSAP-driven sheen that sweeps once on open. */}
+              <span ref={sheenRef} aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 z-10 opacity-0"
+                style={{ background: "linear-gradient(105deg, transparent, hsl(var(--accent) / 0.14), transparent)" }} />
               {mode === "chat" ? (
                 <ConversationPane
                   thread={thread}
@@ -723,7 +757,7 @@ function ConversationPane({
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
         {thread.length === 0 && (
           <div className="space-y-4">
-            <div className="flex items-start gap-2.5">
+            <div data-stagger className="flex items-start gap-2.5">
               <span className="inline-flex items-center justify-center h-7 w-7 rounded-xl bg-accent-soft text-accent shrink-0 mt-0.5">
                 <Sparkles size={15} />
               </span>
@@ -732,7 +766,7 @@ function ConversationPane({
                 {pulseLine && <p className="text-fg-muted mt-1">What would you like to do?</p>}
               </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div data-stagger className="flex flex-wrap gap-1.5">
               {dynamicChips.map((s) => (
                 <button
                   key={s.q}
