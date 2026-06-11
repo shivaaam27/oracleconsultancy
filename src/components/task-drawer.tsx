@@ -30,6 +30,7 @@ import {
   type TimelineItem, type TimelineFilter,
 } from "@/lib/timeline";
 import type { TaskRow } from "@/lib/queries";
+import { cn } from "@/lib/cn";
 
 type DrawerUpdate = { id: number; body: string; created_at: string; created_by: string | null; edited_at: string | null; original_body: string | null; pinned_at: string | null; parent_update_id?: number | null; attachment_document_id?: number | null };
 type DrawerAudit = { id: number; field: string | null; old_value: string | null; new_value: string | null; change_reason: string | null; entry_type: string | null; created_at: string; created_by: string | null };
@@ -84,20 +85,20 @@ const FILTER_LABELS: Record<TimelineFilter, string> = {
   all: "All", updates: "Updates", status: "Status", field: "Edits", escalation: "Escalations", bulk: "Bulk",
 };
 
-/** A titled group of edit fields laid out two-up. */
-function EditGroup({ label, children }: { label: string; children: React.ReactNode }) {
+/** A grouped inset card holding related edit fields. */
+function EditCard({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-3 border-t border-border/60 pt-5">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">{label}</div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-4">{children}</div>
+    <div className="rounded-2xl ring-1 ring-border/60 bg-bg-subtle/40 p-3 space-y-2.5">
+      {title && <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">{title}</div>}
+      {children}
     </div>
   );
 }
 
-/** Single labelled control inside an EditGroup. */
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** Single labelled control inside an EditCard. */
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className="space-y-1.5 min-w-0">
+    <div className={cn("space-y-1 min-w-0", className)}>
       <label className="block text-[11px] font-medium text-fg-muted">{label}</label>
       {children}
     </div>
@@ -314,11 +315,10 @@ export function TaskDrawer() {
   ) : null;
 
   const editContent = t && data ? (
-    <form action={updateTask.bind(null, t.code)} className="space-y-6">
+    <form action={updateTask.bind(null, t.code)} className="space-y-2.5">
       <input type="hidden" name="returnTo" value={`${pathname}?task=${encodeURIComponent(t.code)}&tr=${Date.now()}`} />
 
-      {/* Title + company */}
-      <div className="space-y-4">
+      <EditCard>
         <Field label="Action item">
           <PolishedInput name="actionItem" defaultValue={t.actionItem} required />
         </Field>
@@ -326,32 +326,31 @@ export function TaskDrawer() {
           <Select name="companyId" defaultValue={t.companyId}>
             {data.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
-          <p className="text-[11px] text-fg-subtle">Changing this issues a new task code; the old one keeps redirecting here.</p>
+          <p className="text-[10.5px] text-fg-subtle leading-snug">Changing this issues a new code; the old one keeps redirecting.</p>
         </Field>
-      </div>
+      </EditCard>
 
-      <EditGroup label="Classification">
-        <Field label="Status"><Select name="status" defaultValue={t.status}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-        <Field label="Priority"><Select name="priority" defaultValue={t.priority}>{PRIORITIES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-        <Field label="Risk"><Select name="risk" defaultValue={t.risk || ""}><option value="">—</option>{RISKS.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-        <Field label="Escalation"><Select name="escalation" defaultValue={t.escalation || "No"}><option>No</option><option>Yes</option></Select></Field>
-        <Field label="Department"><Input name="department" defaultValue={t.department || ""} placeholder="—" /></Field>
-        <Field label="Category"><Input name="category" defaultValue={t.category || ""} placeholder="—" /></Field>
-      </EditGroup>
+      <EditCard title="Details">
+        <div className="grid grid-cols-2 gap-x-2.5 gap-y-2.5">
+          <Field label="Status"><Select name="status" defaultValue={t.status}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
+          <Field label="Priority"><Select name="priority" defaultValue={t.priority}>{PRIORITIES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
+          <Field label="Risk"><Select name="risk" defaultValue={t.risk || ""}><option value="">—</option>{RISKS.map((s) => <option key={s}>{s}</option>)}</Select></Field>
+          <Field label="Escalation"><Select name="escalation" defaultValue={t.escalation || "No"}><option>No</option><option>Yes</option></Select></Field>
+          <Field label="Department"><Input name="department" defaultValue={t.department || ""} placeholder="—" /></Field>
+          <Field label="Category"><Input name="category" defaultValue={t.category || ""} placeholder="—" /></Field>
+          <Field label="Meeting date"><Input name="meetingDate" type="date" defaultValue={dateInput(t.meetingDate)} /></Field>
+          <Field label="Deadline"><Input name="deadline" type="date" defaultValue={dateInput(t.deadline)} /></Field>
+        </div>
+      </EditCard>
 
-      <EditGroup label="Schedule">
-        <Field label="Meeting date"><Input name="meetingDate" type="date" defaultValue={dateInput(t.meetingDate)} /></Field>
-        <Field label="Deadline"><Input name="deadline" type="date" defaultValue={dateInput(t.deadline)} /></Field>
-      </EditGroup>
-
-      <div className="space-y-4 border-t border-border/60 pt-5">
+      <EditCard title="People & notes">
         <Field label="Accountable">
           <PersonPicker people={data.people} defaultNames={t.assignees} placeholder="Search people, or type a new name…" />
         </Field>
         <Field label="Comments">
-          <Textarea name="comments" defaultValue={t.comments || ""} rows={3} />
+          <Textarea name="comments" defaultValue={t.comments || ""} rows={2} />
         </Field>
-      </div>
+      </EditCard>
 
       <Button type="submit" size="lg" className="w-full rounded-full"><Save size={14} /> Save changes</Button>
     </form>
