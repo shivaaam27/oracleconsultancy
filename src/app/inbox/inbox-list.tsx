@@ -89,7 +89,7 @@ export function InboxList({
       <div className="glass elevated rounded-2xl py-12 text-center">
         <InboxIcon size={26} className="mx-auto text-fg-subtle mb-2" />
         <p className="text-sm text-fg-muted">Your inbox is empty.</p>
-        <p className="text-xs text-fg-subtle mt-1">Forward an email or share a message to AUMIO and it appears here.</p>
+        <p className="text-xs text-fg-subtle mt-1">Forward an email or share a message to Oracle Consultancy and it appears here.</p>
       </div>
     );
   }

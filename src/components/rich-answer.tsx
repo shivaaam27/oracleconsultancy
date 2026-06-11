@@ -8,7 +8,7 @@ import { TaskActionRow } from "./linkified-answer";
 const TASK_CODE_RE = /\[?([A-Z]{2,8}\d{0,3}-\d{2,4})\]?/g;
 
 /**
- * Markdown-lite renderer for AUMIO answers: bold (**x**), bullet lists, and
+ * Markdown-lite renderer for Oracle Intelligence answers: bold (**x**), bullet lists, and
  * inline clickable task-code chips. Used live while streaming AND for the final
  * message — so nothing reflows when the stream completes. When `withActions` is
  * on (final message only), the unique task codes also get quick action rows.

@@ -54,9 +54,9 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
       });
       updateBody(result.polished);
       const tidied = result.changes ? ` Tidied ${result.changes} thing${result.changes === 1 ? "" : "s"}.` : "";
-      if (result.source === "ai") setVoiceInfo(`Dictation polished by AUMIO.${tidied}`);
-      else if (result.source === "no-key") setVoiceInfo("AI is off, so AUMIO applied basic clean-up.");
-      else if (result.source === "error") setVoiceInfo("AI clean-up failed, so AUMIO applied basic clean-up.");
+      if (result.source === "ai") setVoiceInfo(`Dictation polished by Oracle Intelligence.${tidied}`);
+      else if (result.source === "no-key") setVoiceInfo("AI is off, so Oracle Intelligence applied basic clean-up.");
+      else if (result.source === "error") setVoiceInfo("AI clean-up failed, so Oracle Intelligence applied basic clean-up.");
       else setVoiceInfo("Dictation cleaned.");
     });
   }

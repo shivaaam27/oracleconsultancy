@@ -115,7 +115,7 @@ export default async function SettingsPage({
             <h2 className="flex items-center gap-2 text-sm font-semibold">
               <Sparkles size={14} className="text-accent" /> About you
             </h2>
-            <p className="text-xs text-fg-muted mt-1">Your name — used to greet you in the AUMIO assistant.</p>
+            <p className="text-xs text-fg-muted mt-1">Your name — used to greet you in the Oracle Intelligence assistant.</p>
           </div>
           <div className="max-w-xs">
             <FieldLabel>Your name</FieldLabel>
@@ -267,7 +267,7 @@ export default async function SettingsPage({
               <Mic2 size={14} className="text-accent" /> Voice intelligence
             </h2>
             <p className="text-xs text-fg-muted mt-1">
-              Dictation language and trusted words used when AUMIO cleans rough speech into polished notes.
+              Dictation language and trusted words used when Oracle Intelligence cleans rough speech into polished notes.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4">
@@ -281,12 +281,12 @@ export default async function SettingsPage({
               </Select>
             </div>
             <div>
-              <FieldLabel>AUMIO voice dictionary</FieldLabel>
+              <FieldLabel>Oracle Intelligence voice dictionary</FieldLabel>
               <Textarea
                 name="voiceDictionary"
                 rows={7}
                 defaultValue={s.voiceDictionary}
-                placeholder="Add names, companies, places, acronyms, and phrases AUMIO should preserve..."
+                placeholder="Add names, companies, places, acronyms, and phrases Oracle Intelligence should preserve..."
               />
             </div>
           </div>
@@ -299,7 +299,7 @@ export default async function SettingsPage({
               <Hand size={14} className="text-accent" /> Swipe actions
             </h2>
             <p className="text-xs text-fg-muted mt-1">
-              What a left or right swipe does on a task row (AUMIO Home list). Applies as soon as you save.
+              What a left or right swipe does on a task row (Oracle Consultancy Home list). Applies as soon as you save.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -455,8 +455,8 @@ export default async function SettingsPage({
             <Bell size={14} className="text-accent" /> Notifications
           </h2>
           <p className="text-xs text-fg-muted mt-1">
-            Get alerts on this device — even when AUMIO is closed — when tasks become overdue, are escalated,
-            or are due today. Enable it on each device you want alerts on. On iPhone, add AUMIO to your Home
+            Get alerts on this device — even when Oracle Consultancy is closed — when tasks become overdue, are escalated,
+            or are due today. Enable it on each device you want alerts on. On iPhone, add Oracle Consultancy to your Home
             Screen first.
           </p>
         </div>

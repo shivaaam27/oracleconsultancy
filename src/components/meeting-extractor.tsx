@@ -128,7 +128,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
       });
       updateNotes(result.polished);
       const tidied = result.changes ? ` Tidied ${result.changes} thing${result.changes === 1 ? "" : "s"}.` : "";
-      flash(result.source === "ai" ? `Dictation polished by AUMIO.${tidied}` : result.source === "no-key" ? "AI is off — applied basic clean-up." : result.source === "error" ? "AI clean-up failed — applied basic clean-up." : "Dictation cleaned.");
+      flash(result.source === "ai" ? `Dictation polished by Oracle Intelligence.${tidied}` : result.source === "no-key" ? "AI is off — applied basic clean-up." : result.source === "error" ? "AI clean-up failed — applied basic clean-up." : "Dictation cleaned.");
     });
   }
 
@@ -417,7 +417,7 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
                   </div>
                   {showTeach && (
                     <div className="flex gap-2 pt-2">
-                      <input value={voiceTerm} onChange={e => setVoiceTerm(e.target.value)} placeholder="Name or phrase AUMIO should remember" className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent" />
+                      <input value={voiceTerm} onChange={e => setVoiceTerm(e.target.value)} placeholder="Name or phrase Oracle Intelligence should remember" className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent" />
                       <button type="button" onClick={handleTeachVoice} disabled={isTeachingVoice || !voiceTerm.trim()} className="rounded-lg border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg disabled:opacity-50">
                         {isTeachingVoice ? "Saving…" : "Teach"}
                       </button>

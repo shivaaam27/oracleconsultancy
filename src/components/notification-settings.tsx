@@ -122,7 +122,7 @@ export function NotificationSettings() {
 
       {state === "unsupported" && (
         <p className="text-sm text-fg-muted inline-flex items-center gap-2">
-          <AlertCircle size={14} /> This browser doesn&apos;t support push notifications. On iPhone, add AUMIO to your
+          <AlertCircle size={14} /> This browser doesn&apos;t support push notifications. On iPhone, add Oracle Consultancy to your
           Home Screen first, then enable here.
         </p>
       )}

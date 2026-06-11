@@ -1,4 +1,4 @@
-// /api/pulse — a tiny "what's happening right now" snapshot for the AUMIO chat
+// /api/pulse — a tiny "what's happening right now" snapshot for the Oracle Intelligence chat
 // to open with proactively. Cheap: one task read + today's meeting count.
 
 import { NextResponse } from "next/server";
