@@ -426,6 +426,7 @@ export async function POST(req: NextRequest) {
     const history: { role: "user" | "assistant"; content: string }[] =
       Array.isArray(body?.history) ? body.history.slice(-6) : [];
     const pageContext: PageCtx | undefined = body?.pageContext ?? undefined;
+    const wantStream: boolean = !!body?.stream;
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
     const apiKey = await getGroqKey();
@@ -466,6 +467,7 @@ export async function POST(req: NextRequest) {
         messages,
         max_tokens: 600,
         temperature: 0.2,
+        stream: wantStream,
       }),
     });
 
@@ -473,6 +475,43 @@ export async function POST(req: NextRequest) {
       const err = await res.text();
       console.error("Ask error:", res.status, err);
       return NextResponse.json({ error: `groq-${res.status}`, detail: err.slice(0, 500) }, { status: 502 });
+    }
+
+    // Streaming: proxy Groq's SSE straight through to the client as plain text
+    // deltas. taskCount is known already, so send it in a header.
+    if (wantStream && res.body) {
+      const upstream = res.body.getReader();
+      const decoder = new TextDecoder();
+      const encoder = new TextEncoder();
+      let buffer = "";
+      const stream = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          const { done, value } = await upstream.read();
+          if (done) { controller.close(); return; }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith("data:")) continue;
+            const payload = t.slice(5).trim();
+            if (payload === "[DONE]") { controller.close(); return; }
+            try {
+              const json = JSON.parse(payload);
+              const delta = json?.choices?.[0]?.delta?.content;
+              if (delta) controller.enqueue(encoder.encode(delta));
+            } catch { /* skip keep-alives / partial frames */ }
+          }
+        },
+        cancel() { upstream.cancel().catch(() => {}); },
+      });
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Task-Count": String(context.tasks.length),
+        },
+      });
     }
 
     const data = await res.json();

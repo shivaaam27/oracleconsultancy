@@ -13,6 +13,8 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import type { PersonPackPurpose } from "@/lib/person-pack-shared";
 import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox-links";
 import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
+import { createCalendarEvent, toIcsEvent } from "@/lib/calendar";
+import { googleCalendarUrl } from "@/lib/ics";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { listLeaveRequests } from "@/lib/leave";
 
@@ -28,7 +30,7 @@ type ParsedIntent =
   | { type: "bulk"; op: "complete" | "escalate" | "set_status" | "set_priority"; status?: string; priority?: string; taskCodes?: string[] }
   | { type: "navigate"; target: string; query?: string }
   | { type: "person_pack"; personName: string; purpose: PersonPackPurpose }
-  | { type: "remind"; personName: string; about?: string }
+  | { type: "remind"; personName: string; about?: string; when?: string; whenLabel?: string }
   | { type: "draft_brief"; companyName?: string; period?: string }
   | { type: "find_missing"; doc: string }
   | { type: "leave_status"; window: "today" | "week" }
@@ -110,21 +112,125 @@ const VIEW_LEAD_WORDS = new Set([
   "everyone", "everybody", "everything", "me", "us", "my", "our",
 ]);
 
+// Dar es Salaam is a fixed UTC+3 (no DST). Wall-clock times the operator types
+// ("12pm") mean Dar local; we convert to a UTC ISO for storage.
+const DAR_OFFSET_MIN = 180;
+
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+/**
+ * Parse a natural date/time phrase ("today 12pm", "tomorrow 9am", "at 15:30",
+ * "monday 10am", "in 2 hours", "noon") into a UTC ISO string in Dar local terms,
+ * plus a friendly label. Returns null when no time is present.
+ */
+function parseWhen(text: string): { iso: string; label: string } | null {
+  const c = " " + text.toLowerCase().replace(/\s+/g, " ") + " ";
+
+  // Relative: "in N hours/minutes".
+  const rel = c.match(/\bin (\d{1,3}) (minute|min|hour|hr)s?\b/);
+  if (rel) {
+    const n = parseInt(rel[1], 10);
+    const ms = (rel[2].startsWith("h") ? 3600 : 60) * 1000 * n;
+    const d = new Date(Date.now() + ms);
+    return { iso: d.toISOString(), label: labelDar(d) };
+  }
+
+  // "now" in Dar wall-clock (UTC fields == Dar local).
+  const nowDar = new Date(Date.now() + DAR_OFFSET_MIN * 60000);
+  let y = nowDar.getUTCFullYear();
+  let mo = nowDar.getUTCMonth();
+  let day = nowDar.getUTCDate();
+  let dayGiven = false;
+
+  if (/\btomorrow\b/.test(c)) { const t = new Date(Date.UTC(y, mo, day + 1)); y = t.getUTCFullYear(); mo = t.getUTCMonth(); day = t.getUTCDate(); dayGiven = true; }
+  else if (/\b(today|tonight|this (morning|afternoon|evening))\b/.test(c)) { dayGiven = true; }
+  else {
+    for (let i = 0; i < 7; i++) {
+      if (new RegExp(`\\b${WEEKDAYS[i]}\\b`).test(c)) {
+        const cur = nowDar.getUTCDay();
+        let add = (i - cur + 7) % 7;
+        if (add === 0) add = 7; // "monday" → next monday
+        const t = new Date(Date.UTC(y, mo, day + add));
+        y = t.getUTCFullYear(); mo = t.getUTCMonth(); day = t.getUTCDate(); dayGiven = true;
+        break;
+      }
+    }
+  }
+
+  // Time of day.
+  let hour: number | null = null;
+  let min = 0;
+  if (/\b(noon|midday)\b/.test(c)) hour = 12;
+  else if (/\bmidnight\b/.test(c)) hour = 0;
+  else if (/\btonight\b/.test(c)) hour = 19;
+  else {
+    const tm = c.match(/\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?\b/);
+    if (tm && (tm[3] || tm[2] !== undefined || /\bat\b/.test(c))) {
+      let h = parseInt(tm[1], 10);
+      const mm = tm[2] ? parseInt(tm[2], 10) : 0;
+      const ap = tm[3];
+      if (ap === "pm" && h < 12) h += 12;
+      if (ap === "am" && h === 12) h = 0;
+      if (h >= 0 && h <= 23 && mm >= 0 && mm <= 59) { hour = h; min = mm; }
+    }
+  }
+
+  if (hour === null && !dayGiven) return null; // no temporal phrase at all
+  if (hour === null) hour = 9; // a day with no time → 09:00
+
+  // Build the Dar wall-clock as UTC ms, then shift back to true UTC.
+  let utcMs = Date.UTC(y, mo, day, hour, min) - DAR_OFFSET_MIN * 60000;
+  // Bare time already past today → roll to tomorrow.
+  if (!dayGiven && utcMs < Date.now()) utcMs += 24 * 3600 * 1000;
+  const d = new Date(utcMs);
+  return { iso: d.toISOString(), label: labelDar(d) };
+}
+
+function labelDar(d: Date): string {
+  return d.toLocaleString("en-GB", {
+    weekday: "short", day: "numeric", month: "short",
+    hour: "2-digit", minute: "2-digit", timeZone: "Africa/Dar_es_Salaam",
+  });
+}
+
+// Strip temporal phrases from a topic so "about the meeting tomorrow 9am" → "the meeting".
+function stripWhen(s: string): string {
+  return s
+    .replace(/\b(today|tonight|tomorrow|this (morning|afternoon|evening)|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi, "")
+    .replace(/\bin \d{1,3} (minute|min|hour|hr)s?\b/gi, "")
+    .replace(/\b(at )?\d{1,2}([:.]\d{2})?\s*(am|pm)\b/gi, "")
+    .replace(/\bat \d{1,2}([:.]\d{2})\b/gi, "")
+    .replace(/\b(noon|midday|midnight)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,])/g, "$1")
+    .trim()
+    .replace(/^(?:(?:about|on|re|regarding|for|that|to)(?:\s+|$))+/i, "")
+    .trim();
+}
+
 /**
  * Deterministic "remind / chase / nudge / follow up with <person> [about <topic>]"
  * parser. Runs before the LLM so reminders work even with AI off and aren't
  * confused with bulk actions on the current view.
  */
+const REMIND_LEAD = /^(?:remind|send (?:a |an )?(?:reminder|event reminder|message|note)\s+to|send\s+to|chase|nudge|ping|message|tell|let|notify|follow[\s-]?up with|reach out to)\s+/i;
+// Where a person's name ends and the topic / time begins.
+const REMIND_BOUNDARY = /\s+(?:about|on|re|regarding|that|to|for|know|today|tonight|tomorrow|this|sunday|monday|tuesday|wednesday|thursday|friday|saturday|at|in|by|noon|midday|midnight)\b|\s+\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm)?\b/i;
+
 function parseRemindCommand(command: string): ParsedIntent | null {
-  const m = command
-    .trim()
-    .match(/^(?:remind|send (?:a |an )?(?:reminder|event reminder|message|note)\s+to|send\s+to|chase|nudge|ping|message|tell|let|notify|follow[\s-]?up with|reach out to)\s+([A-Za-z][A-Za-z'.\-\s]{0,80}?)(?:\s+(?:about|on|re|regarding|to|that|for|know about|know that|know)\s+(.+))?[.!?]*$/i);
-  if (!m) return null;
-  const personName = (m[1] || "").trim();
+  if (!REMIND_LEAD.test(command.trim())) return null;
+  const afterLead = command.trim().replace(REMIND_LEAD, "");
+  const b = afterLead.match(REMIND_BOUNDARY);
+  const nameEnd = b && b.index !== undefined ? b.index : afterLead.length;
+  const personName = afterLead.slice(0, nameEnd).trim().replace(/[.!?]+$/, "");
+  const rest = afterLead.slice(nameEnd).trim();
   const firstWord = personName.split(/\s+/)[0]?.toLowerCase() ?? "";
   if (!personName || VIEW_LEAD_WORDS.has(firstWord)) return null;
-  const about = (m[2] || "").trim().replace(/\b(please|thanks|today|now|asap)\b/gi, "").trim();
-  return { type: "remind", personName, about: about || undefined };
+
+  const when = parseWhen(command);
+  let about = rest.replace(/\b(please|thanks|now|asap)\b/gi, "").trim();
+  about = stripWhen(about);
+  return { type: "remind", personName, about: about || undefined, when: when?.iso, whenLabel: when?.label };
 }
 
 /**
@@ -327,7 +433,7 @@ async function audit(taskId: number, taskCode: string, companyId: number, entryT
   });
 }
 
-async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: string; redirect?: string }> {
+async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: string; redirect?: string; calendarUrl?: string; googleUrl?: string }> {
   const nowIso = new Date().toISOString();
 
   if (intent.type === "complete") {
@@ -466,15 +572,19 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
       ? `Hi ${firstName}, just a quick reminder about ${about}. Could you let me know where this stands? Thank you.`
       : `Hi ${firstName}, just a quick reminder to follow up. Could you let me know where this stands? Thank you.`;
 
-    // De-duplicate: one reminder draft per person per day from this source.
+    // De-duplicate ad-hoc reminders: one draft per person per day. Scheduled
+    // reminders (with a specific time) are allowed to stack — you may want
+    // several at different times.
     const source = `ai-command-remind:${person.id}`;
-    const { data: existing } = await sb
-      .from("outbox")
-      .select("id")
-      .eq("status", "Draft")
-      .eq("source", source)
-      .gte("created_at", todayStartIsoRemind())
-      .limit(1);
+    const { data: existing } = intent.when
+      ? { data: [] }
+      : await sb
+          .from("outbox")
+          .select("id")
+          .eq("status", "Draft")
+          .eq("source", source)
+          .gte("created_at", todayStartIsoRemind())
+          .limit(1);
     if ((existing ?? []).length > 0) {
       return {
         ok: true,
@@ -494,17 +604,43 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
       status: "Draft",
       source,
       person_id: person.id,
+      scheduled_for: intent.when ?? null,
       created_at: nowIso,
     });
     if (error) return { ok: false, message: error.message };
     revalidatePath("/outbox");
 
+    // Scheduled reminder → also drop a calendar event so it can be added to a
+    // real calendar (.ics / Google). Best-effort; never blocks the reminder.
+    let calendarUrl: string | undefined;
+    let googleUrl: string | undefined;
+    if (intent.when) {
+      try {
+        const ev = await createCalendarEvent({
+          title: about ? `Reminder: ${about}` : `Reminder for ${person.name}`,
+          description: body,
+          startAt: intent.when,
+          reminderMinutes: 10,
+          source: "reminder",
+          attendees: [{ name: person.name, ...(person.email ? { email: person.email } : {}) }],
+          createdBy: "ai-command",
+        });
+        calendarUrl = `/api/calendar/${ev.id}`;
+        googleUrl = googleCalendarUrl(toIcsEvent(ev));
+      } catch { /* calendar is best-effort */ }
+    }
+
     const link = contact ? linkFor(channel, contact, subject, body) : null;
     const note = contact ? "" : " (no contact on file — add one in People before sending)";
+    const whenNote = intent.whenLabel ? ` scheduled for ${intent.whenLabel}` : "";
     return {
       ok: true,
-      message: `📨 Drafted a ${channel.toLowerCase()} reminder for ${person.name}${about ? ` about ${about}` : ""}${note}. Review in Outbox before sending.`,
-      redirect: link ?? "/outbox",
+      message: `📨 Drafted a ${channel.toLowerCase()} reminder for ${person.name}${about ? ` about ${about}` : ""}${whenNote}${note}. Review in Outbox before sending.`,
+      // Scheduled ones keep the card open (so you can add to calendar); ad-hoc
+      // ones jump to the send link as before.
+      redirect: intent.when ? undefined : (link ?? "/outbox"),
+      calendarUrl,
+      googleUrl,
     };
   }
 

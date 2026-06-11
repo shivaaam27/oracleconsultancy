@@ -108,10 +108,11 @@ function describe(intent: Intent): {
     case "remind":
       return {
         icon: <Send size={15} className="text-accent" />,
-        title: "Draft a reminder (not sent)",
+        title: s("whenLabel") ? "Schedule a reminder (not sent)" : "Draft a reminder (not sent)",
         rows: [
           { label: "Person", value: s("personName") },
           { label: "About", value: s("about") },
+          { label: "When", value: s("whenLabel") },
         ].filter((r) => r.value),
       };
     case "draft_brief":

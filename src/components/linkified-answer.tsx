@@ -71,7 +71,7 @@ function TaskChip({ code }: { code: string }) {
   );
 }
 
-function TaskActionRow({ code, onActed }: { code: string; onActed?: (code: string, action: string) => void }) {
+export function TaskActionRow({ code, onActed }: { code: string; onActed?: (code: string, action: string) => void }) {
   const router = useRouter();
   const [running, setRunning] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);

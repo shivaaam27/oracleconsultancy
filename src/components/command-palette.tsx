@@ -3,12 +3,13 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User } from "lucide-react";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, Users, Building2, FileText, Mail, NotebookPen, Truck, Laptop, CalendarPlus, type LucideIcon } from "lucide-react";
+import type { SearchResult, SearchResultType } from "@/lib/search";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
 import { IntentPreview } from "./intent-preview";
-import { LinkifiedAnswer } from "./linkified-answer";
+import { RichAnswer } from "./rich-answer";
 import { VoiceButton } from "./voice-button";
 import { derivePageContext } from "@/lib/page-context";
 import { suggestionsFor } from "@/lib/page-suggestions";
@@ -24,9 +25,27 @@ type SearchItem = { code: string; label: string; sub: string; href: string; stat
 // A turn in the conversation thread.
 type Msg =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; taskCount?: number | null }
+  | { id: string; role: "assistant"; text: string; taskCount?: number | null; streaming?: boolean }
   | { id: string; role: "action"; command: string }
   | { id: string; role: "error"; text: string; retry?: string };
+
+export type Pulse = { overdue: number; dueSoon: number; critical: number; escalated: number; open: number; meetingsToday: number };
+
+// Smart next-question chips after an answer — keeps the conversation flowing.
+function followUpsFor(text: string): string[] {
+  const t = text.toLowerCase();
+  const out: string[] = [];
+  const code = text.match(/[A-Z]{2,8}\d{0,3}-\d{2,4}/);
+  if (code) out.push(`Draft a follow-up message for ${code[0]}`);
+  if (/overdue|late|behind|slipping/.test(t)) out.push("Who should I chase first?");
+  if (/risk|blocker|blocked|stuck/.test(t)) out.push("What's the biggest risk right now?");
+  if (/leave|away|off\b/.test(t)) out.push("Who is covering for them?");
+  for (const g of ["What needs my attention today?", "Anything overdue this week?", "Summarise this for the board"]) {
+    if (out.length >= 3) break;
+    if (!out.includes(g)) out.push(g);
+  }
+  return out.slice(0, 3);
+}
 
 let msgSeq = 0;
 const newId = () => `m${++msgSeq}`;
@@ -51,6 +70,18 @@ function isDeterministicQuery(text: string): boolean {
   return missing || leave;
 }
 
+// Deep-index result types → heading, row icon, and accent colour.
+const TYPE_META: Record<SearchResultType, { label: string; icon: LucideIcon; tint: string }> = {
+  person:   { label: "People",    icon: Users,      tint: "text-sky-500" },
+  company:  { label: "Companies", icon: Building2,  tint: "text-violet-500" },
+  document: { label: "Documents", icon: FileText,   tint: "text-amber-500" },
+  letter:   { label: "Letters",   icon: Mail,       tint: "text-emerald-500" },
+  meeting:  { label: "Meetings",  icon: NotebookPen, tint: "text-rose-500" },
+  vendor:   { label: "Vendors",   icon: Truck,      tint: "text-teal-500" },
+  asset:    { label: "Assets",    icon: Laptop,     tint: "text-indigo-500" },
+};
+const TYPE_ORDER: SearchResultType[] = ["person", "company", "document", "letter", "meeting", "vendor", "asset"];
+
 export function CommandPaletteProvider({
   children,
   operatorName,
@@ -62,7 +93,9 @@ export function CommandPaletteProvider({
   const [mode, setMode] = useState<"search" | "chat">("search");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SearchItem[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [recents, setRecents] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [thread, setThread] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState(false);
   const { pins, toggle } = usePins();
@@ -116,6 +149,20 @@ export function CommandPaletteProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onPortal]);
 
+  // ⌘1–9 / Ctrl+1–9 — jump straight to the Nth visible result in search mode.
+  useEffect(() => {
+    if (!isOpen || mode !== "search") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key < "1" || e.key > "9") return;
+      const items = Array.from(document.querySelectorAll<HTMLElement>("[cmdk-item]"));
+      const target = items[Number(e.key) - 1];
+      if (target) { e.preventDefault(); target.click(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, mode]);
+
   // Fetch recents whenever palette opens
   useEffect(() => {
     if (!isOpen) return;
@@ -142,7 +189,10 @@ export function CommandPaletteProvider({
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (!cancelled) setItems(data.items || []);
+        if (!cancelled) {
+          setItems(data.items || []);
+          setResults(data.results || []);
+        }
       } catch {}
     }, 80);
     return () => {
@@ -164,10 +214,32 @@ export function CommandPaletteProvider({
   const trimmed = query.trim();
   const routeToAction = looksLikeCommand(trimmed) || isDeterministicQuery(trimmed);
 
+  // Recent searches — last few queries/asks, persisted locally.
+  useEffect(() => {
+    if (!isOpen) return;
+    try {
+      const raw = localStorage.getItem("cos:recent-searches");
+      setRecentSearches(raw ? (JSON.parse(raw) as string[]).slice(0, 6) : []);
+    } catch { setRecentSearches([]); }
+  }, [isOpen]);
+  function recordSearch(text: string) {
+    const t = text.trim();
+    if (t.length < 2) return;
+    try {
+      const prev = recentSearches.filter((s) => s.toLowerCase() !== t.toLowerCase());
+      const next = [t, ...prev].slice(0, 6);
+      setRecentSearches(next);
+      localStorage.setItem("cos:recent-searches", JSON.stringify(next));
+    } catch {}
+  }
+
   // ---- Conversation engine (reuses /api/ask + /api/action) --------------
 
   function append(msg: Msg) {
     setThread((t) => [...t, msg]);
+  }
+  function updateMsg(id: string, patch: Partial<Extract<Msg, { role: "assistant" }>>) {
+    setThread((t) => t.map((m) => (m.id === id ? ({ ...m, ...patch } as Msg) : m)));
   }
 
   // History the AI sees (user + assistant turns only).
@@ -188,19 +260,33 @@ export function CommandPaletteProvider({
           question: text,
           history: aiHistory(),
           pageContext: { label: pageContext.label, taskCode: pageContext.taskCode, companyId: pageContext.companyId },
+          stream: true,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
         const fe = friendlyAIError(data.error || `groq-${res.status}`);
+        setThinking(false);
         append({ id: newId(), role: "error", text: fe.message, retry: fe.retryable ? text : undefined });
         return;
       }
-      append({ id: newId(), role: "assistant", text: data.answer || "(no answer)", taskCount: data.taskCount ?? null });
+      const taskCount = Number(res.headers.get("X-Task-Count")) || null;
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let acc = "";
+      let id: string | null = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        acc += dec.decode(value, { stream: true });
+        if (!id) { id = newId(); setThinking(false); append({ id, role: "assistant", text: acc, streaming: true }); }
+        else updateMsg(id, { text: acc });
+      }
+      if (id) updateMsg(id, { streaming: false, taskCount });
+      else { setThinking(false); append({ id: newId(), role: "assistant", text: "(no answer)" }); }
     } catch {
-      append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
-    } finally {
       setThinking(false);
+      append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
     }
   }
 
@@ -213,6 +299,7 @@ export function CommandPaletteProvider({
   function submitPrompt(text: string) {
     const t = text.trim();
     if (!t) return;
+    recordSearch(t);
     setMode("chat");
     setQuery("");
     append({ id: newId(), role: "user", text: t });
@@ -373,6 +460,26 @@ export function CommandPaletteProvider({
                       </Command.Group>
                     )}
 
+                    {/* Recent searches — quick re-run of recent queries/asks. */}
+                    {!trimmed && recentSearches.length > 0 && (
+                      <Command.Group
+                        heading="Recent searches"
+                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                      >
+                        {recentSearches.map((s) => (
+                          <Command.Item
+                            key={s}
+                            value={`__recent ${s}`}
+                            onSelect={() => setQuery(s)}
+                            className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                          >
+                            <Clock size={14} className="text-fg-subtle" />
+                            <span className="flex-1 truncate text-fg-muted">{s}</span>
+                          </Command.Item>
+                        ))}
+                      </Command.Group>
+                    )}
+
                     {/* Try a command — discoverable natural-language prompts. */}
                     {!trimmed && (
                       <Command.Group
@@ -414,6 +521,39 @@ export function CommandPaletteProvider({
                       </Command.Group>
                     )}
 
+                    {/* Deep index — people, companies, documents, letters, meetings, vendors, assets */}
+                    {results.length > 0 && TYPE_ORDER.map((type) => {
+                      const group = results.filter((r) => r.type === type);
+                      if (group.length === 0) return null;
+                      const meta = TYPE_META[type];
+                      const Icon = meta.icon;
+                      return (
+                        <Command.Group
+                          key={type}
+                          heading={meta.label}
+                          className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                        >
+                          {group.map((r) => (
+                            <Command.Item
+                              key={`${r.type}-${r.id}`}
+                              // Prepend the live query so cmdk's own fuzzy filter
+                              // never drops a server-ranked (incl. typo-tolerant) hit.
+                              value={`${query} ${r.type} ${r.title} ${r.subtitle}`}
+                              onSelect={() => go(r.href)}
+                              className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                            >
+                              <Icon size={14} className={cn("shrink-0", meta.tint)} />
+                              <span className="flex-1 truncate">{r.title}</span>
+                              {r.badge && (
+                                <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{r.badge}</span>
+                              )}
+                              <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
+                            </Command.Item>
+                          ))}
+                        </Command.Group>
+                      );
+                    })}
+
                     {/* Pinned */}
                     {pinnedRoutes.length > 0 && (
                       <RouteGroup heading="Pinned" routes={pinnedRoutes} pins={pins} onGo={go} onToggle={toggle} />
@@ -432,7 +572,7 @@ export function CommandPaletteProvider({
                   <div className="border-t border-border px-3 py-2 text-[10px] text-fg-subtle flex items-center gap-3">
                     <span><kbd className="font-mono">↑↓</kbd> navigate</span>
                     <span><kbd className="font-mono">↵</kbd> open / ask</span>
-                    <span><kbd className="font-mono">⌘P</kbd> toggle pin</span>
+                    <span><kbd className="font-mono">⌘1–9</kbd> jump</span>
                     <span className="ml-auto"><Star size={10} className="inline -mt-0.5" /> click to pin</span>
                   </div>
                 </Command>
@@ -475,12 +615,22 @@ function ConversationPane({
   currentView: { codes: string[]; label?: string };
 }) {
   const [input, setInput] = useState("");
+  const [pulse, setPulse] = useState<Pulse | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const dictatedRef = useRef("");
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, []);
+  // Proactive: pull a live snapshot so AUMIO opens knowing what's happening.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/pulse", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setPulse(d as Pulse); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
   // Escape from the conversation: clear a draft first, else step back to search.
   useEffect(() => {
@@ -510,6 +660,35 @@ function ConversationPane({
     const part = h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
     return name ? `Good ${part}, ${name}.` : `Good ${part}.`;
   })();
+
+  // A one-line "what's happening" summary built from the live pulse.
+  const pulseLine = (() => {
+    if (!pulse) return null;
+    const bits: string[] = [];
+    if (pulse.overdue) bits.push(`${pulse.overdue} overdue`);
+    if (pulse.escalated) bits.push(`${pulse.escalated} escalated`);
+    if (pulse.dueSoon) bits.push(`${pulse.dueSoon} due soon`);
+    if (pulse.meetingsToday) bits.push(`${pulse.meetingsToday} meeting${pulse.meetingsToday !== 1 ? "s" : ""} today`);
+    if (bits.length === 0) return "Everything's on track — nothing overdue or escalated right now.";
+    return `Right now: ${bits.join(" · ")}.`;
+  })();
+
+  // Suggestions: lead with what the pulse says is pressing, then page-aware ones.
+  const dynamicChips = (() => {
+    const out: { label: string; q: string }[] = [];
+    if (pulse?.overdue) out.push({ label: "Show what's overdue", q: "What's overdue this week?" });
+    if (pulse?.escalated) out.push({ label: "Review escalations", q: "What's escalated and why?" });
+    if (pulse?.meetingsToday) out.push({ label: "Today's meetings", q: "What meetings do I have today?" });
+    for (const s of suggestions) {
+      if (out.length >= 4) break;
+      if (!out.some((o) => o.q === s.q)) out.push({ label: s.label, q: s.q });
+    }
+    return out.slice(0, 4);
+  })();
+
+  // Follow-up chips after the latest completed answer.
+  const last = thread[thread.length - 1];
+  const followUps = last && last.role === "assistant" && !last.streaming && !thinking ? followUpsFor(last.text) : [];
 
   return (
     <>
@@ -549,24 +728,22 @@ function ConversationPane({
                 <Sparkles size={15} />
               </span>
               <div className="text-sm leading-relaxed text-fg">
-                {greeting} Ask me anything about your portfolio, or type a command like <span className="text-fg-muted italic">"escalate DS-001"</span>.
+                <p>{greeting} {pulseLine ? <span className="text-fg-muted">{pulseLine}</span> : "Ask me anything about your portfolio, or type a command."}</p>
+                {pulseLine && <p className="text-fg-muted mt-1">What would you like to do?</p>}
               </div>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {suggestions.map((s) => {
-                const Icon = s.icon;
-                return (
-                  <button
-                    key={s.label}
-                    type="button"
-                    onClick={() => onSubmit(s.q)}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/60 px-3 py-1.5 text-[13px] text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors"
-                  >
-                    <Icon size={13} className="text-accent" />
-                    {s.label}
-                  </button>
-                );
-              })}
+              {dynamicChips.map((s) => (
+                <button
+                  key={s.q}
+                  type="button"
+                  onClick={() => onSubmit(s.q)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/60 px-3 py-1.5 text-[13px] text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors"
+                >
+                  <Sparkles size={13} className="text-accent" />
+                  {s.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -580,11 +757,28 @@ function ConversationPane({
             <Loader2 size={14} className="animate-spin text-accent" /> Thinking…
           </div>
         )}
+
+        {/* Proactive follow-ups under the latest answer. */}
+        {followUps.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pl-9">
+            {followUps.map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => onSubmit(f)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/40 px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors"
+              >
+                <ArrowRight size={12} className="text-accent" />
+                {f}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Composer */}
-      <div className="border-t border-border p-2.5 shrink-0">
-        <div className="flex items-end gap-1.5 rounded-2xl border border-border bg-bg-elev/60 px-3 py-2 focus-within:ring-1 focus-within:ring-accent/40 transition-shadow">
+      {/* Composer — one open, soft field (no box-in-box). */}
+      <div className="px-3 pb-3 pt-1 shrink-0">
+        <div className="composer-field flex items-end gap-2 px-4 py-2.5">
           <textarea
             ref={inputRef}
             value={input}
@@ -597,7 +791,7 @@ function ConversationPane({
             }}
             rows={1}
             placeholder="Ask a question or type a command…"
-            className="flex-1 resize-none bg-transparent text-sm leading-6 max-h-28 focus:outline-none placeholder:text-fg-subtle"
+            className="flex-1 resize-none !bg-transparent !border-0 !shadow-none !rounded-none px-0 py-1 text-[15px] leading-6 min-h-[2rem] max-h-32 focus:outline-none focus:!ring-0 placeholder:text-fg-subtle"
           />
           <VoiceButton
             onInterim={(t) => setInput((dictatedRef.current + " " + t).trim())}
@@ -610,9 +804,9 @@ function ConversationPane({
             onClick={send}
             disabled={!input.trim()}
             aria-label="Send"
-            className="shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-accent text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
+            className="shrink-0 inline-flex items-center justify-center h-9 w-9 rounded-full bg-accent text-white disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
           >
-            <ArrowUp size={16} />
+            <ArrowUp size={17} />
           </button>
         </div>
       </div>
@@ -650,8 +844,11 @@ function MessageBubble({
           <Sparkles size={15} />
         </span>
         <div className="max-w-[85%] rounded-2xl rounded-tl-md bg-bg-muted/60 px-3.5 py-2.5">
-          <LinkifiedAnswer text={msg.text} />
-          {msg.taskCount != null && (
+          <RichAnswer text={msg.text} withActions={!msg.streaming} />
+          {msg.streaming && (
+            <span className="inline-block w-1.5 h-3.5 -mb-0.5 ml-0.5 bg-accent/70 rounded-sm animate-pulse" aria-hidden />
+          )}
+          {!msg.streaming && msg.taskCount != null && (
             <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.taskCount} task{msg.taskCount !== 1 ? "s" : ""}</div>
           )}
         </div>
@@ -697,7 +894,7 @@ function ActionCard({
     | { phase: "loading" }
     | { phase: "preview"; intent: any }
     | { phase: "running" }
-    | { phase: "done"; message: string; redirect?: string }
+    | { phase: "done"; message: string; redirect?: string; calendarUrl?: string; googleUrl?: string }
     | { phase: "error"; message: string; retryable: boolean };
   const [state, setState] = useState<State>({ phase: "loading" });
   const ran = useRef(false);
@@ -720,7 +917,7 @@ function ActionCard({
         return;
       }
       if (data.executed || data.ok) {
-        setState({ phase: "done", message: data.message || "Done", redirect: data.redirect });
+        setState({ phase: "done", message: data.message || "Done", redirect: data.redirect, calendarUrl: data.calendarUrl, googleUrl: data.googleUrl });
         if (data.redirect) setTimeout(() => onNavigate(data.redirect), 900);
         return;
       }
@@ -766,7 +963,23 @@ function ActionCard({
           <div className="flex items-center gap-2 text-fg-muted"><Loader2 size={14} className="animate-spin text-accent" /> Running…</div>
         )}
         {state.phase === "done" && (
-          <div className="flex items-start gap-2 text-fg"><Check size={15} className="text-success mt-0.5 shrink-0" /> <LinkifiedAnswer text={state.message} /></div>
+          <div className="space-y-2">
+            <div className="flex items-start gap-2 text-fg"><Check size={15} className="text-success mt-0.5 shrink-0" /> <RichAnswer text={state.message} /></div>
+            {(state.calendarUrl || state.googleUrl) && (
+              <div className="flex flex-wrap gap-1.5 pl-7">
+                {state.calendarUrl && (
+                  <a href={state.calendarUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev/60 px-2.5 py-1.5 text-xs font-medium text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors">
+                    <CalendarPlus size={13} className="text-accent" /> Add to calendar
+                  </a>
+                )}
+                {state.googleUrl && (
+                  <a href={state.googleUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev/60 px-2.5 py-1.5 text-xs font-medium text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors">
+                    <CalendarPlus size={13} className="text-accent" /> Google Calendar
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         )}
         {state.phase === "error" && (
           <div className="space-y-2 text-danger">
@@ -883,7 +1096,7 @@ function SearchTaskRow({
             }}
             placeholder="Type update, then Enter…"
             autoFocus
-            className="flex-1 bg-bg border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent/50"
+            className="flex-1 rounded px-2 py-1 text-xs focus:outline-none"
           />
           <button
             type="button"

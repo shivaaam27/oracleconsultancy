@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllTasks } from "@/lib/queries";
+import { unifiedSearch } from "@/lib/search";
 
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").toLowerCase().trim();
+
+  // Tasks keep their rich action rows in the palette, so they're returned
+  // separately from the deep-index `results`.
   const all = await getAllTasks();
   let rows = all;
   if (q) {
@@ -11,7 +15,7 @@ export async function GET(req: NextRequest) {
         r.code.toLowerCase().includes(q) ||
         r.actionItem.toLowerCase().includes(q) ||
         r.assignees.some((a) => a.toLowerCase().includes(q)) ||
-        r.companyName.toLowerCase().includes(q)
+        r.companyName.toLowerCase().includes(q),
     );
   } else {
     // Empty query → recent open tasks (launchpad), most recently touched first.
@@ -27,5 +31,16 @@ export async function GET(req: NextRequest) {
     status: r.status,
     flag: r.flag,
   }));
-  return NextResponse.json({ items });
+
+  // Deep index across the rest of the system — only when there's a query.
+  let results: Awaited<ReturnType<typeof unifiedSearch>> = [];
+  if (q) {
+    try {
+      results = await unifiedSearch(q);
+    } catch (e) {
+      console.error("Unified search error:", e);
+    }
+  }
+
+  return NextResponse.json({ items, results });
 }

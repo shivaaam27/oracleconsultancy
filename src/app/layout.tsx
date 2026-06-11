@@ -16,7 +16,6 @@ import { ContextActionsProvider } from "@/components/context-actions";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
 import { CompanyDrawer } from "@/components/company-drawer";
-import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
@@ -90,9 +89,6 @@ export default async function RootLayout({ children, modal }: { children: React.
                 </Suspense>
                 <Suspense>
                   <CompanyDrawer />
-                </Suspense>
-                <Suspense>
-                  <AssistantSuggestions />
                 </Suspense>
               </HideOnPortal>
               <ServiceWorkerRegister />
