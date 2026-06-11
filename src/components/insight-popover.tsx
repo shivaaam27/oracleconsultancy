@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
+const GAP = 8; // distance between trigger and panel
+const MARGIN = 10; // min distance from the viewport edge
+
+type Coords = { top: number; left: number; originX: number; originY: number };
+
 /**
  * A small floating insight panel that opens on hover (desktop) or tap (touch).
- * Rendered through a portal and positioned with fixed coords from the trigger,
- * so it never clips inside overflow-scroll rails. Closes on outside tap, scroll,
- * Escape, or pointer-leave (hover mode). Reduced-motion safe.
+ *
+ * Positioning is deliberately CONSISTENT so it never feels random: it always
+ * opens BELOW the trigger and flips above only when there genuinely isn't room;
+ * it's clamped to the viewport so it never overflows; and it grows out of the
+ * trigger (transform-origin anchored to the hovered element). Rendered through a
+ * portal so it never clips inside overflow-scroll rails. Reduced-motion safe.
  */
 export function InsightPopover({
   content,
@@ -22,7 +30,8 @@ export function InsightPopover({
   align?: "center" | "start" | "end";
 }) {
   const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
+  const [coords, setCoords] = useState<Coords | null>(null);
+  const [shown, setShown] = useState(false); // drives the grow-in transition
   const triggerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -30,24 +39,58 @@ export function InsightPopover({
 
   useEffect(() => setMounted(true), []);
 
-  const place = () => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const placeAbove = r.top > window.innerHeight * 0.5;
-    const left = align === "start" ? r.left : align === "end" ? r.right : r.left + r.width / 2;
-    setCoords({ top: placeAbove ? r.top - 8 : r.bottom + 8, left, placeAbove });
-  };
+  // Measure the trigger AND the real panel, then place with collision + clamp.
+  const place = useCallback(() => {
+    const trigger = triggerRef.current;
+    const panel = panelRef.current;
+    if (!trigger || !panel) return;
+    const t = trigger.getBoundingClientRect();
+    const pw = panel.offsetWidth;
+    const ph = panel.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
 
-  const show = () => {
-    place();
+    // Horizontal anchor on the trigger, then the panel's left edge so that
+    // anchor lines up — clamped so the panel never leaves the viewport.
+    const anchorX = align === "start" ? t.left : align === "end" ? t.right : t.left + t.width / 2;
+    let left = align === "start" ? t.left : align === "end" ? t.right - pw : anchorX - pw / 2;
+    left = Math.max(MARGIN, Math.min(left, vw - pw - MARGIN));
+
+    // Always below; flip above only when below won't fit and above fits better.
+    const roomBelow = vh - t.bottom;
+    const placeAbove = roomBelow < ph + GAP + MARGIN && t.top > roomBelow;
+    const top = placeAbove ? Math.max(MARGIN, t.top - GAP - ph) : t.bottom + GAP;
+
+    // Grow from the edge/point nearest the trigger.
+    const originX = Math.max(0, Math.min(pw, anchorX - left));
+    const originY = placeAbove ? ph : 0;
+
+    setCoords({ top, left, originX, originY });
+  }, [align]);
+
+  const show = useCallback(() => {
+    setShown(false);
     setOpen(true);
-  };
-  const hide = () => setOpen(false);
+  }, []);
+  const hide = useCallback(() => {
+    setOpen(false);
+    setShown(false);
+    setCoords(null);
+  }, []);
+
+  // Place after the panel has mounted (so we can measure it), then trigger the
+  // grow-in on the next frame. useLayoutEffect avoids a one-frame flash.
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const raf = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(raf);
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
     const onScroll = () => hide();
+    const onResize = () => place();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && hide();
     const onDown = (e: PointerEvent) => {
       if (
@@ -58,16 +101,16 @@ export function InsightPopover({
       }
     };
     window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onDown);
     return () => {
       window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onDown);
     };
-  }, [open]);
-
-  const translate = align === "start" ? "0" : align === "end" ? "-100%" : "-50%";
+  }, [open, hide, place]);
 
   return (
     <>
@@ -85,17 +128,21 @@ export function InsightPopover({
       >
         {children}
       </div>
-      {mounted && open && coords
+      {mounted && open
         ? createPortal(
             <div
               ref={panelRef}
               id={id}
               role="tooltip"
-              className="pointer-events-auto fixed z-[120] w-60 animate-[fadeIn_0.14s_ease-out] rounded-2xl glass-menu p-3 shadow-pill ring-1 ring-border/70"
+              className="pointer-events-auto fixed z-[120] w-60 rounded-2xl glass-menu p-3 shadow-pill ring-1 ring-border/70 motion-reduce:!transition-none motion-reduce:!transform-none"
               style={{
-                top: coords.top,
-                left: coords.left,
-                transform: `translate(${translate}, ${coords.placeAbove ? "-100%" : "0"})`,
+                top: coords?.top ?? 0,
+                left: coords?.left ?? 0,
+                transformOrigin: coords ? `${coords.originX}px ${coords.originY}px` : "center",
+                opacity: shown ? 1 : 0,
+                transform: shown ? "scale(1)" : "scale(0.95)",
+                transition: "opacity 0.14s ease-out, transform 0.16s cubic-bezier(0.22, 1, 0.36, 1)",
+                visibility: coords ? "visible" : "hidden",
               }}
               onClick={(e) => e.stopPropagation()}
             >
