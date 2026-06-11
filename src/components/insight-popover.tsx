@@ -120,6 +120,10 @@ export function InsightPopover({
         onMouseEnter={show}
         onMouseLeave={hide}
         onClick={(e) => {
+          // On hover-capable devices the popover already shows on hover, so let
+          // clicks pass through to anything interactive inside (e.g. a link).
+          // Only intercept on touch, where hover isn't available.
+          if (typeof window !== "undefined" && window.matchMedia?.("(hover: hover)").matches) return;
           e.preventDefault();
           e.stopPropagation();
           open ? hide() : show();

@@ -32,3 +32,17 @@ export async function recordHealthPoint(value: number): Promise<number | null> {
   await sb.from("settings").upsert({ key: KEY, value: JSON.stringify(history) }, { onConflict: "key" });
   return prior ? prior.v : null;
 }
+
+/** The recent compliance-health readings (oldest→newest, last `n`), for the
+ *  Home gauge sparkline. Returns [] until there's history to draw. */
+export async function getHealthSeries(n = 14): Promise<number[]> {
+  const { data } = await sb.from("settings").select("value").eq("key", KEY).maybeSingle();
+  if (!data?.value) return [];
+  try {
+    const parsed = JSON.parse(data.value as string);
+    if (!Array.isArray(parsed)) return [];
+    return (parsed as Point[]).slice(-n).map((p) => p.v);
+  } catch {
+    return [];
+  }
+}

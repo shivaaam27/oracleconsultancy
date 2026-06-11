@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BellRing,
-  BriefcaseBusiness,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -38,7 +37,7 @@ import type { MorningPlanItem } from "@/lib/automation-suggestions";
 import { approveReminderAction, approveRenewalAction } from "@/app/automation/actions";
 import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";
 import { InsightPopover, InsightBody } from "@/components/insight-popover";
-import { WeatherChip } from "@/components/weather-chip";
+import { WeatherWidget } from "@/components/weather-chip";
 
 const toneClass = TONE;
 
@@ -94,6 +93,14 @@ export type CompanyGauge = {
   expired: number;
 };
 
+export type HomeTodo = {
+  id: number;
+  title: string;
+  important: boolean;
+  dueAt: string | null;
+  context: string | null;
+};
+
 const groupMeta: Record<QueueGroup, { label: string; icon: typeof ClipboardList }> = {
   task: { label: "Tasks", icon: ClipboardList },
   document: { label: "Documents", icon: FileWarning },
@@ -137,6 +144,27 @@ function CountUp({ value, className }: { value: number; className?: string }) {
 function statusTone(status: "Good" | "Watch" | "Risk"): Tone {
   return status === "Risk" ? "danger" : status === "Watch" ? "warn" : "success";
 }
+
+// The six metrics worth front-and-centre, in priority order; the rest drop off
+// the rail (still reachable from their dedicated pages).
+const METRIC_PRIORITY = [
+  "Open tasks", "Overdue", "Critical", "Due today", "Compliance", "Doc alerts",
+  "Statutory due", "Completed", "Person packs", "Stale",
+];
+
+// Where each metric tile jumps to when clicked.
+const METRIC_HREF: Record<string, string> = {
+  "Open tasks": "/?tab=tasks",
+  "Overdue": "/?tab=tasks&flag=overdue",
+  "Critical": "/?tab=tasks&priority=Critical",
+  "Due today": "/?tab=tasks",
+  "Completed": "/?tab=tasks",
+  "Stale": "/?tab=tasks",
+  "Doc alerts": "/documents",
+  "Compliance": "/documents",
+  "Statutory due": "/documents",
+  "Person packs": "/people",
+};
 
 /** Build the hover/tap insight body for a single metric card. */
 function metricInsight(m: PulseMetric): React.ReactNode {
@@ -186,6 +214,35 @@ function ArcGauge({ percent, color, size = 150, stroke = 13 }: { percent: number
         strokeDashoffset={offset}
         style={{ transition: "stroke-dashoffset 0.2s linear", filter: `drop-shadow(0 0 6px ${color})` }}
       />
+    </svg>
+  );
+}
+
+/* ---- a tiny trend line of recent compliance readings ---- */
+function Sparkline({ data, color, width = 132, height = 30 }: { data: number[]; color: string; width?: number; height?: number }) {
+  if (data.length < 2) return null;
+  const pad = 3;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const x = (i: number) => pad + (i / (data.length - 1)) * (width - pad * 2);
+  const y = (v: number) => pad + (1 - (v - min) / range) * (height - pad * 2);
+  const line = data.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const area = `${x(0)},${height - pad} ${line} ${x(data.length - 1)},${height - pad}`;
+  const lastX = x(data.length - 1);
+  const lastY = y(data[data.length - 1]);
+  const gid = `spark-${color.replace(/[^a-z0-9]/gi, "")}`;
+  return (
+    <svg width={width} height={height} className="overflow-visible">
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill={`url(#${gid})`} />
+      <polyline points={line} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={color} />
     </svg>
   );
 }
@@ -429,6 +486,8 @@ export function HomeMissionControl({
   clearedToday,
   weather,
   morningPlan = [],
+  healthSeries = [],
+  topTodos = [],
 }: {
   greeting: string;
   dateLabel: string;
@@ -442,6 +501,8 @@ export function HomeMissionControl({
   clearedToday: number;
   weather: { city: string; lat: number; lon: number };
   morningPlan?: MorningPlanItem[];
+  healthSeries?: number[];
+  topTodos?: HomeTodo[];
 }) {
   // The Morning Run tray now owns the bulk automation actions, so drop those
   // command cards here to avoid showing both the tray rows and the old button.
@@ -456,6 +517,15 @@ export function HomeMissionControl({
 
   const [showAllCos, setShowAllCos] = useState(false);
   const visibleGauges = showAllCos ? rankedGauges : rankedGauges.slice(0, 5);
+
+  // Trim the metric rail to the six headline figures, in priority order.
+  const pulseShown = [...pulse]
+    .sort((a, b) => {
+      const ai = METRIC_PRIORITY.indexOf(a.label);
+      const bi = METRIC_PRIORITY.indexOf(b.label);
+      return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    })
+    .slice(0, 6);
 
   const [filter, setFilter] = useState<QueueGroup | "all">("all");
   const [showAll, setShowAll] = useState(false);
@@ -484,42 +554,40 @@ export function HomeMissionControl({
         title={greeting}
         subtitle={dateLabel}
         accentTone={healthTone}
-        actions={
-          <>
-            <WeatherChip city={weather.city} lat={weather.lat} lon={weather.lon} />
-            <LinkButton href="/?capture=open" variant="primary" size="sm">
-              <Sparkles size={14} /> Create
-            </LinkButton>
-            <LinkButton href="/brief" variant="secondary" size="sm">
-              <BriefcaseBusiness size={14} /> Director Brief
-            </LinkButton>
-          </>
-        }
+        actions={<WeatherWidget city={weather.city} lat={weather.lat} lon={weather.lon} />}
       >
-        {/* Metric rail — horizontal scroll on mobile, no stacking. Each card
-            reveals a detailed insight on hover (desktop) or tap (mobile). */}
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {pulse.map((m) => (
-            <InsightPopover
-              key={m.label}
-              content={metricInsight(m)}
-              className="min-w-[92px] flex-1 shrink-0"
-            >
-              <div className="w-full rounded-2xl bg-bg-elev/70 px-3 py-2.5 text-left ring-1 ring-border/60 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:ring-accent/30">
+        {/* Metric rail — the six headline figures, even grid. Hover reveals the
+            detail; clicking jumps to that view. */}
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {pulseShown.map((m) => {
+            const href = METRIC_HREF[m.label];
+            const tile = (
+              <div className="group h-full w-full rounded-2xl bg-bg-elev/70 px-3.5 py-3 text-left ring-1 ring-border/60 backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:ring-accent/40">
                 <div className="flex items-baseline justify-between gap-1">
-                  <CountUp value={m.value} className={cn("block text-xl font-semibold tabular leading-none", m.tone ? toneClass[m.tone].text : "text-fg")} />
+                  <CountUp value={m.value} className={cn("block text-2xl font-semibold tabular leading-none", m.tone ? toneClass[m.tone].text : "text-fg")} />
                   {m.trend && <TrendChip delta={m.trend.delta} goodWhenDown={m.trend.goodWhenDown} />}
                 </div>
-                <span className="mt-1 block truncate text-[11px] leading-tight text-fg-muted">{m.label}</span>
+                <span className="mt-1.5 block truncate text-xs font-medium leading-tight text-fg-muted group-hover:text-fg">{m.label}</span>
               </div>
-            </InsightPopover>
-          ))}
+            );
+            return (
+              <InsightPopover key={m.label} content={metricInsight(m)} className="w-full">
+                {href ? (
+                  <Link href={href} className="block h-full w-full">{tile}</Link>
+                ) : (
+                  tile
+                )}
+              </InsightPopover>
+            );
+          })}
         </div>
       </Hero>
 
       {/* ========= DASHBOARD GRID — up to 3 columns on wide screens =========
           items-start keeps each card its natural height (no empty stretch). */}
       <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {/* ===== COLUMN 1 — Portfolio health + Top to-dos, stacked tight ===== */}
+        <div className="flex flex-col gap-4">
         {/* Portfolio health — arc gauge + ranked company league, one glance.
             @container lets the inner layout react to THIS card's width, so it
             stacks neatly when it's a narrow third-column card. */}
@@ -535,6 +603,7 @@ export function HomeMissionControl({
             }
           >
             Portfolio health
+            {companyGauges.length > 0 && <span className="ml-1 text-fg-subtle/70">· {companyGauges.length}</span>}
           </SectionLabel>
 
           <div className="mt-3 grid gap-4 @md:grid-cols-[minmax(168px,0.66fr)_minmax(0,1fr)]">
@@ -578,6 +647,14 @@ export function HomeMissionControl({
                   {health >= 80 ? "Healthy" : health >= 55 ? "Watch" : "At risk"}
                 </span>
               </div>
+
+              {/* 14-day trend of the compliance score */}
+              {healthSeries.length >= 2 && (
+                <div className="mt-2.5 flex flex-col items-center">
+                  <Sparkline data={healthSeries} color={toneClass[healthTone].stroke} />
+                  <span className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-fg-subtle">Last {healthSeries.length} readings</span>
+                </div>
+              )}
 
               {/* One consistent segmented strip — no mismatched tiles */}
               <div className="mt-3 flex divide-x divide-border/50 overflow-hidden rounded-xl bg-bg-subtle/50 ring-1 ring-border/50">
@@ -668,7 +745,53 @@ export function HomeMissionControl({
           </div>
         </Panel>
 
-        {/* The One Thing */}
+        {/* Top to-dos — fills the rest of column 1 with what's next by hand. */}
+        <Panel className="p-4 sm:p-5">
+          <SectionLabel
+            icon={<ClipboardList size={13} />}
+            action={
+              <Link href="/workbook?tab=todo" className="text-[11px] font-medium text-fg-muted transition-colors hover:text-accent">
+                Open
+              </Link>
+            }
+          >
+            Top to-dos
+            {topTodos.length > 0 && <span className="ml-1 text-fg-subtle/70">· {topTodos.length}</span>}
+          </SectionLabel>
+          {topTodos.length === 0 ? (
+            <div className="mt-3 rounded-2xl bg-success-soft/25 px-4 py-5 text-center ring-1 ring-success/15">
+              <CheckCircle2 size={20} className="mx-auto text-success" />
+              <p className="mt-1.5 text-sm font-medium">Nothing on the list.</p>
+            </div>
+          ) : (
+            <ul className="mt-3 space-y-1.5">
+              {topTodos.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href="/workbook?tab=todo"
+                    className="group flex items-center gap-2.5 rounded-xl bg-bg-subtle/50 px-3 py-2 ring-1 ring-border/50 transition-all hover:-translate-y-0.5 hover:ring-accent/25"
+                  >
+                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", t.important ? "bg-danger" : "bg-accent/70")} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium leading-snug group-hover:text-accent">{t.title}</span>
+                      {(t.context || t.dueAt) && (
+                        <span className="mt-0.5 block truncate text-[11px] text-fg-muted">
+                          {t.context}
+                          {t.context && t.dueAt ? " · " : ""}
+                          {t.dueAt ? `due ${new Date(t.dueAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
+                        </span>
+                      )}
+                    </span>
+                    {t.important && <span className="shrink-0 rounded-full bg-danger-soft/60 px-1.5 py-0.5 text-[10px] font-semibold text-danger">!</span>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+        </div>
+
+        {/* ===== COLUMN 2 — Today's priority / Morning run ===== */}
         <Panel className="p-4 sm:p-5">
           <SectionLabel
             icon={<Target size={13} />}
@@ -754,7 +877,10 @@ export function HomeMissionControl({
               <ListChecks size={16} />
             </span>
             <div>
-              <h2 className="text-sm font-semibold leading-tight">Focus queue</h2>
+              <h2 className="text-sm font-semibold leading-tight">
+                Focus queue
+                {queue.length > 0 && <span className="ml-1 font-normal text-fg-subtle/70">· {queue.length}</span>}
+              </h2>
               <p className="text-xs text-fg-muted">Everything asking for attention, in one place.</p>
             </div>
           </div>
