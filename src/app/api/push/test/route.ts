@@ -12,7 +12,7 @@ export async function POST() {
     return NextResponse.json({ error: "No devices subscribed yet" }, { status: 400 });
   }
   const res = await sendToAll({
-    title: "AUMIO test alert",
+    title: "Oracle Consultancy test alert",
     body: "Notifications are working. You'll be alerted about overdue and escalated tasks.",
     url: "/",
     tag: "cos-test",

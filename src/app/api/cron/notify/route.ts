@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     // If the only actionable items are documents, deep-link straight there.
     const onlyDocs = overdue.length === 0 && escalated.length === 0 && dueToday.length === 0;
     const res = await sendToAll({
-      title: "AUMIO — needs attention",
+      title: "Oracle Consultancy — needs attention",
       body: parts.join(" · "),
       url: onlyDocs ? "/documents" : "/?tab=tasks&flag=overdue",
       tag: "cos-attention",

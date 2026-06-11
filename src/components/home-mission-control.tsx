@@ -600,7 +600,7 @@ export function HomeMissionControl({
 
       {/* ========= DASHBOARD GRID — up to 3 columns on wide screens =========
           items-start keeps each card its natural height (no empty stretch). */}
-      <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {/* ===== COLUMN 1 — Portfolio health + Top to-dos, stacked tight ===== */}
         <div className="flex flex-col gap-4">
         {/* Portfolio health — arc gauge + ranked company league, one glance.
