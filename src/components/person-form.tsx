@@ -6,6 +6,7 @@ import { createPerson, updatePerson, extractPersonFields } from "@/app/people/ac
 import { extractDocumentFromFile } from "@/app/documents/actions";
 import type { PersonProfileFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
+import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 import { STAFF_CATEGORIES } from "@/lib/staff-id-shared";
 
@@ -550,6 +551,7 @@ export function PersonForm({
             defaultValue={defaults?.notes ?? ""}
             rows={2}
             className={inputCls}
+            onKeyDown={submitOnEnterKeyDown}
             placeholder="Internal notes, escalation preferences, etc."
           />
         </div>
@@ -563,6 +565,7 @@ export function PersonForm({
       )}
 
       <div className="flex items-center justify-end gap-2 pt-1">
+        <EnterHint className="mr-auto" verb={mode === "create" ? "create" : "save"} />
         {onCancel && (
           <button
             type="button"

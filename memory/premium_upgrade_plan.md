@@ -234,7 +234,20 @@ Verified live: 74 rows get checkboxes, "2 selected" shows, Archive/Restore/Done
 render, exit clean, no console errors. (Did not run a real bulk-archive on live
 data — the per-doc action is the already-proven single-row path.)
 **Saved views** are still Tasks-only (`task.savedViews`); generalising to
-People/Documents + the forms pass remain TODO.
+People/Documents remains TODO.
+
+**Forms pass — keyboard submit (2026-06-11, owner-requested):** new
+`src/components/form-keys.tsx` — universal **"Enter submits, Shift+Enter *and*
+Alt+Enter = new line"** for data-entry form textareas (`submitOnEnterKeyDown`
+handler + `SubmitTextarea` for server-component forms + `EnterHint` footer label).
+IME-composition-safe (won't submit mid-composition — matters for
+Swahili/Hindi/Gujarati). Applied to the **document form** (notes), **person form**
+(notes) and **new-task form** (description, via `SubmitTextarea`), each with an
+`EnterHint`. Deliberately **excluded** long-form areas (letter body, meeting
+notes, AskCOS chat). Verified live on the document form: plain Enter →
+submit (blocked by empty required title, so nothing created); Shift/Alt+Enter →
+newline; hint renders; no console errors. **Remaining forms-pass items:** inline
+validation, smart defaults, broader keyboard nav.
 
 ## Phase 4 — Automation V2 + predictive Insights
 

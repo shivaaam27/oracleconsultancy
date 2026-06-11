@@ -1,6 +1,7 @@
 import { createTask } from "../actions";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
-import { Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { Button, FieldLabel, Input, Select } from "@/components/ui";
+import { SubmitTextarea, EnterHint } from "@/components/form-keys";
 import { ActionItemField } from "@/components/action-item-field";
 import { PersonPicker, type PickerPerson } from "@/components/person-picker";
 import Link from "next/link";
@@ -53,7 +54,7 @@ export function NewTaskForm({
         {/* Description (stored as the task's comments). Sits up top, by the action. */}
         <div className="relative">
           <FieldLabel>Description</FieldLabel>
-          <Textarea name="comments" rows={2} placeholder="Add any context or detail…" />
+          <SubmitTextarea name="comments" rows={2} placeholder="Add any context or detail…" />
         </div>
 
         {/* Short fields sit two-per-row; full-width fields span both columns. */}
@@ -138,7 +139,8 @@ export function NewTaskForm({
         <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 space-y-3 sm:space-y-4">
           {fields}
         </div>
-        <div className="shrink-0 border-t border-border/60 px-4 sm:px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-bg-elev/70 backdrop-blur-md">
+        <div className="shrink-0 border-t border-border/60 px-4 sm:px-5 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-bg-elev/70 backdrop-blur-md space-y-2">
+          <EnterHint className="text-center" verb="create" />
           <Button type="submit" className="w-full justify-center rounded-full"><Plus size={15} /> Create task</Button>
         </div>
       </form>
@@ -151,6 +153,7 @@ export function NewTaskForm({
       {hidden}
       {fields}
       <div className="flex items-center justify-end gap-2">
+        <EnterHint className="mr-auto" verb="create" />
         <Link href={cancelHref} className="px-4 py-2 text-sm rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">Cancel</Link>
         <Button type="submit" className="rounded-full"><Plus size={14} /> Create task</Button>
       </div>

@@ -7,6 +7,7 @@ import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/a
 import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
 import { Segmented } from "@/components/macos";
+import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
 import { cn } from "@/lib/cn";
 
 type CaptureMode = "upload" | "link" | "text";
@@ -625,6 +626,7 @@ export function DocumentForm({
         <div className="col-span-2">
           <label className={labelCls}>Notes</label>
           <textarea name="notes" defaultValue={doc?.notes ?? ""} rows={2} className={inputCls}
+            onKeyDown={submitOnEnterKeyDown}
             placeholder="Renewal steps, who chases it, conditions…" />
         </div>
       </div>
@@ -636,6 +638,7 @@ export function DocumentForm({
       )}
 
       <div className="flex items-center justify-end gap-2 pt-1">
+        <EnterHint className="mr-auto" verb={mode === "create" ? "add" : "save"} />
         {onCancel && (
           <button type="button" onClick={onCancel} disabled={pending}
             className="px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">
