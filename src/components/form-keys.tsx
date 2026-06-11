@@ -48,6 +48,15 @@ export function SubmitTextarea({ className, onKeyDown, ...p }: ComponentProps<"t
   );
 }
 
+/** Inline per-field validation message (danger tone). Renders nothing when empty. */
+export function FieldError({ message, className }: { message?: string | null; className?: string }) {
+  if (!message) return null;
+  return <p role="alert" className={cn("mt-1 text-[11px] text-danger", className)}>{message}</p>;
+}
+
+/** Classes to mark an input visually invalid (red ring + border). */
+export const invalidFieldClass = "ring-1 ring-danger/60 border-danger/60";
+
 /** A subtle inline hint describing the Enter / new-line keys, for form footers. */
 export function EnterHint({ verb = "save", className }: { verb?: string; className?: string }) {
   const kbd = "rounded border border-border bg-bg-subtle px-1 py-0.5 text-[10px] font-medium text-fg-muted";

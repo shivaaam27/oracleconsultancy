@@ -78,7 +78,7 @@ export function PersonPicker({
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setHighlight((h) => Math.min(h + 1, options.length - 1)); }
+    if (e.key === "ArrowDown") { e.preventDefault(); if (!open) { setOpen(true); setHighlight(0); } else { setHighlight((h) => Math.min(h + 1, options.length - 1)); } }
     else if (e.key === "ArrowUp") { e.preventDefault(); setHighlight((h) => Math.max(h - 1, 0)); }
     else if (e.key === "Enter") {
       // Never submit the form from this box — Enter picks the highlighted option.

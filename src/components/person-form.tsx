@@ -6,7 +6,7 @@ import { createPerson, updatePerson, extractPersonFields } from "@/app/people/ac
 import { extractDocumentFromFile } from "@/app/documents/actions";
 import type { PersonProfileFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
-import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
+import { submitOnEnterKeyDown, EnterHint, FieldError, invalidFieldClass } from "@/components/form-keys";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 import { STAFF_CATEGORIES } from "@/lib/staff-id-shared";
 
@@ -73,6 +73,8 @@ export function PersonForm({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const clearFieldError = (k: string) => setFieldErrors((p) => { if (!p[k]) return p; const n = { ...p }; delete n[k]; return n; });
   const [pType, setPType] = useState<string>(normalizePersonType(defaults?.personType));
   const formRef = useRef<HTMLFormElement>(null);
   const [scanText, setScanText] = useState("");
@@ -177,6 +179,27 @@ export function PersonForm({
 
   const action = (fd: FormData) => {
     setError(null);
+
+    // Inline field validation the browser can't fully express.
+    const errs: Record<string, string> = {};
+    const email = (fd.get("email") || "").toString().trim();
+    const startDate = (fd.get("startDate") || "").toString();
+    const probation = (fd.get("probationEndDate") || "").toString();
+    const dob = (fd.get("dateOfBirth") || "").toString();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Enter a valid email address.";
+    if (startDate && probation && probation < startDate) errs.probationEndDate = "Probation end can't be before the start date.";
+    if (dob && dob >= todayStr) errs.dateOfBirth = "Date of birth must be in the past.";
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      const first = ["email", "dateOfBirth", "probationEndDate"].find((k) => errs[k]);
+      if (first) (formRef.current?.elements.namedItem(first) as HTMLInputElement | null)?.focus();
+      return;
+    }
+    setFieldErrors({});
+
     // Serialise associations (drop rows with no company selected) into a single JSON field.
     const clean = associations
       .filter((a) => a.companyId !== "")
@@ -320,6 +343,7 @@ export function PersonForm({
             name="startDate"
             type="date"
             defaultValue={defaults?.startDate ?? ""}
+            onChange={() => clearFieldError("probationEndDate")}
             className={inputCls}
           />
         </div>
@@ -344,9 +368,12 @@ export function PersonForm({
             name="email"
             type="email"
             defaultValue={defaults?.email ?? ""}
-            className={inputCls}
+            onChange={() => clearFieldError("email")}
+            aria-invalid={!!fieldErrors.email}
+            className={cn(inputCls, fieldErrors.email && invalidFieldClass)}
             placeholder="name@example.com"
           />
+          <FieldError message={fieldErrors.email} />
         </div>
 
         <div>
@@ -511,7 +538,11 @@ export function PersonForm({
           <div className="grid gap-2.5 grid-cols-2">
             <div>
               <label className={labelCls}>Date of birth</label>
-              <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""} className={inputCls} />
+              <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""}
+                onChange={() => clearFieldError("dateOfBirth")}
+                aria-invalid={!!fieldErrors.dateOfBirth}
+                className={cn(inputCls, fieldErrors.dateOfBirth && invalidFieldClass)} />
+              <FieldError message={fieldErrors.dateOfBirth} />
             </div>
             <div>
               <label className={labelCls}>Nationality</label>
@@ -539,7 +570,11 @@ export function PersonForm({
             </div>
             <div>
               <label className={labelCls}>Probation ends</label>
-              <input name="probationEndDate" type="date" defaultValue={defaults?.probationEndDate ?? ""} className={inputCls} />
+              <input name="probationEndDate" type="date" defaultValue={defaults?.probationEndDate ?? ""}
+                onChange={() => clearFieldError("probationEndDate")}
+                aria-invalid={!!fieldErrors.probationEndDate}
+                className={cn(inputCls, fieldErrors.probationEndDate && invalidFieldClass)} />
+              <FieldError message={fieldErrors.probationEndDate} />
             </div>
           </div>
         </div>

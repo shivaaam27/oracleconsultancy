@@ -270,10 +270,21 @@ validated inside the form `action` before the server call, shows an inline dange
 message under the Expiry field + red ring + `aria-invalid`, focuses the field,
 blocks submit, and clears on change. Verified live (expiry 2026-05 vs issue
 2026-06 → blocked with message, nothing created; correcting clears it). tsc clean.
-**Remaining:** extend inline validation to person form (email format, probation
-≥ start, DOB in past) + a reusable `FieldError`; per-form keyboard audit of the
-other custom controls (PersonPicker, ActionItemField, Segmented); generalise
-saved views to People/Documents.
+**Person-form inline validation DONE (2026-06-11):** reusable `FieldError` +
+`invalidFieldClass` added to `form-keys.tsx`. Person form validates in its
+`action`: email format (note: native `type="email"` blocks first, so the regex is
+a stricter backstop), probation-end ≥ start date, DOB strictly in the past. Shows
+inline danger messages + red ring + `aria-invalid`, focuses the first invalid
+field, blocks submit, clears on change (probation error also clears on start-date
+change). Verified live (bad probation + future DOB → both errors, no person
+created; correcting clears them).
+**Keyboard audit DONE (2026-06-11):** `Segmented` (macos.tsx) gained proper
+tablist keyboard nav — roving tabindex (active 0, others -1) + Arrow/Home/End to
+move selection+focus (verified: ArrowRight Upload→Link). `PersonPicker` was
+already operable (arrow/Enter/Esc/backspace); fixed the first-ArrowDown skipping
+the first option. `ActionItemField`/`PolishedInput` = plain input + button,
+already Tab/Enter operable (no change). tsc clean, no console errors.
+**Remaining Phase 3:** generalise saved views to People/Documents.
 
 **Capture Wizard fix (2026-06-11, owner-reported):** the new-task wizard's owner
 field was a plain input with no suggestions. Added an active-people datalist
