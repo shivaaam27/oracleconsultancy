@@ -372,6 +372,38 @@ input:disabled, select:disabled, textarea:disabled {
   opacity: 0.6;
 }
 
+/* Command surface backdrop — soft drifting accent glows behind a frosted scrim. */
+.cmd-backdrop { z-index: 0; }
+.cmd-blob {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(64px);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.cmd-blob-a {
+  width: 55vmax; height: 55vmax; left: -12%; top: -18%;
+  background: radial-gradient(circle, hsl(var(--accent) / 0.55), transparent 62%);
+  animation: cmd-drift-a 20s ease-in-out infinite;
+}
+.cmd-blob-b {
+  width: 46vmax; height: 46vmax; right: -12%; bottom: -16%;
+  background: radial-gradient(circle, hsl(var(--accent) / 0.38), transparent 62%);
+  animation: cmd-drift-b 26s ease-in-out infinite;
+}
+@keyframes cmd-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(10%, 7%) scale(1.12); }
+}
+@keyframes cmd-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-9%, -7%) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmd-blob { animation: none; }
+}
+
 /* Composer field — one open, soft "well" that hosts a transparent textarea +
    inline buttons (chat, quick capture). The field itself carries the fill and
    the animated focus ring, so there's no box-inside-a-box. */
@@ -617,4 +649,5 @@ input:disabled, select:disabled, textarea:disabled {
 }
 
 /* input redesign: soft inset fields */
+
 

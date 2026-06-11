@@ -1,6 +1,6 @@
 "use client";
 import { Command } from "cmdk";
-import { useEffect, useState, createContext, useContext, useCallback, useRef } from "react";
+import { useEffect, useState, createContext, useContext, useCallback, useRef, type ComponentPropsWithoutRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, Users, Building2, FileText, Mail, NotebookPen, Truck, Laptop, CalendarPlus, type LucideIcon } from "lucide-react";
@@ -85,6 +85,58 @@ const TYPE_META: Record<SearchResultType, { label: string; icon: LucideIcon; tin
   asset:    { label: "Assets",    icon: Laptop,     tint: "text-indigo-500" },
 };
 const TYPE_ORDER: SearchResultType[] = ["person", "company", "document", "letter", "meeting", "vendor", "asset"];
+
+// Magnetic hover — the element leans a few px toward the cursor and springs back
+// on leave. No-op on touch (no cursor). The CSS `transition-transform` does the
+// springback. (GSAP targets the group/stagger wrappers, not these elements, so
+// there's no transform conflict.)
+function useMagnetic<T extends HTMLElement>(strength = 0.25) {
+  const ref = useRef<T | null>(null);
+  const frame = useRef(0);
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === "touch") return;
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const dx = (e.clientX - (r.left + r.width / 2)) * strength;
+    const dy = (e.clientY - (r.top + r.height / 2)) * strength;
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => { if (ref.current) ref.current.style.transform = `translate(${dx}px, ${dy}px)`; });
+  }, [strength]);
+  const onPointerLeave = useCallback(() => { if (ref.current) ref.current.style.transform = ""; }, []);
+  return { ref, onPointerMove, onPointerLeave };
+}
+
+function MagneticItem({ className, children, ...props }: ComponentPropsWithoutRef<typeof Command.Item>) {
+  const m = useMagnetic<HTMLDivElement>(0.18);
+  return (
+    <Command.Item
+      ref={m.ref}
+      onPointerMove={m.onPointerMove}
+      onPointerLeave={m.onPointerLeave}
+      className={cn("transition-transform duration-150 ease-out", className)}
+      {...props}
+    >
+      {children}
+    </Command.Item>
+  );
+}
+
+function MagneticChip({ onClick, className, children }: { onClick?: () => void; className?: string; children: React.ReactNode }) {
+  const m = useMagnetic<HTMLButtonElement>(0.3);
+  return (
+    <button
+      type="button"
+      ref={m.ref}
+      onClick={onClick}
+      onPointerMove={m.onPointerMove}
+      onPointerLeave={m.onPointerLeave}
+      className={cn("transition-transform duration-150 ease-out", className)}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function CommandPaletteProvider({
   children,
@@ -376,7 +428,7 @@ export function CommandPaletteProvider({
               className="absolute inset-0"
               onClick={() => setIsOpen(false)}
             >
-              <div className="absolute inset-0 bg-black/45 backdrop-blur-sm" />
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-xl" />
               <CommandBackdrop />
             </motion.div>
             <motion.div
@@ -394,6 +446,16 @@ export function CommandPaletteProvider({
               {/* GSAP-driven sheen that sweeps once on open. */}
               <span ref={sheenRef} aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 z-10 opacity-0"
                 style={{ background: "linear-gradient(105deg, transparent, hsl(var(--accent) / 0.14), transparent)" }} />
+              {/* Fluid morph: the panel resizes (layout) while the content crossfades. */}
+              <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={mode}
+                initial={{ opacity: 0, filter: "blur(6px)" }}
+                animate={{ opacity: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, filter: "blur(6px)" }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                className={cn("flex flex-col min-h-0", mode === "chat" && "flex-1 h-full")}
+              >
               {mode === "chat" ? (
                 <ConversationPane
                   thread={thread}
@@ -568,7 +630,7 @@ export function CommandPaletteProvider({
                           className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                         >
                           {group.map((r) => (
-                            <Command.Item
+                            <MagneticItem
                               key={`${r.type}-${r.id}`}
                               // Prepend the live query so cmdk's own fuzzy filter
                               // never drops a server-ranked (incl. typo-tolerant) hit.
@@ -582,7 +644,7 @@ export function CommandPaletteProvider({
                                 <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{r.badge}</span>
                               )}
                               <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
-                            </Command.Item>
+                            </MagneticItem>
                           ))}
                         </Command.Group>
                       );
@@ -611,6 +673,8 @@ export function CommandPaletteProvider({
                   </div>
                 </Command>
               )}
+              </motion.div>
+              </AnimatePresence>
             </motion.div>
           </div>
         )}
@@ -768,15 +832,14 @@ function ConversationPane({
             </div>
             <div data-stagger className="flex flex-wrap gap-1.5">
               {dynamicChips.map((s) => (
-                <button
+                <MagneticChip
                   key={s.q}
-                  type="button"
                   onClick={() => onSubmit(s.q)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/60 px-3 py-1.5 text-[13px] text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors"
                 >
                   <Sparkles size={13} className="text-accent" />
                   {s.label}
-                </button>
+                </MagneticChip>
               ))}
             </div>
           </div>
@@ -796,15 +859,14 @@ function ConversationPane({
         {followUps.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pl-9">
             {followUps.map((f) => (
-              <button
+              <MagneticChip
                 key={f}
-                type="button"
                 onClick={() => onSubmit(f)}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/40 px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg hover:bg-accent-soft hover:border-accent/30 transition-colors"
               >
                 <ArrowRight size={12} className="text-accent" />
                 {f}
-              </button>
+              </MagneticChip>
             ))}
           </div>
         )}
