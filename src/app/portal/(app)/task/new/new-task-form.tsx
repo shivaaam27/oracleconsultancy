@@ -4,13 +4,14 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
+import { Reveal } from "@/components/reveal";
 import { portalCreateTask } from "../../../actions";
 
 type Person = { id: number; name: string };
 type Company = { id: number; name: string };
 
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
-const inputCls = "w-full rounded-2xl bg-bg-subtle ring-1 ring-border px-3.5 py-2.5 text-sm outline-none focus:ring-accent/50";
+const inputCls = "w-full rounded-2xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none";
 
 export function NewTaskForm({ me, people, companies }: { me: Person; people: Person[]; companies: Company[] }) {
   const [state, action, pending] = useActionState(portalCreateTask, null);
@@ -21,11 +22,12 @@ export function NewTaskForm({ me, people, companies }: { me: Person; people: Per
         <ArrowLeft size={15} /> My tasks
       </Link>
 
-      <div>
+      <Reveal delay={0}>
         <h1 className="text-xl font-semibold tracking-tight">New task</h1>
         <p className="mt-0.5 text-sm text-fg-muted">Delegate work to yourself or your team.</p>
-      </div>
+      </Reveal>
 
+      <Reveal delay={0.05}>
       <Panel glass className="p-4 sm:p-5">
         <form action={action} className="flex flex-col gap-3.5">
           <label className="flex flex-col gap-1.5">
@@ -93,6 +95,7 @@ export function NewTaskForm({ me, people, companies }: { me: Person; people: Per
           </button>
         </form>
       </Panel>
+      </Reveal>
     </div>
   );
 }
