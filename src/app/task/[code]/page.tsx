@@ -367,12 +367,43 @@ export default async function TaskPage({
             <span>Deadline <strong className={r.flag === "overdue" ? "text-danger" : "text-fg"}>{fmtDate(r.deadline)}</strong></span>
           )}
           {r.assignees.length > 0 && (
-            <span>
+            <span className="min-w-0 break-words">
               Assigned <AssigneeList names={r.assignees} ids={r.assigneeIds} className="font-semibold text-fg" />
             </span>
           )}
         </div>
       </div>
+
+      {/* Facts — compact, wrapping; empty fields hidden, no horizontal scroll. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          { label: "Status",      value: r.status,                  tint: statusTint[r.status] ?? "bg-bg-subtle/60 ring-1 ring-border", show: true },
+          { label: "Priority",    value: r.priority,                tint: priorityTint[r.priority] ?? "bg-bg-subtle/60 ring-1 ring-border", show: true },
+          { label: "Days open",   value: String(r.daysOpen ?? "—"), tint: "bg-bg-subtle/60 ring-1 ring-border", show: true },
+          { label: "Deadline in", value: r.daysToDeadline !== null && r.daysToDeadline !== "done" ? `${r.daysToDeadline}d` : (r.daysToDeadline === "done" ? "done" : "—"), tint: dtdTone, show: r.deadline != null },
+          { label: "Risk",        value: r.risk || "",              tint: priorityTint[r.risk || ""] ?? "bg-bg-subtle/60 ring-1 ring-border", show: !!r.risk },
+          { label: "Category",    value: r.category || "",          tint: "bg-bg-subtle/60 ring-1 ring-border", show: !!r.category },
+          { label: "Department",  value: r.department || "",        tint: "bg-bg-subtle/60 ring-1 ring-border", show: !!r.department },
+        ].filter((f) => f.show).map((item) => (
+          <div key={item.label} className={`rounded-2xl px-3.5 py-2.5 elevated backdrop-blur-md ${item.tint}`}>
+            <div className="text-[10px] uppercase tracking-wider text-fg-muted">{item.label}</div>
+            <div className="text-sm font-semibold mt-0.5 tabular truncate">{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Description — the task's standing context. Up high, before the chat. */}
+      {r.comments && r.comments.trim() && (
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl px-4 py-3 flex items-start gap-3">
+          <div className="mt-0.5 h-8 w-8 rounded-full bg-bg-muted text-fg-muted flex items-center justify-center shrink-0">
+            <AlignLeft size={15} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-wider text-fg-muted mb-0.5">Description</div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words"><CodeLinkedText text={r.comments} /></p>
+          </div>
+        </div>
+      )}
 
       {/* The conversation — chat with the team (replies, @mentions, files, voice). */}
       <TaskConversation
@@ -397,45 +428,6 @@ export default async function TaskPage({
 
       {/* Right pane — facts & controls */}
       <aside className="space-y-4 lg:sticky lg:top-4 h-fit">
-
-      {/* Stat pills — colour-tinted per status / priority / DTD severity */}
-      <div className="-mx-1 px-1 overflow-x-auto scrollbar-none lg:overflow-visible">
-        <div className="flex gap-2.5 sm:flex-wrap min-w-min">
-          {[
-            { label: "Status",     value: r.status,   tint: statusTint[r.status] ?? "" },
-            { label: "Priority",   value: r.priority, tint: priorityTint[r.priority] ?? "" },
-            { label: "Days open",  value: String(r.daysOpen ?? "—"), tint: "bg-bg-subtle/60 ring-1 ring-border" },
-            { label: "DTD",        value: r.daysToDeadline !== null && r.daysToDeadline !== "done"
-              ? `${r.daysToDeadline}d`
-              : (r.daysToDeadline === "done" ? "done" : "—"),
-              tint: dtdTone },
-            { label: "Risk",       value: r.risk || "—",       tint: priorityTint[r.risk || ""] ?? "bg-bg-subtle/60 ring-1 ring-border" },
-            { label: "Category",   value: r.category || "—",   tint: "bg-bg-subtle/60 ring-1 ring-border" },
-            { label: "Department", value: r.department || "—", tint: "bg-bg-subtle/60 ring-1 ring-border" },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className={`rounded-2xl px-4 py-3 min-w-[112px] shrink-0 elevated backdrop-blur-md ${item.tint}`}
-            >
-              <div className="text-[10px] uppercase tracking-wider text-fg-muted">{item.label}</div>
-              <div className="text-sm font-semibold mt-1 tabular">{item.value}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Description — the task's standing context (the main message). */}
-      {r.comments && r.comments.trim() && (
-        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl px-4 py-3 flex items-start gap-3">
-          <div className="mt-0.5 h-8 w-8 rounded-full bg-bg-muted text-fg-muted flex items-center justify-center shrink-0">
-            <AlignLeft size={15} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-wider text-fg-muted mb-0.5">Description</div>
-            <p className="text-sm leading-relaxed whitespace-pre-wrap"><CodeLinkedText text={r.comments} /></p>
-          </div>
-        </div>
-      )}
 
       {(sourceMeeting as any)?.meetings && (
         <div className="rounded-xl border border-border bg-bg-elev px-4 py-3 flex items-start gap-3 elevated">
