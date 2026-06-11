@@ -165,11 +165,11 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
     start(async () => {
       const r = await sendEventInviteAction(event.id);
       if (r.ok) {
-        const who = `${r.count} ${r.count === 1 ? "person" : "people"}`;
+        const who = `${r.count} ${r.count === 1 ? "guest" : "guests"}`;
         const msg = r.via === "google"
-          ? `Added to ${who}'s Google Calendars${r.meetLink ? " · Meet link created" : ""}`
+          ? `Invite sent to ${who} via Google Calendar${r.meetLink ? " · Meet link created" : ""}. It's on your own calendar (organisers don't get an email); a copy is in your inbox.`
           : `Invite emailed to ${who}`;
-        toast(msg, { tone: "success", duration: 5000 });
+        toast(msg, { tone: "success", duration: 7000 });
       } else {
         toast(r.error, { tone: r.reason === "not-configured" ? "warn" : "danger", duration: 6000 });
       }

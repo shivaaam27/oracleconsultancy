@@ -170,6 +170,30 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
       created_at: now,
       sent_at: now,
     });
+
+    // Confirmation copy to the organiser's own inbox — Google never emails the
+    // organiser their own invite, so without this you'd have nothing in your mail.
+    // Best-effort: never block or fail the invite if this copy can't send.
+    try {
+      const { emailFrom } = await getAppSettings();
+      if (emailFrom) {
+        const when = fmtEat(ev.startAt, ev.allDay);
+        const meetLink = g.meetLink || ev.meetLink;
+        const guests = ev.attendees.filter((a) => a.email).map((a) => `${a.name || a.email} (${a.email})`).join(", ");
+        const lines: string[] = [`<p><strong>When:</strong> ${escapeHtml(when)}</p>`, `<p><strong>Guests:</strong> ${escapeHtml(guests)}</p>`];
+        if (meetLink) lines.push(`<p><strong>Meet:</strong> <a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`);
+        if (ev.location) lines.push(`<p><strong>Where:</strong> ${escapeHtml(ev.location)}</p>`);
+        await sendEmail({
+          to: emailFrom,
+          subject: `Copy: invite sent — ${ev.title}`,
+          html: `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#111;line-height:1.5"><h2 style="margin:0 0 12px">${escapeHtml(ev.title)}</h2>${lines.join("\n")}<p style="color:#666;font-size:13px;margin-top:16px">This invitation was sent via Google Calendar and added to each guest's calendar. This copy is for your records — the event is already on your own calendar.</p></div>`,
+          text: [`Invite sent — ${ev.title}`, `When: ${when}`, `Guests: ${guests}`, meetLink ? `Meet: ${meetLink}` : "", "", "Sent via Google Calendar; it's already on your own calendar. This is your copy for the record."].filter(Boolean).join("\n"),
+        });
+      }
+    } catch {
+      /* confirmation copy is best-effort */
+    }
+
     invalidate();
     return { ok: true, count: recipients.length, via: "google", meetLink: g.meetLink };
   }
