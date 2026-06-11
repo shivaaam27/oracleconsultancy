@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, type CSSProperties } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion } from "framer-motion";
 import { X, Loader2, AlertCircle } from "lucide-react";
@@ -38,6 +38,9 @@ export function EntityDrawer({
   error,
   errorLabel = "Couldn't load.",
   maxWidth = "560px",
+  /** On phones, fill the screen (sheet) instead of a centred card. Desktop
+   *  keeps the centred card. Used by the task drawer for its richer content. */
+  fullScreenOnMobile = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -52,10 +55,38 @@ export function EntityDrawer({
   error?: boolean;
   errorLabel?: string;
   maxWidth?: string;
+  fullScreenOnMobile?: boolean;
 }) {
   const current = tabs.find((t) => t.id === activeTab) ?? tabs[0];
   const glow =
     tone === "success" ? "var(--success)" : tone === "warn" ? "var(--warn)" : tone === "danger" ? "var(--danger)" : "var(--accent)";
+
+  const inner = (
+    <>
+      <Dialog.Title className="sr-only">{title}</Dialog.Title>
+      {/* Close button floats over the hero */}
+      <Dialog.Close asChild>
+        <button
+          type="button"
+          aria-label="Close"
+          className="absolute right-3 top-3 z-10 h-8 w-8 inline-flex items-center justify-center rounded-full bg-bg-elev/70 backdrop-blur text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors"
+        >
+          <X size={15} />
+        </button>
+      </Dialog.Close>
+      <DrawerBody
+        glow={glow}
+        hero={hero}
+        tabs={tabs}
+        current={current}
+        onTabChange={onTabChange}
+        actionBar={actionBar}
+        loading={loading}
+        error={error}
+        errorLabel={errorLabel}
+      />
+    </>
+  );
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -65,6 +96,28 @@ export function EntityDrawer({
           className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-200
             data-[state=open]:opacity-100 data-[state=closed]:opacity-0 data-[state=closed]:pointer-events-none"
         />
+        {fullScreenOnMobile ? (
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="group fixed inset-0 z-[51] flex sm:items-center sm:justify-center outline-none
+              data-[state=open]:animate-in data-[state=closed]:animate-out
+              data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-200
+              data-[state=closed]:pointer-events-none"
+          >
+            <div
+              style={{ "--drawer-mw": maxWidth } as CSSProperties}
+              className="relative flex flex-col overflow-hidden glass glass-refract outline-none
+                w-full h-[100dvh] rounded-none
+                sm:h-auto sm:max-h-[90dvh] sm:w-[calc(100%-1.5rem)] sm:max-w-[var(--drawer-mw)] sm:rounded-3xl
+                group-data-[state=open]:animate-in group-data-[state=closed]:animate-out duration-200
+                group-data-[state=open]:slide-in-from-bottom-6 group-data-[state=closed]:slide-out-to-bottom-6
+                sm:group-data-[state=open]:slide-in-from-bottom-0 sm:group-data-[state=closed]:slide-out-to-bottom-0
+                sm:group-data-[state=open]:zoom-in-95 sm:group-data-[state=closed]:zoom-out-95"
+            >
+              {inner}
+            </div>
+          </Dialog.Content>
+        ) : (
         <Dialog.Content forceMount aria-describedby={undefined} asChild>
           <motion.div
             style={{ maxWidth, pointerEvents: open ? "auto" : "none" }}
@@ -165,7 +218,114 @@ export function EntityDrawer({
           )}
           </motion.div>
         </Dialog.Content>
+        )}
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/** Shared hero + tab pill + scrolling body + sticky action bar. Rendered by the
+ *  full-screen-sheet path; the centred-card path inlines the same structure. */
+function DrawerBody({
+  glow,
+  hero,
+  tabs,
+  current,
+  onTabChange,
+  actionBar,
+  loading,
+  error,
+  errorLabel,
+}: {
+  glow: string;
+  hero: ReactNode;
+  tabs: DrawerTab[];
+  current: DrawerTab | undefined;
+  onTabChange: (id: string) => void;
+  actionBar?: ReactNode;
+  loading?: boolean;
+  error?: boolean;
+  errorLabel?: string;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 gap-2 text-fg-muted">
+        <Loader2 size={18} className="animate-spin" /> <span className="text-sm">Loading…</span>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 gap-2 text-fg-muted">
+        <AlertCircle size={18} className="text-danger" /> <span className="text-sm">{errorLabel}</span>
+      </div>
+    );
+  }
+  if (!current) return <div className="h-32" />;
+  return (
+    <>
+      {/* Hero with a soft status-tinted glow */}
+      <div className="relative shrink-0 px-5 pt-5 pb-3">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 left-1/2 -translate-x-1/2 h-40 w-72 rounded-full blur-3xl opacity-25"
+          style={{ background: `radial-gradient(circle, hsl(${glow}), transparent 70%)` }}
+        />
+        <div className="relative">{hero}</div>
+      </div>
+
+      {/* Tab pill */}
+      {tabs.length > 1 && (
+        <div className="shrink-0 px-4 pb-2">
+          <div className="-mx-4 px-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+            <div className="inline-flex w-max items-center gap-1 p-1 rounded-full glass elevated">
+              {tabs.map((t) => {
+                const active = t.id === current.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => onTabChange(t.id)}
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all",
+                      active ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+                    )}
+                  >
+                    {t.icon}
+                    {t.label}
+                    {t.badge != null && (
+                      <span className={cn("text-xs tabular", active ? "text-accent-fg/80" : "text-fg-subtle")}>{t.badge}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Body — all tabs mounted; only the active one is shown. */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {tabs.map((t) => {
+          const active = t.id === current.id;
+          return (
+            <div
+              key={t.id}
+              hidden={!active}
+              className={cn("space-y-3", active && "animate-in fade-in-0 slide-in-from-bottom-1 duration-200")}
+            >
+              {t.content}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Sticky action bar */}
+      {actionBar && (
+        <div className="shrink-0 border-t border-border/70 bg-bg-elev/60 backdrop-blur px-4 py-2.5">
+          {actionBar}
+        </div>
+      )}
+    </>
   );
 }
