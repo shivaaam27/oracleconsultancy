@@ -73,7 +73,7 @@ function quickDate(which: "today" | "week" | "nextweek"): string {
   return ymd(d);
 }
 
-export function CaptureWizard({ companies }: { companies: Company[] }) {
+export function CaptureWizard({ companies, people = [] }: { companies: Company[]; people?: string[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -365,6 +365,7 @@ export function CaptureWizard({ companies }: { companies: Company[] }) {
                     priority={priority} setPriority={setPriority}
                     deadline={deadline} setDeadline={setDeadline}
                     assignees={assignees} setAssignees={setAssignees}
+                    people={people}
                     onBack={() => setStep("intake")}
                     onSave={saveTask}
                     saving={saving}
@@ -538,7 +539,7 @@ function CreateTile({ icon: Icon, title, sub, onClick }: { icon: typeof ListTodo
 
 function TaskStep({
   companies, companyId, setCompanyId, actionItem, setActionItem, description, setDescription,
-  priority, setPriority, deadline, setDeadline, assignees, setAssignees,
+  priority, setPriority, deadline, setDeadline, assignees, setAssignees, people,
   onBack, onSave, saving, error,
 }: {
   companies: Company[];
@@ -548,6 +549,7 @@ function TaskStep({
   priority: string; setPriority: (v: string) => void;
   deadline: string; setDeadline: (v: string) => void;
   assignees: string; setAssignees: (v: string) => void;
+  people: string[];
   onBack: () => void; onSave: () => void; saving: boolean; error: string | null;
 }) {
   return (
@@ -635,13 +637,21 @@ function TaskStep({
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-fg-muted">Owner (optional)</label>
+        <label className="text-xs font-medium text-fg-muted">Accountable (optional)</label>
         <input
           value={assignees}
           onChange={(e) => setAssignees(e.target.value)}
           placeholder="e.g. Shivam"
+          list="capture-accountable-list"
+          autoComplete="off"
           className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
+        {people.length > 0 && (
+          <datalist id="capture-accountable-list">
+            {people.map((name) => <option key={name} value={name} />)}
+          </datalist>
+        )}
+        <p className="text-[11px] text-fg-subtle">Pick a name, or separate several with commas.</p>
       </div>
 
       {error && <p className="text-xs text-danger">{error}</p>}

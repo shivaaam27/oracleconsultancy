@@ -8,7 +8,11 @@ import { CaptureWizard } from "./capture-wizard";
  * command palette today, and by email-in / mobile share later).
  */
 export async function CaptureWizardMount() {
-  const { data } = await sb.from("companies").select("id,name").order("code");
-  const companies = (data ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  return <CaptureWizard companies={companies} />;
+  const [{ data: companyData }, { data: peopleData }] = await Promise.all([
+    sb.from("companies").select("id,name").order("code"),
+    sb.from("people").select("name").eq("active", true).order("name"),
+  ]);
+  const companies = (companyData ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  const people = (peopleData ?? []).map((p) => p.name as string).filter(Boolean);
+  return <CaptureWizard companies={companies} people={people} />;
 }
