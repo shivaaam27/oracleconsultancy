@@ -262,8 +262,24 @@ option buttons, `tabIndex={-1}`); Enter/Space selects (native on focused button)
 Escape closes and returns focus to the trigger; selecting also returns focus.
 Verified live on the Documents company filter (open via ArrowDown, focus lands on
 "All Companies", ArrowDown → "Cocozuri Chocolat", Escape closes + focus restored);
-tsc clean, no console errors. **Remaining:** inline validation; per-form keyboard
-audit of the other custom controls (PersonPicker, ActionItemField, Segmented).
+tsc clean, no console errors.
+
+**Forms pass — inline validation started (2026-06-11):** document form now does a
+cross-field check the browser can't (`expiryDate` must not predate `issueDate`):
+validated inside the form `action` before the server call, shows an inline danger
+message under the Expiry field + red ring + `aria-invalid`, focuses the field,
+blocks submit, and clears on change. Verified live (expiry 2026-05 vs issue
+2026-06 → blocked with message, nothing created; correcting clears it). tsc clean.
+**Remaining:** extend inline validation to person form (email format, probation
+≥ start, DOB in past) + a reusable `FieldError`; per-form keyboard audit of the
+other custom controls (PersonPicker, ActionItemField, Segmented); generalise
+saved views to People/Documents.
+
+**Capture Wizard fix (2026-06-11, owner-reported):** the new-task wizard's owner
+field was a plain input with no suggestions. Added an active-people datalist
+(fetched in `CaptureWizardMount`, threaded through `TaskStep`) → dropdown as you
+type; renamed label **Owner → Accountable (optional)**. (Note: the wizard is a
+separate form from `/task/new`'s `PersonPicker`.)
 
 ## Phase 4 — Automation V2 + predictive Insights
 

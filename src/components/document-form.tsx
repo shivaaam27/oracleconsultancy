@@ -82,6 +82,7 @@ export function DocumentForm({
 }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
   const [ownerMode, setOwnerMode] = useState<OwnerMode>(
     doc?.companyId && doc?.personId ? "both" : doc?.personId || initialPersonId ? "person" : "company"
   );
@@ -207,6 +208,15 @@ export function DocumentForm({
 
   const action = (fd: FormData) => {
     setError(null);
+    setDateError(null);
+    // Cross-field check the browser can't do: expiry must not predate issue.
+    const issue = (fd.get("issueDate") || "").toString();
+    const expiry = (fd.get("expiryDate") || "").toString();
+    if (issue && expiry && expiry < issue) {
+      setDateError("Expiry date can't be before the issue date.");
+      (formRef.current?.elements.namedItem("expiryDate") as HTMLInputElement | null)?.focus();
+      return;
+    }
     start(async () => {
       const res = mode === "create" ? await createDocumentAction(fd) : await updateDocumentAction(doc!.id, fd);
       if (res.ok && supersedeId) {
@@ -608,12 +618,17 @@ export function DocumentForm({
 
         <div>
           <label className={labelCls}>Issue date</label>
-          <input name="issueDate" type="date" defaultValue={toDateInput(doc?.issueDate)} className={inputCls} />
+          <input name="issueDate" type="date" defaultValue={toDateInput(doc?.issueDate)} className={inputCls}
+            onChange={() => dateError && setDateError(null)} />
         </div>
 
         <div>
           <label className={labelCls}>Expiry date</label>
-          <input name="expiryDate" type="date" defaultValue={toDateInput(doc?.expiryDate)} className={inputCls} />
+          <input name="expiryDate" type="date" defaultValue={toDateInput(doc?.expiryDate)}
+            onChange={() => dateError && setDateError(null)}
+            aria-invalid={!!dateError}
+            className={cn(inputCls, dateError && "ring-1 ring-danger/60 border-danger/60")} />
+          {dateError && <p className="mt-1 text-[11px] text-danger">{dateError}</p>}
         </div>
 
         <div>
