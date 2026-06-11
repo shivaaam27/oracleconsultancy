@@ -194,6 +194,20 @@ without leaving the screen; every named entity is hover-previewable.
 
 ## Phase 2 — Consistency sweep onto the kit
 
+**Survey finding (2026-06-11):** the app is already largely on the design system —
+Tasks table/board/calendar use `TableShell`/`Badge`/`InlineEdit`; the task drawer
+is on `EntityDrawer`; the task page + company page use `Card`/`PageHeader`/
+`StatTile`/`glass`/`elevated`; `ModalShell` (new-task modal) already uses
+`glass glass-menu elevated`. The big "rebuild task/company page onto EntityDrawer"
+items were **owner-parked**. So Phase 2 was scoped down (owner chose **minor
+consistency polish only**). **Done:** the two outlier dropdown menus
+(`audit-menu`, `update-menu`) moved from the legacy `vibrancy-strong` material to
+the canonical `glass-menu` (+ `shadow-pill`/`ring-border`), matching the hover
+cards, insight popovers, snooze sheet and command palette (globals.css designates
+`glass-menu` for "dropdowns, snooze sheet, peek menus"). tsc clean; className-only,
+no logic change. Parked rebuilds remain deferred. **Phase 2 complete (polish).**
+
+
 Migrate the parked old screens onto `entity-drawer`/`drawer-kit` (drawers are
 done; these are not): **Tasks table/board/page** (`task-toolbar`, `task-card`,
 `/task/[code]`), **full `/companies/[id]` page**, stray pop-ups. No new design —

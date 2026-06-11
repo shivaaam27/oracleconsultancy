@@ -108,7 +108,7 @@ export function UpdateMenu({ updateId, body, pinned, showPin = true }: Props) {
           <DropdownMenu.Content
             sideOffset={4}
             align="end"
-            className="z-[60] min-w-[160px] vibrancy-strong rounded-xl p-1 shadow-lg text-sm"
+            className="z-[60] min-w-[160px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm"
           >
             <DropdownMenu.Item
               onSelect={(e) => {
