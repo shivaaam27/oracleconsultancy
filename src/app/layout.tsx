@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   title: "Oracle Consultancy Limited — Operations",
   description: "Chief of Staff Command Center",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "AUMIO" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Oracle Consultancy" },
   icons: {
     icon: [
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },

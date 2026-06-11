@@ -1,5 +1,5 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v2";
+const CACHE_VERSION = "cos-v3";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const OFFLINE_URL = "/offline.html";
