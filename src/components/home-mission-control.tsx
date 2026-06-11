@@ -408,6 +408,7 @@ function MorningRun({ items }: { items: MorningPlanItem[] }) {
   // Snapshot approved items so they stay visible (with the inline Send link)
   // even after router.refresh() drops them from the server-built plan.
   const [done, setDone] = useState<Record<string, MorningPlanItem>>({});
+  const [showAllRuns, setShowAllRuns] = useState(false);
 
   function setRow(id: string, patch: Partial<RowState>) {
     setStates((s) => ({ ...s, [id]: { ...(s[id] ?? { status: "idle" }), ...patch } }));
@@ -448,6 +449,10 @@ function MorningRun({ items }: { items: MorningPlanItem[] }) {
 
   const pending = visible.filter((it) => (states[it.id]?.status ?? "idle") === "idle").length;
 
+  // Keep the card compact — show a few, reveal the rest on demand.
+  const CAP = 4;
+  const shownRuns = showAllRuns ? visible : visible.slice(0, CAP);
+
   return (
     <div className="mt-3 border-t border-border/60 pt-3">
       <div className="mb-2 flex items-center justify-between">
@@ -458,7 +463,7 @@ function MorningRun({ items }: { items: MorningPlanItem[] }) {
       </div>
       <ul className="space-y-1.5">
         <AnimatePresence initial={false}>
-          {visible.map((item) => (
+          {shownRuns.map((item) => (
             <MorningRunRow
               key={item.id}
               item={item}
@@ -469,6 +474,16 @@ function MorningRun({ items }: { items: MorningPlanItem[] }) {
           ))}
         </AnimatePresence>
       </ul>
+      {visible.length > CAP && (
+        <button
+          type="button"
+          onClick={() => setShowAllRuns((v) => !v)}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium text-fg-muted transition-colors hover:bg-bg-muted/40 hover:text-accent"
+        >
+          {showAllRuns ? "Show fewer" : `Show all ${visible.length}`}
+          <ChevronRight size={13} className={cn("transition-transform", showAllRuns ? "-rotate-90" : "rotate-90")} />
+        </button>
+      )}
     </div>
   );
 }
