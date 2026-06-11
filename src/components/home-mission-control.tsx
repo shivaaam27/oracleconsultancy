@@ -517,10 +517,13 @@ export function HomeMissionControl({
         </div>
       </Hero>
 
-      {/* =================== HEALTH + THE ONE THING =================== */}
-      <section className="grid gap-4 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)]">
-        {/* Portfolio health — arc gauge + ranked company league, one glance */}
-        <Panel glass className="p-4 sm:p-5">
+      {/* ========= DASHBOARD GRID — up to 3 columns on wide screens =========
+          items-start keeps each card its natural height (no empty stretch). */}
+      <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        {/* Portfolio health — arc gauge + ranked company league, one glance.
+            @container lets the inner layout react to THIS card's width, so it
+            stacks neatly when it's a narrow third-column card. */}
+        <Panel glass className="@container p-4 sm:p-5">
           <SectionLabel
             icon={<LayoutGrid size={13} />}
             action={
@@ -534,7 +537,7 @@ export function HomeMissionControl({
             Portfolio health
           </SectionLabel>
 
-          <div className="mt-3 grid gap-4 sm:grid-cols-[minmax(168px,0.66fr)_minmax(0,1fr)]">
+          <div className="mt-3 grid gap-4 @md:grid-cols-[minmax(168px,0.66fr)_minmax(0,1fr)]">
             {/* Headline arc gauge + status pill + consistent stat strip */}
             <div className="flex flex-col rounded-2xl bg-gradient-to-b from-bg-elev/70 to-bg-subtle/30 p-3 ring-1 ring-border/50">
               <InsightPopover
@@ -742,10 +745,9 @@ export function HomeMissionControl({
             </div>
           )}
         </Panel>
-      </section>
 
-      {/* ===================== FOCUS QUEUE ===================== */}
-      <Panel className="overflow-hidden">
+        {/* ===== FOCUS QUEUE — full width on lg, third column on xl ===== */}
+        <Panel className="overflow-hidden lg:col-span-2 xl:col-span-1">
         <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-accent-soft/70 text-accent ring-1 ring-accent/20">
@@ -847,7 +849,8 @@ export function HomeMissionControl({
             <ChevronRight size={13} className={cn("transition-transform", showAll ? "-rotate-90" : "rotate-90")} />
           </button>
         )}
-      </Panel>
+        </Panel>
+      </div>
     </div>
   );
 }
