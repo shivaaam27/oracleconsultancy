@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X, UserPlus, Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -21,13 +21,28 @@ export function PersonPicker({
   name = "accountable",
   defaultNames = [],
   placeholder = "Search people…",
+  onChange,
 }: {
   people: PickerPerson[];
   name?: string;
   defaultNames?: string[];
   placeholder?: string;
+  /** Controlled callback — receives the selected names comma-separated. Lets
+   *  state-driven forms (e.g. the Capture Wizard) read selections without a
+   *  <form>. The hidden input is still emitted for form-action usage. */
+  onChange?: (csv: string) => void;
 }) {
   const [selected, setSelected] = useState<string[]>(defaultNames.filter(Boolean));
+
+  // Mirror selections to the controlled callback (skips the initial mount so it
+  // doesn't clobber a parent value it was just seeded from).
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    onChangeRef.current?.(selected.join(", "));
+  }, [selected]);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);

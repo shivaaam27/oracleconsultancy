@@ -8,6 +8,7 @@ import {
   ArrowLeft, Building2, CalendarDays, Flag, User, ExternalLink, CheckSquare,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { PersonPicker, type PickerPerson } from "@/components/person-picker";
 import { parseRawCapture, createCaptureTask } from "@/app/capture/actions";
 import { createNote } from "@/app/notes/actions";
 import { createTodo } from "@/app/todos/actions";
@@ -73,7 +74,7 @@ function quickDate(which: "today" | "week" | "nextweek"): string {
   return ymd(d);
 }
 
-export function CaptureWizard({ companies, people = [] }: { companies: Company[]; people?: string[] }) {
+export function CaptureWizard({ companies, people = [] }: { companies: Company[]; people?: PickerPerson[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -376,6 +377,7 @@ export function CaptureWizard({ companies, people = [] }: { companies: Company[]
                 {step === "meeting" && (
                   <MeetingStep
                     companies={companies}
+                    people={people}
                     title={mtgTitle} setTitle={setMtgTitle}
                     companyId={mtgCompanyId} setCompanyId={setMtgCompanyId}
                     date={mtgDate} setDate={setMtgDate}
@@ -549,7 +551,7 @@ function TaskStep({
   priority: string; setPriority: (v: string) => void;
   deadline: string; setDeadline: (v: string) => void;
   assignees: string; setAssignees: (v: string) => void;
-  people: string[];
+  people: PickerPerson[];
   onBack: () => void; onSave: () => void; saving: boolean; error: string | null;
 }) {
   return (
@@ -638,20 +640,12 @@ function TaskStep({
 
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-fg-muted">Accountable (optional)</label>
-        <input
-          value={assignees}
-          onChange={(e) => setAssignees(e.target.value)}
-          placeholder="e.g. Shivam"
-          list="capture-accountable-list"
-          autoComplete="off"
-          className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
+        <PersonPicker
+          people={people}
+          defaultNames={assignees ? assignees.split(",").map((s) => s.trim()).filter(Boolean) : []}
+          onChange={setAssignees}
+          placeholder="Search people, or type a new name…"
         />
-        {people.length > 0 && (
-          <datalist id="capture-accountable-list">
-            {people.map((name) => <option key={name} value={name} />)}
-          </datalist>
-        )}
-        <p className="text-[11px] text-fg-subtle">Pick a name, or separate several with commas.</p>
       </div>
 
       {error && <p className="text-xs text-danger">{error}</p>}
@@ -717,10 +711,11 @@ function NoteStep({
 /* ── Meeting step ─────────────────────────────────────────────────────── */
 
 function MeetingStep({
-  companies, title, setTitle, companyId, setCompanyId, date, setDate, attendees, setAttendees, notes, setNotes,
+  companies, people, title, setTitle, companyId, setCompanyId, date, setDate, attendees, setAttendees, notes, setNotes,
   onBack, onSave, saving, error,
 }: {
   companies: Company[];
+  people: PickerPerson[];
   title: string; setTitle: (v: string) => void;
   companyId: string; setCompanyId: (v: string) => void;
   date: string; setDate: (v: string) => void;
@@ -749,7 +744,12 @@ function MeetingStep({
       </div>
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-fg-muted">Attendees (optional)</label>
-        <input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="e.g. Jitesh, Jigna" className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
+        <PersonPicker
+          people={people}
+          defaultNames={attendees ? attendees.split(",").map((s) => s.trim()).filter(Boolean) : []}
+          onChange={setAttendees}
+          placeholder="Search people, or type a name…"
+        />
       </div>
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-fg-muted">Notes (optional)</label>

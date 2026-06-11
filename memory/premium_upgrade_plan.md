@@ -281,6 +281,17 @@ field was a plain input with no suggestions. Added an active-people datalist
 type; renamed label **Owner → Accountable (optional)**. (Note: the wizard is a
 separate form from `/task/new`'s `PersonPicker`.)
 
+**Capture Wizard — rich PersonPicker (2026-06-11, owner-reported "messed up"):**
+the datalist was a stop-gap; the owner wanted the wizard's people fields to match
+the edit-task form. Made `PersonPicker` controllable (new optional `onChange(csv)`
+callback, skips initial mount; hidden input retained for form-action use), and
+replaced the wizard's **Accountable** (task) and **Attendees** (meeting) plain
+inputs with `PersonPicker` (chips + searchable dropdown + "add as new person").
+`CaptureWizardMount` now passes people as `{id,name}[]`. Notes/To-do have no people
+fields; all four steps already share one consistent design, so the popup is now
+aligned. Verified live: typing in the wizard Accountable shows matching people +
+add-new, selecting adds a chip and updates the value; no console errors.
+
 ## Phase 4 — Automation V2 + predictive Insights
 
 1. **Morning agent run:** one reviewable plan from `signals.ts` — pre-written

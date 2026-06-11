@@ -10,9 +10,9 @@ import { CaptureWizard } from "./capture-wizard";
 export async function CaptureWizardMount() {
   const [{ data: companyData }, { data: peopleData }] = await Promise.all([
     sb.from("companies").select("id,name").order("code"),
-    sb.from("people").select("name").eq("active", true).order("name"),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
   ]);
   const companies = (companyData ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  const people = (peopleData ?? []).map((p) => p.name as string).filter(Boolean);
+  const people = (peopleData ?? []).map((p) => ({ id: p.id as number, name: p.name as string })).filter((p) => p.name);
   return <CaptureWizard companies={companies} people={people} />;
 }
