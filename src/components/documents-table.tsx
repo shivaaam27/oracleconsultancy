@@ -6,6 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
   ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip, UploadCloud,
+  CheckSquare, Check,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
 import { PeekPreview, type PeekAction } from "./peek-preview";
@@ -60,6 +61,10 @@ export function DocumentsTable({
   // Where to go back to after the create dialog closes (e.g. the person drawer
   // we launched "Add doc" from), so the flow doesn't dump you on the table.
   const [returnTo, setReturnTo] = useState<string | null>(null);
+
+  // Multi-select bulk actions (mirrors the People table pattern).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const router = useRouter();
   const pathname = usePathname();
@@ -200,6 +205,33 @@ export function DocumentsTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documents]);
 
+  function toggleSelect(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function exitSelect() { setSelectMode(false); setSelected(new Set()); }
+  const allFilteredSelected = filtered.length > 0 && filtered.every((d) => selected.has(d.id));
+  function toggleSelectAll() {
+    setSelected(() => (allFilteredSelected ? new Set<number>() : new Set(filtered.map((d) => d.id))));
+  }
+  function doBulkArchive(archived: boolean) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    startAction(async () => {
+      let ok = 0;
+      for (const id of ids) {
+        const res = await archiveDocumentAction(id, archived);
+        if (res.ok) ok++;
+      }
+      toast(`${ok} document${ok === 1 ? "" : "s"} ${archived ? "archived" : "restored"}`, { tone: "success" });
+      exitSelect();
+      router.refresh();
+    });
+  }
+
   const peekActions = (doc: DocumentRow): PeekAction[] => {
     const a: PeekAction[] = [];
     a.push({ label: "Edit", icon: <Pencil size={16} />, tone: "accent", onClick: () => { setPeek(null); setEditDoc(doc); } });
@@ -247,6 +279,11 @@ export function DocumentsTable({
           className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-bg-subtle/60 px-3 py-2 text-sm text-fg-muted hover:text-fg hover:border-accent transition-colors">
           <UploadCloud size={15} /> Add several
         </button>
+        <button type="button" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+          className={cn("inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm transition-colors",
+            selectMode ? "border-accent bg-accent-soft/60 text-accent" : "border-border bg-bg-subtle/60 text-fg-muted hover:text-fg hover:border-accent")}>
+          <CheckSquare size={15} /> {selectMode ? "Done" : "Select"}
+        </button>
       </div>
 
       {/* Summary chips */}
@@ -284,6 +321,31 @@ export function DocumentsTable({
         </label>
       </div>
 
+      {/* Bulk action bar */}
+      {selectMode && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl glass-menu ring-1 ring-border/70 px-3 py-2 text-sm">
+          <button type="button" onClick={toggleSelectAll} className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors">
+            <CheckSquare size={14} /> {allFilteredSelected ? "Clear all" : "Select all"}
+          </button>
+          <span className="text-fg-muted">{selected.size} selected</span>
+          <div className="ml-auto flex items-center gap-1.5">
+            {showArchived && (
+              <button type="button" disabled={selected.size === 0} onClick={() => doBulkArchive(false)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border hover:border-accent hover:text-accent disabled:opacity-40 transition-colors">
+                <ArchiveRestore size={14} /> Restore
+              </button>
+            )}
+            <button type="button" disabled={selected.size === 0} onClick={() => doBulkArchive(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-danger-soft/70 text-danger ring-1 ring-danger/25 hover:ring-danger/50 disabled:opacity-40 transition-all">
+              <Archive size={14} /> Archive
+            </button>
+            <button type="button" onClick={exitSelect} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-fg-muted hover:text-fg transition-colors">
+              <X size={14} /> Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* List */}
       {filtered.length > 0 ? (
         <div className="glass elevated rounded-3xl overflow-hidden divide-y divide-border/60">
@@ -295,12 +357,18 @@ export function DocumentsTable({
             const openLinkedTask = linkedTasks[doc.id]?.find((t) => t.status !== "Completed" && t.status !== "Closed");
             return (
               <div key={doc.id} role="button" tabIndex={0}
-                onClick={() => { if (longPressed.current) { longPressed.current = false; return; } setEditDoc(doc); }}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditDoc(doc); } }}
-                onPointerDown={(e) => onRowPointerDown(doc, e)}
+                onClick={() => { if (longPressed.current) { longPressed.current = false; return; } if (selectMode) { toggleSelect(doc.id); return; } setEditDoc(doc); }}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectMode ? toggleSelect(doc.id) : setEditDoc(doc); } }}
+                onPointerDown={(e) => { if (!selectMode) onRowPointerDown(doc, e); }}
                 onPointerMove={onRowPointerMove}
                 onPointerUp={clearPress} onPointerLeave={clearPress} onPointerCancel={clearPress}
-                className={cn("flex items-center gap-3 px-3.5 py-3 cursor-pointer hover:bg-bg-muted/40 transition-colors select-none", doc.archived && "opacity-60")}>
+                className={cn("flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-colors select-none", selected.has(doc.id) ? "bg-accent-soft/40" : "hover:bg-bg-muted/40", doc.archived && "opacity-60")}>
+                {selectMode && (
+                  <span className={cn("shrink-0 h-5 w-5 rounded-md border inline-flex items-center justify-center transition-colors",
+                    selected.has(doc.id) ? "bg-accent border-accent text-white" : "border-border-strong")}>
+                    {selected.has(doc.id) && <Check size={13} strokeWidth={3} />}
+                  </span>
+                )}
                 <span className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: accent || "var(--border)" }} />
                 <FileText size={16} className="text-fg-subtle shrink-0" />
                 <div className="min-w-0 flex-1">

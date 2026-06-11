@@ -222,6 +222,20 @@ Acceptance: no screen still uses the pre-kit look; visual parity with drawers.
 - Forms: inline validation, smart defaults, keyboard nav on `document-form`,
   `person-form`, `task` new form, `letter-editor`.
 
+**Survey (2026-06-11):** Tasks table already has saved views + bulk (`selection`)
++ inline edit. People table already has multi-select + bulk activate/deactivate
+(`setPeopleActive`). **Documents** had only single-row archive/renew + bulk
+*upload* — no multi-select bulk row actions. **Done (2026-06-11):** added
+multi-select bulk actions to `documents-table.tsx` (mirrors the People pattern):
+a **Select/Done** toggle, per-row checkboxes, **Select all/Clear all**, a
+`glass-menu` bulk action bar with **Archive** (and **Restore** when viewing
+archived), reusing `archiveDocumentAction` in a loop + `router.refresh()`.
+Verified live: 74 rows get checkboxes, "2 selected" shows, Archive/Restore/Done
+render, exit clean, no console errors. (Did not run a real bulk-archive on live
+data — the per-doc action is the already-proven single-row path.)
+**Saved views** are still Tasks-only (`task.savedViews`); generalising to
+People/Documents + the forms pass remain TODO.
+
 ## Phase 4 — Automation V2 + predictive Insights
 
 1. **Morning agent run:** one reviewable plan from `signals.ts` — pre-written
