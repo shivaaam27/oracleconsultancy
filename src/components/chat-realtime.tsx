@@ -22,13 +22,13 @@ type ChannelLike = {
 
 export function useThreadChannel(
   threadId: number | null,
-  opts: { onChange: () => void; meName: string; seconds?: number }
+  opts: { onChange: (type: string) => void; meName: string; seconds?: number }
 ) {
   const { meName, seconds = 5 } = opts;
   const router = useRouter();
   const onChangeRef = useRef(opts.onChange);
   onChangeRef.current = opts.onChange;
-  const fire = useCallback(() => onChangeRef.current(), []);
+  const fire = useCallback((type: string) => onChangeRef.current(type), []);
 
   const [typing, setTyping] = useState<string[]>([]);
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -65,7 +65,8 @@ export function useThreadChannel(
           const res = await fetch(`/api/portal/chat/sync?threadId=${threadId}`, { cache: "no-store" });
           if (!res.ok) return;
           const { stamp } = (await res.json()) as { stamp: string };
-          if (stampRef.current !== null && stampRef.current !== stamp) fire();
+          // Stamp is content-only, so any change means new content.
+          if (stampRef.current !== null && stampRef.current !== stamp) fire("message");
           stampRef.current = stamp;
         } catch {
           /* offline blip */
@@ -89,7 +90,9 @@ export function useThreadChannel(
             config: { broadcast: { self: false } },
           });
           channel
-            .on("broadcast", { event: "thread" }, () => fire())
+            .on("broadcast", { event: "thread" }, (msg: { payload?: { type?: string } }) =>
+              fire(msg.payload?.type ?? "message")
+            )
             .on("broadcast", { event: "typing" }, (msg: { payload?: { name?: string } }) =>
               noteTyping(msg.payload?.name ?? "")
             )

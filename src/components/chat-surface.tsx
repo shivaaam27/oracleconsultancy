@@ -31,6 +31,10 @@ export type ChatActions = {
   openThread: (
     id: number
   ) => Promise<{ ok: boolean; detail?: ThreadDetail | null; messages?: ChatMessage[]; error?: string }>;
+  refreshThread: (
+    id: number
+  ) => Promise<{ ok: boolean; detail?: ThreadDetail | null; messages?: ChatMessage[]; error?: string }>;
+  markThreadRead: (id: number) => Promise<{ ok: boolean }>;
   startDm: (personId: number) => Promise<{ ok: boolean; threadId?: number; error?: string }>;
   newGroup: (input: { title: string; personIds: number[] }) => Promise<{ ok: boolean; threadId?: number; error?: string }>;
   postMessage: (fd: FormData) => Promise<{ ok: boolean; error?: string }>;
@@ -122,9 +126,22 @@ export function ChatSurface(props: Props) {
     setThreads(await actions.listMyThreads());
   }, [actions]);
 
+  // Initial open: marks the thread read (clears the badge).
   const reloadThread = useCallback(
     async (id: number) => {
       const res = await actions.openThread(id);
+      if (res.ok) {
+        setDetail(res.detail ?? null);
+        setMessages(res.messages ?? []);
+      }
+    },
+    [actions]
+  );
+
+  // Live refresh: read-only refetch (never marks read → no broadcast loop).
+  const refresh = useCallback(
+    async (id: number) => {
+      const res = await actions.refreshThread(id);
       if (res.ok) {
         setDetail(res.detail ?? null);
         setMessages(res.messages ?? []);
@@ -141,10 +158,21 @@ export function ChatSurface(props: Props) {
     if (selected != null) reloadThread(selected);
   }, [selected, reloadThread]);
 
-  const onRealtime = useCallback(() => {
-    if (selected != null) reloadThread(selected);
-    reloadList();
-  }, [selected, reloadThread, reloadList]);
+  // A live event arrived. For "read" events we only refresh ticks (detail) and
+  // must NOT mark read — that's what would ping-pong. For content events we
+  // refresh and, since the thread is on screen, clear our own unread badge.
+  const onRealtime = useCallback(
+    (type: string) => {
+      if (selected == null) {
+        reloadList();
+        return;
+      }
+      refresh(selected);
+      reloadList();
+      if (type !== "read") actions.markThreadRead(selected);
+    },
+    [selected, refresh, reloadList, actions]
+  );
 
   const { typing, sendTyping } = useThreadChannel(selected, { onChange: onRealtime, meName });
 
@@ -180,7 +208,7 @@ export function ChatSurface(props: Props) {
       for (const f of files) fd.append("file", f);
       const res = await actions.postMessage(fd);
       if (res.ok) {
-        await reloadThread(selected);
+        await refresh(selected);
         setPending((p) => p.filter((m) => m.id !== tempId));
         reloadList();
         return null;
@@ -188,7 +216,7 @@ export function ChatSurface(props: Props) {
       setPending((p) => p.filter((m) => m.id !== tempId));
       return res.error ?? "Could not send.";
     },
-    [selected, me, meName, actions, reloadThread, reloadList]
+    [selected, me, meName, actions, refresh, reloadList]
   );
 
   const shown = threads.filter((t) => t.title.toLowerCase().includes(filter.toLowerCase()));

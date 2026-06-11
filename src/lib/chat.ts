@@ -515,13 +515,9 @@ export async function threadStamp(threadId: number): Promise<string> {
     .from("chat_messages")
     .select("id", { count: "exact", head: true })
     .eq("thread_id", threadId);
-  // Include the latest read pointer so "seen" ticks refresh on poll too.
-  const { data: reads } = await sb
-    .from("chat_participants")
-    .select("last_read_at")
-    .eq("thread_id", threadId)
-    .order("last_read_at", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-  return `${count ?? 0}:${data?.id ?? 0}:${data?.edited_at ?? ""}:${data?.deleted_at ?? ""}:${reads?.last_read_at ?? ""}`;
+  // CONTENT only — deliberately excludes read pointers. markRead updates a
+  // read pointer on every refetch; if that fed back into the stamp, polling
+  // would re-trigger itself forever. Read-receipt ("seen") refreshes ride the
+  // realtime "read" event instead (detail-only, never re-marks).
+  return `${count ?? 0}:${data?.id ?? 0}:${data?.edited_at ?? ""}:${data?.deleted_at ?? ""}`;
 }

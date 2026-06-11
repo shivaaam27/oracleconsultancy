@@ -5,10 +5,12 @@ import {
   editChatMessage,
   listMyThreads,
   listPeople,
+  markThreadRead,
   muteThread,
   newGroup,
   openThread,
   postMessage,
+  refreshThread,
   signChatAttachment,
   startDm,
 } from "./actions";
@@ -32,6 +34,8 @@ export async function AdminChat({ initialThreadId }: { initialThreadId: number |
       actions={{
         listMyThreads,
         openThread,
+        refreshThread,
+        markThreadRead,
         startDm,
         newGroup,
         postMessage,

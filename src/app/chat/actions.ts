@@ -44,6 +44,22 @@ export async function openThread(threadId: number) {
   return { ok: true as const, detail, messages };
 }
 
+/** Read-only refetch — NO markRead (so realtime/poll refreshes can't feed a
+ *  read-receipt loop). Used by the live channel + polling. */
+export async function refreshThread(threadId: number) {
+  if (!(await viewerInThread(threadId, ADMIN))) return { ok: false as const, error: "Not found" };
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN), threadMessages(threadId)]);
+  return { ok: true as const, detail, messages };
+}
+
+/** Mark a thread read for the owner (clears the badge; broadcasts a "read"
+ *  event for the other side's seen-ticks). Fire-and-forget from the client. */
+export async function markThreadRead(threadId: number) {
+  if (!(await viewerInThread(threadId, ADMIN))) return { ok: false };
+  await markRead(threadId, ADMIN);
+  return { ok: true };
+}
+
 export async function startDm(personId: number): Promise<{ ok: true; threadId: number }> {
   const threadId = await getOrCreateDm(ADMIN, personParticipant(personId), ADMIN);
   revalidatePath("/chat");
