@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { sb } from "@/db/supabase";
@@ -94,7 +95,7 @@ export type PortalPerson = {
 /** Returns the signed-in portal person, or null. Re-checks that portal
  *  access is still enabled and the person is still active, so revoking
  *  access in Settings takes effect immediately. */
-export async function getPortalPerson(): Promise<PortalPerson | null> {
+export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   const jar = await cookies();
   const personId = parseSessionToken(jar.get(COOKIE_NAME)?.value);
   if (!personId) return null;
@@ -113,7 +114,7 @@ export async function getPortalPerson(): Promise<PortalPerson | null> {
     companyId: (data.company_id as number | null) ?? null,
     portalRole: data.portal_role === "manager" ? "manager" : "staff",
   };
-}
+});
 
 /** Direct reports of a manager: primary line (people.manager_id) plus any
  *  dotted lines (reporting_lines). Active people only. */

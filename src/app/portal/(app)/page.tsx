@@ -81,16 +81,16 @@ export default async function PortalHome() {
 
   let tasks: Row[] = [];
   if (ids.length > 0) {
-    const { data } = await sb
-      .from("tasks")
-      .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,archived,companies(name)")
-      .in("id", ids)
-      .eq("archived", false)
-      .order("deadline", { ascending: true, nullsFirst: false });
-    const { data: teams } = await sb
-      .from("task_assignees")
-      .select("task_id,person_id")
-      .in("task_id", ids);
+    // Independent reads — run them together instead of one-after-another.
+    const [{ data }, { data: teams }] = await Promise.all([
+      sb
+        .from("tasks")
+        .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,archived,companies(name)")
+        .in("id", ids)
+        .eq("archived", false)
+        .order("deadline", { ascending: true, nullsFirst: false }),
+      sb.from("task_assignees").select("task_id,person_id").in("task_id", ids),
+    ]);
     const teamCount = new Map<number, number>();
     const onTask = new Set<number>();
     for (const r of teams ?? []) {
