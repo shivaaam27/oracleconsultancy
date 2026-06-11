@@ -73,7 +73,7 @@ export function PromptBox({
         rows={1}
         style={minHeight ? { minHeight } : undefined}
         autoFocus={autoFocus}
-        className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm leading-relaxed outline-none placeholder:text-fg-muted disabled:cursor-not-allowed"
+        className="w-full resize-none !bg-transparent !border-0 !shadow-none px-4 pt-3 pb-1 text-sm leading-relaxed outline-none focus:!shadow-none focus:!ring-0 placeholder:text-fg-muted disabled:cursor-not-allowed"
       />
       <div className="flex items-center justify-between gap-2 px-2.5 pb-2 pt-0.5">
         <div className="min-w-0 text-xs text-fg-subtle truncate">{hint}</div>

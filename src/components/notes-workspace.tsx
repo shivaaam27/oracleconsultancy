@@ -169,7 +169,7 @@ export function NotesWorkspace({ initialNotes, companies, openId }: { initialNot
           </button>
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes" className="w-full rounded-lg border border-border bg-bg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes" className="w-full rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none" />
           </div>
           {folders.length > 0 && (
             <FluidSelect
@@ -233,7 +233,7 @@ export function NotesWorkspace({ initialNotes, companies, openId }: { initialNot
                 onChange={(e) => { patchLocal(selected.id, { folder: e.target.value }); scheduleSave(selected.id, { folder: e.target.value }); }}
                 placeholder="Folder"
                 list="note-folders"
-                className="w-24 rounded-lg border border-border bg-bg px-2 py-1.5 text-xs text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+                className="w-24 rounded-lg px-2 py-1.5 text-xs text-fg-muted focus:outline-none"
               />
               <datalist id="note-folders">{folders.map((f) => <option key={f} value={f} />)}</datalist>
 

@@ -41,7 +41,7 @@ export function PeekQuickUpdate({
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); }}
           placeholder="Jot a quick update…"
-          className="flex-1 min-w-0 rounded-xl border border-border bg-bg-subtle/60 px-3 py-2 text-sm placeholder:text-fg-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/50"
+          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm placeholder:text-fg-muted resize-none focus:outline-none"
         />
         <button
           type="button"

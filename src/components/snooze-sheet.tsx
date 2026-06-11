@@ -84,7 +84,7 @@ export function SnoozeSheet({
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   min={new Date().toISOString().slice(0, 10)}
-                  className="flex-1 min-w-0 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
                 />
                 <button
                   type="button"

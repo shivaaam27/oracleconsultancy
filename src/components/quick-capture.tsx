@@ -255,7 +255,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
                 <select
                   value={companyId}
                   onChange={e => setCompanyId(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
                 >
                   <option value="">Select company…</option>
                   {companies.map(c => (
@@ -270,7 +270,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
                 <select
                   value={priority}
                   onChange={e => setPriority(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
                 >
                   {PRIORITIES.map(p => <option key={p}>{p}</option>)}
                 </select>
@@ -285,8 +285,8 @@ export function QuickCapture({ companies, embedded = false }: Props) {
                   type="text"
                   value={actionItem}
                   onChange={e => { setActionItem(e.target.value); setPolishState("idle"); }}
-                  className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50 transition-colors ${
-                    polishState === "done" ? "border-accent bg-accent/5" : "border-border bg-bg"
+                  className={`w-full rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none transition-colors ${
+                    polishState === "done" ? "ring-2 ring-accent/50 !bg-accent/5" : ""
                   }`}
                 />
                 <button
@@ -339,7 +339,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
                 <select
                   value={status}
                   onChange={e => setStatus(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
                 >
                   {STATUSES.map(s => <option key={s}>{s}</option>)}
                 </select>
@@ -352,7 +352,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
                   type="date"
                   value={deadline}
                   onChange={e => setDeadline(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
                 />
               </div>
 
@@ -362,7 +362,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
                 <select
                   value={category}
                   onChange={e => setCategory(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
                 >
                   <option value="">—</option>
                   {CATEGORIES.map(c => <option key={c}>{c}</option>)}
@@ -378,7 +378,7 @@ export function QuickCapture({ companies, embedded = false }: Props) {
                 value={assignees}
                 onChange={e => setAssignees(e.target.value)}
                 placeholder="e.g. Shivam, Sarah"
-                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+                className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
               />
             </div>
 

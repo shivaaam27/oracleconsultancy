@@ -89,7 +89,7 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
         onChange={e => updateBody(e.target.value)}
         onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleSubmit(); }}
         placeholder="What happened? e.g. Called supplier, confirmed delivery by Friday…"
-        className="w-full rounded-xl border border-border bg-bg-subtle/60 px-3.5 py-2.5 text-sm placeholder:text-fg-muted resize-none focus:outline-none focus:ring-2 focus:ring-accent/50"
+        className="w-full rounded-xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted resize-none focus:outline-none"
       />
 
       {/* Controls row — uniform 40px height, left group flexes, post button right-aligned */}
@@ -97,7 +97,7 @@ export function UpdateBox({ taskId, taskCode, currentStatus, onSuccess }: Props)
         <select
           value={status}
           onChange={e => setStatus(e.target.value)}
-          className="flex-1 min-w-0 h-10 rounded-full border border-border bg-bg-subtle/60 px-3.5 text-xs text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/50 truncate"
+          className="flex-1 min-w-0 h-10 rounded-full px-3.5 text-xs text-fg-muted focus:outline-none truncate"
         >
           <option value="">Keep status ({currentStatus})</option>
           {STATUSES.filter(s => s !== currentStatus).map(s => (

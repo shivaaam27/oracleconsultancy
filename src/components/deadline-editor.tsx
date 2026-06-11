@@ -112,7 +112,7 @@ export function DeadlineEditor({
               defaultValue={deadline ? toLocalDate(deadline) : ""}
               disabled={pending}
               onChange={(e) => { if (e.target.value) apply(e.target.value, `${code} deadline set`); }}
-              className="mt-1.5 w-full px-2 py-1.5 text-xs rounded-lg border border-border bg-bg-subtle/60 focus:outline-none focus:ring-2 focus:ring-accent/50"
+              className="mt-1.5 w-full px-2 py-1.5 text-xs rounded-lg focus:outline-none"
             />
             {deadline && (
               <button

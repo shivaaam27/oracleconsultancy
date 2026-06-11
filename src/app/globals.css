@@ -343,23 +343,53 @@ html[data-refract="1"] .glass-refract {
   border-radius: 6px;
 }
 
-/* ---------- Inputs ---------- */
+/* ---------- Inputs — soft inset fields ----------
+   Borderless by default: a gentle tinted "well" that reads as part of the
+   surface, so a field inside a card no longer looks like a box-in-a-box.
+   Focus grows an animated accent ring and lifts the fill. */
 input, select, textarea {
-  background: hsl(var(--bg-elev));
+  background: hsl(var(--fg) / 0.045);
   color: hsl(var(--fg));
-  border: 1px solid hsl(var(--border));
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
-  transition: border-color 150ms, box-shadow 150ms, background-color 150ms;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 input:hover:not(:focus):not(:disabled),
 select:hover:not(:focus):not(:disabled),
 textarea:hover:not(:focus):not(:disabled) {
-  border-color: hsl(var(--border-strong));
+  background: hsl(var(--fg) / 0.07);
 }
 input:focus, select:focus, textarea:focus {
-  border-color: hsl(var(--accent));
+  background: hsl(var(--bg-elev));
+  border-color: hsl(var(--accent) / 0.55);
   box-shadow: 0 0 0 3px hsl(var(--accent-ring) / 0.22);
   outline: none;
+}
+input:disabled, select:disabled, textarea:disabled {
+  opacity: 0.6;
+}
+
+/* Composer field — one open, soft "well" that hosts a transparent textarea +
+   inline buttons (chat, quick capture). The field itself carries the fill and
+   the animated focus ring, so there's no box-inside-a-box. */
+.composer-field {
+  background: hsl(var(--fg) / 0.05);
+  border-radius: 1.25rem;
+  box-shadow: inset 0 0 0 1px hsl(var(--border) / 0.5);
+  transition: background-color 200ms ease, box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.composer-field:focus-within {
+  background: hsl(var(--bg-elev));
+  box-shadow: 0 0 0 3px hsl(var(--accent-ring) / 0.22), inset 0 0 0 1px hsl(var(--accent) / 0.55);
+}
+.composer-field textarea,
+.composer-field input {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 /* ---------- Scrollbars (thin, macOS-ish) ---------- */
@@ -585,3 +615,6 @@ input:focus, select:focus, textarea:focus {
   .org-canvas { overflow: visible !important; cursor: default !important; }
   @page { margin: 14mm; }
 }
+
+/* input redesign: soft inset fields */
+
