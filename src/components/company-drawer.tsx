@@ -148,11 +148,11 @@ export function CompanyDrawer() {
           <ul className="divide-y divide-border/50">
             {data.tasks.top.map((t) => (
               <li key={t.code}>
-                <Link href={`/task/${t.code}`} onClick={close} className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-bg-muted/50 transition-colors">
+                <TaskDrawerLink code={t.code} className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left hover:bg-bg-muted/50 transition-colors">
                   <span className="text-[11px] font-mono text-fg-subtle shrink-0">{t.code}</span>
                   <span className="min-w-0 flex-1 truncate text-sm">{t.actionItem}</span>
                   <ChevronRight size={14} className="text-fg-subtle shrink-0" />
-                </Link>
+                </TaskDrawerLink>
               </li>
             ))}
           </ul>

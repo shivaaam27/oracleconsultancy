@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { GitBranch, Loader2 } from "lucide-react";
+import { TaskDrawerLink } from "./task-drawer-link";
 
 type SimilarTask = {
   id: number;
@@ -56,10 +56,10 @@ export function SimilarTasks({ query, excludeId }: { query: string; excludeId?: 
       </summary>
       <div className="px-4 pb-4 space-y-1.5">
         {tasks.map(t => (
-          <Link
+          <TaskDrawerLink
             key={t.id}
-            href={`/task/${t.code}`}
-            className="block bg-bg-subtle/60 border border-border rounded-xl p-2.5 hover:border-accent/40 transition-colors group/item"
+            code={t.code}
+            className="block w-full text-left bg-bg-subtle/60 border border-border rounded-xl p-2.5 hover:border-accent/40 transition-colors group/item"
           >
             <div className="flex items-center gap-2 text-xs text-fg-muted mb-0.5">
               <span className="font-mono">{t.code}</span>
@@ -73,7 +73,7 @@ export function SimilarTasks({ query, excludeId }: { query: string; excludeId?: 
             {t.latestUpdate && (
               <p className="text-xs text-fg-muted italic mt-1 line-clamp-2">→ {t.latestUpdate}</p>
             )}
-          </Link>
+          </TaskDrawerLink>
         ))}
         <p className="text-xs text-fg-subtle italic pt-1">Tap any to see how it was handled.</p>
       </div>

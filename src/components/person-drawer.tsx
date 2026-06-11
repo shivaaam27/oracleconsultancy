@@ -492,7 +492,7 @@ export function PersonDrawer() {
                     <div className="absolute -left-[13px] top-1.5 w-2 h-2 rounded-full border-2 border-bg bg-accent" />
                     <p className="text-xs leading-relaxed text-fg">{u.body}</p>
                     <div className="mt-0.5 flex items-center gap-2 text-[10px] text-fg-subtle">
-                      <Link href={`/task/${u.taskCode}`} className="font-mono hover:text-accent transition-colors">{u.taskCode}</Link>
+                      <TaskDrawerLink code={u.taskCode} className="font-mono hover:text-accent transition-colors">{u.taskCode}</TaskDrawerLink>
                       <span className="tabular">{fmtTime(new Date(u.createdAt))}</span>
                     </div>
                   </div>
