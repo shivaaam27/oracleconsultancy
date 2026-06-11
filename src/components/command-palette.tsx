@@ -108,7 +108,7 @@ function useMagnetic<T extends HTMLElement>(strength = 0.25) {
 }
 
 function MagneticItem({ className, children, ...props }: ComponentPropsWithoutRef<typeof Command.Item>) {
-  const m = useMagnetic<HTMLDivElement>(0.18);
+  const m = useMagnetic<HTMLDivElement>(0.08);
   return (
     <Command.Item
       ref={m.ref}
@@ -123,7 +123,7 @@ function MagneticItem({ className, children, ...props }: ComponentPropsWithoutRe
 }
 
 function MagneticChip({ onClick, className, children }: { onClick?: () => void; className?: string; children: React.ReactNode }) {
-  const m = useMagnetic<HTMLButtonElement>(0.3);
+  const m = useMagnetic<HTMLButtonElement>(0.12);
   return (
     <button
       type="button"
