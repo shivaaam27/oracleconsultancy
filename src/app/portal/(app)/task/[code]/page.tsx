@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, Crown, Users } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Panel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
+import { Reveal } from "@/components/reveal";
 import { LiveSync } from "@/components/live-sync";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
@@ -191,6 +192,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         <ArrowLeft size={15} /> My tasks
       </Link>
 
+      <Reveal delay={0}>
       <Panel glass className="p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-semibold tabular text-fg-muted">{task.code}</span>
@@ -222,7 +224,9 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         </div>
         {task.comments && <p className="mt-3 text-sm text-fg-muted whitespace-pre-wrap">{task.comments}</p>}
       </Panel>
+      </Reveal>
 
+      <Reveal delay={0.05}>
       <PortalConversation
         taskId={task.id as number}
         code={task.code as string}
@@ -245,6 +249,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             : "Marking work finished? Choose Under Review — your manager confirms completion."
         }
       />
+      </Reveal>
     </div>
   );
 }

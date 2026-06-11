@@ -1,12 +1,16 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { fadeUp, easeOut } from "@/lib/motion";
 
 /* A lightweight entrance wrapper: children fade + rise in on mount. Stagger a
- * group by passing an increasing `delay`. Reduced-motion safe — the global
- * <MotionConfig reducedMotion="user"> strips the transform, leaving a gentle
- * fade (or nothing). Usable from server components (children are passed in). */
+ * group by passing an increasing `delay`. Reduced-motion safe two ways:
+ *   1. the OS "prefers reduced motion" media query (framer's useReducedMotion);
+ *   2. the portal's manual toggle, which sets data-motion="reduced" on <html>
+ *      — framer's JS animations don't watch that attribute, so we check it here.
+ * When either is on, we render a plain wrapper with no transform. Usable from
+ * server components (children are passed in). */
 export function Reveal({
   children,
   delay = 0,
@@ -16,6 +20,16 @@ export function Reveal({
   delay?: number;
   className?: string;
 }) {
+  const prefersReduced = useReducedMotion();
+  const [manualReduced, setManualReduced] = useState(false);
+  useEffect(() => {
+    setManualReduced(document.documentElement.getAttribute("data-motion") === "reduced");
+  }, []);
+
+  if (prefersReduced || manualReduced) {
+    return <div className={className}>{children}</div>;
+  }
+
   return (
     <motion.div
       className={className}

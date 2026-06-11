@@ -20,6 +20,23 @@ A standalone, locked-down view for staff members — see only your own tasks, po
 
 `src/components/hide-on-portal.tsx` hides the nav pill, drawers, assistant, and capture wizard on `/portal` routes (wired in `src/app/layout.tsx`); the ⌘K command palette hotkey is disabled on portal routes too (`command-palette.tsx`) so staff can't search admin data.
 
+## Design parity — keep the portal in step (standing rule)
+
+The portal is a first-class surface, not an afterthought. It drops anything that exposes admin data (⌘K command surface, Ask COS, drawers, capture wizard) but shares everything else: design kit, global styles, motion, micro-interactions, accessibility. Anything built on shared foundations (`surface-kit`, `globals.css`, `reveal`) stays current for free; **copied "twin" components drift silently** unless updated together. See the parity rule in `CLAUDE.md`.
+
+**Twin map (admin ↔ portal) — restyle both together:**
+
+| Concern | Admin | Portal |
+| --- | --- | --- |
+| Bottom nav pill | `top-pill.tsx` | `portal-pill.tsx` |
+| Task conversation / update box | `update-box.tsx` + `timeline-entry.tsx` | `portal-conversation.tsx` *(shared component, serves both — keep both views working)* |
+| Home / dashboard | `_hub/cos-home.tsx`, `home-mission-control.tsx` | `portal/(app)/page.tsx` |
+| Sign-in | `auth-shell.tsx` + `auth-fields.tsx` | *(already shared)* |
+
+**Motion note:** the portal accessibility toggle sets `data-motion="reduced"` on `<html>` (CSS-only kill of transitions/animations). Framer's JS animations don't watch that attribute, so the shared `reveal.tsx` reads it directly (alongside `useReducedMotion()` for the OS media query). Any new portal motion must reuse `Reveal` — don't hand-roll `motion.*`, or the toggle won't silence it.
+
+**Parity pass (June 2026):** portal home/activity/profile/task pages now use `Reveal` entrance motion; the portal message composer (`portal-conversation.tsx`) was swept to the global soft-inset field style (dropped its explicit `bg-bg-subtle ring-1 ring-border`) to match the admin update box.
+
 ## Phase 1 — Teams, manager role, Seen indicator (June 2026)
 
 - **Roles on tasks**: `task_assignees.role` = `accountable` | `working` (migration `0038`, owners backfilled as accountable; `tasks.owner_id` stays = first accountable for back-compat). Portal team strip shows a crown on accountable people.

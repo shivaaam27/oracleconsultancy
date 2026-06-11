@@ -20,7 +20,7 @@ function PillTab({ href, icon: Icon, label, active }: { href: string; icon: Luci
       title={label}
       className={cn(
         "relative inline-flex flex-col items-center justify-center h-12 w-16 rounded-2xl shrink-0 transition-colors",
-        active ? "text-accent" : "text-fg-muted hover:text-fg"
+        active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
       {active && (

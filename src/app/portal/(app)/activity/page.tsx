@@ -3,6 +3,7 @@ import { ListTodo, MessageSquare } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { Reveal } from "@/components/reveal";
 import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
 
 export const dynamic = "force-dynamic";
@@ -80,21 +81,23 @@ export default async function PortalActivity() {
   return (
     <div className="flex flex-col gap-5">
       <AutoRefresh seconds={20} />
-      <Hero
-        title="Activity"
-        subtitle={
-          me.portalRole === "manager"
-            ? "Every update across your tasks and your team's tasks."
-            : "Every update across your tasks, newest first."
-        }
-      />
+      <Reveal delay={0}>
+        <Hero
+          title="Activity"
+          subtitle={
+            me.portalRole === "manager"
+              ? "Every update across your tasks and your team's tasks."
+              : "Every update across your tasks, newest first."
+          }
+        />
+      </Reveal>
 
       <section className="flex flex-col gap-3">
         {groups.length === 0 && (
           <Panel className="p-6 text-center text-sm text-fg-muted">No activity yet.</Panel>
         )}
-        {groups.map((g) => (
-          <div key={g.label} className="flex flex-col gap-2">
+        {groups.map((g, gi) => (
+          <Reveal key={g.label} delay={Math.min(0.04 + gi * 0.04, 0.2)} className="flex flex-col gap-2">
             <SectionLabel icon={<MessageSquare size={13} />}>{g.label}</SectionLabel>
             {g.items.map((r) => {
               const a = authorOf(r.created_by, me.name);
@@ -124,7 +127,7 @@ export default async function PortalActivity() {
                 </Link>
               );
             })}
-          </div>
+          </Reveal>
         ))}
       </section>
     </div>

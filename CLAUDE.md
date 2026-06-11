@@ -179,6 +179,20 @@ System-wide branded PDF letters. `letters` table + `/letters` editor + `/letters
 - British English in prompts.
 - Do not invent data. Cite task codes and meeting title/date when relevant.
 
+## Staff Portal Parity
+
+The staff portal (`/portal`) is a **first-class surface**, not an afterthought — it must keep pace with the admin side's look and feel. The portal deliberately drops anything that exposes admin data (the ⌘K command surface, Ask COS, drawers, capture wizard), but it should share everything that doesn't require those permissions: design kit, global styles, entrance motion, micro-interactions, accessibility.
+
+- **When you change shared visuals** (global CSS in `globals.css`, `surface-kit.tsx`, `reveal.tsx`/`motion.ts`), they flow to the portal automatically — keep it that way; prefer changing shared files over page-level styling.
+- **When you restyle an admin component that has a portal twin, update the twin in the same change.** Current twins (admin ↔ portal):
+  - nav pill `top-pill.tsx` ↔ `portal-pill.tsx`
+  - update box `update-box.tsx` + timeline/`timeline-entry.tsx` ↔ `portal-conversation.tsx` (shared by both; check it still serves both views)
+  - admin home `_hub/cos-home.tsx` / `home-mission-control.tsx` ↔ portal home `portal/(app)/page.tsx`
+- **Motion is reduced-motion safe both ways**: the portal's manual toggle sets `data-motion="reduced"` on `<html>` (CSS-only), which framer's JS animations ignore — so `Reveal` checks that attribute itself. Any new portal motion must honour it (reuse `Reveal`, don't hand-roll `motion.*`).
+- **When shipping a new admin feature, make the explicit "portal question"**: does it have a safe staff-facing half (like the notification bell), or must it stay admin-only (anything touching other people's data)? Decide per feature.
+
+See `memory/portal.md` for the full twin map.
+
 ## Domain Rules
 
 - Statuses: Not Started, In Progress, Under Review, Blocked, Waiting External, Escalated, Completed, Closed.

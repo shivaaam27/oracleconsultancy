@@ -4,6 +4,7 @@ import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { Reveal } from "@/components/reveal";
 import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
 
 export const dynamic = "force-dynamic";
@@ -132,46 +133,48 @@ export default async function PortalHome() {
   return (
     <div className="flex flex-col gap-5">
       <AutoRefresh seconds={25} />
-      <Hero
-        title={`Hello, ${me.name.split(" ")[0]}`}
-        subtitle={
-          overdue.length > 0
-            ? `${overdue.length} task${overdue.length === 1 ? " is" : "s are"} overdue — worth a look first.`
-            : dueSoon.length > 0
-              ? `${dueSoon.length} task${dueSoon.length === 1 ? "" : "s"} due in the next 7 days.`
-              : "You're up to date. Nothing due this week."
-        }
-      >
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {metrics.map((m) => (
-            <div key={m.label} className={`rounded-2xl p-3 ring-1 ${TONE[m.tone].bg} ${TONE[m.tone].ring}`}>
-              <div className={`flex items-center gap-1.5 text-xs font-medium ${TONE[m.tone].text}`}>
-                {m.icon}
-                {m.label}
+      <Reveal delay={0}>
+        <Hero
+          title={`Hello, ${me.name.split(" ")[0]}`}
+          subtitle={
+            overdue.length > 0
+              ? `${overdue.length} task${overdue.length === 1 ? " is" : "s are"} overdue — worth a look first.`
+              : dueSoon.length > 0
+                ? `${dueSoon.length} task${dueSoon.length === 1 ? "" : "s"} due in the next 7 days.`
+                : "You're up to date. Nothing due this week."
+          }
+        >
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {metrics.map((m) => (
+              <div key={m.label} className={`rounded-2xl p-3 ring-1 ${TONE[m.tone].bg} ${TONE[m.tone].ring}`}>
+                <div className={`flex items-center gap-1.5 text-xs font-medium ${TONE[m.tone].text}`}>
+                  {m.icon}
+                  {m.label}
+                </div>
+                <p className="mt-1 text-2xl font-semibold tabular">{m.value}</p>
               </div>
-              <p className="mt-1 text-2xl font-semibold tabular">{m.value}</p>
-            </div>
-          ))}
-        </div>
-      </Hero>
+            ))}
+          </div>
+        </Hero>
+      </Reveal>
 
-      <section className="flex flex-col gap-2.5">
+      <Reveal delay={0.05} className="flex flex-col gap-2.5">
         <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
         {myOpen.length === 0 && (
           <Panel className="p-6 text-center text-sm text-fg-muted">No open tasks assigned to you right now.</Panel>
         )}
         {myOpen.map((t) => taskCard(t, now))}
-      </section>
+      </Reveal>
 
       {teamOpen.length > 0 && (
-        <section className="flex flex-col gap-2.5">
+        <Reveal delay={0.1} className="flex flex-col gap-2.5">
           <SectionLabel icon={<Users size={13} />}>My team&apos;s tasks</SectionLabel>
           {teamOpen.map((t) => taskCard(t, now))}
-        </section>
+        </Reveal>
       )}
 
       {done.length > 0 && (
-        <section className="flex flex-col gap-2.5">
+        <Reveal delay={0.12} className="flex flex-col gap-2.5">
           <SectionLabel icon={<CheckCircle2 size={13} />}>Recently completed</SectionLabel>
           {done.slice(0, 5).map((t) => (
             <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
@@ -184,7 +187,7 @@ export default async function PortalHome() {
               </Panel>
             </Link>
           ))}
-        </section>
+        </Reveal>
       )}
     </div>
   );

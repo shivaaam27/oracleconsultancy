@@ -314,7 +314,7 @@ export function PortalConversation(props: Props) {
                 onChange={onComposerChange}
                 onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
                 placeholder={replyTo ? `Reply to ${replyTo.author}…` : "Write an update… use @ to mention a teammate."}
-                className="w-full resize-y rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-2.5 text-sm outline-none focus:ring-accent/50"
+                className="w-full resize-y rounded-xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none"
               />
               {mentionMatches.length > 0 && (
                 <div className="absolute left-2 top-full z-10 mt-1 w-56 overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-pill">
@@ -356,7 +356,7 @@ export function PortalConversation(props: Props) {
                 />
                 <label className="flex items-center gap-2 text-xs text-fg-muted">
                   Status
-                  <select name="newStatus" defaultValue="" className="rounded-xl bg-bg-subtle ring-1 ring-border px-2.5 py-1.5 text-xs outline-none">
+                  <select name="newStatus" defaultValue="" className="rounded-xl px-2.5 py-1.5 text-xs focus:outline-none">
                     <option value="">No change</option>
                     {statusOptions.map((s) => (
                       <option key={s} value={s}>{s}</option>
