@@ -32,6 +32,11 @@ The portal is a first-class surface, not an afterthought. It drops anything that
 | Task conversation / update box | `update-box.tsx` + `timeline-entry.tsx` | `portal-conversation.tsx` *(shared component, serves both — keep both views working)* |
 | Home / dashboard | `_hub/cos-home.tsx`, `home-mission-control.tsx` | `portal/(app)/page.tsx` |
 | Sign-in | `auth-shell.tsx` + `auth-fields.tsx` | *(already shared)* |
+| Chat | `/chat` + `app/chat/actions.ts` | `/portal/chat` + `portal/(app)/chat/actions.ts` *(both render the shared `chat-surface.tsx`)* |
+
+## Chat (June 2026)
+
+Free-standing messaging, separate from task updates. Shared UI `src/components/chat-surface.tsx` (master/detail list + conversation + composer with files/voice/@mentions/task-link) driven by per-side server actions. DMs (everyone↔everyone, incl. Owner) + ad-hoc groups (portal: managers only; admin: free; or auto from a task's people). Realtime via Supabase **broadcast** (`chat-broadcast.ts` server publish → `chat-realtime.tsx` subscribe), **falling back to polling** `/api/portal/chat/sync` when no `NEXT_PUBLIC_SUPABASE_ANON_KEY` / socket. Notifications reuse the bell (`kind` chat/chat_mention, deep-link via `notifications.thread_id`). Full details: `memory/chat_system.md`.
 
 **Motion note:** the portal accessibility toggle sets `data-motion="reduced"` on `<html>` (CSS-only kill of transitions/animations). Framer's JS animations don't watch that attribute, so the shared `reveal.tsx` reads it directly (alongside `useReducedMotion()` for the OS media query). Any new portal motion must reuse `Reveal` — don't hand-roll `motion.*`, or the toggle won't silence it.
 

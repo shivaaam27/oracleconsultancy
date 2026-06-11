@@ -8,7 +8,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, Search, X,
   Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText, Laptop, CalendarDays,
-  ClipboardList, Network, CalendarClock, type LucideIcon,
+  ClipboardList, Network, CalendarClock, MessageCircle, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "./command-palette";
@@ -239,7 +239,7 @@ function NavActionButton() {
 /* work untouched.                                                         */
 /* --------------------------------------------------------------------- */
 
-const LENS_SLOTS = ["Home", "Director Brief", "Task Management", "Workbook", "Search"] as const;
+const LENS_SLOTS = ["Home", "Director Brief", "Task Management", "Workbook", "Chat", "Search"] as const;
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
@@ -399,6 +399,7 @@ export function TopPill() {
     else if (label === "Director Brief") router.push("/brief");
     else if (label === "Task Management") router.push("/?tab=tasks");
     else if (label === "Workbook") router.push("/workbook");
+    else if (label === "Chat") router.push("/chat");
     else if (label === "Search") openPalette();
   }
 
@@ -407,10 +408,15 @@ export function TopPill() {
   const tasksActive = onHub && tab === "tasks";
   const briefActive = pathname.startsWith("/brief");
   const workbookActive = pathname.startsWith("/workbook");
+  const chatActive = pathname.startsWith("/chat");
   const hrmsActive = pathname.startsWith("/hrms");
 
   return (
-    <div className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 flex justify-center px-2 pointer-events-none">
+    // On mobile, chat is a full-screen app of its own — the pill steps aside.
+    <div className={cn(
+      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none",
+      chatActive ? "hidden md:flex" : "flex"
+    )}>
       <motion.div
         ref={pillRef}
         initial={{ y: 20, opacity: 0 }}
@@ -424,6 +430,7 @@ export function TopPill() {
         <NavTab href="/brief" icon={ClipboardList} label="Director Brief" active={briefActive} />
         <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
         <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
+        <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} />
         <HrmsLauncher active={hrmsActive} />
 
         <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />

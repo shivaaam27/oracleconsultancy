@@ -88,6 +88,8 @@ Cleaning (OCR): cleaning_areas, cleaning_days, cleaning_checks
 
 Outreach: reminders, outbox (persisted drafts: `source`/`person_id`/`todo_id`/`scheduled_for`)
 
+Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read_at`/`muted_at`), chat_messages (soft-delete, `attachments` JSON, `task_code`), chat_message_mentions. `notifications.thread_id` deep-links chat. See `memory/chat_system.md`.
+
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
 See `memory/database_schema.md`.
@@ -112,6 +114,7 @@ See `memory/database_schema.md`.
 - `/letters`, `/letters/[id]` (editor), `/letters/[id]/print` - **system-wide PDF letters** (Draft→Issue, per-company branded; first type = Invitation). See `memory/letters.md`.
 - `/letterheads` - redirects to `/letters?view=letterheads` — letterhead setup (typed / designed header+footer images / full-page background) is now a tab on `/letters`; server actions remain in `src/app/letterheads/actions.ts`
 - `/portal`, `/portal/login`, `/portal/task/[code]` - **Staff portal**: per-person sign-in (password set in Settings → Staff portal access; scrypt hash on `people.portal_password_hash`, signed cookie session), staff see only their own tasks, post updates (`created_by: "portal:<Name>"`), limited status moves (never Completed/Closed). Admin chrome hidden on portal routes. See `memory/portal.md`.
+- `/chat`, `/chat/[threadId]` - **Chat**: free-standing messaging (DMs + ad-hoc groups), separate from task updates. Portal twin at `/portal/chat`. WhatsApp-style messenger UI: full-screen app on mobile (page header + nav pill hidden on chat routes), two-pane glass card on desktop; optimistic send, read receipts, typing indicator, inline image previews. Supabase Realtime broadcast (anon key set) with polling fallback. Primary tab on both nav pills. See `memory/chat_system.md`.
 - `/outbox`
 - `/inbox` - smart intake: "Add to inbox" (paste + multi-file bundle); unified "Process" → review queue files docs + enrich person profile (blanks-only)
 - `/insights`

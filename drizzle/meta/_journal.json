@@ -330,6 +330,20 @@
       "when": 1781123114854,
       "tag": "0046_perfect_doctor_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1781196497336,
+      "tag": "0047_nostalgic_omega_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1781196551656,
+      "tag": "0048_organic_metal_master",
+      "breakpoints": true
     }
   ]
 }

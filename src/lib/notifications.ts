@@ -9,12 +9,13 @@ import { sendToRecipient } from "./push";
  * the bell in each pill.
  * ------------------------------------------------------------------ */
 
-export type NotifKind = "mention" | "reply" | "pinned" | "assigned";
+export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention";
 
 export type Notification = {
   id: number;
   kind: NotifKind;
   taskCode: string | null;
+  threadId: number | null;
   title: string;
   body: string | null;
   actor: string | null;
@@ -108,7 +109,7 @@ export async function notifyMany(
 export async function listNotifications(recipient: string, limit = 30): Promise<Notification[]> {
   const { data } = await sb
     .from("notifications")
-    .select("id,kind,task_code,title,body,actor,created_at,read_at")
+    .select("id,kind,task_code,thread_id,title,body,actor,created_at,read_at")
     .eq("recipient", recipient)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -116,6 +117,7 @@ export async function listNotifications(recipient: string, limit = 30): Promise<
     id: n.id as number,
     kind: n.kind as NotifKind,
     taskCode: (n.task_code as string | null) ?? null,
+    threadId: (n.thread_id as number | null) ?? null,
     title: n.title as string,
     body: (n.body as string | null) ?? null,
     actor: (n.actor as string | null) ?? null,

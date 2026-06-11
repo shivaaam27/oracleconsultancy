@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { Home, ListTodo, Plus, User, type LucideIcon } from "lucide-react";
+import { Home, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -40,10 +40,15 @@ export function PortalPill({ canCreate = false }: { canCreate?: boolean }) {
   const pathname = usePathname() || "/portal";
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task");
   const onActivity = pathname.startsWith("/portal/activity");
+  const onChat = pathname.startsWith("/portal/chat");
   const onProfile = pathname.startsWith("/portal/profile");
 
   return (
-    <div className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 flex justify-center px-2 pointer-events-none">
+    // On mobile, chat is a full-screen app of its own — the pill steps aside.
+    <div className={cn(
+      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none",
+      onChat ? "hidden md:flex" : "flex"
+    )}>
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -52,6 +57,7 @@ export function PortalPill({ canCreate = false }: { canCreate?: boolean }) {
       >
         <PillTab href="/portal" icon={Home} label="Home" active={onHome} />
         <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} />
+        <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} />
         <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} />
         {canCreate && (
           <Link

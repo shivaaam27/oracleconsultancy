@@ -273,9 +273,11 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   recipient: text("recipient").notNull(),
-  kind: text("kind").notNull(), // mention | reply | pinned | assigned
+  kind: text("kind").notNull(), // mention | reply | pinned | assigned | chat | chat_mention
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
   taskCode: text("task_code"),
+  // Chat deep-link target (kind chat / chat_mention). Null for task notifs.
+  threadId: integer("thread_id"),
   title: text("title").notNull(),
   body: text("body"),
   actor: text("actor"),
@@ -339,6 +341,65 @@ export const taskUpdates = pgTable("task_updates", {
    *  row (so it appears in the Documents centre and is linked to the task). */
   attachmentDocumentId: integer("attachment_document_id"),
 });
+
+/* ------------------------------------------------------------------ *
+ * Chat — free-standing messaging, separate from task `task_updates`.
+ * Participants use the same string convention as notifications/task_views:
+ * "admin" (the owner) or "person:<id>" (a portal user).
+ * ------------------------------------------------------------------ */
+
+// A conversation. `dm` = 1:1 (deduped via dmKey), `group` = ad-hoc many.
+export const chatThreads = pgTable("chat_threads", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull().default("dm"), // dm | group
+  title: text("title"), // null for DMs (derived from the other participant)
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  // Stable key for DM dedup: sorted participant pair, e.g. "admin|person:5".
+  dmKey: text("dm_key"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  // Denormalised for inbox sort; bumped on every send.
+  lastMessageAt: timestamp("last_message_at", { mode: "date", withTimezone: true }),
+  archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
+}, (t) => [uniqueIndex("chat_threads_dm_key_idx").on(t.dmKey)]);
+
+export const chatParticipants = pgTable(
+  "chat_participants",
+  {
+    threadId: integer("thread_id").notNull().references(() => chatThreads.id, { onDelete: "cascade" }),
+    participant: text("participant").notNull(), // "admin" | "person:<id>"
+    role: text("role").notNull().default("member"), // member | owner
+    joinedAt: timestamp("joined_at", { mode: "date", withTimezone: true }).notNull(),
+    lastReadAt: timestamp("last_read_at", { mode: "date", withTimezone: true }),
+    mutedAt: timestamp("muted_at", { mode: "date", withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.threadId, t.participant] })]
+);
+
+export const chatMessages = pgTable("chat_messages", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").notNull().references(() => chatThreads.id, { onDelete: "cascade" }),
+  sender: text("sender").notNull(), // "admin" | "person:<id>"
+  body: text("body").notNull().default(""),
+  // Uploaded files, same shape as inbox bundles: [{ name, path, type, size }].
+  attachments: text("attachments"), // JSON string
+  // Optional reference to a task (cite + jump to /task/<code>).
+  taskCode: text("task_code"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  editedAt: timestamp("edited_at", { mode: "date", withTimezone: true }),
+  originalBody: text("original_body"),
+  deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
+});
+
+// People @mentioned in a chat message — mirrors update_mentions.
+export const chatMessageMentions = pgTable(
+  "chat_message_mentions",
+  {
+    messageId: integer("message_id").notNull().references(() => chatMessages.id, { onDelete: "cascade" }),
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.personId] })]
+);
 
 export const meetings = pgTable("meetings", {
   id: serial("id").primaryKey(),

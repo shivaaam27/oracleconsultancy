@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AtSign, Bell, CornerUpLeft, Pin, UserPlus } from "lucide-react";
+import { AtSign, Bell, CornerUpLeft, MessageCircle, Pin, UserPlus } from "lucide-react";
 
 type Notif = {
   id: number;
-  kind: "mention" | "reply" | "pinned" | "assigned";
+  kind: "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention";
   taskCode: string | null;
+  threadId: number | null;
   title: string;
   body: string | null;
   actor: string | null;
@@ -15,7 +16,14 @@ type Notif = {
   readAt: string | null;
 };
 
-const ICON = { mention: AtSign, reply: CornerUpLeft, pinned: Pin, assigned: UserPlus };
+const ICON = {
+  mention: AtSign,
+  reply: CornerUpLeft,
+  pinned: Pin,
+  assigned: UserPlus,
+  chat: MessageCircle,
+  chat_mention: AtSign,
+};
 
 function ago(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -112,7 +120,12 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
                     type="button"
                     onClick={() => {
                       setOpen(false);
-                      if (n.taskCode) router.push(`${to}/${n.taskCode}`);
+                      if ((n.kind === "chat" || n.kind === "chat_mention") && n.threadId) {
+                        const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
+                        router.push(`${chatBase}/${n.threadId}`);
+                      } else if (n.taskCode) {
+                        router.push(`${to}/${n.taskCode}`);
+                      }
                     }}
                     className={`flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-bg-muted/60 transition-colors border-b border-border/50 ${
                       n.readAt ? "" : "bg-accent-soft/30"
