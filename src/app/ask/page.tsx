@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { openAssistant } from "@/components/floating-assistant";
+import { openAssistant } from "@/lib/assistant-bridge";
 
 /**
  * Ask COS now lives in the floating assistant (no standalone page). Old links to

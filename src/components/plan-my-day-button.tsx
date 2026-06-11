@@ -2,7 +2,7 @@
 
 import { Bot } from "lucide-react";
 import { Button } from "@/components/ui";
-import { askAssistant } from "@/components/floating-assistant";
+import { askAssistant } from "@/lib/assistant-bridge";
 
 export function PlanMyDayButton() {
   return (

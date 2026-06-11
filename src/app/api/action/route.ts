@@ -118,7 +118,7 @@ const VIEW_LEAD_WORDS = new Set([
 function parseRemindCommand(command: string): ParsedIntent | null {
   const m = command
     .trim()
-    .match(/^(?:remind|send a reminder to|chase|nudge|ping|follow[\s-]?up with|reach out to)\s+([A-Za-z][A-Za-z'.\-\s]{0,80}?)(?:\s+(?:about|on|re|regarding|to|that|for)\s+(.+))?[.!?]*$/i);
+    .match(/^(?:remind|send (?:a |an )?(?:reminder|event reminder|message|note)\s+to|send\s+to|chase|nudge|ping|message|tell|let|notify|follow[\s-]?up with|reach out to)\s+([A-Za-z][A-Za-z'.\-\s]{0,80}?)(?:\s+(?:about|on|re|regarding|to|that|for|know about|know that|know)\s+(.+))?[.!?]*$/i);
   if (!m) return null;
   const personName = (m[1] || "").trim();
   const firstWord = personName.split(/\s+/)[0]?.toLowerCase() ?? "";

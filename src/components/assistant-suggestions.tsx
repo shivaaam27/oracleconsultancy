@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 import { spring, springSnappy } from "@/lib/motion";
 import { derivePageContext } from "@/lib/page-context";
 import { suggestionsFor } from "@/lib/page-suggestions";
-import { askAssistant } from "./floating-assistant";
+import { askAssistant } from "@/lib/assistant-bridge";
 
 /* --------------------------------------------------------------------- */
 /* The floating suggestion reveal — context-aware AI prompts that surface  */

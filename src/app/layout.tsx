@@ -16,7 +16,6 @@ import { ContextActionsProvider } from "@/components/context-actions";
 import { TaskDrawer } from "@/components/task-drawer";
 import { PersonDrawer } from "@/components/person-drawer";
 import { CompanyDrawer } from "@/components/company-drawer";
-import { FloatingAssistant } from "@/components/floating-assistant";
 import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
@@ -67,7 +66,7 @@ export default async function RootLayout({ children, modal }: { children: React.
           <MotionConfig reducedMotion="user">
           <ToastProvider>
             <UndoBanner />
-            <CommandPaletteProvider>
+            <CommandPaletteProvider operatorName={operatorName}>
               <RecentsTracker />
               <ContextActionsProvider>
                 <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-32">
@@ -91,9 +90,6 @@ export default async function RootLayout({ children, modal }: { children: React.
                 </Suspense>
                 <Suspense>
                   <CompanyDrawer />
-                </Suspense>
-                <Suspense>
-                  <FloatingAssistant operatorName={operatorName} />
                 </Suspense>
                 <Suspense>
                   <AssistantSuggestions />

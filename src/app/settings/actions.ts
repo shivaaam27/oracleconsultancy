@@ -7,6 +7,41 @@ import { hashPassword } from "@/lib/portal-auth";
 import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
 import { disconnectGoogle } from "@/lib/google";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
+import { sendEmail } from "@/lib/email";
+
+const TEST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Send a one-off test email through the configured provider, so the owner can
+ * confirm real sending works end-to-end (credentials, signature, deliverability)
+ * without creating an Outbox draft. Degrades clearly when not configured.
+ */
+export async function sendTestEmail(
+  to: string
+): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-recipients" }> {
+  const addr = to.trim();
+  if (!TEST_EMAIL_RE.test(addr)) return { ok: false, reason: "no-recipients", error: "Enter a valid email address." };
+
+  const result = await sendEmail({
+    to: addr,
+    subject: "Test email from your COS command centre",
+    text:
+      "This is a test message from your Chief-of-Staff command centre.\n\n" +
+      "If you're reading this, real email sending is working — drafts you approve in the Outbox will be delivered from here.",
+    html:
+      '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.6;color:#111">' +
+      "<p>This is a test message from your Chief-of-Staff command centre.</p>" +
+      "<p>If you're reading this, <strong>real email sending is working</strong> — drafts you approve in the Outbox will be delivered from here.</p>" +
+      "</div>",
+  });
+
+  if (result.ok) return { ok: true };
+  if (result.reason === "not-configured")
+    return { ok: false, reason: "not-configured", error: "Email sending isn't switched on yet (no mailbox credentials configured)." };
+  if (result.reason === "no-recipients")
+    return { ok: false, reason: "no-recipients", error: "Enter a valid email address." };
+  return { ok: false, error: result.error ?? "Could not send the test email." };
+}
 
 function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 100) || "signature";

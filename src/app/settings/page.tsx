@@ -2,11 +2,12 @@ import { PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/compo
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
-import { getAppSettings, SWIPE_ACTIONS } from "@/lib/settings";
+import { getAppSettings, getEmailConfig, SWIPE_ACTIONS } from "@/lib/settings";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
 import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction } from "./actions";
+import { EmailStatus } from "./email-test";
 import { adminChangePassword, adminLogout } from "../login/actions";
 import Link from "next/link";
 import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck } from "lucide-react";
@@ -31,6 +32,7 @@ export default async function SettingsPage({
   const signatureImageUrl = s.emailSignatureImagePath
     ? await signDocumentFile(s.emailSignatureImagePath, 3600)
     : null;
+  const emailCfg = await getEmailConfig();
   const portalPeople = (peopleRows ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
@@ -131,6 +133,12 @@ export default async function SettingsPage({
               The name and address your outgoing email (e.g. calendar invites) is sent from. You can change this any time.
             </p>
           </div>
+          <EmailStatus
+            configured={!!emailCfg}
+            provider={emailCfg?.provider ?? null}
+            from={emailCfg?.from ?? `${s.emailFromName} <${s.emailFrom}>`}
+            defaultTo={s.emailFrom}
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
             <div>
               <FieldLabel>Sender name</FieldLabel>
