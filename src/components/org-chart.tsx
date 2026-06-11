@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
-  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2,
+  MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Badge } from "@/components/ui";
@@ -171,6 +171,12 @@ function NodeCard({
             {dept && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: `hsl(${deptHue(dept)} 65% 55%)` }} />}
             <span className="truncate">{node.role || PERSON_TYPE_LABELS[node.personType]}</span>
           </div>
+          {node.reportsOutOfCompany && node.managerName && (
+            <div className="flex items-center gap-1 text-[10px] text-fg-subtle truncate leading-tight" title={`Reports to ${node.managerName}${node.managerCompanyName ? ` at ${node.managerCompanyName}` : ""}`}>
+              <CornerLeftUp size={10} className="shrink-0" />
+              <span className="truncate">{node.managerName}{node.managerCompanyName ? ` · ${node.managerCompanyName}` : ""}</span>
+            </div>
+          )}
         </div>
 
         {/* compact signal cluster */}
@@ -326,7 +332,9 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [] }: {
     <div className="space-y-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print-hidden">
         <div className="text-[11px] text-fg-subtle tabular">
-          {tree.total} active · {tree.withManager} with a director · {tree.total - tree.withManager} unassigned
+          {tree.total} active · {tree.linesInTree} in tree
+          {tree.reportingOut > 0 && <> · {tree.reportingOut} report out</>}
+          {tree.total - tree.withManager > 0 && <> · {tree.total - tree.withManager} no director</>}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="relative flex-1 min-w-[9rem] sm:flex-none">
@@ -352,7 +360,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [] }: {
 
       {q && matchIds.size === 0 && <div className="text-xs text-fg-subtle italic">No match for “{query}”.</div>}
 
-      {hasStructure ? (
+      {hasStructure && (
         <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
           <div ref={canvasRef} className="org-canvas overflow-auto" style={{ maxHeight: "72vh" }}
             onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
@@ -367,17 +375,20 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [] }: {
             </div>
           </div>
         </div>
-      ) : (
-        <div className="rounded-xl glass elevated p-4 text-sm text-fg-muted">
-          No reporting lines set yet for this company. Open a person and set their{" "}
-          <span className="font-medium text-fg">Director</span> to start building the tree.
+      )}
+
+      {!hasStructure && (
+        <div className="rounded-xl bg-bg-subtle/40 ring-1 ring-border/60 p-3 text-[11px] text-fg-muted leading-snug">
+          No in-company reporting lines yet — everyone is shown below. Set a person&apos;s{" "}
+          <span className="font-medium text-fg">Director</span> to someone in this company to nest them into a tree.
+          {tree.reportingOut > 0 && <> {tree.reportingOut} {tree.reportingOut === 1 ? "person reports" : "people report"} to a director in another company (shown on their card).</>}
         </div>
       )}
 
-      {tree.unassigned.length > 0 && hasStructure && (
+      {tree.unassigned.length > 0 && (
         <div className="pt-1">
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle mb-2">
-            <Users size={12} /> Unassigned ({tree.unassigned.length})
+            <Users size={12} /> {hasStructure ? `Unassigned (${tree.unassigned.length})` : `People (${tree.unassigned.length})`}
           </div>
           <div className="flex flex-wrap gap-2.5">
             {tree.unassigned.map((n) => (

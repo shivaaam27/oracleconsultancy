@@ -12,6 +12,12 @@ export type OrgNode = {
   departmentName: string | null;
   /** Primary manager (solid line) — null for roots. */
   managerId: number | null;
+  /** Primary manager's name + company, for annotating cross-company lines. */
+  managerName: string | null;
+  managerCompanyName: string | null;
+  /** True when the primary manager works in a *different* company, so the
+   *  reporting line can't be drawn in this company's tree — we annotate instead. */
+  reportsOutOfCompany: boolean;
   /** Additional dotted-line managers this person also reports to. */
   secondaryManagers: Array<{ id: number; name: string | null }>;
   /** Contact handles for the card's quick actions. */
@@ -30,10 +36,15 @@ export type CompanyTree = {
    *  and not reporting to anyone inside the company). */
   unassigned: OrgNode[];
   total: number;
+  /** People with any primary manager set (in or out of company). */
   withManager: number;
+  /** People nested under an in-company manager (the lines the tree can draw). */
+  linesInTree: number;
+  /** People whose primary manager works in another company (drawn as annotation). */
+  reportingOut: number;
 };
 
-function toNode(p: Person): OrgNode {
+function toNode(p: Person, managerName: string | null, managerCompanyName: string | null, reportsOutOfCompany: boolean): OrgNode {
   return {
     id: p.id,
     name: p.name,
@@ -41,6 +52,9 @@ function toNode(p: Person): OrgNode {
     personType: p.personType,
     departmentName: p.departmentName,
     managerId: p.managerId,
+    managerName,
+    managerCompanyName,
+    reportsOutOfCompany,
     secondaryManagers: p.secondaryManagers ?? [],
     whatsapp: p.whatsapp,
     phone: p.phone,
@@ -63,11 +77,21 @@ function toNode(p: Person): OrgNode {
  * Cycle-safe: if manager links form a loop, the offending link is dropped.
  */
 export function buildCompanyTree(people: Person[], companyId: number): CompanyTree {
+  // Look up any person (incl. those in other companies) to resolve a manager's
+  // name + home company for cross-company annotations.
+  const personById = new Map(people.map((p) => [p.id, p]));
   const members = people.filter((p) => p.active && p.companyId === companyId);
   const memberIds = new Set(members.map((m) => m.id));
-  const nodes = new Map<number, OrgNode>(members.map((m) => [m.id, toNode(m)]));
+  const nodes = new Map<number, OrgNode>(
+    members.map((m) => {
+      const mgr = m.managerId != null ? personById.get(m.managerId) : undefined;
+      const reportsOut = m.managerId != null && (!mgr || mgr.companyId !== companyId);
+      return [m.id, toNode(m, mgr?.name ?? m.managerName ?? null, reportsOut ? mgr?.companyName ?? null : null, !!reportsOut)];
+    })
+  );
 
   let withManager = 0;
+  let reportingOut = 0;
   const nestedIds = new Set<number>(); // people placed under an in-company manager
 
   // Pass 1 — nest each person under their in-company primary manager.
@@ -78,6 +102,8 @@ export function buildCompanyTree(people: Person[], companyId: number): CompanyTr
     if (mgrInCompany && !createsCycle(nodes, m.id, mgrId!)) {
       nodes.get(mgrId!)!.children.push(nodes.get(m.id)!);
       nestedIds.add(m.id);
+    } else if (mgrId != null) {
+      reportingOut++;
     }
   }
 
@@ -95,7 +121,7 @@ export function buildCompanyTree(people: Person[], companyId: number): CompanyTr
   roots.sort(byName); roots.forEach(sortDeep);
   unassigned.sort(byName);
 
-  return { roots, unassigned, total: members.length, withManager };
+  return { roots, unassigned, total: members.length, withManager, linesInTree: nestedIds.size, reportingOut };
 }
 
 /** Would making `managerId` the parent of `personId` create a cycle? */
