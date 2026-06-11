@@ -65,6 +65,7 @@ export default async function RootLayout({ children, modal }: { children: React.
           <MotionConfig reducedMotion="user">
           <ToastProvider>
             <UndoBanner />
+            <Suspense>
             <CommandPaletteProvider operatorName={operatorName}>
               <RecentsTracker />
               <ContextActionsProvider>
@@ -100,6 +101,7 @@ export default async function RootLayout({ children, modal }: { children: React.
                 </Suspense>
               </HideOnPortal>
             </CommandPaletteProvider>
+            </Suspense>
           </ToastProvider>
           </MotionConfig>
         </ThemeProvider>
