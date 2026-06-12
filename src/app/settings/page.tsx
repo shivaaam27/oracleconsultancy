@@ -7,7 +7,8 @@ import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach } from "./actions";
+import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation } from "./actions";
+import { getAutomationConfig } from "@/lib/email-automation";
 import { EmailStatus } from "./email-test";
 import { adminChangePassword, adminLogout } from "../login/actions";
 import Link from "next/link";
@@ -44,6 +45,7 @@ export default async function SettingsPage({
   const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
   const directorPaused = (dirKill?.value as string | null) === "1";
   const whatsAppOn = whatsAppConfigured();
+  const emailAuto = await getAutomationConfig();
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -343,6 +345,43 @@ export default async function SettingsPage({
           <p className="text-[11px] text-fg-subtle border-t border-border/60 pt-2">
             Email sending is {emailCfg ? "connected" : "not connected"}. Until a channel is connected, the Outbox prepares copy-ready drafts with one-tap send links.
           </p>
+        </div>
+
+        {/* Email automation (Phase A) */}
+        <div className="glass elevated rounded-2xl p-5 space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <MessageCircle size={14} className="text-accent" /> Email automation
+          </h2>
+          <p className="text-xs text-fg-muted">
+            Scheduled email reminders. Each runs once a day inside the send window (08:00–18:00).
+            {emailCfg ? "" : " Email isn't connected yet, so these prepare Outbox drafts you send with one tap."}
+          </p>
+
+          <form action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+            <div>
+              <p className="text-sm font-medium">All email automation</p>
+              <p className="text-[11px] text-fg-muted">{emailAuto.paused ? "Paused — nothing runs." : "Active."}</p>
+            </div>
+            <input type="hidden" name="field" value="paused" />
+            <input type="hidden" name="value" value={emailAuto.paused ? "0" : "1"} />
+            <Button type="submit" variant={emailAuto.paused ? "primary" : "secondary"}>{emailAuto.paused ? "Resume all" : "Pause all"}</Button>
+          </form>
+
+          <form action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+            <div>
+              <p className="text-sm font-medium">Overdue-task reminders</p>
+              <p className="text-[11px] text-fg-muted">
+                {emailAuto.categories.overdue.mode === "off"
+                  ? "Off."
+                  : "On — prepares a daily reminder draft per person with overdue work."}
+              </p>
+            </div>
+            <input type="hidden" name="field" value="overdue" />
+            <input type="hidden" name="value" value={emailAuto.categories.overdue.mode === "off" ? "1" : "0"} />
+            <Button type="submit" variant={emailAuto.categories.overdue.mode === "off" ? "primary" : "secondary"}>
+              {emailAuto.categories.overdue.mode === "off" ? "Turn on" : "Turn off"}
+            </Button>
+          </form>
         </div>
 
         <div className="flex justify-end">

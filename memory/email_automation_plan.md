@@ -84,11 +84,19 @@ on what already exists — do not rebuild.
 
 ## Build phases (one module per change; verify each)
 
-- **Phase A — Foundation.** Rule storage + dispatcher cron `/api/cron/email` +
-  safety layer + `system_events` logging + Settings master switch and the generic
-  per-category scheduler UI. Wire **one** category end-to-end (overdue reminders) in
-  **prepare** mode. Verify a manual cron hit prepares the right drafts, respects the
-  window/cap, and logs. Confirm Vercel cron tier first.
+- **Phase A — Foundation.** ✅ DONE (June 2026, = director-surface E3).
+  - `lib/email-automation.ts`: config as JSON in `settings` key `email.automation`
+    ({paused, windowStartHour 8, windowEndHour 18, dailyCap 50, categories{8×mode}});
+    `getAutomationConfig`/`saveAutomationConfig`; `withinSendWindow` (EAT); per-category
+    per-day dedupe via `settings` key `email.automation.lastRun.<cat>`; `runDueAutomations()`.
+  - **Overdue reminders wired in PREPARE mode** (reuses `createOverdueReminderDrafts`).
+  - Dispatcher cron `/api/cron/email` (`authoriseCron` + `recordEvent` + `reportError`).
+  - **Settings → Email automation:** master Pause/Resume + Overdue on/off (`setEmailAutomation`).
+  - vercel.json: added daily `/api/cron/email` at 06:00 UTC (fallback; external pinger does custom timing later).
+  - **Middleware fix:** excluded `api/cron` from the admin matcher so cron routes reach
+    `authoriseCron` (CRON_SECRET) — also unblocks notify/snapshots/cleanup which were being 307'd.
+  - Verified: paused→skip, active→prepared 8, same-day rerun→deduped, outside-window→held;
+    cron 200 with bearer / 401 without. NEXT: Phase B (renewals prepare; weekly Director Brief auto-send to owner; probation/leave reminders).
 - **Phase B — Core categories.** Document/permit renewals (prepare), weekly
   Director Brief (**auto-send to owner**), probation + leave reminders (to owner).
 - **Phase C — Extra categories.** Birthdays, statutory/tax deadlines, meeting

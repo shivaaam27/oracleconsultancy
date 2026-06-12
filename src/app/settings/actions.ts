@@ -127,6 +127,20 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   redirect("/settings?portal=saved");
 }
 
+/** Email automation: master pause + per-category mode (Phase A: overdue). */
+export async function setEmailAutomation(fd: FormData): Promise<void> {
+  const { saveAutomationConfig } = await import("@/lib/email-automation");
+  const field = String(fd.get("field") ?? "");
+  const on = fd.get("value") === "1";
+  if (field === "paused") {
+    await saveAutomationConfig({ paused: on });
+  } else if (field === "overdue") {
+    await saveAutomationConfig({ categories: { overdue: { mode: on ? "prepare" : "off" } } as never });
+  }
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
 /** Governance kill switch: pause/resume all director outreach (messages). */
 export async function setDirectorOutreach(fd: FormData): Promise<void> {
   const paused = fd.get("paused") === "1";
