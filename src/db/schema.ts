@@ -602,7 +602,14 @@ export const calendarEvents = pgTable("calendar_events", {
   endAt: timestamp("end_at", { mode: "date", withTimezone: true }),
   allDay: boolean("all_day").notNull().default(false),
   // Minutes before start to fire a reminder (VALARM in the .ics + in-app). NULL = none.
+  // Kept for back-compat / single-reminder reads; `reminders` is the source of truth.
   reminderMinutes: integer("reminder_minutes"),
+  // JSON array of minutes-before for multiple reminders, e.g. [1440, 60].
+  reminders: text("reminders"),
+  // Recurrence: "none" | "daily" | "weekly" | "monthly". NULL/"none" = one-off.
+  recurrence: text("recurrence"),
+  // Last day the recurrence repeats (inclusive). NULL = no end (capped on read).
+  recurrenceUntil: timestamp("recurrence_until", { mode: "date", withTimezone: true }),
   // JSON array: [{ personId?: number, name: string, email?: string }]
   attendees: text("attendees"),
   // "manual" | "meeting" | "task" — keeps provenance for back-links.

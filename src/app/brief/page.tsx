@@ -157,6 +157,29 @@ export default async function DirectorBriefPage({
         </div>
       )}
 
+      {/* Week ahead — next 7 days of calendar events */}
+      {b.weekAhead.length > 0 && (
+        <div className="print-hidden">
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
+            <CalendarClock size={13} className="text-accent" /> Week ahead · {b.weekAhead.length}
+          </div>
+          <Card className="divide-y divide-border/70">
+            {b.weekAhead.map((e) => (
+              <a key={e.id} href="/calendar" className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-muted/40 transition-colors">
+                <div className="shrink-0 w-24 text-[11px] text-fg-muted tabular">
+                  {new Date(e.startAt).toLocaleDateString("en-GB", { timeZone: "Africa/Nairobi", weekday: "short", day: "numeric", month: "short" })}
+                  {!e.allDay && ` · ${new Date(e.startAt).toLocaleTimeString("en-GB", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit" })}`}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{e.title}</div>
+                  {e.companyName && <div className="text-[11px] text-fg-subtle">{e.companyName}</div>}
+                </div>
+              </a>
+            ))}
+          </Card>
+        </div>
+      )}
+
       {/* Watch-list */}
       {b.watch.length > 0 && (
         <div className="print-hidden">

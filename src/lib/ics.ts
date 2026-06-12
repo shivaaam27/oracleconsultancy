@@ -21,6 +21,12 @@ export type IcsEvent = {
   allDay?: boolean;
   /** Minutes before start to alarm. Omitted = no VALARM. */
   reminderMinutes?: number | null;
+  /** Multiple reminders (minutes before start); takes precedence over reminderMinutes. */
+  reminders?: number[] | null;
+  /** "daily" | "weekly" | "monthly" — emits an RRULE so it repeats. */
+  recurrence?: string | null;
+  /** Inclusive last day the recurrence repeats. */
+  recurrenceUntil?: Date | null;
   attendees?: IcsAttendee[];
   organizerName?: string | null;
   organizerEmail?: string | null;
@@ -66,6 +72,19 @@ function fold(line: string): string {
   return parts.join("\r\n");
 }
 
+// Map our simple recurrence to an RFC 5545 RRULE line. UNTIL is given as a UTC
+// timestamp at end-of-day so the final occurrence is included.
+function recurrenceToRrule(recurrence?: string | null, until?: Date | null): string | null {
+  const freq = recurrence === "daily" ? "DAILY" : recurrence === "weekly" ? "WEEKLY" : recurrence === "monthly" ? "MONTHLY" : null;
+  if (!freq) return null;
+  let rule = `RRULE:FREQ=${freq}`;
+  if (until) {
+    const u = new Date(until); u.setUTCHours(23, 59, 59, 0);
+    rule += `;UNTIL=${dtUtc(u)}`;
+  }
+  return rule;
+}
+
 /** Build a full VCALENDAR document for a single event. */
 export function buildIcs(ev: IcsEvent): string {
   const now = new Date();
@@ -104,6 +123,9 @@ export function buildIcs(ev: IcsEvent): string {
     lines.push(`LOCATION:${esc(ev.location || ev.meetLink || "")}`);
   if (ev.meetLink) lines.push(`URL:${esc(ev.meetLink)}`);
 
+  const rrule = recurrenceToRrule(ev.recurrence, ev.recurrenceUntil);
+  if (rrule) lines.push(rrule);
+
   if (ev.organizerEmail)
     lines.push(
       `ORGANIZER;CN=${esc(ev.organizerName || ev.organizerEmail)}:mailto:${ev.organizerEmail}`
@@ -116,12 +138,14 @@ export function buildIcs(ev: IcsEvent): string {
     );
   }
 
-  if (ev.reminderMinutes != null && ev.reminderMinutes > 0) {
+  const mins = (ev.reminders && ev.reminders.length ? ev.reminders : ev.reminderMinutes != null ? [ev.reminderMinutes] : [])
+    .filter((m) => m != null && m >= 0);
+  for (const m of mins) {
     lines.push(
       "BEGIN:VALARM",
       "ACTION:DISPLAY",
       `DESCRIPTION:${esc(ev.title)}`,
-      `TRIGGER:-PT${Math.round(ev.reminderMinutes)}M`,
+      `TRIGGER:-PT${Math.round(m)}M`,
       "END:VALARM"
     );
   }

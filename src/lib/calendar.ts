@@ -23,6 +23,9 @@ export type CalendarEvent = {
   endAt: string | null;
   allDay: boolean;
   reminderMinutes: number | null;
+  reminders: number[];
+  recurrence: string | null; // none | daily | weekly | monthly
+  recurrenceUntil: string | null; // ISO or null
   attendees: CalendarAttendee[];
   source: string;
   meetingId: number | null;
@@ -47,6 +50,16 @@ function parseAttendees(raw: unknown): CalendarAttendee[] {
   }
 }
 
+function parseReminders(raw: unknown, fallback: number | null): number[] {
+  if (typeof raw === "string" && raw) {
+    try {
+      const v = JSON.parse(raw);
+      if (Array.isArray(v)) return v.filter((n): n is number => typeof n === "number");
+    } catch { /* fall through */ }
+  }
+  return fallback != null ? [fallback] : [];
+}
+
 function mapRow(r: Row): CalendarEvent {
   return {
     id: r.id as number,
@@ -59,6 +72,9 @@ function mapRow(r: Row): CalendarEvent {
     endAt: (r.end_at as string) ?? null,
     allDay: !!r.all_day,
     reminderMinutes: (r.reminder_minutes as number) ?? null,
+    reminders: parseReminders(r.reminders, (r.reminder_minutes as number) ?? null),
+    recurrence: (r.recurrence as string) ?? null,
+    recurrenceUntil: (r.recurrence_until as string) ?? null,
     attendees: parseAttendees(r.attendees),
     source: (r.source as string) ?? "manual",
     meetingId: (r.meeting_id as number) ?? null,
@@ -82,6 +98,9 @@ export type CalendarEventInput = {
   endAt?: string | Date | null;
   allDay?: boolean;
   reminderMinutes?: number | null;
+  reminders?: number[];
+  recurrence?: string | null;
+  recurrenceUntil?: string | Date | null;
   attendees?: CalendarAttendee[];
   source?: string;
   meetingId?: number | null;
@@ -127,7 +146,10 @@ export async function createCalendarEvent(input: CalendarEventInput): Promise<Ca
     start_at: toIso(input.startAt),
     end_at: toIso(input.endAt),
     all_day: input.allDay ?? false,
-    reminder_minutes: input.reminderMinutes ?? null,
+    reminder_minutes: input.reminders?.[0] ?? input.reminderMinutes ?? null,
+    reminders: input.reminders && input.reminders.length ? JSON.stringify(input.reminders) : null,
+    recurrence: input.recurrence && input.recurrence !== "none" ? input.recurrence : null,
+    recurrence_until: toIso(input.recurrenceUntil),
     attendees: input.attendees ? JSON.stringify(input.attendees) : null,
     source: input.source ?? "manual",
     meeting_id: input.meetingId ?? null,
@@ -160,7 +182,14 @@ export async function updateCalendarEvent(
   if (patch.startAt !== undefined) payload.start_at = toIso(patch.startAt);
   if (patch.endAt !== undefined) payload.end_at = toIso(patch.endAt);
   if (patch.allDay !== undefined) payload.all_day = patch.allDay;
-  if (patch.reminderMinutes !== undefined) payload.reminder_minutes = patch.reminderMinutes;
+  if (patch.reminders !== undefined) {
+    payload.reminders = patch.reminders && patch.reminders.length ? JSON.stringify(patch.reminders) : null;
+    payload.reminder_minutes = patch.reminders?.[0] ?? null;
+  } else if (patch.reminderMinutes !== undefined) {
+    payload.reminder_minutes = patch.reminderMinutes;
+  }
+  if (patch.recurrence !== undefined) payload.recurrence = patch.recurrence && patch.recurrence !== "none" ? patch.recurrence : null;
+  if (patch.recurrenceUntil !== undefined) payload.recurrence_until = toIso(patch.recurrenceUntil);
   if (patch.attendees !== undefined)
     payload.attendees = patch.attendees ? JSON.stringify(patch.attendees) : null;
   const { data, error } = await sb
@@ -193,6 +222,9 @@ export function toIcsEvent(
     end: ev.endAt ? new Date(ev.endAt) : null,
     allDay: ev.allDay,
     reminderMinutes: ev.reminderMinutes,
+    reminders: ev.reminders,
+    recurrence: ev.recurrence,
+    recurrenceUntil: ev.recurrenceUntil ? new Date(ev.recurrenceUntil) : null,
     attendees: ev.attendees
       .filter((a): a is CalendarAttendee & { name: string } => !!a.name)
       .map<IcsAttendee>((a) => ({ name: a.name, email: a.email })),

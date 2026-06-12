@@ -60,6 +60,30 @@ function parseAttendees(raw: string | null): CalendarAttendee[] {
   }
 }
 
+function parseReminders(raw: string | null): number[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return [...new Set(v.map((n) => Number(n)).filter((n) => Number.isFinite(n) && n >= 0))].sort((a, b) => b - a);
+  } catch {
+    return [];
+  }
+}
+
+function parseRecurrence(fd: FormData): { recurrence: string | null; recurrenceUntil: string | null } {
+  const r = (fd.get("recurrence") ?? "").toString().trim();
+  const recurrence = ["daily", "weekly", "monthly"].includes(r) ? r : null;
+  if (!recurrence) return { recurrence: null, recurrenceUntil: null };
+  const until = (fd.get("recurrenceUntil") ?? "").toString().trim();
+  let recurrenceUntil: string | null = null;
+  if (until) {
+    const d = new Date(`${until.slice(0, 10)}T00:00:00Z`);
+    recurrenceUntil = isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return { recurrence, recurrenceUntil };
+}
+
 function invalidate() {
   revalidatePath("/calendar");
 }
@@ -82,7 +106,8 @@ export async function createEventAction(fd: FormData): Promise<Result> {
       startAt,
       endAt,
       allDay,
-      reminderMinutes: numOrNull(fd, "reminderMinutes"),
+      reminders: parseReminders(str(fd, "reminders")),
+      ...parseRecurrence(fd),
       attendees: parseAttendees(str(fd, "attendees")),
     });
     invalidate();
@@ -112,7 +137,8 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
       startAt,
       endAt,
       allDay,
-      reminderMinutes: numOrNull(fd, "reminderMinutes"),
+      reminders: parseReminders(str(fd, "reminders")),
+      ...parseRecurrence(fd),
       attendees: parseAttendees(str(fd, "attendees")),
     });
     invalidate();

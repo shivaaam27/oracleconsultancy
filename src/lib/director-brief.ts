@@ -10,6 +10,7 @@ import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
 import { listObligations, outstandingDeadlines } from "./recurring";
+import { listCalendarEvents } from "./calendar";
 import { type CcFlag } from "./command-centre";
 import { sb } from "@/db/supabase";
 import { BRAND_NAME } from "./brand";
@@ -139,6 +140,15 @@ export type BriefData = {
   statutory: BriefStatutory[];
   directorActions: BriefDirectorAction[];
   hr: BriefHr;
+  weekAhead: BriefWeekEvent[];
+};
+
+export type BriefWeekEvent = {
+  id: number;
+  title: string;
+  startAt: string;
+  allDay: boolean;
+  companyName: string | null;
 };
 
 /**
@@ -389,6 +399,20 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .sort((a, b) => (a.urgency === b.urgency ? 0 : a.urgency === "High" ? -1 : 1))
     .slice(0, 6);
 
+  // Next 7 days of calendar events (honours the company filter).
+  const weekFrom = now.toISOString();
+  const weekTo = new Date(now.getTime() + 7 * 24 * 3600_000).toISOString();
+  const calEvents = await listCalendarEvents({ from: weekFrom, to: weekTo, ...(selectedCompanyId ? { companyId: selectedCompanyId } : {}) });
+  const weekAhead: BriefWeekEvent[] = calEvents
+    .slice(0, 12)
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      startAt: e.startAt,
+      allDay: e.allDay,
+      companyName: e.companyId ? companyNameById.get(e.companyId) ?? null : null,
+    }));
+
   return {
     period,
     selectedCompanyId,
@@ -403,6 +427,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     companyCount: kpis.length,
     atRiskCount: kpis.filter((k) => k.riskScore > 20).length,
     companies, delivered, watch, compliance, statutory, directorActions, hr,
+    weekAhead,
   };
 }
 
