@@ -1,4 +1,5 @@
 import { sb } from "@/db/supabase";
+import { dailyWage } from "@/lib/pay";
 import type {
   LeaveType,
   LeaveRequestRow,
@@ -155,6 +156,58 @@ export async function personLeaveBalances(personId: number): Promise<PersonLeave
       remaining: t.defaultDays > 0 ? t.defaultDays - taken : null,
     };
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Leave liability — portfolio cost of accrued, untaken ANNUAL leave.  */
+/* remaining annual days (entitlement − approved-this-cycle) × daily   */
+/* wage, summed over active people. People without a wage on record    */
+/* contribute days but not cost (flagged so the figure is honest).     */
+/* ------------------------------------------------------------------ */
+export type LeaveLiability = {
+  totalDays: number;
+  totalCost: number; // TZS
+  peopleCosted: number;
+  peopleNoWage: number; // have accrued days but no wage on record
+};
+
+export async function portfolioLeaveLiability(): Promise<LeaveLiability> {
+  const [{ data: annual }, { data: people }, { data: reqs }] = await Promise.all([
+    sb.from("leave_types").select("id,default_days,cycle_months").ilike("name", "%annual%").eq("active", true).limit(1).maybeSingle(),
+    sb.from("people").select("id,wage_amount,wage_basis").eq("active", true),
+    sb.from("leave_requests").select("person_id,days,status,start_date,leave_type_id"),
+  ]);
+  const empty: LeaveLiability = { totalDays: 0, totalCost: 0, peopleCosted: 0, peopleNoWage: 0 };
+  if (!annual) return empty;
+
+  const entitlement = (annual.default_days as number | null) ?? 0;
+  const cycleMonths = (annual.cycle_months as number | null) ?? 12;
+  const cycleStart = new Date();
+  cycleStart.setUTCMonth(cycleStart.getUTCMonth() - cycleMonths);
+
+  const takenByPerson = new Map<number, number>();
+  for (const r of reqs ?? []) {
+    if (r.leave_type_id !== annual.id) continue;
+    if (r.status !== "Approved") continue;
+    if (new Date(r.start_date as string) < cycleStart) continue;
+    const pid = r.person_id as number;
+    takenByPerson.set(pid, (takenByPerson.get(pid) ?? 0) + ((r.days as number) ?? 0));
+  }
+
+  let totalDays = 0, totalCost = 0, peopleCosted = 0, peopleNoWage = 0;
+  for (const p of people ?? []) {
+    const remaining = Math.max(0, entitlement - (takenByPerson.get(p.id as number) ?? 0));
+    if (remaining <= 0) continue;
+    totalDays += remaining;
+    const wage = p.wage_amount as number | null;
+    if (wage && wage > 0) {
+      totalCost += remaining * dailyWage(wage, (p.wage_basis as string | null) ?? "monthly");
+      peopleCosted++;
+    } else {
+      peopleNoWage++;
+    }
+  }
+  return { totalDays: Math.round(totalDays * 10) / 10, totalCost: Math.round(totalCost), peopleCosted, peopleNoWage };
 }
 
 /* ------------------------------------------------------------------ */

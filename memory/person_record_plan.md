@@ -112,7 +112,9 @@ compliance audit). Best-effort logging — never blocks the user action.*
 
 #### Follow-on sub-phases (future, owner-priority)
 - [ ] **2f** Leave on the directory list (a column/peek hint: on-leave-today / balance-low).
-- [ ] **2g** Leave liability roll-up for the Director Brief / Insights (cost of accrued leave).
+- [x] **2g** Leave liability roll-up — `portfolioLeaveLiability()` (lib/leave.ts): accrued annual
+  days × daily wage across active staff; folded into the Director Brief HR section (on-page card +
+  share text). Honestly flags people with no wage on record. (Built as part of Phase 7.)
 
 ### Phase 3 — Staff & manager self-service (portal). ✅ DONE (3a–3e).
 *Portal leave self-service loop built on the Phase 2 leave foundation. Auth always forced
@@ -173,9 +175,18 @@ server-side (`getPortalPerson`), never trusting the form.*
   no-op) and `getAllTasks` is the shared derived-task source (per-request); rewriting it risks the
   flag derivation for marginal gain. Left as-is by design.
 
-### Phase 7 (optional, owner decision) — Director surface.
-- [ ] Read-only director view (headcount, org chart, compliance %, leave liability, risks),
-  or a per-director interactive brief.
+### Phase 7 — Director surface. 🔶 mostly already covered; leave-liability added.
+*Finding: the **Director Brief** (`/brief`) already IS the director surface — headcount (by
+type/company), compliance %, expiring docs, on-leave/pending leave, probations ending,
+birthdays, statutory deadlines, company risk, delivered/at-risk tasks. The only genuine gaps
+were the cost figure and a director login.*
+- [x] **7-liability Leave liability** added to the Brief HR (see 2g) — the missing director-grade
+  *money* number (cost of accrued leave), now possible thanks to the Phase 5 wage data.
+- [ ] **7-login Director login** (so directors view it themselves, read-only) — **owner decision,
+  not built.** A real auth surface (new role/cookie or a read-only director portal). Flagged for
+  the owner; only build with explicit direction.
+- [ ] **7-org** Org chart inside a director view — `/hrms/org` already exists (admin); a director
+  login would surface it. Tied to 7-login.
 
 ## Suggested sequence
 1 (audit) → 2 (leave on record) → 3 (staff/manager self-service) → 4 (probation) → 6 (polish),

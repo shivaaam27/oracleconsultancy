@@ -7,7 +7,7 @@ import { isOpen } from "./derive";
 import { listDocuments, type DocumentRow } from "./documents";
 import { buildCompanyRequirementScores } from "./company-requirements";
 import { buildPersonRequirementScores } from "./requirements";
-import { leaveMetrics, listLeaveRequests } from "./leave";
+import { leaveMetrics, listLeaveRequests, portfolioLeaveLiability } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
 import { listObligations, outstandingDeadlines } from "./recurring";
@@ -110,6 +110,8 @@ export type BriefHr = {
   pendingLeave: Array<{ name: string; type: string; days: number; start: string; end: string }>;
   probationEnding: Array<{ name: string; companyName: string | null; endDate: Date }>;
   birthdays: Array<{ name: string; companyName: string | null; date: Date }>;
+  /** Cost of accrued, untaken annual leave across active staff (TZS). */
+  leaveLiability: { totalDays: number; totalCost: number; peopleCosted: number; peopleNoWage: number };
 };
 
 export type BriefStatutory = {
@@ -165,11 +167,12 @@ async function buildHrBrief(
   documents: DocumentRow[],
   companyNameById: Map<number, string>
 ): Promise<BriefHr> {
-  const [{ data: pplRows }, scores, leave, pendingReqs] = await Promise.all([
+  const [{ data: pplRows }, scores, leave, pendingReqs, leaveLiability] = await Promise.all([
     sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date,date_of_birth").eq("active", true),
     buildPersonRequirementScores(),
     leaveMetrics(),
     listLeaveRequests({ status: "Pending" }),
+    portfolioLeaveLiability(),
   ]);
 
   let people = (pplRows ?? []).map((p) => ({
@@ -273,6 +276,7 @@ async function buildHrBrief(
     pendingLeave,
     probationEnding,
     birthdays,
+    leaveLiability,
   };
 }
 
@@ -507,6 +511,7 @@ export function briefShareText(b: BriefData): string {
     if (hr.expiringDocs.length) L.push(`• ${hr.expiringDocs.length} staff document${hr.expiringDocs.length === 1 ? "" : "s"} expiring/expired`);
     for (const p of hr.probationEnding.slice(0, 5)) L.push(`• Probation ending: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.endDate)}`);
     for (const p of hr.birthdays.slice(0, 5)) L.push(`• 🎂 Birthday: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.date)}`);
+    if (hr.leaveLiability.totalDays > 0) L.push(`• 💰 Leave liability: TZS ${hr.leaveLiability.totalCost.toLocaleString("en-GB")} (${hr.leaveLiability.totalDays} accrued days, ${hr.leaveLiability.peopleCosted} staff)`);
   }
   return L.join("\n");
 }

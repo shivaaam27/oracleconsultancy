@@ -282,6 +282,13 @@ export default async function DirectorBriefPage({
                 🎂 Birthdays: {b.hr.birthdays.slice(0, 4).map((p) => `${p.name} (${fmtDay(p.date)})`).join(" · ")}
               </div>
             )}
+            {b.hr.leaveLiability.totalDays > 0 && (
+              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
+                💰 Leave liability: <b className="text-fg">TZS {b.hr.leaveLiability.totalCost.toLocaleString("en-GB")}</b>
+                {" "}· {b.hr.leaveLiability.totalDays} accrued day{b.hr.leaveLiability.totalDays === 1 ? "" : "s"} across {b.hr.leaveLiability.peopleCosted} staff
+                {b.hr.leaveLiability.peopleNoWage ? ` (${b.hr.leaveLiability.peopleNoWage} with no wage on record)` : ""}
+              </div>
+            )}
           </Card>
         </div>
       )}
