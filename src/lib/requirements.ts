@@ -872,6 +872,15 @@ export async function editRequirementItem(
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
+
+  // Propagate the rename/recategorisation to every existing person's snapshot of
+  // this template item (rows keep item_id), so a reworded requirement updates on
+  // the person drawer AND their staff portal without a manual "Sync". Custom
+  // (item_id null) rows are untouched. Status/links are preserved.
+  await sb
+    .from("person_requirements")
+    .update({ label, category: input.category, mandatory: input.mandatory, updated_at: new Date().toISOString() })
+    .eq("item_id", id);
 }
 
 export async function deleteRequirementItem(id: number) {

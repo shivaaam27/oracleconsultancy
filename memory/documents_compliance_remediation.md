@@ -109,10 +109,19 @@ component `portal-documents.tsx` (Needed-from-you / On-file split + % complete).
 - [x] **4.3 Portal parity** — surface-kit `Panel`/`SectionLabel`, `Reveal` entrance, shared
   toast; no hand-rolled motion. Twin map in `memory/portal.md` updated.
 
-## Phase 5 — Reporting & export.
-- [ ] **5.1 Per-company compliance PDF/CSV.**
-- [ ] **5.2 Per-person compliance/document pack export** (extend person-pack builder).
-- [ ] **5.3 Portfolio compliance snapshot** for Director Brief / Insights.
+## Phase 5 — Reporting & export. ✅ 5.1/5.3 DONE (June 2026); 5.2 already covered.
+- [x] **5.1 + 5.3 Portfolio compliance CSV** — `compliance-export.ts` (`buildComplianceCsv`,
+  client-safe) + `exportComplianceCsvAction` (documents/actions.ts) + `ComplianceExportButton`
+  on the Documents header. One row per company + per person, worst-first, with each owner's
+  outstanding items. Verified: 50-row sheet, headers, companies first. Covers both the
+  per-company sheet and the portfolio snapshot ask in one auditor-ready file.
+- [~] **5.2 Per-person pack export** — the existing **person-pack builder**
+  (`person-pack-builder.tsx` / `/people/[id]/pack`) already produces a per-person document
+  request/pack (print-to-PDF). Left as-is; revisit only if a different format is wanted.
+
+**Also done this session:** template **renames now propagate** to existing people's snapshots
+(`editRequirementItem` updates all `person_requirements` with that `item_id`) — so reworded
+requirements update on the person drawer AND the staff portal without a manual Sync.
 
 ## Phase 6 — Documents centre UX.
 - [ ] **6.1 Expiry-timeline / grouped table view.**

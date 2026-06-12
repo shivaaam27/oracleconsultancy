@@ -4,6 +4,7 @@ import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
+import { ComplianceExportButton } from "@/components/compliance-export-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
@@ -61,6 +62,7 @@ export default async function DocumentsPage({
         sub={sub}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <ComplianceExportButton />
             <RequirementTemplatesButton />
             <JourneyTemplatesButton />
           </div>

@@ -18,6 +18,9 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
+import { buildCompanyRequirementScores } from "@/lib/company-requirements";
+import { buildPersonRequirementScores } from "@/lib/requirements";
+import { buildComplianceCsv, complianceCsvFilename } from "@/lib/compliance-export";
 import type { PersonProfileFields } from "@/app/people/actions";
 import type { CompanyProfileFields } from "@/app/companies/[id]/actions";
 
@@ -705,6 +708,28 @@ export async function draftDocumentRenewalAction(
     return { ok: true, created: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not draft the renewal message." };
+  }
+}
+
+/**
+ * Build a portfolio compliance sheet (CSV) — one row per company and per person,
+ * worst score first, with each owner's outstanding items. For handing a director
+ * or auditor a clean status snapshot.
+ */
+export async function exportComplianceCsvAction(): Promise<
+  { ok: true; filename: string; csv: string } | { ok: false; error: string }
+> {
+  try {
+    const { data: companiesRaw } = await supa.from("companies").select("id,name").order("name");
+    const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+    const [companyScores, personScores] = await Promise.all([
+      buildCompanyRequirementScores(companies),
+      buildPersonRequirementScores(),
+    ]);
+    const csv = buildComplianceCsv(companyScores, personScores);
+    return { ok: true, filename: complianceCsvFilename(), csv };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not build the compliance export." };
   }
 }
 
