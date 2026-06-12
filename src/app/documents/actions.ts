@@ -336,7 +336,10 @@ function coerceFields(
   if (pe) { f.personId = pe.id; f.personName = pe.name; }
   f.notes = s(parsed.notes, 600);
   // Person profile sub-object (unified intake) — read straight from the doc.
-  const p = parsed.person;
+  // Keyed as "personProfile" so it never collides with the "person" name string
+  // used above for owner matching. (Older prompts returned an object under
+  // "person"; fall back to it so historical/edge responses still parse.)
+  const p = parsed.personProfile ?? (typeof parsed.person === "object" ? parsed.person : undefined);
   if (p && typeof p === "object") {
     const pr = p as Record<string, unknown>;
     const date10 = (v: unknown) => { const x = s(v, 10); return x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : undefined; };
@@ -406,7 +409,7 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - company: the related business — choose the closest match from: ${cNames}
 - person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
-- person: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "person" object for company-only documents.
+- personProfile: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "personProfile" object for company-only documents. (Note: "person" above is just the matched name; "personProfile" is the detail object — keep them separate.)
 - companyProfile: IF the document is about a BUSINESS/COMPANY (e.g. certificate of incorporation, business licence, TIN/VRN certificate, tax document, lease), a nested JSON object with any of these you can read about THAT company: { legalName (the full registered name), registrationNo, tin, vrn (VAT/VRN number), incorporationDate (YYYY-MM-DD), address, phone, email }. Omit the whole "companyProfile" object for personal documents.
 Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
 }
@@ -625,6 +628,84 @@ export async function extractDocumentFromFile(
   }
 
   return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF, Word, Excel/CSV or an image (PNG/JPG)." };
+}
+
+/**
+ * Draft an Outbox "renewal / chase" message for an expiring or expired document.
+ * No real dispatch — it persists a Draft the operator can review and send via the
+ * channel deep-links (mirrors the rest of Outbox). De-duped per document per day.
+ */
+export async function draftDocumentRenewalAction(
+  id: number
+): Promise<{ ok: true; created: boolean } | { ok: false; error: string }> {
+  try {
+    const { data: doc, error } = await sb
+      .from("documents")
+      .select("id,title,expiry_date,reminder_lead_days,company_id,person_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!doc) return { ok: false, error: "Document not found." };
+
+    // Resolve the owner (company or person) for the recipient line.
+    let ownerName = "the team";
+    let companyLabel: string | null = null;
+    if (doc.company_id) {
+      const { data: c } = await sb.from("companies").select("name").eq("id", doc.company_id).maybeSingle();
+      ownerName = (c?.name as string | null) ?? ownerName;
+      companyLabel = ownerName;
+    } else if (doc.person_id) {
+      const { data: p } = await sb.from("people").select("name").eq("id", doc.person_id).maybeSingle();
+      ownerName = (p?.name as string | null) ?? ownerName;
+    }
+
+    const expiryDate = doc.expiry_date ? new Date(doc.expiry_date as string) : null;
+    const reminderLeadDays = (doc.reminder_lead_days as number | null) ?? 30;
+    const status = deriveDocStatus({ expiryDate, reminderLeadDays, archived: false });
+    const phrase = expiryDate
+      ? status === "Expired"
+        ? `expired (${expiryLabel({ expiryDate, reminderLeadDays })})`
+        : `is due to expire ${expiryLabel({ expiryDate, reminderLeadDays })}`
+      : "needs renewing";
+
+    const title = doc.title as string;
+    const body =
+      `Hello,\n\nA quick reminder that "${title}"${doc.person_id ? ` for ${ownerName}` : ""} ${phrase}. ` +
+      `Please arrange its renewal and share the updated copy so we can keep our records current.\n\nThank you.`;
+
+    const source = `doc-renewal:${id}`;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data: existing } = await sb
+      .from("outbox")
+      .select("id")
+      .eq("status", "Draft")
+      .eq("source", source)
+      .gte("created_at", today.toISOString())
+      .limit(1);
+    if ((existing ?? []).length > 0) return { ok: true, created: false };
+
+    const { error: insErr } = await sb.from("outbox").insert({
+      channel: "WHATSAPP",
+      recipient_name: ownerName,
+      recipient_contact: null,
+      company: companyLabel,
+      subject: `Renewal: ${title}`,
+      body,
+      message_type: "DOCUMENT RENEWAL",
+      status: "Draft",
+      source,
+      person_id: doc.person_id ?? null,
+      created_at: new Date().toISOString(),
+    });
+    if (insErr) throw new Error(insErr.message);
+
+    revalidatePath("/outbox");
+    updateTag("outbox");
+    return { ok: true, created: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not draft the renewal message." };
+  }
 }
 
 export async function removeDocumentFileAction(id: number): Promise<Result> {

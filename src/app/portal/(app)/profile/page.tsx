@@ -1,11 +1,13 @@
-import { Bell, LogOut, Settings2, UserRound } from "lucide-react";
+import { Bell, FileCheck2, LogOut, Settings2, UserRound } from "lucide-react";
 import { DevicePushToggle } from "@/components/device-push-toggle";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { AccessibilityControls } from "@/components/portal-prefs";
+import { PortalDocuments, type PortalChecklistItem } from "@/components/portal-documents";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { getPersonChecklist } from "@/lib/requirements";
 import { staffIdFor } from "@/lib/staff-id";
 import { portalLogout } from "../../actions";
 
@@ -20,6 +22,17 @@ export default async function PortalProfile() {
     companyName = (data?.name as string | null) ?? null;
   }
   const staffId = await staffIdFor(me.id);
+
+  // The person's document-compliance checklist (auto-links + scores server-side).
+  const checklist = await getPersonChecklist(me.id);
+  const docItems: PortalChecklistItem[] = (checklist?.items ?? []).map((it) => ({
+    id: it.id,
+    label: it.label,
+    mandatory: it.mandatory,
+    effectiveStatus: it.effectiveStatus,
+    documentTitle: it.documentTitle,
+    expiryLabel: it.expiryLabel,
+  }));
 
   const details: Array<{ label: string; value: string }> = [
     { label: "Name", value: me.name },
@@ -51,6 +64,16 @@ export default async function PortalProfile() {
           Need a detail changed? Ask your administrator — these come from your HR record.
         </p>
       </Reveal>
+
+      {docItems.length > 0 && (
+        <Reveal delay={0.08} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<FileCheck2 size={13} />}>Your documents</SectionLabel>
+          <PortalDocuments items={docItems} score={checklist?.score ?? 0} />
+          <p className="px-1 text-[11px] text-fg-subtle">
+            Upload anything we still need. Your administrator checks and confirms each one.
+          </p>
+        </Reveal>
+      )}
 
       <Reveal delay={0.1} className="flex flex-col gap-2.5">
         <SectionLabel icon={<Bell size={13} />}>Notifications</SectionLabel>

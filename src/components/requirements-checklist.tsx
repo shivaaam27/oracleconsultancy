@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2, History, CalendarClock } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,11 @@ import {
   type EffectiveStatus,
 } from "@/lib/requirements-shared";
 import {
+  COMPLIANCE_ACTION_LABEL,
+  complianceActor,
+  type ComplianceEvent,
+} from "@/lib/compliance-audit-shared";
+import {
   reqMarkRequested,
   reqLinkDocument,
   reqUnlinkDocument,
@@ -25,6 +30,7 @@ import {
   reqAdd,
   reqEdit,
   reqRemove,
+  reqSetReviewDate,
   reqSync,
 } from "@/app/people/requirement-actions";
 
@@ -82,6 +88,7 @@ type ChecklistItem = {
   docStatus: string | null;
   expiryLabel: string | null;
   verifiedAt: string | null;
+  reviewDate: string | null;
 };
 
 type Checklist = {
@@ -95,13 +102,28 @@ type Checklist = {
   expiredMandatory: number;
   items: ChecklistItem[];
   documents: Array<{ id: number; title: string; category: string | null; status: string }>;
+  events?: ComplianceEvent[];
 };
 
-const SPECIFIC = new Set(["Contract", "Passport", "Permit", "Immigration", "Tax", "Certificate", "Insurance", "Registration", "Licence", "Lease"]);
+/** Compact relative time, e.g. "just now", "3h ago", "12 Jun". */
+function relTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
 
 function addDocHref(personId: number, item: ChecklistItem) {
   const p = new URLSearchParams({ newdoc: "1", person: String(personId), title: item.label, from: `person:${personId}` });
-  if (item.category && SPECIFIC.has(item.category)) p.set("category", item.category);
+  // Carry the category through (even broad ones like "Other") so the new
+  // document records it; auto-linking now matches on label, not category alone.
+  if (item.category) p.set("category", item.category);
   return `/documents?${p.toString()}`;
 }
 
@@ -133,6 +155,7 @@ export function RequirementsChecklist({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [showInPlace, setShowInPlace] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -201,6 +224,8 @@ export function RequirementsChecklist({
 
   const needsAction = data.items.filter((it) => !IN_PLACE.has(it.effectiveStatus));
   const inPlace = data.items.filter((it) => IN_PLACE.has(it.effectiveStatus));
+  const events = data.events ?? [];
+  const lastReviewed = events.find((e) => e.action === "verified");
 
   return (
     <div className="space-y-3">
@@ -223,6 +248,11 @@ export function RequirementsChecklist({
             {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Sync
           </button>
         </div>
+        {lastReviewed && (
+          <div className="text-[11px] text-fg-subtle">
+            Last verified {relTime(lastReviewed.createdAt)} · {complianceActor(lastReviewed.createdBy)}
+          </div>
+        )}
       </SectionCard>
 
       {/* Needs action */}
@@ -261,6 +291,37 @@ export function RequirementsChecklist({
           {showInPlace && <div className="divide-y divide-border/50 border-t border-border/50">{inPlace.map((item) => <ItemRow key={item.id} item={item} />)}</div>}
         </SectionCard>
       )}
+
+      {/* Audit trail — who did what, when */}
+      {events.length > 0 && (
+        <SectionCard>
+          <button type="button" onClick={() => setShowHistory((s) => !s)}
+            className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-fg-muted hover:bg-bg-muted/40 transition-colors">
+            <History size={13} className="text-fg-subtle" /> History
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{events.length}</span>
+            <ChevronDown size={14} className={cn("ml-auto text-fg-subtle transition-transform", showHistory && "rotate-180")} />
+          </button>
+          {showHistory && (
+            <ul className="divide-y divide-border/50 border-t border-border/50">
+              {events.map((e) => (
+                <li key={e.id} className="flex items-start gap-2.5 px-3.5 py-2">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-subtle/60" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] leading-snug">
+                      <span className="font-medium">{COMPLIANCE_ACTION_LABEL[e.action]}</span>
+                      <span className="text-fg-muted"> · {e.label}</span>
+                    </p>
+                    {e.detail && <p className="text-[11px] text-fg-subtle truncate">{e.detail}</p>}
+                  </div>
+                  <span className="shrink-0 text-[11px] text-fg-subtle whitespace-nowrap">
+                    {relTime(e.createdAt)} · {complianceActor(e.createdBy)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+      )}
     </div>
   );
 
@@ -272,7 +333,7 @@ export function RequirementsChecklist({
     const needsDoc = item.effectiveStatus === "missing" || item.effectiveStatus === "requested";
     const dot = tone === "success" ? "bg-success" : tone === "warn" ? "bg-warn" : tone === "danger" ? "bg-danger" : tone === "info" ? "bg-info" : "bg-fg-subtle";
     const subtitle = item.documentTitle ? [item.documentTitle, item.expiryLabel].filter(Boolean).join(" · ") : item.mandatory ? "Required" : "Optional";
-    const addCat = item.category && SPECIFIC.has(item.category) ? item.category : null;
+    const addCat = item.category ?? null;
 
     if (editingId === item.id) {
       return <div className="p-2"><ReqEditor initial={{ label: item.label, category: item.category, mandatory: item.mandatory }} onSave={(v) => doEdit(item.id, v)} onCancel={() => setEditingId(null)} busy={busy} /></div>;
@@ -313,8 +374,16 @@ export function RequirementsChecklist({
         </div>
         {expanded && (
           <div className="flex flex-wrap items-center gap-1.5 px-3.5 pb-2.5 pl-[26px]">
-            {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring") && (
+            {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring" || item.effectiveStatus === "expired") && (
               <button type="button" disabled={busy} onClick={() => run(item.id, () => reqUnverify(item.id))} className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted">Unverify</button>
+            )}
+            {item.status === "verified" && (
+              <label className="inline-flex items-center gap-1 rounded-md bg-bg-subtle px-1.5 py-1 text-[11px] text-fg-muted ring-1 ring-border" title="Renew-by date for this requirement, even without an attached file">
+                <CalendarClock size={11} /> Valid until
+                <input type="date" disabled={busy} defaultValue={item.reviewDate ? item.reviewDate.slice(0, 10) : ""}
+                  onChange={(e) => run(item.id, () => reqSetReviewDate(item.id, e.target.value ? new Date(`${e.target.value}T00:00:00Z`).toISOString() : null), e.target.value ? "Review date set." : "Review date cleared.")}
+                  className="bg-transparent text-fg outline-none [color-scheme:light] dark:[color-scheme:dark]" />
+              </label>
             )}
             {needsDoc && linkable.length > 0 && (
               <select disabled={busy} defaultValue="" onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) run(item.id, () => reqLinkDocument(item.id, v), "Document linked."); }}

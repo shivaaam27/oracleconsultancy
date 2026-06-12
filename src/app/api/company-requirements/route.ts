@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCompanyChecklist } from "@/lib/company-requirements";
+import { listComplianceEvents } from "@/lib/compliance-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -10,5 +11,6 @@ export async function GET(req: NextRequest) {
   if (Number.isNaN(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
   const checklist = await getCompanyChecklist(id);
-  return NextResponse.json(checklist);
+  const events = await listComplianceEvents({ type: "company", id }, 40);
+  return NextResponse.json({ ...checklist, events });
 }

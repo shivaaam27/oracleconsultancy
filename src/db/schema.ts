@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, primaryKey, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, primaryKey, uniqueIndex, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -172,6 +172,10 @@ export const personRequirements = pgTable(
     // Set false once the operator manually unlinks a document, so the auto-linker
     // stops re-attaching a matching doc on every load. Manual linking still works.
     autoLink: boolean("auto_link").notNull().default(true),
+    // Optional "valid until / review by" date for the requirement itself. Lets a
+    // manually-verified item (no linked file) still lapse, so it can't count as
+    // compliant forever. Derived expiring/expired folds into the effective status.
+    reviewDate: timestamp("review_date", { mode: "date", withTimezone: true }),
     requestedAt: timestamp("requested_at", { mode: "date", withTimezone: true }),
     receivedAt: timestamp("received_at", { mode: "date", withTimezone: true }),
     verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),
@@ -201,6 +205,8 @@ export const companyRequirements = pgTable(
     status: text("status").notNull().default("missing"),
     documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
     autoLink: boolean("auto_link").notNull().default(true),
+    // Optional "valid until / review by" date — see person_requirements.reviewDate.
+    reviewDate: timestamp("review_date", { mode: "date", withTimezone: true }),
     requestedAt: timestamp("requested_at", { mode: "date", withTimezone: true }),
     receivedAt: timestamp("received_at", { mode: "date", withTimezone: true }),
     verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),
@@ -210,6 +216,33 @@ export const companyRequirements = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   },
   (t) => [uniqueIndex("company_requirements_company_source_idx").on(t.companyId, t.sourceKey)]
+);
+
+// Append-only audit trail for document-compliance actions (verify, waive, link,
+// etc.) on a person's OR a company's checklist. Keyed to the owner (person_id /
+// company_id) so each record's history is queryable; `label` is snapshotted so
+// the trail survives even if the underlying requirement row is later removed.
+export const complianceEvents = pgTable(
+  "compliance_events",
+  {
+    id: serial("id").primaryKey(),
+    ownerType: text("owner_type").notNull(), // "person" | "company"
+    personId: integer("person_id").references(() => people.id, { onDelete: "cascade" }),
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    // The person_requirements / company_requirements row id (no FK — two source
+    // tables; kept for reference, may dangle after the row is deleted).
+    requirementId: integer("requirement_id"),
+    label: text("label").notNull(),
+    action: text("action").notNull(), // verified | unverified | waived | unwaived | linked | unlinked | requested | added | edited | removed
+    detail: text("detail"), // free-text context: waive reason, doc title, label change
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    createdBy: text("created_by"),
+  },
+  (t) => [
+    index("compliance_events_person_idx").on(t.personId),
+    index("compliance_events_company_idx").on(t.companyId),
+  ]
 );
 
 // Editable onboarding/offboarding step templates, per person type. A person's

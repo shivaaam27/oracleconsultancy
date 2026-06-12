@@ -12,6 +12,7 @@ import {
   addPersonRequirement,
   editPersonRequirement,
   removePersonRequirement,
+  setRequirementReviewDate,
   syncPersonRequirements,
 } from "@/lib/requirements";
 
@@ -60,6 +61,9 @@ export async function reqEdit(id: number, input: ReqInput) {
 }
 export async function reqRemove(id: number) {
   return wrap(() => removePersonRequirement(id));
+}
+export async function reqSetReviewDate(id: number, reviewDate: string | null) {
+  return wrap(() => setRequirementReviewDate(id, reviewDate));
 }
 export async function reqSync(personId: number): Promise<SyncRes> {
   try {

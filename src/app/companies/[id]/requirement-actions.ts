@@ -12,6 +12,7 @@ import {
   addCompanyRequirement,
   editCompanyRequirement,
   removeCompanyRequirement,
+  setCompanyRequirementReviewDate,
 } from "@/lib/company-requirements";
 
 type ReqInput = { label: string; category: string | null; mandatory: boolean };
@@ -56,4 +57,7 @@ export async function creqEdit(id: number, input: ReqInput) {
 }
 export async function creqRemove(id: number) {
   return wrap(() => removeCompanyRequirement(id));
+}
+export async function creqSetReviewDate(id: number, reviewDate: string | null) {
+  return wrap(() => setCompanyRequirementReviewDate(id, reviewDate));
 }

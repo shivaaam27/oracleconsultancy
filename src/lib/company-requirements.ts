@@ -1,7 +1,9 @@
 import { sb } from "@/db/supabase";
-import { deriveDocStatus, expiryLabel, type DocStatus } from "@/lib/documents-shared";
+import { deriveDocStatus, expiryLabel, worstDocStatus, DEFAULT_LEAD_DAYS, type DocStatus } from "@/lib/documents-shared";
 import { complianceBand, type ComplianceBand, type EffectiveStatus, type RequirementStatus } from "@/lib/requirements-shared";
 import type { ComplianceScore, ComplianceGap, ComplianceDocumentIssue } from "@/lib/compliance";
+import { matchDocumentsToItems } from "@/lib/requirement-match";
+import { logCompanyRequirementEvent } from "@/lib/compliance-audit";
 
 /* ------------------------------------------------------------------ */
 /* Per-company document compliance checklist (DB-backed).              */
@@ -28,12 +30,6 @@ export const COMPANY_DEFAULT_ITEMS: SeedItem[] = [
   { key: "bank-account", label: "Company bank account & signatories", category: "Registration" },
   { key: "statutory-registers", label: "Statutory registers up to date", category: "Registration" },
 ];
-
-/** Categories specific enough to auto-link a saved company document to its item. */
-const SPECIFIC_CATEGORIES = new Set([
-  "Registration", "Tax", "Licence", "Permit", "Insurance", "Lease",
-  "Contract", "Certificate", "Immigration", "Passport",
-]);
 
 /* ------------------------------------------------------------------ */
 /* Seeding / reconciliation                                            */
@@ -79,6 +75,7 @@ export type CompanyChecklistRow = {
   docStatus: DocStatus | null;
   expiryLabel: string | null;
   verifiedAt: string | null;
+  reviewDate: string | null;
   isCustom: boolean;
 };
 
@@ -97,6 +94,7 @@ type CompanyDocRow = {
   id: number;
   title: string;
   category: string | null;
+  docType: string | null;
   expiryDate: Date | null;
   reminderLeadDays: number;
   status: DocStatus;
@@ -105,7 +103,7 @@ type CompanyDocRow = {
 async function loadCompanyDocuments(companyId: number): Promise<CompanyDocRow[]> {
   const { data } = await sb
     .from("documents")
-    .select("id,title,category,expiry_date,reminder_lead_days,archived")
+    .select("id,title,category,doc_type,expiry_date,reminder_lead_days,archived")
     .eq("company_id", companyId)
     .eq("archived", false);
   return (data ?? []).map((d) => {
@@ -115,6 +113,7 @@ async function loadCompanyDocuments(companyId: number): Promise<CompanyDocRow[]>
       id: d.id as number,
       title: d.title as string,
       category: (d.category as string | null) ?? null,
+      docType: (d.doc_type as string | null) ?? null,
       expiryDate,
       reminderLeadDays,
       status: deriveDocStatus({ expiryDate, reminderLeadDays, archived: false }),
@@ -139,7 +138,7 @@ export async function getCompanyChecklist(companyId: number): Promise<CompanyChe
   const [{ data: rows }, docs] = await Promise.all([
     sb
       .from("company_requirements")
-      .select("id,source_key,label,category,mandatory,expiry_tracked,status,document_id,verified_at,auto_link")
+      .select("id,source_key,label,category,mandatory,expiry_tracked,status,document_id,verified_at,auto_link,review_date")
       .eq("company_id", companyId),
     loadCompanyDocuments(companyId),
   ]);
@@ -150,43 +149,72 @@ export async function getCompanyChecklist(companyId: number): Promise<CompanyChe
     liveRows.map((r) => r.document_id as number | null).filter((x): x is number => x != null)
   );
 
-  // Auto-link an un-actioned item to a saved document of the same category.
+  // Auto-link un-actioned items to saved documents by label + title/type,
+  // assigned globally best-first so several same-category items (e.g. the six
+  // statutory "Registration" rows) each grab the right document, not a random one.
   const now = new Date().toISOString();
+  const candidateItems = liveRows
+    .filter(
+      (r) =>
+        !r.document_id &&
+        (r.auto_link as boolean | null) !== false &&
+        (r.status === "missing" || r.status === "requested")
+    )
+    .map((r) => ({ id: r.id as number, label: r.label as string, category: (r.category as string | null) ?? null }));
+  const candidateDocs = docs
+    .filter((d) => !linkedDocIds.has(d.id))
+    .map((d) => ({ id: d.id, title: d.title, category: d.category, docType: d.docType }));
+  const matches = matchDocumentsToItems(candidateItems, candidateDocs);
   for (const r of liveRows) {
-    if (r.document_id) continue;
-    if ((r.auto_link as boolean | null) === false) continue;
-    if (r.status !== "missing" && r.status !== "requested") continue;
-    const cat = r.category as string | null;
-    if (!cat || !SPECIFIC_CATEGORIES.has(cat)) continue;
-    const match = docs.find((d) => d.category === cat && !linkedDocIds.has(d.id));
-    if (!match) continue;
-    linkedDocIds.add(match.id);
-    r.document_id = match.id;
+    const docId = matches.get(r.id as number);
+    if (docId == null) continue;
+    linkedDocIds.add(docId);
+    r.document_id = docId;
     r.status = "received";
     await sb
       .from("company_requirements")
-      .update({ document_id: match.id, status: "received", received_at: now, updated_at: now })
+      .update({ document_id: docId, status: "received", received_at: now, updated_at: now })
       .eq("id", r.id as number);
+    await logCompanyRequirementEvent(r.id as number, "linked", {
+      documentId: docId,
+      detail: docById.get(docId)?.title ?? null,
+      ownerId: companyId,
+      label: r.label as string,
+      createdBy: "auto-link",
+    });
   }
 
   const items: CompanyChecklistRow[] = liveRows
     .map((r) => {
       const status = (r.status as RequirementStatus) ?? "missing";
       const doc = r.document_id ? docById.get(r.document_id as number) ?? null : null;
-      const docStatus = doc?.status ?? null;
+      const cat = (r.category as string | null) ?? null;
+      const reviewDate = r.review_date ? new Date(r.review_date as string) : null;
+      const reviewLead = (cat && DEFAULT_LEAD_DAYS[cat]) || 30;
+      const reviewStatus = reviewDate ? deriveDocStatus({ expiryDate: reviewDate, reminderLeadDays: reviewLead }) : null;
+      const combinedStatus = worstDocStatus(doc?.status ?? null, reviewStatus);
+      const labelSource =
+        reviewStatus && combinedStatus === reviewStatus && reviewStatus !== "Valid" && reviewStatus !== "No expiry"
+          ? { expiryDate: reviewDate!, reminderLeadDays: reviewLead }
+          : doc?.expiryDate
+          ? { expiryDate: doc.expiryDate, reminderLeadDays: doc.reminderLeadDays }
+          : reviewDate
+          ? { expiryDate: reviewDate, reminderLeadDays: reviewLead }
+          : null;
       return {
         id: r.id as number,
         label: r.label as string,
-        category: (r.category as string | null) ?? null,
+        category: cat,
         mandatory: (r.mandatory as boolean | null) ?? true,
         expiryTracked: (r.expiry_tracked as boolean | null) ?? true,
         status,
-        effectiveStatus: effectiveStatus(status, docStatus),
+        effectiveStatus: effectiveStatus(status, combinedStatus),
         documentId: (r.document_id as number | null) ?? null,
         documentTitle: doc?.title ?? null,
-        docStatus,
-        expiryLabel: doc?.expiryDate ? expiryLabel({ expiryDate: doc.expiryDate, reminderLeadDays: doc.reminderLeadDays }) : null,
+        docStatus: combinedStatus,
+        expiryLabel: labelSource ? expiryLabel(labelSource) : null,
         verifiedAt: (r.verified_at as string | null) ?? null,
+        reviewDate: reviewDate ? reviewDate.toISOString() : null,
         isCustom: (r.source_key as string | null) == null,
       };
     })
@@ -272,7 +300,7 @@ export async function buildCompanyRequirementScores(
   const ids = companies.map((c) => c.id);
   if (ids.length === 0) return [];
   const [{ data: reqRows }, { data: docRows }] = await Promise.all([
-    sb.from("company_requirements").select("company_id,label,category,mandatory,status,document_id").in("company_id", ids),
+    sb.from("company_requirements").select("company_id,label,category,mandatory,status,document_id,review_date").in("company_id", ids),
     sb.from("documents").select("id,company_id,title,category,expiry_date,reminder_lead_days,archived").in("company_id", ids),
   ]);
 
@@ -324,7 +352,12 @@ export async function buildCompanyRequirementScores(
       if (!mandatory) continue;
       mandatoryTotal++;
       const docStatus = r.document_id ? docStatusById.get(r.document_id as number) ?? null : null;
-      const eff = effectiveStatus(status, docStatus);
+      const cat = r.category as string | null;
+      const reviewDate = r.review_date ? new Date(r.review_date as string) : null;
+      const reviewStatus = reviewDate
+        ? deriveDocStatus({ expiryDate: reviewDate, reminderLeadDays: (cat && DEFAULT_LEAD_DAYS[cat]) || 30 })
+        : null;
+      const eff = effectiveStatus(status, worstDocStatus(docStatus, reviewStatus));
       if (eff === "verified" || eff === "expiring") verified++;
       if (eff === "expiring") expiring++;
       if (eff === "expired") expired++;
@@ -381,30 +414,46 @@ async function patch(id: number, fields: Record<string, unknown>) {
 
 export async function markCompanyRequirementRequested(id: number) {
   await patch(id, { status: "requested", requested_at: new Date().toISOString() });
+  await logCompanyRequirementEvent(id, "requested");
 }
 
 export async function linkCompanyRequirementDocument(id: number, documentId: number) {
   await patch(id, { document_id: documentId, status: "received", received_at: new Date().toISOString() });
+  const { data: doc } = await sb.from("documents").select("title").eq("id", documentId).maybeSingle();
+  await logCompanyRequirementEvent(id, "linked", { documentId, detail: (doc?.title as string | null) ?? null });
 }
 
 export async function unlinkCompanyRequirementDocument(id: number) {
   await patch(id, { document_id: null, status: "missing", verified_at: null, verified_by: null, auto_link: false });
+  await logCompanyRequirementEvent(id, "unlinked");
 }
 
 export async function verifyCompanyRequirement(id: number) {
   await patch(id, { status: "verified", verified_at: new Date().toISOString(), verified_by: "web-ui" });
+  await logCompanyRequirementEvent(id, "verified");
 }
 
 export async function unverifyCompanyRequirement(id: number) {
   await patch(id, { status: "received" });
+  await logCompanyRequirementEvent(id, "unverified");
 }
 
 export async function waiveCompanyRequirement(id: number, reason: string | null) {
   await patch(id, { status: "waived", waived_reason: reason });
+  await logCompanyRequirementEvent(id, "waived", { detail: reason });
 }
 
 export async function unwaiveCompanyRequirement(id: number) {
   await patch(id, { status: "missing", waived_reason: null });
+  await logCompanyRequirementEvent(id, "unwaived");
+}
+
+/** Set or clear the requirement's own "valid until / review by" date (ISO or null). */
+export async function setCompanyRequirementReviewDate(id: number, reviewDate: string | null) {
+  await patch(id, { review_date: reviewDate });
+  await logCompanyRequirementEvent(id, "edited", {
+    detail: reviewDate ? `Review date set to ${reviewDate.slice(0, 10)}` : "Review date cleared",
+  });
 }
 
 /** Add a custom required document to one company's checklist (source_key null). */
@@ -424,23 +473,29 @@ export async function addCompanyRequirement(
   if (match) {
     if ((match.status as string) === "removed") {
       await patch(match.id as number, { status: "missing" });
+      await logCompanyRequirementEvent(match.id as number, "added", { ownerId: companyId, label });
       return;
     }
     throw new Error("That document is already on this company's checklist.");
   }
 
-  const { error } = await sb.from("company_requirements").insert({
-    company_id: companyId,
-    source_key: null,
-    label,
-    category: input.category,
-    mandatory: input.mandatory,
-    expiry_tracked: true,
-    status: "missing",
-    created_at: now,
-    updated_at: now,
-  });
+  const { data: inserted, error } = await sb
+    .from("company_requirements")
+    .insert({
+      company_id: companyId,
+      source_key: null,
+      label,
+      category: input.category,
+      mandatory: input.mandatory,
+      expiry_tracked: true,
+      status: "missing",
+      created_at: now,
+      updated_at: now,
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+  await logCompanyRequirementEvent(inserted.id as number, "added", { ownerId: companyId, label });
 }
 
 export async function editCompanyRequirement(
@@ -450,12 +505,21 @@ export async function editCompanyRequirement(
   const label = input.label.trim();
   if (!label) throw new Error("A name is required.");
   await patch(id, { label, category: input.category, mandatory: input.mandatory });
+  await logCompanyRequirementEvent(id, "edited", { label });
 }
 
 /** Remove an item: custom items hard-delete; seeded items hide (status "removed"). */
 export async function removeCompanyRequirement(id: number) {
-  const { data: row } = await sb.from("company_requirements").select("source_key").eq("id", id).maybeSingle();
+  const { data: row } = await sb
+    .from("company_requirements")
+    .select("source_key,company_id,label")
+    .eq("id", id)
+    .maybeSingle();
   if (!row) return;
+  await logCompanyRequirementEvent(id, "removed", {
+    ownerId: (row.company_id as number | null) ?? undefined,
+    label: (row.label as string | null) ?? undefined,
+  });
   if ((row.source_key as string | null) == null) {
     const { error } = await sb.from("company_requirements").delete().eq("id", id);
     if (error) throw new Error(error.message);

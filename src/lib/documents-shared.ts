@@ -78,6 +78,12 @@ export function expiryLabel(d: DocStatusInput): string | null {
   return `in ${dte} day${dte === 1 ? "" : "s"}`;
 }
 
+/** The more urgent of two lifecycle statuses (Expired > Expiring > Valid > rest). */
+export function worstDocStatus(a: DocStatus | null, b: DocStatus | null): DocStatus | null {
+  const rank = (s: DocStatus | null) => (s === "Expired" ? 3 : s === "Expiring" ? 2 : s === "Valid" ? 1 : 0);
+  return rank(a) >= rank(b) ? a : b;
+}
+
 export const docStatusColor: Record<DocStatus, string> = {
   Valid: "bg-success-soft text-success",
   Expiring: "bg-warn-soft text-warn",

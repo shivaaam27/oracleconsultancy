@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2 } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, History, CalendarClock } from "lucide-react";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -13,6 +13,11 @@ import {
   type EffectiveStatus,
 } from "@/lib/requirements-shared";
 import {
+  COMPLIANCE_ACTION_LABEL,
+  complianceActor,
+  type ComplianceEvent,
+} from "@/lib/compliance-audit-shared";
+import {
   creqMarkRequested,
   creqLinkDocument,
   creqUnlinkDocument,
@@ -23,6 +28,7 @@ import {
   creqAdd,
   creqEdit,
   creqRemove,
+  creqSetReviewDate,
 } from "@/app/companies/[id]/requirement-actions";
 
 type ReqFields = { label: string; category: string | null; mandatory: boolean };
@@ -78,6 +84,7 @@ type ChecklistItem = {
   docStatus: string | null;
   expiryLabel: string | null;
   verifiedAt: string | null;
+  reviewDate: string | null;
   isCustom: boolean;
 };
 
@@ -90,7 +97,22 @@ type Checklist = {
   missingMandatory: number;
   expiredMandatory: number;
   items: ChecklistItem[];
+  events?: ComplianceEvent[];
 };
+
+/** Compact relative time, e.g. "just now", "3h ago", "12 Jun". */
+function relTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
 
 const bandTone = { Good: "success", Watch: "warn", Risk: "danger" } as const;
 
@@ -137,6 +159,7 @@ export function CompanyRequirementsChecklist({
   const [openItem, setOpenItem] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
@@ -267,8 +290,16 @@ export function CompanyRequirementsChecklist({
                           <Check size={12} /> Verify
                         </button>
                       )}
-                      {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring") && (
+                      {(item.effectiveStatus === "verified" || item.effectiveStatus === "expiring" || item.effectiveStatus === "expired") && (
                         <button type="button" disabled={busy} onClick={() => run(item.id, () => creqUnverify(item.id))} className={subtleBtn}>Unverify</button>
+                      )}
+                      {item.status === "verified" && (
+                        <label className="inline-flex items-center gap-1 rounded-md bg-bg-subtle px-1.5 py-1 text-[11px] text-fg-muted ring-1 ring-border" title="Renew-by date for this requirement, even without an attached file">
+                          <CalendarClock size={11} /> Valid until
+                          <input type="date" disabled={busy} defaultValue={item.reviewDate ? item.reviewDate.slice(0, 10) : ""}
+                            onChange={(e) => run(item.id, () => creqSetReviewDate(item.id, e.target.value ? new Date(`${e.target.value}T00:00:00Z`).toISOString() : null), e.target.value ? "Review date set." : "Review date cleared.")}
+                            className="bg-transparent text-fg outline-none [color-scheme:light] dark:[color-scheme:dark]" />
+                        </label>
                       )}
                       {item.effectiveStatus === "expired" && renderAdd("Renew")}
                       {needsDoc && (
@@ -329,6 +360,37 @@ export function CompanyRequirementsChecklist({
           </button>
         )}
       </div>
+
+      {/* Audit trail — who did what, when */}
+      {(data.events?.length ?? 0) > 0 && (
+        <div className="border-t border-border/70">
+          <button type="button" onClick={() => setShowHistory((s) => !s)}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium uppercase tracking-wider text-fg-muted hover:bg-bg-muted/40 transition-colors">
+            <History size={13} className="text-fg-subtle" /> History
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.events!.length}</span>
+            <ChevronDown size={14} className={cn("ml-auto text-fg-subtle transition-transform", showHistory && "rotate-180")} />
+          </button>
+          {showHistory && (
+            <ul className="divide-y divide-border/50 border-t border-border/50">
+              {data.events!.map((e) => (
+                <li key={e.id} className="flex items-start gap-2.5 px-3 py-2">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-subtle/60" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] leading-snug">
+                      <span className="font-medium">{COMPLIANCE_ACTION_LABEL[e.action]}</span>
+                      <span className="text-fg-muted"> · {e.label}</span>
+                    </p>
+                    {e.detail && <p className="text-[11px] text-fg-subtle truncate">{e.detail}</p>}
+                  </div>
+                  <span className="shrink-0 text-[11px] text-fg-subtle whitespace-nowrap">
+                    {relTime(e.createdAt)} · {complianceActor(e.createdBy)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </details>
   );
 }

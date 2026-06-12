@@ -7,6 +7,8 @@ import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sendToAll, configurePush } from "@/lib/push";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
+import { buildPersonRequirementScores } from "@/lib/requirements";
+import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +38,27 @@ export async function GET(req: NextRequest) {
     const docsExpired = documents.filter((d) => deriveDocStatus(d) === "Expired");
     const docsExpiring = documents.filter((d) => deriveDocStatus(d) === "Expiring");
 
+    // Compliance gaps: missing or expired MANDATORY requirements across people and
+    // companies. Catches requirement review-date lapses + missing docs that aren't
+    // visible as document rows. (expired counts the verified-but-lapsed items too.)
+    const { data: companyRows } = await sb.from("companies").select("id,name");
+    const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+    const [personScores, companyScores] = await Promise.all([
+      buildPersonRequirementScores(),
+      buildCompanyRequirementScores(companies),
+    ]);
+    const complianceGaps = [...personScores, ...companyScores].reduce(
+      (sum, s) => sum + s.missing + s.expired,
+      0
+    );
+
     const parts: string[] = [];
     if (overdue.length) parts.push(`${overdue.length} overdue`);
     if (escalated.length) parts.push(`${escalated.length} escalated`);
     if (dueToday.length) parts.push(`${dueToday.length} due today`);
     if (docsExpired.length) parts.push(`${docsExpired.length} doc${docsExpired.length === 1 ? "" : "s"} expired`);
     if (docsExpiring.length) parts.push(`${docsExpiring.length} doc${docsExpiring.length === 1 ? "" : "s"} expiring`);
+    if (complianceGaps) parts.push(`${complianceGaps} compliance gap${complianceGaps === 1 ? "" : "s"}`);
 
     // Nothing actionable — don't notify.
     if (parts.length === 0) {
@@ -50,14 +67,14 @@ export async function GET(req: NextRequest) {
     }
 
     // De-dupe: only push when the situation changes from the last run.
-    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}`;
+    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${complianceGaps}`;
     const { data: last } = await sb.from("settings").select("value").eq("key", SIG_KEY).maybeSingle();
     if ((last?.value as string | null) === signature) {
       await recordEvent("cron.notify", "ok", { sent: 0, reason: "unchanged" });
       return NextResponse.json({ ok: true, sent: 0, reason: "unchanged" });
     }
 
-    // If the only actionable items are documents, deep-link straight there.
+    // If the only actionable items are documents/compliance, deep-link there.
     const onlyDocs = overdue.length === 0 && escalated.length === 0 && dueToday.length === 0;
     const res = await sendToAll({
       title: "Oracle Consultancy — needs attention",

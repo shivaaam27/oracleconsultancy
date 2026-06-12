@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
-import { createTaskAttachment } from "@/lib/documents";
+import { createTaskAttachment, createDocument, uploadDocumentFile } from "@/lib/documents";
+import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import {
   clearSessionCookie,
@@ -328,6 +329,71 @@ export async function portalAddUpdate(formData: FormData) {
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);
   revalidatePath("/portal");
+}
+
+/* ----------------------------------------------------------------------
+ * Document compliance — staff upload their own required documents. The file
+ * is filed as the person's own Document and linked to the checklist item as
+ * "received"; verification stays with the administrator. We re-verify the
+ * requirement belongs to the signed-in person — never trust the form.
+ * ---------------------------------------------------------------------- */
+const MAX_PORTAL_DOC_BYTES = 15 * 1024 * 1024; // 15 MB
+
+export async function portalUploadRequirementDocument(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+
+  const requirementId = Number(formData.get("requirementId"));
+  const fileEntry = formData.get("file");
+  const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
+  if (!Number.isFinite(requirementId)) return { ok: false, error: "Missing requirement." };
+  if (!file) return { ok: false, error: "Choose a file to upload." };
+  if (file.size > MAX_PORTAL_DOC_BYTES) return { ok: false, error: "That file is too large (max 15 MB)." };
+
+  // Authorise: the requirement must belong to THIS person.
+  const { data: req } = await sb
+    .from("person_requirements")
+    .select("id,person_id,label,category")
+    .eq("id", requirementId)
+    .maybeSingle();
+  if (!req || (req.person_id as number) !== me.id) {
+    return { ok: false, error: "That document isn't on your checklist." };
+  }
+
+  const createdBy = `portal:${me.name}`;
+  const label = (req.label as string | null) ?? file.name;
+  const category = (req.category as string | null) ?? null;
+
+  try {
+    const docId = await createDocument(
+      { title: label, personId: me.id, category, notes: `Uploaded by ${me.name} via the staff portal.` },
+      createdBy
+    );
+    await uploadDocumentFile(docId, file);
+
+    // Link to the checklist item as "received" (awaiting admin verification).
+    const now = new Date().toISOString();
+    await sb
+      .from("person_requirements")
+      .update({ document_id: docId, status: "received", received_at: now, updated_at: now, auto_link: true })
+      .eq("id", requirementId);
+    await logPersonRequirementEvent(requirementId, "linked", {
+      documentId: docId,
+      detail: label,
+      ownerId: me.id,
+      label,
+      createdBy,
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not upload the document." };
+  }
+
+  revalidatePath("/portal/profile");
+  revalidatePath("/documents");
+  revalidatePath("/people");
+  return { ok: true };
 }
 
 /** Any portal person on the task: confirm they have read an update

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle, Clock, FileWarning, ListTodo, RefreshCw, Plus, ChevronDown,
-  Building2, User as UserIcon, ExternalLink, Loader2,
+  Building2, User as UserIcon, ExternalLink, Loader2, MessageSquarePlus,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "./toast";
@@ -13,7 +13,7 @@ import {
   deriveDocStatus, daysToExpiry, expiryLabel, type DocumentRow,
 } from "@/lib/documents-shared";
 import type { ComplianceScore } from "@/lib/compliance";
-import { renewDocumentAction } from "@/app/documents/actions";
+import { renewDocumentAction, draftDocumentRenewalAction } from "@/app/documents/actions";
 
 type Kind = "expired" | "expiring" | "missing";
 type Filter = "all" | Kind;
@@ -80,6 +80,7 @@ export function NeedsAttentionPanel({
   const { toast } = useToast();
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [draftBusyId, setDraftBusyId] = useState<number | null>(null);
   const [, startAction] = useTransition();
   const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState(false);
@@ -154,6 +155,18 @@ export function NeedsAttentionPanel({
       setBusyId(null);
       toast(res.ok ? `Renewal task ${res.code} created` : res.error, { tone: res.ok ? "success" : "warn", duration: 4500 });
       if (res.ok) router.refresh();
+    });
+  }
+
+  function doDraft(docId: number) {
+    setDraftBusyId(docId);
+    startAction(async () => {
+      const res = await draftDocumentRenewalAction(docId);
+      setDraftBusyId(null);
+      toast(
+        res.ok ? (res.created ? "Renewal message drafted in Outbox" : "A renewal draft already exists in Outbox") : res.error,
+        { tone: res.ok ? "success" : "warn", duration: 4500 }
+      );
     });
   }
 
@@ -239,17 +252,28 @@ export function NeedsAttentionPanel({
                   )}
                 </div>
               </div>
-              {/* Inline action */}
+              {/* Inline actions */}
               {item.kind === "missing" && item.addHref ? (
                 <Link href={item.addHref}
                   className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-medium text-accent transition-colors hover:bg-accent/20">
                   <Plus size={13} /> Add
                 </Link>
-              ) : item.canRenew && item.docId ? (
-                <button type="button" disabled={busyId === item.docId} onClick={() => doRenew(item.docId!)}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50">
-                  {busyId === item.docId ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Renew
-                </button>
+              ) : item.docId ? (
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Chase: draft a renewal message (works for person or company docs) */}
+                  <button type="button" disabled={draftBusyId === item.docId} onClick={() => doDraft(item.docId!)}
+                    title="Draft a renewal reminder in Outbox"
+                    className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50">
+                    {draftBusyId === item.docId ? <Loader2 size={13} className="animate-spin" /> : <MessageSquarePlus size={13} />} Chase
+                  </button>
+                  {item.canRenew && (
+                    <button type="button" disabled={busyId === item.docId} onClick={() => doRenew(item.docId!)}
+                      title="Create a renewal task"
+                      className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50">
+                      {busyId === item.docId ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Renew
+                    </button>
+                  )}
+                </div>
               ) : item.viewHref ? (
                 <Link href={item.viewHref}
                   className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border transition-colors hover:bg-bg-muted">

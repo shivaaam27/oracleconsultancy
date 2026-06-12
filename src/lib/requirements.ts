@@ -1,5 +1,5 @@
 import { sb } from "@/db/supabase";
-import { deriveDocStatus, expiryLabel, DEFAULT_LEAD_DAYS, type DocStatus } from "@/lib/documents-shared";
+import { deriveDocStatus, expiryLabel, worstDocStatus, DEFAULT_LEAD_DAYS, type DocStatus } from "@/lib/documents-shared";
 import { normalizePersonType, type PersonType } from "@/lib/person-types";
 import {
   complianceBand,
@@ -8,6 +8,8 @@ import {
   type RequirementStatus,
 } from "@/lib/requirements-shared";
 import type { ComplianceScore, ComplianceGap, ComplianceDocumentIssue } from "@/lib/compliance";
+import { matchDocumentsToItems } from "@/lib/requirement-match";
+import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 
 /* ------------------------------------------------------------------ */
 /* Default seed profiles — one per person type. Owner-confirmed lists: */
@@ -81,12 +83,6 @@ export const DEFAULT_PROFILES: SeedProfile[] = [
     ],
   },
 ];
-
-/** Categories specific enough to auto-link a saved document to its requirement. */
-const SPECIFIC_CATEGORIES = new Set([
-  "Contract", "Passport", "Permit", "Immigration", "Tax", "Certificate",
-  "Insurance", "Registration", "Licence", "Lease",
-]);
 
 /* ------------------------------------------------------------------ */
 /* Seeding                                                             */
@@ -300,6 +296,8 @@ export type ChecklistItem = {
   docStatus: DocStatus | null;
   expiryLabel: string | null;
   verifiedAt: string | null;
+  /** Optional "valid until / review by" date for the requirement itself (ISO). */
+  reviewDate: string | null;
 };
 
 export type ChecklistDocument = {
@@ -326,6 +324,7 @@ type PersonDocRow = {
   id: number;
   title: string;
   category: string | null;
+  docType: string | null;
   expiryDate: Date | null;
   reminderLeadDays: number;
   status: DocStatus;
@@ -334,7 +333,7 @@ type PersonDocRow = {
 async function loadPersonDocuments(personId: number): Promise<PersonDocRow[]> {
   const { data } = await sb
     .from("documents")
-    .select("id,title,category,expiry_date,reminder_lead_days,archived")
+    .select("id,title,category,doc_type,expiry_date,reminder_lead_days,archived")
     .eq("person_id", personId)
     .eq("archived", false);
   return (data ?? []).map((d) => {
@@ -344,6 +343,7 @@ async function loadPersonDocuments(personId: number): Promise<PersonDocRow[]> {
       id: d.id as number,
       title: d.title as string,
       category: (d.category as string | null) ?? null,
+      docType: (d.doc_type as string | null) ?? null,
       expiryDate,
       reminderLeadDays,
       status: deriveDocStatus({ expiryDate, reminderLeadDays, archived: false }),
@@ -376,7 +376,7 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
   const [{ data: rows }, docs, { data: prof }] = await Promise.all([
     sb
       .from("person_requirements")
-      .select("id,item_id,label,category,mandatory,expiry_tracked,status,document_id,verified_at,auto_link")
+      .select("id,item_id,label,category,mandatory,expiry_tracked,status,document_id,verified_at,auto_link,review_date")
       .eq("person_id", personId),
     loadPersonDocuments(personId),
     sb.from("requirement_profiles").select("name").eq("applies_to_type", type).eq("active", true).maybeSingle(),
@@ -390,44 +390,76 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
     liveRows.map((r) => r.document_id as number | null).filter((x): x is number => x != null)
   );
 
-  // Auto-link: an un-actioned item with a specific category gets matched to a
-  // saved document of the same category that isn't already linked elsewhere.
+  // Auto-link: match un-actioned items to saved documents by label + title/type
+  // (not just broad category), assigned globally best-first so each document and
+  // item is used at most once. This is what lets a uploaded National ID / NSSF /
+  // bank letter (all category "Other") actually tick their checklist item.
   const now = new Date().toISOString();
+  const candidateItems = liveRows
+    .filter(
+      (r) =>
+        !r.document_id &&
+        (r.auto_link as boolean | null) !== false && // operator unlinked — don't re-attach
+        (r.status === "missing" || r.status === "requested")
+    )
+    .map((r) => ({ id: r.id as number, label: r.label as string, category: (r.category as string | null) ?? null }));
+  const candidateDocs = docs
+    .filter((d) => !linkedDocIds.has(d.id))
+    .map((d) => ({ id: d.id, title: d.title, category: d.category, docType: d.docType }));
+  const matches = matchDocumentsToItems(candidateItems, candidateDocs);
   for (const r of liveRows) {
-    if (r.document_id) continue;
-    if ((r.auto_link as boolean | null) === false) continue; // operator unlinked — don't re-attach
-    if (r.status !== "missing" && r.status !== "requested") continue;
-    const cat = r.category as string | null;
-    if (!cat || !SPECIFIC_CATEGORIES.has(cat)) continue;
-    const match = docs.find((d) => d.category === cat && !linkedDocIds.has(d.id));
-    if (!match) continue;
-    linkedDocIds.add(match.id);
-    r.document_id = match.id;
+    const docId = matches.get(r.id as number);
+    if (docId == null) continue;
+    linkedDocIds.add(docId);
+    r.document_id = docId;
     r.status = "received";
     await sb
       .from("person_requirements")
-      .update({ document_id: match.id, status: "received", received_at: now, updated_at: now })
+      .update({ document_id: docId, status: "received", received_at: now, updated_at: now })
       .eq("id", r.id as number);
+    await logPersonRequirementEvent(r.id as number, "linked", {
+      documentId: docId,
+      detail: docById.get(docId)?.title ?? null,
+      ownerId: personId,
+      label: r.label as string,
+      createdBy: "auto-link",
+    });
   }
 
   const items: ChecklistItem[] = liveRows
     .map((r) => {
       const status = (r.status as RequirementStatus) ?? "missing";
       const doc = r.document_id ? docById.get(r.document_id as number) ?? null : null;
-      const docStatus = doc?.status ?? null;
+      const cat = (r.category as string | null) ?? null;
+      const reviewDate = r.review_date ? new Date(r.review_date as string) : null;
+      const reviewLead = (cat && DEFAULT_LEAD_DAYS[cat]) || 30;
+      const reviewStatus = reviewDate ? deriveDocStatus({ expiryDate: reviewDate, reminderLeadDays: reviewLead }) : null;
+      // The requirement lapses on whichever is sooner — the document's expiry or
+      // the manual review date — so a verified item can't stay green forever.
+      const combinedStatus = worstDocStatus(doc?.status ?? null, reviewStatus);
+      // Prefer whichever expiry drives the lapse for the countdown label.
+      const labelSource =
+        reviewStatus && worstDocStatus(doc?.status ?? null, reviewStatus) === reviewStatus && reviewStatus !== "Valid" && reviewStatus !== "No expiry"
+          ? { expiryDate: reviewDate!, reminderLeadDays: reviewLead }
+          : doc?.expiryDate
+          ? { expiryDate: doc.expiryDate, reminderLeadDays: doc.reminderLeadDays }
+          : reviewDate
+          ? { expiryDate: reviewDate, reminderLeadDays: reviewLead }
+          : null;
       return {
         id: r.id as number,
         label: r.label as string,
-        category: (r.category as string | null) ?? null,
+        category: cat,
         mandatory: (r.mandatory as boolean | null) ?? true,
         expiryTracked: (r.expiry_tracked as boolean | null) ?? true,
         status,
-        effectiveStatus: effectiveStatus(status, docStatus),
+        effectiveStatus: effectiveStatus(status, combinedStatus),
         documentId: (r.document_id as number | null) ?? null,
         documentTitle: doc?.title ?? null,
-        docStatus,
-        expiryLabel: doc?.expiryDate ? expiryLabel({ expiryDate: doc.expiryDate, reminderLeadDays: doc.reminderLeadDays }) : null,
+        docStatus: combinedStatus,
+        expiryLabel: labelSource ? expiryLabel(labelSource) : null,
         verifiedAt: (r.verified_at as string | null) ?? null,
+        reviewDate: reviewDate ? reviewDate.toISOString() : null,
       };
     })
     .sort((a, b) => {
@@ -467,7 +499,7 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
 export async function buildPersonRequirementScores(): Promise<ComplianceScore[]> {
   const [{ data: people }, { data: reqRows }, { data: docRows }] = await Promise.all([
     sb.from("people").select("id,name").eq("active", true),
-    sb.from("person_requirements").select("person_id,label,category,mandatory,status,document_id"),
+    sb.from("person_requirements").select("person_id,label,category,mandatory,status,document_id,review_date"),
     sb.from("documents").select("id,person_id,title,category,expiry_date,reminder_lead_days,archived"),
   ]);
 
@@ -515,7 +547,12 @@ export async function buildPersonRequirementScores(): Promise<ComplianceScore[]>
       if (!mandatory) continue;
       mandatoryTotal++;
       const docStatus = r.document_id ? docStatusById.get(r.document_id as number) ?? null : null;
-      const eff = effectiveStatus(status, docStatus);
+      const cat = r.category as string | null;
+      const reviewDate = r.review_date ? new Date(r.review_date as string) : null;
+      const reviewStatus = reviewDate
+        ? deriveDocStatus({ expiryDate: reviewDate, reminderLeadDays: (cat && DEFAULT_LEAD_DAYS[cat]) || 30 })
+        : null;
+      const eff = effectiveStatus(status, worstDocStatus(docStatus, reviewStatus));
       if (eff === "verified" || eff === "expiring") verified++;
       if (eff === "expiring") expiring++;
       if (eff === "expired") expired++;
@@ -634,32 +671,48 @@ async function patch(id: number, fields: Record<string, unknown>) {
 
 export async function markRequirementRequested(id: number) {
   await patch(id, { status: "requested", requested_at: new Date().toISOString() });
+  await logPersonRequirementEvent(id, "requested");
 }
 
 export async function linkRequirementDocument(id: number, documentId: number) {
   await patch(id, { document_id: documentId, status: "received", received_at: new Date().toISOString() });
+  const { data: doc } = await sb.from("documents").select("title").eq("id", documentId).maybeSingle();
+  await logPersonRequirementEvent(id, "linked", { documentId, detail: (doc?.title as string | null) ?? null });
 }
 
 export async function unlinkRequirementDocument(id: number) {
   // Turn off auto-linking for this item so the same document isn't silently
   // re-attached on the next load. Manual linking remains available.
   await patch(id, { document_id: null, status: "missing", verified_at: null, verified_by: null, auto_link: false });
+  await logPersonRequirementEvent(id, "unlinked");
 }
 
 export async function verifyRequirement(id: number) {
   await patch(id, { status: "verified", verified_at: new Date().toISOString(), verified_by: "web-ui" });
+  await logPersonRequirementEvent(id, "verified");
 }
 
 export async function unverifyRequirement(id: number) {
   await patch(id, { status: "received" });
+  await logPersonRequirementEvent(id, "unverified");
 }
 
 export async function waiveRequirement(id: number, reason: string | null) {
   await patch(id, { status: "waived", waived_reason: reason });
+  await logPersonRequirementEvent(id, "waived", { detail: reason });
 }
 
 export async function unwaiveRequirement(id: number) {
   await patch(id, { status: "missing", waived_reason: null });
+  await logPersonRequirementEvent(id, "unwaived");
+}
+
+/** Set or clear the requirement's own "valid until / review by" date (ISO or null). */
+export async function setRequirementReviewDate(id: number, reviewDate: string | null) {
+  await patch(id, { review_date: reviewDate });
+  await logPersonRequirementEvent(id, "edited", {
+    detail: reviewDate ? `Review date set to ${reviewDate.slice(0, 10)}` : "Review date cleared",
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -689,6 +742,7 @@ export async function addPersonRequirement(
     // Re-adding something removed earlier just un-hides it — minimal, no dupe.
     if ((match.status as string) === "removed") {
       await patch(match.id as number, { status: "missing" });
+      await logPersonRequirementEvent(match.id as number, "added", { ownerId: personId, label });
       return;
     }
     throw new Error("That document is already on this person's checklist.");
@@ -707,18 +761,23 @@ export async function addPersonRequirement(
     category = (tmpl?.category as string | null) ?? null;
   }
 
-  const { error } = await sb.from("person_requirements").insert({
-    person_id: personId,
-    item_id: null,
-    label,
-    category,
-    mandatory: input.mandatory,
-    expiry_tracked: true,
-    status: "missing",
-    created_at: now,
-    updated_at: now,
-  });
+  const { data: inserted, error } = await sb
+    .from("person_requirements")
+    .insert({
+      person_id: personId,
+      item_id: null,
+      label,
+      category,
+      mandatory: input.mandatory,
+      expiry_tracked: true,
+      status: "missing",
+      created_at: now,
+      updated_at: now,
+    })
+    .select("id")
+    .single();
   if (error) throw new Error(error.message);
+  await logPersonRequirementEvent(inserted.id as number, "added", { ownerId: personId, label });
 }
 
 export async function editPersonRequirement(
@@ -728,6 +787,7 @@ export async function editPersonRequirement(
   const label = input.label.trim();
   if (!label) throw new Error("A name is required.");
   await patch(id, { label, category: input.category, mandatory: input.mandatory });
+  await logPersonRequirementEvent(id, "edited", { label });
 }
 
 /* ------------------------------------------------------------------ */
@@ -820,8 +880,17 @@ export async function deleteRequirementItem(id: number) {
 }
 
 export async function removePersonRequirement(id: number) {
-  const { data: row } = await sb.from("person_requirements").select("item_id").eq("id", id).maybeSingle();
+  const { data: row } = await sb
+    .from("person_requirements")
+    .select("item_id,person_id,label")
+    .eq("id", id)
+    .maybeSingle();
   if (!row) return;
+  // Log before deletion so the label survives in the trail.
+  await logPersonRequirementEvent(id, "removed", {
+    ownerId: (row.person_id as number | null) ?? undefined,
+    label: (row.label as string | null) ?? undefined,
+  });
   if (row.item_id == null) {
     const { error } = await sb.from("person_requirements").delete().eq("id", id);
     if (error) throw new Error(error.message);
