@@ -656,24 +656,23 @@ input:disabled, select:disabled, textarea:disabled {
   .elevated, .shadow-pill, [class*="shadow-"] { box-shadow: none !important; }
   /* Hide all floating chrome (nav pill, action buttons, toasts) + opted-out bits. */
   .fixed, .print-hidden { display: none !important; }
-  /* Organogram: print only the chart on a landscape page, scaled to fit width
-     and centred (--org-print-scale is set just before printing). */
-  @page org-landscape { size: A4 landscape; margin: 12mm; }
-  .org-root { page: org-landscape; }
-  .org-stage { transform: scale(var(--org-print-scale, 1)) !important; transform-origin: top center !important; }
-  .org-canvas { overflow: visible !important; max-height: none !important; cursor: default !important; }
-  .org-card { break-inside: avoid; }
+  /* Organogram: a scaled interactive chart never fits a page cleanly, so print
+     the complete indented roster instead and hide everything else in the view. */
+  .org-root > :not(.org-print-title):not(.org-print-roster) { display: none !important; }
+  .org-print-roster .opr { break-inside: avoid; }
   @page { margin: 14mm; }
 }
 
-/* Print-only organogram title (hidden on screen via .print-only). */
+/* Print-only organogram title + roster (hidden on screen via .print-only). */
 .org-print-title { text-align: center; margin-bottom: 12px; }
 .org-print-title .opt { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
 .org-print-title .osub { font-size: 11px; color: #555; margin-top: 2px; }
+.org-print-roster .opr { padding: 2.5px 0; border-bottom: 1px solid #ececec; font-size: 11.5px; line-height: 1.35; }
+.org-print-roster .opn { font-weight: 600; color: #111; }
+.org-print-roster .opm { color: #666; }
+.org-print-roster .ops { font-weight: 700; font-size: 12px; margin: 14px 0 5px; padding-top: 8px; border-top: 2px solid #333; }
 
-/* Fullscreen organogram: full-bleed background, fill the height, centred. */
-.org-root:fullscreen { background: hsl(var(--bg)); padding: 18px 22px; overflow-y: auto; }
-.org-root:fullscreen .org-canvas { max-height: calc(100vh - 150px) !important; }
+/* Constellation native fullscreen still fills the screen. */
 .org-web-wrap:fullscreen { background: hsl(var(--bg)); }
 .org-web-wrap:fullscreen > svg { height: 100vh !important; }
 
