@@ -140,13 +140,15 @@ export default async function CompanyPage({
     extras: Awaited<ReturnType<typeof getOrgExtras>>;
     associated: Array<{ id: number; name: string; role: string | null; relationship: string | null; personType: string }>;
     deptHeads: Record<string, number>;
+    pickerPeople: Array<{ id: number; name: string; companyName: string | null }>;
   } = null;
   if (tab === "org") {
     const [allPeople, extras, deptHeads] = await Promise.all([getAllPeopleWithWorkload(), getOrgExtras(), getDepartmentHeads()]);
     const associated = allPeople
       .filter((p) => p.active)
       .flatMap((p) => p.associations.filter((a) => a.companyId === companyId).map((a) => ({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType })));
-    orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated, deptHeads };
+    const pickerPeople = allPeople.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, companyName: p.companyName }));
+    orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated, deptHeads, pickerPeople };
   }
 
   return (
@@ -461,6 +463,7 @@ export default async function CompanyPage({
           extras={orgTab.extras}
           associatedByCompany={{ [companyId]: orgTab.associated }}
           deptHeads={orgTab.deptHeads}
+          pickerPeople={orgTab.pickerPeople}
           initialCompanyId={companyId}
           showSwitcher={false}
           showEveryone={false}

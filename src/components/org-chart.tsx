@@ -16,6 +16,7 @@ import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import { countNodes, type CompanyTree, type OrgNode } from "@/lib/org-chart";
 import type { OrgPersonExtras } from "@/lib/org-extras";
 import { OrgWeb, type WebPerson } from "@/components/org-web";
+import { OrgDirectorPicker, type PickPerson } from "@/components/org-director-picker";
 
 export type Extras = Record<number, OrgPersonExtras>;
 
@@ -281,10 +282,10 @@ function Subtree({
 
 /* Compact vertical outline (zero horizontal scroll — great on mobile). */
 function OutlineRow({
-  node, depth, collapsedIds, toggle, onFocus, matchIds, showCompany, extras,
+  node, depth, collapsedIds, toggle, onFocus, matchIds, showCompany, extras, pickerPeople,
 }: {
   node: OrgNode; depth: number; collapsedIds: Set<number>; toggle: (id: number) => void;
-  onFocus: (id: number) => void; matchIds: Set<number>; showCompany?: boolean; extras: Extras;
+  onFocus: (id: number) => void; matchIds: Set<number>; showCompany?: boolean; extras: Extras; pickerPeople?: PickPerson[];
 }) {
   const hasChildren = node.children.length > 0;
   const collapsed = collapsedIds.has(node.id);
@@ -304,10 +305,11 @@ function OutlineRow({
           {x?.overdue ? <span className="text-[10px] font-bold text-danger tabular">{x.overdue}!</span> : x?.open ? <span className="text-[10px] font-bold text-info tabular">{x.open}</span> : null}
           {hasChildren && <span className="text-[10px] text-fg-subtle tabular" title={`${countNodes(node.children)} in team`}>{countNodes(node.children)}</span>}
           {hasChildren && <button type="button" onClick={() => onFocus(node.id)} title="Focus on this team" className="text-fg-subtle hover:text-accent print-hidden"><Focus size={12} /></button>}
+          {pickerPeople && <OrgDirectorPicker personId={node.id} currentManagerId={node.managerId} people={pickerPeople} compact missing={node.managerId == null} />}
         </span>
       </div>
       {hasChildren && !collapsed && node.children.map((c) => (
-        <OutlineRow key={c.id} node={c} depth={depth + 1} collapsedIds={collapsedIds} toggle={toggle} onFocus={onFocus} matchIds={matchIds} showCompany={showCompany} extras={extras} />
+        <OutlineRow key={c.id} node={c} depth={depth + 1} collapsedIds={collapsedIds} toggle={toggle} onFocus={onFocus} matchIds={matchIds} showCompany={showCompany} extras={extras} pickerPeople={pickerPeople} />
       ))}
     </>
   );
@@ -328,7 +330,7 @@ function initialCollapsed(tree: CompanyTree): Set<number> {
   return new Set(collapsibleIds(tree.roots).filter((id) => !rootIds.has(id)));
 }
 
-function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {} }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number> }) {
+function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {}, pickerPeople }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number>; pickerPeople?: PickPerson[] }) {
   const router = useRouter();
   const [, startHead] = useTransition();
   const saveHead = (departmentId: number, headPersonId: number | null) => {
@@ -532,7 +534,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
           ) : (
             <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 p-2 overflow-auto" style={{ maxHeight: "72vh" }}>
               {rootsToRender.map((n) => (
-                <OutlineRow key={n.id} node={n} depth={0} collapsedIds={collapsedIds} toggle={toggle} onFocus={setFocusId} matchIds={matchIds} showCompany={portfolio} extras={extras} />
+                <OutlineRow key={n.id} node={n} depth={0} collapsedIds={collapsedIds} toggle={toggle} onFocus={setFocusId} matchIds={matchIds} showCompany={portfolio} extras={extras} pickerPeople={pickerPeople} />
               ))}
             </div>
           )}
@@ -576,8 +578,9 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                   </div>
                   <div className="flex flex-wrap gap-2.5">
                     {sorted.map((n) => (
-                      <div key={n.id} className="relative">
+                      <div key={n.id} className="relative group/r">
                         {n.id === headId && <span className="absolute -top-2 left-2 z-10 text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shadow-sm">Head</span>}
+                        {pickerPeople && <span className="absolute -top-2 right-1 z-20"><OrgDirectorPicker personId={n.id} currentManagerId={n.managerId} people={pickerPeople} compact missing={n.managerId == null} /></span>}
                         <NodeCard node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
                           onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
                       </div>
@@ -589,8 +592,11 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
           ) : (
             <div className="flex flex-wrap gap-2.5">
               {tree.unassigned.map((n) => (
-                <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
-                  onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
+                <div key={n.id} className="relative">
+                  {pickerPeople && <span className="absolute -top-2 right-1 z-20"><OrgDirectorPicker personId={n.id} currentManagerId={n.managerId} people={pickerPeople} compact missing={n.managerId == null} /></span>}
+                  <NodeCard node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
+                    onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
+                </div>
               ))}
             </div>
           )}
@@ -693,7 +699,7 @@ function OrgSwitcher({
 /* ------------------------------------------------------------------ */
 
 export function OrgChart({
-  companies, trees, portfolioTree, extras = {}, webPeople, associatedByCompany = {}, deptHeads = {}, initialCompanyId, showSwitcher = true, showEveryone = true,
+  companies, trees, portfolioTree, extras = {}, webPeople, associatedByCompany = {}, deptHeads = {}, pickerPeople, initialCompanyId, showSwitcher = true, showEveryone = true,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
@@ -702,6 +708,7 @@ export function OrgChart({
   webPeople?: WebPerson[];
   associatedByCompany?: Record<number, AssociatedPerson[]>;
   deptHeads?: Record<string, number>;
+  pickerPeople?: PickPerson[];
   initialCompanyId?: number;
   showSwitcher?: boolean;
   showEveryone?: boolean;
@@ -725,9 +732,9 @@ export function OrgChart({
       {view === "everyone" && webPeople ? (
         <OrgWeb people={webPeople} companies={companies} extras={extras} onPickCompany={(id) => setView(id)} />
       ) : view === "portfolio" && portfolioTree ? (
-        <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio />
+        <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio pickerPeople={pickerPeople} />
       ) : typeof view === "number" && trees[view] ? (
-        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} companyId={view} deptHeads={deptHeads} />
+        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} companyId={view} deptHeads={deptHeads} pickerPeople={pickerPeople} />
       ) : (
         <p className="text-sm text-fg-subtle italic py-6 text-center">Select a company.</p>
       )}

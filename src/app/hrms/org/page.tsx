@@ -62,6 +62,9 @@ export default async function OrgChartPage({
   // One portfolio-wide tree (cross-company chain of command up to the owner).
   const portfolioTree = buildPortfolioTree(people, accentById);
 
+  // People list for the one-tap director/manager pickers.
+  const pickerPeople = people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, companyName: p.companyName }));
+
   const totalPeople = Object.values(trees).reduce((s, t) => s + t.total, 0);
   const totalLines = Object.values(trees).reduce((s, t) => s + t.withManager, 0);
 
@@ -109,6 +112,7 @@ export default async function OrgChartPage({
           portfolioTree={portfolioTree}
           extras={extras}
           deptHeads={deptHeads}
+          pickerPeople={pickerPeople}
           webPeople={webPeople}
           associatedByCompany={associatedByCompany}
           initialCompanyId={company ? Number(company) : undefined}
