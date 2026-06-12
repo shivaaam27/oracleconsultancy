@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, X, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
-  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, type LucideIcon,
+  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, type LucideIcon,
 } from "lucide-react";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { AttendeePicker } from "@/components/attendee-picker";
@@ -12,7 +12,7 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
-import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction } from "./actions";
+import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, draftEventRemindersAction, draftEventFollowupAction } from "./actions";
 
 const OVERLAY_META: Record<OverlayKind, { icon: LucideIcon; tone: string; dot: string }> = {
   task: { icon: CheckSquare, tone: "text-info", dot: "hsl(var(--info))" },
@@ -518,6 +518,22 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   }
 
   const emailCount = event.attendees.filter((a) => a.email).length;
+  const isPast = new Date(event.endAt ?? event.startAt).getTime() < Date.now();
+
+  function draftReminders() {
+    start(async () => {
+      const r = await draftEventRemindersAction(event.id);
+      if (r.ok) toast(`Drafted ${r.count} reminder${r.count === 1 ? "" : "s"} in the Outbox to review.`, { tone: "success", duration: 6000 });
+      else toast(r.error, { tone: "danger" });
+    });
+  }
+  function draftFollowup() {
+    start(async () => {
+      const r = await draftEventFollowupAction(event.id);
+      if (r.ok) toast(`Drafted ${r.count} follow-up${r.count === 1 ? "" : "s"} in the Outbox to review.`, { tone: "success", duration: 6000 });
+      else toast(r.error, { tone: "danger" });
+    });
+  }
 
   function sendInvite() {
     start(async () => {
@@ -616,6 +632,26 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
                 title={`Email the invite (.ics attached) to ${emailCount} attendee${emailCount === 1 ? "" : "s"}`}
               >
                 <Mail size={13} /> Send invite
+              </button>
+            )}
+            {emailCount > 0 && !isPast && (
+              <button
+                onClick={draftReminders}
+                disabled={pending}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors disabled:opacity-50"
+                title="Draft reminder messages to attendees in the Outbox"
+              >
+                <Bell size={13} /> Remind
+              </button>
+            )}
+            {emailCount > 0 && isPast && (
+              <button
+                onClick={draftFollowup}
+                disabled={pending}
+                className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors disabled:opacity-50"
+                title="Draft a post-meeting follow-up to attendees in the Outbox"
+              >
+                <Reply size={13} /> Follow-up
               </button>
             )}
             <div className="flex-1" />

@@ -287,6 +287,88 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
   return { ok: true, count: recipients.length, via: "email" };
 }
 
+function firstName(name: string | undefined): string {
+  return (name ?? "").trim().split(/\s+/)[0] ?? "";
+}
+
+type DraftResult = { ok: true; count: number } | { ok: false; error: string };
+
+/**
+ * Create Outbox **drafts** reminding each attendee (with an email) ahead of the
+ * event. Scheduled for the event's first reminder lead time; the owner reviews
+ * and sends from /outbox. Reuses the Outbox — no auto-send.
+ */
+export async function draftEventRemindersAction(id: number): Promise<DraftResult> {
+  const ev = await getCalendarEvent(id);
+  if (!ev) return { ok: false, error: "Event not found." };
+  const recipients = ev.attendees.filter((a) => a.email);
+  if (recipients.length === 0) return { ok: false, error: "No attendees with an email to remind." };
+
+  const when = fmtEat(ev.startAt, ev.allDay);
+  const lead = ev.reminders[0] ?? 1440;
+  const scheduledFor = new Date(new Date(ev.startAt).getTime() - lead * 60_000).toISOString();
+  const now = new Date().toISOString();
+  const rows = recipients.map((a) => ({
+    channel: "EMAIL",
+    recipient_name: a.name,
+    recipient_contact: a.email,
+    subject: `Reminder: ${ev.title}`,
+    body: [
+      `Hi ${firstName(a.name)},`.trim(),
+      ``,
+      `A reminder that "${ev.title}" is scheduled for ${when}.`,
+      ev.meetLink ? `Join: ${ev.meetLink}` : null,
+      ev.location ? `Where: ${ev.location}` : null,
+      ``,
+      `See you there.`,
+    ].filter((l) => l !== null).join("\n"),
+    message_type: "EVENT REMINDER",
+    status: "Draft",
+    source: `calendar:${ev.id}`,
+    scheduled_for: scheduledFor,
+    created_at: now,
+  }));
+  const { error } = await sb.from("outbox").insert(rows);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/outbox");
+  return { ok: true, count: rows.length };
+}
+
+/** Create Outbox follow-up drafts after a meeting (one per attendee with email). */
+export async function draftEventFollowupAction(id: number): Promise<DraftResult> {
+  const ev = await getCalendarEvent(id);
+  if (!ev) return { ok: false, error: "Event not found." };
+  const recipients = ev.attendees.filter((a) => a.email);
+  if (recipients.length === 0) return { ok: false, error: "No attendees with an email to follow up." };
+
+  const when = fmtEat(ev.startAt, ev.allDay);
+  const now = new Date().toISOString();
+  const rows = recipients.map((a) => ({
+    channel: "EMAIL",
+    recipient_name: a.name,
+    recipient_contact: a.email,
+    subject: `Follow-up: ${ev.title}`,
+    body: [
+      `Hi ${firstName(a.name)},`.trim(),
+      ``,
+      `Thank you for joining "${ev.title}" on ${when}.`,
+      ``,
+      `Action points:`,
+      `- `,
+      ``,
+      `Please let me know if I've missed anything.`,
+    ].join("\n"),
+    message_type: "EVENT FOLLOW-UP",
+    status: "Draft",
+    source: `calendar:${ev.id}`,
+    created_at: now,
+  }));
+  const { error } = await sb.from("outbox").insert(rows);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/outbox");
+  return { ok: true, count: rows.length };
+}
+
 export async function deleteEventAction(id: number): Promise<Result> {
   try {
     await deleteCalendarEvent(id);
