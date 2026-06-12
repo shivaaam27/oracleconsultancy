@@ -10,6 +10,7 @@ import { createTaskAttachment, createDocument, uploadDocumentFile } from "@/lib/
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
 import { createEventAction } from "@/app/calendar/actions";
+import { recordEvent } from "@/lib/system-events";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import {
   clearSessionCookie,
@@ -184,6 +185,75 @@ export async function portalCreateTask(
   revalidatePath("/portal");
   revalidatePath("/");
   redirect(`/portal/task/${task.code}`);
+}
+
+/* ----------------------------------------------------------------------
+ * Director messaging — draft a reminder/message to any person. Creates an
+ * Outbox draft (owner-visible, audit-tagged) and returns a one-tap deep-link
+ * to send via WhatsApp/Email/SMS. Default recipient = a task's assignee when a
+ * taskCode is given; otherwise the chosen person. Honours a kill switch.
+ * ---------------------------------------------------------------------- */
+export async function portalDirectorDraftMessage(input: {
+  personId: number;
+  channel?: "WHATSAPP" | "EMAIL" | "SMS";
+  subject?: string | null;
+  body: string;
+  taskCode?: string | null;
+}): Promise<{ ok: true; link: string | null; contactMissing: boolean } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+
+  // Soft kill switch (owner can pause all director outreach from Settings).
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Director outreach is paused by the administrator." };
+
+  const body = (input.body ?? "").trim();
+  if (!body) return { ok: false, error: "Write a message." };
+
+  const { data: person } = await sb
+    .from("people")
+    .select("id,name,email,phone,whatsapp,preferred_channel,company_id")
+    .eq("id", input.personId)
+    .maybeSingle();
+  if (!person) return { ok: false, error: "Recipient not found." };
+
+  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox-links");
+  const contact = {
+    email: (person.email as string | null) ?? null,
+    phone: (person.phone as string | null) ?? null,
+    whatsapp: (person.whatsapp as string | null) ?? null,
+    preferredChannel: (person.preferred_channel as string | null) ?? null,
+  };
+  const channel = input.channel ?? pickChannel(contact);
+  const to = contactForChannel(contact, channel);
+  const subject = input.subject?.trim() || "A note from the director";
+  const link = linkFor(channel, to, subject, body);
+
+  let companyName: string | null = null;
+  if (person.company_id) {
+    const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
+    companyName = (c?.name as string | null) ?? null;
+  }
+
+  const { error } = await sb.from("outbox").insert({
+    channel,
+    recipient_name: person.name as string,
+    recipient_contact: to,
+    company: companyName,
+    subject: channel === "EMAIL" ? subject : null,
+    body,
+    message_type: input.taskCode ? "DIRECTOR REMINDER" : "DIRECTOR MESSAGE",
+    status: "Draft",
+    source: `portal-dir:${me.name}`,
+    person_id: person.id,
+    created_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: error.message };
+
+  await recordEvent("portal.director.message", "ok", { by: me.name, to: person.name, channel, task: input.taskCode ?? null });
+  revalidatePath("/outbox");
+  return { ok: true, link, contactMissing: !to };
 }
 
 /** Director: schedule a calendar event / meeting (any company). Reuses the

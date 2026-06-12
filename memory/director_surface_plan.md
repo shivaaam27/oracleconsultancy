@@ -165,9 +165,17 @@ email auto-send to directors (digest is 7e, optional).
     title, all-day/start/end, company, location/meet link, attendee chips, 1-day reminder, notes).
   - [ ] Role-based nav pill (hide staff Home/Activity/Profile for directors) — minor; deferred.
   - **E1 complete** for the core operator powers (board + assign tasks + schedule events).
-- **E2 — Messages as drafts + governance.** Director drafts reminders/messages to people
-  (reuse per-person reminder + Outbox); one-tap deep-link send works today. Add the audit/
-  governance layer (every action logged + owner-visible + kill switch).
+- **E2 — Messages as drafts + governance.** ✅ DONE.
+  - [x] `portalDirectorDraftMessage({personId, channel?, body, taskCode?})` — creates an **Outbox
+    draft** (owner-visible, `source: portal-dir:<Name>`) + returns a **one-tap deep-link**
+    (`wa.me`/`mailto:`/`sms:` via `outbox-links`). Channel auto-picks; logged to `system_events`
+    (`portal.director.message`). Default recipient = a task's assignee (quick-reminders); the
+    director can also pick any active person + channel.
+  - [x] `director-message.tsx` on the board: "Send a message" composer + "Remind {assignee}" chips
+    for each overdue task (board resolves overdue-task assignees server-side).
+  - [x] **Governance kill switch:** Settings → "Director outreach · Pause/Resume" (`setDirectorOutreach`
+    → settings key `director.outreachPaused`, checked in the action). Plus the hard kill switch =
+    revoke portal access (instant). Verified: draft + deep-link + outbox tag.
 - **E3 — Email automation (needs email env on).** Turn on the provider; auto-send low-risk
   emails on triggers (overdue task, doc expiry, probation, pending leave) + scheduled board/
   team digests, via a **rules + scheduler** layer on the existing cron. Hybrid: auto low-risk /

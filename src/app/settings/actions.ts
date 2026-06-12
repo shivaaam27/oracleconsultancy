@@ -127,6 +127,14 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   redirect("/settings?portal=saved");
 }
 
+/** Governance kill switch: pause/resume all director outreach (messages). */
+export async function setDirectorOutreach(fd: FormData): Promise<void> {
+  const paused = fd.get("paused") === "1";
+  await sb.from("settings").upsert({ key: "director.outreachPaused", value: paused ? "1" : "0" }, { onConflict: "key" });
+  revalidatePath("/settings");
+  redirect("/settings?portal=saved");
+}
+
 /** Revoke portal access — the person's session stops working immediately. */
 export async function revokePortalAccess(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));

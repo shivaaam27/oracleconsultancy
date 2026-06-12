@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { DirectorTaskForm } from "@/components/director-task-form";
 import { DirectorEventForm } from "@/components/director-event-form";
+import { DirectorMessage } from "@/components/director-message";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getBrief } from "@/lib/director-brief";
 
@@ -28,6 +29,30 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   ]);
   const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }));
+
+  // Quick reminders: the assignee of each overdue task (default recipient).
+  const overdueIds = brief.watch.filter((w) => w.overdue).slice(0, 8).map((w) => w.id);
+  let reminders: Array<{ taskCode: string; title: string; personId: number; personName: string }> = [];
+  if (overdueIds.length) {
+    const [{ data: taskRows }, { data: asg }] = await Promise.all([
+      sb.from("tasks").select("id,code,action_item").in("id", overdueIds),
+      sb.from("task_assignees").select("task_id, people(id,name)").in("task_id", overdueIds),
+    ]);
+    const codeById = new Map((taskRows ?? []).map((t) => [t.id as number, { code: t.code as string, title: t.action_item as string }]));
+    const assigneeByTask = new Map<number, { id: number; name: string }>();
+    for (const r of asg ?? []) {
+      const p = (Array.isArray(r.people) ? r.people[0] : r.people) as { id: number; name: string } | null;
+      const tid = r.task_id as number;
+      if (p && !assigneeByTask.has(tid)) assigneeByTask.set(tid, { id: p.id, name: p.name });
+    }
+    reminders = overdueIds
+      .map((id) => {
+        const t = codeById.get(id);
+        const a = assigneeByTask.get(id);
+        return t && a ? { taskCode: t.code, title: t.title, personId: a.id, personName: a.name } : null;
+      })
+      .filter((x): x is { taskCode: string; title: string; personId: number; personName: string } => x != null);
+  }
 
   const hr = brief.hr;
   const liability = hr.leaveLiability;
@@ -65,6 +90,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
         <div className="flex flex-wrap items-start gap-2">
           <DirectorTaskForm people={people} companies={companies} />
           <DirectorEventForm people={people} companies={companies} />
+          <DirectorMessage people={people} reminders={reminders} />
         </div>
       </Reveal>
 

@@ -6,7 +6,7 @@ import { getAppSettings, getEmailConfig, SWIPE_ACTIONS } from "@/lib/settings";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction } from "./actions";
+import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach } from "./actions";
 import { EmailStatus } from "./email-test";
 import { adminChangePassword, adminLogout } from "../login/actions";
 import Link from "next/link";
@@ -40,6 +40,8 @@ export default async function SettingsPage({
     lastLogin: p.portal_last_login_at as string | null,
   }));
   const portalEnabled = portalPeople.filter((p) => p.enabled);
+  const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  const directorPaused = (dirKill?.value as string | null) === "1";
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -432,6 +434,22 @@ export default async function SettingsPage({
             <Input name="password" type="text" minLength={6} required placeholder="e.g. shivam2026" />
           </div>
           <Button type="submit"><KeyRound size={13} /> Enable access</Button>
+        </form>
+
+        {/* Governance: kill switch for director outreach (messages) */}
+        <form action={setDirectorOutreach} className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Director outreach</p>
+            <p className="text-[11px] text-fg-muted">
+              {directorPaused
+                ? "Paused — directors can't draft messages/reminders right now."
+                : "Active — directors can draft messages/reminders (saved to Outbox first)."}
+            </p>
+          </div>
+          <input type="hidden" name="paused" value={directorPaused ? "0" : "1"} />
+          <Button type="submit" variant={directorPaused ? "primary" : "secondary"}>
+            {directorPaused ? "Resume" : "Pause"}
+          </Button>
         </form>
       </div>
 
