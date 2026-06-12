@@ -89,13 +89,15 @@ export default async function OrgChartPage({
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
-      <HrmsCrumbs from={from} />
-      <PageHeader
-        title="Organogram"
-        sub={`${totalPeople} people across ${companies.length} companies · ${totalLines} reporting line${totalLines === 1 ? "" : "s"} set`}
-      />
+      <div className="print-hidden"><HrmsCrumbs from={from} /></div>
+      <div className="print-hidden">
+        <PageHeader
+          title="Organogram"
+          sub={`${totalPeople} people across ${companies.length} companies · ${totalLines} reporting line${totalLines === 1 ? "" : "s"} set`}
+        />
+      </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
+      <div className="print-hidden grid grid-cols-2 sm:grid-cols-5 gap-2.5 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
         {stats.map((s) => (
           <div key={s.label} className={`rounded-2xl ring-1 px-3.5 py-3 backdrop-blur-md ${s.tone === "warn" ? "bg-warn-soft/50 ring-warn/30" : "bg-bg-subtle/50 ring-border/60"}`}>
             <div className="text-[10px] uppercase tracking-wider text-fg-muted">{s.label}</div>

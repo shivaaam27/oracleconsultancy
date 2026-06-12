@@ -7,7 +7,7 @@ import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
   MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp, Network,
-  Focus, Scaling, List, GitBranch, Building2,
+  Focus, Scaling, List, GitBranch, Building2, Minimize2,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Badge } from "@/components/ui";
@@ -343,6 +343,8 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLUListElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [isFs, setIsFs] = useState(false);
   const [focusId, setFocusId] = useState<number | null>(null);
   const [mode, setMode] = useState<"chart" | "list" | "depts">("chart");
 
@@ -424,14 +426,16 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
   const fit = useCallback(() => {
     const ul = stageRef.current, box = canvasRef.current;
     if (!ul || !box) return;
-    const cw = box.clientWidth - 28, ch = box.clientHeight - 28;
-    const uw = ul.offsetWidth, uh = ul.offsetHeight;
+    const cw = box.clientWidth, ch = box.clientHeight;
+    // Stage padding (p-8 = 32px each side) is part of the scaled box.
+    const uw = ul.offsetWidth + 64, uh = ul.offsetHeight + 64;
     if (!uw || !uh) return;
-    const s = Math.min(1.6, Math.max(0.2, +Math.min(cw / uw, ch / uh, 1).toFixed(2)));
-    setScale(s); setPan({ x: 0, y: 0 });
-    // The transform doesn't shrink the layout box, so reset scroll to the
-    // top-left origin where the scaled tree now sits (otherwise it's off-screen).
+    const s = Math.min(1.6, Math.max(0.2, +Math.min((cw - 24) / uw, (ch - 24) / uh, 1).toFixed(2)));
+    setScale(s);
+    // Centre the scaled tree in the viewport (transform-origin is top-left, so
+    // translate it to the middle). Reset native scroll first.
     box.scrollLeft = 0; box.scrollTop = 0;
+    setPan({ x: Math.max(8, (cw - uw * s) / 2), y: Math.max(8, (ch - uh * s) / 2) });
   }, []);
   // On drill in/out, keep it readable at 100% and scroll back to the focused
   // root at the top-left (Fit is a manual button — auto-shrinking a wide
@@ -446,11 +450,31 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
   const collapseAll = () => setCollapsed(new Set(collapsibleIds(tree.roots)));
   const resetView = () => { setScale(1); setPan({ x: 0, y: 0 }); };
   const zoom = (d: number) => setScale((s) => Math.min(1.6, Math.max(0.5, +(s + d).toFixed(2))));
-  const print = () => { expandAll(); setTimeout(() => window.print(), 60); };
-  const toggleFullscreen = () => {
-    const el = canvasRef.current?.parentElement;
-    if (!document.fullscreenElement) el?.requestFullscreen?.(); else document.exitFullscreen?.();
+  const print = () => {
+    expandAll();
+    setTimeout(() => {
+      // Scale the tree down to fit an A4 landscape printable width (~1010px @96dpi).
+      const ul = stageRef.current;
+      const s = ul ? Math.min(1, 1010 / (ul.offsetWidth + 64)) : 1;
+      document.documentElement.style.setProperty("--org-print-scale", s.toFixed(3));
+      window.print();
+      window.setTimeout(() => document.documentElement.style.removeProperty("--org-print-scale"), 600);
+    }, 140);
   };
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) rootRef.current?.requestFullscreen?.().catch(() => {});
+    else document.exitFullscreen?.();
+  };
+  // Track fullscreen + auto-centre the tree when entering it.
+  useEffect(() => {
+    const onChange = () => {
+      const on = !!document.fullscreenElement;
+      setIsFs(on);
+      if (on) requestAnimationFrame(() => requestAnimationFrame(() => fit()));
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [fit]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     // On touch, let the native scroll container handle panning (smoother, momentum).
@@ -470,7 +494,12 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
   const ctrlBtn = "h-8 w-8 inline-flex items-center justify-center rounded-lg bg-bg-subtle/80 ring-1 ring-border text-fg-muted hover:text-fg transition-colors";
 
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3 org-root">
+      {/* Print-only header (company / portfolio + date). */}
+      <div className="org-print-title print-only">
+        <div className="opt">{companyName ?? "Portfolio"} — Organogram</div>
+        <div className="osub">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {tree.total} people · {tree.linesInTree} reporting lines</div>
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print-hidden">
         <div className="text-[11px] text-fg-subtle tabular">
           {tree.total} active · {tree.linesInTree} in tree
@@ -500,7 +529,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                   <button type="button" onClick={resetView} title="Reset view" className={cn(ctrlBtn, "w-auto px-2 text-[11px] tabular")}>{Math.round(scale * 100)}%</button>
                   <button type="button" onClick={() => zoom(0.1)} title="Zoom in" className={ctrlBtn}><ZoomIn size={14} /></button>
                   <button type="button" onClick={fit} title="Fit to screen" className={ctrlBtn}><Scaling size={14} /></button>
-                  <button type="button" onClick={toggleFullscreen} title="Fullscreen" className={ctrlBtn}><Maximize2 size={14} /></button>
+                  <button type="button" onClick={toggleFullscreen} title={isFs ? "Exit fullscreen" : "Fullscreen"} className={cn(ctrlBtn, isFs && "bg-accent text-accent-fg ring-accent")}>{isFs ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
                 </>
               )}
             </>

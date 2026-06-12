@@ -307,7 +307,7 @@ export function OrgWeb({
         })}
       </div>
 
-      <div ref={wrapRef} className="relative rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
+      <div ref={wrapRef} className="org-web-wrap relative rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full touch-none select-none" style={{ height: "72vh", cursor: dragKey.current ? "grabbing" : "grab" }}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={() => { if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; } dragKey.current = null; panRef.current = null; }}>
           <g transform={`translate(${t.x} ${t.y}) scale(${t.scale})`}>
