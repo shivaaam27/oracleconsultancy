@@ -804,6 +804,8 @@ export const siteTools = pgTable("site_tools", {
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   quantity: integer("quantity").notNull().default(1),
+  // Low-stock threshold for this tool at this site (0 = no alerting).
+  minQty: integer("min_qty").notNull().default(0),
   // Free-text spec, e.g. "Size 30cm", "Plastic 20Lts", "Makita N550".
   specification: text("specification"),
   // Site/location, e.g. "Police Post", "NLM", "Matongo".
@@ -815,6 +817,24 @@ export const siteTools = pgTable("site_tools", {
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// Movement ledger for site tools — every transfer between sites, condition
+// change and write-off is recorded here so the register has an audit trail.
+// type: created | transfer | condition | write_off | adjust.
+export const siteToolMovements = pgTable("site_tool_movements", {
+  id: serial("id").primaryKey(),
+  toolId: integer("tool_id").references(() => siteTools.id, { onDelete: "set null" }),
+  toolName: text("tool_name").notNull(), // snapshot — survives row deletion
+  type: text("type").notNull(),
+  quantity: integer("quantity"),
+  fromLocation: text("from_location"),
+  toLocation: text("to_location"),
+  fromCondition: text("from_condition"),
+  toCondition: text("to_condition"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
 });
 

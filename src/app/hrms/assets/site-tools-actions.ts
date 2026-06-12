@@ -6,10 +6,14 @@ import {
   createSiteToolsBulk,
   updateSiteTool,
   setSiteToolQuantity,
+  setSiteToolCondition,
+  transferSiteTool,
+  writeOffSiteTool,
+  listSiteToolMovements,
   archiveSiteTool,
   type SiteToolInput,
 } from "@/lib/site-tools";
-import type { ToolCondition } from "@/lib/site-tools-shared";
+import type { ToolCondition, SiteToolMovementRow } from "@/lib/site-tools-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -52,6 +56,7 @@ function fromForm(fd: FormData): SiteToolInput | { error: string } {
     companyId: numOrNull(fd, "companyId"),
     name,
     quantity: intOr(fd, "quantity", 1),
+    minQty: intOr(fd, "minQty", 0),
     specification: str(fd, "specification"),
     location: str(fd, "location"),
     condition: condition(fd),
@@ -94,6 +99,51 @@ export async function setSiteToolQuantityAction(id: number, quantity: number): P
   }
 }
 
+export async function setSiteToolConditionAction(id: number, condition: ToolCondition): Promise<Result> {
+  try {
+    await setSiteToolCondition(id, condition);
+    invalidate();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not update condition." };
+  }
+}
+
+export async function transferSiteToolAction(id: number, qty: number, toLocation: string): Promise<Result> {
+  const loc = toLocation.trim();
+  if (!loc) return { ok: false, error: "Choose a destination site." };
+  if (!(qty > 0)) return { ok: false, error: "Quantity must be at least 1." };
+  try {
+    await transferSiteTool(id, qty, loc);
+    invalidate();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not transfer the tool." };
+  }
+}
+
+export async function writeOffSiteToolAction(id: number, qty: number, reason: string | null): Promise<Result> {
+  if (!(qty > 0)) return { ok: false, error: "Quantity must be at least 1." };
+  try {
+    await writeOffSiteTool(id, qty, reason?.trim() || null);
+    invalidate();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not write off the tool." };
+  }
+}
+
+export async function listSiteToolMovementsAction(toolId?: number): Promise<
+  { ok: true; rows: SiteToolMovementRow[] } | { ok: false; error: string }
+> {
+  try {
+    const rows = await listSiteToolMovements(toolId);
+    return { ok: true, rows };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not load history." };
+  }
+}
+
 export async function archiveSiteToolAction(id: number, archived: boolean): Promise<Result> {
   try {
     await archiveSiteTool(id, archived);
@@ -129,6 +179,7 @@ export async function importSiteToolsAction(
         companyId,
         name: r.name,
         quantity: r.quantity && r.quantity > 0 ? Math.floor(r.quantity) : 1,
+        minQty: 0,
         specification: r.specification?.trim() || null,
         location: r.location?.trim() || null,
         condition: r.condition ?? "good",

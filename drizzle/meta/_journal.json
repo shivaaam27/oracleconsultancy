@@ -358,6 +358,20 @@
       "when": 1781246563184,
       "tag": "0050_equal_robbie_robertson",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1781250372305,
+      "tag": "0051_early_forge",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1781251213980,
+      "tag": "0052_fluffy_grim_reaper",
+      "breakpoints": true
     }
   ]
 }

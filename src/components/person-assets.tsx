@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Laptop, Loader2, RotateCcw, Plus } from "lucide-react";
+import { Laptop, Loader2, RotateCcw, Plus, Users } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { SectionCard, EmptyState } from "./drawer-kit";
 import type { AssetRow } from "@/lib/assets-shared";
 import { assignAssetAction, returnAssetAction } from "@/app/hrms/assets/actions";
 
-type Payload = { held: AssetRow[]; available: AssetRow[] };
+type Payload = { held: AssetRow[]; custodian: AssetRow[]; available: AssetRow[] };
 
 export function PersonAssets({
   personId,
@@ -69,6 +69,7 @@ export function PersonAssets({
   if (!data) return null;
 
   const held = data.held;
+  const custodian = data.custodian ?? [];
 
   return (
     <SectionCard>
@@ -105,6 +106,29 @@ export function PersonAssets({
         </div>
       ) : (
         <EmptyState icon={<Laptop size={20} />} title="No equipment" hint="Nothing assigned to this person yet." />
+      )}
+
+      {/* Shared kit this person is custodian of */}
+      {custodian.length > 0 && (
+        <div className="border-t border-border/50">
+          <div className="px-3.5 pt-2 pb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+            <Users size={12} /> Custodian of (shared)
+          </div>
+          <div className="divide-y divide-border/50">
+            {custodian.map((a) => {
+              const meta = [a.tag, a.category, a.assignedToCompanyName].filter(Boolean).join(" · ");
+              return (
+                <div key={a.id} className="flex items-center gap-2.5 px-3.5 py-2.5">
+                  <span className="h-2 w-2 rounded-full bg-warn shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{a.name}</div>
+                    {meta && <div className="text-[11px] text-fg-subtle truncate">{meta}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Assign from in-store stock */}

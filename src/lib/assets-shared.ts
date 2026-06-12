@@ -61,3 +61,12 @@ export type AssetRow = {
   purchaseCost: number | null;
   notes: string | null;
 };
+
+export type AssetHistoryRow = {
+  id: number;
+  personId: number | null;
+  personName: string | null;
+  assignedAt: string;
+  returnedAt: string | null;
+  notes: string | null;
+};

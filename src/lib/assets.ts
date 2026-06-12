@@ -1,5 +1,5 @@
 import { sb } from "@/db/supabase";
-import type { AssetRow, AssetStatus } from "@/lib/assets-shared";
+import type { AssetRow, AssetHistoryRow, AssetStatus } from "@/lib/assets-shared";
 
 /* ------------------------------------------------------------------ */
 /* Asset register — durable, individually-assigned company equipment.  */
@@ -87,6 +87,58 @@ export async function listAssets(): Promise<AssetRow[]> {
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown as Row[]).map(map);
+}
+
+/** One asset by id (or null). */
+export async function getAsset(id: number): Promise<AssetRow | null> {
+  const { data, error } = await sb.from("assets").select(SELECT).eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? map(data as unknown as Row) : null;
+}
+
+/** Archived assets, for the "show archived / restore" view. */
+export async function listArchivedAssets(): Promise<AssetRow[]> {
+  const { data, error } = await sb
+    .from("assets")
+    .select(SELECT)
+    .eq("archived", true)
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as Row[]).map(map);
+}
+
+/** Full assign/return history for one asset (most recent first). */
+export async function listAssetHistory(assetId: number): Promise<AssetHistoryRow[]> {
+  const { data, error } = await sb
+    .from("asset_assignments")
+    .select("id,person_id,assigned_at,returned_at,notes, person:people!asset_assignments_person_id_people_id_fk(name)")
+    .eq("asset_id", assetId)
+    .order("assigned_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id as number,
+    personId: r.person_id as number | null,
+    personName: one(r.person as Embed)?.name ?? null,
+    assignedAt: r.assigned_at as string,
+    returnedAt: r.returned_at as string | null,
+    notes: r.notes as string | null,
+  }));
+}
+
+/** Count of live (non-archived) assets per vendor. */
+export async function assetCountByVendor(): Promise<Record<number, number>> {
+  const { data, error } = await sb
+    .from("assets")
+    .select("vendor_id")
+    .eq("archived", false)
+    .not("vendor_id", "is", null);
+  if (error) throw new Error(error.message);
+  const counts: Record<number, number> = {};
+  for (const r of data ?? []) {
+    const v = r.vendor_id as number;
+    counts[v] = (counts[v] ?? 0) + 1;
+  }
+  return counts;
 }
 
 export type AssetMetrics = {
@@ -232,20 +284,41 @@ export async function updateAsset(id: number, input: AssetInput): Promise<void> 
   if (error) throw new Error(error.message);
 }
 
-/** Assign an asset to a person — closes any open ledger row, opens a new one. */
-export async function assignAsset(assetId: number, personId: number, notes: string | null = null): Promise<void> {
+/**
+ * Assign (or reassign) an asset to a person — closes any open ledger row, opens
+ * a new one. `at` optionally backdates the handover (defaults to now).
+ */
+export async function assignAsset(
+  assetId: number,
+  personId: number,
+  notes: string | null = null,
+  at: string | null = null
+): Promise<void> {
   const now = new Date().toISOString();
+  const handover = at ?? now;
   // Close any currently-open assignment first.
   await sb.from("asset_assignments").update({ returned_at: now }).eq("asset_id", assetId).is("returned_at", null);
   const { error: aErr } = await sb
     .from("assets")
-    .update({ assigned_to_person_id: personId, assigned_to_company_id: null, custodian_person_id: null, assigned_at: now, status: "assigned", updated_at: now })
+    .update({ assigned_to_person_id: personId, assigned_to_company_id: null, custodian_person_id: null, assigned_at: handover, status: "assigned", updated_at: now })
     .eq("id", assetId);
   if (aErr) throw new Error(aErr.message);
   const { error: lErr } = await sb
     .from("asset_assignments")
-    .insert({ asset_id: assetId, person_id: personId, assigned_at: now, notes, created_at: now });
+    .insert({ asset_id: assetId, person_id: personId, assigned_at: handover, notes, created_at: now });
   if (lErr) throw new Error(lErr.message);
+}
+
+/** Assets a person is the accountable custodian of (shared/team kit). */
+export async function assetsCustodianForPerson(personId: number): Promise<AssetRow[]> {
+  const { data, error } = await sb
+    .from("assets")
+    .select(SELECT)
+    .eq("custodian_person_id", personId)
+    .eq("archived", false)
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as Row[]).map(map);
 }
 
 /**

@@ -1,0 +1,1 @@
+ALTER TABLE "site_tools" ADD COLUMN "min_qty" integer DEFAULT 0 NOT NULL;

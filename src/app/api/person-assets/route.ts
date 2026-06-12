@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assetsForPerson, listAssignableAssets } from "@/lib/assets";
+import { assetsForPerson, assetsCustodianForPerson, listAssignableAssets } from "@/lib/assets";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
   const id = parseInt(idStr, 10);
   if (Number.isNaN(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const [held, available] = await Promise.all([assetsForPerson(id), listAssignableAssets()]);
-  return NextResponse.json({ held, available });
+  const [held, custodian, available] = await Promise.all([
+    assetsForPerson(id),
+    assetsCustodianForPerson(id),
+    listAssignableAssets(),
+  ]);
+  return NextResponse.json({ held, custodian, available });
 }

@@ -10,9 +10,11 @@ import {
   returnAsset,
   setAssetStatus,
   archiveAsset,
+  listArchivedAssets,
+  listAssetHistory,
   type AssetInput,
 } from "@/lib/assets";
-import type { AssetStatus } from "@/lib/assets-shared";
+import type { AssetStatus, AssetRow, AssetHistoryRow } from "@/lib/assets-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -39,13 +41,20 @@ function invalidate() {
   revalidatePath("/people");
 }
 
+// Tidy free-typed categories so "COMPUTER"/"computer" all store as "Computer"
+// (first letter upper, rest lower) — keeps the filter and picker consistent.
+function normaliseCategory(c: string | null): string | null {
+  if (!c) return c;
+  return c.charAt(0).toUpperCase() + c.slice(1).toLowerCase();
+}
+
 function assetFromForm(fd: FormData): AssetInput | { error: string } {
   const name = str(fd, "name");
   if (!name) return { error: "An asset name is required." };
   return {
     tag: str(fd, "tag"),
     name,
-    category: str(fd, "category"),
+    category: normaliseCategory(str(fd, "category")),
     brand: str(fd, "brand"),
     model: str(fd, "model"),
     department: str(fd, "department"),
@@ -60,11 +69,23 @@ function assetFromForm(fd: FormData): AssetInput | { error: string } {
   };
 }
 
+// Only acts when the chosen assignee differs from the original (compared via the
+// hidden `assigneeWas`). "store" frees it; a number (re)assigns to that person,
+// preserving the handover date if one was entered; "shared" is left untouched.
+async function reconcileAssignee(assetId: number, fd: FormData, handoverDate: string | null): Promise<void> {
+  const v = (fd.get("assigneeId") ?? "").toString().trim();
+  const was = (fd.get("assigneeWas") ?? "").toString().trim();
+  if (!v || v === was || v === "shared") return;
+  if (v === "store") { await returnAsset(assetId); return; }
+  if (/^\d+$/.test(v)) await assignAsset(assetId, parseInt(v, 10), null, handoverDate);
+}
+
 export async function createAssetAction(fd: FormData): Promise<Result> {
   const parsed = assetFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
     const id = await createAsset(parsed);
+    await reconcileAssignee(id, fd, parsed.handoverDate ?? null);
     invalidate();
     return { ok: true, id };
   } catch (e) {
@@ -102,7 +123,7 @@ export async function importAssetsAction(
       clean.map((r) => ({
         tag: r.tag?.trim() || null,
         name: r.name,
-        category: r.category?.trim() || null,
+        category: normaliseCategory(r.category?.trim() || null),
         brand: r.brand?.trim() || null,
         model: r.model?.trim() || null,
         department: r.department?.trim() || null,
@@ -128,6 +149,7 @@ export async function updateAssetAction(id: number, fd: FormData): Promise<Resul
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
     await updateAsset(id, parsed);
+    await reconcileAssignee(id, fd, parsed.handoverDate ?? null);
     invalidate();
     return { ok: true, id };
   } catch (e) {
@@ -178,6 +200,26 @@ export async function setAssetStatusAction(assetId: number, status: AssetStatus)
     return { ok: true, id: assetId };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update status." };
+  }
+}
+
+export async function listArchivedAssetsAction(): Promise<
+  { ok: true; rows: AssetRow[] } | { ok: false; error: string }
+> {
+  try {
+    return { ok: true, rows: await listArchivedAssets() };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not load archived assets." };
+  }
+}
+
+export async function listAssetHistoryAction(assetId: number): Promise<
+  { ok: true; rows: AssetHistoryRow[] } | { ok: false; error: string }
+> {
+  try {
+    return { ok: true, rows: await listAssetHistory(assetId) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not load history." };
   }
 }
 

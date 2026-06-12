@@ -3,8 +3,10 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, X, Building, Pencil, Archive, Loader2, FilePlus, Mail, Phone, MapPin } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Search, Plus, X, Building, Pencil, Archive, Loader2, FilePlus, Mail, Phone, MapPin, MoreHorizontal } from "lucide-react";
 import { Badge, Button } from "./ui";
+import { MenuItem } from "./register-ui";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -13,7 +15,7 @@ import { createVendorAction, updateVendorAction, archiveVendorAction } from "@/a
 
 type Lite = { id: number; name: string };
 
-export function VendorsTable({ vendors, companies }: { vendors: VendorRow[]; companies: Lite[] }) {
+export function VendorsTable({ vendors, companies, assetCounts = {} }: { vendors: VendorRow[]; companies: Lite[]; assetCounts?: Record<number, number> }) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -71,13 +73,13 @@ export function VendorsTable({ vendors, companies }: { vendors: VendorRow[]; com
       </div>
 
       {filtered.length > 0 ? (
-        <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden divide-y divide-border/60">
           {filtered.map((v) => {
             const busy = busyId === v.id;
             const contact = [v.contactName, v.email, v.phone].filter(Boolean).join(" · ");
             return (
-              <div key={v.id} className={cn("flex flex-wrap items-center gap-3 px-3.5 py-2.5", busy && "opacity-60")}>
-                <span className="h-9 w-9 rounded-full bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
+              <div key={v.id} className={cn("flex items-center gap-3 px-3 sm:px-3.5 py-3 transition-colors hover:bg-bg-subtle/40", busy && "opacity-60")}>
+                <span className="h-9 w-9 rounded-xl bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
                   <Building size={15} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -86,6 +88,7 @@ export function VendorsTable({ vendors, companies }: { vendors: VendorRow[]; com
                     {v.category && <span className="text-[11px] text-fg-subtle">{v.category}</span>}
                     {v.companyName && <span className="text-[11px] text-fg-subtle">· {v.companyName}</span>}
                     {v.docCount > 0 && <Badge tone="default">{v.docCount} doc{v.docCount === 1 ? "" : "s"}</Badge>}
+                    {(assetCounts[v.id] ?? 0) > 0 && <Badge tone="info">{assetCounts[v.id]} asset{assetCounts[v.id] === 1 ? "" : "s"}</Badge>}
                     {v.expiredCount > 0 && <Badge tone="danger">{v.expiredCount} expired</Badge>}
                     {v.expiringCount > 0 && <Badge tone="warn">{v.expiringCount} expiring</Badge>}
                   </div>
@@ -99,27 +102,35 @@ export function VendorsTable({ vendors, companies }: { vendors: VendorRow[]; com
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Link
                     href={`/documents?newdoc=1&vendor=${v.id}&category=Contract`}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted"
+                    className="hidden sm:inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted"
                   >
                     <FilePlus size={12} /> Add contract
                   </Link>
-                  <button type="button" disabled={busy} title="Edit" onClick={() => openEdit(v)}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-accent hover:bg-bg-subtle">
-                    <Pencil size={13} />
-                  </button>
-                  <button type="button" disabled={busy} title="Archive"
-                    onClick={() => run(v.id, () => archiveVendorAction(v.id), "Vendor archived.")}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-danger hover:bg-bg-subtle">
-                    <Archive size={13} />
-                  </button>
                   {busy && <Loader2 size={13} className="animate-spin text-fg-subtle" />}
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                      <button type="button" disabled={busy} title="More actions"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-transparent hover:ring-border">
+                        <MoreHorizontal size={16} />
+                      </button>
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content align="end" sideOffset={6}
+                        className="z-[60] min-w-[170px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
+                        <MenuItem icon={<FilePlus size={14} />} onSelect={() => { window.location.href = `/documents?newdoc=1&vendor=${v.id}&category=Contract`; }}>Add contract</MenuItem>
+                        <MenuItem icon={<Pencil size={14} />} onSelect={() => openEdit(v)}>Edit</MenuItem>
+                        <DropdownMenu.Separator className="h-px bg-border my-1" />
+                        <MenuItem icon={<Archive size={14} />} danger onSelect={() => run(v.id, () => archiveVendorAction(v.id), "Vendor archived.")}>Archive</MenuItem>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           {vendors.length === 0 ? "No vendors yet. Add your first to begin." : "No vendors match these filters."}
         </div>
       )}

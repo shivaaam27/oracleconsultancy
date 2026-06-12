@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users, Upload } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users, Upload, Clock, Ban, ArchiveRestore, Printer, MoreHorizontal, UserPlus, UserCog } from "lucide-react";
 import { Badge, Button } from "./ui";
+import { IconAction, MenuItem } from "./register-ui";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -12,6 +14,7 @@ import {
   ASSET_STATUS_LABELS,
   ASSET_STATUS_TONE,
   type AssetRow,
+  type AssetHistoryRow,
   type AssetStatus,
 } from "@/lib/assets-shared";
 import {
@@ -23,6 +26,8 @@ import {
   setAssetStatusAction,
   archiveAssetAction,
   importAssetsAction,
+  listArchivedAssetsAction,
+  listAssetHistoryAction,
   type AssetImportRow,
 } from "@/app/hrms/assets/actions";
 
@@ -50,8 +55,11 @@ export function AssetsTable({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [historyAsset, setHistoryAsset] = useState<AssetRow | null>(null);
   const [editing, setEditing] = useState<AssetRow | null>(null);
   const [sharing, setSharing] = useState<AssetRow | null>(null);
+  const [assigning, setAssigning] = useState<AssetRow | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
 
@@ -67,7 +75,7 @@ export function AssetsTable({
           (a.assignedToName?.toLowerCase().includes(q) ?? false)
       );
     }
-    if (categoryFilter !== "all") rows = rows.filter((a) => a.category === categoryFilter);
+    if (categoryFilter !== "all") rows = rows.filter((a) => a.category?.toLowerCase() === categoryFilter.toLowerCase());
     if (statusFilter !== "all") rows = rows.filter((a) => a.status === statusFilter);
     return rows;
   }, [assets, search, categoryFilter, statusFilter]);
@@ -87,8 +95,8 @@ export function AssetsTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+        <div className="relative w-full sm:flex-1 sm:min-w-[220px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
@@ -98,31 +106,37 @@ export function AssetsTable({
             className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
         </div>
-        <FluidSelect
-          value={categoryFilter}
-          onSelect={setCategoryFilter}
-          options={[{ value: "all", label: "All Categories" }, ...ASSET_CATEGORIES.map((c) => ({ value: c, label: c }))]}
-        />
-        <FluidSelect
-          value={statusFilter}
-          onSelect={setStatusFilter}
-          options={[
-            { value: "all", label: "All Statuses" },
-            ...(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => ({ value: s, label: ASSET_STATUS_LABELS[s] })),
-          ]}
-        />
-        <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}><Upload size={14} /> Import</Button>
-        <Button size="sm" onClick={openNew}><Plus size={14} /> Add asset</Button>
+        <div className="flex items-center gap-2 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">
+          <FluidSelect
+            value={categoryFilter}
+            onSelect={setCategoryFilter}
+            options={[{ value: "all", label: "All Categories" }, ...ASSET_CATEGORIES.map((c) => ({ value: c, label: c }))]}
+          />
+          <FluidSelect
+            value={statusFilter}
+            onSelect={setStatusFilter}
+            options={[
+              { value: "all", label: "All Statuses" },
+              ...(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => ({ value: s, label: ASSET_STATUS_LABELS[s] })),
+            ]}
+          />
+        </div>
+        <div className="flex items-center gap-2 sm:ml-auto">
+          <IconAction title="Archived" onClick={() => setArchivedOpen(true)}><Archive size={15} /></IconAction>
+          <IconAction title="Export PDF" onClick={() => window.open("/hrms/assets/print", "_blank")}><Printer size={15} /></IconAction>
+          <IconAction title="Import" onClick={() => setImportOpen(true)}><Upload size={15} /></IconAction>
+          <Button size="sm" onClick={openNew} className="ml-auto sm:ml-0"><Plus size={14} /> Add asset</Button>
+        </div>
       </div>
 
       {filtered.length > 0 ? (
-        <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden divide-y divide-border/60">
           {filtered.map((a) => {
             const busy = busyId === a.id;
             const meta = [a.tag, a.serialNo ? `SN ${a.serialNo}` : null, a.companyName, a.location, a.vendorName ? `from ${a.vendorName}` : null].filter(Boolean).join(" · ");
             return (
-              <div key={a.id} className={cn("flex flex-wrap items-center gap-3 px-3.5 py-2.5", busy && "opacity-60")}>
-                <span className="h-9 w-9 rounded-full bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
+              <div key={a.id} className={cn("flex items-center gap-3 px-3 sm:px-3.5 py-3 transition-colors hover:bg-bg-subtle/40", busy && "opacity-60")}>
+                <span className="h-9 w-9 rounded-xl bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
                   <Laptop size={15} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -145,65 +159,73 @@ export function AssetsTable({
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {a.status === "assigned" ? (
-                    <button
-                      type="button" disabled={busy}
-                      onClick={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted"
-                    >
+                  {/* One primary, contextual action; the rest live in the kebab. */}
+                  {a.status === "in_store" && (
+                    <button type="button" disabled={busy} onClick={() => setAssigning(a)}
+                      className="hidden sm:inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
+                      <UserPlus size={12} /> Assign
+                    </button>
+                  )}
+                  {a.status === "assigned" && (
+                    <button type="button" disabled={busy} onClick={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}
+                      className="hidden sm:inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
                       <RotateCcw size={12} /> Return
                     </button>
-                  ) : a.status === "in_store" ? (
-                    <>
-                      <select
-                        disabled={busy}
-                        defaultValue=""
-                        onChange={(e) => { const v = parseInt(e.target.value, 10); if (!Number.isNaN(v)) run(a.id, () => assignAssetAction(a.id, v), "Asset assigned."); }}
-                        className="rounded-md bg-bg-subtle text-[11px] text-fg-muted ring-1 ring-border px-1.5 py-1 max-w-[9rem]"
-                      >
-                        <option value="" disabled>Assign to…</option>
-                        {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                      <button type="button" disabled={busy} title="Share with a team"
-                        onClick={() => setSharing(a)}
-                        className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
-                        <Users size={12} /> Share
-                      </button>
-                    </>
-                  ) : null}
-
-                  {a.status !== "maintenance" && a.status !== "retired" && (
-                    <button type="button" disabled={busy} title="Send to maintenance"
-                      onClick={() => run(a.id, () => setAssetStatusAction(a.id, "maintenance"), "Marked as maintenance.")}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-warn hover:bg-bg-subtle">
-                      <Wrench size={13} />
-                    </button>
                   )}
-                  {a.status === "maintenance" && (
-                    <button type="button" disabled={busy}
-                      onClick={() => run(a.id, () => setAssetStatusAction(a.id, "in_store"), "Back in store.")}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
-                      Back in store
-                    </button>
-                  )}
-
-                  <button type="button" disabled={busy} title="Edit" onClick={() => openEdit(a)}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-accent hover:bg-bg-subtle">
-                    <Pencil size={13} />
-                  </button>
-                  <button type="button" disabled={busy} title="Archive"
-                    onClick={() => run(a.id, () => archiveAssetAction(a.id, true), "Asset archived.")}
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-danger hover:bg-bg-subtle">
-                    <Archive size={13} />
-                  </button>
                   {busy && <Loader2 size={13} className="animate-spin text-fg-subtle" />}
+
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                      <button type="button" disabled={busy} title="More actions"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-transparent hover:ring-border">
+                        <MoreHorizontal size={16} />
+                      </button>
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content align="end" sideOffset={6}
+                        className="z-[60] min-w-[180px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
+                        {a.status === "in_store" && (
+                          <MenuItem icon={<UserPlus size={14} />} onSelect={() => setAssigning(a)}>Assign to person…</MenuItem>
+                        )}
+                        {a.status === "in_store" && (
+                          <MenuItem icon={<Users size={14} />} onSelect={() => setSharing(a)}>Share with team…</MenuItem>
+                        )}
+                        {a.status === "assigned" && (
+                          <MenuItem icon={<UserCog size={14} />} onSelect={() => setAssigning(a)}>Reassign…</MenuItem>
+                        )}
+                        {a.status === "assigned" && (
+                          <MenuItem icon={<RotateCcw size={14} />} onSelect={() => run(a.id, () => returnAssetAction(a.id), "Asset returned.")}>Return to store</MenuItem>
+                        )}
+                        {a.status === "assigned" && (
+                          <MenuItem icon={<Printer size={14} />} onSelect={() => window.open(`/hrms/assets/${a.id}/receipt`, "_blank")}>Handover receipt (PDF)</MenuItem>
+                        )}
+
+                        <DropdownMenu.Separator className="h-px bg-border my-1" />
+                        {a.status !== "maintenance" && a.status !== "retired" && (
+                          <MenuItem icon={<Wrench size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "maintenance"), "Marked as maintenance.")}>Send to maintenance</MenuItem>
+                        )}
+                        {a.status === "maintenance" && (
+                          <MenuItem icon={<ArchiveRestore size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "in_store"), "Back in store.")}>Back in store</MenuItem>
+                        )}
+                        {a.status === "retired" ? (
+                          <MenuItem icon={<ArchiveRestore size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "in_store"), "Restored to store.")}>Restore to store</MenuItem>
+                        ) : (
+                          <MenuItem icon={<Ban size={14} />} onSelect={() => run(a.id, () => setAssetStatusAction(a.id, "retired"), "Asset retired.")}>Retire (end of life)</MenuItem>
+                        )}
+                        <MenuItem icon={<Clock size={14} />} onSelect={() => setHistoryAsset(a)}>History</MenuItem>
+                        <MenuItem icon={<Pencil size={14} />} onSelect={() => openEdit(a)}>Edit</MenuItem>
+                        <DropdownMenu.Separator className="h-px bg-border my-1" />
+                        <MenuItem icon={<Archive size={14} />} danger onSelect={() => run(a.id, () => archiveAssetAction(a.id, true), "Asset archived.")}>Archive</MenuItem>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           {assets.length === 0 ? "No assets yet. Add your first to begin." : "No assets match these filters."}
         </div>
       )}
@@ -213,6 +235,7 @@ export function AssetsTable({
         onOpenChange={setDialogOpen}
         editing={editing}
         companies={companies}
+        people={people}
         vendors={vendors}
       />
 
@@ -224,7 +247,114 @@ export function AssetsTable({
       />
 
       <ImportDialog open={importOpen} onOpenChange={setImportOpen} companies={companies} />
+      <AssignDialog asset={assigning} people={people} onOpenChange={(o) => { if (!o) setAssigning(null); }} />
+      <AssetHistoryDialog asset={historyAsset} onOpenChange={(o) => { if (!o) setHistoryAsset(null); }} />
+      <ArchivedAssetsDialog open={archivedOpen} onOpenChange={setArchivedOpen} />
     </div>
+  );
+}
+
+function AssetHistoryDialog({ asset, onOpenChange }: { asset: AssetRow | null; onOpenChange: (o: boolean) => void }) {
+  const [rows, setRows] = useState<AssetHistoryRow[] | null>(null);
+  const open = asset != null;
+
+  useEffect(() => {
+    if (!asset) { setRows(null); return; }
+    let cancelled = false;
+    listAssetHistoryAction(asset.id).then((res) => { if (!cancelled) setRows(res.ok ? res.rows : []); });
+    return () => { cancelled = true; };
+  }, [asset]);
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(520px,calc(100vw-2rem))] max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-bg-elev border border-border shadow-2xl outline-none">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+            <Dialog.Title className="text-sm font-semibold">History — {asset?.name}</Dialog.Title>
+            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
+          </div>
+          <div className="p-5">
+            {rows == null ? (
+              <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
+            ) : rows.length === 0 ? (
+              <p className="text-sm text-fg-muted text-center py-6">No assignment history yet.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {rows.map((h) => (
+                  <div key={h.id} className="flex items-start gap-2.5 text-sm">
+                    <span className={cn("h-2 w-2 rounded-full mt-1.5 shrink-0", h.returnedAt ? "bg-fg-subtle" : "bg-info")} />
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium">{h.personName ?? "Unknown"}</span>
+                      <span className="text-fg-muted"> · {fmtDate(h.assignedAt)} → {h.returnedAt ? fmtDate(h.returnedAt) : "present"}</span>
+                      {h.notes && <div className="text-[11px] text-fg-subtle">{h.notes}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function ArchivedAssetsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { toast } = useToast();
+  const [rows, setRows] = useState<AssetRow[] | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [, startTransition] = useTransition();
+
+  function load() { listArchivedAssetsAction().then((res) => setRows(res.ok ? res.rows : [])); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (open) { setRows(null); load(); } }, [open]);
+
+  function restore(id: number) {
+    setBusyId(id);
+    startTransition(async () => {
+      const res = await archiveAssetAction(id, false);
+      setBusyId(null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast("Asset restored.", { tone: "success" });
+      load();
+    });
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(520px,calc(100vw-2rem))] max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-bg-elev border border-border shadow-2xl outline-none">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+            <Dialog.Title className="text-sm font-semibold">Archived assets</Dialog.Title>
+            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
+          </div>
+          <div className="p-5">
+            {rows == null ? (
+              <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
+            ) : rows.length === 0 ? (
+              <p className="text-sm text-fg-muted text-center py-6">Nothing archived.</p>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {rows.map((a) => (
+                  <div key={a.id} className="flex items-center gap-3 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">{a.name}</div>
+                      <div className="text-[11px] text-fg-subtle truncate">{[a.tag, a.category, a.serialNo].filter(Boolean).join(" · ") || "—"}</div>
+                    </div>
+                    <button type="button" disabled={busyId === a.id} onClick={() => restore(a.id)}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
+                      {busyId === a.id ? <Loader2 size={11} className="animate-spin" /> : <ArchiveRestore size={11} />} Restore
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -378,6 +508,75 @@ function ImportDialog({
   );
 }
 
+function AssignDialog({
+  asset,
+  people,
+  onOpenChange,
+}: {
+  asset: AssetRow | null;
+  people: Lite[];
+  onOpenChange: (o: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+  const [personId, setPersonId] = useState<string>("");
+  const [query, setQuery] = useState("");
+  const open = asset != null;
+  const reassign = !!asset?.assignedToPersonId;
+
+  const matches = useMemo(
+    () => people.filter((p) => p.id !== asset?.assignedToPersonId && p.name.toLowerCase().includes(query.toLowerCase())),
+    [people, query, asset]
+  );
+
+  function submit() {
+    if (!asset) return;
+    const pid = parseInt(personId, 10);
+    if (Number.isNaN(pid)) { toast("Pick a person.", { tone: "warn" }); return; }
+    startTransition(async () => {
+      const res = await assignAssetAction(asset.id, pid);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast(reassign ? "Asset reassigned." : "Asset assigned.", { tone: "success" });
+      setPersonId(""); setQuery("");
+      onOpenChange(false);
+    });
+  }
+
+  const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
+  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-bg-elev border border-border shadow-2xl outline-none">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+            <Dialog.Title className="text-sm font-semibold">{reassign ? "Reassign" : "Assign"} {asset?.name}</Dialog.Title>
+            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
+          </div>
+          <div className="p-5 space-y-3">
+            <div>
+              <label className={label}>Search people</label>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type a name…" className={input} />
+            </div>
+            <div>
+              <label className={label}>Assign to</label>
+              <select value={personId} onChange={(e) => setPersonId(e.target.value)} size={6} className={cn(input, "h-auto")}>
+                {matches.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                {matches.length === 0 && <option disabled>No matching people</option>}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="button" size="sm" loading={pending} onClick={submit}>{reassign ? "Reassign" : "Assign"}</Button>
+            </div>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 function ShareDialog({
   asset,
   onOpenChange,
@@ -461,12 +660,14 @@ function AssetDialog({
   onOpenChange,
   editing,
   companies,
+  people,
   vendors,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   editing: AssetRow | null;
   companies: Lite[];
+  people: Lite[];
   vendors: Lite[];
 }) {
   const { toast } = useToast();
@@ -485,6 +686,13 @@ function AssetDialog({
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
   const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
+
+  // What the asset is currently assigned to — drives the assignee select.
+  const isShared = !!editing && editing.status === "assigned" && !editing.assignedToPersonId &&
+    (!!editing.assignedToCompanyName || !!editing.custodianName);
+  const assigneeWas = !editing ? "store"
+    : editing.assignedToPersonId ? String(editing.assignedToPersonId)
+    : isShared ? "shared" : "store";
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -547,6 +755,16 @@ function AssetDialog({
                 <label className={label}>Handover date</label>
                 <input type="date" name="handoverDate" defaultValue={editing?.assignedAt ? editing.assignedAt.slice(0, 10) : ""} className={input} />
               </div>
+            </div>
+            <div>
+              <label className={label}>Assigned to</label>
+              <input type="hidden" name="assigneeWas" value={assigneeWas} />
+              <select name="assigneeId" defaultValue={assigneeWas} className={input}>
+                <option value="store">— In store (unassigned) —</option>
+                {isShared && <option value="shared">Shared / team — leave as is</option>}
+                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <p className="text-[11px] text-fg-subtle mt-1">Change this to correct or move who holds the asset.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

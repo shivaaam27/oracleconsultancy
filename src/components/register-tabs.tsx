@@ -34,19 +34,22 @@ export function RegisterTabs({
 
   return (
     <div className="space-y-4">
-      <div className="inline-flex rounded-xl bg-bg-subtle p-1 ring-1 ring-border/60">
+      <div className="flex rounded-xl bg-bg-subtle p-1 ring-1 ring-border/60 overflow-x-auto">
         {tabs.map(({ key, label, icon: Icon, count }) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap",
               tab === key ? "bg-bg-elev text-fg shadow-sm" : "text-fg-muted hover:text-fg"
             )}
           >
             <Icon size={14} /> {label}
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 rounded-full bg-bg-muted text-[11px] tabular text-fg-muted">{count}</span>
+            <span className={cn(
+              "inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 rounded-full text-[11px] tabular",
+              tab === key ? "bg-accent-soft/70 text-accent" : "bg-bg-muted text-fg-muted"
+            )}>{count}</span>
           </button>
         ))}
       </div>
