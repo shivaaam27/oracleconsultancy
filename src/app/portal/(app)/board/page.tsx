@@ -5,6 +5,7 @@ import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { DirectorTaskForm } from "@/components/director-task-form";
+import { DirectorEventForm } from "@/components/director-event-form";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getBrief } from "@/lib/director-brief";
 
@@ -58,10 +59,13 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
         </Reveal>
       )}
 
-      {/* Operator action: assign a task group-wide */}
+      {/* Operator actions: assign a task / schedule an event, group-wide */}
       <Reveal delay={0.04} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<ListTodo size={13} />}>Assign work</SectionLabel>
-        <DirectorTaskForm people={people} companies={companies} />
+        <SectionLabel icon={<ListTodo size={13} />}>Take action</SectionLabel>
+        <div className="flex flex-wrap items-start gap-2">
+          <DirectorTaskForm people={people} companies={companies} />
+          <DirectorEventForm people={people} companies={companies} />
+        </div>
       </Reveal>
 
       {/* Recommended actions */}

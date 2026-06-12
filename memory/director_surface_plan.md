@@ -159,8 +159,12 @@ email auto-send to directors (digest is 7e, optional).
   - [x] **Create & assign tasks group-wide** — `portalDirectorCreateTask` (any company, any active
     person; stamped `portal-dir:<Name>`; pinned instruction; notifies assignees + owner bell;
     audit-logged). `director-task-form.tsx` on the board. Verified: cross-company assignment works.
-  - [ ] **Create calendar events / meetings** (reuse calendar + meeting workspace) — NEXT.
+  - [x] **Create calendar events / meetings** — `portalDirectorCreateEvent` (director-gated
+    wrapper over the proven `createEventAction`: attendees, `.ics` invites, reminders,
+    recurrence, meet link). `director-event-form.tsx` on the board ("New event / meeting":
+    title, all-day/start/end, company, location/meet link, attendee chips, 1-day reminder, notes).
   - [ ] Role-based nav pill (hide staff Home/Activity/Profile for directors) — minor; deferred.
+  - **E1 complete** for the core operator powers (board + assign tasks + schedule events).
 - **E2 — Messages as drafts + governance.** Director drafts reminders/messages to people
   (reuse per-person reminder + Outbox); one-tap deep-link send works today. Add the audit/
   governance layer (every action logged + owner-visible + kill switch).

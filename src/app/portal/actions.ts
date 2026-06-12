@@ -9,6 +9,7 @@ import { parseMentionIds } from "@/lib/mentions";
 import { createTaskAttachment, createDocument, uploadDocumentFile } from "@/lib/documents";
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
+import { createEventAction } from "@/app/calendar/actions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import {
   clearSessionCookie,
@@ -183,6 +184,19 @@ export async function portalCreateTask(
   revalidatePath("/portal");
   revalidatePath("/");
   redirect(`/portal/task/${task.code}`);
+}
+
+/** Director: schedule a calendar event / meeting (any company). Reuses the
+ *  calendar engine (attendees, .ics invites, reminders, recurrence). */
+export async function portalDirectorCreateEvent(
+  formData: FormData
+): Promise<{ ok: true; id?: number } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  const res = await createEventAction(formData);
+  if (res.ok) revalidatePath("/portal/board");
+  return res;
 }
 
 /* ----------------------------------------------------------------------
