@@ -414,6 +414,13 @@
       "when": 1781283893194,
       "tag": "0058_light_newton_destine",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1781287152115,
+      "tag": "0059_tearful_patriot",
+      "breakpoints": true
     }
   ]
 }

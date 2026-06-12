@@ -33,6 +33,7 @@ import { personTypeLabel, type PersonType } from "@/lib/person-types";
 import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person-audit-shared";
 import { PersonLeave } from "./person-leave";
 import { PersonProbation } from "./person-probation";
+import { PersonPay } from "./person-pay";
 import type { PersonLeaveBalance, LeaveRequestRow } from "@/lib/leave-shared";
 import type { PersonAttendanceSummary } from "@/lib/leave";
 
@@ -74,6 +75,8 @@ type DrawerPerson = {
   staffId: string | null;
   previousStaffIds: string | null;
   staffCategory: string | null;
+  wageAmount: number | null;
+  wageBasis: string | null;
 };
 
 type DrawerData = {
@@ -365,6 +368,18 @@ export function PersonDrawer() {
     return days <= 14 && years >= 1 ? { days, years } : null;
   })();
 
+  // Profile completeness — share of key HR fields on record (6a).
+  const completeness = (() => {
+    if (!person) return null;
+    const fields = [
+      person.email || person.phone || person.whatsapp, person.role, person.companyId,
+      person.dateOfBirth, person.nationality, person.nationalId || person.passportNo,
+      person.address, person.emergencyContactName, person.startDate, person.departmentId,
+    ];
+    const filled = fields.filter(Boolean).length;
+    return Math.round((filled / fields.length) * 100);
+  })();
+
   const goToManager = (mid: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("person", String(mid));
@@ -408,6 +423,9 @@ export function PersonDrawer() {
             return null;
           })()}
           {person.active && serviceYears >= 1 && <Badge tone="default"><Cake size={10} className="inline mr-0.5" /> {serviceYears} yr{serviceYears === 1 ? "" : "s"}</Badge>}
+          {person.active && completeness != null && completeness < 100 && (
+            <Badge tone={completeness < 60 ? "warn" : "default"}>Profile {completeness}%</Badge>
+          )}
           {onLeaveNow ? (
             <Badge tone="info"><Plane size={10} className="inline mr-0.5" /> On leave</Badge>
           ) : nextLeave && (() => {
@@ -587,6 +605,7 @@ export function PersonDrawer() {
             nationalId: person.nationalId, passportNo: person.passportNo, address: person.address,
             emergencyContactName: person.emergencyContactName, emergencyContactPhone: person.emergencyContactPhone,
             probationEndDate: person.probationEndDate ? person.probationEndDate.slice(0, 10) : null,
+            wageAmount: person.wageAmount, wageBasis: person.wageBasis,
             managerId: person.managerId, secondaryManagerIds: person.secondaryManagers.map((m) => m.id),
             notes: person.notes, personType: person.personType, relatedPersonId: person.relatedPersonId,
             associations: person.associations,
@@ -633,6 +652,9 @@ export function PersonDrawer() {
             { label: "Started", value: person.startDate ? fmtDate(new Date(person.startDate)) : null },
             { label: "Probation ends", value: person.probationEndDate ? fmtDate(new Date(person.probationEndDate)) : null },
             { label: "Type", value: personTypeLabel(person.personType) },
+            { label: "Reports to", value: person.managerName },
+            { label: "Also reports to", value: person.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ") || null },
+            { label: "Related", value: person.relatedPersonName },
           ];
           return (
             <SectionCard className="p-4 space-y-4">
@@ -648,6 +670,14 @@ export function PersonDrawer() {
             </SectionCard>
           );
         })()}
+
+        {/* Compensation + final-pay estimate */}
+        <PersonPay
+          wageAmount={person.wageAmount}
+          wageBasis={person.wageBasis}
+          startDate={person.startDate}
+          annualLeaveRemaining={data.leave.balances.find((b) => /annual/i.test(b.typeName))?.remaining ?? null}
+        />
 
         {/* Documents */}
         {data.documents.length > 0 && (
@@ -759,6 +789,7 @@ export function PersonDrawer() {
         </button>
         <div className="ml-auto flex items-center gap-1.5">
           {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
+          <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href="/chat" />
           <IconButton icon={<FileText size={15} />} label="Add document" onClick={() => setAddDoc({ category: null })} />
         </div>
       </div>

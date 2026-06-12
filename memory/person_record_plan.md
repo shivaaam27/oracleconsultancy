@@ -146,15 +146,25 @@ server-side (`getPortalPerson`), never trusting the form.*
   *(Auto-creating the review task via cron, and anniversary nudges in the Brief/notify, are a
   natural follow-on — left for when the notify cron is next touched.)*
 
-### Phase 5 — Compensation & pay (ELR groundwork). *Owner decision before storing pay.*
-- [ ] Wage/salary fields (amount + basis) on `people` + form + Details.
-- [ ] Pay + final-pay calculators (severance 7d/yr, notice 28d, leave-in-lieu) per `v3_plan.md`.
+### Phase 5 — Compensation & pay (ELR). ✅ DONE (owner authorised storing pay).
+- [x] **5a Wage fields** — `people.wage_amount` (double) + `wage_basis` (monthly/daily/hourly)
+  (migration `0059`); wired through `people-queries`, create/update actions (audit-tracked as
+  "Wage"/"Wage basis"), and the person form (employment section). Currency = TZS.
+- [x] **5b Final-pay calculator** — `lib/pay.ts` (`estimateFinalPay`, `dailyWage`,
+  `completedYears`): ELR rules — daily = monthly ÷ 26; severance ≥7 days/yr (cap 10yr);
+  notice 28 days in lieu; accrued annual-leave payout. Surfaced as a **Compensation** panel in
+  the drawer Details (`person-pay.tsx`): shows wage + a collapsible "Final-pay estimate (if
+  leaving today)" with a disclaimer. Verified: 800k/mo × 6yr → severance 1,292,308; total 2,461,538.
 
-### Phase 6 — Record display polish + bulk.
-- [ ] Show related person, secondary managers, portal status; "Message" → Chat; profile-completeness chip.
-- [ ] Open documents in place (no navigate-away).
-- [ ] Bulk set company / department / manager (mirror `setPeopleActive`).
-- [ ] Perf: scope `getPersonDetail` workload to the person's tasks; dedupe `getStaffIdMap`.
+### Phase 6 — Record display polish + bulk. 🔶 6a DONE; 6b–6e remaining.
+- [x] **6a Display polish** — drawer shows **Reports to / Also reports to / Related** in the
+  Details employment group; a **Profile N%** completeness chip in the hero; a **Message → /chat**
+  link in the action bar. Verified in-browser.
+- [ ] **6b Portal-access status** in the drawer (enabled / last login) — needs portal fields added
+  to `getPersonDetail`.
+- [ ] **6c** Open documents in place (no navigate-away to `/documents`).
+- [ ] **6d** Bulk set company / department / manager (mirror `setPeopleActive`).
+- [ ] **6e** Perf: scope `getPersonDetail` workload to the person's tasks; dedupe `getStaffIdMap`.
 
 ### Phase 7 (optional, owner decision) — Director surface.
 - [ ] Read-only director view (headcount, org chart, compliance %, leave liability, risks),
