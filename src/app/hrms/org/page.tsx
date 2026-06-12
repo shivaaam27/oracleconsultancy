@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildCompanyTree, buildPortfolioTree, type CompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
+import { getDepartmentHeads } from "@/lib/departments";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,10 @@ export default async function OrgChartPage({
   searchParams: Promise<{ from?: string; company?: string }>;
 }) {
   const { from, company } = await searchParams;
-  const [people, extras, { data: companiesRaw }] = await Promise.all([
+  const [people, extras, deptHeads, { data: companiesRaw }] = await Promise.all([
     getAllPeopleWithWorkload(),
     getOrgExtras(),
+    getDepartmentHeads(),
     sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
   ]);
 
@@ -76,6 +78,7 @@ export default async function OrgChartPage({
           trees={trees}
           portfolioTree={portfolioTree}
           extras={extras}
+          deptHeads={deptHeads}
           webPeople={webPeople}
           associatedByCompany={associatedByCompany}
           initialCompanyId={company ? Number(company) : undefined}

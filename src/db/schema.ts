@@ -37,6 +37,16 @@ export const departments = pgTable("departments", {
   name: text("name").notNull().unique(),
 });
 
+// Per-company department head: the same department name can have a different
+// head in each company (e.g. Dar Spices Operations head ≠ PES Operations head).
+export const departmentHeads = pgTable("department_heads", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull().references(() => companies.id),
+  departmentId: integer("department_id").notNull().references(() => departments.id),
+  headPersonId: integer("head_person_id").references((): AnyPgColumn => people.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (t) => ({ uniq: uniqueIndex("dept_head_company_dept").on(t.companyId, t.departmentId) }));
+
 export const people = pgTable("people", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),

@@ -9,6 +9,7 @@ export type OrgNode = {
   name: string;
   role: string | null;
   personType: PersonType;
+  departmentId: number | null;
   departmentName: string | null;
   /** The node's own company (used by the portfolio tree, which spans companies). */
   companyName: string | null;
@@ -53,6 +54,7 @@ function toNode(p: Person, managerName: string | null, managerCompanyName: strin
     name: p.name,
     role: p.role,
     personType: p.personType,
+    departmentId: p.departmentId,
     departmentName: p.departmentName,
     companyName: p.companyName,
     companyAccent,

@@ -17,6 +17,7 @@ import { OrgChart } from "@/components/org-chart";
 import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { buildCompanyTree } from "@/lib/org-chart";
 import { getOrgExtras } from "@/lib/org-extras";
+import { getDepartmentHeads } from "@/lib/departments";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ComplianceSummaryCard } from "@/components/compliance-summary-card";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
@@ -138,13 +139,14 @@ export default async function CompanyPage({
     tree: ReturnType<typeof buildCompanyTree>;
     extras: Awaited<ReturnType<typeof getOrgExtras>>;
     associated: Array<{ id: number; name: string; role: string | null; relationship: string | null; personType: string }>;
+    deptHeads: Record<string, number>;
   } = null;
   if (tab === "org") {
-    const [allPeople, extras] = await Promise.all([getAllPeopleWithWorkload(), getOrgExtras()]);
+    const [allPeople, extras, deptHeads] = await Promise.all([getAllPeopleWithWorkload(), getOrgExtras(), getDepartmentHeads()]);
     const associated = allPeople
       .filter((p) => p.active)
       .flatMap((p) => p.associations.filter((a) => a.companyId === companyId).map((a) => ({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType })));
-    orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated };
+    orgTab = { tree: buildCompanyTree(allPeople, companyId), extras, associated, deptHeads };
   }
 
   return (
@@ -458,6 +460,7 @@ export default async function CompanyPage({
           trees={{ [companyId]: orgTab.tree }}
           extras={orgTab.extras}
           associatedByCompany={{ [companyId]: orgTab.associated }}
+          deptHeads={orgTab.deptHeads}
           initialCompanyId={companyId}
           showSwitcher={false}
           showEveryone={false}

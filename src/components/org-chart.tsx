@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { setDepartmentHead } from "@/app/hrms/org/actions";
 import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
@@ -326,7 +328,12 @@ function initialCollapsed(tree: CompanyTree): Set<number> {
   return new Set(collapsibleIds(tree.roots).filter((id) => !rootIds.has(id)));
 }
 
-function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean }) {
+function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {} }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number> }) {
+  const router = useRouter();
+  const [, startHead] = useTransition();
+  const saveHead = (departmentId: number, headPersonId: number | null) => {
+    startHead(async () => { if (companyId != null) { await setDepartmentHead(companyId, departmentId, headPersonId); router.refresh(); } });
+  };
   const [collapsedIds, setCollapsed] = useState<Set<number>>(() => initialCollapsed(tree));
   const [query, setQuery] = useState("");
   const [scale, setScale] = useState(1);
@@ -545,22 +552,40 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
             <Users size={12} /> {hasStructure ? `Unassigned (${tree.unassigned.length})` : `People (${tree.unassigned.length})`}
           </div>
-          {deptGroups.length > 1 ? (
-            deptGroups.map(([dept, members]) => (
-              <div key={dept}>
-                <div className="flex items-center gap-1.5 text-[11px] text-fg-muted mb-1.5">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dept === "No department" ? "hsl(var(--border-strong))" : `hsl(${deptHue(dept)} 65% 55%)` }} />
-                  <span className="font-medium">{dept}</span>
-                  <span className="text-fg-subtle tabular">· {members.length}</span>
+          {deptGroups.some(([d]) => d !== "No department") ? (
+            deptGroups.map(([dept, members]) => {
+              const deptId = members[0]?.departmentId ?? null;
+              const headId = companyId != null && deptId != null ? deptHeads[`${companyId}:${deptId}`] ?? null : null;
+              const sorted = headId ? [...members].sort((a, b) => (a.id === headId ? -1 : b.id === headId ? 1 : 0)) : members;
+              return (
+                <div key={dept}>
+                  <div className="flex items-center gap-1.5 text-[11px] text-fg-muted mb-1.5 flex-wrap">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dept === "No department" ? "hsl(var(--border-strong))" : `hsl(${deptHue(dept)} 65% 55%)` }} />
+                    <span className="font-medium">{dept}</span>
+                    <span className="text-fg-subtle tabular">· {members.length}</span>
+                    {companyId != null && deptId != null && (
+                      <span className="inline-flex items-center gap-1 ml-1 print-hidden">
+                        <span className="text-fg-subtle">· Head</span>
+                        <select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)}
+                          className="rounded-md bg-bg-subtle ring-1 ring-border px-1.5 py-0.5 text-[11px] text-fg focus:outline-none focus:ring-accent/40 cursor-pointer">
+                          <option value="">— none —</option>
+                          {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2.5">
+                    {sorted.map((n) => (
+                      <div key={n.id} className="relative">
+                        {n.id === headId && <span className="absolute -top-2 left-2 z-10 text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shadow-sm">Head</span>}
+                        <NodeCard node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
+                          onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2.5">
-                  {members.map((n) => (
-                    <NodeCard key={n.id} node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
-                      onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
-                  ))}
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="flex flex-wrap gap-2.5">
               {tree.unassigned.map((n) => (
@@ -668,7 +693,7 @@ function OrgSwitcher({
 /* ------------------------------------------------------------------ */
 
 export function OrgChart({
-  companies, trees, portfolioTree, extras = {}, webPeople, associatedByCompany = {}, initialCompanyId, showSwitcher = true, showEveryone = true,
+  companies, trees, portfolioTree, extras = {}, webPeople, associatedByCompany = {}, deptHeads = {}, initialCompanyId, showSwitcher = true, showEveryone = true,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
@@ -676,6 +701,7 @@ export function OrgChart({
   extras?: Extras;
   webPeople?: WebPerson[];
   associatedByCompany?: Record<number, AssociatedPerson[]>;
+  deptHeads?: Record<string, number>;
   initialCompanyId?: number;
   showSwitcher?: boolean;
   showEveryone?: boolean;
@@ -701,7 +727,7 @@ export function OrgChart({
       ) : view === "portfolio" && portfolioTree ? (
         <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio />
       ) : typeof view === "number" && trees[view] ? (
-        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} />
+        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} companyId={view} deptHeads={deptHeads} />
       ) : (
         <p className="text-sm text-fg-subtle italic py-6 text-center">Select a company.</p>
       )}
