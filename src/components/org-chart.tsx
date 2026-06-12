@@ -7,7 +7,7 @@ import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
   MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp, Network,
-  Focus, Scaling, List, GitBranch,
+  Focus, Scaling, List, GitBranch, Building2,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Badge } from "@/components/ui";
@@ -268,7 +268,7 @@ function Subtree({
         onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany}
         onFocus={onFocus ? () => onFocus(node.id) : undefined} />
       {showChildren && (
-        <ul>
+        <ul className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200">
           {node.children.map((c) => (
             <Subtree key={c.id} node={c} extras={extras} accentColor={accentColor}
               collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={forceExpand}
@@ -344,7 +344,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLUListElement | null>(null);
   const [focusId, setFocusId] = useState<number | null>(null);
-  const [mode, setMode] = useState<"chart" | "list">("chart");
+  const [mode, setMode] = useState<"chart" | "list" | "depts">("chart");
 
   // Single fixed-position hovercard (escapes the canvas overflow clip).
   const [hovered, setHovered] = useState<{ node: OrgNode; left: number; top: number } | null>(null);
@@ -390,6 +390,16 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
     }
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [tree.unassigned]);
+
+  // By-department lens: group EVERYONE (tree + roster) by department.
+  const allDeptGroups = useMemo(() => {
+    const all: OrgNode[] = [];
+    const walk = (n: OrgNode) => { all.push(n); n.children.forEach(walk); };
+    tree.roots.forEach(walk); tree.unassigned.forEach(walk);
+    const map = new Map<string, OrgNode[]>();
+    for (const n of all) { const k = n.departmentName || "No department"; (map.get(k) ?? map.set(k, []).get(k)!).push(n); }
+    return [...map.entries()].sort((a, b) => (a[0] === "No department" ? 1 : b[0] === "No department" ? -1 : a[0].localeCompare(b[0])));
+  }, [tree]);
 
   // Index nodes for drill-down focus (re-root the tree on one person).
   const { byId, parentOf } = useMemo(() => {
@@ -474,12 +484,13 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
               className="h-8 w-full sm:w-40 rounded-full bg-bg-subtle/70 ring-1 ring-border pl-7 pr-7 text-xs text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-accent/40" />
             {query && <button type="button" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg" aria-label="Clear search"><X size={12} /></button>}
           </div>
-          {hasStructure && (
+          <div className="inline-flex rounded-lg ring-1 ring-border overflow-hidden">
+            {hasStructure && <button type="button" onClick={() => setMode("chart")} title="Chart view" className={cn("h-8 w-8 inline-flex items-center justify-center transition-colors", mode === "chart" ? "bg-accent text-accent-fg" : "bg-bg-subtle/80 text-fg-muted hover:text-fg")}><GitBranch size={14} /></button>}
+            {hasStructure && <button type="button" onClick={() => setMode("list")} title="Outline view" className={cn("h-8 w-8 inline-flex items-center justify-center transition-colors", mode === "list" ? "bg-accent text-accent-fg" : "bg-bg-subtle/80 text-fg-muted hover:text-fg")}><List size={14} /></button>}
+            <button type="button" onClick={() => setMode("depts")} title="By department" className={cn("h-8 w-8 inline-flex items-center justify-center transition-colors", mode === "depts" ? "bg-accent text-accent-fg" : "bg-bg-subtle/80 text-fg-muted hover:text-fg")}><Building2 size={14} /></button>
+          </div>
+          {hasStructure && mode !== "depts" && (
             <>
-              <div className="inline-flex rounded-lg ring-1 ring-border overflow-hidden">
-                <button type="button" onClick={() => setMode("chart")} title="Chart view" className={cn("h-8 w-8 inline-flex items-center justify-center transition-colors", mode === "chart" ? "bg-accent text-accent-fg" : "bg-bg-subtle/80 text-fg-muted hover:text-fg")}><GitBranch size={14} /></button>
-                <button type="button" onClick={() => setMode("list")} title="Outline view" className={cn("h-8 w-8 inline-flex items-center justify-center transition-colors", mode === "list" ? "bg-accent text-accent-fg" : "bg-bg-subtle/80 text-fg-muted hover:text-fg")}><List size={14} /></button>
-              </div>
               <button type="button" onClick={collapseAll} title="Collapse all" className={ctrlBtn}><FoldVertical size={14} /></button>
               <button type="button" onClick={expandAll} title="Expand all" className={ctrlBtn}><Expand size={14} /></button>
               {mode === "chart" && (
@@ -500,7 +511,49 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
 
       {q && matchIds.size === 0 && <div className="text-xs text-fg-subtle italic">No match for “{query}”.</div>}
 
-      {hasStructure && (
+      {mode === "depts" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {allDeptGroups.map(([dept, members]) => {
+            const deptId = members.find((m) => m.departmentId != null)?.departmentId ?? null;
+            const headId = companyId != null && deptId != null ? deptHeads[`${companyId}:${deptId}`] ?? null : null;
+            const sorted = headId ? [...members].sort((a, b) => (a.id === headId ? -1 : b.id === headId ? 1 : 0)) : members;
+            const color = dept === "No department" ? "hsl(var(--border-strong))" : `hsl(${deptHue(dept)} 65% 55%)`;
+            return (
+              <div key={dept} className="rounded-2xl ring-1 ring-border/60 bg-bg-subtle/40 p-3 space-y-2 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="font-semibold text-sm">{dept}</span>
+                  <span className="text-fg-subtle text-xs tabular">· {members.length}</span>
+                  {companyId != null && deptId != null && (
+                    <span className="inline-flex items-center gap-1 ml-auto text-[11px] text-fg-muted print-hidden">
+                      Head
+                      <select value={headId ?? ""} onChange={(e) => saveHead(deptId, e.target.value ? Number(e.target.value) : null)} className="rounded-md bg-bg-subtle ring-1 ring-border px-1.5 py-0.5 text-[11px] cursor-pointer focus:outline-none focus:ring-accent/40">
+                        <option value="">— none —</option>
+                        {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-0.5">
+                  {sorted.map((n) => (
+                    <div key={n.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-bg-muted/40 transition-colors">
+                      <span className={cn("h-7 w-7 rounded-full ring-1 flex items-center justify-center text-[10px] font-semibold shrink-0", TYPE_TINT[n.personType] ?? TYPE_TINT.outsider)}>{initials(n.name)}</span>
+                      <div className="min-w-0 flex-1">
+                        <PersonDrawerLink id={n.id} name={n.name} className="block text-[13px] font-medium text-fg hover:text-accent truncate leading-tight" />
+                        <div className="text-[10.5px] text-fg-subtle truncate leading-tight">{n.role || PERSON_TYPE_LABELS[n.personType]}{portfolio && n.companyName ? ` · ${n.companyName}` : ""}</div>
+                      </div>
+                      {n.id === headId && <span className="text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shrink-0">Head</span>}
+                      {pickerPeople && <OrgDirectorPicker personId={n.id} currentManagerId={n.managerId} people={pickerPeople} compact missing={n.managerId == null} />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {mode !== "depts" && hasStructure && (
         <>
           {focusNode && (
             <div className="flex items-center gap-1 text-xs flex-wrap print-hidden">
@@ -521,7 +574,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
               <div ref={canvasRef} className="org-canvas overflow-auto" style={{ maxHeight: "72vh" }}
                 onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
                 <div className="org-stage inline-block min-w-full p-8" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
-                  <ul ref={stageRef} className="org-tree mx-auto w-max">
+                  <ul ref={stageRef} className="org-tree mx-auto w-max motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-300">
                     {rootsToRender.map((n) => (
                       <Subtree key={n.id} node={n} extras={extras} accentColor={accentColor}
                         collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={!!q}
@@ -532,7 +585,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 p-2 overflow-auto" style={{ maxHeight: "72vh" }}>
+            <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 p-2 overflow-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-300" style={{ maxHeight: "72vh" }}>
               {rootsToRender.map((n) => (
                 <OutlineRow key={n.id} node={n} depth={0} collapsedIds={collapsedIds} toggle={toggle} onFocus={setFocusId} matchIds={matchIds} showCompany={portfolio} extras={extras} pickerPeople={pickerPeople} />
               ))}
@@ -541,7 +594,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
         </>
       )}
 
-      {!hasStructure && (
+      {mode !== "depts" && !hasStructure && (
         <div className="rounded-xl bg-bg-subtle/40 ring-1 ring-border/60 p-3 text-[11px] text-fg-muted leading-snug">
           No in-company reporting lines yet — everyone is shown below. Set a person&apos;s{" "}
           <span className="font-medium text-fg">Director</span> to someone in this company to nest them into a tree.
@@ -549,7 +602,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
         </div>
       )}
 
-      {!focusNode && tree.unassigned.length > 0 && (
+      {mode !== "depts" && !focusNode && tree.unassigned.length > 0 && (
         <div className="pt-1 space-y-3">
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
             <Users size={12} /> {hasStructure ? `Unassigned (${tree.unassigned.length})` : `People (${tree.unassigned.length})`}
@@ -603,7 +656,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
         </div>
       )}
 
-      {!focusNode && associated.length > 0 && (
+      {mode !== "depts" && !focusNode && associated.length > 0 && (
         <div className="pt-1">
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle mb-2">
             <Link2 size={12} /> External &amp; associated ({associated.length})
