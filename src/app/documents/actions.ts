@@ -18,8 +18,8 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
-import { buildPersonRequirementScores } from "@/lib/requirements";
+import { buildCompanyRequirementScores, getCompanyChecklist } from "@/lib/company-requirements";
+import { buildPersonRequirementScores, getPersonChecklist } from "@/lib/requirements";
 import { buildComplianceCsv, complianceCsvFilename } from "@/lib/compliance-export";
 import type { PersonProfileFields } from "@/app/people/actions";
 import type { CompanyProfileFields } from "@/app/companies/[id]/actions";
@@ -125,6 +125,21 @@ function revalidateDocs() {
   revalidatePath("/people");
 }
 
+/**
+ * Persist auto-links for the affected owner as soon as a document is saved, so the
+ * compliance score on the Documents panel / Home / Brief (which read STORED links,
+ * not the live checklist) reflects the new document immediately — not only after
+ * someone opens that person's/company's checklist. Best-effort.
+ */
+async function reconcileOwnerCompliance(personId: number | null, companyId: number | null) {
+  try {
+    if (personId) await getPersonChecklist(personId);
+    if (companyId) await getCompanyChecklist(companyId);
+  } catch {
+    /* never block the save on reconciliation */
+  }
+}
+
 export async function createDocumentAction(fd: FormData): Promise<Result> {
   const parsed = inputFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
@@ -141,6 +156,7 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
       });
       revalidatePath(`/companies/${parsed.companyId}`);
     }
+    await reconcileOwnerCompliance(parsed.personId ?? null, parsed.companyId ?? null);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -165,6 +181,7 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
       });
       revalidatePath(`/companies/${parsed.companyId}`);
     }
+    await reconcileOwnerCompliance(parsed.personId ?? null, parsed.companyId ?? null);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -749,7 +766,30 @@ export async function removeDocumentFileAction(id: number): Promise<Result> {
 
 export async function archiveDocumentAction(id: number, archived: boolean): Promise<Result> {
   try {
+    // Who owns this document — so we can fix up their compliance link.
+    const { data: doc } = await supa.from("documents").select("person_id,company_id").eq("id", id).maybeSingle();
+    const personId = (doc?.person_id as number | null) ?? null;
+    const companyId = (doc?.company_id as number | null) ?? null;
+
     await setDocumentArchived(id, archived);
+
+    // An archived document must not keep ticking a checklist item. Release any
+    // requirement linked to it (back to "missing", auto-link on) so a replacement
+    // re-links on the reconcile below. This is what makes "Replace + archive"
+    // (renewal) hand the checklist over from the old document to the new one.
+    if (archived) {
+      const now = new Date().toISOString();
+      await supa
+        .from("person_requirements")
+        .update({ document_id: null, status: "missing", verified_at: null, verified_by: null, auto_link: true, updated_at: now })
+        .eq("document_id", id);
+      await supa
+        .from("company_requirements")
+        .update({ document_id: null, status: "missing", verified_at: null, verified_by: null, auto_link: true, updated_at: now })
+        .eq("document_id", id);
+    }
+
+    await reconcileOwnerCompliance(personId, companyId);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
