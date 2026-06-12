@@ -3,6 +3,7 @@ import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { getAppSettings, getEmailConfig, SWIPE_ACTIONS } from "@/lib/settings";
+import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
@@ -42,6 +43,7 @@ export default async function SettingsPage({
   const portalEnabled = portalPeople.filter((p) => p.enabled);
   const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
   const directorPaused = (dirKill?.value as string | null) === "1";
+  const whatsAppOn = whatsAppConfigured();
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -320,14 +322,26 @@ export default async function SettingsPage({
           </div>
         </div>
 
-        {/* Reminders (informational for now) */}
-        <div className="glass elevated rounded-2xl p-5 space-y-2">
+        {/* Reminders + WhatsApp status */}
+        <div className="glass elevated rounded-2xl p-5 space-y-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <MessageCircle size={14} className="text-accent" /> Reminders
+            <MessageCircle size={14} className="text-accent" /> Messaging
           </h2>
-          <p className="text-xs text-fg-muted">
-            Reminders go out on a single channel — <strong className="text-fg">Messages</strong>. Real sending
-            (WhatsApp / email via API) will be added later; for now the Outbox prepares copy-ready drafts.
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">WhatsApp (Cloud API)</p>
+              <p className="text-[11px] text-fg-muted">
+                {whatsAppOn
+                  ? "Connected — proactive messages send via approved templates; replies (within 24h) send as text."
+                  : "Not connected — messages fall back to one-tap wa.me links. Add WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID in Vercel."}
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${whatsAppOn ? "bg-success-soft text-success" : "bg-bg-muted text-fg-muted"}`}>
+              {whatsAppOn ? "Connected" : "Not set up"}
+            </span>
+          </div>
+          <p className="text-[11px] text-fg-subtle border-t border-border/60 pt-2">
+            Email sending is {emailCfg ? "connected" : "not connected"}. Until a channel is connected, the Outbox prepares copy-ready drafts with one-tap send links.
           </p>
         </div>
 

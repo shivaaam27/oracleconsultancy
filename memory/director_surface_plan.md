@@ -180,8 +180,18 @@ email auto-send to directors (digest is 7e, optional).
   emails on triggers (overdue task, doc expiry, probation, pending leave) + scheduled board/
   team digests, via a **rules + scheduler** layer on the existing cron. Hybrid: auto low-risk /
   draft the rest. Reuses `email.ts` + Outbox.
-- **E4 — WhatsApp automation (needs provider).** Integrate the WhatsApp Business API like
-  `email.ts`; templates; same hybrid + audit. Costed, owner-procured.
+- **E4 — WhatsApp automation.** 🔶 integration scaffolding DONE; needs owner provider + templates.
+  - [x] `src/lib/whatsapp.ts` — Meta WhatsApp Cloud API `sendWhatsApp({to, text?, template?})`,
+    configured from env (`WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` [+ API_VERSION /
+    DEFAULT_TEMPLATE / DEFAULT_LANG]); degrades to not-configured (callers fall back to wa.me).
+    `whatsAppConfigured()` for status. **Proactive sends MUST use approved templates; free text
+    only inside a 24h session.**
+  - [x] Settings → Messaging shows WhatsApp Connected/Not-set-up status.
+  - [ ] **Owner setup (blocks real send):** Meta Business + WhatsApp Business Account, a sending
+    number + its phone-number-id, business verification, a permanent System-User token, and
+    approved message TEMPLATES (e.g. a "task_reminder" utility template). Set the env vars in Vercel.
+  - [ ] **E4b (after creds+templates):** wire the Outbox/director-message + automation to call
+    `sendWhatsApp` with the right template; template-variable mapping; delivery status.
 - **E5 — Director-defined "if-this-then-that" rules** on top of the engine.
 
 ## Governance (non-negotiable for an operator)
