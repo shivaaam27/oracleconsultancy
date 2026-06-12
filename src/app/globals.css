@@ -541,6 +541,9 @@ input:disabled, select:disabled, textarea:disabled {
 }
 .report-table td { font-size: 10.5px; padding: 3px 6px; border-bottom: 1px solid #ececec; vertical-align: top; color: #1c1c1c; }
 .report-table tbody tr:nth-child(even) td { background: #fafafa; }
+/* Hide the Admin & HR updates "Company" column on screen and in the PDF when the
+   operator has toggled it off (class set on <html> from a local preference). */
+html.hide-brief-note-company .brief-note-company { display: none !important; }
 .report-company { margin-bottom: 14px; }
 .report-company-head { font-size: 12px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; color: #111; }
 .report-company-name { font-size: 15px; font-weight: 700; }

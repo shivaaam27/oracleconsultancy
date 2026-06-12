@@ -324,7 +324,7 @@ export default async function DirectorBriefPage({
             <table className="report-table mb-5">
               <thead>
                 <tr>
-                  <th style={{ width: "22%" }}>Company</th>
+                  <th className="brief-note-company" style={{ width: "22%" }}>Company</th>
                   <th>Update</th>
                   <th style={{ width: "14%" }}>Date</th>
                 </tr>
@@ -332,7 +332,7 @@ export default async function DirectorBriefPage({
               <tbody>
                 {b.notes.map((n) => (
                   <tr key={n.id}>
-                    <td>{n.companyName ?? "Portfolio"}</td>
+                    <td className="brief-note-company">{n.companyName ?? "Portfolio"}</td>
                     <td>{n.body}</td>
                     <td>{fmtDay(n.noteDate)}</td>
                   </tr>

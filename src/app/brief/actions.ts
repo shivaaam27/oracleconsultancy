@@ -74,6 +74,26 @@ export async function createBriefNoteAction(input: {
   }
 }
 
+export async function updateBriefNoteAction(input: {
+  id: number;
+  body: string;
+  companyId?: number | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const body = input.body.trim();
+    if (!body) return { ok: false, error: "Note cannot be empty" };
+    const { error } = await sb
+      .from("brief_notes")
+      .update({ body, company_id: input.companyId ?? null })
+      .eq("id", input.id);
+    if (error) throw new Error(error.message);
+    revalidatePath("/brief");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not update note" };
+  }
+}
+
 export async function deleteBriefNoteAction(id: number): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const { error } = await sb.from("brief_notes").delete().eq("id", id);
