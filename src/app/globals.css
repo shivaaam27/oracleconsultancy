@@ -661,6 +661,7 @@ input:disabled, select:disabled, textarea:disabled {
      everything else in the view. */
   @page org-landscape { size: A4 landscape; margin: 10mm; }
   .org-root { page: org-landscape; }
+  .org-root, .org-root * { font-family: var(--font-sans) !important; }
   .org-root > :not(.org-print-title):not(.org-printable) { display: none !important; }
   .org-printable, .org-canvas { overflow: visible !important; max-height: none !important; }
   .org-stage { transform: scale(var(--org-print-scale, 1)) !important; transform-origin: top center !important; transition: none !important; }
@@ -669,12 +670,6 @@ input:disabled, select:disabled, textarea:disabled {
   .org-signals, .org-card button { display: none !important; }
   @page { margin: 14mm; }
 }
-
-/* Print-only organogram masthead (Director-Brief styling). */
-.org-print-title { margin-bottom: 10px; }
-.org-print-title .olabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.16em; color: hsl(var(--accent)); margin-bottom: 1px; }
-.org-print-title .otitle { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #111; margin: 0; }
-.org-print-title .osub { font-size: 11px; color: #555; margin-top: 2px; }
 
 /* Constellation native fullscreen still fills the screen. */
 .org-web-wrap:fullscreen { background: hsl(var(--bg)); }

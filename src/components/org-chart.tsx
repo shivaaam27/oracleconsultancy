@@ -501,11 +501,11 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
 
   return (
     <div ref={rootRef} className={cn("space-y-3 org-root", isFs && "fixed inset-0 z-[90] bg-bg p-4 sm:p-5 overflow-auto")}>
-      {/* Print-only masthead (Director-Brief styling). */}
-      <div className="org-print-title print-only">
-        <div className="olabel">Organogram</div>
-        <h1 className="otitle">{companyName ?? "Portfolio"}</h1>
-        <div className="osub">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {tree.total} people · {tree.linesInTree} reporting lines</div>
+      {/* Print-only masthead — identical typography to the Director Brief PDF. */}
+      <div className="org-print-title print-only mb-3">
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Organogram</div>
+        <h1 className="text-xl font-semibold tracking-tight text-fg">{companyName ?? "Portfolio"}</h1>
+        <p className="text-[11px] text-fg-muted mt-0.5">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {tree.total} people · {tree.linesInTree} reporting lines</p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print-hidden">
         <div className="text-[11px] text-fg-subtle tabular">
