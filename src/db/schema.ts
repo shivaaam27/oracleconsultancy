@@ -583,6 +583,20 @@ export const todos = pgTable("todos", {
   completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
 });
 
+// Director Brief notes — free narrative the operator writes by hand: Admin/HR
+// "updates" that aren't tasks (e.g. "Renewed the office lease", "Onboarded two
+// cleaners"). They show in the brief between Delivered and Open work, and in the
+// share text/PDF. `noteDate` decides which period's brief a note appears in
+// (same window logic as Delivered); `companyId` is optional (NULL = portfolio).
+export const briefNotes = pgTable("brief_notes", {
+  id: serial("id").primaryKey(),
+  body: text("body").notNull(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  noteDate: timestamp("note_date", { mode: "date", withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
 // Calendar events — a standalone, app-owned calendar. Each event can generate
 // an .ics file (the universal calendar format every mail/calendar app reads) so
 // recipients' own calendars save it automatically, plus an optional Google Meet

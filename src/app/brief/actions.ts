@@ -49,3 +49,38 @@ export async function createDirectorBriefDraftAction(input: {
     return { ok: false, error: error instanceof Error ? error.message : "Could not create Director Brief draft" };
   }
 }
+
+export async function createBriefNoteAction(input: {
+  body: string;
+  companyId?: number | null;
+  noteDate?: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const body = input.body.trim();
+    if (!body) return { ok: false, error: "Note cannot be empty" };
+    const noteDate = input.noteDate ? new Date(input.noteDate) : new Date();
+    if (Number.isNaN(noteDate.getTime())) return { ok: false, error: "Invalid date" };
+    const { error } = await sb.from("brief_notes").insert({
+      body,
+      company_id: input.companyId ?? null,
+      note_date: noteDate.toISOString(),
+      created_at: new Date().toISOString(),
+    });
+    if (error) throw new Error(error.message);
+    revalidatePath("/brief");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not add note" };
+  }
+}
+
+export async function deleteBriefNoteAction(id: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { error } = await sb.from("brief_notes").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+    revalidatePath("/brief");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not delete note" };
+  }
+}

@@ -12,6 +12,7 @@ import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
 import { listObligations, outstandingDeadlines } from "./recurring";
 import { listCalendarEvents } from "./calendar";
+import { listBriefNotes, type BriefNote } from "./brief-notes";
 import { type CcFlag } from "./command-centre";
 import { sb } from "@/db/supabase";
 import { BRAND_NAME } from "./brand";
@@ -142,6 +143,7 @@ export type BriefData = {
   directorActions: BriefDirectorAction[];
   hr: BriefHr;
   weekAhead: BriefWeekEvent[];
+  notes: BriefNote[];
 };
 
 export type BriefWeekEvent = {
@@ -288,6 +290,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   const asAt = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const companyNameById = new Map(allKpis.map((k) => [k.id, k.name]));
   const hr = await buildHrBrief(now, range, selectedCompanyId, documents, companyNameById);
+  const notes = await listBriefNotes(range, selectedCompanyId, companyNameById);
 
   const deliveredThisMonth = rows
     .filter((r) => isClosed(r) && r.closedDate && r.closedDate >= range.start && r.closedDate <= range.end)
@@ -429,7 +432,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     companyCount: kpis.length,
     atRiskCount: kpis.filter((k) => k.riskScore > 20).length,
     companies, delivered, watch, compliance, statutory, directorActions, hr,
-    weekAhead,
+    weekAhead, notes,
   };
 }
 
@@ -450,6 +453,13 @@ export function briefShareText(b: BriefData): string {
     L.push(`*Delivered in ${b.monthLabel}*`);
     for (const g of b.delivered) {
       for (const t of g.items) L.push(`• ${g.company}: ${t.actionItem} (${t.status} ${fmtDay(t.closedDate)})`);
+    }
+  }
+  if (b.notes.length) {
+    L.push("");
+    L.push(`*Admin & HR updates*`);
+    for (const n of b.notes) {
+      L.push(`• ${n.companyName ? `${n.companyName}: ` : ""}${n.body}`);
     }
   }
   if (b.watch.length) {

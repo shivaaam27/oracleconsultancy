@@ -379,6 +379,13 @@
       "when": 1781255511095,
       "tag": "0053_melted_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1781265079688,
+      "tag": "0054_daffy_darkstar",
+      "breakpoints": true
     }
   ]
 }
