@@ -7,7 +7,7 @@ import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
-  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck,
+  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -30,6 +30,10 @@ import { pickChannel } from "@/lib/outbox-links";
 import type { TaskRow } from "@/lib/queries";
 import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
 import { personTypeLabel, type PersonType } from "@/lib/person-types";
+import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person-audit-shared";
+import { PersonLeave } from "./person-leave";
+import type { PersonLeaveBalance, LeaveRequestRow } from "@/lib/leave-shared";
+import type { PersonAttendanceSummary } from "@/lib/leave";
 
 /* -------------------------------------------------------------------------
  * API payload types — mirror lib/people-queries.ts PersonDetail
@@ -105,6 +109,8 @@ type DrawerData = {
   companies: Array<{ id: number; name: string }>;
   peopleList: Array<{ id: number; name: string; active: boolean }>;
   departments: string[];
+  events: PersonEvent[];
+  leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
 };
 
 /* -------------------------------------------------------------------------
@@ -118,6 +124,30 @@ function fmtTime(d: Date) {
 
 function fmtDate(d: Date) {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Compact relative time for the audit trail. */
+function relTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+/** One audit row: "Changed Role · Clerk → Senior Clerk". */
+function personEventText(e: PersonEvent): string {
+  if (e.action === "updated" && e.field) {
+    const from = e.oldValue ?? "—";
+    const to = e.newValue ?? "—";
+    return `${e.field}: ${from} → ${to}`;
+  }
+  return PERSON_ACTION_LABEL[e.action] + (e.detail ? ` · ${e.detail}` : "");
 }
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
@@ -311,6 +341,15 @@ export function PersonDrawer() {
   const overdueTasks = data ? data.assignedTasks.filter((t) => t.flag === "overdue" || t.flag === "escalate-now") : [];
   const openTasks = data?.workload.open ?? 0;
 
+  // Leave snapshot derived from the detail payload.
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const leaveReqs = data?.leave.requests ?? [];
+  const onLeaveNow = leaveReqs.some((r) => r.status === "Approved" && r.startDate.slice(0, 10) <= todayISO && r.endDate.slice(0, 10) >= todayISO);
+  const pendingLeave = leaveReqs.filter((r) => r.status === "Pending").length;
+  const nextLeave = leaveReqs
+    .filter((r) => r.status === "Approved" && r.startDate.slice(0, 10) > todayISO)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))[0] ?? null;
+
   const goToManager = (mid: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("person", String(mid));
@@ -353,6 +392,12 @@ export function PersonDrawer() {
             if (days >= 0 && days <= 45) return <Badge tone={days <= 14 ? "danger" : "warn"}><Clock size={10} className="inline mr-0.5" /> Probation {days}d</Badge>;
             return null;
           })()}
+          {onLeaveNow ? (
+            <Badge tone="info"><Plane size={10} className="inline mr-0.5" /> On leave</Badge>
+          ) : nextLeave && (() => {
+            const days = Math.ceil((new Date(`${nextLeave.startDate.slice(0, 10)}T00:00:00`).getTime() - Date.now()) / 86400000);
+            return days >= 0 && days <= 21 ? <Badge tone="default"><Plane size={10} className="inline mr-0.5" /> Leave in {days}d</Badge> : null;
+          })()}
           {snoozed && person.snoozedUntil && <Badge tone="warn"><MoonStar size={10} className="inline mr-0.5" /> Snoozed</Badge>}
         </div>
         {/* Contact quick links — compact icon buttons */}
@@ -379,6 +424,8 @@ export function PersonDrawer() {
     );
     if (compSum && compSum.missing > 0)
       attention.push({ key: "comp", icon: <ShieldCheck size={14} className="text-warn" />, label: `${compSum.missing} required document${compSum.missing === 1 ? "" : "s"} missing`, sub: "Open compliance", onClick: () => setActiveTab("compliance") });
+    if (pendingLeave > 0)
+      attention.push({ key: "leave", icon: <Plane size={14} className="text-warn" />, label: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} pending`, sub: "Review in Leave & Attendance", onClick: () => setActiveTab("leave") });
   }
 
   const overviewContent = person && data ? (
@@ -628,6 +675,25 @@ export function PersonDrawer() {
             </Link>
           </div>
         </SectionCard>
+
+        {/* History — who changed what, when */}
+        {data.events.length > 0 && (
+          <SectionCard>
+            <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
+              <Clock size={12} /> History
+              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.events.length}</span>
+            </div>
+            <ul className="divide-y divide-border/50">
+              {data.events.map((e) => (
+                <li key={e.id} className="flex items-start gap-2.5 px-4 py-2">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-subtle/60" />
+                  <span className="min-w-0 flex-1 text-[12px] leading-snug text-fg-muted break-words">{personEventText(e)}</span>
+                  <span className="shrink-0 text-[11px] text-fg-subtle whitespace-nowrap">{relTime(e.createdAt)} · {personActor(e.createdBy)}</span>
+                </li>
+              ))}
+            </ul>
+          </SectionCard>
+        )}
       </>
     )
   ) : null;
@@ -644,6 +710,8 @@ export function PersonDrawer() {
           content: <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /> },
         { id: "journey", label: person.active ? "Journey" : "Exit", icon: <RouteIcon size={14} />,
           content: <div className="space-y-3"><JourneyChecklist personId={person.id} kind={person.active ? "onboarding" : "offboarding"} onChanged={refresh} onNavigate={close} onSummary={setJourneySum} /><PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} /></div> },
+        { id: "leave", label: "Leave", icon: <CalendarDays size={14} />, badge: pendingLeave || undefined,
+          content: <PersonLeave personId={person.id} balances={data.leave.balances} requests={data.leave.requests} attendance={data.leave.attendance} onChanged={refresh} /> },
         { id: "tasks", label: "Tasks", icon: <ListTodo size={14} />, badge: openTasks || undefined, content: tasksContent },
         { id: "details", label: "Details", icon: <IdCard size={14} />, content: detailsContent },
       ];

@@ -245,6 +245,25 @@ export const complianceEvents = pgTable(
   ]
 );
 
+// Append-only audit trail for a PERSON record — who changed which profile field
+// (role, manager, contact, dates, type…), and archive/restore/enrich/snooze
+// lifecycle actions. Mirrors compliance_events; old/new are snapshotted strings.
+export const personEvents = pgTable(
+  "person_events",
+  {
+    id: serial("id").primaryKey(),
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    action: text("action").notNull(), // created | updated | archived | restored | enriched | snoozed | unsnoozed
+    field: text("field"), // human label of the changed field (for "updated")
+    oldValue: text("old_value"),
+    newValue: text("new_value"),
+    detail: text("detail"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    createdBy: text("created_by"),
+  },
+  (t) => [index("person_events_person_idx").on(t.personId)]
+);
+
 // Editable onboarding/offboarding step templates, per person type. A person's
 // journey (todos tagged with `kind`) is created from / synced to these rows.
 // kind: "onboarding" | "offboarding"; appliesToType matches person-types.ts.

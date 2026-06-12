@@ -156,3 +156,31 @@ export async function personLeaveBalances(personId: number): Promise<PersonLeave
     };
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Attendance — this-month summary for one person (register-dependent).*/
+/* Returns zeros (recorded 0) when the daily register hasn't been used.*/
+/* ------------------------------------------------------------------ */
+export type PersonAttendanceSummary = { recorded: number; present: number; absent: number; onLeave: number; other: number };
+
+export async function personAttendanceThisMonth(personId: number): Promise<PersonAttendanceSummary> {
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+  const { data } = await sb
+    .from("attendance")
+    .select("status")
+    .eq("person_id", personId)
+    .gte("date", monthStart)
+    .lt("date", monthEnd);
+  const rows = data ?? [];
+  const sum: PersonAttendanceSummary = { recorded: rows.length, present: 0, absent: 0, onLeave: 0, other: 0 };
+  for (const r of rows) {
+    const s = (r.status as string) ?? "";
+    if (s === "Present" || s === "Remote") sum.present++;
+    else if (s === "Absent") sum.absent++;
+    else if (s === "On leave" || s === "Sick" || s === "Half-day") sum.onLeave++;
+    else sum.other++;
+  }
+  return sum;
+}

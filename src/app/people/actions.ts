@@ -3,7 +3,8 @@
 import { GROQ_FAST } from "@/lib/ai-models";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
-import { normalizePersonType } from "@/lib/person-types";
+import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
+import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/person-audit";
 import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPerson } from "@/lib/assets";
@@ -126,6 +127,77 @@ function invalidate() {
   revalidatePath("/hrms/org");
   revalidatePath("/companies", "layout");
   updateTag("people");
+}
+
+/* ----------------------------------------------------------------------
+ * Audit-trail field diffing for updatePerson.
+ * ---------------------------------------------------------------------- */
+type TrackKind = "text" | "date" | "company" | "person" | "department" | "type";
+const TRACKED_FIELDS: Array<{ col: string; label: string; kind: TrackKind }> = [
+  { col: "name", label: "Name", kind: "text" },
+  { col: "email", label: "Email", kind: "text" },
+  { col: "phone", label: "Phone", kind: "text" },
+  { col: "whatsapp", label: "WhatsApp", kind: "text" },
+  { col: "role", label: "Role", kind: "text" },
+  { col: "staff_category", label: "Staff category", kind: "text" },
+  { col: "company_id", label: "Company", kind: "company" },
+  { col: "department_id", label: "Department", kind: "department" },
+  { col: "start_date", label: "Start date", kind: "date" },
+  { col: "date_of_birth", label: "Date of birth", kind: "date" },
+  { col: "nationality", label: "Nationality", kind: "text" },
+  { col: "national_id", label: "National ID", kind: "text" },
+  { col: "passport_no", label: "Passport no.", kind: "text" },
+  { col: "address", label: "Address", kind: "text" },
+  { col: "emergency_contact_name", label: "Emergency contact", kind: "text" },
+  { col: "emergency_contact_phone", label: "Emergency phone", kind: "text" },
+  { col: "probation_end_date", label: "Probation end", kind: "date" },
+  { col: "manager_id", label: "Manager", kind: "person" },
+  { col: "notes", label: "Notes", kind: "text" },
+  { col: "person_type", label: "Person type", kind: "type" },
+  { col: "related_person_id", label: "Related person", kind: "person" },
+];
+
+/** Compare before/after column values and return human-readable field changes. */
+async function diffPersonChanges(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>
+): Promise<FieldChange[]> {
+  const companyIds = new Set<number>();
+  const personIds = new Set<number>();
+  const deptIds = new Set<number>();
+  for (const f of TRACKED_FIELDS) {
+    const add = (set: Set<number>) => [before[f.col], after[f.col]].forEach((v) => typeof v === "number" && set.add(v));
+    if (f.kind === "company") add(companyIds);
+    else if (f.kind === "person") add(personIds);
+    else if (f.kind === "department") add(deptIds);
+  }
+  const [c, p, d] = await Promise.all([
+    companyIds.size ? sb.from("companies").select("id,name").in("id", [...companyIds]) : Promise.resolve({ data: [] }),
+    personIds.size ? sb.from("people").select("id,name").in("id", [...personIds]) : Promise.resolve({ data: [] }),
+    deptIds.size ? sb.from("departments").select("id,name").in("id", [...deptIds]) : Promise.resolve({ data: [] }),
+  ]);
+  const cMap = new Map((c.data ?? []).map((r) => [r.id as number, r.name as string]));
+  const pMap = new Map((p.data ?? []).map((r) => [r.id as number, r.name as string]));
+  const dMap = new Map((d.data ?? []).map((r) => [r.id as number, r.name as string]));
+
+  const fmt = (kind: TrackKind, v: unknown): string | null => {
+    if (v == null || v === "") return null;
+    if (kind === "date") return String(v).slice(0, 10);
+    if (kind === "company") return cMap.get(v as number) ?? `#${v}`;
+    if (kind === "person") return pMap.get(v as number) ?? `#${v}`;
+    if (kind === "department") return dMap.get(v as number) ?? `#${v}`;
+    if (kind === "type") return personTypeLabel(normalizePersonType(String(v)));
+    const s = String(v);
+    return s.length > 200 ? `${s.slice(0, 200)}…` : s;
+  };
+
+  const changes: FieldChange[] = [];
+  for (const f of TRACKED_FIELDS) {
+    const ov = fmt(f.kind, before[f.col]);
+    const nv = fmt(f.kind, after[f.col]);
+    if (ov !== nv) changes.push({ field: f.label, oldValue: ov, newValue: nv });
+  }
+  return changes;
 }
 
 /* ----------------------------------------------------------------------
@@ -347,6 +419,7 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   await syncAssociations(data.id as number, parseAssociations(formData));
   await syncReportingLines(data.id as number, parseSecondaryManagers(formData), n(formData, "managerId"));
   const newType = normalizePersonType(personType(formData));
+  await logPersonEvent(data.id as number, "created", { newValue: name, detail: personTypeLabel(newType) });
   // Auto-generate this person's document checklist for their type.
   try { await ensurePersonRequirements(data.id as number, newType); } catch {}
   // Auto-start an onboarding checklist for actual hires (local staff / expat).
@@ -386,7 +459,13 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   // staff ID so old references (e.g. CZ-E04) stay traceable.
   const newCompanyId = n(formData, "companyId");
   let previousStaffIds: string | undefined;
-  const { data: before } = await sb.from("people").select("company_id,previous_staff_ids").eq("id", id).maybeSingle();
+  const { data: before } = await sb
+    .from("people")
+    .select(
+      "company_id,previous_staff_ids,name,email,phone,whatsapp,role,staff_category,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,manager_id,notes,person_type,related_person_id"
+    )
+    .eq("id", id)
+    .maybeSingle();
   if (before && before.company_id != null && newCompanyId !== before.company_id) {
     const oldId = await staffIdFor(id);
     if (oldId) {
@@ -395,37 +474,44 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
     }
   }
 
-  const { error } = await sb
-    .from("people")
-    .update({
-      ...(previousStaffIds !== undefined ? { previous_staff_ids: previousStaffIds } : {}),
-      name,
-      email,
-      phone,
-      whatsapp,
-      preferred_channel: s(formData, "preferredChannel"),
-      role: s(formData, "role"),
-      staff_category: s(formData, "staffCategory"),
-      company_id: n(formData, "companyId"),
-      department_id: departmentId,
-      start_date: dateField(formData, "startDate"),
-      date_of_birth: dateField(formData, "dateOfBirth"),
-      nationality: s(formData, "nationality"),
-      national_id: s(formData, "nationalId"),
-      passport_no: s(formData, "passportNo"),
-      address: s(formData, "address"),
-      emergency_contact_name: s(formData, "emergencyContactName"),
-      emergency_contact_phone: s(formData, "emergencyContactPhone"),
-      probation_end_date: dateField(formData, "probationEndDate"),
-      manager_id: safeManagerId,
-      notes: s(formData, "notes"),
-      contact_status: contactStatus(email, phone, whatsapp),
-      person_type: personType(formData),
-      related_person_id: safeRelatedId,
-    })
-    .eq("id", id);
+  const payload = {
+    ...(previousStaffIds !== undefined ? { previous_staff_ids: previousStaffIds } : {}),
+    name,
+    email,
+    phone,
+    whatsapp,
+    preferred_channel: s(formData, "preferredChannel"),
+    role: s(formData, "role"),
+    staff_category: s(formData, "staffCategory"),
+    company_id: n(formData, "companyId"),
+    department_id: departmentId,
+    start_date: dateField(formData, "startDate"),
+    date_of_birth: dateField(formData, "dateOfBirth"),
+    nationality: s(formData, "nationality"),
+    national_id: s(formData, "nationalId"),
+    passport_no: s(formData, "passportNo"),
+    address: s(formData, "address"),
+    emergency_contact_name: s(formData, "emergencyContactName"),
+    emergency_contact_phone: s(formData, "emergencyContactPhone"),
+    probation_end_date: dateField(formData, "probationEndDate"),
+    manager_id: safeManagerId,
+    notes: s(formData, "notes"),
+    contact_status: contactStatus(email, phone, whatsapp),
+    person_type: personType(formData),
+    related_person_id: safeRelatedId,
+  };
+
+  const { error } = await sb.from("people").update(payload).eq("id", id);
 
   if (error) return { ok: false, error: error.message };
+
+  // Audit: record each changed profile field (best-effort).
+  if (before) {
+    try {
+      const changes = await diffPersonChanges(before as Record<string, unknown>, payload as Record<string, unknown>);
+      await logPersonFieldChanges(id, changes);
+    } catch {}
+  }
 
   await syncAssociations(id, parseAssociations(formData));
   await syncReportingLines(id, parseSecondaryManagers(formData), safeManagerId);
@@ -524,6 +610,8 @@ export async function enrichPersonProfile(
   const { error } = await sb.from("people").update(update).eq("id", personId);
   if (error) return { ok: false, filled: [], error: error.message };
 
+  await logPersonEvent(personId, "enriched", { detail: filled.join(", "), createdBy: "intake" });
+
   // Profile enrichment fills blank columns only; it never changes person_type,
   // so the document checklist does not need reconciling here.
   invalidate();
@@ -540,6 +628,8 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   const nextActive = !current.active;
   const { error } = await sb.from("people").update({ active: nextActive }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  await logPersonEvent(id, nextActive ? "restored" : "archived");
 
   // Archiving someone kicks off an offboarding checklist (idempotent) and
   // returns any company assets they were holding back to the store.
@@ -558,6 +648,7 @@ export async function setPeopleActive(ids: number[], active: boolean): Promise<A
   if (!clean.length) return { ok: false, error: "No people selected." };
   const { error } = await sb.from("people").update({ active }).in("id", clean);
   if (error) return { ok: false, error: error.message };
+  await Promise.all(clean.map((pid) => logPersonEvent(pid, active ? "restored" : "archived")));
   invalidate();
   return { ok: true };
 }
@@ -578,6 +669,8 @@ export async function snoozePerson(id: number, untilIso: string | null): Promise
     .eq("id", id);
 
   if (error) return { ok: false, error: error.message };
+
+  await logPersonEvent(id, value ? "snoozed" : "unsnoozed", value ? { detail: `Until ${untilIso}` } : {});
 
   invalidate();
   return { ok: true };

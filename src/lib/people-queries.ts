@@ -4,6 +4,9 @@ import { isOpen } from "./derive";
 import { deriveDocStatus, expiryLabel, type DocStatus } from "./documents-shared";
 import { normalizePersonType, type PersonType } from "./person-types";
 import { getStaffIdMap } from "./staff-id";
+import { listPersonEvents, type PersonEvent } from "./person-audit";
+import { personLeaveBalances, listLeaveRequests, personAttendanceThisMonth, type PersonAttendanceSummary } from "./leave";
+import type { PersonLeaveBalance, LeaveRequestRow } from "./leave-shared";
 
 export type { PersonType };
 
@@ -226,6 +229,10 @@ export type PersonDetail = {
   peopleList: Array<{ id: number; name: string; active: boolean }>;
   /** Existing department names, for the edit form's department datalist. */
   departments: string[];
+  /** Audit trail of profile changes, newest first. */
+  events: PersonEvent[];
+  /** Leave entitlement/usage per type + this person's requests (newest first). */
+  leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
@@ -381,5 +388,15 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     person.managerName = peopleList.find((p) => p.id === person.managerId)?.name ?? null;
   }
 
-  return { person, workload, assignedTasks, documents, recentUpdates, companies, peopleList, departments };
+  const [events, leaveBalances, leaveRequests, attendance] = await Promise.all([
+    listPersonEvents(id, 40),
+    personLeaveBalances(id),
+    listLeaveRequests({ personId: id }),
+    personAttendanceThisMonth(id),
+  ]);
+
+  return {
+    person, workload, assignedTasks, documents, recentUpdates, companies, peopleList, departments, events,
+    leave: { balances: leaveBalances, requests: leaveRequests, attendance },
+  };
 }
