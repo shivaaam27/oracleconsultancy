@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { CalendarDays, CheckCircle2, ListTodo, Users } from "lucide-react";
+import { CalendarDays, CheckCircle2, ListTodo, Users, Plane } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
-import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
+import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
+import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
+import { buildPersonRequirementScores } from "@/lib/requirements";
+import { getJourney } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +115,50 @@ export default async function PortalHome() {
     }));
   }
 
+  const reportIds = me.portalRole === "manager" ? await directReportIds(me.id) : [];
+
+  // Managers: pending leave from reports + a team status glance (compliance + onboarding).
+  let teamLeave: TeamLeaveRequest[] = [];
+  let teamMembers: Array<{ id: number; name: string; role: string | null; score: number | null; band: "Good" | "Watch" | "Risk" | null; onboardPct: number | null }> = [];
+  if (reportIds.length > 0) {
+    const [{ data: leaveData }, { data: peopleData }, scores, journeys] = await Promise.all([
+      sb.from("leave_requests")
+        .select("id,person_id,start_date,end_date,half_day,days,reason,status, people(name), leave_types(name,color)")
+        .in("person_id", reportIds).eq("status", "Pending").order("start_date", { ascending: true }),
+      sb.from("people").select("id,name,role").in("id", reportIds).eq("active", true).order("name"),
+      buildPersonRequirementScores(),
+      Promise.all(reportIds.map((rid) => getJourney(rid, "onboarding"))),
+    ]);
+    teamLeave = (leaveData ?? []).map((r) => {
+      const person = (Array.isArray(r.people) ? r.people[0] : r.people) as { name: string } | null;
+      const lt = (Array.isArray(r.leave_types) ? r.leave_types[0] : r.leave_types) as { name: string; color: string | null } | null;
+      return {
+        id: r.id as number,
+        personName: person?.name ?? "Someone",
+        typeName: lt?.name ?? "Leave",
+        color: lt?.color ?? null,
+        startLabel: new Date(`${(r.start_date as string).slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+        days: (r.days as number) ?? 0,
+        halfDay: (r.half_day as boolean) ?? false,
+        reason: (r.reason as string | null) ?? null,
+      };
+    });
+    const scoreById = new Map(scores.map((s) => [s.ownerId, s]));
+    const journeyById = new Map(reportIds.map((rid, i) => [rid, journeys[i]]));
+    teamMembers = (peopleData ?? []).map((p) => {
+      const s = scoreById.get(p.id as number);
+      const j = journeyById.get(p.id as number);
+      return {
+        id: p.id as number,
+        name: p.name as string,
+        role: (p.role as string | null) ?? null,
+        score: s ? s.score : null,
+        band: s ? s.status : null,
+        onboardPct: j && j.total > 0 ? j.percent : null,
+      };
+    });
+  }
+
   const open = tasks.filter((t) => !OPEN_EXCLUDED.includes(t.status));
   const done = tasks.filter((t) => OPEN_EXCLUDED.includes(t.status));
   const myOpen = open.filter((t) => t.mine);
@@ -165,6 +212,38 @@ export default async function PortalHome() {
         )}
         {myOpen.map((t) => taskCard(t, now))}
       </Reveal>
+
+      {teamLeave.length > 0 && (
+        <Reveal delay={0.08} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Plane size={13} />}>Leave to approve ({teamLeave.length})</SectionLabel>
+          <PortalTeamLeave requests={teamLeave} />
+        </Reveal>
+      )}
+
+      {teamMembers.length > 0 && (
+        <Reveal delay={0.09} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Users size={13} />}>My team</SectionLabel>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {teamMembers.map((m) => (
+              <Link key={m.id} href={`/portal/chat`} className="block group">
+                <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-accent/40">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft/60 text-accent text-xs font-semibold ring-1 ring-accent/20">
+                    {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{m.name}</p>
+                    <p className="text-[11px] text-fg-muted truncate">{m.role ?? "—"}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {m.band && <Badge tone={m.band === "Good" ? "success" : m.band === "Watch" ? "warn" : "danger"}>{m.score}%</Badge>}
+                    {m.onboardPct != null && m.onboardPct < 100 && <span className="text-[10px] text-fg-subtle">Onboarding {m.onboardPct}%</span>}
+                  </div>
+                </Panel>
+              </Link>
+            ))}
+          </div>
+        </Reveal>
+      )}
 
       {teamOpen.length > 0 && (
         <Reveal delay={0.1} className="flex flex-col gap-2.5">

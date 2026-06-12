@@ -8,6 +8,7 @@ import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
 import { createTaskAttachment, createDocument, uploadDocumentFile } from "@/lib/documents";
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
+import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import {
   clearSessionCookie,
@@ -392,6 +393,55 @@ export async function portalUploadRequirementDocument(
 
   revalidatePath("/portal/profile");
   revalidatePath("/documents");
+  revalidatePath("/people");
+  return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Leave self-service. Staff request their own leave; managers approve/reject
+ * their direct reports'. Always forces the actor server-side — never the form.
+ * ---------------------------------------------------------------------- */
+export async function portalRequestLeave(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  // The request is always for the signed-in person — ignore any personId in the form.
+  formData.set("personId", String(me.id));
+  const res = await createLeaveRequestAction(formData);
+  if (res.ok) {
+    revalidatePath("/portal/profile");
+    revalidatePath("/portal");
+    return { ok: true };
+  }
+  return { ok: false, error: res.error };
+}
+
+export async function portalDecideLeave(
+  requestId: number,
+  status: "Approved" | "Rejected"
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "manager") return { ok: false, error: "Only managers can decide leave." };
+
+  const { data: req } = await sb.from("leave_requests").select("person_id,status").eq("id", requestId).maybeSingle();
+  if (!req) return { ok: false, error: "Request not found." };
+  if ((req.status as string) !== "Pending") return { ok: false, error: "That request was already decided." };
+
+  // Authorise: the requester must be one of this manager's direct reports.
+  const reports = await directReportIds(me.id);
+  if (!reports.includes(req.person_id as number)) return { ok: false, error: "That isn't one of your team members." };
+
+  const now = new Date().toISOString();
+  const { error } = await sb
+    .from("leave_requests")
+    .update({ status, decided_by: `portal-mgr:${me.name}`, decided_at: now, updated_at: now })
+    .eq("id", requestId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/portal");
+  revalidatePath("/hrms/leave");
   revalidatePath("/people");
   return { ok: true };
 }

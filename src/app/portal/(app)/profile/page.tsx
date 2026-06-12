@@ -1,4 +1,4 @@
-import { Bell, FileCheck2, LogOut, Settings2, UserRound } from "lucide-react";
+import { Bell, FileCheck2, LogOut, Settings2, UserRound, CalendarDays, Route as RouteIcon, Package, CheckCircle2, Circle } from "lucide-react";
 import { DevicePushToggle } from "@/components/device-push-toggle";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
@@ -6,8 +6,12 @@ import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { AccessibilityControls } from "@/components/portal-prefs";
 import { PortalDocuments, type PortalChecklistItem } from "@/components/portal-documents";
+import { PortalLeave } from "@/components/portal-leave";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getPersonChecklist } from "@/lib/requirements";
+import { personLeaveBalances, listLeaveRequests } from "@/lib/leave";
+import { getJourney } from "@/lib/onboarding";
+import { assetsForPerson } from "@/lib/assets";
 import { staffIdFor } from "@/lib/staff-id";
 import { portalLogout } from "../../actions";
 
@@ -33,6 +37,13 @@ export default async function PortalProfile() {
     documentTitle: it.documentTitle,
     expiryLabel: it.expiryLabel,
   }));
+
+  const [leaveBalances, leaveRequests, journey, equipment] = await Promise.all([
+    personLeaveBalances(me.id),
+    listLeaveRequests({ personId: me.id }),
+    getJourney(me.id, "onboarding"),
+    assetsForPerson(me.id),
+  ]);
 
   const details: Array<{ label: string; value: string }> = [
     { label: "Name", value: me.name },
@@ -72,6 +83,58 @@ export default async function PortalProfile() {
           <p className="px-1 text-[11px] text-fg-subtle">
             Upload anything we still need. Your administrator checks and confirms each one.
           </p>
+        </Reveal>
+      )}
+
+      {leaveBalances.length > 0 && (
+        <Reveal delay={0.09} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<CalendarDays size={13} />}>Your leave</SectionLabel>
+          <PortalLeave balances={leaveBalances} requests={leaveRequests} />
+          <p className="px-1 text-[11px] text-fg-subtle">Request leave here — your manager reviews and approves it.</p>
+        </Reveal>
+      )}
+
+      {journey && journey.total > 0 && (
+        <Reveal delay={0.11} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<RouteIcon size={13} />}>Your onboarding</SectionLabel>
+          <Panel className="overflow-hidden p-0">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold">{journey.completed} of {journey.total} steps done</div>
+                <div className="mt-1.5 h-1.5 rounded-full bg-bg-muted overflow-hidden">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${journey.percent}%` }} />
+                </div>
+              </div>
+              <Badge tone={journey.percent === 100 ? "success" : "info"}>{journey.percent}%</Badge>
+            </div>
+            <ul className="divide-y divide-border/50">
+              {journey.steps.slice(0, 12).map((s) => (
+                <li key={s.id} className="flex items-center gap-2.5 px-4 py-2">
+                  {s.done ? <CheckCircle2 size={14} className="text-success shrink-0" /> : <Circle size={14} className="text-fg-subtle shrink-0" />}
+                  <span className={`min-w-0 flex-1 text-xs truncate ${s.done ? "text-fg-subtle line-through" : ""}`}>{s.label}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+          <p className="px-1 text-[11px] text-fg-subtle">Your administrator ticks these off as they’re completed.</p>
+        </Reveal>
+      )}
+
+      {equipment.length > 0 && (
+        <Reveal delay={0.12} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Package size={13} />}>Your equipment</SectionLabel>
+          <Panel className="divide-y divide-border/50 p-0">
+            {equipment.map((a) => (
+              <div key={a.id} className="flex items-center gap-2.5 px-4 py-2.5">
+                <Package size={14} className="text-fg-subtle shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium truncate">{a.name}</span>
+                  <span className="block text-[11px] text-fg-subtle truncate">{[a.category, a.brand, a.tag].filter(Boolean).join(" · ") || "Assigned to you"}</span>
+                </span>
+              </div>
+            ))}
+          </Panel>
+          <p className="px-1 text-[11px] text-fg-subtle">Company equipment currently assigned to you.</p>
         </Reveal>
       )}
 

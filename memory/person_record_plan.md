@@ -114,10 +114,25 @@ compliance audit). Best-effort logging — never blocks the user action.*
 - [ ] **2f** Leave on the directory list (a column/peek hint: on-leave-today / balance-low).
 - [ ] **2g** Leave liability roll-up for the Director Brief / Insights (cost of accrued leave).
 
-### Phase 3 — Staff & manager self-service (portal). (Biggest people-facing value.)
-- [ ] **Staff: request leave** + see balance in `/portal`; see own onboarding progress + equipment.
-- [ ] **Managers: approve leave** for reports; team compliance/onboarding/attendance overview; team directory.
-- [ ] Honour portal parity (surface-kit, Reveal, twins).
+### Phase 3 — Staff & manager self-service (portal). ✅ DONE (3a–3e).
+*Portal leave self-service loop built on the Phase 2 leave foundation. Auth always forced
+server-side (`getPortalPerson`), never trusting the form.*
+- [x] **3a Staff request leave** — "Your leave" section on `/portal/profile` (`portal-leave.tsx`):
+  read-only balance bars + own requests + a "Request leave" form → `portalRequestLeave`
+  (forces personId = me.id; reuses `createLeaveRequestAction`). Lands Pending.
+- [x] **3b Manager approve/reject** — "Leave to approve (N)" section on the portal home for
+  managers (`portal-team-leave.tsx`): pending leave from direct reports with Approve/Reject →
+  `portalDecideLeave` (manager-only; authorises requester ∈ directReports; stamps
+  `portal-mgr:<Name>`). Verified: reporting model populated; pages render; tsc clean; parity
+  (surface-kit/Reveal). Note: grant the **manager** portal role in Settings to see approvals.
+- [x] **3c Staff: onboarding + equipment** — "Your onboarding" (journey progress bar + steps,
+  read-only) and "Your equipment" (assets held) sections on `/portal/profile`, reusing
+  `getJourney` + `assetsForPerson`. Verified data flows (e.g. 3/10 journey, held laptop).
+- [x] **3d + 3e Manager "My team"** — a team roster on the portal home (manager only): each
+  direct report as a card with compliance %/band + onboarding % (reuses
+  `buildPersonRequirementScores` + `getJourney`); links to chat. Covers the team status glance
+  AND the directory in one surface.
+  *(Attendance-at-a-glance folds in once the attendance register lands — same as 2d.)*
 
 ### Phase 4 — Probation & lifecycle automation.
 - [ ] Auto "probation review" task/reminder as the end nears; confirm/extend/end action from the drawer.

@@ -32,6 +32,7 @@ The portal is a first-class surface, not an afterthought. It drops anything that
 | Task conversation / update box | `update-box.tsx` + `timeline-entry.tsx` | `portal-conversation.tsx` *(shared component, serves both — keep both views working)* |
 | Home / dashboard | `_hub/cos-home.tsx`, `home-mission-control.tsx` | `portal/(app)/page.tsx` |
 | Document compliance checklist | `requirements-checklist.tsx` (person drawer) | `portal-documents.tsx` (`portal/(app)/profile`) — staff see own checklist + upload onto gaps; lands "received", admin verifies. Upload action `portalUploadRequirementDocument` |
+| Leave (self-service) | `person-leave.tsx` (person drawer: balances/requests/approve/record) | `portal-leave.tsx` (profile: staff balances + request) + `portal-team-leave.tsx` (home: manager approve/reject). Actions `portalRequestLeave` / `portalDecideLeave` (auth forced server-side; manager grants approvals). |
 | Sign-in | `auth-shell.tsx` + `auth-fields.tsx` | *(already shared)* |
 | Chat | `/chat` + `app/chat/actions.ts` | `/portal/chat` + `portal/(app)/chat/actions.ts` *(both render the shared `chat-surface.tsx`)* |
 
