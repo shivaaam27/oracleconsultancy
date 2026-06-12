@@ -134,9 +134,17 @@ server-side (`getPortalPerson`), never trusting the form.*
   AND the directory in one surface.
   *(Attendance-at-a-glance folds in once the attendance register lands — same as 2d.)*
 
-### Phase 4 — Probation & lifecycle automation.
-- [ ] Auto "probation review" task/reminder as the end nears; confirm/extend/end action from the drawer.
-- [ ] Service-anniversary surfacing ("X years of service").
+### Phase 4 — Probation & lifecycle automation. ✅ DONE (4a–4b).
+- [x] **4a Probation workflow** — a Probation panel in the drawer Manage section
+  (`person-probation.tsx`, shown for active people): status line + **Confirm passed**
+  (clears the date), **Extend/Set date**, and **Create review task**
+  (`createProbationReviewTaskAction` → an HR task in the person's company, due on the
+  probation date, owned by their manager). `setProbationDateAction` logs the change to the
+  Phase-1 audit trail. Verified: events logged; review task created (then test orphan cleaned).
+- [x] **4b Service anniversary** — a "{N} yrs" hero chip (active people, ≥1yr from start date)
+  + a "Needs attention" entry when a work anniversary is within 14 days.
+  *(Auto-creating the review task via cron, and anniversary nudges in the Brief/notify, are a
+  natural follow-on — left for when the notify cron is next touched.)*
 
 ### Phase 5 — Compensation & pay (ELR groundwork). *Owner decision before storing pay.*
 - [ ] Wage/salary fields (amount + basis) on `people` + form + Details.

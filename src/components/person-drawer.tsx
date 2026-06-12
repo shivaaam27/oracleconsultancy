@@ -7,7 +7,7 @@ import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
-  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane,
+  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -32,6 +32,7 @@ import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-s
 import { personTypeLabel, type PersonType } from "@/lib/person-types";
 import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person-audit-shared";
 import { PersonLeave } from "./person-leave";
+import { PersonProbation } from "./person-probation";
 import type { PersonLeaveBalance, LeaveRequestRow } from "@/lib/leave-shared";
 import type { PersonAttendanceSummary } from "@/lib/leave";
 
@@ -350,6 +351,20 @@ export function PersonDrawer() {
     .filter((r) => r.status === "Approved" && r.startDate.slice(0, 10) > todayISO)
     .sort((a, b) => a.startDate.localeCompare(b.startDate))[0] ?? null;
 
+  // Service length + upcoming work anniversary (4b).
+  const serviceYears = person?.startDate ? Math.floor((Date.now() - new Date(person.startDate).getTime()) / (365.25 * 86400000)) : 0;
+  const anniversary = (() => {
+    if (!person?.startDate) return null;
+    const start = new Date(person.startDate);
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const next = new Date(now.getFullYear(), start.getUTCMonth(), start.getUTCDate());
+    if (next < todayMidnight) next.setFullYear(now.getFullYear() + 1);
+    const days = Math.round((next.getTime() - todayMidnight.getTime()) / 86400000);
+    const years = next.getFullYear() - start.getUTCFullYear();
+    return days <= 14 && years >= 1 ? { days, years } : null;
+  })();
+
   const goToManager = (mid: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("person", String(mid));
@@ -392,6 +407,7 @@ export function PersonDrawer() {
             if (days >= 0 && days <= 45) return <Badge tone={days <= 14 ? "danger" : "warn"}><Clock size={10} className="inline mr-0.5" /> Probation {days}d</Badge>;
             return null;
           })()}
+          {person.active && serviceYears >= 1 && <Badge tone="default"><Cake size={10} className="inline mr-0.5" /> {serviceYears} yr{serviceYears === 1 ? "" : "s"}</Badge>}
           {onLeaveNow ? (
             <Badge tone="info"><Plane size={10} className="inline mr-0.5" /> On leave</Badge>
           ) : nextLeave && (() => {
@@ -426,6 +442,8 @@ export function PersonDrawer() {
       attention.push({ key: "comp", icon: <ShieldCheck size={14} className="text-warn" />, label: `${compSum.missing} required document${compSum.missing === 1 ? "" : "s"} missing`, sub: "Open compliance", onClick: () => setActiveTab("compliance") });
     if (pendingLeave > 0)
       attention.push({ key: "leave", icon: <Plane size={14} className="text-warn" />, label: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} pending`, sub: "Review in Leave & Attendance", onClick: () => setActiveTab("leave") });
+    if (person?.active && anniversary)
+      attention.push({ key: "anniv", icon: <Cake size={14} className="text-accent" />, label: `${anniversary.years}-year work anniversary ${anniversary.days === 0 ? "today" : `in ${anniversary.days}d`}`, sub: "A nice moment to acknowledge", onClick: () => setActiveTab("details") });
   }
 
   const overviewContent = person && data ? (
@@ -656,6 +674,9 @@ export function PersonDrawer() {
         {/* Manage */}
         <SectionCard className="p-4 space-y-3">
           <div className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5"><Clock size={12} /> Manage</div>
+          {person.active && (
+            <PersonProbation personId={person.id} probationEndDate={person.probationEndDate} onChanged={refresh} />
+          )}
           <div>
             <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Snooze reminders</div>
             <div className="flex items-center gap-2">

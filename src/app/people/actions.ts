@@ -5,6 +5,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
 import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/person-audit";
+import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPerson } from "@/lib/assets";
@@ -651,6 +652,64 @@ export async function setPeopleActive(ids: number[], active: boolean): Promise<A
   await Promise.all(clean.map((pid) => logPersonEvent(pid, active ? "restored" : "archived")));
   invalidate();
   return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Probation — confirm (passed), extend, or create a review task.
+ * ---------------------------------------------------------------------- */
+/** Set or clear a person's probation end date (clear = "confirmed/passed"). */
+export async function setProbationDateAction(personId: number, dateIso: string | null): Promise<ActionResult> {
+  const { data: before } = await sb.from("people").select("probation_end_date").eq("id", personId).maybeSingle();
+  const newVal = dateIso ? new Date(`${dateIso}T00:00:00Z`).toISOString() : null;
+  const { error } = await sb.from("people").update({ probation_end_date: newVal }).eq("id", personId);
+  if (error) return { ok: false, error: error.message };
+
+  const oldFmt = before?.probation_end_date ? String(before.probation_end_date).slice(0, 10) : null;
+  await logPersonFieldChanges(personId, [
+    { field: "Probation end", oldValue: oldFmt, newValue: dateIso ? dateIso.slice(0, 10) : "Confirmed (passed)" },
+  ]);
+  invalidate();
+  return { ok: true };
+}
+
+/** Create a tracked "Probation review" task in the person's company, due on the
+ *  probation end date, owned by their manager when set. */
+export async function createProbationReviewTaskAction(
+  personId: number
+): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  const { data: p } = await sb
+    .from("people")
+    .select("name,company_id,manager_id,probation_end_date")
+    .eq("id", personId)
+    .maybeSingle();
+  if (!p) return { ok: false, error: "Person not found." };
+  if (!p.company_id) return { ok: false, error: "Assign this person to a company first, then create the review." };
+
+  const { data: company } = await sb.from("companies").select("code,code_prefix").eq("id", p.company_id).maybeSingle();
+  const now = new Date();
+  try {
+    const task = await insertTaskWithUniqueCodeSb(p.company_id as number, (company?.code as string) || "", {
+      actionItem: `Probation review: ${p.name}`,
+      ownerId: (p.manager_id as number | null) ?? null,
+      status: "Not Started",
+      priority: "High",
+      category: "HR",
+      deadline: p.probation_end_date ? new Date(p.probation_end_date as string) : null,
+      createdDate: now,
+      lastUpdatedAt: now,
+      archived: false,
+    });
+    await sb.from("audit_log").insert({
+      task_id: task.id, task_code: task.code, company_id: p.company_id,
+      entry_type: "CREATE", field: "Task", old_value: null, new_value: `Probation review: ${p.name}`,
+      change_reason: "Created from a probation review", created_at: now.toISOString(), created_by: "web-ui",
+    });
+    revalidatePath("/people");
+    updateTag("tasks");
+    return { ok: true, code: task.code };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not create the review task." };
+  }
 }
 
 /* ----------------------------------------------------------------------
