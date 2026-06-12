@@ -585,7 +585,8 @@ export async function buildPersonRequirementScores(): Promise<ComplianceScore[]>
       score,
       required: mandatoryTotal,
       present: verified,
-      missing: gaps.length - inProgress,
+      // Genuinely absent only — expired is shown separately, so don't double-count.
+      missing: Math.max(0, gaps.length - inProgress - expired),
       inProgress,
       expired,
       expiring,

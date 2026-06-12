@@ -709,6 +709,9 @@ export const documents = pgTable("documents", {
   // contract or a service agreement). Lets vendor contracts reuse the
   // documents expiry/compliance engine.
   vendorId: integer("vendor_id").references((): AnyPgColumn => vendors.id, { onDelete: "set null" }),
+  // Renewal lineage: the (now-archived) document this one replaces. Lets the UI
+  // show "Replaces …" / "Replaced by …" so a renewable document's history is clear.
+  supersedesId: integer("supersedes_id").references((): AnyPgColumn => documents.id, { onDelete: "set null" }),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),

@@ -113,12 +113,16 @@ function inputFromForm(fd: FormData): DocumentInput | { error: string } {
     reminderLeadDays: lead ?? undefined,
     fileUrl: str(fd, "fileUrl"),
     notes: str(fd, "notes"),
+    ...(fd.has("supersedesId") ? { supersedesId: intOrNull(fd, "supersedesId") } : {}),
   };
 }
 
 function revalidateDocs() {
   revalidatePath("/documents");
   revalidatePath("/");
+  // Filing a person's document changes their compliance — refresh the People
+  // list too (the person drawer reads its checklist live, but the list caches).
+  revalidatePath("/people");
 }
 
 export async function createDocumentAction(fd: FormData): Promise<Result> {

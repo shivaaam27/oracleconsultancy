@@ -24,6 +24,7 @@ type DocDbRow = {
   storage_path: string | null;
   file_name: string | null;
   notes: string | null;
+  supersedes_id: number | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -51,6 +52,7 @@ function mapRow(r: DocDbRow): DocumentRow {
     storagePath: r.storage_path,
     fileName: r.file_name,
     notes: r.notes,
+    supersedesId: r.supersedes_id,
     archived: r.archived,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
@@ -87,6 +89,7 @@ export type DocumentInput = {
   reminderLeadDays?: number | null;
   fileUrl?: string | null;
   notes?: string | null;
+  supersedesId?: number | null;
 };
 
 function toIso(v: Date | string | null | undefined): string | null {
@@ -118,6 +121,7 @@ export async function createDocument(
       reminder_lead_days: lead,
       file_url: input.fileUrl ?? null,
       notes: input.notes ?? null,
+      supersedes_id: input.supersedesId ?? null,
       archived: false,
       created_at: now,
       updated_at: now,

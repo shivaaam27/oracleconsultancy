@@ -108,6 +108,8 @@ export type DocumentRow = {
   storagePath: string | null;
   fileName: string | null;
   notes: string | null;
+  /** Renewal lineage: the (archived) document this one replaces, if any. */
+  supersedesId: number | null;
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;

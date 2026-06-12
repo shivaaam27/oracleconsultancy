@@ -59,6 +59,25 @@ export async function ensureCompanyRequirements(companyId: number): Promise<void
   if (toInsert.length) await sb.from("company_requirements").insert(toInsert);
 }
 
+/**
+ * Seed the statutory checklist for any company that has no requirement rows yet.
+ * One query to find which companies are already seeded, then ensure only the
+ * rest — so companies score from stored rows consistently (not the synthesized
+ * default) before anyone first opens their File tab. Cheap + idempotent: after
+ * the first run every company is seeded and this just does the one lookup.
+ */
+export async function ensureAllCompanyRequirements(companyIds: number[]): Promise<{ seeded: number }> {
+  if (companyIds.length === 0) return { seeded: 0 };
+  const { data } = await sb
+    .from("company_requirements")
+    .select("company_id")
+    .in("company_id", companyIds);
+  const seeded = new Set((data ?? []).map((r) => r.company_id as number));
+  const missing = companyIds.filter((id) => !seeded.has(id));
+  for (const id of missing) await ensureCompanyRequirements(id);
+  return { seeded: missing.length };
+}
+
 /* ------------------------------------------------------------------ */
 /* Reading the checklist + scoring                                     */
 /* ------------------------------------------------------------------ */
@@ -289,7 +308,7 @@ function synthDefaultScore(
   const score = mandatoryTotal === 0 ? 100 : Math.round((verified / mandatoryTotal) * 100);
   return {
     ownerId: c.id, ownerName: c.name, ownerType: "company", score,
-    required: mandatoryTotal, present: verified, missing: gaps.length, inProgress: 0, expired, expiring,
+    required: mandatoryTotal, present: verified, missing: Math.max(0, gaps.length - expired), inProgress: 0, expired, expiring,
     monitoredDocuments: companyDocs.length, status: complianceBand(score, expired > 0), gaps, documentIssues,
   };
 }
@@ -389,7 +408,8 @@ export async function buildCompanyRequirementScores(
       score,
       required: mandatoryTotal,
       present: verified,
-      missing: gaps.length - inProgress,
+      // Genuinely absent only — expired is shown separately, so don't double-count.
+      missing: Math.max(0, gaps.length - inProgress - expired),
       inProgress,
       expired,
       expiring,

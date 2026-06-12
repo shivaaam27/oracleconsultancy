@@ -576,6 +576,7 @@ export function DocumentForm({
           <p className="col-span-2 text-xs text-success flex items-center gap-1.5"><Sparkles size={12} /> {enrichNote}</p>
         )}
 
+        {supersedeId != null && <input type="hidden" name="supersedesId" value={supersedeId} />}
         {dupDocs.length > 0 && (
           <div className="col-span-2 rounded-lg bg-warn-soft/40 ring-1 ring-warn/30 p-2.5 text-xs space-y-1.5">
             <div className="flex items-center gap-1.5 font-medium text-warn">

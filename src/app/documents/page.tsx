@@ -7,7 +7,7 @@ import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { ComplianceExportButton } from "@/components/compliance-export-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
-import { buildCompanyRequirementScores } from "@/lib/company-requirements";
+import { buildCompanyRequirementScores, ensureAllCompanyRequirements } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
@@ -36,6 +36,9 @@ export default async function DocumentsPage({
     name: p.name as string,
     personType: normalizePersonType(p.person_type as string | null),
   }));
+  // Seed any not-yet-seeded company so every company scores from stored rows
+  // consistently (idempotent; only writes for unseeded companies).
+  await ensureAllCompanyRequirements(companies.map((c) => c.id));
   const companyScores = await buildCompanyRequirementScores(companies);
   const personScores = await buildPersonRequirementScores();
 

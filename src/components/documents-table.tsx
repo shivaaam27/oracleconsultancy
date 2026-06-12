@@ -6,7 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
   ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip, UploadCloud,
-  CheckSquare, Check,
+  CheckSquare, Check, List as ListIcon, CalendarRange,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
 import { PeekPreview, type PeekAction } from "./peek-preview";
@@ -65,6 +65,9 @@ export function DocumentsTable({
   // Multi-select bulk actions (mirrors the People table pattern).
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  // List vs expiry-timeline (grouped by how soon each document lapses).
+  const [view, setView] = useState<"list" | "timeline">("list");
 
   const router = useRouter();
   const pathname = usePathname();
@@ -249,6 +252,87 @@ export function DocumentsTable({
     return <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium", docStatusColor[s])}>{s}</span>;
   };
 
+  // Expiry-timeline buckets — same filtered rows, grouped by how soon they lapse.
+  const TIMELINE_BUCKETS = [
+    { key: "expired", label: "Expired", tone: "danger" as const, test: (n: number | null) => n !== null && n < 0 },
+    { key: "week", label: "Due this week", tone: "danger" as const, test: (n: number | null) => n !== null && n >= 0 && n <= 7 },
+    { key: "month", label: "Due this month", tone: "warn" as const, test: (n: number | null) => n !== null && n > 7 && n <= 30 },
+    { key: "quarter", label: "Next 90 days", tone: "warn" as const, test: (n: number | null) => n !== null && n > 30 && n <= 90 },
+    { key: "later", label: "Later", tone: "default" as const, test: (n: number | null) => n !== null && n > 90 },
+    { key: "none", label: "No expiry date", tone: "default" as const, test: (n: number | null) => n === null },
+  ];
+  const timelineGroups = useMemo(() => {
+    return TIMELINE_BUCKETS.map((b) => ({
+      ...b,
+      rows: filtered.filter((d) => b.test(daysToExpiry(d))),
+    })).filter((g) => g.rows.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered]);
+
+  // Renewal lineage maps (documents includes archived, so old copies resolve).
+  const docById = useMemo(() => new Map(documents.map((d) => [d.id, d])), [documents]);
+  const replacedByOf = useMemo(() => {
+    const m = new Map<number, DocumentRow>();
+    for (const d of documents) if (d.supersedesId) m.set(d.supersedesId, d);
+    return m;
+  }, [documents]);
+
+  function renderRow(doc: DocumentRow) {
+    const dte = daysToExpiry(doc);
+    const urgent = dte !== null && dte < 0;
+    const soon = dte !== null && dte >= 0 && dte <= doc.reminderLeadDays;
+    const accent = companyAccent(doc.companyId);
+    const openLinkedTask = linkedTasks[doc.id]?.find((t) => t.status !== "Completed" && t.status !== "Closed");
+    return (
+      <div key={doc.id} role="button" tabIndex={0}
+        onClick={() => { if (longPressed.current) { longPressed.current = false; return; } if (selectMode) { toggleSelect(doc.id); return; } setEditDoc(doc); }}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectMode ? toggleSelect(doc.id) : setEditDoc(doc); } }}
+        onPointerDown={(e) => { if (!selectMode) onRowPointerDown(doc, e); }}
+        onPointerMove={onRowPointerMove}
+        onPointerUp={clearPress} onPointerLeave={clearPress} onPointerCancel={clearPress}
+        className={cn("flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-colors select-none", selected.has(doc.id) ? "bg-accent-soft/40" : "hover:bg-bg-muted/40", doc.archived && "opacity-60")}>
+        {selectMode && (
+          <span className={cn("shrink-0 h-5 w-5 rounded-md border inline-flex items-center justify-center transition-colors",
+            selected.has(doc.id) ? "bg-accent border-accent text-white" : "border-border-strong")}>
+            {selected.has(doc.id) && <Check size={13} strokeWidth={3} />}
+          </span>
+        )}
+        <span className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: accent || "var(--border)" }} />
+        <FileText size={16} className="text-fg-subtle shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="truncate text-sm font-medium">{doc.title}</span>
+            {(doc.storagePath || doc.fileUrl) && <Paperclip size={12} className="text-fg-subtle shrink-0" />}
+            {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
+            {doc.personId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person file</span>}
+            {doc.supersedesId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0" title="Replaces an earlier document">↻ Renewal</span>}
+            {openLinkedTask && (
+              <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
+                {openLinkedTask.code}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-0.5 min-w-0">
+            {companyName(doc.companyId) && <span className="inline-flex items-center gap-1 truncate"><Building2 size={11} />{companyName(doc.companyId)}</span>}
+            {personName(doc.personId) && <span className="inline-flex items-center gap-1 truncate"><UserIcon size={11} />{personName(doc.personId)}</span>}
+          </div>
+          {doc.notes && doc.notes.trim() && (
+            <div className="text-[11px] text-fg-muted truncate mt-0.5">{doc.notes}</div>
+          )}
+        </div>
+        <div className="text-right shrink-0">
+          <div className="hidden sm:block text-xs text-fg-muted">{fmtDate(doc.expiryDate)}</div>
+          {expiryLabel(doc) ? (
+            <div className={cn("text-[11px]", urgent ? "text-danger font-medium" : soon ? "text-warn" : "text-fg-subtle")}>{expiryLabel(doc)}</div>
+          ) : (
+            <div className="text-[11px] text-fg-subtle">No expiry</div>
+          )}
+        </div>
+        <div className="shrink-0">{statusBadge(doc)}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Search + filters */}
@@ -284,6 +368,21 @@ export function DocumentsTable({
             selectMode ? "border-accent bg-accent-soft/60 text-accent" : "border-border bg-bg-subtle/60 text-fg-muted hover:text-fg hover:border-accent")}>
           <CheckSquare size={15} /> {selectMode ? "Done" : "Select"}
         </button>
+        {/* List ⇄ expiry-timeline view */}
+        <div className="inline-flex items-center rounded-xl border border-border bg-bg-subtle/60 p-0.5">
+          <button type="button" onClick={() => setView("list")} aria-pressed={view === "list"}
+            title="List view"
+            className={cn("inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-sm transition-colors",
+              view === "list" ? "bg-accent-soft/70 text-accent" : "text-fg-muted hover:text-fg")}>
+            <ListIcon size={15} /> <span className="hidden sm:inline">List</span>
+          </button>
+          <button type="button" onClick={() => setView("timeline")} aria-pressed={view === "timeline"}
+            title="Timeline view (grouped by expiry)"
+            className={cn("inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-sm transition-colors",
+              view === "timeline" ? "bg-accent-soft/70 text-accent" : "text-fg-muted hover:text-fg")}>
+            <CalendarRange size={15} /> <span className="hidden sm:inline">Timeline</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary chips */}
@@ -346,65 +445,27 @@ export function DocumentsTable({
         </div>
       )}
 
-      {/* List */}
+      {/* List / Timeline */}
       {filtered.length > 0 ? (
-        <div className="glass elevated rounded-3xl overflow-hidden divide-y divide-border/60">
-          {filtered.map((doc) => {
-            const dte = daysToExpiry(doc);
-            const urgent = dte !== null && dte < 0;
-            const soon = dte !== null && dte >= 0 && dte <= doc.reminderLeadDays;
-            const accent = companyAccent(doc.companyId);
-            const openLinkedTask = linkedTasks[doc.id]?.find((t) => t.status !== "Completed" && t.status !== "Closed");
-            return (
-              <div key={doc.id} role="button" tabIndex={0}
-                onClick={() => { if (longPressed.current) { longPressed.current = false; return; } if (selectMode) { toggleSelect(doc.id); return; } setEditDoc(doc); }}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectMode ? toggleSelect(doc.id) : setEditDoc(doc); } }}
-                onPointerDown={(e) => { if (!selectMode) onRowPointerDown(doc, e); }}
-                onPointerMove={onRowPointerMove}
-                onPointerUp={clearPress} onPointerLeave={clearPress} onPointerCancel={clearPress}
-                className={cn("flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-colors select-none", selected.has(doc.id) ? "bg-accent-soft/40" : "hover:bg-bg-muted/40", doc.archived && "opacity-60")}>
-                {selectMode && (
-                  <span className={cn("shrink-0 h-5 w-5 rounded-md border inline-flex items-center justify-center transition-colors",
-                    selected.has(doc.id) ? "bg-accent border-accent text-white" : "border-border-strong")}>
-                    {selected.has(doc.id) && <Check size={13} strokeWidth={3} />}
-                  </span>
-                )}
-                <span className="w-1.5 h-8 rounded-full shrink-0" style={{ backgroundColor: accent || "var(--border)" }} />
-                <FileText size={16} className="text-fg-subtle shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="truncate text-sm font-medium">{doc.title}</span>
-                    {(doc.storagePath || doc.fileUrl) && <Paperclip size={12} className="text-fg-subtle shrink-0" />}
-                    {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
-                    {doc.personId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person file</span>}
-                    {openLinkedTask && (
-                      <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
-                        {openLinkedTask.code}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-fg-subtle mt-0.5 min-w-0">
-                    {companyName(doc.companyId) && <span className="inline-flex items-center gap-1 truncate"><Building2 size={11} />{companyName(doc.companyId)}</span>}
-                    {personName(doc.personId) && <span className="inline-flex items-center gap-1 truncate"><UserIcon size={11} />{personName(doc.personId)}</span>}
-                  </div>
-                  {doc.notes && doc.notes.trim() && (
-                    <div className="text-[11px] text-fg-muted truncate mt-0.5">{doc.notes}</div>
-                  )}
+        view === "list" ? (
+          <div className="glass elevated rounded-3xl overflow-hidden divide-y divide-border/60">
+            {filtered.map(renderRow)}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {timelineGroups.map((g) => (
+              <div key={g.key} className="glass elevated rounded-3xl overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/60">
+                  <span className={cn("h-2 w-2 rounded-full",
+                    g.tone === "danger" ? "bg-danger" : g.tone === "warn" ? "bg-warn" : "bg-fg-subtle")} />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{g.label}</span>
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-[11px] font-semibold tabular text-fg-muted">{g.rows.length}</span>
                 </div>
-                <div className="text-right shrink-0">
-                  {/* Full date on larger screens; the countdown shows on all sizes. */}
-                  <div className="hidden sm:block text-xs text-fg-muted">{fmtDate(doc.expiryDate)}</div>
-                  {expiryLabel(doc) ? (
-                    <div className={cn("text-[11px]", urgent ? "text-danger font-medium" : soon ? "text-warn" : "text-fg-subtle")}>{expiryLabel(doc)}</div>
-                  ) : (
-                    <div className="text-[11px] text-fg-subtle">No expiry</div>
-                  )}
-                </div>
-                <div className="shrink-0">{statusBadge(doc)}</div>
+                <div className="divide-y divide-border/60">{g.rows.map(renderRow)}</div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )
       ) : documents.length === 0 ? (
         <div className="glass elevated rounded-3xl text-center py-14 px-6">
           <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-bg-muted/60 flex items-center justify-center text-fg-subtle">
@@ -442,10 +503,16 @@ export function DocumentsTable({
             {peek.expiryDate && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-bg-muted text-fg-muted">{fmtDate(peek.expiryDate)}{expiryLabel(peek) ? ` · ${expiryLabel(peek)}` : ""}</span>}
           </>
         ) : undefined}
-        body={peek && (peek.issuer || peek.referenceNo || peek.notes || (linkedTasks[peek.id]?.length)) ? (
+        body={peek && (peek.issuer || peek.referenceNo || peek.notes || (linkedTasks[peek.id]?.length) || peek.supersedesId || replacedByOf.has(peek.id)) ? (
           <div className="space-y-1 text-[13px] text-fg-muted">
             {peek.issuer && <div><span className="text-fg-subtle">Issuer:</span> {peek.issuer}</div>}
             {peek.referenceNo && <div><span className="text-fg-subtle">Ref:</span> {peek.referenceNo}</div>}
+            {peek.supersedesId && docById.get(peek.supersedesId) && (
+              <div><span className="text-fg-subtle">Replaces:</span> {docById.get(peek.supersedesId)!.title} <span className="text-fg-subtle">(archived)</span></div>
+            )}
+            {replacedByOf.get(peek.id) && (
+              <div><span className="text-fg-subtle">Replaced by:</span> {replacedByOf.get(peek.id)!.title}</div>
+            )}
             {peek.notes && <div className="line-clamp-3">{peek.notes}</div>}
             {linkedTasks[peek.id]?.length ? (
               <div className="pt-0.5">

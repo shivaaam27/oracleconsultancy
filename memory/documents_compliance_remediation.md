@@ -89,10 +89,10 @@ into the effective status. Lead window from the category default. Verified: past
   "N compliance gaps" (missing + expired mandatory, incl. **review-date lapses**) to the
   push body + de-dupe signature. *(Per-owner scheduled digest dispatch still future — there
   is no real provider; drafts only, per open_issues.)*
-- [ ] **3.3 Renewal lineage** (formal supersede chain) — **deferred.** The existing
-  duplicate-detection "Replace + archive" flow already archives the old doc and keeps the new
-  one current, covering the practical need; a `supersedes_id` column + "Replaces/Replaced by"
-  display is a nicety best done as its own focused change.
+- [x] **3.3 Renewal lineage** ✅ DONE — `documents.supersedes_id` (migration `0057`); the
+  "Replace newest" duplicate flow now records the link (hidden `supersedesId` field → stored on
+  the new doc) as well as archiving the old one. Documents table shows a "↻ Renewal" chip and
+  the peek shows "Replaces … (archived)" / "Replaced by …". Verified.
 
 ## Phase 4 — Staff self-service (portal). ✅ DONE (June 2026)
 *New "Your documents" section on `/portal/profile` (portal twin of the admin person
@@ -123,23 +123,48 @@ component `portal-documents.tsx` (Needed-from-you / On-file split + % complete).
 (`editRequirementItem` updates all `person_requirements` with that `item_id`) — so reworded
 requirements update on the person drawer AND the staff portal without a manual Sync.
 
-## Phase 6 — Documents centre UX.
-- [ ] **6.1 Expiry-timeline / grouped table view.**
-- [ ] **6.2 Bulk actions** (select-mode archive/restore/renew), mirror People.
-- [ ] **6.3 Move "Manage requirements/journeys" dialogs onto the EntityDrawer shell.**
+## Phase 6 — Documents centre UX. ✅ 6.1 DONE; 6.2 already present; 6.3 deferred.
+- [x] **6.1 Expiry-timeline view** — `documents-table.tsx` now has a List ⇄ Timeline
+  toggle; Timeline groups the same filtered rows into buckets (Expired / Due this week /
+  Due this month / Next 90 days / Later / No expiry date), each a glass card with a
+  tone dot + count. Row markup extracted to `renderRow` (shared by both views).
+  Verified in-browser: all six buckets render.
+- [x] **6.2 Bulk actions** — already in place (select-mode + bulk archive/restore mirroring
+  People). Bulk *renew* intentionally omitted (renew = per-company task, niche in bulk).
+- [x] **6.3 "Manage" dialogs on the EntityDrawer shell** ✅ DONE — `requirement-templates-button.tsx`
+  and `journey-templates-button.tsx` rebuilt on `EntityDrawer` (hero glow + tab pill + sticky
+  action bar). Bonus UX: each **person type is now a tab** (with a count badge) instead of a long
+  scroll; the journey drawer keeps its onboarding/offboarding toggle in the hero. Verified.
 
-## Phase 7 — Smart intake completion (Inbox half).
-- [ ] **7.1 Inbox bundle → review queue** that files docs + recomputes compliance.
-- [ ] **7.2 Blanks-only profile enrichment from filed docs**, always reviewed.
+## Phase 7 — Smart intake completion (Inbox half). ✅ DONE (already built; verified June 2026)
+*Found this was largely already implemented — plan entry was stale.*
+- [x] **7.1 Inbox bundle → review queue** — the `/inbox` "Process" button
+  (`inbox-list.tsx` `processBundle`) downloads the bundle's attachments as Files + gathers
+  the message text, then opens `BulkUploadDialog`, which reviews each file in the full
+  `DocumentForm` (files to person/company/both, can create a new person) and marks the
+  inbox item filed on completion. Compliance recomputes automatically (filed person/company
+  docs auto-link on next checklist read). Added `revalidatePath("/people")` to `revalidateDocs`
+  so the People list compliance refreshes immediately too.
+- [x] **7.2 Blanks-only profile enrichment** — `MessageProfilePanel` (in `bulk-upload-dialog.tsx`)
+  reads the message for profile details and fills only BLANK fields (`enrichPersonProfile`,
+  "Only empty fields are filled"); each `DocumentForm` also offers blanks-only enrichment from
+  the document content. Always reviewed.
 
-## Phase 8 — Coverage gaps.
-- [ ] **8.1 Seed company statutory checklists for all 7 companies** up front (today a
-  company is only seeded on first File-tab open).
-- [ ] **8.2 Vendor document compliance** (vendors have contracts but no checklist).
-- [ ] **8.3 Offboarding**: freeze/relax a leaver's compliance so archived people don't
-  pollute gap counts.
-- [ ] **8.4 Cross-owner documents** (company policy satisfying individual checklists).
-- [ ] **8.5 "Missing vs missing+expired" label** mismatch in the People rollup.
+## Phase 8 — Coverage gaps. ✅ 8.1/8.3/8.5 DONE; 8.2/8.4 deferred (decisions).
+- [x] **8.1 Seed all 7 company checklists up front** — `ensureAllCompanyRequirements(ids)`
+  (one lookup, seeds only unseeded; idempotent) called on the Documents page before scoring,
+  so every company scores from stored rows consistently (not the synthesized default).
+  Verified: 7/7 seeded.
+- [~] **8.2 Vendor document compliance** — **deferred** (a feature, not a bug; needs a vendor
+  requirement model + UI). Revisit if wanted.
+- [x] **8.3 Offboarding freeze** — already covered: `buildPersonRequirementScores` filters
+  `active = true`, so deactivated/offboarded people never appear in compliance gap counts.
+- [~] **8.4 Cross-owner documents** (company policy satisfying individual checklists) —
+  **deferred**: an owner design decision (currently a doc is strictly company OR person, by design).
+- [x] **8.5 Missing no longer double-counts expired** — `missing` now = genuinely absent only
+  (expired shown separately) in `buildPersonRequirementScores`, `buildCompanyRequirementScores`
+  and `synthDefaultScore`; comment in `compliance.ts` updated. Verified: Cocozuri 5→4 missing + 1 expired.
 
-### Suggested sequence
-0 ✅ → 1 → 3 → 4, then 5/6/7/8 as capacity allows.
+### Status
+Phases 0–6 + 8 done. Remaining: **Phase 7** (Inbox intake review queue), and the deferred
+niceties (3.3 supersede lineage, 6.3 dialog shell, 8.2 vendor compliance, 8.4 cross-owner).

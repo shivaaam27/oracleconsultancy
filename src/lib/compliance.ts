@@ -37,7 +37,8 @@ export type ComplianceScore = {
   score: number;
   required: number;
   present: number;
-  /** Mandatory items that are genuinely absent or expired — the actionable gap. */
+  /** Mandatory items that are genuinely absent (no document at all). Expired and
+   *  in-progress items are counted separately so nothing is double-counted. */
   missing: number;
   /** Mandatory items already requested/received, awaiting the verification tick. */
   inProgress: number;
