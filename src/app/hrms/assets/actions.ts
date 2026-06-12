@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   createAsset,
+  createAssetsBulk,
   updateAsset,
   assignAsset,
   assignAssetShared,
@@ -45,6 +46,9 @@ function assetFromForm(fd: FormData): AssetInput | { error: string } {
     tag: str(fd, "tag"),
     name,
     category: str(fd, "category"),
+    brand: str(fd, "brand"),
+    model: str(fd, "model"),
+    department: str(fd, "department"),
     serialNo: str(fd, "serialNo"),
     companyId: numOrNull(fd, "companyId"),
     vendorId: numOrNull(fd, "vendorId"),
@@ -52,6 +56,7 @@ function assetFromForm(fd: FormData): AssetInput | { error: string } {
     purchaseDate: dateIso(fd, "purchaseDate"),
     purchaseCost: numOrNull(fd, "purchaseCost"),
     notes: str(fd, "notes"),
+    handoverDate: dateIso(fd, "handoverDate"),
   };
 }
 
@@ -66,6 +71,55 @@ export async function createAssetAction(fd: FormData): Promise<Result> {
     const msg = e instanceof Error ? e.message : "Could not save the asset.";
     if (/duplicate key|unique/i.test(msg)) return { ok: false, error: `Tag "${parsed.tag}" is already in use.` };
     return { ok: false, error: msg };
+  }
+}
+
+// A single parsed row from the spreadsheet importer. All free-text; the client
+// maps spreadsheet columns to these keys and resolves the company once.
+export type AssetImportRow = {
+  tag?: string | null;
+  name: string;
+  category?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  department?: string | null;
+  serialNo?: string | null;
+  location?: string | null;
+  notes?: string | null;
+  handoverDate?: string | null; // ISO or null
+};
+
+export async function importAssetsAction(
+  rows: AssetImportRow[],
+  companyId: number | null
+): Promise<Result> {
+  const clean = rows
+    .map((r) => ({ ...r, name: (r.name ?? "").trim() }))
+    .filter((r) => r.name.length > 0);
+  if (clean.length === 0) return { ok: false, error: "No rows with a name to import." };
+  try {
+    const n = await createAssetsBulk(
+      clean.map((r) => ({
+        tag: r.tag?.trim() || null,
+        name: r.name,
+        category: r.category?.trim() || null,
+        brand: r.brand?.trim() || null,
+        model: r.model?.trim() || null,
+        department: r.department?.trim() || null,
+        serialNo: r.serialNo?.trim() || null,
+        companyId,
+        vendorId: null,
+        location: r.location?.trim() || null,
+        purchaseDate: null,
+        purchaseCost: null,
+        notes: r.notes?.trim() || null,
+        handoverDate: r.handoverDate || null,
+      }))
+    );
+    invalidate();
+    return { ok: true, id: n };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not import assets." };
   }
 }
 

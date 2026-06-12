@@ -1,27 +1,34 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Laptop, Building } from "lucide-react";
+import { Laptop, Building, Wrench } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-/** Segmented toggle for the combined Asset & Vendor Register. */
+type TabKey = "assets" | "tools" | "vendors";
+
+/** Segmented toggle for the combined Asset, Tools & Vendor Register. */
 export function RegisterTabs({
   assetsSlot,
+  toolsSlot,
   vendorsSlot,
   assetCount,
+  toolCount,
   vendorCount,
   initial = "assets",
 }: {
   assetsSlot: ReactNode;
+  toolsSlot: ReactNode;
   vendorsSlot: ReactNode;
   assetCount: number;
+  toolCount: number;
   vendorCount: number;
-  initial?: "assets" | "vendors";
+  initial?: TabKey;
 }) {
-  const [tab, setTab] = useState<"assets" | "vendors">(initial);
+  const [tab, setTab] = useState<TabKey>(initial);
 
   const tabs = [
     { key: "assets" as const, label: "Assets", icon: Laptop, count: assetCount },
+    { key: "tools" as const, label: "Tools", icon: Wrench, count: toolCount },
     { key: "vendors" as const, label: "Vendors", icon: Building, count: vendorCount },
   ];
 
@@ -44,6 +51,7 @@ export function RegisterTabs({
         ))}
       </div>
       <div className={tab === "assets" ? "" : "hidden"}>{assetsSlot}</div>
+      <div className={tab === "tools" ? "" : "hidden"}>{toolsSlot}</div>
       <div className={tab === "vendors" ? "" : "hidden"}>{vendorsSlot}</div>
     </div>
   );

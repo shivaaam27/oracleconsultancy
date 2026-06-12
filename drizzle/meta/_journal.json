@@ -344,6 +344,20 @@
       "when": 1781196551656,
       "tag": "0048_organic_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1781243594711,
+      "tag": "0049_giant_franklin_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1781246563184,
+      "tag": "0050_equal_robbie_robertson",
+      "breakpoints": true
     }
   ]
 }

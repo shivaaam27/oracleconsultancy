@@ -753,8 +753,13 @@ export const assets = pgTable("assets", {
   // Optional asset tag, e.g. "LAP-001". Nullable; unique when present.
   tag: text("tag").unique(),
   name: text("name").notNull(),
-  // Laptop | Phone | Vehicle | Access card | Furniture | Other.
+  // Laptop | Phone | Vehicle | Access card | Furniture | Other (free-text — UI offers a list but allows new values).
   category: text("category"),
+  // Manufacturer/brand and model, kept structured (name stays the human label).
+  brand: text("brand"),
+  model: text("model"),
+  // Department the asset serves, e.g. "Operations", "HSE", "Finance".
+  department: text("department"),
   serialNo: text("serial_no"),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   // The vendor this asset was bought from / is serviced by (optional).
@@ -787,6 +792,29 @@ export const assetAssignments = pgTable("asset_assignments", {
   returnedAt: timestamp("returned_at", { mode: "date", withTimezone: true }),
   notes: text("notes"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// HRMS — Site tools & equipment. Quantity-tracked, site-owned durable tools
+// (spanners, buckets, saws) — distinct from individually-serialised assets and
+// from office-only OECR consumables. No single holder; each row is a tool kind
+// at one site with a count and a condition.
+export const siteTools = pgTable("site_tools", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  // Free-text spec, e.g. "Size 30cm", "Plastic 20Lts", "Makita N550".
+  specification: text("specification"),
+  // Site/location, e.g. "Police Post", "NLM", "Matongo".
+  location: text("location"),
+  // good | needs_repair | retired.
+  condition: text("condition").notNull().default("good"),
+  purchasedDate: timestamp("purchased_date", { mode: "date", withTimezone: true }),
+  remark: text("remark"),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
 });
 

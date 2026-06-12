@@ -2,9 +2,19 @@
 
 export type AssetStatus = "in_store" | "assigned" | "maintenance" | "retired";
 
+// Suggested categories — the form offers these but allows free-typed values
+// too (a datalist), so new kinds of asset don't need a code change.
 export const ASSET_CATEGORIES = [
+  "Computer",
   "Laptop",
+  "Printer",
+  "Monitor",
   "Phone",
+  "Desk-phone",
+  "CCTV",
+  "Shredder",
+  "Bill-counter",
+  "Kitchenware",
   "Vehicle",
   "Access card",
   "Furniture",
@@ -30,6 +40,9 @@ export type AssetRow = {
   tag: string | null;
   name: string;
   category: string | null;
+  brand: string | null;
+  model: string | null;
+  department: string | null;
   serialNo: string | null;
   companyId: number | null;
   companyName: string | null;

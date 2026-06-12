@@ -14,6 +14,9 @@ type Row = {
   tag: string | null;
   name: string;
   category: string | null;
+  brand: string | null;
+  model: string | null;
+  department: string | null;
   serial_no: string | null;
   company_id: number | null;
   vendor_id: number | null;
@@ -40,7 +43,7 @@ function one<T>(v: T | T[] | null | undefined): T | null {
 // Assets have two FKs to companies (owning + assigned) and two to people
 // (holder + custodian), so every embed is disambiguated by its FK constraint.
 const SELECT =
-  "id,tag,name,category,serial_no,company_id,vendor_id,location,status,assigned_to_person_id,assigned_to_company_id,custodian_person_id,assigned_at,purchase_date,purchase_cost,notes," +
+  "id,tag,name,category,brand,model,department,serial_no,company_id,vendor_id,location,status,assigned_to_person_id,assigned_to_company_id,custodian_person_id,assigned_at,purchase_date,purchase_cost,notes," +
   " company:companies!assets_company_id_companies_id_fk(name)," +
   " assignedCompany:companies!assets_assigned_to_company_id_companies_id_fk(name)," +
   " holder:people!assets_assigned_to_person_id_people_id_fk(name)," +
@@ -53,6 +56,9 @@ function map(r: Row): AssetRow {
     tag: r.tag,
     name: r.name,
     category: r.category,
+    brand: r.brand,
+    model: r.model,
+    department: r.department,
     serialNo: r.serial_no,
     companyId: r.company_id,
     companyName: one(r.company)?.name ?? null,
@@ -129,6 +135,9 @@ export type AssetInput = {
   tag: string | null;
   name: string;
   category: string | null;
+  brand: string | null;
+  model: string | null;
+  department: string | null;
   serialNo: string | null;
   companyId: number | null;
   vendorId: number | null;
@@ -136,6 +145,7 @@ export type AssetInput = {
   purchaseDate: string | null; // ISO or null
   purchaseCost: number | null;
   notes: string | null;
+  handoverDate?: string | null; // ISO or null — manual override of assigned_at
 };
 
 export async function createAsset(input: AssetInput): Promise<number> {
@@ -146,6 +156,9 @@ export async function createAsset(input: AssetInput): Promise<number> {
       tag: input.tag,
       name: input.name,
       category: input.category,
+      brand: input.brand,
+      model: input.model,
+      department: input.department,
       serial_no: input.serialNo,
       company_id: input.companyId,
       vendor_id: input.vendorId,
@@ -153,6 +166,7 @@ export async function createAsset(input: AssetInput): Promise<number> {
       purchase_date: input.purchaseDate,
       purchase_cost: input.purchaseCost,
       notes: input.notes,
+      assigned_at: input.handoverDate ?? null,
       status: "in_store",
       created_at: now,
       updated_at: now,
@@ -163,6 +177,37 @@ export async function createAsset(input: AssetInput): Promise<number> {
   return data.id as number;
 }
 
+/**
+ * Bulk-insert assets in one round trip. Used by the spreadsheet importer and
+ * seed scripts. Each row is created in-store; assignment is a separate step.
+ */
+export async function createAssetsBulk(inputs: AssetInput[]): Promise<number> {
+  if (inputs.length === 0) return 0;
+  const now = new Date().toISOString();
+  const rows = inputs.map((input) => ({
+    tag: input.tag,
+    name: input.name,
+    category: input.category,
+    brand: input.brand,
+    model: input.model,
+    department: input.department,
+    serial_no: input.serialNo,
+    company_id: input.companyId,
+    vendor_id: input.vendorId,
+    location: input.location,
+    purchase_date: input.purchaseDate,
+    purchase_cost: input.purchaseCost,
+    notes: input.notes,
+    assigned_at: input.handoverDate ?? null,
+    status: "in_store",
+    created_at: now,
+    updated_at: now,
+  }));
+  const { data, error } = await sb.from("assets").insert(rows).select("id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
+}
+
 export async function updateAsset(id: number, input: AssetInput): Promise<void> {
   const { error } = await sb
     .from("assets")
@@ -170,6 +215,9 @@ export async function updateAsset(id: number, input: AssetInput): Promise<void> 
       tag: input.tag,
       name: input.name,
       category: input.category,
+      brand: input.brand,
+      model: input.model,
+      department: input.department,
       serial_no: input.serialNo,
       company_id: input.companyId,
       vendor_id: input.vendorId,
@@ -177,6 +225,7 @@ export async function updateAsset(id: number, input: AssetInput): Promise<void> 
       purchase_date: input.purchaseDate,
       purchase_cost: input.purchaseCost,
       notes: input.notes,
+      ...(input.handoverDate !== undefined ? { assigned_at: input.handoverDate } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

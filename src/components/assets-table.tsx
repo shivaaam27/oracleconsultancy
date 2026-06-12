@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users } from "lucide-react";
+import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users, Upload } from "lucide-react";
 import { Badge, Button } from "./ui";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
@@ -22,6 +22,8 @@ import {
   returnAssetAction,
   setAssetStatusAction,
   archiveAssetAction,
+  importAssetsAction,
+  type AssetImportRow,
 } from "@/app/hrms/assets/actions";
 
 type Lite = { id: number; name: string };
@@ -47,6 +49,7 @@ export function AssetsTable({
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<AssetRow | null>(null);
   const [sharing, setSharing] = useState<AssetRow | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -108,6 +111,7 @@ export function AssetsTable({
             ...(Object.keys(ASSET_STATUS_LABELS) as AssetStatus[]).map((s) => ({ value: s, label: ASSET_STATUS_LABELS[s] })),
           ]}
         />
+        <Button size="sm" variant="secondary" onClick={() => setImportOpen(true)}><Upload size={14} /> Import</Button>
         <Button size="sm" onClick={openNew}><Plus size={14} /> Add asset</Button>
       </div>
 
@@ -218,7 +222,159 @@ export function AssetsTable({
         companies={companies}
         people={people}
       />
+
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} companies={companies} />
     </div>
+  );
+}
+
+/* Map a spreadsheet header cell to an import field. */
+function headerKey(h: string): keyof AssetImportRow | "ignore" {
+  const k = h.trim().toLowerCase();
+  if (/asset\s*id|^tag$/.test(k)) return "tag";
+  if (/category/.test(k)) return "category";
+  if (/device\s*type|^type$/.test(k)) return "name"; // device type becomes the name fallback
+  if (/brand|make|manufacturer/.test(k)) return "brand";
+  if (/model/.test(k)) return "model";
+  if (/serial/.test(k)) return "serialNo";
+  if (/assigned/.test(k)) return "notes"; // holder → notes (assign later)
+  if (/department|dept/.test(k)) return "department";
+  if (/handover|hand\s*over/.test(k)) return "handoverDate";
+  if (/location|site/.test(k)) return "location";
+  if (/^name$/.test(k)) return "name";
+  if (/note|remark/.test(k)) return "notes";
+  return "ignore";
+}
+
+function parseExcelDate(v: string): string | null {
+  const s = v.trim();
+  if (!s) return null;
+  // dd/mm/yyyy
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    const yr = y.length === 2 ? `20${y}` : y;
+    const dt = new Date(`${yr}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}T00:00:00Z`);
+    return isNaN(dt.getTime()) ? null : dt.toISOString();
+  }
+  const dt = new Date(s);
+  return isNaN(dt.getTime()) ? null : dt.toISOString();
+}
+
+function parsePaste(text: string): AssetImportRow[] {
+  const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const sep = lines[0].includes("\t") ? "\t" : ",";
+  const headers = lines[0].split(sep).map(headerKey);
+  const rows: AssetImportRow[] = [];
+  for (const line of lines.slice(1)) {
+    const cells = line.split(sep);
+    const row: AssetImportRow = { name: "" };
+    let deviceType = "", brand = "", model = "", holder = "";
+    headers.forEach((key, i) => {
+      const val = (cells[i] ?? "").trim();
+      if (!val || key === "ignore") return;
+      if (key === "name") deviceType = val;
+      else if (key === "brand") brand = val;
+      else if (key === "model") model = val;
+      else if (key === "notes" && headerCellIsHolder(lines[0].split(sep)[i])) holder = val;
+      else if (key === "handoverDate") row.handoverDate = parseExcelDate(val);
+      else (row[key] as string) = val;
+    });
+    // Build a human name: "Brand Model" or fall back to device type.
+    row.name = [brand, model].filter(Boolean).join(" ") || deviceType || row.name;
+    const extra = [deviceType && !row.name.includes(deviceType) ? deviceType : "", holder ? `Holder: ${holder}` : ""].filter(Boolean).join(" · ");
+    if (extra) row.notes = [row.notes, extra].filter(Boolean).join(" · ");
+    if (row.name.trim()) rows.push(row);
+  }
+  return rows;
+}
+
+function headerCellIsHolder(h: string | undefined): boolean {
+  return !!h && /assigned/i.test(h);
+}
+
+function ImportDialog({
+  open,
+  onOpenChange,
+  companies,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  companies: Lite[];
+}) {
+  const { toast } = useToast();
+  const [pending, startTransition] = useTransition();
+  const [text, setText] = useState("");
+  const [companyId, setCompanyId] = useState<string>("");
+
+  const parsed = useMemo(() => parsePaste(text), [text]);
+
+  function submit() {
+    if (parsed.length === 0) { toast("Paste rows including a header line first.", { tone: "warn" }); return; }
+    startTransition(async () => {
+      const res = await importAssetsAction(parsed, companyId ? parseInt(companyId, 10) : null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast(`Imported ${res.id} asset${res.id === 1 ? "" : "s"}.`, { tone: "success" });
+      setText("");
+      onOpenChange(false);
+    });
+  }
+
+  const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
+  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(640px,calc(100vw-2rem))] max-h-[88dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-bg-elev border border-border shadow-2xl outline-none">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+            <Dialog.Title className="text-sm font-semibold">Import assets from a spreadsheet</Dialog.Title>
+            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
+              <X size={14} />
+            </Dialog.Close>
+          </div>
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-fg-muted">
+              Copy the rows from Excel (<strong>include the header line</strong>) and paste below. Columns recognised:
+              Asset ID, Category, Device Type, Brand, Model, Serial Number, Assigned To, Department, Handover date, Location, Notes.
+              Everything imports <strong>in store</strong> — assign holders afterwards.
+            </p>
+            <div>
+              <label className={label}>Owning company</label>
+              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={input}>
+                <option value="">—</option>
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={label}>Paste rows</label>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={8}
+                placeholder={"Asset ID\tCategory\tDevice Type\tBrand\tModel\tSerial Number\t…\nLPT-001\tCOMPUTER\tLaptop\tLenovo\tIDEAPAD 3i\t…"}
+                className={cn(input, "font-mono text-xs whitespace-pre")}
+              />
+            </div>
+            {text.trim() && (
+              <div className="text-xs text-fg-muted">
+                {parsed.length > 0
+                  ? <><strong className="text-fg">{parsed.length}</strong> row{parsed.length === 1 ? "" : "s"} ready · first: <span className="text-fg">{parsed[0].name}</span></>
+                  : "No rows detected — make sure the first line is the header."}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="button" size="sm" loading={pending} disabled={parsed.length === 0} onClick={submit}>
+                Import {parsed.length > 0 ? `${parsed.length} ` : ""}asset{parsed.length === 1 ? "" : "s"}
+              </Button>
+            </div>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -349,14 +505,24 @@ function AssetDialog({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={label}>Asset tag</label>
-                <input name="tag" defaultValue={editing?.tag ?? ""} placeholder="LAP-001" className={input} />
+                <input name="tag" defaultValue={editing?.tag ?? ""} placeholder="LPT-001" className={input} />
               </div>
               <div>
                 <label className={label}>Category</label>
-                <select name="category" defaultValue={editing?.category ?? ""} className={input}>
-                  <option value="">—</option>
-                  {ASSET_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <input name="category" list="asset-categories" defaultValue={editing?.category ?? ""} placeholder="Type or pick…" className={input} />
+                <datalist id="asset-categories">
+                  {ASSET_CATEGORIES.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={label}>Brand</label>
+                <input name="brand" defaultValue={editing?.brand ?? ""} placeholder="e.g. HP" className={input} />
+              </div>
+              <div>
+                <label className={label}>Model</label>
+                <input name="model" defaultValue={editing?.model ?? ""} placeholder="e.g. Probook i5" className={input} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -365,11 +531,21 @@ function AssetDialog({
                 <input name="serialNo" defaultValue={editing?.serialNo ?? ""} className={input} />
               </div>
               <div>
+                <label className={label}>Department</label>
+                <input name="department" defaultValue={editing?.department ?? ""} placeholder="e.g. Operations" className={input} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
                 <label className={label}>Owning company</label>
                 <select name="companyId" defaultValue={editing?.companyId ?? ""} className={input}>
                   <option value="">—</option>
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className={label}>Handover date</label>
+                <input type="date" name="handoverDate" defaultValue={editing?.assignedAt ? editing.assignedAt.slice(0, 10) : ""} className={input} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
