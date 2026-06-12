@@ -2,7 +2,9 @@ import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
 import { Hero, TONE } from "@/components/surface-kit";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CompanyDrawerLink } from "@/components/company-drawer-link";
-import { Building2, AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
+import { CompanyAvatar } from "@/components/company-avatar";
+import { getCompanyLogoMap } from "@/lib/company-brand";
+import { AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,7 @@ export default async function CompaniesPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const rows = await getAllTasks();
+  const [rows, logoMap] = await Promise.all([getAllTasks(), getCompanyLogoMap()]);
   const companies = computeCompanyKpis(rows);
   const totals = companies.reduce(
     (a, c) => ({ open: a.open + c.open, overdue: a.overdue + c.overdue, completed: a.completed + c.completed }),
@@ -56,12 +58,7 @@ export default async function CompaniesPage({
                   style={{ background: `radial-gradient(circle, ${accent}, transparent 70%)` }}
                 />
                 <div className="relative flex items-start justify-between gap-2">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0"
-                    style={{ backgroundColor: accent }}
-                  >
-                    <Building2 size={17} />
-                  </div>
+                  <CompanyAvatar name={c.name} accent={accent} logoUrl={logoMap.get(c.id)} size={40} rounded="rounded-xl" iconSize={17} />
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium backdrop-blur-md ${risk.cls}`}>
                     {risk.label}
                     <span className="tabular opacity-70">{c.riskScore}</span>

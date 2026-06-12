@@ -4,6 +4,7 @@ import { getAllTasks } from "@/lib/queries";
 import { listDocuments } from "@/lib/documents";
 import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
+import { getCompanyLogoUrl } from "@/lib/company-brand";
 
 export const dynamic = "force-dynamic";
 
@@ -50,10 +51,11 @@ export async function GET(req: NextRequest) {
     .slice(0, 50);
 
   const score = (await buildCompanyRequirementScores([{ id: companyId, name }]))[0] ?? null;
+  const logoUrl = await getCompanyLogoUrl(companyId);
 
   return NextResponse.json({
     company: {
-      id: companyId, name, accent,
+      id: companyId, name, accent, logoUrl,
       legalName: (companyRaw?.legal_name as string | null) ?? null,
       registrationNo: (companyRaw?.registration_no as string | null) ?? null,
       tin: (companyRaw?.tin as string | null) ?? null,

@@ -342,14 +342,20 @@ export default async function DirectorBriefPage({
           {b.companies.filter((c) => c.tasks.length > 0).map((c) => (
             <div key={c.id} className="report-company mb-4">
               <div className="report-company-head">
-                <span className="report-dot" style={{ backgroundColor: c.accent || "hsl(var(--accent))" }} />
-                {c.name} — {c.open} open · {c.inProgress} in progress · {c.overdue} overdue
+                {c.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={c.logoUrl} alt="" className="report-company-logo" />
+                ) : (
+                  <span className="report-dot" style={{ backgroundColor: c.accent || "hsl(var(--accent))" }} />
+                )}
+                <span className="report-company-name">{c.name}</span>
+                <span className="report-company-stats">— {c.open} open · {c.inProgress} in progress · {c.overdue} overdue</span>
               </div>
               <table className="report-table">
                 <thead>
                   <tr>
                     <th style={{ width: "34%" }}>Task</th>
-                    <th style={{ width: "14%" }}>Owner</th>
+                    <th style={{ width: "14%" }}>Accountable</th>
                     <th style={{ width: "10%" }}>Priority</th>
                     <th style={{ width: "12%" }}>Deadline</th>
                     <th style={{ width: "12%" }}>Status</th>

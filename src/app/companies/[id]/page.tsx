@@ -28,12 +28,13 @@ import type { AssetRow } from "@/lib/assets-shared";
 import { listVendors } from "@/lib/vendors";
 import type { VendorRow } from "@/lib/vendors-shared";
 import { sb } from "@/db/supabase";
+import { getCompanyLogoUrl } from "@/lib/company-brand";
+import { CompanyAvatar } from "@/components/company-avatar";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ExternalLink,
   ChevronRight,
-  Building2,
   Clock,
   AlertOctagon,
   Users,
@@ -58,7 +59,7 @@ export default async function CompanyPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
   const tab = parseCompanyTab(sp.tab);
-  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }] =
+  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl] =
     await Promise.all([
       getAllTasks(),
       listDocuments(),
@@ -70,6 +71,7 @@ export default async function CompanyPage({
       sb.from("person_companies").select("person_id").eq("company_id", companyId),
       sb.from("companies").select("id,name").order("name"),
       sb.from("people").select("id,name,role,company_id").eq("active", true).order("name"),
+      getCompanyLogoUrl(companyId),
     ]);
   const companiesList = (companiesRaw ?? []) as Array<{ id: number; name: string }>;
   const peopleList = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
@@ -158,12 +160,7 @@ export default async function CompanyPage({
       {/* Header — company accent identity, count chips, New Task pill */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
-          <span
-            className="w-11 h-11 rounded-2xl flex items-center justify-center text-white shadow-sm shrink-0"
-            style={{ backgroundColor: accent }}
-          >
-            <Building2 size={19} />
-          </span>
+          <CompanyAvatar name={name} accent={accent} logoUrl={logoUrl} size={44} iconSize={19} />
           <div className="min-w-0">
             <h1 className="text-xl font-semibold tracking-tight truncate">{name}</h1>
             <div className="mt-1 flex items-center gap-1.5">
@@ -369,6 +366,8 @@ export default async function CompanyPage({
           <CompanyProfile
             companyId={companyId}
             companyName={name}
+            accent={accent}
+            logoUrl={logoUrl}
             profile={{
               legalName: (companyRaw?.legal_name as string | null) ?? null,
               registrationNo: (companyRaw?.registration_no as string | null) ?? null,

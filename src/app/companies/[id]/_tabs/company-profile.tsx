@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Save, Loader2, Building2, FileSignature, ExternalLink } from "lucide-react";
+import { Save, Loader2, Building2, FileSignature, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { saveCompanyProfileAction } from "../actions";
 import { useToast } from "@/components/toast";
+import { CompanyAvatar } from "@/components/company-avatar";
 
 export type CompanyProfile = {
   legalName: string | null;
@@ -27,25 +28,48 @@ const labelCls = "block text-[11px] font-medium uppercase tracking-wider text-fg
 export function CompanyProfile({
   companyId,
   companyName,
+  accent,
+  logoUrl,
   profile,
 }: {
   companyId: number;
   companyName: string;
+  accent?: string | null;
+  logoUrl?: string | null;
   profile: CompanyProfile;
 }) {
   const router = useRouter();
   const { toast } = useToast();
   const [saving, start] = useTransition();
   const [dirty, setDirty] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(logoUrl ?? null);
+  const [removeLogo, setRemoveLogo] = useState(false);
+
+  function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setPreview(URL.createObjectURL(f));
+    setRemoveLogo(false);
+    setDirty(true);
+  }
+  function clearPhoto() {
+    if (fileRef.current) fileRef.current.value = "";
+    setPreview(null);
+    setRemoveLogo(true);
+    setDirty(true);
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    if (removeLogo) fd.set("remove_logo", "1");
     start(async () => {
       const res = await saveCompanyProfileAction(companyId, fd);
       if (res.ok) {
         toast("Profile saved.", { tone: "success" });
         setDirty(false);
+        setRemoveLogo(false);
         router.refresh();
       } else {
         toast(res.error, { tone: "danger" });
@@ -65,6 +89,34 @@ export function CompanyProfile({
         <h2 className="inline-flex items-center gap-1.5 text-sm font-semibold">
           <Building2 size={15} className="text-accent" /> Identity
         </h2>
+
+        {/* Company photo + display name */}
+        <div className="flex items-center gap-4">
+          <CompanyAvatar name={companyName} accent={accent} logoUrl={preview} size={64} iconSize={26} />
+          <div className="flex flex-col gap-1.5">
+            <input ref={fileRef} type="file" name="logo" accept="image/*" onChange={onPickPhoto} className="hidden" id="company-logo-input" />
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="company-logo-input"
+                className="inline-flex items-center gap-1.5 cursor-pointer rounded-full bg-bg-elev ring-1 ring-border px-3 py-1.5 text-xs font-medium hover:ring-accent/40 transition"
+              >
+                <ImagePlus size={13} /> {preview ? "Change photo" : "Add photo"}
+              </label>
+              {preview && (
+                <button type="button" onClick={clearPhoto} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs text-fg-muted hover:text-danger transition">
+                  <Trash2 size={13} /> Remove
+                </button>
+              )}
+            </div>
+            <span className="text-[11px] text-fg-subtle">Square PNG/JPG works best. Shows across the site and on letters.</span>
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls} htmlFor="name">Display name</label>
+          <input id="name" name="name" defaultValue={companyName} required className={inputCls} />
+          <p className="text-[11px] text-fg-subtle mt-1">The short name shown everywhere (lists, reports, tasks).</p>
+        </div>
         <div>
           <label className={labelCls} htmlFor="legalName">Legal name</label>
           <input id="legalName" name="legalName" defaultValue={profile.legalName ?? ""} placeholder={companyName} className={inputCls} />

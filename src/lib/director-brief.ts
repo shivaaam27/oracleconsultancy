@@ -2,6 +2,7 @@
 // One source of truth for both the /brief page and the WhatsApp/email share.
 
 import { getAllTasks, computeCompanyKpis, type TaskRow } from "./queries";
+import { getCompanyLogoMap } from "./company-brand";
 import { isOpen } from "./derive";
 import { listDocuments, type DocumentRow } from "./documents";
 import { buildCompanyRequirementScores } from "./company-requirements";
@@ -70,7 +71,7 @@ export type ReportTask = {
   deadline: Date | null; overdue: boolean; latestUpdate: string | null;
 };
 export type BriefCompany = {
-  id: number; name: string; accent: string | null; riskScore: number; risk: RiskLabel;
+  id: number; name: string; accent: string | null; logoUrl: string | null; riskScore: number; risk: RiskLabel;
   done: number; open: number; inProgress: number; overdue: number;
   tasks: ReportTask[]; // open tasks (incl. in progress), for the detailed PDF report
 };
@@ -303,7 +304,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   for (const r of openTasks) {
     const list = openByCompany.get(r.companyId) ?? [];
     list.push({
-      id: r.id, actionItem: r.actionItem, owner: r.owner ?? r.assignees[0] ?? "—",
+      id: r.id, actionItem: r.actionItem, owner: [...new Set([r.owner, ...r.assignees].filter(Boolean))].join(", ") || "—",
       priority: r.priority, status: r.status, deadline: r.deadline, overdue: isOverdue(r), latestUpdate: r.latestUpdate,
     });
     openByCompany.set(r.companyId, list);
@@ -316,8 +317,9 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     });
   }
 
+  const logoMap = await getCompanyLogoMap();
   const companies: BriefCompany[] = kpis.map((k) => ({
-    id: k.id, name: k.name, accent: k.accent, riskScore: k.riskScore, risk: riskLabel(k.riskScore),
+    id: k.id, name: k.name, accent: k.accent, logoUrl: logoMap.get(k.id) ?? null, riskScore: k.riskScore, risk: riskLabel(k.riskScore),
     done: deliveredByCompany.get(k.id) ?? 0, open: k.open, inProgress: k.inProgress, overdue: k.overdue,
     tasks: openByCompany.get(k.id) ?? [],
   }));

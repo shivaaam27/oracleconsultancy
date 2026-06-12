@@ -543,6 +543,9 @@ input:disabled, select:disabled, textarea:disabled {
 .report-table tbody tr:nth-child(even) td { background: #fafafa; }
 .report-company { margin-bottom: 14px; }
 .report-company-head { font-size: 12px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; color: #111; }
+.report-company-name { font-size: 15px; font-weight: 700; }
+.report-company-logo { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; }
+.report-company-stats { font-size: 11px; font-weight: 500; color: #555; }
 .report-dot { width: 8px; height: 8px; border-radius: 9999px; display: inline-block; }
 .person-pack-section { break-inside: avoid; }
 /* Report headings (print). */

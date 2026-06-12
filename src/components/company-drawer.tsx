@@ -12,7 +12,7 @@ import { TaskDrawerLink } from "./task-drawer-link";
 import { cn } from "@/lib/cn";
 
 type Detail = {
-  company: { id: number; name: string; accent: string | null; legalName: string | null; registrationNo: string | null; tin: string | null; vrn: string | null; address: string | null; phone: string | null; email: string | null };
+  company: { id: number; name: string; accent: string | null; logoUrl: string | null; legalName: string | null; registrationNo: string | null; tin: string | null; vrn: string | null; address: string | null; phone: string | null; email: string | null };
   compliance: { score: number; status: "Good" | "Watch" | "Risk"; missing: number; expired: number; expiring: number } | null;
   tasks: { open: number; overdue: number; total: number; top: Array<{ code: string; actionItem: string; deadline: string | null; status: string; priority: string }> };
   documents: { count: number; attention: Array<{ id: number; title: string; status: "Expired" | "Expiring"; expiryLabel: string | null }> };
@@ -68,9 +68,14 @@ export function CompanyDrawer() {
 
   const heroNode = c ? (
     <div className="flex items-start gap-3.5 pr-8">
-      <span className="h-12 w-12 shrink-0 inline-flex items-center justify-center rounded-2xl text-white text-sm font-semibold shadow-sm" style={{ backgroundColor: accent }}>
-        {initials(c.name)}
-      </span>
+      {c.logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={c.logoUrl} alt={c.name} className="h-12 w-12 shrink-0 rounded-2xl object-cover shadow-sm ring-1 ring-border/60 bg-bg-elev" />
+      ) : (
+        <span className="h-12 w-12 shrink-0 inline-flex items-center justify-center rounded-2xl text-white text-sm font-semibold shadow-sm" style={{ backgroundColor: accent }}>
+          {initials(c.name)}
+        </span>
+      )}
       <div className="min-w-0 flex-1 space-y-1">
         <h2 className="text-lg font-semibold leading-tight truncate">{c.name}</h2>
         {(c.legalName || c.registrationNo) && (
