@@ -70,7 +70,7 @@ function HoverDetail({
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className="org-pop fixed z-[80] w-64 -translate-x-1/2 rounded-2xl glass glass-menu elevated p-3 text-left print-hidden"
+      className="org-pop fixed z-[80] w-64 -translate-x-1/2 rounded-2xl p-3 text-left print-hidden"
     >
       <div className="text-sm font-semibold text-fg leading-snug">{node.name}</div>
       <div className="text-[11px] text-fg-muted">

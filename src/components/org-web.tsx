@@ -365,7 +365,7 @@ export function OrgWeb({
 
         {/* selected info card */}
         {selPos && (selPerson || selCompany) && (
-          <div className="absolute z-20 w-60 rounded-xl glass glass-menu elevated p-3" style={{ left: `${((selPos.x * t.scale + t.x) / W) * 100}%`, top: `${((selPos.y * t.scale + t.y) / H) * 100}%`, transform: "translate(-50%, calc(-100% - 16px))" }}>
+          <div className="org-pop absolute z-20 w-60 rounded-xl p-3" style={{ left: `${((selPos.x * t.scale + t.x) / W) * 100}%`, top: `${((selPos.y * t.scale + t.y) / H) * 100}%`, transform: "translate(-50%, calc(-100% - 16px))" }}>
             {selPerson ? (
               <>
                 <div className="text-[13px] font-semibold text-fg leading-tight">{selPerson.name}</div>
