@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
   ZoomIn, ZoomOut, Maximize2, Expand, FoldVertical,
   MessageCircle, UserRound, Send, Laptop, ShieldCheck, Plane, Sparkles, AlertTriangle, Share2, Link2, CornerLeftUp, Network,
+  Focus, Scaling, List, GitBranch,
 } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Badge } from "@/components/ui";
@@ -132,7 +133,7 @@ function HoverDetail({
 /* ------------------------------------------------------------------ */
 
 function NodeCard({
-  node, extras, accentColor, collapsed, onToggle, matched, onHoverShow, onHoverHide, showCompany,
+  node, extras, accentColor, collapsed, onToggle, matched, onHoverShow, onHoverHide, showCompany, onFocus,
 }: {
   node: OrgNode;
   extras?: OrgPersonExtras;
@@ -143,6 +144,7 @@ function NodeCard({
   onHoverShow?: (node: OrgNode, el: HTMLElement) => void;
   onHoverHide?: () => void;
   showCompany?: boolean;
+  onFocus?: () => void;
 }) {
   const hasChildren = node.children.length > 0;
   const accent = node.companyAccent || accentColor || "hsl(var(--accent))";
@@ -202,6 +204,17 @@ function NodeCard({
           {x?.onLeaveToday && <Plane size={11} className="text-warn" />}
         </div>
 
+        {onFocus && hasChildren && (
+          <button
+            type="button"
+            onClick={onFocus}
+            aria-label="Focus on this team"
+            title="Focus on this team"
+            className="shrink-0 h-5 w-5 rounded-full flex items-center justify-center text-fg-subtle hover:text-accent hover:bg-bg-muted/70 transition-colors print-hidden"
+          >
+            <Focus size={12} />
+          </button>
+        )}
         {hasChildren && (
           <button
             type="button"
@@ -228,7 +241,7 @@ function NodeCard({
 /* ------------------------------------------------------------------ */
 
 function Subtree({
-  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand, onHoverShow, onHoverHide, showCompany,
+  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand, onHoverShow, onHoverHide, showCompany, onFocus,
 }: {
   node: OrgNode;
   extras: Extras;
@@ -240,6 +253,7 @@ function Subtree({
   onHoverShow: (node: OrgNode, el: HTMLElement) => void;
   onHoverHide: () => void;
   showCompany?: boolean;
+  onFocus?: (id: number) => void;
 }) {
   const hasChildren = node.children.length > 0;
   const collapsed = !forceExpand && collapsedIds.has(node.id);
@@ -248,17 +262,52 @@ function Subtree({
     <li>
       <NodeCard node={node} extras={extras[node.id]} accentColor={accentColor}
         collapsed={collapsed} onToggle={() => toggle(node.id)} matched={matchIds.has(node.id)}
-        onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany} />
+        onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany}
+        onFocus={onFocus ? () => onFocus(node.id) : undefined} />
       {showChildren && (
         <ul>
           {node.children.map((c) => (
             <Subtree key={c.id} node={c} extras={extras} accentColor={accentColor}
               collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={forceExpand}
-              onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany} />
+              onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany} onFocus={onFocus} />
           ))}
         </ul>
       )}
     </li>
+  );
+}
+
+/* Compact vertical outline (zero horizontal scroll — great on mobile). */
+function OutlineRow({
+  node, depth, collapsedIds, toggle, onFocus, matchIds, showCompany, extras,
+}: {
+  node: OrgNode; depth: number; collapsedIds: Set<number>; toggle: (id: number) => void;
+  onFocus: (id: number) => void; matchIds: Set<number>; showCompany?: boolean; extras: Extras;
+}) {
+  const hasChildren = node.children.length > 0;
+  const collapsed = collapsedIds.has(node.id);
+  const x = extras[node.id];
+  return (
+    <>
+      <div className={cn("flex items-center gap-2 py-1.5 pr-2 rounded-lg transition-colors hover:bg-bg-muted/40", matchIds.has(node.id) && "bg-accent/10 ring-1 ring-accent/30")} style={{ paddingLeft: depth * 18 + 4 }}>
+        {hasChildren ? (
+          <button type="button" onClick={() => toggle(node.id)} aria-label={collapsed ? "Expand" : "Collapse"} className="shrink-0 h-5 w-5 rounded flex items-center justify-center text-fg-subtle hover:text-fg">
+            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+          </button>
+        ) : <span className="w-5 shrink-0 inline-flex items-center justify-center"><span className="w-1 h-1 rounded-full bg-border" /></span>}
+        <span className={cn("h-6 w-6 rounded-full ring-1 flex items-center justify-center text-[10px] font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>{initials(node.name)}</span>
+        <PersonDrawerLink id={node.id} name={node.name} className="text-[13px] font-medium text-fg hover:text-accent truncate" />
+        <span className="text-[11px] text-fg-subtle truncate hidden sm:inline">{node.role || PERSON_TYPE_LABELS[node.personType]}{showCompany && node.companyName ? ` · ${node.companyName}` : ""}</span>
+        <span className="ml-auto flex items-center gap-1.5 shrink-0">
+          {x?.overdue ? <span className="text-[10px] font-bold text-danger tabular">{x.overdue}!</span> : x?.open ? <span className="text-[10px] font-bold text-info tabular">{x.open}</span> : null}
+          {hasChildren && <span className="text-[10px] text-fg-subtle tabular" title={`${countNodes(node.children)} in team`}>{countNodes(node.children)}</span>}
+          {hasChildren && <button type="button" onClick={() => onFocus(node.id)} title="Focus on this team" className="text-fg-subtle hover:text-accent print-hidden"><Focus size={12} /></button>}
+        </span>
+      </div>
+      {hasChildren && !collapsed && node.children.map((c) => (
+        <OutlineRow key={c.id} node={c} depth={depth + 1} collapsedIds={collapsedIds} toggle={toggle} onFocus={onFocus} matchIds={matchIds} showCompany={showCompany} extras={extras} />
+      ))}
+    </>
   );
 }
 
@@ -269,13 +318,24 @@ function collapsibleIds(roots: OrgNode[]): number[] {
   return out;
 }
 
+/** For big trees, start with only the top two levels open so the initial view
+ *  is compact and readable — drill/expand reveals the rest (no wide scroll). */
+function initialCollapsed(tree: CompanyTree): Set<number> {
+  if (tree.total <= 14) return new Set();
+  const rootIds = new Set(tree.roots.map((r) => r.id));
+  return new Set(collapsibleIds(tree.roots).filter((id) => !rootIds.has(id)));
+}
+
 function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean }) {
-  const [collapsedIds, setCollapsed] = useState<Set<number>>(new Set());
+  const [collapsedIds, setCollapsed] = useState<Set<number>>(() => initialCollapsed(tree));
   const [query, setQuery] = useState("");
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const stageRef = useRef<HTMLUListElement | null>(null);
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const [mode, setMode] = useState<"chart" | "list">("chart");
 
   // Single fixed-position hovercard (escapes the canvas overflow clip).
   const [hovered, setHovered] = useState<{ node: OrgNode; left: number; top: number } | null>(null);
@@ -322,6 +382,47 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [tree.unassigned]);
 
+  // Index nodes for drill-down focus (re-root the tree on one person).
+  const { byId, parentOf } = useMemo(() => {
+    const byId = new Map<number, OrgNode>();
+    const parentOf = new Map<number, number | null>();
+    const walk = (n: OrgNode, p: number | null) => { byId.set(n.id, n); parentOf.set(n.id, p); n.children.forEach((c) => walk(c, n.id)); };
+    tree.roots.forEach((r) => walk(r, null));
+    tree.unassigned.forEach((r) => walk(r, null));
+    return { byId, parentOf };
+  }, [tree]);
+
+  const focusNode = focusId != null ? byId.get(focusId) ?? null : null;
+  const ancestors = useMemo(() => {
+    if (focusId == null) return [] as OrgNode[];
+    const chain: OrgNode[] = [];
+    let cur = parentOf.get(focusId) ?? null;
+    while (cur != null) { const n = byId.get(cur); if (n) chain.unshift(n); cur = parentOf.get(cur) ?? null; }
+    return chain;
+  }, [focusId, parentOf, byId]);
+  const rootsToRender = focusNode ? [focusNode] : tree.roots;
+
+  const fit = useCallback(() => {
+    const ul = stageRef.current, box = canvasRef.current;
+    if (!ul || !box) return;
+    const cw = box.clientWidth - 28, ch = box.clientHeight - 28;
+    const uw = ul.offsetWidth, uh = ul.offsetHeight;
+    if (!uw || !uh) return;
+    const s = Math.min(1.6, Math.max(0.2, +Math.min(cw / uw, ch / uh, 1).toFixed(2)));
+    setScale(s); setPan({ x: 0, y: 0 });
+    // The transform doesn't shrink the layout box, so reset scroll to the
+    // top-left origin where the scaled tree now sits (otherwise it's off-screen).
+    box.scrollLeft = 0; box.scrollTop = 0;
+  }, []);
+  // On drill in/out, keep it readable at 100% and scroll back to the focused
+  // root at the top-left (Fit is a manual button — auto-shrinking a wide
+  // fan-out to a sliver is worse than scrolling; Outline mode is the real
+  // no-scroll answer for very wide teams).
+  useEffect(() => {
+    const r = requestAnimationFrame(() => { setScale(1); setPan({ x: 0, y: 0 }); if (canvasRef.current) { canvasRef.current.scrollLeft = 0; canvasRef.current.scrollTop = 0; } });
+    return () => cancelAnimationFrame(r);
+  }, [focusId]);
+
   const expandAll = () => setCollapsed(new Set());
   const collapseAll = () => setCollapsed(new Set(collapsibleIds(tree.roots)));
   const resetView = () => { setScale(1); setPan({ x: 0, y: 0 }); };
@@ -366,13 +467,22 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
           </div>
           {hasStructure && (
             <>
+              <div className="inline-flex rounded-lg ring-1 ring-border overflow-hidden">
+                <button type="button" onClick={() => setMode("chart")} title="Chart view" className={cn("h-8 w-8 inline-flex items-center justify-center transition-colors", mode === "chart" ? "bg-accent text-accent-fg" : "bg-bg-subtle/80 text-fg-muted hover:text-fg")}><GitBranch size={14} /></button>
+                <button type="button" onClick={() => setMode("list")} title="Outline view" className={cn("h-8 w-8 inline-flex items-center justify-center transition-colors", mode === "list" ? "bg-accent text-accent-fg" : "bg-bg-subtle/80 text-fg-muted hover:text-fg")}><List size={14} /></button>
+              </div>
               <button type="button" onClick={collapseAll} title="Collapse all" className={ctrlBtn}><FoldVertical size={14} /></button>
               <button type="button" onClick={expandAll} title="Expand all" className={ctrlBtn}><Expand size={14} /></button>
-              <span className="w-px h-5 bg-border mx-0.5" />
-              <button type="button" onClick={() => zoom(-0.1)} title="Zoom out" className={ctrlBtn}><ZoomOut size={14} /></button>
-              <button type="button" onClick={resetView} title="Reset view" className={cn(ctrlBtn, "w-auto px-2 text-[11px] tabular")}>{Math.round(scale * 100)}%</button>
-              <button type="button" onClick={() => zoom(0.1)} title="Zoom in" className={ctrlBtn}><ZoomIn size={14} /></button>
-              <button type="button" onClick={toggleFullscreen} title="Fullscreen" className={ctrlBtn}><Maximize2 size={14} /></button>
+              {mode === "chart" && (
+                <>
+                  <span className="w-px h-5 bg-border mx-0.5" />
+                  <button type="button" onClick={() => zoom(-0.1)} title="Zoom out" className={ctrlBtn}><ZoomOut size={14} /></button>
+                  <button type="button" onClick={resetView} title="Reset view" className={cn(ctrlBtn, "w-auto px-2 text-[11px] tabular")}>{Math.round(scale * 100)}%</button>
+                  <button type="button" onClick={() => zoom(0.1)} title="Zoom in" className={ctrlBtn}><ZoomIn size={14} /></button>
+                  <button type="button" onClick={fit} title="Fit to screen" className={ctrlBtn}><Scaling size={14} /></button>
+                  <button type="button" onClick={toggleFullscreen} title="Fullscreen" className={ctrlBtn}><Maximize2 size={14} /></button>
+                </>
+              )}
             </>
           )}
           <button type="button" onClick={print} className="h-8 inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle/80 ring-1 ring-border px-2.5 text-xs text-fg-muted hover:text-fg transition-colors"><Printer size={13} /> Print</button>
@@ -382,20 +492,44 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
       {q && matchIds.size === 0 && <div className="text-xs text-fg-subtle italic">No match for “{query}”.</div>}
 
       {hasStructure && (
-        <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
-          <div ref={canvasRef} className="org-canvas overflow-auto" style={{ maxHeight: "72vh" }}
-            onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
-            <div className="org-stage inline-block min-w-full p-8" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}>
-              <ul className="org-tree mx-auto w-max">
-                {tree.roots.map((n) => (
-                  <Subtree key={n.id} node={n} extras={extras} accentColor={accentColor}
-                    collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={!!q}
-                    onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
-                ))}
-              </ul>
+        <>
+          {focusNode && (
+            <div className="flex items-center gap-1 text-xs flex-wrap print-hidden">
+              <button type="button" onClick={() => setFocusId(null)} className="inline-flex items-center gap-1 rounded-full bg-bg-subtle/70 ring-1 ring-border px-2 py-0.5 text-fg-muted hover:text-fg transition-colors"><Users size={11} /> All</button>
+              {ancestors.map((a) => (
+                <span key={a.id} className="inline-flex items-center gap-1">
+                  <ChevronRight size={12} className="text-fg-subtle" />
+                  <button type="button" onClick={() => setFocusId(a.id)} className="rounded-full px-2 py-0.5 text-fg-muted hover:text-accent hover:bg-bg-muted/50 transition-colors">{a.name}</button>
+                </span>
+              ))}
+              <ChevronRight size={12} className="text-fg-subtle" />
+              <span className="rounded-full px-2 py-0.5 font-medium text-accent bg-accent-soft">{focusNode.name}</span>
             </div>
-          </div>
-        </div>
+          )}
+
+          {mode === "chart" ? (
+            <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
+              <div ref={canvasRef} className="org-canvas overflow-auto" style={{ maxHeight: "72vh" }}
+                onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
+                <div className="org-stage inline-block min-w-full p-8" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
+                  <ul ref={stageRef} className="org-tree mx-auto w-max">
+                    {rootsToRender.map((n) => (
+                      <Subtree key={n.id} node={n} extras={extras} accentColor={accentColor}
+                        collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={!!q}
+                        onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} onFocus={setFocusId} />
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 p-2 overflow-auto" style={{ maxHeight: "72vh" }}>
+              {rootsToRender.map((n) => (
+                <OutlineRow key={n.id} node={n} depth={0} collapsedIds={collapsedIds} toggle={toggle} onFocus={setFocusId} matchIds={matchIds} showCompany={portfolio} extras={extras} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {!hasStructure && (
@@ -406,7 +540,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
         </div>
       )}
 
-      {tree.unassigned.length > 0 && (
+      {!focusNode && tree.unassigned.length > 0 && (
         <div className="pt-1 space-y-3">
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
             <Users size={12} /> {hasStructure ? `Unassigned (${tree.unassigned.length})` : `People (${tree.unassigned.length})`}
@@ -438,7 +572,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
         </div>
       )}
 
-      {associated.length > 0 && (
+      {!focusNode && associated.length > 0 && (
         <div className="pt-1">
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle mb-2">
             <Link2 size={12} /> External &amp; associated ({associated.length})
