@@ -65,6 +65,25 @@ export default async function OrgChartPage({
   const totalPeople = Object.values(trees).reduce((s, t) => s + t.total, 0);
   const totalLines = Object.values(trees).reduce((s, t) => s + t.withManager, 0);
 
+  // Org insights: span of control + the data gaps (people with no director).
+  const activePeople = people.filter((p) => p.active);
+  const withDirector = activePeople.filter((p) => p.managerId != null).length;
+  const gaps = activePeople.length - withDirector;
+  const mgrCounts = new Map<number, number>();
+  for (const p of activePeople) if (p.managerId != null) mgrCounts.set(p.managerId, (mgrCounts.get(p.managerId) ?? 0) + 1);
+  const avgSpan = mgrCounts.size ? withDirector / mgrCounts.size : 0;
+  let largest = 0, largestId: number | null = null;
+  for (const [id, c] of mgrCounts) if (c > largest) { largest = c; largestId = id; }
+  const largestName = activePeople.find((p) => p.id === largestId)?.name ?? "—";
+
+  const stats: Array<{ label: string; value: string; sub?: string; tone?: "default" | "warn" }> = [
+    { label: "People", value: String(activePeople.length), sub: `${companies.length} companies` },
+    { label: "Reporting lines", value: String(totalLines), sub: `${Math.round((withDirector / Math.max(1, activePeople.length)) * 100)}% mapped` },
+    { label: "No director", value: String(gaps), sub: gaps > 0 ? "needs attention" : "all mapped", tone: gaps > 0 ? "warn" : "default" },
+    { label: "Avg span", value: avgSpan ? avgSpan.toFixed(1) : "—", sub: "reports / manager" },
+    { label: "Largest team", value: largest ? String(largest) : "—", sub: largestName },
+  ];
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
@@ -72,6 +91,17 @@ export default async function OrgChartPage({
         title="Organogram"
         sub={`${totalPeople} people across ${companies.length} companies · ${totalLines} reporting line${totalLines === 1 ? "" : "s"} set`}
       />
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 animate-in fade-in-0 slide-in-from-bottom-1 duration-300">
+        {stats.map((s) => (
+          <div key={s.label} className={`rounded-2xl ring-1 px-3.5 py-3 backdrop-blur-md ${s.tone === "warn" ? "bg-warn-soft/50 ring-warn/30" : "bg-bg-subtle/50 ring-border/60"}`}>
+            <div className="text-[10px] uppercase tracking-wider text-fg-muted">{s.label}</div>
+            <div className={`text-xl font-semibold tabular mt-0.5 ${s.tone === "warn" ? "text-warn" : "text-fg"}`}>{s.value}</div>
+            {s.sub && <div className="text-[10px] text-fg-subtle truncate mt-0.5">{s.sub}</div>}
+          </div>
+        ))}
+      </div>
+
       <ErrorBoundary label="organogram">
         <OrgChart
           companies={companies}
