@@ -195,7 +195,7 @@ function NodeCard({
         </div>
 
         {/* compact signal cluster */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="org-signals flex items-center gap-1 shrink-0">
           {x?.overdue ? (
             <span title={`${x.overdue} overdue`} className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger-soft text-danger text-[10px] font-bold tabular">{x.overdue}</span>
           ) : x?.open ? (
@@ -330,26 +330,6 @@ function initialCollapsed(tree: CompanyTree): Set<number> {
   return new Set(collapsibleIds(tree.roots).filter((id) => !rootIds.has(id)));
 }
 
-/* Print-only: the full hierarchy as a clean indented roster (paginates well,
-   shows every person + role/department/company — unlike the scaled chart). */
-function PrintRows({ nodes, depth }: { nodes: OrgNode[]; depth: number }) {
-  return (
-    <>
-      {nodes.map((n) => {
-        const meta = [n.role, n.departmentName, n.companyName].filter(Boolean).join(" · ");
-        return (
-          <div key={n.id}>
-            <div className="opr" style={{ paddingLeft: depth * 16 }}>
-              <span className="opn">{n.name}</span>{meta && <span className="opm"> — {meta}</span>}
-            </div>
-            {n.children.length > 0 && <PrintRows nodes={n.children} depth={depth + 1} />}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
 function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {}, pickerPeople }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number>; pickerPeople?: PickPerson[] }) {
   const router = useRouter();
   const [, startHead] = useTransition();
@@ -472,7 +452,21 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
   const toggleAll = () => (allExpanded ? collapseAll() : expandAll());
   const resetView = () => { setScale(1); setPan({ x: 0, y: 0 }); };
   const zoom = (d: number) => setScale((s) => Math.min(1.6, Math.max(0.5, +(s + d).toFixed(2))));
-  const print = () => window.print();
+  const print = () => {
+    // Print the visual chart: force the chart view, expand the whole tree, then
+    // scale it to fit a single A4 landscape page (set via --org-print-scale).
+    setMode("chart"); setFocusId(null); setCollapsed(new Set());
+    setTimeout(() => {
+      const ul = stageRef.current;
+      if (ul) {
+        const treeW = ul.offsetWidth + 80, treeH = ul.offsetHeight + 80;
+        const s = Math.min(1040 / treeW, 624 / treeH, 1); // landscape printable px (≈277×190mm) minus header
+        document.documentElement.style.setProperty("--org-print-scale", s.toFixed(3));
+      }
+      window.print();
+      window.setTimeout(() => document.documentElement.style.removeProperty("--org-print-scale"), 800);
+    }, 220);
+  };
   const toggleFullscreen = () => setIsFs((v) => !v);
 
   // Fullscreen = a CSS fill-the-viewport overlay (reliable everywhere, incl.
@@ -507,20 +501,11 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
 
   return (
     <div ref={rootRef} className={cn("space-y-3 org-root", isFs && "fixed inset-0 z-[90] bg-bg p-4 sm:p-5 overflow-auto")}>
-      {/* Print-only header (company / portfolio + date). */}
+      {/* Print-only masthead (Director-Brief styling). */}
       <div className="org-print-title print-only">
-        <div className="opt">{companyName ?? "Portfolio"} — Organogram</div>
+        <div className="olabel">Organogram</div>
+        <h1 className="otitle">{companyName ?? "Portfolio"}</h1>
         <div className="osub">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {tree.total} people · {tree.linesInTree} reporting lines</div>
-      </div>
-      {/* Print-only roster — the complete, paginating org listing. */}
-      <div className="org-print-roster print-only">
-        <PrintRows nodes={tree.roots} depth={0} />
-        {tree.unassigned.length > 0 && (
-          <>
-            <div className="ops">Not in a reporting line</div>
-            <PrintRows nodes={tree.unassigned} depth={0} />
-          </>
-        )}
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print-hidden">
         <div className="text-[11px] text-fg-subtle tabular">
@@ -620,7 +605,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
           )}
 
           {mode === "chart" ? (
-            <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
+            <div className="org-printable rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden">
               <div ref={canvasRef} className="org-canvas overflow-auto" style={{ maxHeight: isFs ? "calc(100dvh - 130px)" : "72vh" }}
                 onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
                 <div className="org-stage inline-block min-w-full p-8" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: "0 0" }}>

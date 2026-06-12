@@ -656,21 +656,25 @@ input:disabled, select:disabled, textarea:disabled {
   .elevated, .shadow-pill, [class*="shadow-"] { box-shadow: none !important; }
   /* Hide all floating chrome (nav pill, action buttons, toasts) + opted-out bits. */
   .fixed, .print-hidden { display: none !important; }
-  /* Organogram: a scaled interactive chart never fits a page cleanly, so print
-     the complete indented roster instead and hide everything else in the view. */
-  .org-root > :not(.org-print-title):not(.org-print-roster) { display: none !important; }
-  .org-print-roster .opr { break-inside: avoid; }
+  /* Organogram: print the visual chart (cards + connectors) on a single A4
+     landscape page, scaled to fit (--org-print-scale) and centred. Hide
+     everything else in the view. */
+  @page org-landscape { size: A4 landscape; margin: 10mm; }
+  .org-root { page: org-landscape; }
+  .org-root > :not(.org-print-title):not(.org-printable) { display: none !important; }
+  .org-printable, .org-canvas { overflow: visible !important; max-height: none !important; }
+  .org-stage { transform: scale(var(--org-print-scale, 1)) !important; transform-origin: top center !important; transition: none !important; }
+  /* Brief-style cards: white, hairline border, no glass/shadow (accent rail + avatar kept). */
+  .org-card > div { background: #fff !important; border: 1px solid #e3e3e3 !important; box-shadow: none !important; }
+  .org-signals, .org-card button { display: none !important; }
   @page { margin: 14mm; }
 }
 
-/* Print-only organogram title + roster (hidden on screen via .print-only). */
-.org-print-title { text-align: center; margin-bottom: 12px; }
-.org-print-title .opt { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+/* Print-only organogram masthead (Director-Brief styling). */
+.org-print-title { margin-bottom: 10px; }
+.org-print-title .olabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.16em; color: hsl(var(--accent)); margin-bottom: 1px; }
+.org-print-title .otitle { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #111; margin: 0; }
 .org-print-title .osub { font-size: 11px; color: #555; margin-top: 2px; }
-.org-print-roster .opr { padding: 2.5px 0; border-bottom: 1px solid #ececec; font-size: 11.5px; line-height: 1.35; }
-.org-print-roster .opn { font-weight: 600; color: #111; }
-.org-print-roster .opm { color: #666; }
-.org-print-roster .ops { font-weight: 700; font-size: 12px; margin: 14px 0 5px; padding-top: 8px; border-top: 2px solid #333; }
 
 /* Constellation native fullscreen still fills the screen. */
 .org-web-wrap:fullscreen { background: hsl(var(--bg)); }
