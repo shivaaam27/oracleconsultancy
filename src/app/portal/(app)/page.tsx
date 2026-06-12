@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { CalendarDays, CheckCircle2, ListTodo, Users, Plane } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
@@ -78,6 +79,8 @@ function taskCard(t: Row, now: Date) {
 
 export default async function PortalHome() {
   const me = (await getPortalPerson())!;
+  // Directors are board-first — send them to their operator board.
+  if (me.portalRole === "director") redirect("/portal/board");
 
   // My own tasks; managers also see their direct reports' tasks.
   const ids = await visibleTaskIds(me);

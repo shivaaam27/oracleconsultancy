@@ -424,6 +424,7 @@ export default async function SettingsPage({
             <Select name="portalRole" defaultValue="staff">
               <option value="staff">Staff — own tasks only</option>
               <option value="manager">Manager — own + direct reports&apos; tasks, can complete</option>
+              <option value="director">Director — board view + create tasks/events across all companies</option>
             </Select>
           </div>
           <div>

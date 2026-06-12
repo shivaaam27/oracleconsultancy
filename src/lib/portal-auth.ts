@@ -81,7 +81,9 @@ export async function clearSessionCookie() {
   jar.set(COOKIE_NAME, "", { httpOnly: true, path: "/", maxAge: 0 });
 }
 
-export type PortalRole = "staff" | "manager";
+// "director" = executive operator: a read-only board + create tasks/events/
+// messages across ALL companies (group-wide). See memory/director_surface_plan.md.
+export type PortalRole = "staff" | "manager" | "director";
 
 export type PortalPerson = {
   id: number;
@@ -112,7 +114,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
     email: (data.email as string | null) ?? null,
     role: (data.role as string | null) ?? null,
     companyId: (data.company_id as number | null) ?? null,
-    portalRole: data.portal_role === "manager" ? "manager" : "staff",
+    portalRole: data.portal_role === "manager" ? "manager" : data.portal_role === "director" ? "director" : "staff",
   };
 });
 
