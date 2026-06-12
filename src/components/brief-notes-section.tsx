@@ -31,6 +31,7 @@ export function BriefNotesSection({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editBody, setEditBody] = useState("");
   const [editCompanyId, setEditCompanyId] = useState<string>("");
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const [hideCompany, setHideCompany] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -84,12 +85,30 @@ export function BriefNotesSection({
     });
   }
 
-  function remove(id: number) {
+  function remove(n: BriefNote) {
+    setConfirmingId(null);
     startTransition(async () => {
-      const res = await deleteBriefNoteAction(id);
+      const res = await deleteBriefNoteAction(n.id);
       if (!res.ok) { toast(res.error, { tone: "warn", duration: 4000 }); return; }
       router.refresh();
-      toast("Note removed.", { tone: "default", duration: 2500 });
+      // Offer an Undo: re-create the note with its original text, company and date.
+      toast("Note removed.", {
+        tone: "default",
+        duration: 7000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const back = await createBriefNoteAction({
+              body: n.body,
+              companyId: n.companyId,
+              noteDate: n.noteDate.toISOString(),
+            });
+            if (!back.ok) { toast(back.error, { tone: "warn", duration: 4000 }); return; }
+            router.refresh();
+            toast("Note restored.", { tone: "success", duration: 2500 });
+          },
+        },
+      });
     });
   }
 
@@ -178,22 +197,46 @@ export function BriefNotesSection({
                     {fmtDay(n.noteDate)}
                   </div>
                 </div>
-                <button
-                  onClick={() => startEdit(n)}
-                  disabled={pending}
-                  className="text-fg-subtle hover:text-accent transition-colors shrink-0 disabled:opacity-50"
-                  aria-label="Edit note"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={() => remove(n.id)}
-                  disabled={pending}
-                  className="text-fg-subtle hover:text-danger transition-colors shrink-0 disabled:opacity-50"
-                  aria-label="Delete note"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {confirmingId === n.id ? (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[11px] text-fg-muted">Delete?</span>
+                    <button
+                      onClick={() => remove(n)}
+                      disabled={pending}
+                      className="text-danger hover:opacity-80 transition-opacity disabled:opacity-50"
+                      aria-label="Confirm delete note"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmingId(null)}
+                      disabled={pending}
+                      className="text-fg-subtle hover:text-fg transition-colors disabled:opacity-50"
+                      aria-label="Cancel delete"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => { setConfirmingId(null); startEdit(n); }}
+                      disabled={pending}
+                      className="text-fg-subtle hover:text-accent transition-colors shrink-0 disabled:opacity-50"
+                      aria-label="Edit note"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmingId(n.id)}
+                      disabled={pending}
+                      className="text-fg-subtle hover:text-danger transition-colors shrink-0 disabled:opacity-50"
+                      aria-label="Delete note"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
+                )}
               </div>
             )
           )}
