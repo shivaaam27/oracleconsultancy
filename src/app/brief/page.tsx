@@ -110,6 +110,14 @@ export default async function DirectorBriefPage({
         </div>
       </div>
 
+      {/* Admin & HR updates — operator-written notes (not tasks); precedes Delivered */}
+      <BriefNotesSection
+        notes={b.notes}
+        monthLabel={b.monthLabel}
+        companyOptions={b.companyOptions}
+        selectedCompanyId={b.selectedCompanyId}
+      />
+
       {/* Delivered in selected period */}
       <div className="print-hidden">
         <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
@@ -138,14 +146,6 @@ export default async function DirectorBriefPage({
           </Card>
         )}
       </div>
-
-      {/* Admin & HR updates — operator-written notes (not tasks) */}
-      <BriefNotesSection
-        notes={b.notes}
-        monthLabel={b.monthLabel}
-        companyOptions={b.companyOptions}
-        selectedCompanyId={b.selectedCompanyId}
-      />
 
       {b.directorActions.length > 0 && (
         <div className="print-hidden">
@@ -316,7 +316,33 @@ export default async function DirectorBriefPage({
           </>
         )}
 
-        {/* 2 — Delivered this period */}
+        {/* 2 — Admin & HR updates (operator notes) — sits with Delivered on the same page */}
+        {b.notes.length > 0 && (
+          <>
+            <h2 className="text-base font-semibold mb-1 report-h2">Admin &amp; HR updates</h2>
+            <p className="text-xs text-fg-muted mb-3">Notes recorded for {b.monthLabel} that are not tracked as tasks.</p>
+            <table className="report-table mb-5">
+              <thead>
+                <tr>
+                  <th style={{ width: "22%" }}>Company</th>
+                  <th>Update</th>
+                  <th style={{ width: "14%" }}>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {b.notes.map((n) => (
+                  <tr key={n.id}>
+                    <td>{n.companyName ?? "Portfolio"}</td>
+                    <td>{n.body}</td>
+                    <td>{fmtDay(n.noteDate)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* 3 — Delivered this period */}
         {b.delivered.length > 0 && (
           <>
             <h2 className="text-base font-semibold mb-1 report-h2">Delivered in {b.monthLabel}</h2>
@@ -344,33 +370,7 @@ export default async function DirectorBriefPage({
           </>
         )}
 
-        {/* 2b — Admin & HR updates (operator notes) */}
-        {b.notes.length > 0 && (
-          <div className="report-section">
-            <h2 className="text-base font-semibold mb-1 report-h2">Admin &amp; HR updates</h2>
-            <p className="text-xs text-fg-muted mb-3">Notes recorded for {b.monthLabel} that are not tracked as tasks.</p>
-            <table className="report-table mb-5">
-              <thead>
-                <tr>
-                  <th style={{ width: "22%" }}>Company</th>
-                  <th>Update</th>
-                  <th style={{ width: "14%" }}>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {b.notes.map((n) => (
-                  <tr key={n.id}>
-                    <td>{n.companyName ?? "Portfolio"}</td>
-                    <td>{n.body}</td>
-                    <td>{fmtDay(n.noteDate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* 3 — Open work by company */}
+        {/* 4 — Open work by company */}
         <div className="report-section">
           <h2 className="text-base font-semibold mb-1 report-h2">Open work by company</h2>
           <p className="text-xs text-fg-muted mb-3">All open items, including those in progress, as at {b.asAt}.</p>

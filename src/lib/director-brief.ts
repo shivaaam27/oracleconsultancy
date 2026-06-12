@@ -448,18 +448,18 @@ export function briefShareText(b: BriefData): string {
   for (const c of b.companies) {
     L.push(`• ${c.name} — ${c.done} done · ${c.open} open · ${c.inProgress} in progress · ${c.overdue} overdue`);
   }
-  if (b.delivered.length) {
-    L.push("");
-    L.push(`*Delivered in ${b.monthLabel}*`);
-    for (const g of b.delivered) {
-      for (const t of g.items) L.push(`• ${g.company}: ${t.actionItem} (${t.status} ${fmtDay(t.closedDate)})`);
-    }
-  }
   if (b.notes.length) {
     L.push("");
     L.push(`*Admin & HR updates*`);
     for (const n of b.notes) {
       L.push(`• ${n.companyName ? `${n.companyName}: ` : ""}${n.body}`);
+    }
+  }
+  if (b.delivered.length) {
+    L.push("");
+    L.push(`*Delivered in ${b.monthLabel}*`);
+    for (const g of b.delivered) {
+      for (const t of g.items) L.push(`• ${g.company}: ${t.actionItem} (${t.status} ${fmtDay(t.closedDate)})`);
     }
   }
   if (b.watch.length) {
