@@ -156,15 +156,22 @@ server-side (`getPortalPerson`), never trusting the form.*
   the drawer Details (`person-pay.tsx`): shows wage + a collapsible "Final-pay estimate (if
   leaving today)" with a disclaimer. Verified: 800k/mo × 6yr → severance 1,292,308; total 2,461,538.
 
-### Phase 6 — Record display polish + bulk. 🔶 6a DONE; 6b–6e remaining.
-- [x] **6a Display polish** — drawer shows **Reports to / Also reports to / Related** in the
-  Details employment group; a **Profile N%** completeness chip in the hero; a **Message → /chat**
-  link in the action bar. Verified in-browser.
-- [ ] **6b Portal-access status** in the drawer (enabled / last login) — needs portal fields added
-  to `getPersonDetail`.
-- [ ] **6c** Open documents in place (no navigate-away to `/documents`).
-- [ ] **6d** Bulk set company / department / manager (mirror `setPeopleActive`).
-- [ ] **6e** Perf: scope `getPersonDetail` workload to the person's tasks; dedupe `getStaffIdMap`.
+### Phase 6 — Record display polish + bulk. ✅ DONE (6a–6e).
+- [x] **6a Display polish** — Reports to / Also reports to / Related in Details; Profile N%
+  completeness chip in the hero; Message → /chat link in the action bar.
+- [x] **6b Portal-access status** — `getPersonDetail` now returns `portal {enabled, role,
+  lastLoginAt}` (one extra query); shown in the drawer Manage section ("Portal access — Enabled ·
+  last in DATE" / "Manager" / "Not set up").
+- [x] **6c Open documents in place** — drawer document rows are now buttons that open the stored
+  file via a signed URL (`getDocumentFileLinkAction`) in a new tab, falling back to `/documents`
+  only when there's no attached file. No more navigate-away.
+- [x] **6d Bulk profile edits** — `bulkSetPeopleField(ids, "company"|"department"|"manager", value)`
+  (audit-logged per person; manager-self excluded; department resolved/created by name) + a
+  "Set fields" panel in the people-table bulk bar (company/manager selects + department datalist).
+  Verified: bulk company set on 2 people then restored.
+- [x] **6e Perf — reviewed, no change.** `staffIdFor` already wraps `getStaffIdMap` (swap is a
+  no-op) and `getAllTasks` is the shared derived-task source (per-request); rewriting it risks the
+  flag derivation for marginal gain. Left as-is by design.
 
 ### Phase 7 (optional, owner decision) — Director surface.
 - [ ] Read-only director view (headcount, org chart, compliance %, leave liability, risks),

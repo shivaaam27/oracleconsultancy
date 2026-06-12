@@ -25,6 +25,7 @@ import { PersonAssets } from "./person-assets";
 import { Badge } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
+import { getDocumentFileLinkAction } from "@/app/documents/actions";
 import { createPersonPackDraftAction } from "@/app/people/pack-actions";
 import { pickChannel } from "@/lib/outbox-links";
 import type { TaskRow } from "@/lib/queries";
@@ -115,6 +116,7 @@ type DrawerData = {
   departments: string[];
   events: PersonEvent[];
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
+  portal: { enabled: boolean; role: string; lastLoginAt: string | null };
 };
 
 /* -------------------------------------------------------------------------
@@ -280,6 +282,14 @@ export function PersonDrawer() {
   useEffect(() => { setMode("view"); setActiveTab("overview"); setRemindInfo(null); setPackOpen(openPack); }, [idStr, openPack]);
 
   const refresh = () => setRefreshKey((k) => k + 1);
+
+  // Open a person document's stored file in place (new tab); fall back to the
+  // Documents centre when there's no attached file.
+  const openDocFile = async (docId: number) => {
+    const res = await getDocumentFileLinkAction(docId);
+    if (res.ok) window.open(res.url, "_blank", "noopener,noreferrer");
+    else router.push(`/documents?person=${person?.id ?? ""}`);
+  };
 
   const handleArchiveToggle = async () => {
     if (!person) return;
@@ -688,14 +698,14 @@ export function PersonDrawer() {
             </div>
             <div className="divide-y divide-border/50">
               {data.documents.slice(0, 10).map((doc) => (
-                <Link key={doc.id} href={`/documents?person=${person.id}`} onClick={close} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-bg-muted/50 transition-colors">
+                <button key={doc.id} type="button" onClick={() => openDocFile(doc.id)} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-bg-muted/50 transition-colors">
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", doc.status === "Expired" ? "bg-danger" : doc.status === "Expiring" ? "bg-warn" : doc.status === "Valid" ? "bg-success" : "bg-fg-subtle")} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-xs font-medium truncate">{doc.title}</span>
                     <span className="block text-[10px] text-fg-muted truncate">{[doc.category, doc.docType, doc.expiryLabel].filter(Boolean).join(" · ") || "No expiry date"}</span>
                   </span>
                   <Badge tone={documentTone(doc.status)} className="shrink-0">{doc.status}</Badge>
-                </Link>
+                </button>
               ))}
             </div>
           </SectionCard>
@@ -707,6 +717,17 @@ export function PersonDrawer() {
           {person.active && (
             <PersonProbation personId={person.id} probationEndDate={person.probationEndDate} onChanged={refresh} />
           )}
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="font-medium uppercase tracking-wider text-fg-subtle">Portal access</span>
+            {data.portal.enabled ? (
+              <span className="inline-flex items-center gap-1.5 text-fg-muted">
+                <Badge tone={data.portal.role === "manager" ? "info" : "success"}>{data.portal.role === "manager" ? "Manager" : "Enabled"}</Badge>
+                {data.portal.lastLoginAt ? `last in ${fmtDate(new Date(data.portal.lastLoginAt))}` : "never signed in"}
+              </span>
+            ) : (
+              <span className="text-fg-subtle">Not set up — enable in Settings</span>
+            )}
+          </div>
           <div>
             <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Snooze reminders</div>
             <div className="flex items-center gap-2">

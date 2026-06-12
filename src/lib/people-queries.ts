@@ -238,6 +238,8 @@ export type PersonDetail = {
   events: PersonEvent[];
   /** Leave entitlement/usage per type + this person's requests (newest first). */
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
+  /** Staff-portal access status (read-only here; managed in Settings). */
+  portal: { enabled: boolean; role: string; lastLoginAt: string | null };
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
@@ -395,15 +397,22 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     person.managerName = peopleList.find((p) => p.id === person.managerId)?.name ?? null;
   }
 
-  const [events, leaveBalances, leaveRequests, attendance] = await Promise.all([
+  const [events, leaveBalances, leaveRequests, attendance, { data: portalRow }] = await Promise.all([
     listPersonEvents(id, 40),
     personLeaveBalances(id),
     listLeaveRequests({ personId: id }),
     personAttendanceThisMonth(id),
+    sb.from("people").select("portal_password_hash,portal_role,portal_last_login_at").eq("id", id).maybeSingle(),
   ]);
+  const portal = {
+    enabled: !!(portalRow?.portal_password_hash as string | null),
+    role: (portalRow?.portal_role as string | null) ?? "staff",
+    lastLoginAt: (portalRow?.portal_last_login_at as string | null) ?? null,
+  };
 
   return {
     person, workload, assignedTasks, documents, recentUpdates, companies, peopleList, departments, events,
     leave: { balances: leaveBalances, requests: leaveRequests, attendance },
+    portal,
   };
 }

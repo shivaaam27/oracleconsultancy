@@ -727,6 +727,66 @@ export async function createProbationReviewTaskAction(
 }
 
 /* ----------------------------------------------------------------------
+ * Bulk profile edits — set company / department / manager on many people.
+ * ---------------------------------------------------------------------- */
+export async function bulkSetPeopleField(
+  ids: number[],
+  field: "company" | "department" | "manager",
+  value: number | string | null
+): Promise<ActionResult> {
+  const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
+  if (!clean.length) return { ok: false, error: "No people selected." };
+
+  const patch: Record<string, unknown> = {};
+  let label = "";
+  let display: string | null = null;
+  let targets = clean;
+
+  if (field === "company") {
+    const cid = value == null ? null : Number(value);
+    patch.company_id = cid;
+    label = "Company";
+    if (cid) {
+      const { data } = await sb.from("companies").select("name").eq("id", cid).maybeSingle();
+      display = (data?.name as string | null) ?? null;
+    }
+  } else if (field === "manager") {
+    const mid = value == null ? null : Number(value);
+    patch.manager_id = mid;
+    label = "Manager";
+    // A person can't be their own manager — never set that.
+    if (mid) {
+      targets = clean.filter((id) => id !== mid);
+      const { data } = await sb.from("people").select("name").eq("id", mid).maybeSingle();
+      display = (data?.name as string | null) ?? null;
+    }
+  } else {
+    // department — resolve by name (create if new).
+    const name = value ? String(value).trim() : "";
+    let deptId: number | null = null;
+    if (name) {
+      const { data: existing } = await sb.from("departments").select("id").eq("name", name).maybeSingle();
+      deptId = (existing?.id as number | undefined) ?? null;
+      if (!deptId) {
+        const { data: created } = await sb.from("departments").insert({ name }).select("id").single();
+        deptId = (created?.id as number | undefined) ?? null;
+      }
+    }
+    patch.department_id = deptId;
+    label = "Department";
+    display = name || null;
+  }
+
+  if (targets.length === 0) return { ok: false, error: "Nothing to update." };
+  const { error } = await sb.from("people").update(patch).in("id", targets);
+  if (error) return { ok: false, error: error.message };
+
+  await Promise.all(targets.map((pid) => logPersonFieldChanges(pid, [{ field: label, oldValue: null, newValue: display }])));
+  invalidate();
+  return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
  * Snooze / unsnooze reminders
  * ---------------------------------------------------------------------- */
 export async function snoozePerson(id: number, untilIso: string | null): Promise<ActionResult> {

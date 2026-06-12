@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Search, MessageCircle, Filter, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, Check, CheckSquare, X } from "lucide-react";
+import { Search, MessageCircle, Filter, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, Check, CheckSquare, X, Pencil } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
@@ -11,7 +11,7 @@ import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
 import { useToast } from "./toast";
-import { snoozePerson, togglePersonActive, setPeopleActive } from "@/app/people/actions";
+import { snoozePerson, togglePersonActive, setPeopleActive, bulkSetPeopleField } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 
@@ -61,6 +61,7 @@ export function PeopleTable({ people, companies, complianceById }: {
   const [peek, setPeek] = useState<PersonRow | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkEditing, setBulkEditing] = useState(false);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
@@ -94,7 +95,7 @@ export function PeopleTable({ people, companies, complianceById }: {
       return next;
     });
   }
-  function exitSelect() { setSelectMode(false); setSelected(new Set()); }
+  function exitSelect() { setSelectMode(false); setSelected(new Set()); setBulkEditing(false); }
   function doBulk(active: boolean) {
     const ids = [...selected];
     if (!ids.length) return;
@@ -102,6 +103,15 @@ export function PeopleTable({ people, companies, complianceById }: {
       const res = await setPeopleActive(ids, active);
       toast(res.ok ? `${ids.length} ${ids.length === 1 ? "person" : "people"} ${active ? "restored" : "deactivated"}` : (res.error || "Couldn't update"), { tone: res.ok ? "success" : "warn" });
       if (res.ok) { exitSelect(); router.refresh(); }
+    });
+  }
+  function applyBulkField(field: "company" | "department" | "manager", value: number | string | null) {
+    const ids = [...selected];
+    if (!ids.length) return;
+    startBulk(async () => {
+      const res = await bulkSetPeopleField(ids, field, value);
+      toast(res.ok ? `Updated ${ids.length} ${ids.length === 1 ? "person" : "people"}` : (res.error || "Couldn't update"), { tone: res.ok ? "success" : "warn" });
+      if (res.ok) { setBulkEditing(false); router.refresh(); }
     });
   }
   async function copyContact(p: PersonRow) {
@@ -355,10 +365,34 @@ export function PeopleTable({ people, companies, complianceById }: {
 
       {/* Bulk action bar — floats above the nav pill while selecting */}
       {selectMode && selected.size > 0 && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-[5.5rem] md:bottom-24 z-40 glass elevated rounded-full shadow-pill flex items-center gap-1.5 pl-4 pr-1.5 py-1.5">
-          <span className="text-xs font-medium text-fg-muted">{selected.size} selected</span>
-          <Button size="sm" variant="secondary" onClick={() => doBulk(true)}><UserCheck size={14} /> Restore</Button>
-          <Button size="sm" variant="danger-soft" onClick={() => doBulk(false)}><UserMinus size={14} /> Deactivate</Button>
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-[5.5rem] md:bottom-24 z-40 flex flex-col items-center gap-2">
+          {bulkEditing && (
+            <div className="glass elevated rounded-2xl shadow-pill p-2.5 flex flex-wrap items-center gap-2 max-w-[92vw]">
+              <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
+                className="rounded-lg bg-bg-subtle text-xs ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40">
+                <option value="" disabled>Set company…</option>
+                <option value="none">— Clear —</option>
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("manager", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
+                className="rounded-lg bg-bg-subtle text-xs ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40">
+                <option value="" disabled>Set manager…</option>
+                <option value="none">— Clear —</option>
+                {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input list="bulk-dept-list" placeholder="Set department…" onKeyDown={(e) => { if (e.key === "Enter") { const v = (e.target as HTMLInputElement).value.trim(); applyBulkField("department", v || null); (e.target as HTMLInputElement).value = ""; } }}
+                className="w-36 rounded-lg bg-bg-subtle text-xs ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
+              <datalist id="bulk-dept-list">
+                {[...new Set(people.map((p) => p.departmentName).filter(Boolean))].map((d) => <option key={d as string} value={d as string} />)}
+              </datalist>
+            </div>
+          )}
+          <div className="glass elevated rounded-full shadow-pill flex items-center gap-1.5 pl-4 pr-1.5 py-1.5">
+            <span className="text-xs font-medium text-fg-muted">{selected.size} selected</span>
+            <Button size="sm" variant={bulkEditing ? "primary" : "secondary"} onClick={() => setBulkEditing((v) => !v)}><Pencil size={14} /> Set fields</Button>
+            <Button size="sm" variant="secondary" onClick={() => doBulk(true)}><UserCheck size={14} /> Restore</Button>
+            <Button size="sm" variant="danger-soft" onClick={() => doBulk(false)}><UserMinus size={14} /> Deactivate</Button>
+          </div>
         </div>
       )}
 
