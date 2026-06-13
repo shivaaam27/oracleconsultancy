@@ -45,7 +45,7 @@ export default async function AssetVendorPage({
   ];
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <Hero
         title="Asset, Tools & Vendor Register"

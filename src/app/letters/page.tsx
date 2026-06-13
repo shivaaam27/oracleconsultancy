@@ -26,7 +26,7 @@ export default async function LettersPage({
   const readyLetterheads = letterheads.filter((c) => c.address && c.signatoryName).length;
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-3xl mx-auto">
       <PageHeader
         title="Letters"
         sub={`${letters.length} total · ${drafts} draft${drafts === 1 ? "" : "s"} · branded per company`}

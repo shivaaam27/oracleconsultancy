@@ -31,7 +31,7 @@ export default async function CompaniesPage({
     { open: 0, overdue: 0, completed: 0 }
   );
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <Hero title="Companies" subtitle={`${companies.length} companies tracked across the portfolio`}>
         <div className="flex flex-wrap gap-5">

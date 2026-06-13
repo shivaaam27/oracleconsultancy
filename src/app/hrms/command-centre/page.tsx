@@ -109,7 +109,7 @@ export default async function CommandCentrePage({
   ];
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <Hero
         title="Tax & Legal"

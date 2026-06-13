@@ -15,7 +15,7 @@ export default async function InboxPage() {
   const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 max-w-3xl mx-auto">
       <PageHeader
         title="Inbox"
         sub="Forwarded emails, shared messages and uploaded bundles waiting to be filed."

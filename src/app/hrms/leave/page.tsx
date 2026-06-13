@@ -41,7 +41,7 @@ export default async function LeavePage({
     active ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60");
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <PageHeader title="Leave & Attendance" sub={sub} />
 

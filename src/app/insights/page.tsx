@@ -93,7 +93,7 @@ export default async function InsightsPage() {
     fc.leaveLiability !== null || fc.complianceDecay.items.length > 0 || fc.renewals.length > 0 || fc.probation.length > 0;
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 max-w-3xl mx-auto">
       <PageHeader title="Insights" sub="What's coming, plus portfolio distribution across companies, status, and priority." />
 
       {hasForecast && (

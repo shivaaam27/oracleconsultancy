@@ -76,7 +76,7 @@ export default async function CalendarPage({
   ];
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <Hero title="Calendar" subtitle="Meetings, site visits and the week ahead across the portfolio">
         <div className="flex flex-wrap gap-x-6 gap-y-3">

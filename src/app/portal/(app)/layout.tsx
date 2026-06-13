@@ -17,7 +17,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const today = await personAttendanceToday(me.id);
 
   return (
-    <div className="flex flex-col gap-5 pb-28">
+    <div className="flex flex-col gap-5 pb-28 max-w-3xl mx-auto">
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">

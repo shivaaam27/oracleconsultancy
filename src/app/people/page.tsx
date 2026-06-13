@@ -67,7 +67,7 @@ export default async function PeoplePage({
   for (const s of personScores) complianceById[s.ownerId] = { score: s.score, status: s.status };
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <PageHeader
         title="People Directory"
