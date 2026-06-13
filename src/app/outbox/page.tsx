@@ -1,19 +1,21 @@
 import { generateDrafts } from "@/lib/outbox-gen";
 import { listOutboxDrafts } from "@/lib/outbox-drafts";
 import { DraftsList } from "./drafts-list";
-import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday } from "@/lib/outbox-history";
+import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords } from "@/lib/outbox-history";
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
-import { PageHeader, EmptyState, Badge } from "@/components/ui";
+import { PageHeader, EmptyState } from "@/components/ui";
 import { Globe2 } from "lucide-react";
 import { UnsnoozeButton } from "./outbox-card";
 import { PendingList, type PendingItem } from "./pending-list";
 import { SentLogDrawer } from "./sent-log-drawer";
+import { AutomationPanel } from "./automation-panel";
+import { getAutomationSnapshot } from "@/lib/outbox-automation";
 import { Send, Inbox, Check, BellOff, ChevronDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function OutboxPage() {
-  const [drafts, savedDrafts, sentByName, history, snoozed, scopedId, scopeOptions] = await Promise.all([
+  const [drafts, savedDrafts, sentByName, history, snoozed, scopedId, scopeOptions, automation, todaySent] = await Promise.all([
     generateDrafts(),
     listOutboxDrafts(),
     todaysSentChannelsByName(),
@@ -21,6 +23,8 @@ export default async function OutboxPage() {
     snoozedToday(),
     getScopedCompanyId(),
     getScopeOptions(),
+    getAutomationSnapshot(),
+    todaysSentRecords(),
   ]);
   const scopeName = scopedId != null
     ? scopeOptions.find((o) => o.id === scopedId)?.name ?? null
@@ -47,14 +51,14 @@ export default async function OutboxPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
 
-  // Today's done entries come from doneTodayItems (live drafts) — but we also want the historical record style. We'll show drafts as the source of truth for "Done today" in the drawer.
-  const todayDoneEntries = doneTodayItems.map((a, idx) => ({
-    id: -1 * (idx + 1), // synthetic id
-    channel: (a.sentChannels[0] || "WHATSAPP") as string,
-    recipientName: a.draft.recipientName,
-    recipientContact:
-      (a.sentChannels[0] === "EMAIL" ? a.draft.email : a.sentChannels[0] === "SMS" ? a.draft.phone : a.draft.whatsapp) || null,
-    sentAt: new Date().toISOString(),
+  // "Done today" uses the real sent records (actual `sent_at` timestamps) rather
+  // than synthesising times from live drafts.
+  const todayDoneEntries = todaySent.map((h) => ({
+    id: h.id,
+    channel: h.channel,
+    recipientName: h.recipientName,
+    recipientContact: h.recipientContact,
+    sentAt: h.sentAt,
   }));
 
   const yesterdayEntries = (history[yesterdayKey] || []).map((h) => ({
@@ -84,8 +88,7 @@ export default async function OutboxPage() {
         title="Outbox"
         sub={
           <span>
-            {totalToday} {totalToday === 1 ? "recipient" : "recipients"} for today
-            {sentCount > 0 && ` · ${sentCount} sent`}
+            {totalToday} {totalToday === 1 ? "recipient" : "recipients"} to chase today
           </span>
         }
         action={
@@ -94,7 +97,7 @@ export default async function OutboxPage() {
               todayDone={todayDoneEntries}
               yesterday={yesterdayEntries}
               older={olderBuckets}
-              todayDoneCount={sentCount}
+              todayDoneCount={todayDoneEntries.length}
             />
             <div className="hidden md:flex items-center gap-1.5 text-xs text-fg-muted">
               <Send size={12} /> Drafts regenerate live
@@ -104,32 +107,34 @@ export default async function OutboxPage() {
       />
 
       {scopeName && (
-        <div className="glass elevated rounded-2xl flex items-start gap-3 px-4 py-3 text-xs">
-          <Globe2 size={14} className="text-warn mt-0.5 shrink-0" />
-          <div className="flex-1 space-y-1">
-            <div className="flex items-center gap-2">
-              <Badge tone="warn">Scope ignored</Badge>
-              <span className="font-medium text-fg">
-                Outbox is intentionally global.
-              </span>
-            </div>
-            <p className="text-fg-muted leading-relaxed">
-              You're scoped to <strong className="text-fg">{scopeName}</strong>, but reminders
-              are grouped per person across <em>all</em> their tasks — that way nobody gets
-              pinged twice on the same day or quietly missed. Each card below shows the
-              company breakdown so you can still triage by company at a glance.
-            </p>
-          </div>
+        <div
+          className="flex items-center gap-2 px-1 text-[11px] text-fg-muted"
+          title={`You're scoped to ${scopeName}, but the Outbox is intentionally global: reminders are grouped per person across all their tasks, so nobody gets pinged twice on the same day or quietly missed. Each card shows the company breakdown so you can still triage by company.`}
+        >
+          <Globe2 size={12} className="text-warn shrink-0" />
+          <span>
+            Outbox is global — <strong className="text-fg">{scopeName}</strong> scope is ignored.
+            Use the company filter below to triage.
+          </span>
         </div>
       )}
+
+      {/* Automation hub — what the engine is set to do + what it sent overnight */}
+      <AutomationPanel snapshot={automation} />
 
       {/* One-off drafts (to-do reminders, ad-hoc) */}
       <DraftsList drafts={savedDrafts} />
 
+      {/* Today's reminders — live task nudges you copy & send by hand */}
+      <div className="flex items-center gap-2 px-1 pt-1">
+        <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Today's reminders</span>
+        <span className="text-[11px] text-fg-subtle">— per-person task nudges you copy &amp; send yourself</span>
+      </div>
+
       {/* Progress strip — slim inline bar */}
       {totalToday > 0 && (
         <div className="flex items-center gap-3 px-1">
-          <span className="text-xs text-fg-muted whitespace-nowrap tabular">{sentCount}/{totalToday} sent</span>
+          <span className="text-xs text-fg-muted whitespace-nowrap tabular">{sentCount}/{totalToday} done</span>
           <div className="flex-1 bg-bg-muted rounded-full h-1.5 overflow-hidden">
             <div className="bg-accent h-full rounded-full transition-all" style={{ width: `${progressPct}%` }} />
           </div>

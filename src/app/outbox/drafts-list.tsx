@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo, PackageCheck } from "lucide-react";
+import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo, PackageCheck, Bot } from "lucide-react";
+import { labelForSource } from "@/lib/outbox-automation-shared";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { linkFor, channelLabel, type Channel } from "@/lib/outbox-links";
@@ -67,6 +68,7 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
   const Icon = channelIcon[draft.channel];
   const link = linkFor(draft.channel, draft.recipientContact, subject, body);
   const pack = parsePersonPackSource(draft.source, draft.personId);
+  const autoLabel = draft.source?.startsWith("automation") ? labelForSource(draft.source) : null;
 
   function saveIfNeeded() {
     if (body !== draft.body || subject !== (draft.subject ?? "")) {
@@ -119,6 +121,7 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
         <span className="text-[11px] text-fg-subtle">· {channelLabel(draft.channel)}</span>
         {draft.todoId && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><ListTodo size={11} /> from to-do</span>}
         {pack && <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle"><PackageCheck size={11} /> {pack.label}</span>}
+        {autoLabel && <span className="inline-flex items-center gap-1 text-[11px] text-accent" title="Prepared automatically — review and send"><Bot size={11} /> {autoLabel}</span>}
         {draft.recipientContact && <span className="ml-auto text-[11px] text-fg-subtle truncate max-w-[160px] hidden sm:inline tabular">{draft.recipientContact}</span>}
       </div>
 
@@ -145,8 +148,8 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
           </>
         )}
         {canEmail && (
-          <button type="button" onClick={onSendEmail} disabled={pending} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50" title="Send this email now from admin@oracle.co.tz">
-            <Send size={12} /> Send email
+          <button type="button" onClick={onSendEmail} disabled={pending} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50" title={autoLabel ? "Approve this automated draft and send it now from admin@oracle.co.tz" : "Send this email now from admin@oracle.co.tz"}>
+            <Send size={12} /> {autoLabel ? "Approve & send" : "Send email"}
           </button>
         )}
         {link && (

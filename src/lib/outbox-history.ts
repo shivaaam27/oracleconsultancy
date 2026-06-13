@@ -97,6 +97,33 @@ export async function historyByDay(days: number): Promise<Record<string, History
   return byDay;
 }
 
+/**
+ * Today's actually-sent records (real `sent_at` timestamps), newest first.
+ * `historyByDay` intentionally stops at end-of-yesterday, so the Sent-log
+ * drawer uses this for its "Done today" section instead of synthetic times.
+ */
+export async function todaysSentRecords(): Promise<HistoryEntry[]> {
+  const start = startOfDay(new Date()).toISOString();
+  const end = endOfDay(new Date()).toISOString();
+  const { data, error } = await sb
+    .from("outbox")
+    .select("id,channel,recipient_name,recipient_contact,body,sent_at,status")
+    .eq("status", "Sent")
+    .gte("sent_at", start)
+    .lte("sent_at", end)
+    .order("sent_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    id: r.id as number,
+    channel: r.channel as string,
+    recipientName: (r.recipient_name as string | null) ?? null,
+    recipientContact: (r.recipient_contact as string | null) ?? null,
+    body: r.body as string,
+    sentAt: (r.sent_at as string | null) ?? null,
+    status: r.status as string,
+  }));
+}
+
 export type SnoozedPerson = {
   id: number;
   name: string;

@@ -65,6 +65,20 @@ Dedupe key format:
 
 The unique index on `reminders.dedupe_key` is the final duplicate-send guard.
 
+## Outbox rebuild (2026-06) — automation hub + honest labels + layout
+
+Owner decisions: (1) the Outbox should be the single place automation is visible; (2) honest labels rather than wiring real WhatsApp send for now.
+
+Shipped:
+
+- **Layout cleanup** (`outbox/page.tsx`): scope-warning shrunk from a 4-line amber box to a one-line note with the full explanation behind a `title` tooltip; removed the duplicate "N sent" from the header sub (the progress bar is the single source); added a **"Today's reminders — per-person task nudges you copy & send yourself"** section heading above the live list so the two halves (Drafts vs live reminders) are legible. `pending-list.tsx` toolbar fixed: the two competing `ml-auto` elements (density + search) are now one right-aligned controls group.
+- **Honest labels** (`outbox-card.tsx`): the live task-reminders never actually dispatch (copy-to-clipboard only), so all user-facing "Sent" wording → **"done"** ("Copy & done", "Mark as done", badge "Done", footer "Marked done · {channel}"). Only the Drafts "Send email" button truly sends server-side.
+- **Automation panel** (`automation-panel.tsx`, server component, native `<details>`): top of the Outbox. Reads `getAutomationSnapshot()` (`src/lib/outbox-automation.ts`) → config state (On·N / Paused / Off pill, send window, daily cap), each switched-on category with its mode ("Sends automatically"/"Prepares a draft") + last-run ("ran today"/"not yet today"/date), and **"Sent automatically · last 7 days"** = `outbox` rows where `message_type='AUTOMATION'` AND `status='Sent'`. Auto-opens only when there are recent sends. Links to `/settings#email-automation` (added `id`+`scroll-mt-24` anchor on that Settings section).
+- **Automation-origin drafts labelled** (`drafts-list.tsx`): prepared automation drafts (already flow into `listOutboxDrafts()` as status="Draft") now show a `<Bot>` chip with their category label instead of being indistinguishable. No duplication — they stay in the Drafts list, just tagged.
+- **Client-safe split**: `src/lib/outbox-automation-shared.ts` holds the pure `CATEGORY_LABELS` + `labelForSource` (imported by the client Drafts component); `outbox-automation.ts` re-exports them and adds the server-only snapshot reader.
+
+NOT yet done (next candidates): real WhatsApp send (scaffolded in `lib/whatsapp.ts`), one-tap "Approve & send" on prepared drafts, fix the sent-log "Done today" fake timestamps (shows page-load time not actual send time), `max-h-64` message clipping with no "show more", bulk actions, schedule-a-draft.
+
 ## Current Product Direction
 
 The UI direction is a single "Messages" concept. The schema still has WhatsApp/email/SMS channels because real provider integration has not been chosen yet.

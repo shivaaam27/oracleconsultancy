@@ -356,7 +356,7 @@ export default async function SettingsPage({
 
       {/* Email automation — lives OUTSIDE the main form (nested forms are invalid);
           each toggle saves instantly on its own. */}
-      <div className="glass elevated rounded-2xl p-5 space-y-3">
+      <div id="email-automation" className="glass elevated rounded-2xl p-5 space-y-3 scroll-mt-24">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <MessageCircle size={14} className="text-accent" /> Email automation
         </h2>

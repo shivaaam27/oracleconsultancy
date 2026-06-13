@@ -5,7 +5,7 @@ import {
   Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote,
   ChevronUp, MessageCircle, Mail, Phone,
 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -115,7 +115,18 @@ export function OutboxCard({
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState(draft.messages.WHATSAPP);
   const [expanded, setExpanded] = useState(false);
+  const [showFull, setShowFull] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  const msgRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Detect when the (non-editing) message overflows the collapsed height so we
+  // can offer a "Show full message" toggle instead of silently clipping.
+  useEffect(() => {
+    if (editing || showFull) return;
+    const el = msgRef.current;
+    if (el) setClamped(el.scrollHeight > el.clientHeight + 4);
+  }, [message, editing, showFull, expanded]);
 
   const contactValue =
     channel === "EMAIL"
@@ -176,14 +187,14 @@ export function OutboxCard({
       await navigator.clipboard.writeText(message);
       setCopied(true);
       const { ok, undoToken } = await doMarkSent();
-      if (ok) showUndoToast(`Copied & marked sent (${channelLabel(channel)}) for ${draft.recipientName}.`, undoToken);
+      if (ok) showUndoToast(`Copied for ${channelLabel(channel)} & marked done for ${draft.recipientName}.`, undoToken);
     });
   };
 
   const onMarkSentOnly = () => {
     startTransition(async () => {
       const { ok, undoToken } = await doMarkSent();
-      if (ok) showUndoToast(`Marked sent via ${channelLabel(channel)} for ${draft.recipientName}.`, undoToken);
+      if (ok) showUndoToast(`Marked done (${channelLabel(channel)}) for ${draft.recipientName}.`, undoToken);
     });
   };
 
@@ -239,7 +250,7 @@ export function OutboxCard({
         </button>
 
         {sent ? (
-          <Badge tone={duplicate ? "warn" : "success"}><Check size={11} /> {duplicate ? "Done" : "Sent"}</Badge>
+          <Badge tone={duplicate ? "warn" : "success"}><Check size={11} /> Done</Badge>
         ) : (
           <div className="flex items-center gap-1.5 shrink-0">
             {!anyContact && <AlertCircle size={12} className="text-amber-500" aria-label="No contact details" />}
@@ -248,9 +259,9 @@ export function OutboxCard({
               onClick={onCopyAndMark}
               disabled={pending || !anyContact}
               className="inline-flex items-center gap-1.5 h-8 px-2 sm:px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
-              title={anyContact ? "Copy message and mark sent" : "No contact details for this person"}
+              title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
             >
-              <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & Sent"}</span>
+              <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & done"}</span>
             </button>
           </div>
         )}
@@ -301,7 +312,7 @@ export function OutboxCard({
 
       {/* The Message — company breakdown + shared-assignees live inside the text. */}
       {!sent && (
-        <div className="px-3 pt-2 pb-3 bg-bg-subtle/40 max-h-64 overflow-y-auto">
+        <div className="px-3 pt-2 pb-3 bg-bg-subtle/40">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Message</span>
             {!anyContact && <span className="text-[10px] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1"><AlertCircle size={10} /> no contact</span>}
@@ -313,7 +324,26 @@ export function OutboxCard({
               className="w-full min-h-[160px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-md p-2 focus:outline-none focus:border-accent"
             />
           ) : (
-            <div className="text-xs leading-relaxed text-fg-muted">{renderRichMessage(message)}</div>
+            <>
+              <div
+                ref={msgRef}
+                className={cn(
+                  "text-xs leading-relaxed text-fg-muted",
+                  !showFull && "max-h-64 overflow-hidden"
+                )}
+              >
+                {renderRichMessage(message)}
+              </div>
+              {(clamped || showFull) && (
+                <button
+                  type="button"
+                  onClick={() => setShowFull((v) => !v)}
+                  className="mt-1.5 text-[11px] font-medium text-accent hover:underline"
+                >
+                  {showFull ? "Show less" : "Show full message"}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -321,7 +351,7 @@ export function OutboxCard({
       <div className="p-2.5 flex items-center justify-between gap-2 bg-bg-elev border-t border-border">
         {sent ? (
           <span className="text-xs text-fg-subtle inline-flex items-center gap-1.5">
-            <CurrentChannelIcon size={12} /> {duplicate ? "Was already done today." : `Sent via ${channelLabel(channel)}.`}
+            <CurrentChannelIcon size={12} /> {duplicate ? "Was already done today." : `Marked done · ${channelLabel(channel)}.`}
           </span>
         ) : (
           <button
@@ -345,14 +375,14 @@ export function OutboxCard({
               className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors">
               {copied ? <Check size={14} className="text-success" /> : <Copy size={13} />}
             </button>
-            <button type="button" onClick={onMarkSentOnly} disabled={pending} title="Mark sent (without copying)"
+            <button type="button" onClick={onMarkSentOnly} disabled={pending} title="Mark as done (without copying)"
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50">
               <Check size={14} />
             </button>
             <button type="button" onClick={onCopyAndMark} disabled={pending || !anyContact}
-              title={anyContact ? "Copy message and mark sent" : "No contact details for this person"}
+              title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
               className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
-              <Send size={13} /> {pending ? "…" : <span>Copy &amp; Sent</span>}
+              <Send size={13} /> {pending ? "…" : <span>Copy &amp; done</span>}
             </button>
           </div>
         )}
