@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo, PackageCheck, Bot } from "lucide-react";
+import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo, PackageCheck, Bot, FileEdit } from "lucide-react";
 import { labelForSource } from "@/lib/outbox-automation-shared";
+import { SectionLabel } from "@/components/surface-kit";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { linkFor, channelLabel, type Channel } from "@/lib/outbox-links";
@@ -43,13 +44,11 @@ export function DraftsList({ drafts }: { drafts: OutboxDraftRow[] }) {
   const [items, setItems] = useState(drafts);
   if (items.length === 0) return null;
   return (
-    <section className="space-y-2">
-      <div className="flex items-center gap-2 px-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Drafts</span>
-        <span className="text-xs text-fg-subtle">· {items.length}</span>
-        <span className="text-[11px] text-fg-subtle">— one-off reminders you've drafted</span>
-      </div>
-      <div className="space-y-1.5">
+    <section className="space-y-3">
+      <SectionLabel icon={<FileEdit size={13} />}>
+        Drafts <span className="ml-0.5 normal-case tracking-normal font-normal text-fg-subtle">· {items.length} ready to send</span>
+      </SectionLabel>
+      <div className="space-y-2">
         {items.map((d) => (
           <DraftCard key={d.id} draft={d} onGone={() => setItems((arr) => arr.filter((x) => x.id !== d.id))} />
         ))}
@@ -114,7 +113,7 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
   }
 
   return (
-    <div className="bg-bg-elev border border-border border-l-[3px] border-l-accent/70 rounded-xl elevated px-3 py-2.5 space-y-2">
+    <div className="bg-bg-elev ring-1 ring-border border-l-2 border-l-accent/70 rounded-2xl elevated px-3.5 py-3 space-y-2">
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-accent-soft text-accent shrink-0"><Icon size={13} /></span>
         <span className="font-medium text-sm truncate">{draft.recipientName}</span>

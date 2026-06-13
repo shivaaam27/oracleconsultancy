@@ -42,7 +42,7 @@ export function AutomationPanel({ snapshot }: { snapshot: AutomationSnapshot }) 
   );
 
   return (
-    <details className="group glass elevated rounded-2xl overflow-hidden" open={recentSends.length > 0}>
+    <details className="group bg-bg-elev ring-1 ring-border rounded-3xl elevated overflow-hidden" open={recentSends.length > 0}>
       <summary className="cursor-pointer list-none flex items-center gap-2 px-4 py-3">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-accent-soft text-accent shrink-0">
           <Bot size={13} />

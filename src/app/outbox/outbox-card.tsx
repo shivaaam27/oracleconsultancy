@@ -1,9 +1,9 @@
 "use client";
-import { Badge, Card } from "@/components/ui";
+import { Badge } from "@/components/ui";
 import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
 import {
   Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote,
-  ChevronUp, MessageCircle, Mail, Phone,
+  ChevronDown, MessageCircle, Mail, Phone,
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
@@ -43,15 +43,9 @@ function urgencyOf(tasks: OutboxDraft["tasks"]): {
 }
 
 const stripeClass: Record<Urgency, string> = {
-  critical: "border-l-red-500",
-  warn: "border-l-amber-500",
+  critical: "border-l-danger",
+  warn: "border-l-warn",
   normal: "border-l-transparent",
-};
-
-const dotClass: Record<Urgency, string> = {
-  critical: "bg-red-500",
-  warn: "bg-amber-500",
-  normal: "bg-fg-subtle/30",
 };
 
 const channelIcon: Record<Channel, typeof MessageCircle> = {
@@ -94,12 +88,11 @@ function renderRichMessage(text: string) {
 export function OutboxCard({
   draft,
   alreadySent = false,
-  sentChannels,
-  compact = false,
   scopeName = null,
 }: {
   draft: OutboxDraft;
   alreadySent?: boolean;
+  /** Accepted for caller compatibility; the card no longer needs them. */
   sentChannels?: Set<Channel>;
   compact?: boolean;
   scopeName?: string | null;
@@ -217,177 +210,153 @@ export function OutboxCard({
   const u = urgencyOf(draft.tasks);
   const CurrentChannelIcon = channelIcon[channel];
 
-  // Compact row mode
-  if (compact && !expanded) {
-    const topTask = topTaskOf(draft.tasks);
-    return (
-      <div
-        className={cn(
-          "bg-bg-elev border border-border border-l-[3px] rounded-xl elevated pl-2.5 pr-2 py-2.5 flex items-center gap-2.5 hover:border-accent/60 hover:bg-bg-muted/30 transition-colors",
-          stripeClass[u.level],
-          hasScoped && "ring-1 ring-accent/30",
-          sent && "opacity-60"
-        )}
-      >
-        <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", dotClass[u.level])} />
+  const topTask = topTaskOf(draft.tasks);
+  const metaLine = (
+    <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-fg-muted">
+      <span>{draft.tasks.length} task{draft.tasks.length === 1 ? "" : "s"}</span>
+      {u.overdue > 0 && <span className="text-danger">· {u.overdue} overdue</span>}
+      {u.overdue === 0 && u.critical > 0 && <span className="text-danger">· {u.critical} critical</span>}
+      {u.overdue === 0 && u.critical === 0 && u.dueSoon > 0 && <span className="text-warn">· {u.dueSoon} due soon</span>}
+    </span>
+  );
 
-        {/* Name + count over a one-line top-task preview — tap to expand */}
-        <button type="button" onClick={() => setExpanded(true)} className="min-w-0 flex-1 text-left">
-          <div className="flex items-center gap-1.5">
-            <span className="font-medium text-sm truncate">{draft.recipientName}</span>
-            <span className="text-[11px] text-fg-subtle whitespace-nowrap shrink-0">
-              · {draft.tasks.length}
-              {u.overdue > 0 && <span className="text-red-600 dark:text-red-400"> · {u.overdue} od</span>}
-              {u.overdue === 0 && u.critical > 0 && <span className="text-red-600 dark:text-red-400"> · {u.critical} crit</span>}
-              {u.overdue === 0 && u.critical === 0 && u.dueSoon > 0 && <span className="text-amber-600 dark:text-amber-400"> · {u.dueSoon} soon</span>}
+  // One clean card that expands on tap. A single urgency cue (left accent edge).
+  return (
+    <div
+      className={cn(
+        "bg-bg-elev ring-1 ring-border rounded-2xl elevated overflow-hidden border-l-2 transition-all hover:ring-border-strong",
+        stripeClass[u.level],
+        hasScoped && "ring-accent/40",
+        sent && "opacity-60"
+      )}
+    >
+      {/* Header — tap to expand / collapse */}
+      <div className="flex items-center gap-3 p-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="flex items-center gap-3 min-w-0 flex-1 text-left"
+        >
+          <span className="w-9 h-9 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0">
+            <User size={15} />
+          </span>
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5">
+              <span className="font-medium text-sm truncate">{draft.recipientName}</span>
+              <ChevronDown size={13} className={cn("text-fg-subtle transition-transform shrink-0", expanded && "rotate-180")} />
             </span>
-          </div>
-          {topTask && (
-            <div className="text-[11px] text-fg-muted truncate mt-0.5" title={topTask.actionItem}>
-              <span className="font-mono text-fg-subtle">{topTask.code}</span> · {topTask.actionItem}
-            </div>
-          )}
+            {!expanded && topTask ? (
+              <span className="block text-[11px] text-fg-muted truncate mt-0.5" title={topTask.actionItem}>
+                <span className="font-mono text-fg-subtle">{topTask.code}</span> · {topTask.actionItem}
+              </span>
+            ) : (
+              <span className="block mt-0.5">{metaLine}</span>
+            )}
+          </span>
         </button>
 
         {sent ? (
           <Badge tone={duplicate ? "warn" : "success"}><Check size={11} /> Done</Badge>
-        ) : (
+        ) : !expanded ? (
           <div className="flex items-center gap-1.5 shrink-0">
-            {!anyContact && <AlertCircle size={12} className="text-amber-500" aria-label="No contact details" />}
+            {!anyContact && <AlertCircle size={13} className="text-warn" aria-label="No contact details" />}
             <button
               type="button"
               onClick={onCopyAndMark}
               disabled={pending || !anyContact}
-              className="inline-flex items-center gap-1.5 h-8 px-2 sm:px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
               title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
             >
               <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & done"}</span>
             </button>
           </div>
-        )}
+        ) : null}
       </div>
-    );
-  }
 
-  // Expanded card
-  return (
-    <Card
-      className={cn(
-        "overflow-hidden border-l-4 transition-opacity",
-        stripeClass[u.level],
-        sent && "opacity-60"
+      {/* Expanded body */}
+      {expanded && sent && (
+        <div className="px-3 pb-3 -mt-1 text-xs text-fg-subtle inline-flex items-center gap-1.5">
+          <CurrentChannelIcon size={12} /> {duplicate ? "Was already done today." : `Marked done · ${channelLabel(channel)}.`}
+        </div>
       )}
-    >
-      {/* Header — name + meta only (channel moved to its own row) */}
-      <div className="p-3 flex items-center justify-between gap-2 border-b border-border">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
-            <User size={14} />
+
+      {expanded && !sent && (
+        <div className="px-3 pb-3 space-y-2.5">
+          {draft.notes && (
+            <div className="text-xs italic text-fg-muted bg-warn-soft/30 ring-1 ring-warn/20 rounded-xl px-3 py-2 flex items-start gap-1.5">
+              <StickyNote size={11} className="shrink-0 mt-0.5 text-warn" />
+              <span>{draft.notes}</span>
+            </div>
+          )}
+
+          {/* The Message — company breakdown + shared-assignees live inside the text. */}
+          <div className="bg-bg-subtle/50 rounded-xl px-3 py-2.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] uppercase tracking-[0.08em] text-fg-subtle">Message</span>
+              {!anyContact && <span className="text-[10px] text-warn inline-flex items-center gap-1"><AlertCircle size={10} /> no contact</span>}
+            </div>
+            {editing ? (
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full min-h-[160px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-lg p-2 focus:outline-none focus:border-accent"
+              />
+            ) : (
+              <>
+                <div
+                  ref={msgRef}
+                  className={cn("text-xs leading-relaxed text-fg-muted", !showFull && "max-h-64 overflow-hidden")}
+                >
+                  {renderRichMessage(message)}
+                </div>
+                {(clamped || showFull) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowFull((v) => !v)}
+                    className="mt-1.5 text-[11px] font-medium text-accent hover:underline"
+                  >
+                    {showFull ? "Show less" : "Show full message"}
+                  </button>
+                )}
+              </>
+            )}
           </div>
-          <div className="min-w-0">
-            <div className="font-medium text-sm truncate">{draft.recipientName}</div>
-            <div className="text-[11px] text-fg-muted flex flex-wrap gap-x-1.5">
-              <span>{draft.tasks.length} task{draft.tasks.length === 1 ? "" : "s"}</span>
-              {u.overdue > 0 && <span className="text-red-600 dark:text-red-400">· {u.overdue} overdue</span>}
-              {u.critical > 0 && <span className="text-red-600 dark:text-red-400">· {u.critical} critical</span>}
-              {u.dueSoon > 0 && u.overdue === 0 && u.critical === 0 && (
-                <span className="text-amber-600 dark:text-amber-400">· {u.dueSoon} due soon</span>
-              )}
+
+          {/* Actions */}
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={onSkip}
+              disabled={pending || !draft.personId}
+              className="inline-flex items-center gap-1.5 px-2 py-1.5 text-[11px] rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-40"
+              title="Hide this person until tomorrow"
+            >
+              <BellOff size={12} /> <span className="hidden sm:inline">Skip today</span>
+            </button>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button type="button" onClick={() => setEditing((e) => !e)} title={editing ? "Done editing" : "Edit message"}
+                className={cn("inline-flex items-center justify-center h-8 w-8 rounded-lg transition-colors", editing ? "bg-accent/15 text-accent" : "text-fg-subtle hover:text-fg hover:bg-bg-muted")}>
+                {editing ? <X size={14} /> : <Pencil size={13} />}
+              </button>
+              <button type="button" onClick={onCopy} title="Copy message"
+                className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors">
+                {copied ? <Check size={14} className="text-success" /> : <Copy size={13} />}
+              </button>
+              <button type="button" onClick={onMarkSentOnly} disabled={pending} title="Mark as done (without copying)"
+                className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50">
+                <Check size={14} />
+              </button>
+              <button type="button" onClick={onCopyAndMark} disabled={pending || !anyContact}
+                title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
+                className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
+                <Send size={13} /> {pending ? "…" : <span>Copy &amp; done</span>}
+              </button>
             </div>
           </div>
         </div>
-        {compact && (
-          <button type="button" onClick={() => setExpanded(false)} className="shrink-0 text-fg-subtle hover:text-fg p-1 rounded-md hover:bg-bg-muted" title="Collapse">
-            <ChevronUp size={14} />
-          </button>
-        )}
-      </div>
-
-      {!sent && draft.notes && (
-        <div className="px-3 py-2 text-xs italic text-fg-muted bg-amber-500/5 border-b border-amber-500/20 flex items-start gap-1.5">
-          <StickyNote size={11} className="shrink-0 mt-0.5 text-amber-500" />
-          <span>{draft.notes}</span>
-        </div>
       )}
-
-      {/* The Message — company breakdown + shared-assignees live inside the text. */}
-      {!sent && (
-        <div className="px-3 pt-2 pb-3 bg-bg-subtle/40">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Message</span>
-            {!anyContact && <span className="text-[10px] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1"><AlertCircle size={10} /> no contact</span>}
-          </div>
-          {editing ? (
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full min-h-[160px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-md p-2 focus:outline-none focus:border-accent"
-            />
-          ) : (
-            <>
-              <div
-                ref={msgRef}
-                className={cn(
-                  "text-xs leading-relaxed text-fg-muted",
-                  !showFull && "max-h-64 overflow-hidden"
-                )}
-              >
-                {renderRichMessage(message)}
-              </div>
-              {(clamped || showFull) && (
-                <button
-                  type="button"
-                  onClick={() => setShowFull((v) => !v)}
-                  className="mt-1.5 text-[11px] font-medium text-accent hover:underline"
-                >
-                  {showFull ? "Show less" : "Show full message"}
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      )}
-
-      <div className="p-2.5 flex items-center justify-between gap-2 bg-bg-elev border-t border-border">
-        {sent ? (
-          <span className="text-xs text-fg-subtle inline-flex items-center gap-1.5">
-            <CurrentChannelIcon size={12} /> {duplicate ? "Was already done today." : `Marked done · ${channelLabel(channel)}.`}
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={onSkip}
-            disabled={pending || !draft.personId}
-            className="inline-flex items-center gap-1.5 px-2 py-1.5 text-[11px] rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-40"
-            title="Hide this person until tomorrow"
-          >
-            <BellOff size={12} /> <span className="hidden sm:inline">Skip today</span>
-          </button>
-        )}
-
-        {!sent && (
-          <div className="flex items-center gap-1 shrink-0">
-            <button type="button" onClick={() => setEditing((e) => !e)} title={editing ? "Done editing" : "Edit message"}
-              className={cn("inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors", editing ? "bg-accent/15 text-accent" : "text-fg-subtle hover:text-fg hover:bg-bg-muted")}>
-              {editing ? <X size={14} /> : <Pencil size={13} />}
-            </button>
-            <button type="button" onClick={onCopy} title="Copy message"
-              className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-bg-muted hover:bg-border-strong text-fg-muted hover:text-fg transition-colors">
-              {copied ? <Check size={14} className="text-success" /> : <Copy size={13} />}
-            </button>
-            <button type="button" onClick={onMarkSentOnly} disabled={pending} title="Mark as done (without copying)"
-              className="inline-flex items-center justify-center h-8 w-8 rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50">
-              <Check size={14} />
-            </button>
-            <button type="button" onClick={onCopyAndMark} disabled={pending || !anyContact}
-              title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
-              <Send size={13} /> {pending ? "…" : <span>Copy &amp; done</span>}
-            </button>
-          </div>
-        )}
-      </div>
-    </Card>
+    </div>
   );
 }
 

@@ -1,11 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
 import { OutboxCard } from "./outbox-card";
 import { Card } from "@/components/ui";
-import { Search, X, Rows3, Rows2 } from "lucide-react";
-
-const DENSITY_KEY = "cos-outbox-density";
+import { Search, X } from "lucide-react";
 
 type Filter = "all" | "critical" | "overdue" | "missing";
 
@@ -18,7 +16,6 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");
   const [company, setCompany] = useState<string>("all");
-  const [density, setDensity] = useState<"compact" | "expanded">("compact");
 
   // Company list with recipient counts (a person counts once per company they touch).
   const companyCounts = useMemo(() => {
@@ -33,20 +30,6 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [items]);
-
-  useEffect(() => {
-    const stored = (typeof window !== "undefined" && localStorage.getItem(DENSITY_KEY)) as
-      | "compact"
-      | "expanded"
-      | null;
-    if (stored === "compact" || stored === "expanded") setDensity(stored);
-  }, []);
-
-  const toggleDensity = () => {
-    const next = density === "compact" ? "expanded" : "compact";
-    setDensity(next);
-    if (typeof window !== "undefined") localStorage.setItem(DENSITY_KEY, next);
-  };
 
   const counts = useMemo(() => {
     const all = items.length;
@@ -96,36 +79,26 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
           ))}
         </select>
 
-        {/* Right-aligned controls group — keeps search + density together at the edge */}
-        <div className="ml-auto flex items-center gap-2 flex-1 sm:flex-none justify-end">
-          <button
-            type="button"
-            onClick={toggleDensity}
-            title={`Density: ${density}`}
-            className="hidden sm:inline-flex items-center justify-center p-1.5 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors shrink-0"
-          >
-            {density === "compact" ? <Rows3 size={13} /> : <Rows2 size={13} />}
-          </button>
-          <div className="relative flex-1 sm:flex-none min-w-[8rem]">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
-            <input
-              type="text"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search…"
-              className="w-full sm:w-44 pl-8 pr-7 py-1 text-xs rounded-xl border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50"
-            />
-            {q && (
-              <button
-                type="button"
-                onClick={() => setQ("")}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg"
-                aria-label="Clear search"
-              >
-                <X size={11} />
-              </button>
-            )}
-          </div>
+        {/* Search — right-aligned */}
+        <div className="relative ml-auto flex-1 sm:flex-none min-w-[8rem]">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search…"
+            className="w-full sm:w-44 pl-8 pr-7 py-1.5 text-xs rounded-full border border-border bg-bg-subtle/60 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-accent/50"
+          />
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg"
+              aria-label="Clear search"
+            >
+              <X size={11} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -138,29 +111,15 @@ export function PendingList({ items, scopeName = null }: { items: PendingItem[];
 
       {visible.length === 0 ? (
         <Card className="p-6 text-center text-sm text-fg-muted">
-          No drafts match these filters.
+          No reminders match these filters.
         </Card>
-      ) : density === "compact" ? (
+      ) : (
         <div className="space-y-2">
           {visible.map((a) => (
             <OutboxCard
               key={a.draft.recipientName}
               draft={a.draft}
               alreadySent={false}
-              sentChannels={new Set(a.sentChannels)}
-              scopeName={scopeName}
-              compact
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {visible.map((a) => (
-            <OutboxCard
-              key={a.draft.recipientName}
-              draft={a.draft}
-              alreadySent={false}
-              sentChannels={new Set(a.sentChannels)}
               scopeName={scopeName}
             />
           ))}

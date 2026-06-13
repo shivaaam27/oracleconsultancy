@@ -77,7 +77,23 @@ Shipped:
 - **Automation-origin drafts labelled** (`drafts-list.tsx`): prepared automation drafts (already flow into `listOutboxDrafts()` as status="Draft") now show a `<Bot>` chip with their category label instead of being indistinguishable. No duplication — they stay in the Drafts list, just tagged.
 - **Client-safe split**: `src/lib/outbox-automation-shared.ts` holds the pure `CATEGORY_LABELS` + `labelForSource` (imported by the client Drafts component); `outbox-automation.ts` re-exports them and adds the server-only snapshot reader.
 
-NOT yet done (next candidates): real WhatsApp send (scaffolded in `lib/whatsapp.ts`), one-tap "Approve & send" on prepared drafts, fix the sent-log "Done today" fake timestamps (shows page-load time not actual send time), `max-h-64` message clipping with no "show more", bulk actions, schedule-a-draft.
+Second pass (DONE + PUSHED, commit 00452bc): **Approve & send** label on automation-origin *email* drafts (`drafts-list.tsx`, only when `canEmail` — WhatsApp prepared drafts keep Open/Mark-done as that channel can't truly send yet); **sent-log timestamp bug fixed** — new `todaysSentRecords()` in `outbox-history.ts` returns today's real `outbox` rows by `sent_at` (drawer "Done today" no longer synthesises page-load time); **message-clip bug fixed** — `outbox-card.tsx` measures overflow (ref + scrollHeight) and shows a "Show full message"/"Show less" toggle instead of the old `max-h-64 overflow-y-auto` silent clip.
+
+NOT yet done (next candidates): real WhatsApp send (scaffolded in `lib/whatsapp.ts` — needs owner's Meta account + approved templates); bulk actions ("send all email drafts", "copy top N"); schedule-a-draft (send later in the 08–18 window); per-person "last chased N days ago" inline so you don't re-nudge; an "Approve & send" that also works for WhatsApp once real send lands.
+
+## Modern redesign (2026-06) — surface-kit adoption
+
+Owner: "old, bulky, big and ugly" → modernise to match the rest of the app. Outbox was one of the last pages on the old `PageHeader` + `rounded-2xl` ad-hoc cards; 12 other pages already use `surface-kit` (Hero/Panel/SectionLabel). Now aligned:
+
+- **Header → `Hero`** (aurora-lit) with a **metric rail** in the body: *to chase · done today · automation on/paused/off* (big tabular numbers, tone-coloured) + the progress bar folded in (killed the standalone strip + duplicate count). Sent-log moved to Hero `actions`.
+- **`Reveal`** entrance motion staggered across Hero → Automation → Drafts → reminders (reduced-motion safe).
+- **`SectionLabel`** for "Drafts" / "Today's reminders" instead of hand-rolled uppercase spans.
+- **One unified card** (`outbox-card.tsx`): removed the compact/expanded **density toggle** entirely (owner chose "one clean card"); a single `rounded-2xl ring-1 ring-border border-l-2` card with a single urgency cue (left accent edge, no more stripe+dot), avatar, tap-to-expand chevron, message in an inner `rounded-xl` panel, one tidy action row. `PendingList` now renders one stacked list (no grid/density branches); `OutboxCard` keeps `compact`/`sentChannels` props for caller-compat but ignores them.
+- **Drafts card** restyled to the same language (`rounded-2xl ring-1 ring-border border-l-2 border-l-accent`).
+- **Automation panel** container → `rounded-3xl ring-1 ring-border`.
+- Tokenised colours: `text-danger`/`text-warn`/`border-l-danger` etc. instead of raw `red-500`/`amber-500`.
+
+All behaviour unchanged (automation hub, honest labels, send/copy, bug fixes intact). Verified desktop + mobile, no console errors. **REMINDER: tell owner about the deferred items in [[outbox-remaining-work]] now that the redesign is done.**
 
 ## Current Product Direction
 
