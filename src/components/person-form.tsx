@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { submitOnEnterKeyDown, EnterHint, FieldError, invalidFieldClass } from "@/components/form-keys";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 import { STAFF_CATEGORIES } from "@/lib/staff-id-shared";
+import { Combobox } from "@/components/combobox";
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 
@@ -27,6 +28,8 @@ type Defaults = Partial<{
   startDate: string | null;
   managerId: number | null;
   secondaryManagerIds: number[];
+  workSite: string | null;
+  residence: string | null;
   notes: string | null;
   personType: string | null;
   relatedPersonId: number | null;
@@ -55,6 +58,8 @@ export function PersonForm({
   companies,
   peopleList,
   departments = [],
+  sites = [],
+  roles = [],
   onComplete,
   onCancel,
   compact = false,
@@ -68,6 +73,10 @@ export function PersonForm({
   peopleList: Array<{ id: number; name: string; active: boolean }>;
   /** Existing department names for the datalist (create-on-the-fly still allowed). */
   departments?: string[];
+  /** Existing site/location names for the work-site & residence datalists. */
+  sites?: string[];
+  /** Managed job-title list for the role suggestions. */
+  roles?: string[];
   onComplete?: (result: Result) => void;
   onCancel?: () => void;
   /** Compact mode = tighter spacing for in-drawer rendering. */
@@ -305,12 +314,7 @@ export function PersonForm({
 
         <div>
           <label className={labelCls}>Role / Job title</label>
-          <input
-            name="role"
-            defaultValue={defaults?.role ?? ""}
-            className={inputCls}
-            placeholder="e.g. Operations Manager"
-          />
+          <Combobox name="role" options={roles} defaultValue={defaults?.role ?? ""} className={inputCls} placeholder="e.g. Operations Manager" />
         </div>
 
         <div>
@@ -325,18 +329,17 @@ export function PersonForm({
 
         <div>
           <label className={labelCls}>Department</label>
-          <input
-            name="department"
-            list="department-options"
-            defaultValue={defaults?.department ?? ""}
-            className={inputCls}
-            placeholder="e.g. Finance"
-          />
-          <datalist id="department-options">
-            {departments.map((d) => (
-              <option key={d} value={d} />
-            ))}
-          </datalist>
+          <Combobox name="department" options={departments} defaultValue={defaults?.department ?? ""} className={inputCls} placeholder="e.g. Finance" />
+        </div>
+
+        <div>
+          <label className={labelCls}>Work site</label>
+          <Combobox name="workSite" options={sites} defaultValue={defaults?.workSite ?? ""} className={inputCls} placeholder="e.g. Matongo" />
+        </div>
+
+        <div>
+          <label className={labelCls}>Residence</label>
+          <Combobox name="residence" options={sites} defaultValue={defaults?.residence ?? ""} className={inputCls} placeholder="e.g. Expat House A" />
         </div>
 
         <div>

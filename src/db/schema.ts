@@ -37,6 +37,25 @@ export const departments = pgTable("departments", {
   name: text("name").notNull().unique(),
 });
 
+// Shared list of physical locations where staff live or work/are posted — e.g.
+// "Matongo", "NLM", "Police Post", "Expat House A". NOT company branches; a
+// place can host people from any company. Reused for people.work_site_id and
+// people.residence_site_id (seeded from existing site_tools/asset locations).
+export const sites = pgTable("sites", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  active: boolean("active").notNull().default(true),
+});
+
+// Managed list of job titles / roles — powers the role field's suggestions and
+// lets duplicates be cleaned up. people.role stays free text (NOT a FK); a
+// rename/merge here re-points people whose role text matches exactly.
+export const jobTitles = pgTable("job_titles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  active: boolean("active").notNull().default(true),
+});
+
 // Per-company department head: the same department name can have a different
 // head in each company (e.g. Dar Spices Operations head ≠ PES Operations head).
 export const departmentHeads = pgTable("department_heads", {
@@ -97,6 +116,9 @@ export const people = pgTable("people", {
   // Explicit staff-ID category override: "director"|"manager"|"admin_hr"|
   // "employee". Null = derive the letter from the role text. See lib/staff-id.ts.
   staffCategory: text("staff_category"),
+  // Where the person works/is posted, and where they live — shared `sites` list.
+  workSiteId: integer("work_site_id").references((): AnyPgColumn => sites.id),
+  residenceSiteId: integer("residence_site_id").references((): AnyPgColumn => sites.id),
 });
 
 // Additional company associations beyond a person's primary companyId, each with a

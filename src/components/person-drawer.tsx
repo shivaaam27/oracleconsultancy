@@ -78,6 +78,10 @@ type DrawerPerson = {
   staffCategory: string | null;
   wageAmount: number | null;
   wageBasis: string | null;
+  workSiteId: number | null;
+  workSiteName: string | null;
+  residenceSiteId: number | null;
+  residenceName: string | null;
 };
 
 type DrawerData = {
@@ -114,6 +118,8 @@ type DrawerData = {
   companies: Array<{ id: number; name: string }>;
   peopleList: Array<{ id: number; name: string; active: boolean }>;
   departments: string[];
+  sites: string[];
+  roles: string[];
   events: PersonEvent[];
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
   portal: { enabled: boolean; role: string; lastLoginAt: string | null };
@@ -625,11 +631,14 @@ export function PersonDrawer() {
             wageAmount: person.wageAmount, wageBasis: person.wageBasis,
             managerId: person.managerId, secondaryManagerIds: person.secondaryManagers.map((m) => m.id),
             notes: person.notes, personType: person.personType, relatedPersonId: person.relatedPersonId,
+            workSite: person.workSiteName, residence: person.residenceName,
             associations: person.associations,
           }}
           companies={data.companies}
           peopleList={data.peopleList}
           departments={data.departments}
+          sites={data.sites}
+          roles={data.roles}
           onCancel={() => setMode("view")}
           onComplete={(res) => { if (res.ok) { toast("Person updated.", { tone: "success" }); setMode("view"); refresh(); } }}
         />
@@ -666,6 +675,8 @@ export function PersonDrawer() {
           ];
           const employment = [
             { label: "Department", value: person.departmentName },
+            { label: "Work site", value: person.workSiteName },
+            { label: "Residence", value: person.residenceName },
             { label: "Started", value: person.startDate ? fmtDate(new Date(person.startDate)) : null },
             { label: "Probation ends", value: person.probationEndDate ? fmtDate(new Date(person.probationEndDate)) : null },
             { label: "Type", value: personTypeLabel(person.personType) },

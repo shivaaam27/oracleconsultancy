@@ -12,10 +12,14 @@ export function NewPersonButton({
   companies,
   peopleList,
   departments = [],
+  sites = [],
+  roles = [],
 }: {
   companies: Array<{ id: number; name: string }>;
   peopleList: Array<{ id: number; name: string; active: boolean }>;
   departments?: string[];
+  sites?: string[];
+  roles?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -60,6 +64,8 @@ export function NewPersonButton({
               companies={companies}
               peopleList={peopleList}
               departments={departments}
+              sites={sites}
+              roles={roles}
               onCancel={() => setOpen(false)}
               onComplete={(res) => {
                 if (res.ok && res.id) {

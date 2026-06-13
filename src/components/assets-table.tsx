@@ -6,6 +6,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users, Upload, Clock, Ban, ArchiveRestore, Printer, MoreHorizontal, UserPlus, UserCog } from "lucide-react";
 import { Badge, Button } from "./ui";
 import { IconAction, MenuItem } from "./register-ui";
+import { Combobox } from "./combobox";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -717,10 +718,7 @@ function AssetDialog({
               </div>
               <div>
                 <label className={label}>Category</label>
-                <input name="category" list="asset-categories" defaultValue={editing?.category ?? ""} placeholder="Type or pick…" className={input} />
-                <datalist id="asset-categories">
-                  {ASSET_CATEGORIES.map((c) => <option key={c} value={c} />)}
-                </datalist>
+                <Combobox name="category" options={[...ASSET_CATEGORIES]} defaultValue={editing?.category ?? ""} placeholder="Type or pick…" className={input} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

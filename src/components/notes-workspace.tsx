@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { createNote, updateNote, deleteNote, setNotePinned, type Note } from "@/app/notes/actions";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
+import { Combobox } from "./combobox";
 import { Markdown } from "./markdown";
 import { triggerHaptic } from "@/lib/use-long-press";
 
@@ -228,14 +229,17 @@ export function NotesWorkspace({ initialNotes, companies, openId }: { initialNot
                 onSelect={(v) => { const companyId = v ? Number(v) : null; patchLocal(selected.id, { companyId }); scheduleSave(selected.id, { companyId }); }}
                 options={[{ value: "", label: "No company" }, ...companies.map((c) => ({ value: String(c.id), label: c.name }))]}
               />
-              <input
-                value={selected.folder ?? ""}
-                onChange={(e) => { patchLocal(selected.id, { folder: e.target.value }); scheduleSave(selected.id, { folder: e.target.value }); }}
-                placeholder="Folder"
-                list="note-folders"
-                className="w-24 rounded-lg px-2 py-1.5 text-xs text-fg-muted focus:outline-none"
-              />
-              <datalist id="note-folders">{folders.map((f) => <option key={f} value={f} />)}</datalist>
+              <div className="w-32">
+                <Combobox
+                  key={selected.id}
+                  defaultValue={selected.folder ?? ""}
+                  options={folders}
+                  placeholder="Folder"
+                  className="w-full rounded-lg px-2 py-1.5 text-xs text-fg-muted focus:outline-none"
+                  onInput={(v) => { patchLocal(selected.id, { folder: v }); scheduleSave(selected.id, { folder: v }); }}
+                  onCommit={(v) => { patchLocal(selected.id, { folder: v }); scheduleSave(selected.id, { folder: v }); }}
+                />
+              </div>
 
               <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-fg-subtle">
                 {save === "saving" && <><Loader2 size={11} className="animate-spin" /> Saving…</>}

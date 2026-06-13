@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Search, MessageCircle, Filter, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, Check, CheckSquare, X, Pencil } from "lucide-react";
 import { PersonCard } from "./person-card";
+import { Combobox } from "./combobox";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
 import { Button } from "./ui";
@@ -49,6 +50,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
   const [filter, setFilter] = useState<FilterKind>("all");
   const [companyFilter, setCompanyFilter] = useState<number | "all">("all");
   const [typeFilter, setTypeFilter] = useState<"all" | PersonType>("all");
+  const [siteFilter, setSiteFilter] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("workload");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showInactive, setShowInactive] = useState(false);
@@ -197,6 +199,11 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       rows = rows.filter((p) => p.personType === typeFilter);
     }
 
+    // Site/location filter — matches their work site OR residence ("who's at X").
+    if (siteFilter !== "all") {
+      rows = rows.filter((p) => p.workSiteName === siteFilter || p.residenceName === siteFilter);
+    }
+
     // Filter chip
     if (filter === "noContact") rows = rows.filter((p) => !p.hasContact);
     if (filter === "snoozed") rows = rows.filter((p) => p.snoozedUntil && p.snoozedUntil > now);
@@ -214,7 +221,14 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
     });
 
     return rows;
-  }, [people, search, filter, companyFilter, typeFilter, sortKey, sortDir, showInactive]);
+  }, [people, search, filter, companyFilter, typeFilter, siteFilter, sortKey, sortDir, showInactive]);
+
+  // Distinct site/location names present in the directory (work site + residence).
+  const siteOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of people) { if (p.workSiteName) s.add(p.workSiteName); if (p.residenceName) s.add(p.residenceName); }
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [people]);
 
   // How many active people report (primary line) to each person — for the card.
   const reportsCountById = useMemo(() => {
@@ -274,6 +288,13 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
             ...PERSON_TYPES.map((t) => ({ value: t, label: PERSON_TYPE_LABELS[t] })),
           ]}
         />
+        {siteOptions.length > 0 && (
+          <FluidSelect
+            value={siteFilter}
+            onSelect={(v) => setSiteFilter(v)}
+            options={[{ value: "all", label: "All Locations" }, ...siteOptions.map((s) => ({ value: s, label: s }))]}
+          />
+        )}
       </div>
 
       {/* Filter chips */}
@@ -406,10 +427,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
                       <option value="none">— Clear extra —</option>
                       {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    <input list="bulk-dept-list" placeholder="Set department…" onKeyDown={(e) => { if (e.key === "Enter") { const v = (e.target as HTMLInputElement).value.trim(); applyBulkField("department", v || null); (e.target as HTMLInputElement).value = ""; } }} className={selCls} />
-                    <datalist id="bulk-dept-list">
-                      {[...new Set(people.map((p) => p.departmentName).filter(Boolean))].map((d) => <option key={d as string} value={d as string} />)}
-                    </datalist>
+                    <Combobox options={[...new Set(people.map((p) => p.departmentName).filter(Boolean) as string[])].sort()} placeholder="Set department…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (t) applyBulkField("department", t); }} />
                   </>
                 );
               })()}

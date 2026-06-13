@@ -4,6 +4,8 @@ import { isOpen } from "./derive";
 import { deriveDocStatus, expiryLabel, type DocStatus } from "./documents-shared";
 import { normalizePersonType, type PersonType } from "./person-types";
 import { getStaffIdMap } from "./staff-id";
+import { siteNameMap, listSiteNames } from "./sites";
+import { listRoleNames } from "./roles";
 import { listPersonEvents, type PersonEvent } from "./person-audit";
 import { personLeaveBalances, listLeaveRequests, personAttendanceThisMonth, type PersonAttendanceSummary } from "./leave";
 import type { PersonLeaveBalance, LeaveRequestRow } from "./leave-shared";
@@ -59,6 +61,11 @@ export type Person = {
   /** Compensation (TZS). wageBasis: "monthly" | "daily" | "hourly". */
   wageAmount: number | null;
   wageBasis: string | null;
+  /** Where the person works/is posted, and where they live (shared sites list). */
+  workSiteId: number | null;
+  workSiteName: string | null;
+  residenceSiteId: number | null;
+  residenceName: string | null;
 };
 
 export type PersonWorkload = {
@@ -132,7 +139,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,wage_amount,wage_basis"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,wage_amount,wage_basis,work_site_id,residence_site_id"
       ),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("person_id,company_id,relationship"),
@@ -140,6 +147,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
   ]);
 
   const { data: rawReporting } = await sb.from("reporting_lines").select("person_id,manager_id");
+  const sMap = await siteNameMap();
   const { data: rawDepartments } = await sb.from("departments").select("id,name");
   const dMap = new Map((rawDepartments ?? []).map((d) => [d.id as number, d.name as string]));
   const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
@@ -205,6 +213,10 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     staffCategory: (p.staff_category as string | null) ?? null,
     wageAmount: (p.wage_amount as number | null) ?? null,
     wageBasis: (p.wage_basis as string | null) ?? null,
+    workSiteId: (p.work_site_id as number | null) ?? null,
+    workSiteName: p.work_site_id ? sMap.get(p.work_site_id as number) ?? null : null,
+    residenceSiteId: (p.residence_site_id as number | null) ?? null,
+    residenceName: p.residence_site_id ? sMap.get(p.residence_site_id as number) ?? null : null,
   }));
 
   return people.map((p) => ({
@@ -234,6 +246,10 @@ export type PersonDetail = {
   peopleList: Array<{ id: number; name: string; active: boolean }>;
   /** Existing department names, for the edit form's department datalist. */
   departments: string[];
+  /** Existing site/location names, for the work-site & residence datalists. */
+  sites: string[];
+  /** Managed job-title names, for the role suggestions. */
+  roles: string[];
   /** Audit trail of profile changes, newest first. */
   events: PersonEvent[];
   /** Leave entitlement/usage per type + this person's requests (newest first). */
@@ -249,7 +265,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,wage_amount,wage_basis"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,wage_amount,wage_basis,work_site_id,residence_site_id"
       )
       .eq("id", id)
       .maybeSingle(),
@@ -331,7 +347,16 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     staffCategory: (rawPerson.staff_category as string | null) ?? null,
     wageAmount: (rawPerson.wage_amount as number | null) ?? null,
     wageBasis: (rawPerson.wage_basis as string | null) ?? null,
+    workSiteId: (rawPerson.work_site_id as number | null) ?? null,
+    workSiteName: null,
+    residenceSiteId: (rawPerson.residence_site_id as number | null) ?? null,
+    residenceName: null,
   };
+  if (person.workSiteId || person.residenceSiteId) {
+    const sMap = await siteNameMap();
+    person.workSiteName = person.workSiteId ? sMap.get(person.workSiteId) ?? null : null;
+    person.residenceName = person.residenceSiteId ? sMap.get(person.residenceSiteId) ?? null : null;
+  }
 
   const assignedTasks = tasks.filter((t) => isInvolved(person, t));
   const workload = computeWorkload(person, tasks);
@@ -431,6 +456,8 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
 
   return {
     person, workload, assignedTasks, documents, recentUpdates, companies, peopleList, departments, events,
+    sites: await listSiteNames(),
+    roles: await listRoleNames(),
     leave: { balances: leaveBalances, requests: leaveRequests, attendance },
     portal, directReports,
   };

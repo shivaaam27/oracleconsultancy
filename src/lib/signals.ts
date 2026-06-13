@@ -272,7 +272,7 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
         ? `Next: ${nextDeadline.label}${nextDeadline.dueDate ? ` — ${nextDeadline.dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}.`
         : "Tax and statutory filings inside their warning window.",
       href: "/hrms/command-centre",
-      actionLabel: "Open Command Centre",
+      actionLabel: "Open Tax & Legal",
       tone: overdueDeadlines.length ? "danger" : dueNowDeadlines.length ? "warn" : "accent",
       count: upcomingDeadlines.length,
     },

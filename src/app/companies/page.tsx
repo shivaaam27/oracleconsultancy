@@ -5,6 +5,8 @@ import { CompanyDrawerLink } from "@/components/company-drawer-link";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { getDepartmentsAdmin } from "@/lib/departments";
+import { getSitesAdmin } from "@/lib/sites";
+import { getRolesAdmin } from "@/lib/roles";
 import { CompaniesHubTabs } from "@/components/companies-hub-tabs";
 import { AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
 
@@ -22,7 +24,7 @@ export default async function CompaniesPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [rows, logoMap, departments] = await Promise.all([getAllTasks(), getCompanyLogoMap(), getDepartmentsAdmin()]);
+  const [rows, logoMap, departments, sites, roles] = await Promise.all([getAllTasks(), getCompanyLogoMap(), getDepartmentsAdmin(), getSitesAdmin(), getRolesAdmin()]);
   const companies = computeCompanyKpis(rows);
   const totals = companies.reduce(
     (a, c) => ({ open: a.open + c.open, overdue: a.overdue + c.overdue, completed: a.completed + c.completed }),
@@ -48,6 +50,8 @@ export default async function CompaniesPage({
 
       <CompaniesHubTabs
         departments={departments}
+        sites={sites}
+        roles={roles}
         companiesSlot={
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {companies.map((c) => {

@@ -421,6 +421,20 @@
       "when": 1781287152115,
       "tag": "0059_tearful_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1781360974807,
+      "tag": "0060_smiling_ares",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1781362735030,
+      "tag": "0061_safe_storm",
+      "breakpoints": true
     }
   ]
 }

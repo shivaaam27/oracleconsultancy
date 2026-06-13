@@ -14,11 +14,13 @@ export default async function PeoplePage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [people, personScores, { data: companiesRaw }, { data: departmentsRaw }] = await Promise.all([
+  const [people, personScores, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }] = await Promise.all([
     getAllPeopleWithWorkload(),
     buildPersonRequirementScores(),
     sb.from("companies").select("id,name").order("name"),
     sb.from("departments").select("name").order("name"),
+    sb.from("sites").select("name").eq("active", true).order("name"),
+    sb.from("job_titles").select("name").eq("active", true).order("name"),
   ]);
 
   const companies = (companiesRaw ?? []).map((c) => ({
@@ -26,6 +28,8 @@ export default async function PeoplePage({
     name: c.name as string,
   }));
   const departments = (departmentsRaw ?? []).map((d) => d.name as string);
+  const sites = (sitesRaw ?? []).map((s) => s.name as string);
+  const roles = (rolesRaw ?? []).map((r) => r.name as string);
 
   // Directory hints (2f): who's on leave today + this-month attendance. Attendance
   // is empty until the register is used, so its chip simply lights up when there's data.
@@ -68,7 +72,7 @@ export default async function PeoplePage({
       <PageHeader
         title="People Directory"
         sub={`${activeCount} active · ${overdueLoad} carrying overdue work · ${complianceIssues} compliance issue${complianceIssues === 1 ? "" : "s"}`}
-        action={<NewPersonButton companies={companies} peopleList={peopleList} departments={departments} />}
+        action={<NewPersonButton companies={companies} peopleList={peopleList} departments={departments} sites={sites} roles={roles} />}
       />
       <PeopleTable people={people} companies={companies} complianceById={complianceById} directoryHints={directoryHints} />
     </div>

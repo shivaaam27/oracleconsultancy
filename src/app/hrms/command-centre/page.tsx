@@ -112,7 +112,7 @@ export default async function CommandCentrePage({
     <div className="space-y-4 max-w-4xl">
       <HrmsCrumbs from={from} />
       <Hero
-        title="Command Centre"
+        title="Tax & Legal"
         subtitle={`${overdue} overdue · ${dueNow} due now · ${soon} coming up`}
         accentTone={heroTone}
       >

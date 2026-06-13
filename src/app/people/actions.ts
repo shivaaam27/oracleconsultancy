@@ -11,6 +11,7 @@ import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPerson } from "@/lib/assets";
 import { getGroqKey } from "@/lib/settings";
 import { staffIdFor } from "@/lib/staff-id";
+import { resolveSiteId } from "@/lib/sites";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -141,7 +142,7 @@ function invalidate() {
 /* ----------------------------------------------------------------------
  * Audit-trail field diffing for updatePerson.
  * ---------------------------------------------------------------------- */
-type TrackKind = "text" | "date" | "company" | "person" | "department" | "type";
+type TrackKind = "text" | "date" | "company" | "person" | "department" | "type" | "site";
 const TRACKED_FIELDS: Array<{ col: string; label: string; kind: TrackKind }> = [
   { col: "name", label: "Name", kind: "text" },
   { col: "email", label: "Email", kind: "text" },
@@ -166,6 +167,8 @@ const TRACKED_FIELDS: Array<{ col: string; label: string; kind: TrackKind }> = [
   { col: "related_person_id", label: "Related person", kind: "person" },
   { col: "wage_amount", label: "Wage", kind: "text" },
   { col: "wage_basis", label: "Wage basis", kind: "text" },
+  { col: "work_site_id", label: "Work site", kind: "site" },
+  { col: "residence_site_id", label: "Residence", kind: "site" },
 ];
 
 /** Compare before/after column values and return human-readable field changes. */
@@ -176,20 +179,24 @@ async function diffPersonChanges(
   const companyIds = new Set<number>();
   const personIds = new Set<number>();
   const deptIds = new Set<number>();
+  const siteIds = new Set<number>();
   for (const f of TRACKED_FIELDS) {
     const add = (set: Set<number>) => [before[f.col], after[f.col]].forEach((v) => typeof v === "number" && set.add(v));
     if (f.kind === "company") add(companyIds);
     else if (f.kind === "person") add(personIds);
     else if (f.kind === "department") add(deptIds);
+    else if (f.kind === "site") add(siteIds);
   }
-  const [c, p, d] = await Promise.all([
+  const [c, p, d, s] = await Promise.all([
     companyIds.size ? sb.from("companies").select("id,name").in("id", [...companyIds]) : Promise.resolve({ data: [] }),
     personIds.size ? sb.from("people").select("id,name").in("id", [...personIds]) : Promise.resolve({ data: [] }),
     deptIds.size ? sb.from("departments").select("id,name").in("id", [...deptIds]) : Promise.resolve({ data: [] }),
+    siteIds.size ? sb.from("sites").select("id,name").in("id", [...siteIds]) : Promise.resolve({ data: [] }),
   ]);
   const cMap = new Map((c.data ?? []).map((r) => [r.id as number, r.name as string]));
   const pMap = new Map((p.data ?? []).map((r) => [r.id as number, r.name as string]));
   const dMap = new Map((d.data ?? []).map((r) => [r.id as number, r.name as string]));
+  const sMap = new Map((s.data ?? []).map((r) => [r.id as number, r.name as string]));
 
   const fmt = (kind: TrackKind, v: unknown): string | null => {
     if (v == null || v === "") return null;
@@ -197,6 +204,7 @@ async function diffPersonChanges(
     if (kind === "company") return cMap.get(v as number) ?? `#${v}`;
     if (kind === "person") return pMap.get(v as number) ?? `#${v}`;
     if (kind === "department") return dMap.get(v as number) ?? `#${v}`;
+    if (kind === "site") return sMap.get(v as number) ?? `#${v}`;
     if (kind === "type") return personTypeLabel(normalizePersonType(String(v)));
     const s = String(v);
     return s.length > 200 ? `${s.slice(0, 200)}…` : s;
@@ -423,6 +431,8 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
       contact_status: contactStatus(email, phone, whatsapp),
       person_type: personType(formData),
       related_person_id: n(formData, "relatedPersonId"),
+      work_site_id: await resolveSiteId(s(formData, "workSite")),
+      residence_site_id: await resolveSiteId(s(formData, "residence")),
     })
     .select("id")
     .single();
@@ -475,7 +485,7 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   const { data: before } = await sb
     .from("people")
     .select(
-      "company_id,previous_staff_ids,name,email,phone,whatsapp,role,staff_category,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,manager_id,notes,person_type,related_person_id,wage_amount,wage_basis"
+      "company_id,previous_staff_ids,name,email,phone,whatsapp,role,staff_category,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,manager_id,notes,person_type,related_person_id,wage_amount,wage_basis,work_site_id,residence_site_id"
     )
     .eq("id", id)
     .maybeSingle();
@@ -514,6 +524,8 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
     contact_status: contactStatus(email, phone, whatsapp),
     person_type: personType(formData),
     related_person_id: safeRelatedId,
+    work_site_id: await resolveSiteId(s(formData, "workSite")),
+    residence_site_id: await resolveSiteId(s(formData, "residence")),
   };
 
   const { error } = await sb.from("people").update(payload).eq("id", id);

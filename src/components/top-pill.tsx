@@ -58,7 +58,7 @@ function NavTab({
 /* --------------------------------------------------------------------- */
 
 const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/hrms/command-centre", label: "Command Centre", icon: CalendarClock },
+  { href: "/hrms/command-centre", label: "Tax & Legal", icon: CalendarClock },
   { href: "/hrms/org", label: "Organogram", icon: Network },
   { href: "/hrms/oecr", label: "OECR", icon: Package },
   { href: "/hrms/assets", label: "Assets & Vendors", icon: Laptop },
