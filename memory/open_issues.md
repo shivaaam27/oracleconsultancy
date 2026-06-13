@@ -20,7 +20,22 @@ metadata:
 - **Daily snapshots need production verification.** `daily_snapshots` and `/api/cron/snapshots` exist, but scheduling/production execution should be confirmed. (Same applies to the new `/api/cron/notify` job.)
 - **Push notifications need prod env vars.** Code is complete, but production won't send alerts until `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and `CRON_SECRET` are added to Vercel. Keys are generated locally in `.env.local` (gitignored). Push also requires HTTPS (Vercel) — won't fully work in local dev. iOS requires the app be added to the Home Screen first.
 - ~~Corrections table has no UI~~ → **Done (June 2026):** "Record correction" lives in the task-timeline entry menu; the original entry gets a "Corrected" badge and a linked CORRECTION audit entry carries the note.
-- **No auth.** This is single-operator. Add auth before exposing more broadly.
+- ~~No auth~~ → **Done:** owner password gate (`/login`, `cos_admin`) + per-person staff portal (`cos_portal`) + optional owner identity 2nd factor + passkeys. See `memory/portal.md` / `memory/auth_login.md`.
+
+## June 2026 build — resolved + new follow-ups
+
+**Resolved this round** (don't re-flag as gaps):
+- Attendance is now writable (admin register + staff self-check-in). Departments/Sites/Roles have a management UI (Companies hub tabs). Organogram portfolio = ELK multi-parent flowchart. Reporting surfaced across People. Native `<datalist>` dropdowns replaced by `combobox.tsx`. Settings page redesigned (compact cards + section nav). Login redesigned (tabs + passkeys).
+- **My first audit over-claimed these as broken — they WORK, don't "fix":** task @mention notifications, meeting decisions/risks extraction + minutes display, recurring obligations (live in Tax & Legal).
+
+**New follow-ups / known gaps:**
+- **Passkeys not live-tested** — no biometric hardware in the dev preview; verify the real Face ID/fingerprint ceremony on the live HTTPS site (and add a passkey before the login button can find one). iOS needs the site on the Home Screen.
+- **Letters: only 2 templates** (Invitation + Blank). Offer/Employment/Warning/Termination still to add (`lib/letters.ts`).
+- **No full-text task search** (search is code/title/company only).
+- **Vendor compliance deferred** (vendors are a read-only list; no requirement profiles/scores).
+- **`tasks.escalation_level`** is written but never read (dead column — drop or wire).
+- **site_tools still uses free-text `location`** (not yet pointed at the shared `sites` table); person-card doesn't show location; no "magic link" email login (discussed, not built).
+- **Attendance:** no clock in/out times (status-per-day by design); manager-confirm flow not built (self-marking is trusted).
 
 ## Meeting Workspace Follow-ups
 

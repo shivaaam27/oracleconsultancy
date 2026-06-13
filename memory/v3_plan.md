@@ -8,6 +8,8 @@ metadata:
 
 # COS System - V3 Plan
 
+> **Status (June 2026):** much of V3 is shipped. For what's actually built in the latest sprint (organogram flowchart, people reporting, departments/sites/roles admin, attendance, login redesign, passkeys, settings redesign) see **`memory/v3_build_log_jun2026.md`** (the audit index). This file remains the original direction/spec.
+
 V3 starts from the shipped V2 system and moves COS from a dashboard into a
 daily operating desk. The product direction is:
 

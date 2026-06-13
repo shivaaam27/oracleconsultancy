@@ -14,7 +14,7 @@ Chief-of-Staff command centre for Oracle Consultancy's 7 portfolio companies (th
 - CO06 MES Ltd
 - CO07 Pamoja Plus
 
-Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/middleware.ts`, cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). See `memory/portal.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; Meeting Workspace task creation uses `"meeting-mode"`; staff-portal posts use `"portal:<Name>"`.
+Single operator. **Auth (V3)**: the whole admin side sits behind one owner password (`/login`, edge gate in `src/middleware.ts`, cookie `cos_admin`); staff get per-person portal logins at `/portal/login` (cookie `cos_portal`). **`/login` is now one tabbed screen** (June 2026): **Staff Login** (default, identifier+password) | **Command Centre** (owner). Optional **owner identity** (name/email in Settings) becomes a required 2nd factor on the Command Centre tab when set (blank = password-only, no lockout). **Passkeys (Face ID/Touch ID/Windows Hello/fingerprint)** via WebAuthn for owner AND staff — register in Settings (owner) / portal profile (staff); the login screen offers passkey + conditional-UI autofill. See `memory/auth_login.md`. `createdBy` is normally `"web-ui"`; AI command mutations use `"ai-command"`; Meeting Workspace task creation uses `"meeting-mode"`; staff-portal posts use `"portal:<Name>"`.
 
 The system replaces an Excel workbook with:
 
@@ -50,8 +50,10 @@ The system replaces an Excel workbook with:
 Core:
 
 - companies (now also letterhead/branding cols: `legal_name`/`address`/`phone`/`email`/`registration_no`/`tin`/`logo_path`/`signatory_name`/`signatory_title`/`letterhead_mode`/`header_image_path`/`footer_image_path`/`background_image_path`/`content_top_mm`/`content_bottom_mm`), departments, person_companies
-- people (now also HR profile cols: `department_id`/`start_date`/`date_of_birth`/`nationality`/`national_id`/`passport_no`/`address`/`emergency_contact_name`/`emergency_contact_phone`/`probation_end_date`; portal auth cols; `previous_staff_ids`). **Staff IDs** (`<prefix>-<roleLetter><NN>`, e.g. `CZ-E04`/`OC-AH01`/`OC-D02`) are computed live in `src/lib/staff-id.ts` — not stored. See `memory/task_management_2.md`.
+- **Reference data** (June 2026, managed on the **Companies hub** tabs): `sites` (shared locations — where staff live/work, NOT company branches; seeded from site_tools/asset locations), `job_titles` (managed role list; `people.role` stays free text, rename/merge re-points it), `departments`, `department_heads` (per-company head of a department), `reporting_lines` (secondary/"also reports to" managers; primary stays `people.manager_id`).
+- people (now also HR profile cols: `department_id`/`start_date`/`date_of_birth`/`nationality`/`national_id`/`passport_no`/`address`/`emergency_contact_name`/`emergency_contact_phone`/`probation_end_date`; `wage_amount`/`wage_basis`; **`work_site_id`/`residence_site_id`** → `sites`; portal auth cols inc. `portal_role`; `previous_staff_ids`; `staff_category`). **Staff IDs** (`<prefix>-<roleLetter><NN>`, e.g. `CZ-E04`/`OC-AH01`/`OC-D02`) are computed live in `src/lib/staff-id.ts` — not stored. See `memory/task_management_2.md`.
 - tasks, task_assignees, task_updates
+- **webauthn_credentials** — passkeys (Face ID/fingerprint sign-in); `person_id` null = owner, else staff; stores only the PUBLIC key. See `memory/auth_login.md`.
 
 Meetings: meetings, meeting_tasks
 
@@ -72,7 +74,7 @@ HRMS — Assets & Vendors:
 
 HRMS — Leave & Attendance (grounded in Tanzania ELR Act 2004):
 
-- leave_types (`default_days`/`cycle_months`/`half_pay_days` — e.g. Sick 126/36mo = 63 full+63 half), public_holidays, leave_requests, attendance
+- leave_types (`default_days`/`cycle_months`/`half_pay_days` — e.g. Sick 126/36mo = 63 full+63 half), public_holidays, leave_requests, **attendance** (one row per person/day; status Present/Absent/On leave/Holiday/Remote/Half-day/Sick — **now writable**: admin register grid + staff portal self-check-in, June 2026; see `memory/hrms.md`)
 
 Documents & intake:
 
@@ -103,26 +105,34 @@ See `memory/database_schema.md`.
 - `/meeting` - Meeting Workspace
 - `/workbook` - Meetings / Notes / To-do (see `memory/todos.md`)
 - `/brief` - **Director Brief** (V2): glanceable portfolio report incl. completed/closed this month; WhatsApp/Email/Copy share + print-to-PDF (detailed per-company tables, print-only). See `memory/outbox_and_reminders.md`.
-- `/hrms` - redirects to `/hrms/command-centre` (old hub page removed; the launcher covers all destinations). See `memory/hrms.md`.
+- `/hrms` - redirects to `/hrms/command-centre`. **`/hrms/command-centre` is labelled "Tax & Legal"** in the UI (launcher + page header; route path unchanged) — recurring tax/statutory/legal obligations. See `memory/hrms.md`.
+- `/hrms/org` - **Organogram**. The **Portfolio view is an ELK layered flowchart** (`lib/org-flow.ts` + `components/org-flow.tsx`, `elkjs`): multi-parent, role/seniority tiers, primary boss = solid line, extra bosses = dashed, company as colour, shared-service roles in-flow. Per-company trees + By-department + "Everyone" web view remain. See `memory/organogram.md`.
 - `/hrms/oecr` - OECR (Office Equipment Control Registry) — consumable stock control
 - `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle
-- `/hrms/leave` - **Leave & Attendance** — leave types/requests/approvals (ELR Act-accurate), balances, public-holiday calendar (attendance register tab pending). See `memory/hrms.md`.
+- `/hrms/leave` - **Leave & Attendance** — segmented **Leave | Attendance** tabs. Leave: types/requests/approvals (ELR Act-accurate), balances, holidays. **Attendance register (built June 2026)**: month grid, brush-to-paint status, company filter, "mark all Present today"; On-leave/Holiday auto-filled. See `memory/hrms.md`.
 - `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
-- `/companies`, `/companies/[id]`
-- `/people` - person record now has HR profile fields + a glanceable drawer (hero tiles + accordion sections: Document compliance, Onboarding/Offboarding, Equipment held, Profile details, Documents, Tasks, Activity, Manage)
+- `/companies` - **Companies hub = reference-data centre**: tabs **Companies · Departments · Sites · Roles** (`companies-hub-tabs.tsx`); each ref list has add/rename/**merge**/delete. `/companies/[id]` = company detail (Overview/Profile/Tasks/Timeline/Org).
+- `/people` - person record now has HR profile fields inc. **Work site + Residence** (shared `sites` list, combobox), a glanceable drawer (hero tiles + accordion sections), manager + N-direct-reports on cards, a **Direct reports** list + an **All Locations** directory filter. Bulk "also reports to" in the select bar.
 - `/documents` - Documents & Compliance (+ "Add several" bulk multi-file upload via the full doc form; recency-aware duplicate detection)
 - `/letters`, `/letters/[id]` (editor), `/letters/[id]/print` - **system-wide PDF letters** (Draft→Issue, per-company branded; first type = Invitation). See `memory/letters.md`.
 - `/letterheads` - redirects to `/letters?view=letterheads` — letterhead setup (typed / designed header+footer images / full-page background) is now a tab on `/letters`; server actions remain in `src/app/letterheads/actions.ts`
-- `/portal`, `/portal/login`, `/portal/task/[code]` - **Staff portal**: per-person sign-in (password set in Settings → Staff portal access; scrypt hash on `people.portal_password_hash`, signed cookie session), staff see only their own tasks, post updates (`created_by: "portal:<Name>"`), limited status moves (never Completed/Closed). Admin chrome hidden on portal routes. See `memory/portal.md`.
+- `/portal`, `/portal/login`, `/portal/task/[code]`, `/portal/profile` - **Staff portal**: per-person sign-in (password set in Settings → Staff portal access; scrypt hash on `people.portal_password_hash`, signed cookie session), staff see only their own tasks, post updates (`created_by: "portal:<Name>"`), limited status moves (never Completed/Closed). Profile carries: Your documents, **Your attendance** (self check-in + week strip), Your leave, onboarding, equipment, **passkeys** ("Sign in faster"). A minimal **attendance check-in pop-up** auto-opens once/day on landing. Managers get **Team attendance today** + Leave-to-approve on portal home. Admin chrome hidden on portal routes. See `memory/portal.md`.
 - `/chat`, `/chat/[threadId]` - **Chat**: free-standing messaging (DMs + ad-hoc groups), separate from task updates. Portal twin at `/portal/chat`. WhatsApp-style messenger UI: full-screen app on mobile (page header + nav pill hidden on chat routes), two-pane glass card on desktop; optimistic send, read receipts, typing indicator, inline image previews. Supabase Realtime broadcast (anon key set) with polling fallback. Primary tab on both nav pills. See `memory/chat_system.md`.
 - `/outbox`
 - `/inbox` - smart intake: "Add to inbox" (paste + multi-file bundle); unified "Process" → review queue files docs + enrich person profile (blanks-only)
 - `/insights`
 - `/settings`
 
-Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (Command Centre, Organogram, OECR, **Assets & Vendors, Leave & Attendance**, OCR, Companies, People, Documents, **Letters & Letterheads**, Outbox, Inbox, Insights, Settings). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
+Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme. The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing every secondary destination (**Tax & Legal** [=command-centre], Organogram, OECR, **Assets & Vendors, Leave & Attendance**, OCR, Companies, People, Documents, **Letters & Letterheads**, Outbox, Inbox, Insights, Settings). Departments/Sites/Roles are managed on the **Companies hub** (no separate launcher entry). Companies/People/Documents are reached via HRMS (and carry a smart `?from=task:CODE` breadcrumb). `src/components/top-pill.tsx`.
 
-Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, and standalone `/letterheads`. The desktop sidebar and the dedicated Companies nav tab were removed.
+Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, standalone `/letterheads`, and the standalone `/hrms/departments` (departments now a Companies-hub tab). The desktop sidebar and the dedicated Companies nav tab were removed.
+
+## Reusable UI (June 2026)
+
+- **`components/combobox.tsx`** — typeable, app-anchored dropdown that also accepts new values; **replaced all native `<datalist>`** (their popup mis-rendered). Used for person Department/Work site/Residence/Role, bulk Set-department, asset Category, note Folder.
+- **`components/settings-card.tsx` + `settings-nav.tsx`** — Settings redesign: compact icon-tile cards + sticky scroll-spy section nav (desktop sidebar / mobile chips). All Settings forms/fields unchanged.
+- **`components/reference-admin.tsx`** — generic add/rename/merge/delete list manager (Sites, Roles; Departments has its own `departments-admin.tsx`).
+- **`components/passkey-manager.tsx`** — add/list/remove passkeys (owner Settings + staff portal profile).
 
 ## Meeting Workspace
 
@@ -163,7 +173,9 @@ Built on the principle **reuse, don't duplicate** (Documents→compliance, tasks
 - **Document compliance**: per-type requirement profiles → per-person checklist (auto-links saved docs by category, manual verify loop, score to 100%). `src/lib/requirements.ts`.
 - **Onboarding/Offboarding journeys**: a checklist of `todos` tagged `kind`; auto-created for new staff (and offboarding on archive); shown in the person drawer.
 - **Assets & Vendors** (`src/lib/assets.ts`, `src/lib/vendors.ts`): durable assets assigned to person or team+custodian; vendor register with contracts reusing documents.
-- **Leave & Attendance** (`src/lib/leave.ts`): ELR-Act-accurate leave (Mon–Sat working days minus holidays; Annual 28/12mo, Sick 126/36mo = 63 full+63 half, Maternity 84, Paternity 3, Compassionate 4). Director Brief has an HR section.
+- **Leave & Attendance** (`src/lib/leave.ts`, `src/lib/attendance.ts`): ELR-Act-accurate leave (Mon–Sat working days minus holidays; Annual 28/12mo, Sick 126/36mo = 63 full+63 half, Maternity 84, Paternity 3, Compassionate 4). Director Brief has an HR section. **Attendance now fully wired** (June 2026): admin register grid + staff self-check-in (trusted, manager can override; status-per-day, no clock in/out).
+- **People locations** (`src/lib/sites.ts`): a shared `sites` list (work site / residence per person) — places staff live or work, not company branches. Managed on the Companies hub Sites tab.
+- **Organogram** (`src/lib/org-flow.ts`): portfolio = ELK multi-parent layered flowchart; reporting surfaced across People (cards, drawer Direct-reports, bulk also-reports-to).
 - **ELR Act 2004** grounding: see `memory/v3_plan.md` for the calc rules (overtime 1.5×, night +5%, Sunday/holiday ×2, severance 7 days/yr, notice 28 days, wage table s.26). Wage field + pay/final-pay calculators are planned phases (4.4–4.7).
 
 ## Smart Intake (V3)
@@ -191,6 +203,9 @@ The staff portal (`/portal`) is a **first-class surface**, not an afterthought �
   - nav pill `top-pill.tsx` ↔ `portal-pill.tsx`
   - update box `update-box.tsx` + timeline/`timeline-entry.tsx` ↔ `portal-conversation.tsx` (shared by both; check it still serves both views)
   - admin home `_hub/cos-home.tsx` / `home-mission-control.tsx` ↔ portal home `portal/(app)/page.tsx`
+  - attendance admin register `attendance-register.tsx` ↔ portal `portal-attendance.tsx` + `attendance-checkin.tsx` (self check-in)
+  - passkey manager `passkey-manager.tsx` is shared by both (owner Settings ↔ staff portal profile)
+  - login shell `auth-shell.tsx` + forms are shared by `/login` (tabs) and `/portal/login`
 - **Motion is reduced-motion safe both ways**: the portal's manual toggle sets `data-motion="reduced"` on `<html>` (CSS-only), which framer's JS animations ignore — so `Reveal` checks that attribute itself. Any new portal motion must honour it (reuse `Reveal`, don't hand-roll `motion.*`).
 - **When shipping a new admin feature, make the explicit "portal question"**: does it have a safe staff-facing half (like the notification bell), or must it stay admin-only (anything touching other people's data)? Decide per feature.
 

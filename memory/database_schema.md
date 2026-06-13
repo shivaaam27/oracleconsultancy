@@ -8,7 +8,7 @@ metadata:
 
 # Database Schema
 
-Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; latest is `drizzle/0017_yummy_mad_thinker.sql` (HRMS stock tables — see note below). Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns), `0017` (documents + document_links), `0018` (documents.storage_path/file_name).
+Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; **latest is `drizzle/0062_married_goblin_queen.sql`** (webauthn_credentials). Recent: 0055-0057 (compliance events/review dates/supersede), 0058 (person_events), 0059 (people.wage), 0060 (sites + people.work_site_id/residence_site_id), 0061 (job_titles), 0062 (webauthn_credentials). See **"## June 2026 additions"** at the foot of this file for the newest tables/columns. Older note kept below. Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns), `0017` (documents + document_links), `0018` (documents.storage_path/file_name).
 
 > Migration-numbering note: `0017_documents_compliance` and `0018_document_files` were applied manually (outside the Drizzle journal, like the `0000` baseline), so the journal's last entry was `0016`. When the HRMS stock tables were generated, drizzle-kit numbered them `0017_yummy_mad_thinker` and re-emitted the (already-existing) documents tables; that file was trimmed by hand to the three new `stock_*` tables only before `db:migrate`. Future `db:generate` runs see a clean snapshot.
 
@@ -214,3 +214,17 @@ Supports undo flows. `/api/cron/cleanup` removes expired tokens.
 - Soft delete: `tasks.archived`, `people.active`, `companies.active`, `task_updates.deleted_at`, `audit_log.deleted_at`.
 - Supabase pooler transaction mode requires `prepare: false` and `max: 1` in `src/db/index.ts`.
 - Newer write paths often use the server-side Supabase client in `src/db/supabase.ts`.
+
+## June 2026 additions (V3 — reference data, attendance, locations, passkeys)
+
+Tables/columns NOT in the per-table sections above:
+
+- **reporting_lines** `(person_id, manager_id)` PK + optional `note` — secondary/"also reports to" managers. Primary stays `people.manager_id`. FK cascade on delete. Drives the organogram dotted lines + drawer.
+- **department_heads** `id, company_id, department_id, head_person_id, updated_at` — per-company head of a department (same dept can have different heads per company). Set in Organogram → By department.
+- **sites** `id, name (unique), active` — shared **people locations** (work site / residence; NOT company branches). Seeded from distinct `site_tools.location` + `assets.location`. `people.work_site_id` / `people.residence_site_id` FK here. Admin: Companies hub → Sites (add/rename/merge/delete; merge re-points work+residence). `lib/sites.ts`.
+- **job_titles** `id, name (unique), active` — managed role list powering the role combobox. `people.role` stays free TEXT (not an FK); rename/merge here re-points people whose `role` matches exactly. Admin: Companies hub → Roles. `lib/roles.ts`.
+- **attendance** `id, person_id, date, status, note, created_at, updated_at`, unique `(person_id, date)`. Status: Present/Absent/On leave/Holiday/Remote/Half-day/Sick. **Now writable** (was read-only): admin register (`attendance-register.tsx` brush-paint) + staff self-check-in (`portalMarkAttendance`, note `portal:<Name>`). `lib/attendance.ts` (getAttendanceMonth, personAttendanceWeek/Today, teamAttendanceToday). On-leave/Holiday are DERIVED overlays (from leave_requests + public_holidays), not stored.
+- **webauthn_credentials** `id, person_id (null=owner), credential_id (unique, b64url), public_key (b64url), counter, transports, label, created_at, last_used_at` — passkeys. Stores ONLY public keys. `lib/webauthn.ts` (@simplewebauthn). Challenge in httpOnly cookie `cos_webauthn`.
+- **people** added cols across V3: `department_id, start_date, date_of_birth, nationality, national_id, passport_no, address, emergency_contact_name, emergency_contact_phone, probation_end_date, wage_amount, wage_basis, work_site_id, residence_site_id, portal_password_hash, portal_enabled_at, portal_last_login_at, portal_role, previous_staff_ids, staff_category, related_person_id`.
+- **settings** keys added: `v2.adminPasswordHash`, `v2.adminSessionGen`, `v2.ownerName`, `v2.ownerEmail` (owner identity 2nd factor), `director.outreachPaused`, `email.testMode`, email-automation config JSON.
+- NOTE: `people.group_service` (a brief "Group Shared Services" experiment) was **added then reverted** — migration 0060 was regenerated for sites; the column does NOT exist.

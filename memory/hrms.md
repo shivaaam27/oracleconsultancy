@@ -89,3 +89,27 @@ Digital version of the paper "Oracle Office Cleaning Register" (daily checklist)
 5. **TODO (optional)** — Photo evidence per area; "not signed yet" reminders; monthly print/export; attendance already linked to People.
 
 **Status: owner is happy and paused here (after OCR Phase 2). Resume at OCR Phase 3 when asked.**
+
+---
+
+## June 2026 build (Organogram, People, Departments/Sites/Roles, Attendance, Tax & Legal)
+
+NOTE: the nav "More" sheet was removed long ago — the HRMS icon opens a single "Go to" launcher. Below supersedes older lines where they conflict.
+
+### Tax & Legal (was "Command Centre")
+`/hrms/command-centre` is **labelled "Tax & Legal"** in the launcher + page header (route unchanged). Recurring tax/statutory/legal obligations engine (`recurring_obligations` + `obligation_company`), tick-habit, per-company applicable, create-task-from-obligation. `lib/recurring.ts`, `app/hrms/command-centre/`.
+
+### Organogram (`/hrms/org`)
+Portfolio view rebuilt as an **ELK layered multi-parent flowchart** (`elkjs`, `lib/org-flow.ts` + `components/org-flow.tsx`): role/seniority tiers (Leadership / Managers & shared services / Team via `personTier`), primary boss = solid line, extra bosses (`reporting_lines`) = dashed, company = card colour, pan/zoom/fit/fullscreen + hover-spotlight. Per-company trees + By-department + "Everyone" web view kept. **Rejected (don't rebuild):** dotted-line overlay on the HTML tree (spaghetti) and a separate "Group Shared Services" band + `people.group_service` column (built & fully reverted). See `memory/organogram.md`.
+
+### People reporting surfaced (Phase 2)
+Person cards show manager (`↳`) + `+N` secondary + N direct-reports; drawer has a **Direct reports** list (primary+dotted) + a "{N} reports" chip; **bulk "also reports to"** in the people select bar; form labels fixed (Director→Reports to, Non Company Person→Related to). `getPersonDetail.directReports`.
+
+### Departments / Sites / Roles — on the Companies hub
+Reference-data centre = Companies hub tabs (`companies-hub-tabs.tsx`): **Departments** (`departments-admin.tsx`), **Sites** + **Roles** (generic `reference-admin.tsx`). Add/rename/**merge**/delete with usage counts. Sites merge re-points people work/residence; Roles merge re-points `people.role` text. Actions: `app/hrms/departments/actions.ts`, `app/companies/reference-actions.ts`. Standalone `/hrms/departments` route removed.
+
+### People locations (Phase 5)
+`sites` table + `people.work_site_id`/`residence_site_id` (work site = where posted, residence = where they live; NOT company branches). Person form Work site + Residence (combobox), drawer display, **"All Locations" directory filter** (matches work OR residence). `lib/sites.ts`.
+
+### Attendance — fully wired (Phase 4)
+`/hrms/leave` → **Leave | Attendance** tabs. **Admin register** (`attendance-register.tsx`): month grid, brush-to-paint status, company filter, month nav, "mark all Present today"; On-leave/Holiday auto-filled & read-only. **Staff self-check-in**: portal profile "Your attendance" + a once-a-day **check-in pop-up** (`attendance-checkin.tsx`) on portal landing; managers get **Team attendance today** on portal home. Trusted self-marking (manager can override), status-per-day, no clock in/out. `lib/attendance.ts`, `portalMarkAttendance`, admin `recordAttendanceAction`/`bulkRecordAttendanceAction`.

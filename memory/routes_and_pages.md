@@ -94,3 +94,13 @@ One bottom-floating pill: **Home · Director Brief · Task Management · Workboo
 | `/api/prefs/task-views` | Saved task view preferences. |
 
 Note: meeting extraction now lives in `src/app/meeting/actions.ts` rather than a separate `/api/extract-meeting` route.
+
+## June 2026 route/page changes
+- `/login` — tabbed (Staff Login default | Command Centre) + passkey button; `app/login/{auth-tabs,passkey-login-button,passkey-actions}.tsx`. See `memory/auth_login.md`.
+- `/hrms/command-centre` — UI label is now **"Tax & Legal"** (route path unchanged).
+- `/hrms/org` — Portfolio view = ELK flowchart (`org-flow.tsx`). See `memory/organogram.md`.
+- `/hrms/leave` — **Leave | Attendance** tabs (`?view=attendance&ym=YYYY-MM`); attendance register built.
+- `/companies` — hub tabs **Companies · Departments · Sites · Roles** (reference-data centre). Standalone `/hrms/departments` route REMOVED.
+- `/people` — Work site/Residence fields, reporting on cards/drawer, All-Locations filter.
+- `/portal/profile` — adds Your attendance + Sign in faster (passkeys); portal home adds Team attendance today; check-in pop-up in portal `(app)/layout.tsx`.
+- `/settings` — redesigned (compact `SettingsCard` + `SettingsNav`); adds Owner identity, Face ID & fingerprint sections. Same forms/fields.
