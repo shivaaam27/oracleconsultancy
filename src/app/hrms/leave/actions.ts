@@ -78,6 +78,20 @@ export async function decideLeaveRequestAction(id: number, status: LeaveStatus, 
 }
 
 export async function deleteLeaveRequestAction(id: number): Promise<Result> {
+  // Never silently destroy an APPROVED leave record — that quietly changes the
+  // person's remaining balance and the calendar/attendance auto-fill. Cancel it
+  // instead (keeps the record for audit, drops it from balances because only
+  // "Approved" days are counted). Drafts/declined requests can be removed outright.
+  const { data: existing } = await sb.from("leave_requests").select("status").eq("id", id).maybeSingle();
+  if (existing && existing.status === "Approved") {
+    const { error } = await sb
+      .from("leave_requests")
+      .update({ status: "Cancelled", updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) return { ok: false, error: error.message };
+    invalidate();
+    return { ok: true, id };
+  }
   const { error } = await sb.from("leave_requests").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   invalidate();

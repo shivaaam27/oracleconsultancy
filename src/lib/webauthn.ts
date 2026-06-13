@@ -82,7 +82,9 @@ export async function beginRegistration(scope: RegScope) {
       id: c.credential_id,
       transports: (c.transports?.split(",").filter(Boolean) as AuthenticatorTransportFuture[]) ?? undefined,
     })),
-    authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+    // Require the device to actually verify the user (Face ID / fingerprint / PIN),
+    // not just present a passkey — appropriate for an owner login over 7 companies.
+    authenticatorSelection: { residentKey: "required", userVerification: "required" },
   });
   await stashChallenge(options.challenge, scope.kind === "admin" ? null : scope.id);
   return options;
@@ -96,7 +98,7 @@ export async function finishRegistration(scope: RegScope, response: Registration
   let verification;
   try {
     verification = await verifyRegistrationResponse({
-      response, expectedChallenge: stash.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false,
+      response, expectedChallenge: stash.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true,
     });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not verify the passkey." };
@@ -121,7 +123,7 @@ export async function finishRegistration(scope: RegScope, response: Registration
 /** Step 1 of sign-in: discoverable authentication options. */
 export async function beginAuthentication() {
   const { rpID } = await rp();
-  const options = await generateAuthenticationOptions({ rpID, userVerification: "preferred", allowCredentials: [] });
+  const options = await generateAuthenticationOptions({ rpID, userVerification: "required", allowCredentials: [] });
   await stashChallenge(options.challenge, null);
   return options;
 }
@@ -136,7 +138,7 @@ export async function finishAuthentication(response: AuthenticationResponseJSON)
   let verification;
   try {
     verification = await verifyAuthenticationResponse({
-      response, expectedChallenge: stash.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false,
+      response, expectedChallenge: stash.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true,
       credential: {
         id: cred.credential_id as string,
         publicKey: decB64(cred.public_key as string),

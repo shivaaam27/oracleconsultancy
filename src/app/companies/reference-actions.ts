@@ -5,6 +5,13 @@ import { revalidatePath } from "next/cache";
 
 type Result = { ok: true } | { ok: false; error: string };
 
+/** Escape SQL LIKE/ILIKE wildcards so a free-text value containing % or _ matches
+ *  only itself (case-insensitively) when we re-point people's role text. Without
+ *  this, a role like "Manager_HR" would wildcard-match the wrong people. */
+function likeEscape(s: string): string {
+  return s.replace(/[\\%_]/g, (c) => "\\" + c);
+}
+
 function revalidate() {
   revalidatePath("/companies");
   revalidatePath("/people");
@@ -86,7 +93,7 @@ export async function renameRole(id: number, name: string): Promise<Result> {
   if (clash && (clash.id as number) !== id) return { ok: false, error: "Another job title already uses that name." };
   const { error } = await sb.from("job_titles").update({ name: clean }).eq("id", id);
   if (error) return { ok: false, error: error.message };
-  if (oldName) await sb.from("people").update({ role: clean }).ilike("role", oldName);
+  if (oldName) await sb.from("people").update({ role: clean }).ilike("role", likeEscape(oldName));
   revalidate();
   return { ok: true };
 }
@@ -98,7 +105,7 @@ export async function mergeRoles(fromId: number, intoId: number): Promise<Result
     sb.from("job_titles").select("name").eq("id", fromId).maybeSingle(),
     sb.from("job_titles").select("name").eq("id", intoId).maybeSingle(),
   ]);
-  if (from?.name && into?.name) await sb.from("people").update({ role: into.name as string }).ilike("role", from.name as string);
+  if (from?.name && into?.name) await sb.from("people").update({ role: into.name as string }).ilike("role", likeEscape(from.name as string));
   const { error } = await sb.from("job_titles").delete().eq("id", fromId);
   if (error) return { ok: false, error: error.message };
   revalidate();

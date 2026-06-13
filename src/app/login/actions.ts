@@ -11,6 +11,7 @@ import {
   setOwnerIdentity,
   verifyAdminPassword,
 } from "@/lib/admin-auth";
+import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
 export type LoginState = { error: string } | null;
 
@@ -29,13 +30,21 @@ export async function adminSetup(_prev: LoginState, fd: FormData): Promise<Login
 export async function adminLogin(_prev: LoginState, fd: FormData): Promise<LoginState> {
   const identifier = String(fd.get("identifier") ?? "");
   const password = String(fd.get("password") ?? "");
+  // Brute-force guard: the whole admin side is one password, so slow down repeated
+  // guesses from the same source.
+  const key = "admin:" + (await callerIp());
+  const lock = loginLockState(key);
+  if (lock.locked) return { error: lockMessage(lock.retryAfterSec) };
   // When an owner identity is configured, the name/email must match too.
   if (!(await ownerIdentifierMatches(identifier))) {
+    recordLoginFailure(key);
     return { error: "Sign-in details not recognised." };
   }
   if (!(await verifyAdminPassword(password))) {
+    recordLoginFailure(key);
     return { error: "Wrong password." };
   }
+  recordLoginSuccess(key);
   await setAdminCookie();
   redirect("/");
 }

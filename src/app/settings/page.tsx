@@ -416,7 +416,7 @@ export default async function SettingsPage({
               <p className="text-sm text-fg-muted">Portal access revoked.</p>
             )}
             {sp.portal === "short" && (
-              <p className="text-sm text-danger">Password must be at least 6 characters.</p>
+              <p className="text-sm text-danger">Password must be at least 8 characters.</p>
             )}
 
             {portalEnabled.length > 0 && (
@@ -457,8 +457,8 @@ export default async function SettingsPage({
                 </Select>
               </div>
               <div>
-                <FieldLabel>Password (min 6 characters)</FieldLabel>
-                <Input name="password" type="text" minLength={6} required placeholder="e.g. shivam2026" />
+                <FieldLabel>Password (min 8 characters)</FieldLabel>
+                <Input name="password" type="text" minLength={8} required placeholder="e.g. shivam2026" />
               </div>
               <Button type="submit"><KeyRound size={13} /> Enable access</Button>
             </form>

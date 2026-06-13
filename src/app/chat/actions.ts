@@ -137,5 +137,11 @@ export async function muteThread(threadId: number, muted: boolean) {
 }
 
 export async function signChatAttachment(path: string): Promise<{ url: string | null }> {
+  // Defence-in-depth (admin is already gated by middleware): only sign files that
+  // live under a chat thread the owner belongs to, never an arbitrary bucket path.
+  const match = /^chat\/(\d+)\//.exec(path);
+  if (!match) return { url: null };
+  const threadId = Number(match[1]);
+  if (!(await viewerInThread(threadId, ADMIN))) return { url: null };
   return { url: await signDocumentFile(path) };
 }

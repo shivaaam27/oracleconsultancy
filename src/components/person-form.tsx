@@ -236,6 +236,18 @@ export function PersonForm({
     (p) => p.active && (mode === "create" || p.id !== id)
   );
 
+  // Keep a currently-saved manager / related person selectable even if they have
+  // since been deactivated. Without this their name is missing from the list, the
+  // field falls back to "No manager", and saving any other change would silently
+  // delete the reporting link (orphaning the person on the org chart).
+  const withSaved = (base: typeof managerCandidates, savedId: number | null | undefined) => {
+    if (!savedId || base.some((p) => p.id === savedId)) return base;
+    const saved = peopleList.find((p) => p.id === savedId);
+    return saved ? [{ ...saved, name: `${saved.name} (inactive)` }, ...base] : base;
+  };
+  const managerOptions = withSaved(managerCandidates, defaults?.managerId);
+  const relatedOptions = withSaved(managerCandidates, defaults?.relatedPersonId);
+
   const inputCls = cn(
     "w-full rounded-lg border border-border bg-bg-subtle/60 text-sm transition-all",
     compact ? "px-2.5 py-1.5" : "px-3 py-2",
@@ -425,7 +437,7 @@ export function PersonForm({
             className={inputCls}
           >
             <option value="">— No manager</option>
-            {managerCandidates.map((p) => (
+            {managerOptions.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
@@ -484,7 +496,7 @@ export function PersonForm({
             className={inputCls}
           >
             <option value="">— None</option>
-            {managerCandidates.map((p) => (
+            {relatedOptions.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>

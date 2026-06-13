@@ -10,7 +10,7 @@ import {
   logChangeSb,
   insertTaskWithUniqueCodeSb,
 } from "@/lib/db-helpers";
-import { mutate } from "@/lib/mutate";
+import { mutate, type UndoSpec } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 import { createTaskAttachment } from "@/lib/documents";
 import { parseMentionIds } from "@/lib/mentions";
@@ -73,6 +73,38 @@ async function loadAssignees(taskId: number): Promise<number[]> {
   const { data, error } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId);
   if (error) throw new Error(error.message);
   return (data ?? []).map((a) => a.person_id as number);
+}
+
+/** Build the undo payload that the registered "task.delete" handler
+ *  (src/lib/undo-handlers/tasks.ts) restores: the task row + its assignees. */
+function taskDeleteUndo(t: TaskRowRaw, assignees: number[]): UndoSpec {
+  return {
+    kind: "task.delete",
+    taskId: t.id,
+    payload: {
+      task: {
+        code: t.code,
+        companyId: t.company_id,
+        departmentId: t.department_id,
+        meetingDate: t.meeting_date,
+        actionItem: t.action_item,
+        ownerId: t.owner_id,
+        createdDate: t.created_date,
+        deadline: t.deadline,
+        status: t.status,
+        priority: t.priority,
+        category: t.category,
+        risk: t.risk,
+        escalation: t.escalation,
+        comments: t.comments,
+        latestUpdate: t.latest_update,
+        lastUpdatedAt: t.last_updated_at,
+        closedDate: t.closed_date,
+        archived: t.archived,
+      },
+      assignees,
+    },
+  };
 }
 
 async function allPeopleMap(): Promise<Map<number, string>> {
@@ -363,10 +395,11 @@ export async function createTask(formData: FormData) {
 }
 
 /**
- * Permanently wipe a task's audit history (audit_log doesn't cascade on task
- * delete — the FK only nulls task_id — so we remove it explicitly, along with any
- * corrections that reference those entries). Updates/assignees/meeting-links DO
- * cascade when the task row is deleted.
+ * RESERVED for a future explicit, confirmed "permanently delete" action.
+ * Routine deletes now KEEP history (recoverable for 10 minutes). This permanently
+ * wipes a task's audit history (audit_log doesn't cascade on task delete — the FK
+ * only nulls task_id — so we remove it explicitly, along with any corrections that
+ * reference those entries). Updates/assignees/meeting-links cascade with the row.
  */
 async function purgeTaskHistory(taskId: number, code: string) {
   const [r1, r2] = await Promise.all([
@@ -390,19 +423,19 @@ export async function deleteTask(code: string) {
       if (!t) return { result: null, undo: undefined };
       const assignees = await loadAssignees(t.id);
 
-      // Permanent, total wipe: remove the task's audit history first (it does not
-      // cascade), then the task row (updates/assignees/meeting-links cascade).
-      // No tombstone, no undo — delete means gone, everywhere.
-      await purgeTaskHistory(t.id, t.code);
+      // Recoverable delete: remove the task row (updates/assignees/meeting-links
+      // cascade) but KEEP its audit history — the FK nulls task_id, so the rows
+      // survive by task_code and reconnect if the task is restored. A 10-minute
+      // Undo restores the task + assignees.
       await sb.from("tasks").delete().eq("id", t.id);
 
-      void assignees;
-      return { result: { deleted: true }, undo: undefined };
+      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees) };
     },
   });
 
   if (!result.ok) throw new Error(result.error);
 
+  if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
   revalidatePath("/registry");
   revalidatePath("/");
   updateTag("tasks");
@@ -840,9 +873,10 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
         continue;
       }
 
-      // Permanent, total wipe — purge history (no cascade), then the task. No tombstone.
+      // Delete the task row but KEEP its audit history (the FK nulls task_id; the
+      // rows survive by task_code). Bulk delete has no per-item Undo yet — the UI
+      // confirms first; grouped undo is a planned follow-up.
       if (action.kind === "delete") {
-        await purgeTaskHistory(t.id, t.code);
         await sb.from("tasks").delete().eq("id", t.id);
         applied++;
         continue;
@@ -1048,13 +1082,14 @@ export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undo
     run: async () => {
       const t = await findTaskByCode(code);
       if (!t) return { result: null, undo: undefined };
-      // Permanent, total wipe — history first (no cascade), then the task row.
-      await purgeTaskHistory(t.id, t.code);
+      const assignees = await loadAssignees(t.id);
+      // Recoverable delete (see deleteTask): keep audit history, offer a 10-min Undo.
       await sb.from("tasks").delete().eq("id", t.id);
-      return { result: { deleted: true }, undo: undefined };
+      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees) };
     },
   });
   if (!result.ok) return { ok: false, error: result.error };
+  if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
   revalidatePath("/"); updateTag("tasks");
-  return { ok: true };
+  return { ok: true, undoToken: result.undoToken };
 }

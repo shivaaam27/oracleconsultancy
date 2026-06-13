@@ -182,5 +182,15 @@ export async function muteThread(threadId: number, muted: boolean) {
 }
 
 export async function signChatAttachment(path: string): Promise<{ url: string | null }> {
+  const m = await me();
+  if (!m) return { url: null };
+  // Only sign files that live under a chat thread the caller actually belongs to.
+  // postMessage writes attachments as `chat/<threadId>/...`; rejecting anything
+  // else stops a guessed document path (e.g. another person's HR file in the same
+  // private bucket) from being turned into a working download link.
+  const match = /^chat\/(\d+)\//.exec(path);
+  if (!match) return { url: null };
+  const threadId = Number(match[1]);
+  if (!(await viewerInThread(threadId, m.participant))) return { url: null };
   return { url: await signDocumentFile(path) };
 }

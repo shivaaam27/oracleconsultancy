@@ -21,6 +21,7 @@ import {
   setSessionCookie,
   verifyPassword,
 } from "@/lib/portal-auth";
+import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
  * the person is actually allowed on the task — never trust the URL/form. */
@@ -38,6 +39,11 @@ export async function portalLogin(
   const identifier = String(formData.get("identifier") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   if (!identifier || !password) return { error: "Enter your name/email and password." };
+
+  // Brute-force guard: slow repeated guesses against the same account/source.
+  const key = "portal:" + identifier.toLowerCase() + ":" + (await callerIp());
+  const lock = loginLockState(key);
+  if (lock.locked) return { error: lockMessage(lock.retryAfterSec) };
 
   // Match by email first (exact), then by name (case-insensitive).
   const { data: byEmail } = await sb
@@ -62,9 +68,11 @@ export async function portalLogin(
     !person.active ||
     !verifyPassword(password, person.portal_password_hash as string)
   ) {
+    recordLoginFailure(key);
     return { error: "Sign-in details not recognised. Check with your administrator." };
   }
 
+  recordLoginSuccess(key);
   await setSessionCookie(person.id as number);
   // The "last login" stamp isn't needed before the redirect — defer it so the
   // staff member lands on their portal a round-trip sooner.

@@ -112,7 +112,7 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   const roleRaw = fd.get("portalRole");
   const role = roleRaw === "manager" ? "manager" : roleRaw === "director" ? "director" : "staff";
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
-  if (password.length < 6) redirect("/settings?portal=short");
+  if (password.length < 8) redirect("/settings?portal=short");
 
   const { error } = await sb
     .from("people")

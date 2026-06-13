@@ -23,6 +23,16 @@ const SETTINGS_KEY = "v2.adminPasswordHash";
 // the cache in src/middleware.ts).
 const GEN_KEY = "v2.adminSessionGen";
 
+if (process.env.NODE_ENV === "production" && !process.env.PORTAL_SESSION_SECRET) {
+  // Surfaced once per server instance: cookies are being signed with a value
+  // derived from DATABASE_URL (a secret that leaks more easily). Set a strong,
+  // random PORTAL_SESSION_SECRET in the hosting environment. (We warn rather than
+  // throw so a misconfiguration can never lock the owner out of a live site.)
+  console.warn(
+    "[auth] PORTAL_SESSION_SECRET is not set in production — login cookies are signed using a DATABASE_URL-derived key. Set a dedicated PORTAL_SESSION_SECRET."
+  );
+}
+
 function secret(): string {
   // Keep identical to src/middleware.ts and portal-auth.ts.
   return (
