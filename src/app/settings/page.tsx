@@ -11,7 +11,11 @@ import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleActi
 import { getAutomationConfig } from "@/lib/email-automation";
 import { EmailStatus } from "./email-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
+import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./passkey-actions";
 import { getOwnerIdentity } from "@/lib/admin-auth";
+import { listCredentials } from "@/lib/webauthn";
+import { PasskeyManager } from "@/components/passkey-manager";
+import { ScanFace } from "lucide-react";
 import Link from "next/link";
 import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck } from "lucide-react";
 
@@ -33,6 +37,7 @@ export default async function SettingsPage({
       .order("name"),
     getOwnerIdentity(),
   ]);
+  const ownerPasskeys = await listCredentials({ kind: "admin" });
   const signatureImageUrl = s.emailSignatureImagePath
     ? await signDocumentFile(s.emailSignatureImagePath, 3600)
     : null;
@@ -481,6 +486,19 @@ export default async function SettingsPage({
             Sign out on this device
           </button>
         </form>
+      </div>
+
+      {/* Face ID / fingerprint sign-in for the owner */}
+      <div className="glass elevated rounded-2xl p-5 space-y-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <ScanFace size={14} className="text-accent" /> Face ID &amp; fingerprint
+          </h2>
+          <p className="text-xs text-fg-muted mt-1">
+            Add this device so you can sign in to the Command Centre with Face ID, Touch ID, or your fingerprint — no password to type. Your biometric never leaves the device; we only store a key.
+          </p>
+        </div>
+        <PasskeyManager initial={ownerPasskeys} begin={adminBeginPasskey} finish={adminFinishPasskey} remove={adminRemovePasskey} />
       </div>
 
       {/* Staff portal access — lives outside the form; each row saves instantly */}

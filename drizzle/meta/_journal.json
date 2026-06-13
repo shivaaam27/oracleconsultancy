@@ -435,6 +435,13 @@
       "when": 1781362735030,
       "tag": "0061_safe_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1781366995972,
+      "tag": "0062_married_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

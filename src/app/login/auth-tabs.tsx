@@ -5,6 +5,7 @@ import { UserRound, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { AdminLoginForm } from "./login-form";
 import { LoginForm as StaffLoginForm } from "@/app/portal/login/login-form";
+import { PasskeyLoginButton } from "./passkey-login-button";
 
 /** The sign-in card: a Staff Login / Command Centre tab switcher so staff and
  *  the owner sign in from one screen. Staff is the default. */
@@ -44,6 +45,8 @@ export function AuthTabs({ firstRun }: { firstRun: boolean }) {
           )}
         </div>
       )}
+
+      <PasskeyLoginButton />
     </div>
   );
 }

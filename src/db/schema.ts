@@ -47,6 +47,21 @@ export const sites = pgTable("sites", {
   active: boolean("active").notNull().default(true),
 });
 
+// Passkeys / Face ID / fingerprint sign-in (WebAuthn). One row per registered
+// device. person_id null = the owner (admin) credential; otherwise a staff
+// member's. We store only the PUBLIC key — the biometric never leaves the device.
+export const webauthnCredentials = pgTable("webauthn_credentials", {
+  id: serial("id").primaryKey(),
+  personId: integer("person_id").references((): AnyPgColumn => people.id, { onDelete: "cascade" }),
+  credentialId: text("credential_id").notNull().unique(), // base64url
+  publicKey: text("public_key").notNull(), // base64url of the COSE public key
+  counter: doublePrecision("counter").notNull().default(0),
+  transports: text("transports"), // comma-separated
+  label: text("label"), // device name, e.g. "iPhone"
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
+});
+
 // Managed list of job titles / roles — powers the role field's suggestions and
 // lets duplicates be cleaned up. people.role stays free text (NOT a FK); a
 // rename/merge here re-points people whose role text matches exactly.

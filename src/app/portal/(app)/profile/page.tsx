@@ -9,7 +9,10 @@ import { PortalDocuments, type PortalChecklistItem } from "@/components/portal-d
 import { PortalLeave } from "@/components/portal-leave";
 import { PortalAttendance } from "@/components/portal-attendance";
 import { personAttendanceWeek } from "@/lib/attendance";
-import { Clock } from "lucide-react";
+import { PasskeyManager } from "@/components/passkey-manager";
+import { listCredentials } from "@/lib/webauthn";
+import { staffBeginPasskey, staffFinishPasskey, staffRemovePasskey } from "@/app/portal/passkey-actions";
+import { Clock, ScanFace } from "lucide-react";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getPersonChecklist } from "@/lib/requirements";
 import { personLeaveBalances, listLeaveRequests } from "@/lib/leave";
@@ -48,6 +51,7 @@ export default async function PortalProfile() {
     assetsForPerson(me.id),
     personAttendanceWeek(me.id),
   ]);
+  const passkeys = await listCredentials({ kind: "person", id: me.id, name: me.name });
 
   const details: Array<{ label: string; value: string }> = [
     { label: "Name", value: me.name },
@@ -147,6 +151,14 @@ export default async function PortalProfile() {
           <p className="px-1 text-[11px] text-fg-subtle">Company equipment currently assigned to you.</p>
         </Reveal>
       )}
+
+      <Reveal delay={0.095} className="flex flex-col gap-2.5">
+        <SectionLabel icon={<ScanFace size={13} />}>Sign in faster</SectionLabel>
+        <Panel className="p-4">
+          <PasskeyManager initial={passkeys} begin={staffBeginPasskey} finish={staffFinishPasskey} remove={staffRemovePasskey} />
+        </Panel>
+        <p className="px-1 text-[11px] text-fg-subtle">Add this device to sign in with Face ID or your fingerprint next time — no password needed. Your biometric stays on your device.</p>
+      </Reveal>
 
       <Reveal delay={0.1} className="flex flex-col gap-2.5">
         <SectionLabel icon={<Bell size={13} />}>Notifications</SectionLabel>
