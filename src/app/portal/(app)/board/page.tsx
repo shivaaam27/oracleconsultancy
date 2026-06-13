@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { ShieldCheck, Users, AlertTriangle, Wallet, Building2, Target, ListTodo } from "lucide-react";
+import { ShieldCheck, Users, AlertTriangle, Wallet, Building2, Target, ListTodo, CloudOff } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -21,14 +22,75 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   if (me.portalRole !== "director") redirect("/portal");
   const { created } = await searchParams;
 
-  // Group-wide board (all 7 companies) + lookup data for the task form.
-  const [brief, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
-    getBrief(new Date(), "month", null),
+  // Fast lookups only — these power the action forms and must never block on the
+  // (much heavier) portfolio brief. The brief streams in separately below.
+  const [{ data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     sb.from("companies").select("id,name").order("name"),
     sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
   ]);
   const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }));
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Action toolbar renders immediately — the director can assign tasks,
+          schedule events and message people without waiting for the brief. */}
+      <Reveal delay={0}>
+        <Hero title="Group board" subtitle="All companies · live operator view" />
+      </Reveal>
+
+      {created && (
+        <Reveal delay={0.02}>
+          <Panel className="p-3 text-sm text-success ring-1 ring-success/25 bg-success-soft/40">Task {created} assigned.</Panel>
+        </Reveal>
+      )}
+
+      <Reveal delay={0.04} className="flex flex-col gap-2.5">
+        <SectionLabel icon={<ListTodo size={13} />}>Take action</SectionLabel>
+        <div className="flex flex-wrap items-start gap-2">
+          <DirectorTaskForm people={people} companies={companies} />
+          <DirectorEventForm people={people} companies={companies} />
+          <DirectorMessage people={people} reminders={[]} />
+        </div>
+      </Reveal>
+
+      {/* Heavy portfolio brief streams in — a slow or failed brief degrades to a
+          message here instead of hanging (or 404-ing) the whole page. */}
+      <Suspense fallback={<BriefSkeleton />}>
+        <BriefSections people={people} />
+      </Suspense>
+    </div>
+  );
+}
+
+function BriefSkeleton() {
+  return (
+    <div className="flex flex-col gap-3" aria-hidden>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-20 rounded-2xl bg-bg-muted/50 animate-pulse" />
+        ))}
+      </div>
+      <div className="h-24 rounded-2xl bg-bg-muted/40 animate-pulse" />
+      <div className="h-24 rounded-2xl bg-bg-muted/40 animate-pulse" />
+    </div>
+  );
+}
+
+/** The portfolio brief and everything derived from it. Isolated so its latency
+ *  (and any failure) never blocks the operator actions above. */
+async function BriefSections({ people }: { people: Array<{ id: number; name: string; companyId: number | null }> }) {
+  let brief: Awaited<ReturnType<typeof getBrief>>;
+  try {
+    brief = await getBrief(new Date(), "month", null);
+  } catch {
+    return (
+      <Panel className="flex items-center gap-3 p-4 text-sm text-fg-muted">
+        <CloudOff size={16} className="shrink-0 text-warn" />
+        <span>The group summary couldn&apos;t load just now. Your actions above still work — refresh in a moment to see the latest figures.</span>
+      </Panel>
+    );
+  }
 
   // Quick reminders: the assignee of each overdue task (default recipient).
   const overdueIds = brief.watch.filter((w) => w.overdue).slice(0, 8).map((w) => w.id);
@@ -66,7 +128,8 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   return (
     <div className="flex flex-col gap-5">
       <Reveal delay={0}>
-        <Hero title={`Group board`} subtitle={`${brief.companyCount} companies · as at ${brief.asAt}`}>
+        <Panel className="p-4">
+          <p className="mb-3 text-xs text-fg-muted">{brief.companyCount} companies · as at {brief.asAt}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {metrics.map((m) => (
               <div key={m.label} className={`rounded-2xl p-3 ring-1 ${TONE[m.tone].bg} ${TONE[m.tone].ring}`}>
@@ -75,24 +138,16 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
               </div>
             ))}
           </div>
-        </Hero>
+        </Panel>
       </Reveal>
 
-      {created && (
-        <Reveal delay={0.02}>
-          <Panel className="p-3 text-sm text-success ring-1 ring-success/25 bg-success-soft/40">Task {created} assigned.</Panel>
+      {/* Quick reminders for overdue tasks (assignee resolved) */}
+      {reminders.length > 0 && (
+        <Reveal delay={0.04} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<AlertTriangle size={13} />}>Remind on overdue work</SectionLabel>
+          <DirectorMessage people={people} reminders={reminders} />
         </Reveal>
       )}
-
-      {/* Operator actions: assign a task / schedule an event, group-wide */}
-      <Reveal delay={0.04} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<ListTodo size={13} />}>Take action</SectionLabel>
-        <div className="flex flex-wrap items-start gap-2">
-          <DirectorTaskForm people={people} companies={companies} />
-          <DirectorEventForm people={people} companies={companies} />
-          <DirectorMessage people={people} reminders={reminders} />
-        </div>
-      </Reveal>
 
       {/* Recommended actions */}
       {brief.directorActions.length > 0 && (
