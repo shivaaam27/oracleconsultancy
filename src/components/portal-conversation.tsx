@@ -54,6 +54,9 @@ type Props = {
   canPin: boolean; // show pin/unpin controls
   canAck: boolean; // show the "Understood" button (staff/managers, not admin)
   composerHint?: string;
+  /** Fired after an add/pin action resolves — the admin drawer uses it to refetch
+   *  exactly on completion instead of guessing with a fixed timer. */
+  onPosted?: () => void;
 };
 
 function dayLabel(iso: string): string {
@@ -74,8 +77,12 @@ function time(iso: string): string {
 export function PortalConversation(props: Props) {
   const {
     taskId, code, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team,
-    addAction, pinAction, ackAction, canPin, canAck, composerHint,
+    addAction, pinAction, ackAction, canPin, canAck, composerHint, onPosted,
   } = props;
+  // If a caller wants to know exactly when a post/pin finished (the admin task
+  // drawer, to refetch), wrap the server action to fire onPosted after it resolves.
+  const runAdd: ServerAction = onPosted ? async (fd) => { await addAction(fd); onPosted(); } : addAction;
+  const runPin: ServerAction = onPosted ? async (fd) => { await pinAction(fd); onPosted(); } : pinAction;
   const [replyTo, setReplyTo] = useState<{ id: number; author: string; snippet: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -206,7 +213,7 @@ export function PortalConversation(props: Props) {
           </button>
         )}
         {canPin && (
-          <form action={pinAction}>
+          <form action={runPin}>
             <input type="hidden" name="updateId" value={m.id} />
             <input type="hidden" name="code" value={code} />
             <button type="submit" title={m.pinned ? "Unpin" : "Pin as the current instruction"} className="text-fg-subtle hover:text-accent transition-colors">
@@ -266,7 +273,7 @@ export function PortalConversation(props: Props) {
                 <Pin size={12} /> Current instruction
                 <span className="grow" />
                 {canPin && (
-                  <form action={pinAction}>
+                  <form action={runPin}>
                     <input type="hidden" name="updateId" value={m.id} />
                     <input type="hidden" name="code" value={code} />
                     <button type="submit" title="Unpin" className="text-accent/70 hover:text-accent">
@@ -294,7 +301,7 @@ export function PortalConversation(props: Props) {
               <button type="button" onClick={() => setReplyTo(null)} className="text-fg-subtle hover:text-fg"><X size={13} /></button>
             </div>
           )}
-          <form action={addAction} onSubmit={() => setTimeout(() => { setReplyTo(null); clearFile(); }, 0)} className="flex flex-col gap-2.5">
+          <form action={runAdd} onSubmit={() => setTimeout(() => { setReplyTo(null); clearFile(); }, 0)} className="flex flex-col gap-2.5">
             <input type="hidden" name="taskId" value={taskId} />
             <input type="hidden" name="code" value={code} />
             <input type="hidden" name="parentUpdateId" value={replyTo?.id ?? ""} />

@@ -263,8 +263,9 @@ export function TaskDrawer() {
 
   const conversationContent = t && data ? (
     // A conversation post (add / pin / status) runs as a server-action form;
-    // refetch shortly after so the drawer reflects the persisted message.
-    <div onSubmitCapture={() => { window.setTimeout(() => setRefreshKey((k) => k + 1), 700); }}>
+    // PortalConversation fires onPosted when it resolves, so we refetch exactly
+    // then — no fixed 0.7s guess that could miss a slow upload.
+    <div>
       <PortalConversation
         taskId={t.id}
         code={t.code}
@@ -281,6 +282,7 @@ export function TaskDrawer() {
         canPin
         canAck={false}
         composerHint="You can set any status, pin the current instruction, attach files, and @mention the team."
+        onPosted={() => setRefreshKey((k) => k + 1)}
       />
     </div>
   ) : null;
