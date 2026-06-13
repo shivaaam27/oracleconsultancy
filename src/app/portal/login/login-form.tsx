@@ -34,7 +34,7 @@ export function LoginForm() {
           <input
             ref={nameRef}
             name="identifier"
-            autoComplete="username"
+            autoComplete="username webauthn"
             required
             className={authInputCls}
             placeholder="e.g. Shivam"

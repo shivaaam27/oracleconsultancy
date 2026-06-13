@@ -16,7 +16,7 @@ export function AdminLoginForm({ firstRun }: { firstRun: boolean }) {
         {!firstRun && (
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Name or email</span>
-            <input name="identifier" autoComplete="username" className={authInputCls} placeholder="admin@oracle.co.tz" />
+            <input name="identifier" autoComplete="username webauthn" className={authInputCls} placeholder="admin@oracle.co.tz" />
           </label>
         )}
         <PasswordField
