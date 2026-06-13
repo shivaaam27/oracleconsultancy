@@ -1,18 +1,17 @@
 import { generateDrafts } from "@/lib/outbox-gen";
 import { listOutboxDrafts } from "@/lib/outbox-drafts";
-import { DraftsList } from "./drafts-list";
 import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords } from "@/lib/outbox-history";
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
-import { EmptyState } from "@/components/ui";
-import { Hero, Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
+import { Hero, Panel, TONE, type Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { Globe2 } from "lucide-react";
 import { UnsnoozeButton } from "./outbox-card";
-import { PendingList, type PendingItem } from "./pending-list";
+import { OutboxWorkspace } from "./outbox-workspace";
+import { type PendingItem } from "./pending-list";
 import { SentLogDrawer } from "./sent-log-drawer";
 import { AutomationPanel } from "./automation-panel";
 import { getAutomationSnapshot } from "@/lib/outbox-automation";
-import { Inbox, Check, BellOff, ChevronDown, ListChecks } from "lucide-react";
+import { BellOff, ChevronDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -146,41 +145,14 @@ export default async function OutboxPage() {
         <AutomationPanel snapshot={automation} />
       </Reveal>
 
-      {/* One-off drafts (to-do reminders, ad-hoc) */}
+      {/* Split-view workspace — drafts + reminders + sent in one list/detail surface */}
       <Reveal delay={0.08}>
-        <DraftsList drafts={savedDrafts} />
-      </Reveal>
-
-      {/* Today's reminders — live task nudges you copy & send by hand */}
-      <Reveal delay={0.12} className="space-y-3">
-        <SectionLabel icon={<ListChecks size={13} />}>
-          Today&apos;s reminders
-          <span className="ml-1.5 normal-case tracking-normal font-normal text-fg-subtle">
-            — per-person task nudges you copy &amp; send yourself
-          </span>
-        </SectionLabel>
-
-        {totalToday === 0 ? (
-          <Panel className="p-2">
-            <EmptyState
-              icon={<Inbox size={32} />}
-              title="Nothing to chase right now."
-              hint="There are no open tasks assigned to anyone."
-            />
-          </Panel>
-        ) : pending.length === 0 ? (
-          <Panel className="p-8 text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-success-soft/70 ring-1 ring-success/30 text-success mb-3">
-              <Check size={20} />
-            </div>
-            <div className="font-medium">All clear for today.</div>
-            <div className="text-xs text-fg-muted mt-1">
-              {sentCount} {sentCount === 1 ? "reminder" : "reminders"} handled. Open the sent log to review.
-            </div>
-          </Panel>
-        ) : (
-          <PendingList items={pending} scopeName={scopeName} />
-        )}
+        <OutboxWorkspace
+          reminders={pending.map((a) => a.draft)}
+          drafts={savedDrafts}
+          sent={todayDoneEntries}
+          scopeName={scopeName}
+        />
       </Reveal>
 
       {/* Snoozed */}

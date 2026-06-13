@@ -57,7 +57,7 @@ export function DraftsList({ drafts }: { drafts: OutboxDraftRow[] }) {
   );
 }
 
-function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => void }) {
+export function DraftCard({ draft, onGone, detail = false }: { draft: OutboxDraftRow; onGone: () => void; detail?: boolean }) {
   const { toast } = useToast();
   const [body, setBody] = useState(draft.body);
   const [subject, setSubject] = useState(draft.subject ?? "");
@@ -113,7 +113,10 @@ function DraftCard({ draft, onGone }: { draft: OutboxDraftRow; onGone: () => voi
   }
 
   return (
-    <div className="bg-bg-elev ring-1 ring-border border-l-2 border-l-accent/70 rounded-2xl elevated px-3.5 py-3 space-y-2">
+    <div className={cn(
+      "space-y-2",
+      detail ? "" : "bg-bg-elev ring-1 ring-border border-l-2 border-l-accent/70 rounded-2xl elevated px-3.5 py-3"
+    )}>
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-accent-soft text-accent shrink-0"><Icon size={13} /></span>
         <span className="font-medium text-sm truncate">{draft.recipientName}</span>

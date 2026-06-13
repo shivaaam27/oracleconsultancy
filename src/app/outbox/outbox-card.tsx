@@ -89,6 +89,8 @@ export function OutboxCard({
   draft,
   alreadySent = false,
   scopeName = null,
+  detail = false,
+  onResolved,
 }: {
   draft: OutboxDraft;
   alreadySent?: boolean;
@@ -96,6 +98,10 @@ export function OutboxCard({
   sentChannels?: Set<Channel>;
   compact?: boolean;
   scopeName?: string | null;
+  /** Right-pane detail mode: always expanded, no outer card chrome. */
+  detail?: boolean;
+  /** Called after the item is marked done / skipped so a parent list can advance. */
+  onResolved?: () => void;
 }) {
   const hasScoped = scopeName ? draft.tasks.some((t) => t.companyName === scopeName) : false;
   // One "Message" — no channel switcher. Channel is auto-picked (preferred, then
@@ -107,7 +113,7 @@ export function OutboxCard({
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState(draft.messages.WHATSAPP);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(detail);
   const [showFull, setShowFull] = useState(false);
   const [clamped, setClamped] = useState(false);
   const msgRef = useRef<HTMLDivElement>(null);
@@ -180,14 +186,14 @@ export function OutboxCard({
       await navigator.clipboard.writeText(message);
       setCopied(true);
       const { ok, undoToken } = await doMarkSent();
-      if (ok) showUndoToast(`Copied for ${channelLabel(channel)} & marked done for ${draft.recipientName}.`, undoToken);
+      if (ok) { showUndoToast(`Copied for ${channelLabel(channel)} & marked done for ${draft.recipientName}.`, undoToken); onResolved?.(); }
     });
   };
 
   const onMarkSentOnly = () => {
     startTransition(async () => {
       const { ok, undoToken } = await doMarkSent();
-      if (ok) showUndoToast(`Marked done (${channelLabel(channel)}) for ${draft.recipientName}.`, undoToken);
+      if (ok) { showUndoToast(`Marked done (${channelLabel(channel)}) for ${draft.recipientName}.`, undoToken); onResolved?.(); }
     });
   };
 
@@ -203,7 +209,8 @@ export function OutboxCard({
         return;
       }
       showUndoToast(`Skipped ${draft.recipientName} for today.`, res.undoToken);
-      if (typeof window !== "undefined") window.location.reload();
+      if (onResolved) onResolved();
+      else if (typeof window !== "undefined") window.location.reload();
     });
   };
 
@@ -221,20 +228,23 @@ export function OutboxCard({
   );
 
   // One clean card that expands on tap. A single urgency cue (left accent edge).
+  // In `detail` mode it's always expanded with no outer chrome (for the right pane).
+  const HeaderTag = detail ? "div" : "button";
   return (
     <div
       className={cn(
-        "bg-bg-elev ring-1 ring-border rounded-2xl elevated overflow-hidden border-l-2 transition-all hover:ring-border-strong",
-        stripeClass[u.level],
-        hasScoped && "ring-accent/40",
+        detail
+          ? "overflow-hidden"
+          : "bg-bg-elev ring-1 ring-border rounded-2xl elevated overflow-hidden border-l-2 transition-all hover:ring-border-strong",
+        !detail && stripeClass[u.level],
+        !detail && hasScoped && "ring-accent/40",
         sent && "opacity-60"
       )}
     >
-      {/* Header — tap to expand / collapse */}
-      <div className="flex items-center gap-3 p-3">
-        <button
-          type="button"
-          onClick={() => setExpanded((e) => !e)}
+      {/* Header — tap to expand / collapse (static in detail mode) */}
+      <div className={cn("flex items-center gap-3", detail ? "pb-2" : "p-3")}>
+        <HeaderTag
+          {...(detail ? {} : { type: "button" as const, onClick: () => setExpanded((e) => !e) })}
           className="flex items-center gap-3 min-w-0 flex-1 text-left"
         >
           <span className="w-9 h-9 rounded-full bg-accent-soft text-accent grid place-items-center shrink-0">
@@ -243,7 +253,7 @@ export function OutboxCard({
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">
               <span className="font-medium text-sm truncate">{draft.recipientName}</span>
-              <ChevronDown size={13} className={cn("text-fg-subtle transition-transform shrink-0", expanded && "rotate-180")} />
+              {!detail && <ChevronDown size={13} className={cn("text-fg-subtle transition-transform shrink-0", expanded && "rotate-180")} />}
             </span>
             {!expanded && topTask ? (
               <span className="block text-[11px] text-fg-muted truncate mt-0.5" title={topTask.actionItem}>
@@ -253,7 +263,7 @@ export function OutboxCard({
               <span className="block mt-0.5">{metaLine}</span>
             )}
           </span>
-        </button>
+        </HeaderTag>
 
         {sent ? (
           <Badge tone={duplicate ? "warn" : "success"}><Check size={11} /> Done</Badge>
@@ -275,13 +285,13 @@ export function OutboxCard({
 
       {/* Expanded body */}
       {expanded && sent && (
-        <div className="px-3 pb-3 -mt-1 text-xs text-fg-subtle inline-flex items-center gap-1.5">
+        <div className={cn("pb-3 -mt-1 text-xs text-fg-subtle inline-flex items-center gap-1.5", !detail && "px-3")}>
           <CurrentChannelIcon size={12} /> {duplicate ? "Was already done today." : `Marked done · ${channelLabel(channel)}.`}
         </div>
       )}
 
       {expanded && !sent && (
-        <div className="px-3 pb-3 space-y-2.5">
+        <div className={cn("pb-3 space-y-2.5", !detail && "px-3")}>
           {draft.notes && (
             <div className="text-xs italic text-fg-muted bg-warn-soft/30 ring-1 ring-warn/20 rounded-xl px-3 py-2 flex items-start gap-1.5">
               <StickyNote size={11} className="shrink-0 mt-0.5 text-warn" />

@@ -95,6 +95,15 @@ Owner: "old, bulky, big and ugly" → modernise to match the rest of the app. Ou
 
 All behaviour unchanged (automation hub, honest labels, send/copy, bug fixes intact). Verified desktop + mobile, no console errors. **REMINDER: tell owner about the deferred items in [[outbox-remaining-work]] now that the redesign is done.**
 
+## Split-view workspace (2026-06) — email-client layout
+
+Owner: drafts took too much vertical space (each rendered full message body, always open) → had to scroll far to reach reminders, and it only grows. Owner approved (via visual mockup) an **email-client split view**, default **All, urgency-sorted**.
+
+- New `src/app/outbox/outbox-workspace.tsx` (client): **left = one compact row per item** (drafts + reminders + sent), **right = selected item's full message + actions**. Segmented filter **All / Reminders / Drafts / Sent** with live counts; company filter + search; urgency dot (red overdue / amber due-soon); type chip + 🤖 mark for automation-origin drafts. Sorted by urgency rank then name. Mobile: list only → tap opens a full-screen detail overlay with Back.
+- **Reuses the existing cards as the detail pane** (no logic rewrite): `OutboxCard` gained `detail` (always-expanded, no outer chrome) + `onResolved` (advance selection after done/skip); `DraftCard` exported + gained `detail`. **Critical fix: each detail card is `key`'d by item key** so React remounts on selection change — otherwise the stateful message body goes stale when you switch items (header updated, message didn't).
+- `page.tsx` now renders Hero → AutomationPanel → `<OutboxWorkspace>` → Snoozed. Retired from the page: `DraftsList` and `PendingList` (PendingList file kept only for its `PendingItem` type, still imported by page; the component is now dead — safe to delete later).
+- Verified desktop + mobile, all three item types, no console errors. (preview_screenshot tool times out on this tall page all session — verified via DOM instead.)
+
 ## Current Product Direction
 
 The UI direction is a single "Messages" concept. The schema still has WhatsApp/email/SMS channels because real provider integration has not been chosen yet.
