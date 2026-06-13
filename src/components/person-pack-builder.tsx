@@ -544,14 +544,15 @@ function Preview({
               placeholder="Add an item to request…"
               className="min-w-0 flex-1 rounded-md bg-bg-subtle/60 px-2.5 py-1.5 text-xs ring-1 ring-border/60 focus:outline-none focus:ring-2 focus:ring-accent/40"
             />
-            <button
+            <Button
               type="button"
+              size="sm"
+              className="shrink-0"
               disabled={addingItem || !newItem.trim()}
               onClick={() => onAddItem(newItem)}
-              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
             >
               {addingItem ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Add
-            </button>
+            </Button>
           </div>
         </div>
       )}

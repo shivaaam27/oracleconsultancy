@@ -1,5 +1,5 @@
 "use client";
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
 import {
   Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote,
@@ -270,15 +270,15 @@ export function OutboxCard({
         ) : !expanded ? (
           <div className="flex items-center gap-1.5 shrink-0">
             {!anyContact && <AlertCircle size={13} className="text-warn" aria-label="No contact details" />}
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={onCopyAndMark}
               disabled={pending || !anyContact}
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
               title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
             >
               <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & done"}</span>
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
@@ -357,11 +357,10 @@ export function OutboxCard({
                 className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50">
                 <Check size={14} />
               </button>
-              <button type="button" onClick={onCopyAndMark} disabled={pending || !anyContact}
-                title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 text-xs rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50">
+              <Button type="button" size="sm" onClick={onCopyAndMark} disabled={pending || !anyContact}
+                title={anyContact ? "Copy message and mark done" : "No contact details for this person"}>
                 <Send size={13} /> {pending ? "…" : <span>Copy &amp; done</span>}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

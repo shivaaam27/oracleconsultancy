@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
+import { Button } from "./ui";
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
@@ -12,12 +13,9 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
     });
   }
   return (
-    <button
-      onClick={handleCopy}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
-    >
+    <Button onClick={handleCopy}>
       {copied ? <Check size={14} /> : <Copy size={14} />}
       {copied ? "Copied!" : label}
-    </button>
+    </Button>
   );
 }

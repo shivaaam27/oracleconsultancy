@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { RefreshCcw, Check, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/toast";
+import { Button } from "@/components/ui";
 
 /**
  * Admin button: hits /api/admin/resync-latest-update to re-derive every task's
@@ -48,15 +49,16 @@ export function ResyncLatestUpdateButton() {
     <div className="inline-flex items-center gap-1.5 text-xs">
       <AlertTriangle size={12} className="text-warn" />
       <span className="text-fg-muted">Re-derive every task's latest_update?</span>
-      <button
+      <Button
         type="button"
+        size="sm"
+        variant="primary"
         onClick={run}
         disabled={pending}
-        className="px-2 py-1 rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-1"
       >
         {pending ? <RefreshCcw size={11} className="animate-spin" /> : <Check size={11} />}
         Confirm
-      </button>
+      </Button>
       <button
         type="button"
         onClick={() => setConfirming(false)}

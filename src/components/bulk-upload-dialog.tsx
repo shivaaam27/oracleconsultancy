@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { UploadCloud, X, Check, Plus, Sparkles, Loader2, UserPlus } from "lucide-react";
 import { useToast } from "./toast";
+import { Button } from "./ui";
 import { cn } from "@/lib/cn";
 import { DocumentForm } from "./document-form";
 import { extractPersonFields, enrichPersonProfile, createPerson, type PersonProfileFields } from "@/app/people/actions";
@@ -116,19 +117,17 @@ function MessageProfilePanel({
                 <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New person's name" autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPerson(); } }}
                   className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent" />
-                <button type="button" onClick={addPerson} disabled={savingPerson || !newName.trim()}
-                  className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2 py-1 text-[11px] disabled:opacity-50">
+                <Button type="button" size="xs" onClick={addPerson} disabled={savingPerson || !newName.trim()}>
                   {savingPerson ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Add
-                </button>
+                </Button>
                 <button type="button" onClick={() => { setCreating(false); setNewName(""); }} className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
               </span>
             ) : (
               <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline"><UserPlus size={11} /> New</button>
             )}
-            <button type="button" onClick={apply} disabled={enriching || personId === ""}
-              className="inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+            <Button type="button" size="xs" onClick={apply} disabled={enriching || personId === ""}>
               {enriching ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Update profile
-            </button>
+            </Button>
           </div>
           <p className="text-[11px] text-fg-subtle">Only empty fields are filled — nothing on record is changed.</p>
         </>

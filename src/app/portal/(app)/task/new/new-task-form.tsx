@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
+import { Button } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { portalCreateTask } from "../../../actions";
 
@@ -85,14 +86,15 @@ export function NewTaskForm({ me, people, companies }: { me: Person; people: Per
 
           {state?.error && <p className="text-sm text-danger" role="alert">{state.error}</p>}
 
-          <button
+          <Button
             type="submit"
+            size="lg"
             disabled={pending}
-            className="mt-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-accent text-accent-fg px-4 py-3 text-sm font-semibold transition-opacity disabled:opacity-60"
+            className="mt-1 gap-2 rounded-2xl font-semibold disabled:opacity-60"
           >
             <ClipboardCheck size={16} />
             {pending ? "Creating…" : "Create task"}
-          </button>
+          </Button>
         </form>
       </Panel>
       </Reveal>

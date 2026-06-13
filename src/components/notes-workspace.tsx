@@ -6,6 +6,7 @@ import { Plus, Search, Trash2, ArrowLeft, Loader2, Check, StickyNote, Wand2, Ext
 import { cn } from "@/lib/cn";
 import { createNote, updateNote, deleteNote, setNotePinned, type Note } from "@/app/notes/actions";
 import { PeekPreview, type PeekAction } from "./peek-preview";
+import { Button } from "./ui";
 import { FluidSelect } from "./fluid-select";
 import { Combobox } from "./combobox";
 import { Markdown } from "./markdown";
@@ -165,9 +166,9 @@ export function NotesWorkspace({ initialNotes, companies, openId }: { initialNot
       {/* List pane */}
       <div className={cn("flex flex-col border-border md:border-r", selected ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">
-          <button type="button" onClick={handleNew} disabled={creating} className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent text-accent-fg text-sm font-medium px-3 py-2 hover:opacity-90 transition-opacity disabled:opacity-50">
+          <Button type="button" onClick={handleNew} disabled={creating} className="w-full">
             {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} New note
-          </button>
+          </Button>
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes" className="w-full rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none" />

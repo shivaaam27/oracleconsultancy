@@ -5,6 +5,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreHorizontal, Pencil, Trash2, X, Check, RotateCcw } from "lucide-react";
 import { editAuditReason, deleteAuditEntry, restoreAuditEntry } from "@/app/audit/actions";
 import { useToast } from "./toast";
+import { Button } from "./ui";
 import { cn } from "@/lib/cn";
 
 type Props = {
@@ -143,14 +144,15 @@ export function AuditMenu({ entryId, currentReason, deleted = false }: Props) {
             >
               <X size={12} className="inline" /> Cancel
             </button>
-            <button
+            <Button
               type="button"
+              variant="danger"
+              size="xs"
               onClick={onDelete}
               disabled={pending}
-              className="px-2 py-1 rounded-md bg-danger text-white hover:opacity-90 disabled:opacity-50"
             >
               <Check size={12} className="inline" /> Confirm
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -183,14 +185,14 @@ export function AuditMenu({ entryId, currentReason, deleted = false }: Props) {
               >
                 Cancel
               </button>
-              <button
+              <Button
                 type="button"
+                size="xs"
                 onClick={onSaveEdit}
                 disabled={pending || draft.trim() === (currentReason ?? "").trim()}
-                className="px-2.5 py-1 rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-40"
               >
                 Save reason
-              </button>
+              </Button>
             </div>
           </div>
         </div>

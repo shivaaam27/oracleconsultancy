@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { startRegistration, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import type { PublicKeyCredentialCreationOptionsJSON, RegistrationResponseJSON } from "@simplewebauthn/browser";
 import { ScanFace, Fingerprint, Trash2, Plus } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { Button } from "./ui";
 
 export type PasskeyRow = { id: number; label: string | null; created_at: string; last_used_at: string | null };
 
@@ -77,10 +77,9 @@ export function PasskeyManager({ initial, begin, finish, remove }: {
       )}
 
       {supported ? (
-        <button type="button" disabled={busy} onClick={add}
-          className={cn("inline-flex items-center gap-2 rounded-xl bg-accent text-accent-fg px-3.5 py-2 text-sm font-medium transition-opacity disabled:opacity-60")}>
+        <Button type="button" disabled={busy} onClick={add}>
           <ScanFace size={15} /> {busy ? "Follow your device…" : initial.length ? "Add another device" : "Add Face ID / fingerprint"}
-        </button>
+        </Button>
       ) : (
         <p className="text-xs text-fg-subtle">This device or browser doesn&apos;t support passkeys.</p>
       )}

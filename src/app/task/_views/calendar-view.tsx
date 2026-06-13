@@ -6,7 +6,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, X, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, Button } from "@/components/ui";
 import { hasTime } from "@/components/deadline";
 import { spring } from "@/lib/motion";
 import { triggerHaptic } from "@/lib/use-long-press";
@@ -171,14 +171,15 @@ export function CalendarView({
       {/* No-deadline: compact button → hover/click popover (still drag-to-schedule) */}
       {noDeadline.length > 0 && (
         <div ref={railRef} className="relative inline-block" onMouseEnter={() => setRailOpen(true)}>
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => setRailOpen((o) => !o)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-border bg-bg-elev text-fg-muted hover:text-fg hover:bg-bg-muted btn-rim transition-colors"
           >
             <CalendarOff size={12} /> No deadline <span className="tabular text-fg-subtle">· {noDeadline.length}</span>
             <ChevronDown size={12} className={"opacity-50 transition-transform " + (railOpen ? "rotate-180" : "")} />
-          </button>
+          </Button>
           <AnimatePresence>
             {railOpen && (
               <motion.div

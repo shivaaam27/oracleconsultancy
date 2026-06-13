@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, Pencil, Trash2, Plus, RefreshCw } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
+import { Button } from "./ui";
 import { EmptyState, SectionCard, ProgressTrack } from "./drawer-kit";
 import { JOURNEY_LABELS, type Journey, type JourneyKind } from "@/lib/onboarding-shared";
 import {
@@ -39,11 +40,10 @@ function StepEditor({ initial, onSave, onCancel, busy }: {
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" onClick={onCancel} disabled={busy}
             className="rounded-lg px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
-          <button type="button" disabled={busy || !label.trim()}
-            onClick={() => onSave({ label: label.trim(), dueAt: dueAt || null })}
-            className="inline-flex items-center gap-1 rounded-lg bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+          <Button type="button" size="xs" variant="primary" disabled={busy || !label.trim()}
+            onClick={() => onSave({ label: label.trim(), dueAt: dueAt || null })}>
             {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -187,10 +187,9 @@ export function JourneyChecklist({
           title={`${title} not started`}
           hint={kind === "onboarding" ? "Kick off the onboarding steps for this person." : "Begin the offboarding checklist."}
           action={
-            <button type="button" onClick={start} disabled={busyId === -1}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent text-accent-fg px-3 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50">
+            <Button type="button" size="sm" variant="primary" onClick={start} disabled={busyId === -1}>
               {busyId === -1 ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />} Start {title.toLowerCase()}
-            </button>
+            </Button>
           }
         />
       </SectionCard>

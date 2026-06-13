@@ -7,6 +7,7 @@ import {
   PackageCheck, Plus, ShieldCheck, Building2, Users,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { LinkButton } from "@/components/ui";
 import { EntityDrawer } from "@/components/entity-drawer";
 import type { ComplianceScore } from "@/lib/compliance";
 
@@ -419,12 +420,12 @@ export function ComplianceScorePanel({
         onTabChange={() => {}}
         actionBar={selected && (
           <div className="flex flex-wrap gap-2">
-            <Link
+            <LinkButton
               href={ownerHref(selected)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90"
+              size="sm"
             >
               <ExternalLink size={13} /> {selected.ownerType === "company" ? "Filter documents" : "Open person"}
-            </Link>
+            </LinkButton>
             {selected.ownerType === "person" && (
               <Link
                 href={personPackHref(selected)}

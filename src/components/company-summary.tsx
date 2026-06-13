@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, Copy, Check } from "lucide-react";
+import { Sparkles, Copy, Check } from "lucide-react";
 import { friendlyAIError } from "@/lib/ai-errors";
+import { Button } from "./ui";
 
 export function CompanySummary({ companyId }: { companyId: number }) {
   const [summary, setSummary] = useState<string>("");
@@ -56,14 +57,14 @@ export function CompanySummary({ companyId }: { companyId: number }) {
               {copied ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
             </button>
           )}
-          <button
+          <Button
             onClick={generate}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+            loading={loading}
+            size="sm"
           >
-            {loading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            {!loading && <Sparkles size={12} />}
             {loading ? "Analysing…" : summary ? "Regenerate" : "Generate Briefing"}
-          </button>
+          </Button>
         </div>
       </div>
 

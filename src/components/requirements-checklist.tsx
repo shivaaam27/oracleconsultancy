@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2, History, CalendarClock } from "lucide-react";
-import { Badge } from "./ui";
+import { Badge, Button, LinkButton } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { CountUp } from "./arc-gauge";
@@ -64,11 +63,10 @@ function ReqEditor({ initial, onSave, onCancel, busy }: {
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" onClick={onCancel} disabled={busy}
             className="rounded-lg px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
-          <button type="button" disabled={busy || !label.trim()}
-            onClick={() => onSave({ label: label.trim(), category: category || null, mandatory })}
-            className="inline-flex items-center gap-1 rounded-lg bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+          <Button type="button" size="xs" disabled={busy || !label.trim()}
+            onClick={() => onSave({ label: label.trim(), category: category || null, mandatory })}>
             {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -341,15 +339,13 @@ export function RequirementsChecklist({
 
     const primaryAdd = (label: string) =>
       onAddDocument ? (
-        <button type="button" disabled={busy} onClick={(e) => { e.stopPropagation(); onAddDocument({ title: item.label, category: addCat }); }}
-          className="inline-flex items-center gap-1 rounded-lg bg-accent text-accent-fg px-2 py-1 text-[11px] font-medium hover:opacity-90">
+        <Button type="button" size="xs" disabled={busy} onClick={(e) => { e.stopPropagation(); onAddDocument({ title: item.label, category: addCat }); }}>
           <Plus size={12} /> {label}
-        </button>
+        </Button>
       ) : (
-        <Link href={addDocHref(personId, item)} onClick={(e) => { e.stopPropagation(); onNavigate?.(); }}
-          className="inline-flex items-center gap-1 rounded-lg bg-accent text-accent-fg px-2 py-1 text-[11px] font-medium hover:opacity-90">
+        <LinkButton size="xs" href={addDocHref(personId, item)} onClick={(e) => { e.stopPropagation(); onNavigate?.(); }}>
           <Plus size={12} /> {label}
-        </Link>
+        </LinkButton>
       );
 
     return (

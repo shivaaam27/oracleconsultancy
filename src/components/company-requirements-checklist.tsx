@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, History, CalendarClock } from "lucide-react";
-import { Badge } from "./ui";
+import { Badge, Button } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { CountUp } from "./arc-gauge";
@@ -60,11 +60,11 @@ function ReqEditor({ initial, onSave, onCancel, busy }: {
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" onClick={onCancel} disabled={busy}
             className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
-          <button type="button" disabled={busy || !label.trim()}
+          <Button type="button" disabled={busy || !label.trim()} loading={busy}
             onClick={() => onSave({ label: label.trim(), category: category || null, mandatory })}
-            className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
-            {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
-          </button>
+            size="xs">
+            {!busy && <Check size={11} />} Save
+          </Button>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { CalendarDays, Plane, Check, X, Plus, Loader2, CalendarCheck } from "lucide-react";
-import { Badge } from "./ui";
+import { Badge, Button } from "./ui";
 import { EmptyState, SectionCard } from "./drawer-kit";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
@@ -200,10 +200,9 @@ export function PersonLeave({
             </label>
             <input name="reason" placeholder="Reason (optional)" className="w-full rounded-md bg-bg-elev text-xs ring-1 ring-border px-2.5 py-1.5" />
             <div className="flex items-center gap-1.5">
-              <button type="submit" disabled={busyId === -1}
-                className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
-                {busyId === -1 ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
-              </button>
+              <Button type="submit" disabled={busyId === -1} loading={busyId === -1} size="xs">
+                {busyId !== -1 && <Check size={11} />} Save
+              </Button>
               <button type="button" onClick={() => setRecording(false)} className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted">Cancel</button>
             </div>
           </form>

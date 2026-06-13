@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Loader2 } from "lucide-react";
+import { Button } from "./ui";
 
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 
@@ -113,9 +114,9 @@ export function DevicePushToggle() {
         <p className="text-sm text-warn">Notifications are blocked. Allow them for this site in your browser settings, then come back.</p>
       )}
       {state === "off" && (
-        <button type="button" onClick={enable} disabled={busy} className={`${btn} bg-accent text-accent-fg disabled:opacity-60`}>
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />} Enable on this device
-        </button>
+        <Button type="button" onClick={enable} loading={busy} size="lg">
+          {!busy && <Bell size={14} />} Enable on this device
+        </Button>
       )}
       {state === "on" && (
         <div className="flex flex-wrap items-center gap-2">

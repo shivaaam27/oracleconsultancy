@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { ShieldCheck, Check, CalendarClock, ClipboardList, Loader2 } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
+import { Button } from "./ui";
 import { setProbationDateAction, createProbationReviewTaskAction } from "@/app/people/actions";
 
 /** Probation review controls for the person drawer (Manage section). */
@@ -54,10 +55,9 @@ export function PersonProbation({
         <div className="flex items-center gap-2">
           <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} disabled={busy}
             className="flex-1 rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent [color-scheme:light] dark:[color-scheme:dark]" />
-          <button type="button" disabled={busy || !newDate} onClick={() => run(() => setProbationDateAction(personId, newDate), "Probation extended.")}
-            className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2.5 py-1.5 text-xs disabled:opacity-50">
+          <Button type="button" size="sm" disabled={busy || !newDate} onClick={() => run(() => setProbationDateAction(personId, newDate), "Probation extended.")}>
             {busy ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Save
-          </button>
+          </Button>
           <button type="button" onClick={() => setExtending(false)} className="text-xs text-fg-muted hover:text-fg px-1">Cancel</button>
         </div>
       ) : (

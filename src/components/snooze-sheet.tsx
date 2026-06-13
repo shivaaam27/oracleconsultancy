@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, CalendarDays, CalendarClock, Calendar, Check } from "lucide-react";
 import { spring } from "@/lib/motion";
+import { Button } from "./ui";
 
 /** End-of-day ISO for a date that is `days` from now (keeps deadlines tidy at 17:00). */
 export function snoozeIso(base: number, days: number): string {
@@ -86,14 +87,13 @@ export function SnoozeSheet({
                   min={new Date().toISOString().slice(0, 10)}
                   className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none"
                 />
-                <button
+                <Button
                   type="button"
                   onClick={pickDate}
                   disabled={!date}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-accent text-accent-fg px-3 py-1.5 text-sm font-medium disabled:opacity-40 hover:opacity-90 transition-opacity"
                 >
                   <Check size={14} /> Set
-                </button>
+                </Button>
               </div>
             </div>
           </motion.div>

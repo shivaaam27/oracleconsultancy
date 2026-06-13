@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { ListChecks, Loader2, Plus, Pencil, Trash2, Check, Info, RefreshCw } from "lucide-react";
-import { Badge } from "./ui";
+import { ListChecks, Plus, Pencil, Trash2, Check, Info, RefreshCw } from "lucide-react";
+import { Badge, Button } from "./ui";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { useToast } from "./toast";
 import { DOC_CATEGORIES } from "@/lib/documents-shared";
@@ -39,11 +39,10 @@ function ItemEditor({ initial, onSave, onCancel, busy }: {
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" onClick={onCancel} disabled={busy}
             className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg hover:bg-bg-muted disabled:opacity-50">Cancel</button>
-          <button type="button" disabled={busy || !label.trim()}
-            onClick={() => onSave({ label: label.trim(), category: category || null, mandatory })}
-            className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
-            {busy ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Save
-          </button>
+          <Button type="button" disabled={busy || !label.trim()} loading={busy} size="xs"
+            onClick={() => onSave({ label: label.trim(), category: category || null, mandatory })}>
+            {!busy && <Check size={11} />} Save
+          </Button>
         </div>
       </div>
     </div>
@@ -187,11 +186,10 @@ export function RequirementTemplatesButton() {
       <span className="text-[11px] text-fg-muted">
         {dirty ? "Unsaved changes — save to apply to everyone." : "Edits auto-save to the template."}
       </span>
-      <button type="button" onClick={syncEveryone} disabled={syncing}
-        className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
-        {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+      <Button type="button" onClick={syncEveryone} disabled={syncing} loading={syncing} size="sm">
+        {!syncing && <RefreshCw size={13} />}
         Save &amp; sync to everyone
-      </button>
+      </Button>
     </div>
   );
 

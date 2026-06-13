@@ -22,7 +22,7 @@ import { RequirementsChecklist } from "./requirements-checklist";
 import { DocumentForm } from "./document-form";
 import { JourneyChecklist } from "./journey-checklist";
 import { PersonAssets } from "./person-assets";
-import { Badge } from "./ui";
+import { Badge, Button } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
 import { getDocumentFileLinkAction } from "@/app/documents/actions";
@@ -771,7 +771,7 @@ export function PersonDrawer() {
             <div className="flex items-center gap-2">
               <input type="date" value={snoozeInput} onChange={(e) => setSnoozeInput(e.target.value)} min={new Date().toISOString().slice(0, 10)} disabled={actionPending}
                 className="flex-1 rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50" />
-              <button type="button" onClick={handleSnoozeSave} disabled={actionPending} className="px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50">Save</button>
+              <Button type="button" size="sm" onClick={handleSnoozeSave} disabled={actionPending}>Save</Button>
             </div>
             {person.snoozedUntil && <p className="text-[11px] text-fg-subtle mt-1">Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.</p>}
           </div>
@@ -842,10 +842,9 @@ export function PersonDrawer() {
         </div>
       )}
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => setPackOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+        <Button type="button" size="sm" onClick={() => setPackOpen(true)}>
           <PackageCheck size={13} /> Prepare pack
-        </button>
+        </Button>
         <div className="ml-auto flex items-center gap-1.5">
           {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
           <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href={`/chat?dm=${person.id}`} />

@@ -22,6 +22,7 @@ import { FluidSelect } from "@/components/fluid-select";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui";
 
 const fieldCls = "w-full rounded-xl bg-bg-subtle/60 border border-border px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-accent/50 backdrop-blur-md";
 const labelCls = "text-[10px] uppercase tracking-wider text-fg-subtle";
@@ -304,9 +305,9 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
       {/* History pane */}
       <div className={cn("flex flex-col border-border md:border-r", editing ? "hidden md:flex" : "flex")}>
         <div className="p-3 space-y-2 border-b border-border">
-          <button type="button" onClick={startNewMeeting} className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-accent text-accent-fg text-sm font-medium px-3 py-2 hover:opacity-90 transition-opacity">
+          <Button type="button" onClick={startNewMeeting} size="md" variant="primary" className="w-full">
             <Plus size={14} /> New meeting
-          </button>
+          </Button>
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
             <input value={historyQuery} onChange={e => setHistoryQuery(e.target.value)} placeholder="Search meetings" className="w-full rounded-lg border border-border bg-bg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40" />
@@ -367,9 +368,9 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
                   {isDeletingMeeting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={15} />}
                 </button>
               )}
-              <button type="button" onClick={handleSaveMeeting} disabled={isSavingMeeting} className="inline-flex items-center gap-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium px-3 py-1.5 disabled:opacity-50 hover:opacity-90 transition-opacity">
+              <Button type="button" onClick={handleSaveMeeting} disabled={isSavingMeeting} size="sm" variant="primary">
                 {isSavingMeeting ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save
-              </button>
+              </Button>
             </div>
 
             {/* Meta row */}
@@ -646,10 +647,10 @@ function TasksDrawer({
 
             {tasks.length > 0 && (
               <div className="border-t border-border p-3 shrink-0">
-                <button onClick={onSave} disabled={!checkedCount || isSaving} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-accent text-accent-fg text-sm font-medium px-4 py-2.5 disabled:opacity-50 hover:opacity-90 transition-opacity">
+                <Button onClick={onSave} disabled={!checkedCount || isSaving} size="md" variant="primary" className="w-full">
                   {isSaving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                   {isSaving ? "Creating…" : `Create ${checkedCount} task${checkedCount !== 1 ? "s" : ""}`}{needsReview ? ` · ${needsReview} need review` : ""}
-                </button>
+                </Button>
               </div>
             )}
           </motion.div>

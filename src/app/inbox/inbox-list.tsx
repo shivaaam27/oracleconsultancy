@@ -6,6 +6,7 @@ import { Mail, MessageCircle, Share2, Inbox as InboxIcon, Sparkles, Trash2, Load
 import { dismissInboxItem, updateInboxBody, signInboxAttachment, markInboxFiled, type InboxItem } from "./actions";
 import { SwipeRow } from "@/components/swipe-row";
 import { BulkUploadDialog } from "@/components/bulk-upload-dialog";
+import { Button } from "@/components/ui";
 
 function CopyChip({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -165,14 +166,14 @@ export function InboxList({
                   className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent/40"
                 />
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
                     onClick={() => saveEdit(item.id)}
                     disabled={isBusy || !draft.trim()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
                   >
                     {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
-                  </button>
+                  </Button>
                   <button
                     type="button"
                     onClick={() => setEditingId(null)}
@@ -225,13 +226,13 @@ export function InboxList({
 
             {!isEditing && (
               <div className="flex items-center gap-2 pt-0.5">
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={() => fileIt(item)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition-opacity"
                 >
                   <Sparkles size={13} /> File it
-                </button>
+                </Button>
                 <button
                   type="button"
                   onClick={() => processBundle(item)}

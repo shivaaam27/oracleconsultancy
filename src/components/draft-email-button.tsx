@@ -5,6 +5,7 @@ import { Mail, Loader2, Send, X, Copy, Check } from "lucide-react";
 import { recordSent } from "@/app/outbox/actions";
 import { friendlyAIError } from "@/lib/ai-errors";
 import { useContextActions } from "./context-actions";
+import { Button } from "./ui";
 
 type Draft = {
   subject: string;
@@ -144,14 +145,15 @@ export function DraftEmailButton({ taskId }: { taskId: number }) {
                   >
                     {copied === "both" ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
                   </button>
-                  <button
+                  <Button
                     onClick={logSent}
                     disabled={sending || sent}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+                    loading={sending}
+                    size="sm"
                   >
-                    {sending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                    {!sending && <Send size={12} />}
                     {sending ? "Logging…" : "Mark as sent → Outbox"}
-                  </button>
+                  </Button>
                   <button
                     onClick={generate}
                     disabled={loading}

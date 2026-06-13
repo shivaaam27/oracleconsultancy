@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo, PackageCheck, Bot, FileEdit } from "lucide-react";
 import { labelForSource } from "@/lib/outbox-automation-shared";
 import { SectionLabel } from "@/components/surface-kit";
+import { Button } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { linkFor, channelLabel, type Channel } from "@/lib/outbox-links";
@@ -150,9 +151,9 @@ export function DraftCard({ draft, onGone, detail = false }: { draft: OutboxDraf
           </>
         )}
         {canEmail && (
-          <button type="button" onClick={onSendEmail} disabled={pending} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50" title={autoLabel ? "Approve this automated draft and send it now from admin@oracle.co.tz" : "Send this email now from admin@oracle.co.tz"}>
+          <Button type="button" size="sm" onClick={onSendEmail} disabled={pending} className="rounded-md" title={autoLabel ? "Approve this automated draft and send it now from admin@oracle.co.tz" : "Send this email now from admin@oracle.co.tz"}>
             <Send size={12} /> {autoLabel ? "Approve & send" : "Send email"}
-          </button>
+          </Button>
         )}
         {link && (
           <a href={link} target="_blank" rel="noopener noreferrer" onClick={saveIfNeeded} className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md transition-opacity hover:opacity-90", canEmail ? "bg-bg-muted text-fg-muted hover:text-fg" : "bg-accent text-accent-fg")} title={`Open ${channelLabel(draft.channel)}`}>

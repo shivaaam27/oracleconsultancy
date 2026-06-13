@@ -7,6 +7,7 @@ import {
   Eraser,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Button } from "./ui";
 import { CodeLinkedText } from "./code-linked-text";
 import { useToast } from "./toast";
 import { deleteTaskUpdate } from "@/app/task/actions";
@@ -252,14 +253,14 @@ export function TimelineEntry({
               >
                 Cancel
               </button>
-              <button
+              <Button
                 type="button"
+                size="xs"
                 onClick={doCorrect}
                 disabled={busy || correctionNote.trim().length === 0}
-                className="px-2.5 py-1 rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-40"
               >
                 Save correction
-              </button>
+              </Button>
             </div>
           </div>
         )}

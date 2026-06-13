@@ -47,9 +47,9 @@ export function AddInboxDialog() {
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <Dialog.Trigger asChild>
-        <button type="button" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+        <Button type="button" size="md">
           <Plus size={15} /> Add to inbox
-        </button>
+        </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />

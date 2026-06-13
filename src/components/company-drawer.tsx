@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Building2, ShieldCheck, Clock, Users, FileText, FileWarning, ExternalLink, ChevronRight } from "lucide-react";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { SectionCard, EmptyState, ProgressTrack } from "./drawer-kit";
-import { Badge } from "./ui";
+import { Badge, LinkButton } from "./ui";
 import { PersonDrawerLink } from "./person-drawer-link";
 import { TaskDrawerLink } from "./task-drawer-link";
 import { cn } from "@/lib/cn";
@@ -227,9 +227,9 @@ export function CompanyDrawer() {
 
   const actionBar = c ? (
     <div className="flex items-center gap-2">
-      <Link href={base} onClick={close} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+      <LinkButton href={base} onClick={close} size="sm">
         <Building2 size={13} /> Open full page
-      </Link>
+      </LinkButton>
       <div className="ml-auto flex items-center gap-1.5">
         <Link href={`${base}?tab=profile`} onClick={close} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors"><FileText size={13} /> Files</Link>
         <Link href={`${base}?tab=org`} onClick={close} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-border hover:border-accent hover:text-accent transition-colors"><Users size={13} /> Team</Link>

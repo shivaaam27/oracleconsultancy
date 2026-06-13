@@ -7,6 +7,7 @@ import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/a
 import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
 import { Segmented } from "@/components/macos";
+import { Button } from "@/components/ui";
 import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
 import { cn } from "@/lib/cn";
 
@@ -514,10 +515,9 @@ export function DocumentForm({
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreatePerson(); } }}
                 placeholder="New person's name" autoFocus
                 className="flex-1 rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent" />
-              <button type="button" onClick={handleCreatePerson} disabled={savingPerson || !newPersonName.trim()}
-                className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-2 py-1 text-[11px] disabled:opacity-50">
+              <Button type="button" size="xs" onClick={handleCreatePerson} disabled={savingPerson || !newPersonName.trim()}>
                 {savingPerson ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Add
-              </button>
+              </Button>
               <button type="button" onClick={() => { setCreatingPerson(false); setNewPersonName(""); }}
                 className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
             </div>
@@ -539,10 +539,9 @@ export function DocumentForm({
             </div>
             <p className="text-fg-muted">{profileSummary(personProfile)}.</p>
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <button type="button" onClick={applyProfile} disabled={enriching || !selectedPersonId()}
-                className="inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+              <Button type="button" size="xs" onClick={applyProfile} disabled={enriching || !selectedPersonId()}>
                 {enriching ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Update the person's profile
-              </button>
+              </Button>
               <button type="button" onClick={() => { setPersonProfile(null); setEnrichNote(null); }}
                 className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg">Dismiss</button>
             </div>
@@ -560,10 +559,9 @@ export function DocumentForm({
             </div>
             <p className="text-fg-muted">{companyProfileSummary(companyProfile)}.</p>
             <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <button type="button" onClick={applyCompanyProfile} disabled={enriching || !selectedCompanyId()}
-                className="inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-fg px-2.5 py-1 text-[11px] font-medium disabled:opacity-50">
+              <Button type="button" size="xs" onClick={applyCompanyProfile} disabled={enriching || !selectedCompanyId()}>
                 {enriching ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Update the company profile
-              </button>
+              </Button>
               <button type="button" onClick={() => { setCompanyProfile(null); setEnrichNote(null); }}
                 className="rounded-md px-2 py-1 text-[11px] text-fg-muted hover:text-fg">Dismiss</button>
             </div>
@@ -661,11 +659,10 @@ export function DocumentForm({
             {cancelLabel ?? "Cancel"}
           </button>
         )}
-        <button type="submit" disabled={pending}
-          className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50")}>
+        <Button type="submit" disabled={pending}>
           {pending ? <Loader2 size={13} className="animate-spin" /> : mode === "create" ? <FilePlus size={13} /> : <Save size={13} />}
           {pending ? "Saving…" : submitLabel ?? (mode === "create" ? "Add document" : "Save changes")}
-        </button>
+        </Button>
       </div>
     </form>
   );

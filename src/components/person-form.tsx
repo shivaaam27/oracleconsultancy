@@ -10,6 +10,7 @@ import { submitOnEnterKeyDown, EnterHint, FieldError, invalidFieldClass } from "
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 import { STAFF_CATEGORIES } from "@/lib/staff-id-shared";
 import { Combobox } from "@/components/combobox";
+import { Button } from "@/components/ui";
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 
@@ -642,10 +643,10 @@ export function PersonForm({
             Cancel
           </button>
         )}
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50"
+          size="md"
         >
           {pending ? (
             <Loader2 size={13} className="animate-spin" />
@@ -655,7 +656,7 @@ export function PersonForm({
             <Save size={13} />
           )}
           {pending ? (mode === "create" ? "Creating…" : "Saving…") : mode === "create" ? "Create person" : "Save changes"}
-        </button>
+        </Button>
       </div>
     </form>
   );

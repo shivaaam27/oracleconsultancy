@@ -9,6 +9,7 @@ import {
   CheckSquare, Check, List as ListIcon, CalendarRange,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
+import { Button } from "./ui";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
 import { BulkUploadDialog } from "./bulk-upload-dialog";
@@ -473,10 +474,9 @@ export function DocumentsTable({
           </div>
           <div className="text-sm font-medium">No documents yet</div>
           <div className="text-xs text-fg-muted mt-1 max-w-sm mx-auto">Track licences, contracts, certificates, insurance, leases and visas — with expiry dates and reminders.</div>
-          <button type="button" onClick={() => setCreateOpen(true)}
-            className="mt-5 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm rounded-lg bg-accent text-accent-fg hover:opacity-90 transition-opacity">
+          <Button type="button" onClick={() => setCreateOpen(true)} className="mt-5">
             <FilePlus size={15} /> Add your first document
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="glass elevated rounded-3xl text-center py-12 text-fg-muted text-sm">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CalendarDays, Plane, Plus, Check, Loader2 } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
+import { Button } from "./ui";
 import { LEAVE_STATUS_TONE, type LeaveRequestRow, type PersonLeaveBalance } from "@/lib/leave-shared";
 import { portalRequestLeave } from "@/app/portal/actions";
 
@@ -124,9 +125,9 @@ export function PortalLeave({
             </label>
             <input name="reason" placeholder="Reason (optional)" className="w-full rounded-md bg-bg-elev text-xs ring-1 ring-border px-2.5 py-2" />
             <div className="flex items-center gap-1.5">
-              <button type="submit" disabled={busy} className="inline-flex items-center gap-1 rounded-md bg-accent text-accent-fg px-3 py-1.5 text-xs font-medium disabled:opacity-50">
+              <Button type="submit" size="sm" variant="primary" disabled={busy}>
                 {busy ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Submit request
-              </button>
+              </Button>
               <button type="button" onClick={() => setRequesting(false)} className="rounded-md px-2 py-1.5 text-xs text-fg-muted hover:text-fg hover:bg-bg-muted">Cancel</button>
             </div>
           </form>

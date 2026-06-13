@@ -370,9 +370,9 @@ export function TaskDrawer() {
           <Trash2 size={14} className="text-danger shrink-0" />
           <span className="min-w-0 flex-1">Delete this task permanently?</span>
           <button type="button" onClick={() => setConfirmDel(false)} className="shrink-0 text-fg-muted hover:text-fg">Cancel</button>
-          <button type="button" onClick={handleDelete} disabled={acting === "delete"} className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-danger text-white font-medium hover:opacity-90 disabled:opacity-50">
+          <Button type="button" onClick={handleDelete} disabled={acting === "delete"} variant="danger" size="sm" className="shrink-0">
             {acting === "delete" ? <Loader2 size={12} className="animate-spin" /> : "Delete"}
-          </button>
+          </Button>
         </div>
       )}
       <div className="flex items-center gap-2">

@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/cn";
 import { bulkUpdateTasks, type BulkAction } from "@/app/task/actions";
 import { useToast } from "@/components/toast";
+import { Button } from "@/components/ui";
 
 type SelectionCtx = {
   /** All codes currently rendered (used by selectAll). Reset by SelectionProvider on each render. */
@@ -283,13 +284,14 @@ export function BulkBar() {
                 className="flex-1 px-2 py-1.5 text-sm rounded-md bg-bg outline-none"
               />
             )}
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={confirm}
               disabled={pending}
-              className="px-3 py-1.5 text-sm rounded-md bg-accent text-accent-fg hover:opacity-90 disabled:opacity-40"
             >
               Apply to {count}
-            </button>
+            </Button>
             <button
               onClick={() => { setMode(null); setValue(""); }}
               className="px-2 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted"
@@ -306,13 +308,15 @@ export function BulkBar() {
             <span className="flex-1 text-sm text-danger min-w-0">
               Permanently delete {count} task{count === 1 ? "" : "s"}? This cannot be undone.
             </span>
-            <button
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => run({ kind: "delete" }, "Deleted")}
               disabled={pending}
-              className="px-3 py-1.5 text-sm font-medium rounded-md bg-danger text-white hover:opacity-90 disabled:opacity-40 shrink-0"
+              className="shrink-0"
             >
               Delete
-            </button>
+            </Button>
             <button
               onClick={() => setMode(null)}
               className="px-2 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted shrink-0"
