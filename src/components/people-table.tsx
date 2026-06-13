@@ -386,30 +386,33 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       {selectMode && selected.size > 0 && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-[5.5rem] md:bottom-24 z-40 flex flex-col items-center gap-2">
           {bulkEditing && (
-            <div className="w-[min(94vw,40rem)] rounded-2xl bg-bg-elev ring-1 ring-border shadow-pill p-3 backdrop-blur-xl grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-              <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
-                className="w-full sm:w-auto min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
-                <option value="" disabled>Set company…</option>
-                <option value="none">— Clear —</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("manager", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
-                className="w-full sm:w-auto min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
-                <option value="" disabled>Set manager…</option>
-                <option value="none">— Clear —</option>
-                {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkSecondary(e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
-                className="w-full sm:w-auto min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
-                <option value="" disabled>Also reports to…</option>
-                <option value="none">— Clear extra —</option>
-                {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <input list="bulk-dept-list" placeholder="Set department…" onKeyDown={(e) => { if (e.key === "Enter") { const v = (e.target as HTMLInputElement).value.trim(); applyBulkField("department", v || null); (e.target as HTMLInputElement).value = ""; } }}
-                className="w-full sm:w-36 min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40" />
-              <datalist id="bulk-dept-list">
-                {[...new Set(people.map((p) => p.departmentName).filter(Boolean))].map((d) => <option key={d as string} value={d as string} />)}
-              </datalist>
+            <div className="w-[min(90vw,26rem)] rounded-2xl bg-bg-elev ring-1 ring-border shadow-pill p-2 grid grid-cols-2 gap-1.5">
+              {(() => {
+                const selCls = "h-8 min-w-0 w-full rounded-lg bg-bg-subtle text-[11px] text-fg ring-1 ring-border px-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40";
+                return (
+                  <>
+                    <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className={selCls}>
+                      <option value="" disabled>Set company…</option>
+                      <option value="none">— Clear —</option>
+                      {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("manager", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className={selCls}>
+                      <option value="" disabled>Set manager…</option>
+                      <option value="none">— Clear —</option>
+                      {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkSecondary(e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className={selCls}>
+                      <option value="" disabled>Also reports to…</option>
+                      <option value="none">— Clear extra —</option>
+                      {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <input list="bulk-dept-list" placeholder="Set department…" onKeyDown={(e) => { if (e.key === "Enter") { const v = (e.target as HTMLInputElement).value.trim(); applyBulkField("department", v || null); (e.target as HTMLInputElement).value = ""; } }} className={selCls} />
+                    <datalist id="bulk-dept-list">
+                      {[...new Set(people.map((p) => p.departmentName).filter(Boolean))].map((d) => <option key={d as string} value={d as string} />)}
+                    </datalist>
+                  </>
+                );
+              })()}
             </div>
           )}
           <div className="glass elevated rounded-full shadow-pill flex items-center gap-1.5 pl-4 pr-1.5 py-1.5">

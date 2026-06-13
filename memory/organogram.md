@@ -37,6 +37,14 @@ Verified live: Portfolio renders 43 cards, ~86 routed edges, 3 tier bands, no co
 - 2d orphan cleanup: NOT needed — `reporting_lines` FK has `onDelete cascade`, so deleting a person auto-removes their links.
 Verified live; tsc clean; no console errors.
 
+## Phase 3 — Departments admin (DONE, June 2026, uncommitted)
+- Lives as a **"Departments" tab on the Companies hub** (`/companies`, segmented Companies | Departments via `companies-hub-tabs.tsx`) — NOT a standalone route and NOT per-company (departments are group-wide). Standalone `/hrms/departments` route + launcher entry were removed (owner decision); `actions.ts` still lives in that folder (no page = 404, fine). `getDepartmentsAdmin()` in `lib/departments.ts` (returns id/name + peopleCount/companyCount/taskCount/headCount).
+- `src/components/departments-admin.tsx`: add department, inline rename, **merge into another** (re-points people+tasks+heads, drops head on company collision, deletes source), **delete** (nulls people+tasks dept, removes heads). Actions in `src/app/hrms/departments/actions.ts` (`createDepartment`/`renameDepartment`/`mergeDepartments`/`deleteDepartment`), all revalidate `/hrms/departments` + `/hrms/org` + `/people`.
+- 3 tables reference `departments.id` (people, tasks, department_heads) — no FK cascade, so merge/delete repoint all three explicitly. Heads still set per-company in Organogram → By department.
+- Verified live: create + delete round-trip works, counts correct, no console errors, tsc clean.
+
+Also this session: people bulk Set-fields panel made compact (was oversized) — `w-[min(90vw,26rem)]`, h-8 controls, 2-col grid, opaque `bg-bg-elev`. (uncommitted)
+
 ## Known tuning / next steps (not bugs)
 - Leadership row is wide (~13) because each of 7 companies has real directors — inherent; pan/zoom/fit handle it.
 - Possible refinements: collapse/expand a person's subtree, search-to-highlight, apply the flowchart to per-company views too, more tiers (Senior Mgr) if 3 feels flat.
