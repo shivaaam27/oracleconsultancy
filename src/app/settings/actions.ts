@@ -135,7 +135,7 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
   // Each category's "on" state maps to its natural mode (outward = prepare; the
   // owner's own internal emails = auto-send).
   const NATURAL: Record<string, "prepare" | "auto"> = {
-    overdue: "prepare", renewals: "prepare", directorBrief: "auto", lifecycle: "auto",
+    overdue: "auto", renewals: "auto", directorBrief: "auto", lifecycle: "auto",
   };
   if (field === "testMode") {
     await sb.from("settings").upsert({ key: "email.testMode", value: on ? "1" : "0" }, { onConflict: "key" });
@@ -143,6 +143,32 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
     await saveAutomationConfig({ paused: on });
   } else if (field in NATURAL) {
     await saveAutomationConfig({ categories: { [field]: { mode: on ? NATURAL[field] : "off" } } as never });
+  }
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+/** Send the Director Brief to the owner right now (one-off, ignores the schedule). */
+export async function sendDirectorBriefNow(): Promise<void> {
+  const { getBrief, briefEmail } = await import("@/lib/director-brief");
+  const { getEmailConfig } = await import("@/lib/settings");
+  const cfg = await getEmailConfig();
+  const data = await getBrief(new Date(), "month", null);
+  const email = briefEmail(data);
+  if (cfg?.fromAddress) {
+    const { sendEmail } = await import("@/lib/email");
+    const res = await sendEmail({ to: cfg.fromAddress, subject: email.subject, text: email.body });
+    await sb.from("outbox").insert({
+      channel: "EMAIL", recipient_name: cfg.fromName || "Owner", recipient_contact: cfg.fromAddress,
+      subject: email.subject, body: email.body, message_type: "DIRECTOR BRIEF",
+      status: res.ok ? "Sent" : "Draft", source: "brief-now", created_at: new Date().toISOString(),
+    });
+  } else {
+    await sb.from("outbox").insert({
+      channel: "EMAIL", recipient_name: "Owner", recipient_contact: null,
+      subject: email.subject, body: email.body, message_type: "DIRECTOR BRIEF",
+      status: "Draft", source: "brief-now", created_at: new Date().toISOString(),
+    });
   }
   revalidatePath("/settings");
   redirect("/settings?saved=1");

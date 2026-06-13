@@ -144,10 +144,18 @@ export type AutomationRunSummary = {
   categories: Array<{ category: EmailCategory; mode: RuleMode; prepared: number; sent: number; skipped: number }>;
 };
 
+/** Auto-send to a specific person's email (test mode redirects to the owner). */
+async function sendToPerson(toEmail: string | null, subject: string, text: string): Promise<{ sent: number; skipped: number }> {
+  if (!toEmail) return { sent: 0, skipped: 1 };
+  const { sendEmail } = await import("@/lib/email");
+  const res = await sendEmail({ to: toEmail, subject, text });
+  return res.ok ? { sent: 1, skipped: 0 } : { sent: 0, skipped: 1 };
+}
+
 /**
- * Run every category that is enabled + due now. Phase A: overdue reminders in
- * PREPARE mode (reuses createOverdueReminderDrafts). Safe to call frequently —
- * each daily category runs at most once per EAT day.
+ * Run every category that is enabled + due now. Each daily category runs at most
+ * once per EAT day. Categories in "prepare" mode create Outbox drafts; "auto"
+ * mode sends email (redirected to the owner while Test mode is on).
  */
 export async function runDueAutomations(now = new Date()): Promise<AutomationRunSummary> {
   const cfg = await getAutomationConfig();
@@ -160,13 +168,32 @@ export async function runDueAutomations(now = new Date()): Promise<AutomationRun
   const overdue = cfg.categories.overdue;
   if (overdue.mode !== "off" && !(await alreadyRanToday("overdue"))) {
     const { getAllTasks } = await import("@/lib/queries");
-    const { createOverdueReminderDrafts } = await import("@/lib/automation-suggestions");
     const rows = await getAllTasks();
-    // Phase A always PREPARES (drafts). Auto-send wiring lands in Phase B.
-    const res = await createOverdueReminderDrafts(rows);
+    let prepared = 0, sent = 0, skipped = 0;
+    if (overdue.mode === "auto") {
+      // Email each person their overdue list (test mode → redirected to owner).
+      const { getOverdueReminderCandidates } = await import("@/lib/automation-suggestions");
+      const cands = getOverdueReminderCandidates(rows);
+      const byPerson = new Map<number, typeof cands>();
+      for (const t of cands) for (const pid of t.assigneeIds) { const l = byPerson.get(pid) ?? []; l.push(t); byPerson.set(pid, l); }
+      const ids = [...byPerson.keys()];
+      const { data: ppl } = ids.length ? await sb.from("people").select("id,name,email").in("id", ids) : { data: [] as any[] };
+      const emailById = new Map((ppl ?? []).map((p: any) => [p.id as number, { name: p.name as string, email: (p.email as string | null) ?? null }]));
+      for (const [pid, tasks] of byPerson) {
+        const person = emailById.get(pid);
+        if (!person) { skipped++; continue; }
+        const body = `Hi ${person.name.split(" ")[0]}, a reminder of your overdue work:\n\n${tasks.map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}\n\nPlease update the tracker when you can. Thank you.`;
+        const r = await sendToPerson(person.email, "Your overdue tasks", body);
+        sent += r.sent; skipped += r.skipped;
+      }
+    } else {
+      const { createOverdueReminderDrafts } = await import("@/lib/automation-suggestions");
+      const res = await createOverdueReminderDrafts(rows);
+      prepared = res.created; skipped = res.skipped;
+    }
     await markRanToday("overdue");
-    results.push({ category: "overdue", mode: overdue.mode, prepared: res.created, sent: 0, skipped: res.skipped });
-    await recordEvent("email.automation.overdue", "ok", { prepared: res.created, skipped: res.skipped, mode: overdue.mode });
+    results.push({ category: "overdue", mode: overdue.mode, prepared, sent, skipped });
+    await recordEvent("email.automation.overdue", "ok", { prepared, sent, skipped, mode: overdue.mode });
   }
 
   // --- Document/permit renewal nudges (PREPARE) ---
@@ -174,17 +201,27 @@ export async function runDueAutomations(now = new Date()): Promise<AutomationRun
   if (renewals.mode !== "off" && !(await alreadyRanToday("renewals"))) {
     const { listDocuments } = await import("@/lib/documents");
     const { getDocumentRenewalCandidates } = await import("@/lib/automation-suggestions");
-    const { draftDocumentRenewalAction } = await import("@/app/documents/actions");
     const docs = await listDocuments();
     const candidates = await getDocumentRenewalCandidates(docs);
-    let prepared = 0;
-    for (const c of candidates) {
-      const r = await draftDocumentRenewalAction(c.document.id); // de-duped per doc per day
-      if (r.ok && r.created) prepared++;
+    let prepared = 0, sent = 0;
+    if (renewals.mode === "auto") {
+      // Auto: a renewals digest to the owner (company docs have no single email).
+      if (candidates.length > 0) {
+        const lines = candidates.slice(0, 30).map((c) => `• ${c.document.title} — ${c.status}`);
+        const text = `Documents needing renewal (${candidates.length}):\n\n${lines.join("\n")}\n\nReview in Documents & Compliance.`;
+        const r = await sendOrDraftToOwner(`Renewals due — ${candidates.length} document${candidates.length === 1 ? "" : "s"}`, text, "automation-renewals");
+        sent = r.sent; prepared = r.prepared;
+      }
+    } else {
+      const { draftDocumentRenewalAction } = await import("@/app/documents/actions");
+      for (const c of candidates) {
+        const r = await draftDocumentRenewalAction(c.document.id); // de-duped per doc per day
+        if (r.ok && r.created) prepared++;
+      }
     }
     await markRanToday("renewals");
-    results.push({ category: "renewals", mode: renewals.mode, prepared, sent: 0, skipped: candidates.length - prepared });
-    await recordEvent("email.automation.renewals", "ok", { prepared, candidates: candidates.length });
+    results.push({ category: "renewals", mode: renewals.mode, prepared, sent, skipped: 0 });
+    await recordEvent("email.automation.renewals", "ok", { prepared, sent, candidates: candidates.length, mode: renewals.mode });
   }
 
   // --- Weekly Director Brief to the owner (AUTO-SEND, on the chosen weekday) ---

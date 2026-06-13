@@ -7,7 +7,7 @@ import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation } from "./actions";
+import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, sendDirectorBriefNow } from "./actions";
 import { getAutomationConfig } from "@/lib/email-automation";
 import { EmailStatus } from "./email-test";
 import { adminChangePassword, adminLogout } from "../login/actions";
@@ -409,6 +409,14 @@ export default async function SettingsPage({
             </form>
           );
         })}
+
+        <form action={sendDirectorBriefNow} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+          <div>
+            <p className="text-sm font-medium">Send the Director Brief now</p>
+            <p className="text-[11px] text-fg-muted">One-off — emails the current brief to you immediately (great for a test run).</p>
+          </div>
+          <Button type="submit" variant="secondary"><Save size={13} /> Send now</Button>
+        </form>
       </div>
 
       {/* Owner sign-in — change the admin password or sign out on this device */}
