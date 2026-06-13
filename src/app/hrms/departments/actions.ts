@@ -1,6 +1,9 @@
 "use server";
 
 import { sb } from "@/db/supabase";
+import { db } from "@/db";
+import { people, tasks, departments, departmentHeads } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -44,24 +47,34 @@ export async function renameDepartment(id: number, name: string): Promise<Result
 export async function mergeDepartments(fromId: number, intoId: number): Promise<Result> {
   if (fromId === intoId) return { ok: false, error: "Pick two different departments." };
 
-  // Re-point people and tasks.
-  const r1 = await sb.from("people").update({ department_id: intoId }).eq("department_id", fromId);
-  if (r1.error) return { ok: false, error: r1.error.message };
-  const r2 = await sb.from("tasks").update({ department_id: intoId }).eq("department_id", fromId);
-  if (r2.error) return { ok: false, error: r2.error.message };
+  // One atomic transaction: re-point people + tasks + heads and remove the source,
+  // all-or-nothing — so a mid-way failure can never leave records half-moved.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(people).set({ departmentId: intoId }).where(eq(people.departmentId, fromId));
+      await tx.update(tasks).set({ departmentId: intoId }).where(eq(tasks.departmentId, fromId));
 
-  // Move heads where the target company has none yet; otherwise drop the source row
-  // (the unique (company_id, department_id) index forbids two heads per company).
-  const { data: fromHeads } = await sb.from("department_heads").select("id,company_id").eq("department_id", fromId);
-  const { data: intoHeads } = await sb.from("department_heads").select("company_id").eq("department_id", intoId);
-  const taken = new Set((intoHeads ?? []).map((h) => h.company_id as number));
-  for (const fh of fromHeads ?? []) {
-    if (taken.has(fh.company_id as number)) await sb.from("department_heads").delete().eq("id", fh.id as number);
-    else await sb.from("department_heads").update({ department_id: intoId }).eq("id", fh.id as number);
+      // Move heads where the target company has none yet; otherwise drop the source
+      // row (the unique (company_id, department_id) index forbids two per company).
+      const fromHeads = await tx
+        .select({ id: departmentHeads.id, companyId: departmentHeads.companyId })
+        .from(departmentHeads)
+        .where(eq(departmentHeads.departmentId, fromId));
+      const intoHeads = await tx
+        .select({ companyId: departmentHeads.companyId })
+        .from(departmentHeads)
+        .where(eq(departmentHeads.departmentId, intoId));
+      const taken = new Set(intoHeads.map((h) => h.companyId));
+      for (const fh of fromHeads) {
+        if (taken.has(fh.companyId)) await tx.delete(departmentHeads).where(eq(departmentHeads.id, fh.id));
+        else await tx.update(departmentHeads).set({ departmentId: intoId }).where(eq(departmentHeads.id, fh.id));
+      }
+
+      await tx.delete(departments).where(eq(departments.id, fromId));
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not merge the departments." };
   }
-
-  const { error } = await sb.from("departments").delete().eq("id", fromId);
-  if (error) return { ok: false, error: error.message };
   revalidate();
   return { ok: true };
 }
@@ -71,13 +84,16 @@ export async function mergeDepartments(fromId: number, intoId: number): Promise<
  * department"; its per-company heads are removed.
  */
 export async function deleteDepartment(id: number): Promise<Result> {
-  const r1 = await sb.from("people").update({ department_id: null }).eq("department_id", id);
-  if (r1.error) return { ok: false, error: r1.error.message };
-  const r2 = await sb.from("tasks").update({ department_id: null }).eq("department_id", id);
-  if (r2.error) return { ok: false, error: r2.error.message };
-  await sb.from("department_heads").delete().eq("department_id", id);
-  const { error } = await sb.from("departments").delete().eq("id", id);
-  if (error) return { ok: false, error: error.message };
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(people).set({ departmentId: null }).where(eq(people.departmentId, id));
+      await tx.update(tasks).set({ departmentId: null }).where(eq(tasks.departmentId, id));
+      await tx.delete(departmentHeads).where(eq(departmentHeads.departmentId, id));
+      await tx.delete(departments).where(eq(departments.id, id));
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not delete the department." };
+  }
   revalidate();
   return { ok: true };
 }

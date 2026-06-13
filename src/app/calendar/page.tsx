@@ -55,7 +55,7 @@ export default async function CalendarPage({
     companyLabel: ev.companyId ? companyName.get(ev.companyId) ?? null : null,
     companyAccent: ev.companyId ? companyAccent.get(ev.companyId) ?? null : null,
     googleUrl: googleCalendarUrl(toIcsEvent(ev)),
-    icsPath: `/api/calendar/${ev.id}.ics`,
+    icsPath: `/api/calendar/${ev.publicToken}.ics`,
   }));
 
   const now = Date.now();

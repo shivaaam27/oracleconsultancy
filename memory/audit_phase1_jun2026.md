@@ -9,9 +9,9 @@
 ## PHASE 0 — Urgent safety & data protection (do first)
 *Small/medium effort, high stakes. These are the only items that can lose data or leak confidential files.*
 
-> **STATUS (2026-06-13): Phase 0 DONE except 0.7 + 0.11 (both deferred — need a DB migration against the live database, so a separate confirmed step). tsc clean. NOT pushed.**
-> Done in code: 0.1 (chat-file guard, both portal + admin), 0.2 (task delete now recoverable + keeps history — `taskDeleteUndo` + `setUndoCookie`, `purgeTaskHistory` reserved), 0.3 (person-form keeps inactive manager/related as `(inactive)` option), 0.4 (in-memory login throttle `src/lib/login-throttle.ts` wired into admin + portal login), 0.5 (production warning when `PORTAL_SESSION_SECRET` missing — **owner must still set it in Vercel**), 0.6 (approved leave → safe Cancel not hard-delete), 0.8 (role rename/merge wildcard escaping), 0.9 (passkeys require user-verification), 0.10 (staff password min 8 + UI text).
-> Deferred (need migration/RPC): **0.7** transactional merges, **0.11** unguessable event-link tokens.
+> **STATUS (2026-06-13): ALL of Phase 0 DONE. tsc clean. 0.1–0.10 pushed (commit 1338fe1); 0.7 + 0.11 in a follow-up commit.**
+> Done in code: 0.1 (chat-file guard, portal + admin), 0.2 (task delete recoverable + keeps history — `taskDeleteUndo` + `setUndoCookie`, `purgeTaskHistory` reserved), 0.3 (person-form keeps inactive manager/related as `(inactive)`), 0.4 (in-memory login throttle `src/lib/login-throttle.ts` on admin + portal login), 0.5 (production warning when `PORTAL_SESSION_SECRET` missing — **owner must still set it in Vercel**), 0.6 (approved leave → safe Cancel not hard-delete), 0.7 (dept/site/role merge+delete now atomic via **drizzle transactions** — no migration), 0.8 (role rename/merge wildcard escaping), 0.9 (passkeys require user-verification), 0.10 (staff password min 8 + UI text), 0.11 (event share links use the random `uid` as an unguessable **token** — `getCalendarEventByToken`, `CalendarEvent.publicToken`; no migration).
+> **0.11 behaviour change:** old numeric `/e/<number>` and `/api/calendar/<number>.ics` links STOP resolving — share links are now token-based. Re-share any pending invites from the Calendar.
 > Owner actions: set `PORTAL_SESSION_SECRET` in Vercel (0.5); re-test passkey sign-in on real devices (0.9).
 
 - **0.1 🔴 Chat file loophole — any staff member can download anyone's HR files** [portal] · S

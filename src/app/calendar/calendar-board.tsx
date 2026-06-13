@@ -489,7 +489,7 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
   const [copied, setCopied] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareUrl = `${origin}/e/${event.id}`;
+  const shareUrl = `${origin}/e/${event.publicToken}`;
 
   function copyLink() {
     navigator.clipboard.writeText(shareUrl).then(() => {

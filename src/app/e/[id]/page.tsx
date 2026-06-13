@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CalendarClock, MapPin, Video, Building2 } from "lucide-react";
-import { getCalendarEvent, toIcsEvent } from "@/lib/calendar";
+import { getCalendarEventByToken, toIcsEvent } from "@/lib/calendar";
 import { googleCalendarUrl } from "@/lib/ics";
 import { sb } from "@/db/supabase";
 import { ShareActions } from "./share-actions";
@@ -23,10 +23,9 @@ function fmtWhen(iso: string, allDay: boolean): string {
 // beyond the event itself — attendee emails are deliberately not shown.
 export default async function PublicEventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const numeric = parseInt(id, 10);
-  if (!Number.isFinite(numeric)) notFound();
-
-  const ev = await getCalendarEvent(numeric);
+  // `id` is the event's public share token (its random uid prefix), not the
+  // sequential database id — so the link can't be guessed by counting numbers.
+  const ev = await getCalendarEventByToken(id);
   if (!ev || ev.status === "cancelled") notFound();
 
   let companyName: string | null = null;
@@ -36,7 +35,7 @@ export default async function PublicEventPage({ params }: { params: Promise<{ id
   }
 
   const googleUrl = googleCalendarUrl(toIcsEvent(ev));
-  const icsPath = `/api/calendar/${ev.id}.ics`;
+  const icsPath = `/api/calendar/${ev.publicToken}.ics`;
   const endWhen = ev.endAt && !ev.allDay
     ? new Date(ev.endAt).toLocaleTimeString("en-GB", { timeZone: EAT, hour: "2-digit", minute: "2-digit" })
     : null;

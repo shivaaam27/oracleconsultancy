@@ -625,7 +625,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
           attendees: [{ name: person.name, ...(person.email ? { email: person.email } : {}) }],
           createdBy: "ai-command",
         });
-        calendarUrl = `/api/calendar/${ev.id}`;
+        calendarUrl = `/api/calendar/${ev.publicToken}.ics`;
         googleUrl = googleCalendarUrl(toIcsEvent(ev));
       } catch { /* calendar is best-effort */ }
     }

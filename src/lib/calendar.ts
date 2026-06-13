@@ -14,6 +14,7 @@ export type CalendarAttendee = {
 
 export type CalendarEvent = {
   id: number;
+  publicToken: string; // random, unguessable share token (the uid prefix)
   title: string;
   description: string | null;
   location: string | null;
@@ -63,6 +64,7 @@ function parseReminders(raw: unknown, fallback: number | null): number[] {
 function mapRow(r: Row): CalendarEvent {
   return {
     id: r.id as number,
+    publicToken: ((r.uid as string) ?? "").split("@")[0],
     title: r.title as string,
     description: (r.description as string) ?? null,
     location: (r.location as string) ?? null,
@@ -130,6 +132,21 @@ export async function listCalendarEvents(opts?: {
 
 export async function getCalendarEvent(id: number): Promise<CalendarEvent | null> {
   const { data, error } = await sb.from("calendar_events").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapRow(data) : null;
+}
+
+/** Look up an event by its public share TOKEN (the random uid prefix) rather than
+ *  its sequential id — so the public /e/[token] page and /api/calendar/[token].ics
+ *  links can't be guessed by counting numbers. */
+export async function getCalendarEventByToken(token: string): Promise<CalendarEvent | null> {
+  const clean = (token ?? "").trim();
+  if (!clean) return null;
+  const { data, error } = await sb
+    .from("calendar_events")
+    .select("*")
+    .eq("uid", `${clean}@cos-system`)
+    .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? mapRow(data) : null;
 }
