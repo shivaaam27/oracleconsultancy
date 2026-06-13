@@ -19,9 +19,7 @@ import { FocusScript } from "@/components/focus-mode";
 import { PortalPrefsScript } from "@/components/portal-prefs";
 import { PageTransition } from "@/components/page-transition";
 import { ContextActionsProvider } from "@/components/context-actions";
-import { TaskDrawer } from "@/components/task-drawer";
-import { PersonDrawer } from "@/components/person-drawer";
-import { CompanyDrawer } from "@/components/company-drawer";
+import { GlobalDrawers } from "@/components/global-drawers";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
@@ -88,15 +86,7 @@ export default async function RootLayout({ children, modal }: { children: React.
                 </HideOnPortal>
               </ContextActionsProvider>
               <HideOnPortal>
-                <Suspense>
-                  <TaskDrawer />
-                </Suspense>
-                <Suspense>
-                  <PersonDrawer />
-                </Suspense>
-                <Suspense>
-                  <CompanyDrawer />
-                </Suspense>
+                <GlobalDrawers />
               </HideOnPortal>
               <ServiceWorkerRegister />
               <IosResume />

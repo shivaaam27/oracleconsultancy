@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, X, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
@@ -138,6 +138,11 @@ export function CalendarBoard({
   useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
   const [view, setView] = useState<ViewMode>("month");
+  // The 7-column month grid is cramped on a phone, so open in the Agenda view
+  // there. Runs once on mount; choosing Month afterwards stays put.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 640) setView("agenda");
+  }, []);
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
