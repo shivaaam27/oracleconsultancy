@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { computeLeaveDays } from "@/lib/leave";
+import { computeLeaveDays, personLeaveBalances } from "@/lib/leave";
 import type { LeaveStatus } from "@/lib/leave-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
@@ -44,6 +44,19 @@ export async function createLeaveRequestAction(fd: FormData): Promise<Result> {
 
   const days = await computeLeaveDays(start, halfDay ? start : end, halfDay);
   if (days <= 0) return { ok: false, error: "That range has no working days (Sundays/holidays only)." };
+
+  // Guard against over-booking: a capped leave type can't go beyond its yearly
+  // entitlement (counting already-approved + pending). Uncapped types are skipped.
+  const bal = (await personLeaveBalances(personId)).find((b) => b.typeId === leaveTypeId);
+  if (bal && bal.entitlement > 0) {
+    const left = bal.entitlement - bal.taken - bal.pending;
+    if (days > left) {
+      return {
+        ok: false,
+        error: `That's ${days} day(s), but only ${Math.max(0, left)} ${bal.typeName} day(s) remain this year (${bal.entitlement} a year − ${bal.taken} taken − ${bal.pending} pending). Adjust the dates or their entitlement.`,
+      };
+    }
+  }
 
   const now = new Date().toISOString();
   const { data, error } = await sb

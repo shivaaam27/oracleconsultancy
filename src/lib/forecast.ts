@@ -1,5 +1,5 @@
 import { sb } from "@/db/supabase";
-import { listLeaveTypes } from "@/lib/leave";
+import { listLeaveTypes, leaveCycleStart } from "@/lib/leave";
 import { listObligations } from "@/lib/recurring";
 import { deriveDocStatus, type DocumentRow } from "@/lib/documents";
 
@@ -77,8 +77,7 @@ async function getLeaveLiability(): Promise<LeaveLiability> {
     sb.from("leave_requests").select("days,status,start_date").eq("leave_type_id", annual.id),
   ]);
 
-  const cycleStart = new Date();
-  cycleStart.setUTCMonth(cycleStart.getUTCMonth() - annual.cycleMonths);
+  const cycleStart = leaveCycleStart(annual.cycleMonths);
   const taken = (reqs ?? [])
     .filter((r) => r.status === "Approved" && new Date(r.start_date as string) >= cycleStart)
     .reduce((s, r) => s + ((r.days as number) ?? 0), 0);

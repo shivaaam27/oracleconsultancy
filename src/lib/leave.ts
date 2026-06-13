@@ -131,8 +131,18 @@ export async function leaveMetrics(): Promise<LeaveMetrics> {
   };
 }
 
+/** Fixed leave-year boundary, anchored to 1 January — so an allowance resets once
+ *  a year, not on a sliding window that quietly drips days back every single day
+ *  (two staff with identical leave used to show different balances depending only
+ *  on what day you looked). A 12-month cycle = the current calendar year; a
+ *  36-month cycle = the last 3 calendar years; and so on. */
+export function leaveCycleStart(cycleMonths: number, now: Date = new Date()): Date {
+  const years = Math.max(1, Math.round((cycleMonths || 12) / 12));
+  return new Date(Date.UTC(now.getUTCFullYear() - (years - 1), 0, 1));
+}
+
 /* ------------------------------------------------------------------ */
-/* Balances — entitlement (per type) − approved days this year.        */
+/* Balances — entitlement (per type) − approved days this leave year.  */
 /* ------------------------------------------------------------------ */
 export async function personLeaveBalances(personId: number): Promise<PersonLeaveBalance[]> {
   const [types, { data: reqs }] = await Promise.all([
@@ -141,8 +151,8 @@ export async function personLeaveBalances(personId: number): Promise<PersonLeave
   ]);
   const now = new Date();
   return types.map((t) => {
-    // Count only requests within this type's entitlement cycle (e.g. last 12 or 36 months).
-    const cycleStart = new Date(now); cycleStart.setUTCMonth(cycleStart.getUTCMonth() - t.cycleMonths);
+    // Count only requests within this type's fixed leave-year cycle.
+    const cycleStart = leaveCycleStart(t.cycleMonths, now);
     const mine = (reqs ?? []).filter((r) => r.leave_type_id === t.id && new Date(r.start_date as string) >= cycleStart);
     const taken = mine.filter((r) => r.status === "Approved").reduce((s, r) => s + ((r.days as number) ?? 0), 0);
     const pending = mine.filter((r) => r.status === "Pending").reduce((s, r) => s + ((r.days as number) ?? 0), 0);
@@ -182,8 +192,7 @@ export async function portfolioLeaveLiability(): Promise<LeaveLiability> {
 
   const entitlement = (annual.default_days as number | null) ?? 0;
   const cycleMonths = (annual.cycle_months as number | null) ?? 12;
-  const cycleStart = new Date();
-  cycleStart.setUTCMonth(cycleStart.getUTCMonth() - cycleMonths);
+  const cycleStart = leaveCycleStart(cycleMonths);
 
   const takenByPerson = new Map<number, number>();
   for (const r of reqs ?? []) {
