@@ -194,7 +194,7 @@ export function OrgFlow({
               <>
                 {/* tier band labels down the left edge */}
                 {layout.tierBands.map((b) => (
-                  <div key={b.tier} className="absolute -left-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-subtle/70 -translate-x-full pr-2 whitespace-nowrap" style={{ top: b.y + CARD_H / 2 - 6 }}>
+                  <div key={b.tier} className="absolute -left-1 hidden sm:block text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-subtle/70 -translate-x-full pr-2 whitespace-nowrap" style={{ top: b.y + CARD_H / 2 - 6 }}>
                     {TIER_LABELS[b.tier]}
                   </div>
                 ))}

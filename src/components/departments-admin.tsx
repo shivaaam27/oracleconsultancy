@@ -6,7 +6,7 @@ import { Plus, Pencil, Check, X, GitMerge, Trash2, Users, Building2, ListTodo, C
 import { Button } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
-import { createDepartment, renameDepartment, mergeDepartments, deleteDepartment } from "@/app/hrms/departments/actions";
+import { createDepartment, renameDepartment, mergeDepartments, deleteDepartment } from "@/app/companies/department-actions";
 import type { DepartmentAdminRow } from "@/lib/departments";
 
 export function DepartmentsAdmin({ departments }: { departments: DepartmentAdminRow[] }) {

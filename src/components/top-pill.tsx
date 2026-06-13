@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObject } from "react";
-import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence } from "framer-motion";
+import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence, useReducedMotion } from "framer-motion";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, Search, X,
@@ -22,12 +22,13 @@ import { useRegisteredActions } from "./context-actions";
 
 /** A primary nav tab — icon only, filled-accent pill when active. */
 function NavTab({
-  href, icon: Icon, label, active,
+  href, icon: Icon, label, active, reduce,
 }: {
   href: string;
   icon: LucideIcon;
   label: string;
   active: boolean;
+  reduce: boolean;
 }) {
   return (
     <Link
@@ -40,11 +41,15 @@ function NavTab({
       )}
     >
       {active && (
-        <motion.span
-          layoutId="navpill"
-          className="absolute inset-0 rounded-full bg-accent-soft"
-          transition={{ type: "spring", stiffness: 500, damping: 36 }}
-        />
+        reduce ? (
+          <span className="absolute inset-0 rounded-full bg-accent-soft" />
+        ) : (
+          <motion.span
+            layoutId="navpill"
+            className="absolute inset-0 rounded-full bg-accent-soft"
+            transition={{ type: "spring", stiffness: 500, damping: 36 }}
+          />
+        )
       )}
       <Icon size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
     </Link>
@@ -75,7 +80,7 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-function HrmsLauncher({ active }: { active: boolean }) {
+function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,7 +109,11 @@ function HrmsLauncher({ active }: { active: boolean }) {
           )}
         >
           {(active || open) && (
-            <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
+            reduce ? (
+              <span className="absolute inset-0 rounded-full bg-accent-soft" />
+            ) : (
+              <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
+            )
           )}
           <Briefcase size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
         </button>
@@ -394,6 +403,13 @@ export function TopPill() {
   const { open: openPalette } = useCommandPalette();
   const pillRef = useRef<HTMLDivElement>(null);
 
+  // Honour reduced-motion — OS (also covered by MotionConfig) AND the portal's
+  // manual data-motion toggle (framer ignores that CSS attribute, so check it).
+  const prefersReduced = useReducedMotion();
+  const [manualReduced, setManualReduced] = useState(false);
+  useEffect(() => { setManualReduced(document.documentElement.getAttribute("data-motion") === "reduced"); }, [pathname]);
+  const reduce = !!prefersReduced || manualReduced;
+
   function selectSlot(label: string) {
     if (label === "Home") router.push("/");
     else if (label === "Director Brief") router.push("/brief");
@@ -419,19 +435,19 @@ export function TopPill() {
     )}>
       <motion.div
         ref={pillRef}
-        initial={{ y: 20, opacity: 0 }}
+        initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+        transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
         style={{ touchAction: "pan-y" }}
         className="relative pointer-events-auto max-w-[calc(100vw-1rem)] glass elevated rounded-full shadow-pill flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2.5 h-14 md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
         <NavLens containerRef={pillRef} onSelect={selectSlot} />
-        <NavTab href="/" icon={Home} label="Home" active={homeActive} />
-        <NavTab href="/brief" icon={ClipboardList} label="Director Brief" active={briefActive} />
-        <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} />
-        <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} />
-        <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} />
-        <HrmsLauncher active={hrmsActive} />
+        <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} />
+        <NavTab href="/brief" icon={ClipboardList} label="Director Brief" active={briefActive} reduce={reduce} />
+        <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} reduce={reduce} />
+        <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} reduce={reduce} />
+        <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} reduce={reduce} />
+        <HrmsLauncher active={hrmsActive} reduce={reduce} />
 
         <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
 
@@ -448,6 +464,10 @@ export function TopPill() {
 
         <div className="shrink-0 flex items-center md:[&>div>button]:h-11 md:[&>div>button]:w-11">
           <NotificationBell to="/task" />
+        </div>
+        {/* Theme toggle on the bar (desktop only — the dense mobile bar keeps it in the menu). */}
+        <div className="hidden md:flex shrink-0 items-center">
+          <ThemeToggle />
         </div>
       </motion.div>
     </div>
