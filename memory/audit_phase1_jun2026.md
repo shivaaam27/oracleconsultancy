@@ -6,6 +6,23 @@
 
 ---
 
+## ✅ EXECUTION LOG — Phases 0–7 (2026-06-13, all pushed to `master`)
+
+All seven phases implemented, type-checked (`tsc --noEmit` clean after every phase; full `next build` green with a 4 GB heap) and pushed. Commits: P0 `1338fe1`+`dc6785c` · P1 `81d13c6` · P2 `64dfcd1` · P3 `d46a22c` · P4 `a6d1dc3` · P5 `031e0a3` · P6 `a7ce035` · P7 (this commit).
+
+- **Phase 0 (safety): ALL 11 done.** Owner actions outstanding: set `PORTAL_SESSION_SECRET` in Vercel (CONFIRMED already set 10 Jun — done); re-test passkey sign-in on real devices (0.9, now requires biometric); old numeric `/e/<n>` event links stop working (0.11 — re-share from Calendar).
+- **Phase 1 (cosmetic): ALL done** (1.3 resolved by deleting dead `ask-cos.tsx`; 1.16 done for portal pill, admin top-pill deferred). Font now **Inter** everywhere (verified loading).
+- **Phase 2 (centring/width): core done** — 2.1 (9 pages centred), 2.2 (two-width standard 5xl/3xl), 2.4 (portal width), 2.6 (search inputs). **Deferred:** 2.3 HRMS header-style unification (back-links fixed; full PageHeader conversion pending), 2.5 mobile month-calendar UX.
+- **Phase 3 (design): core done** — 3.1/3.5/3.6 (~16 dialogs → glass), 3.4 (card radii via shared primitives), 3.3 (shared drawer labels). **Deferred (large per-instance refactors):** 3.2 migrate ~119 hand-made buttons to shared `Button`, 3.7 extract one shared register-row.
+- **Phase 4 (correctness): 15 of 21 done** — 4.1–4.6, 4.8 (AI/task history, codes, escalate, returnTo, reopen), 4.9–4.12 (nav honesty, director Board tab, ‹Home, Menu label), 4.15–4.17, 4.19 (chat DM, combobox refilter, counts, +N bosses). **Deferred (polish/decision, not bugs):** 4.7 conversation refetch timer, 4.13 theme on admin pill, 4.14 `+` on Assets/Calendar/Letters/Leave, 4.18 searchable bulk manager picker, 4.20 org tier labels on mobile, 4.21 cross-company roster visibility (owner decision).
+- **Phase 5 (leave maths): 5.2 + 5.3 done** (fixed leave-year via `leaveCycleStart`; over-booking guard on admin + portal). **5.1 reviewed — NOT a bug:** nothing currently costs sick leave (final-pay + liability are annual-only), so the half-pay rule has no figure to overstate; applying it = new sick-cost feature, deferred.
+- **Phase 6 (performance): safe wins done** — 6.1/6.2 (React `cache()` dedupes repeat documents/staff-ID/sites/roles reads per render), 6.3 (elkjs org engine lazy-loaded via `next/dynamic`), 6.4 (login logo via `next/image`), 6.8 (manager portal compliance scoped to direct reports). **Deferred:** 6.5 force-dynamic→revalidate (staleness risk on a live ops tool), 6.6 list virtualisation (not needed at scale), 6.7 lazy-load other big client screens.
+- **Phase 7 (refactors/cleanup): safe items done** — 7.4 (prompt-injection guard in the Ask system prompt), 7.6/7.7 (email automation now enforces the advertised daily cap on auto-sends), 7.8 (deleted dead `update-box.tsx` + fixed the twin maps), 7.9 (password-change lockout now genuinely fails OPEN when the edge generation store is unreachable, instead of locking the owner out). **7.2 moot** (streaming target `ask-cos.tsx` was deleted; the live assistant is the command palette, which already streams). **Deferred:** 7.1 split 6 files >900 lines, 7.3 cancel/AbortController on long AI briefings, 7.5 relocate `departments/actions.ts`.
+
+**Remaining backlog (all deferred items, lowest→highest effort):** 1.16-admin-pill · 4.20 · 4.13 · 7.5-move-file · 4.19-extras · 4.7 · 7.3-ai-cancel · 4.14 · 4.18 · 6.7-lazy-screens · 2.5 · 2.3-headers · 6.6-virtualise · 3.7 · 3.2 · 6.5-revalidate · 7.1-file-splits · 5.1-sick-cost-feature · 4.21-decision. None are data-loss or security; all are polish, a UX decision, or larger refactors/new features.
+
+---
+
 ## PHASE 0 — Urgent safety & data protection (do first)
 *Small/medium effort, high stakes. These are the only items that can lose data or leak confidential files.*
 

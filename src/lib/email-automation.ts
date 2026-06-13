@@ -180,12 +180,17 @@ export async function runDueAutomations(now = new Date(), opts: { force?: boolea
       const ids = [...byPerson.keys()];
       const { data: ppl } = ids.length ? await sb.from("people").select("id,name,email").in("id", ids) : { data: [] as any[] };
       const emailById = new Map((ppl ?? []).map((p: any) => [p.id as number, { name: p.name as string, email: (p.email as string | null) ?? null }]));
+      // Enforce the daily cap the Outbox advertises ("cap N/day"). Without this it
+      // was unbounded — a switch to auto-send (or a forced run) could mass-email.
+      let budget = cfg.dailyCap;
       for (const [pid, tasks] of byPerson) {
         const person = emailById.get(pid);
         if (!person) { skipped++; continue; }
+        if (budget <= 0) { skipped++; continue; }
         const body = `Hi ${person.name.split(" ")[0]}, a reminder of your overdue work:\n\n${tasks.map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}\n\nPlease update the tracker when you can. Thank you.`;
         const r = await sendToPerson(person.email, "Your overdue tasks", body);
         sent += r.sent; skipped += r.skipped;
+        budget -= r.sent;
       }
     } else {
       const { createOverdueReminderDrafts } = await import("@/lib/automation-suggestions");

@@ -29,27 +29,28 @@ function b64url(bytes: ArrayBuffer): string {
 let cachedGen: { value: string; at: number } | null = null;
 const GEN_TTL_MS = 60 * 1000;
 
-async function currentSessionGen(force = false): Promise<string> {
+async function currentSessionGen(force = false): Promise<string | null> {
   if (!force && cachedGen && Date.now() - cachedGen.at < GEN_TTL_MS) return cachedGen.value;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  let value = cachedGen?.value ?? "1";
-  if (url && key) {
-    try {
-      const res = await fetch(
-        `${url}/rest/v1/settings?key=eq.v2.adminSessionGen&select=value`,
-        { headers: { apikey: key, authorization: `Bearer ${key}` } }
-      );
-      if (res.ok) {
-        const rows = (await res.json()) as Array<{ value: string }>;
-        value = rows[0]?.value ?? "1";
-      }
-    } catch {
-      // Network hiccup: keep the previous value.
+  // Can't reach the generation store (edge env vars missing) — return null so the
+  // caller fails OPEN (trusts the valid signature) rather than locking the owner out.
+  if (!url || !key) return cachedGen?.value ?? null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/settings?key=eq.v2.adminSessionGen&select=value`,
+      { headers: { apikey: key, authorization: `Bearer ${key}` } }
+    );
+    if (res.ok) {
+      const rows = (await res.json()) as Array<{ value: string }>;
+      const value = rows[0]?.value ?? "1";
+      cachedGen = { value, at: Date.now() };
+      return value;
     }
+  } catch {
+    // Network hiccup — fall through to the cached value (or null = fail open).
   }
-  cachedGen = { value, at: Date.now() };
-  return value;
+  return cachedGen?.value ?? null;
 }
 
 async function isValidAdminToken(token: string | undefined): Promise<boolean> {
@@ -67,11 +68,14 @@ async function isValidAdminToken(token: string | undefined): Promise<boolean> {
   );
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(`${tag}.${gen}.${exp}`));
   if (b64url(mac) !== sig) return false;
-  if (gen === (await currentSessionGen())) return true;
-  // Mismatch can mean a stale cache right after a password change (the new
-  // cookie carries a NEWER generation than the cached one). Re-check fresh
-  // once; genuinely old cookies still fail.
-  return gen === (await currentSessionGen(true));
+  const cur = await currentSessionGen();
+  if (cur === null) return true; // generation store unreachable — trust the valid signature (fail open)
+  if (gen === cur) return true;
+  // Mismatch can mean a stale cache right after a password change (the new cookie
+  // carries a NEWER generation than the cached one). Re-check fresh once; genuinely
+  // old cookies still fail, but an unreachable store still fails open.
+  const fresh = await currentSessionGen(true);
+  return fresh === null ? true : gen === fresh;
 }
 
 export async function middleware(req: NextRequest) {

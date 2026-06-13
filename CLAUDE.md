@@ -201,7 +201,7 @@ The staff portal (`/portal`) is a **first-class surface**, not an afterthought �
 - **When you change shared visuals** (global CSS in `globals.css`, `surface-kit.tsx`, `reveal.tsx`/`motion.ts`), they flow to the portal automatically — keep it that way; prefer changing shared files over page-level styling.
 - **When you restyle an admin component that has a portal twin, update the twin in the same change.** Current twins (admin ↔ portal):
   - nav pill `top-pill.tsx` ↔ `portal-pill.tsx`
-  - update box `update-box.tsx` + timeline/`timeline-entry.tsx` ↔ `portal-conversation.tsx` (shared by both; check it still serves both views)
+  - update / timeline (`timeline-entry.tsx`) ↔ `portal-conversation.tsx` (the standalone `update-box.tsx` was removed — the shared conversation view serves both)
   - admin home `_hub/cos-home.tsx` / `home-mission-control.tsx` ↔ portal home `portal/(app)/page.tsx`
   - attendance admin register `attendance-register.tsx` ↔ portal `portal-attendance.tsx` + `attendance-checkin.tsx` (self check-in)
   - passkey manager `passkey-manager.tsx` is shared by both (owner Settings ↔ staff portal profile)
