@@ -347,51 +347,52 @@ export default async function SettingsPage({
           </p>
         </div>
 
-        {/* Email automation (Phase A) */}
-        <div className="glass elevated rounded-2xl p-5 space-y-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <MessageCircle size={14} className="text-accent" /> Email automation
-          </h2>
-          <p className="text-xs text-fg-muted">
-            Scheduled email reminders. Each runs once a day inside the send window (08:00–18:00).
-            {emailCfg ? "" : " Email isn't connected yet, so these prepare Outbox drafts you send with one tap."}
-          </p>
-
-          <form action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-            <div>
-              <p className="text-sm font-medium">All email automation</p>
-              <p className="text-[11px] text-fg-muted">{emailAuto.paused ? "Paused — nothing runs." : "Active."}</p>
-            </div>
-            <input type="hidden" name="field" value="paused" />
-            <input type="hidden" name="value" value={emailAuto.paused ? "0" : "1"} />
-            <Button type="submit" variant={emailAuto.paused ? "primary" : "secondary"}>{emailAuto.paused ? "Resume all" : "Pause all"}</Button>
-          </form>
-
-          {([
-            { key: "overdue", label: "Overdue-task reminders", on: "Prepares a daily reminder draft per person with overdue work." },
-            { key: "renewals", label: "Document / permit renewals", on: "Prepares a daily renewal nudge for each expiring or expired document." },
-            { key: "directorBrief", label: "Weekly Director Brief (to you)", on: "Auto-sends the portfolio brief to your inbox each Monday." },
-            { key: "lifecycle", label: "Probation & leave reminders (to you)", on: "Auto-sends a daily HR summary (probations ending, leave to approve)." },
-          ] as const).map((c) => {
-            const off = emailAuto.categories[c.key].mode === "off";
-            return (
-              <form key={c.key} action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{c.label}</p>
-                  <p className="text-[11px] text-fg-muted">{off ? "Off." : `On — ${c.on}`}</p>
-                </div>
-                <input type="hidden" name="field" value={c.key} />
-                <input type="hidden" name="value" value={off ? "1" : "0"} />
-                <Button type="submit" variant={off ? "primary" : "secondary"}>{off ? "Turn on" : "Turn off"}</Button>
-              </form>
-            );
-          })}
-        </div>
-
         <div className="flex justify-end">
           <Button type="submit"><Save size={13} /> Save changes</Button>
         </div>
       </form>
+
+      {/* Email automation — lives OUTSIDE the main form (nested forms are invalid);
+          each toggle saves instantly on its own. */}
+      <div className="glass elevated rounded-2xl p-5 space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <MessageCircle size={14} className="text-accent" /> Email automation
+        </h2>
+        <p className="text-xs text-fg-muted">
+          Scheduled email reminders. Each runs once a day inside the send window (08:00–18:00).
+          {emailCfg ? "" : " Email isn't connected yet, so these prepare Outbox drafts you send with one tap."}
+        </p>
+
+        <form action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+          <div>
+            <p className="text-sm font-medium">All email automation</p>
+            <p className="text-[11px] text-fg-muted">{emailAuto.paused ? "Paused — nothing runs." : "Active."}</p>
+          </div>
+          <input type="hidden" name="field" value="paused" />
+          <input type="hidden" name="value" value={emailAuto.paused ? "0" : "1"} />
+          <Button type="submit" variant={emailAuto.paused ? "primary" : "secondary"}>{emailAuto.paused ? "Resume all" : "Pause all"}</Button>
+        </form>
+
+        {([
+          { key: "overdue", label: "Overdue-task reminders", on: "Prepares a daily reminder draft per person with overdue work." },
+          { key: "renewals", label: "Document / permit renewals", on: "Prepares a daily renewal nudge for each expiring or expired document." },
+          { key: "directorBrief", label: "Weekly Director Brief (to you)", on: "Auto-sends the portfolio brief to your inbox each Monday." },
+          { key: "lifecycle", label: "Probation & leave reminders (to you)", on: "Auto-sends a daily HR summary (probations ending, leave to approve)." },
+        ] as const).map((c) => {
+          const off = emailAuto.categories[c.key].mode === "off";
+          return (
+            <form key={c.key} action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{c.label}</p>
+                <p className="text-[11px] text-fg-muted">{off ? "Off." : `On — ${c.on}`}</p>
+              </div>
+              <input type="hidden" name="field" value={c.key} />
+              <input type="hidden" name="value" value={off ? "1" : "0"} />
+              <Button type="submit" variant={off ? "primary" : "secondary"}>{off ? "Turn on" : "Turn off"}</Button>
+            </form>
+          );
+        })}
+      </div>
 
       {/* Owner sign-in — change the admin password or sign out on this device */}
       <div className="glass elevated rounded-2xl p-5 space-y-4">
