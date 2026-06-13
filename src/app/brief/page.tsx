@@ -289,6 +289,12 @@ export default async function DirectorBriefPage({
                 {b.hr.leaveLiability.peopleNoWage ? ` (${b.hr.leaveLiability.peopleNoWage} with no wage on record)` : ""}
               </div>
             )}
+            {b.hr.sickLeaveCost.totalDays > 0 && (
+              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
+                🤒 Sick leave cost: <b className="text-fg">TZS {b.hr.sickLeaveCost.totalCost.toLocaleString("en-GB")}</b>
+                {" "}· {b.hr.sickLeaveCost.totalDays} day{b.hr.sickLeaveCost.totalDays === 1 ? "" : "s"} taken{b.hr.sickLeaveCost.halfPayDays > 0 ? ` (${b.hr.sickLeaveCost.halfPayDays} at half pay)` : ""} across {b.hr.sickLeaveCost.peopleCosted} staff
+              </div>
+            )}
           </Card>
         </div>
       )}

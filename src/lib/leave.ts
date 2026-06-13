@@ -221,6 +221,56 @@ export async function portfolioLeaveLiability(): Promise<LeaveLiability> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Sick-leave cost — approved sick days taken this cycle, costed with   */
+/* the ELR half-pay split (first entitlement−halfPayDays days at full   */
+/* pay, the remainder at half pay). Only wage-on-record staff add cost. */
+/* ------------------------------------------------------------------ */
+export type SickLeaveCost = { totalDays: number; fullPayDays: number; halfPayDays: number; totalCost: number; peopleCosted: number };
+
+export async function portfolioSickLeaveCost(): Promise<SickLeaveCost> {
+  const [{ data: sick }, { data: people }, { data: reqs }] = await Promise.all([
+    sb.from("leave_types").select("id,default_days,half_pay_days,cycle_months").ilike("name", "%sick%").eq("active", true).limit(1).maybeSingle(),
+    sb.from("people").select("id,wage_amount,wage_basis").eq("active", true),
+    sb.from("leave_requests").select("person_id,days,status,start_date,leave_type_id"),
+  ]);
+  const empty: SickLeaveCost = { totalDays: 0, fullPayDays: 0, halfPayDays: 0, totalCost: 0, peopleCosted: 0 };
+  if (!sick) return empty;
+  const entitlement = (sick.default_days as number | null) ?? 0;
+  const halfCap = (sick.half_pay_days as number | null) ?? 0;
+  const fullPortion = Math.max(0, entitlement - halfCap);
+  const cycleStart = leaveCycleStart((sick.cycle_months as number | null) ?? 36);
+
+  const takenByPerson = new Map<number, number>();
+  for (const r of reqs ?? []) {
+    if (r.leave_type_id !== sick.id || r.status !== "Approved") continue;
+    if (new Date(r.start_date as string) < cycleStart) continue;
+    const pid = r.person_id as number;
+    takenByPerson.set(pid, (takenByPerson.get(pid) ?? 0) + ((r.days as number) ?? 0));
+  }
+
+  let totalDays = 0, fullPayDays = 0, halfPayDays = 0, totalCost = 0, peopleCosted = 0;
+  for (const p of people ?? []) {
+    const taken = takenByPerson.get(p.id as number) ?? 0;
+    if (taken <= 0) continue;
+    const full = Math.min(taken, fullPortion);
+    const half = Math.min(Math.max(0, taken - fullPortion), halfCap);
+    totalDays += taken; fullPayDays += full; halfPayDays += half;
+    const wage = p.wage_amount as number | null;
+    if (wage && wage > 0) {
+      totalCost += (full + half * 0.5) * dailyWage(wage, (p.wage_basis as string | null) ?? "monthly");
+      peopleCosted++;
+    }
+  }
+  return {
+    totalDays: Math.round(totalDays * 10) / 10,
+    fullPayDays: Math.round(fullPayDays * 10) / 10,
+    halfPayDays: Math.round(halfPayDays * 10) / 10,
+    totalCost: Math.round(totalCost),
+    peopleCosted,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Attendance — this-month summary for one person (register-dependent).*/
 /* Returns zeros (recorded 0) when the daily register hasn't been used.*/
 /* ------------------------------------------------------------------ */
