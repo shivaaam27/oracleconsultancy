@@ -37,7 +37,7 @@ export default async function PortalLayout({ children }: { children: React.React
       </header>
       {children}
       <AttendanceCheckin firstName={me.name.split(" ")[0]} status={today.status} editable={today.editable} />
-      <PortalPill canCreate={me.portalRole === "manager"} />
+      <PortalPill canCreate={me.portalRole === "manager"} role={me.portalRole} />
     </div>
   );
 }

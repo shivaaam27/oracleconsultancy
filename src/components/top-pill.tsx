@@ -94,7 +94,7 @@ function HrmsLauncher({ active }: { active: boolean }) {
       <Dialog.Trigger asChild>
         <button
           type="button"
-          aria-label="HRMS"
+          aria-label="Menu"
           title="Menu"
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}

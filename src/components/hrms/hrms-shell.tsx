@@ -64,8 +64,8 @@ export function HrmsShell({
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <Link href="/hrms" className="inline-flex items-center gap-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5 hover:underline">
-            <ChevronLeft size={12} /> HRMS
+          <Link href="/" className="inline-flex items-center gap-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5 hover:underline">
+            <ChevronLeft size={12} /> Home
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {titleSub && <div className="text-xs text-fg-subtle">{titleSub}</div>}

@@ -428,6 +428,11 @@ export function PersonDrawer() {
             <>
               <span className="text-fg-subtle">·</span>
               <button type="button" onClick={() => goToManager(person.managerId!)} className="hover:text-accent transition-colors">↳ {person.managerName}</button>
+              {person.secondaryManagers.length > 0 && (
+                <span className="text-fg-subtle" title={`Also reports to ${person.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ")}`}>
+                  +{person.secondaryManagers.length}
+                </span>
+              )}
             </>
           )}
           {data.directReports.length > 0 && (
@@ -843,7 +848,7 @@ export function PersonDrawer() {
         </button>
         <div className="ml-auto flex items-center gap-1.5">
           {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
-          <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href="/chat" />
+          <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href={`/chat?dm=${person.id}`} />
           <IconButton icon={<FileText size={15} />} label="Add document" onClick={() => setAddDoc({ category: null })} />
         </div>
       </div>

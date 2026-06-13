@@ -425,12 +425,14 @@ export function applyTimelineFilter(items: TimelineItem[], filter: TimelineFilte
 }
 
 /**
- * Tier 1 E: extract COxx-NNN references from a string so the renderer can link them.
- * Returns a list of segments — alternating text and code tokens.
+ * Extract task-code references from a string so the renderer can link them.
+ * Matches BOTH the current scheme (DS-001, DAR-007 — 2-4 letter company prefix)
+ * and the legacy COxx-NNN scheme (CO01-004). Returns a list of segments —
+ * alternating text and code tokens.
  */
 export type Segment = { text: string; isCode: boolean };
 
-const CODE_RE = /\b(CO\d{2}-\d{3})\b/g;
+const CODE_RE = /\b([A-Z]{2,4}\d{0,2}-\d{2,4})\b/g;
 
 export function splitCodeRefs(text: string): Segment[] {
   if (!text) return [{ text: "", isCode: false }];

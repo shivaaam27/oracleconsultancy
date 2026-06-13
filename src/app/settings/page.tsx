@@ -480,7 +480,7 @@ export default async function SettingsPage({
           </SettingsCard>
 
           {/* Navigation */}
-          <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Choose which buttons appear in the bottom bar and what order they sit in. Changes save automatically and apply the next time the bar loads.">
+          <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Pin the pages you use most so they appear first in Search (the ⌘K command menu). Changes save automatically. The floating bottom bar itself stays the same.">
             <NavSettings />
           </SettingsCard>
 

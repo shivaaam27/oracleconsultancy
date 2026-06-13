@@ -22,8 +22,9 @@ export async function getSitesAdmin(): Promise<SiteAdminRow[]> {
   ]);
   const work = new Map<number, number>();
   const res = new Map<number, number>();
+  // Count everyone (incl. archived) — merge/delete re-points all matching people,
+  // so the count should reflect exactly who the action will touch.
   for (const p of ppl ?? []) {
-    if (!(p.active ?? true)) continue;
     const w = p.work_site_id as number | null; if (w != null) work.set(w, (work.get(w) ?? 0) + 1);
     const r = p.residence_site_id as number | null; if (r != null) res.set(r, (res.get(r) ?? 0) + 1);
   }

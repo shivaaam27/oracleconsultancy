@@ -61,7 +61,7 @@ export function Combobox({
         autoComplete="off"
         className={cn(className, "pr-7")}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlight(0); onInput?.(e.target.value); }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { if (inputRef.current) setQuery(inputRef.current.value); setOpen(true); }}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setHighlight((h) => Math.min(h + 1, filtered.length - 1)); }
           else if (e.key === "ArrowUp") { e.preventDefault(); setHighlight((h) => Math.max(h - 1, 0)); }

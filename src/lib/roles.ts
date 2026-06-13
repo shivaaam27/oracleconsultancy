@@ -15,8 +15,9 @@ export async function getRolesAdmin(): Promise<RoleAdminRow[]> {
     sb.from("people").select("role,active"),
   ]);
   const count = new Map<string, number>();
+  // Count everyone (incl. archived) — a rename/merge re-points all matching role
+  // text, so the count should reflect exactly who the action will touch.
   for (const p of ppl ?? []) {
-    if (!(p.active ?? true)) continue;
     const r = (p.role as string | null)?.trim();
     if (r) count.set(r.toLowerCase(), (count.get(r.toLowerCase()) ?? 0) + 1);
   }

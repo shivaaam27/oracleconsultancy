@@ -440,8 +440,8 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     const t = await findTaskByCode(intent.taskCode);
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     await sb.from("tasks").update({ status: "Completed", closed_date: nowIso, last_updated_at: nowIso }).eq("id", t.id);
-    await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, "Completed", "Marked complete via command");
-    revalidatePath("/registry"); revalidatePath("/"); revalidatePath(`/task/${t.code}`);
+    await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, "Completed", "Marked complete via command");
+    revalidatePath("/registry"); revalidatePath("/"); revalidatePath(`/task/${t.code}`); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `✓ Marked ${t.code} as Completed`, redirect: `/task/${t.code}` };
   }
 
@@ -449,8 +449,8 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     const t = await findTaskByCode(intent.taskCode);
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     await sb.from("tasks").update({ escalation: "Yes", status: "Escalated", last_updated_at: nowIso }).eq("id", t.id);
-    await audit(t.id, t.code, t.company_id, "ESCALATION", "escalation", t.escalation, "Yes", "Escalated via command");
-    revalidatePath("/"); revalidatePath(`/task/${t.code}`);
+    await audit(t.id, t.code, t.company_id, "CHANGE", "Escalation", t.escalation, "Yes", "Escalated via command");
+    revalidatePath("/"); revalidatePath(`/task/${t.code}`); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `🚨 Escalated ${t.code}`, redirect: `/task/${t.code}` };
   }
 
@@ -462,9 +462,19 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
       task_id: t.id, body: intent.body, created_at: nowIso, created_by: "ai-command",
     });
     const patch: Record<string, unknown> = { latest_update: intent.body, last_updated_at: nowIso };
-    if (intent.newStatus) patch.status = intent.newStatus;
+    if (intent.newStatus && intent.newStatus !== t.status) {
+      // Record the status change in history (reason = update body so the timeline
+      // bundles it into the update bubble, exactly like a manual update), and
+      // stamp/clear the closed date when crossing the Completed/Closed boundary.
+      const wasClosed = t.status === "Completed" || t.status === "Closed";
+      const isClosed = intent.newStatus === "Completed" || intent.newStatus === "Closed";
+      patch.status = intent.newStatus;
+      if (isClosed && !wasClosed) patch.closed_date = nowIso;
+      else if (!isClosed && wasClosed) patch.closed_date = null;
+      await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, intent.newStatus, intent.body);
+    }
     await sb.from("tasks").update(patch).eq("id", t.id);
-    revalidatePath(`/task/${t.code}`);
+    revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `📝 Added update to ${t.code}`, redirect: `/task/${t.code}` };
   }
 
@@ -474,10 +484,13 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     const valid = ["Not Started","In Progress","Under Review","Blocked","Waiting External","Escalated","Completed","Closed"];
     if (!valid.includes(intent.status)) return { ok: false, message: `Invalid status "${intent.status}"` };
     const patch: Record<string, unknown> = { status: intent.status, last_updated_at: nowIso };
-    if (["Completed","Closed"].includes(intent.status)) patch.closed_date = nowIso;
+    const wasClosed = t.status === "Completed" || t.status === "Closed";
+    const isClosed = ["Completed","Closed"].includes(intent.status);
+    if (isClosed && !wasClosed) patch.closed_date = nowIso;
+    else if (!isClosed && wasClosed) patch.closed_date = null; // reopening clears the closed date
     await sb.from("tasks").update(patch).eq("id", t.id);
-    await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, intent.status, "Set via command");
-    revalidatePath(`/task/${t.code}`);
+    await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, intent.status, "Set via command");
+    revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `✓ ${t.code} → ${intent.status}`, redirect: `/task/${t.code}` };
   }
 
@@ -487,8 +500,8 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     const valid = ["Critical","High","Medium","Low"];
     if (!valid.includes(intent.priority)) return { ok: false, message: `Invalid priority "${intent.priority}"` };
     await sb.from("tasks").update({ priority: intent.priority, last_updated_at: nowIso }).eq("id", t.id);
-    await audit(t.id, t.code, t.company_id, "PRIORITY", "priority", t.priority, intent.priority, "Set via command");
-    revalidatePath(`/task/${t.code}`);
+    await audit(t.id, t.code, t.company_id, "CHANGE", "Priority", t.priority, intent.priority, "Set via command");
+    revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `⚡ ${t.code} priority → ${intent.priority}`, redirect: `/task/${t.code}` };
   }
 
@@ -538,18 +551,21 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
       if (!t) continue;
       if (intent.op === "complete") {
         await sb.from("tasks").update({ status: "Completed", closed_date: nowIso, last_updated_at: nowIso }).eq("id", t.id);
-        await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, "Completed", "Bulk complete via command");
+        await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, "Completed", "Bulk complete via command");
       } else if (intent.op === "escalate") {
         await sb.from("tasks").update({ escalation: "Yes", status: "Escalated", last_updated_at: nowIso }).eq("id", t.id);
-        await audit(t.id, t.code, t.company_id, "ESCALATION", "escalation", t.escalation, "Yes", "Bulk escalate via command");
+        await audit(t.id, t.code, t.company_id, "CHANGE", "Escalation", t.escalation, "Yes", "Bulk escalate via command");
       } else if (intent.op === "set_status" && intent.status) {
         const patch: Record<string, unknown> = { status: intent.status, last_updated_at: nowIso };
-        if (["Completed", "Closed"].includes(intent.status)) patch.closed_date = nowIso;
+        const wasClosed = t.status === "Completed" || t.status === "Closed";
+        const isClosed = ["Completed", "Closed"].includes(intent.status);
+        if (isClosed && !wasClosed) patch.closed_date = nowIso;
+        else if (!isClosed && wasClosed) patch.closed_date = null;
         await sb.from("tasks").update(patch).eq("id", t.id);
-        await audit(t.id, t.code, t.company_id, "STATUS", "status", t.status, intent.status, "Bulk status via command");
+        await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, intent.status, "Bulk status via command");
       } else if (intent.op === "set_priority" && intent.priority) {
         await sb.from("tasks").update({ priority: intent.priority, last_updated_at: nowIso }).eq("id", t.id);
-        await audit(t.id, t.code, t.company_id, "PRIORITY", "priority", t.priority, intent.priority, "Bulk priority via command");
+        await audit(t.id, t.code, t.company_id, "CHANGE", "Priority", t.priority, intent.priority, "Bulk priority via command");
       }
       done.push(t.code);
     }

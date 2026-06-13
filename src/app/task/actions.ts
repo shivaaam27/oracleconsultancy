@@ -297,6 +297,14 @@ export async function updateTask(code: string, formData: FormData) {
   revalidatePath("/registry");
   revalidatePath("/");
   updateTag("tasks");
+  // Return the user to where they opened the task from (a company page, a filtered
+  // list) instead of the generic Tasks list — unless the company changed (the code
+  // changed too, so land on the renamed task to avoid a stale link).
+  const returnTo = str(formData.get("returnTo"));
+  if (returnTo && returnTo.startsWith("/") && finalCode === code) {
+    revalidatePath(returnTo);
+    redirect(returnTo);
+  }
   redirect(`/task/${finalCode}`);
 }
 
@@ -1015,6 +1023,10 @@ export async function inlineUpdateTask(
         newVal = value || "No";
         fieldLabel = "Escalation";
         patch.escalation = value || "No";
+        // Match the bulk toolbar and AI command: escalating also moves the task
+        // into the Escalated status, so it can't be missed by status-filtered
+        // views. (De-escalating leaves the current status untouched.)
+        if ((value || "No") === "Yes") patch.status = "Escalated";
       }
 
       await logChangeSb(t.id, t.code, t.company_id, fieldLabel, oldVal, newVal, null);

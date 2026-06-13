@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { Home, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
+import { Home, LayoutDashboard, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -41,8 +41,10 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
   );
 }
 
-export function PortalPill({ canCreate = false }: { canCreate?: boolean }) {
+export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; role?: string }) {
   const pathname = usePathname() || "/portal";
+  const isDirector = role === "director";
+  const onBoard = pathname.startsWith("/portal/board");
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task");
   const onActivity = pathname.startsWith("/portal/activity");
   const onChat = pathname.startsWith("/portal/chat");
@@ -70,6 +72,7 @@ export function PortalPill({ canCreate = false }: { canCreate?: boolean }) {
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
         className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-2 h-16"
       >
+        {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} reduce={reduce} />}
         <PillTab href="/portal" icon={Home} label="Home" active={onHome} reduce={reduce} />
         <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} reduce={reduce} />
         <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
