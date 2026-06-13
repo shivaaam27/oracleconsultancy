@@ -1,10 +1,11 @@
+import { cache } from "react";
 import { sb } from "@/db/supabase";
 
 /** Active job-title names (managed list for the role field's suggestions). */
-export async function listRoleNames(): Promise<string[]> {
+export const listRoleNames = cache(async (): Promise<string[]> => {
   const { data } = await sb.from("job_titles").select("name").eq("active", true).order("name");
   return (data ?? []).map((r) => r.name as string);
-}
+});
 
 export type RoleAdminRow = { id: number; name: string; peopleCount: number };
 

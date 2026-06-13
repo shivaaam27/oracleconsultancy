@@ -3,6 +3,7 @@
 // .toISOString(), soft-delete via `archived`). Pure helpers/types live in
 // documents-shared.ts (client-safe) and are re-exported here for convenience.
 
+import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { DEFAULT_LEAD_DAYS, type DocumentRow } from "./documents-shared";
 
@@ -61,13 +62,15 @@ function mapRow(r: DocDbRow): DocumentRow {
 }
 
 /** Documents ordered by expiry (soonest first, nulls last). */
-export async function listDocuments(opts?: { includeArchived?: boolean }): Promise<DocumentRow[]> {
+export const listDocuments = cache(async (opts?: { includeArchived?: boolean }): Promise<DocumentRow[]> => {
+  // cache(): repeat calls within one render (Home loads documents in several
+  // places) reuse the first result instead of re-scanning the table each time.
   let q = sb.from("documents").select("*");
   if (!opts?.includeArchived) q = q.eq("archived", false);
   const { data, error } = await q.order("expiry_date", { ascending: true, nullsFirst: false });
   if (error) throw new Error(error.message);
   return (data as DocDbRow[]).map(mapRow);
-}
+});
 
 export async function getDocument(id: number): Promise<DocumentRow | null> {
   const { data, error } = await sb.from("documents").select("*").eq("id", id).maybeSingle();

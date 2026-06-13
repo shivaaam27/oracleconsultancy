@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import { ThemeToggle } from "./theme-toggle";
 
 /** Shared shell for the two sign-in screens (/login and /portal/login):
@@ -46,8 +47,7 @@ export function AuthShell({
           {/* Gradient frame around the white logo tile. */}
           <div className="relative h-20 w-20 rounded-[1.15rem] bg-gradient-to-br from-accent/50 via-border to-info/40 p-[2px] shadow-md">
             <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-white">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-source.png" alt="Oracle Consultancy" className="h-16 w-16 object-contain" />
+              <Image src="/logo-source.png" alt="Oracle Consultancy" width={64} height={64} className="h-16 w-16 object-contain" />
             </div>
           </div>
         </div>

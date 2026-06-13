@@ -134,7 +134,7 @@ export default async function PortalHome() {
         .select("id,person_id,start_date,end_date,half_day,days,reason,status, people(name), leave_types(name,color)")
         .in("person_id", reportIds).eq("status", "Pending").order("start_date", { ascending: true }),
       sb.from("people").select("id,name,role").in("id", reportIds).eq("active", true).order("name"),
-      buildPersonRequirementScores(),
+      buildPersonRequirementScores(reportIds),
       Promise.all(reportIds.map((rid) => getJourney(rid, "onboarding"))),
     ]);
     teamLeave = (leaveData ?? []).map((r) => {

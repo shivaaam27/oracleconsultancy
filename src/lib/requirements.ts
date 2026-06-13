@@ -496,12 +496,19 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
 /* WITHOUT writing (no ensure/auto-link). Returns ComplianceScore-      */
 /* shaped objects so existing consumers/panels work unchanged.         */
 /* ------------------------------------------------------------------ */
-export async function buildPersonRequirementScores(): Promise<ComplianceScore[]> {
-  const [{ data: people }, { data: reqRows }, { data: docRows }] = await Promise.all([
-    sb.from("people").select("id,name").eq("active", true),
-    sb.from("person_requirements").select("person_id,label,category,mandatory,status,document_id,review_date"),
-    sb.from("documents").select("id,person_id,title,category,expiry_date,reminder_lead_days,archived"),
-  ]);
+export async function buildPersonRequirementScores(personIds?: number[]): Promise<ComplianceScore[]> {
+  // Optional personIds scopes the scan (e.g. a manager's direct reports) so we
+  // don't compute compliance for the whole portfolio just to show a few people.
+  const scoped = personIds && personIds.length > 0 ? personIds : null;
+  let peopleQ = sb.from("people").select("id,name").eq("active", true);
+  let reqQ = sb.from("person_requirements").select("person_id,label,category,mandatory,status,document_id,review_date");
+  let docQ = sb.from("documents").select("id,person_id,title,category,expiry_date,reminder_lead_days,archived");
+  if (scoped) {
+    peopleQ = peopleQ.in("id", scoped);
+    reqQ = reqQ.in("person_id", scoped);
+    docQ = docQ.in("person_id", scoped);
+  }
+  const [{ data: people }, { data: reqRows }, { data: docRows }] = await Promise.all([peopleQ, reqQ, docQ]);
 
   // Person documents → derived status, grouped by person.
   type Doc = { id: number; title: string; category: string | null; status: DocStatus; expiryLabel: string | null };

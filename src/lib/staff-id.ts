@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { categoryLetter } from "./staff-id-shared";
 
@@ -27,7 +28,7 @@ function pad2(n: number): string {
 
 /** Builds the id → "PREFIX-LNN" map for every staff member in one pass.
  *  Returns an empty map if there is no data. */
-export async function getStaffIdMap(): Promise<Map<number, string>> {
+export const getStaffIdMap = cache(async (): Promise<Map<number, string>> => {
   const [{ data: people }, { data: companies }] = await Promise.all([
     sb.from("people").select("id,company_id,role,person_type,staff_category").order("id", { ascending: true }),
     sb.from("companies").select("id,code_prefix"),
@@ -53,7 +54,7 @@ export async function getStaffIdMap(): Promise<Map<number, string>> {
     out.set(p.id as number, `${prefix}-${letter}${pad2(next)}`);
   }
   return out;
-}
+});
 
 /** Convenience: the staff ID for a single person, or null if not a numbered
  *  staff member. Prefer getStaffIdMap when you need several. */

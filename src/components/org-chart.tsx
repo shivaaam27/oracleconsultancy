@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { setDepartmentHead } from "@/app/hrms/org/actions";
 import {
   Users, ChevronRight, ChevronDown, Search, Printer, X,
@@ -16,9 +17,12 @@ import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import { countNodes, type CompanyTree, type OrgNode } from "@/lib/org-chart";
 import type { OrgPersonExtras } from "@/lib/org-extras";
 import { OrgWeb, type WebPerson } from "@/components/org-web";
-import { OrgFlow } from "@/components/org-flow";
 import type { FlowPerson } from "@/lib/org-flow";
 import { OrgDirectorPicker, type PickPerson } from "@/components/org-director-picker";
+
+// Lazy-load the heavy ELK graph engine — it only downloads when the flowchart
+// view is actually opened, not on every Organogram visit.
+const OrgFlow = dynamic(() => import("@/components/org-flow").then((m) => m.OrgFlow), { ssr: false });
 
 export type Extras = Record<number, OrgPersonExtras>;
 

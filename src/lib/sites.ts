@@ -1,16 +1,17 @@
+import { cache } from "react";
 import { sb } from "@/db/supabase";
 
 /** Active site/location names (shared list for people work-site/residence). */
-export async function listSiteNames(): Promise<string[]> {
+export const listSiteNames = cache(async (): Promise<string[]> => {
   const { data } = await sb.from("sites").select("name").eq("active", true).order("name");
   return (data ?? []).map((s) => s.name as string);
-}
+});
 
 /** id → name map for resolving a person's work-site / residence. */
-export async function siteNameMap(): Promise<Map<number, string>> {
+export const siteNameMap = cache(async (): Promise<Map<number, string>> => {
   const { data } = await sb.from("sites").select("id,name");
   return new Map((data ?? []).map((s) => [s.id as number, s.name as string]));
-}
+});
 
 export type SiteAdminRow = { id: number; name: string; workCount: number; residenceCount: number };
 
