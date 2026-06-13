@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { dailyWage } from "@/lib/pay";
 import type {
@@ -25,10 +26,10 @@ export function workingDaysBetween(start: Date, end: Date, holidays: Set<string>
   return n;
 }
 
-async function holidaySet(): Promise<Set<string>> {
+const holidaySet = cache(async (): Promise<Set<string>> => {
   const { data } = await sb.from("public_holidays").select("date");
   return new Set((data ?? []).map((h) => new Date(h.date as string).toISOString().slice(0, 10)));
-}
+});
 
 /** Compute leave days for a date range (half-day forces 0.5 on a single day). */
 export async function computeLeaveDays(startISO: string, endISO: string, halfDay: boolean): Promise<number> {
@@ -40,7 +41,7 @@ export async function computeLeaveDays(startISO: string, endISO: string, halfDay
 /* ------------------------------------------------------------------ */
 /* Leave types                                                         */
 /* ------------------------------------------------------------------ */
-export async function listLeaveTypes(includeInactive = false): Promise<LeaveType[]> {
+export const listLeaveTypes = cache(async (includeInactive = false): Promise<LeaveType[]> => {
   let q = sb.from("leave_types").select("id,name,color,paid,default_days,cycle_months,half_pay_days,active").order("sort_order", { ascending: true });
   if (!includeInactive) q = q.eq("active", true);
   const { data } = await q;
@@ -54,7 +55,7 @@ export async function listLeaveTypes(includeInactive = false): Promise<LeaveType
     halfPayDays: (t.half_pay_days as number | null) ?? 0,
     active: (t.active as boolean | null) ?? true,
   }));
-}
+});
 
 /* ------------------------------------------------------------------ */
 /* Holidays                                                            */
