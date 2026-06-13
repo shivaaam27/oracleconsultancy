@@ -410,6 +410,14 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
             <div className="w-[min(90vw,26rem)] rounded-2xl bg-bg-elev ring-1 ring-border shadow-pill p-2 grid grid-cols-2 gap-1.5">
               {(() => {
                 const selCls = "h-8 min-w-0 w-full rounded-lg bg-bg-subtle text-[11px] text-fg ring-1 ring-border px-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40";
+                // Searchable, duplicate-safe manager pickers: disambiguate identical
+                // names so the correct person id is always resolved (no name collisions).
+                const activePeople = people.filter((p) => p.active);
+                const dupName = new Map<string, number>();
+                for (const p of activePeople) dupName.set(p.name, (dupName.get(p.name) ?? 0) + 1);
+                const labelOf = (p: PersonRow) => (dupName.get(p.name)! > 1 ? `${p.name} · ${p.departmentName ?? "#" + p.id}` : p.name);
+                const labelToId = new Map(activePeople.map((p) => [labelOf(p), p.id] as const));
+                const mgrLabels = activePeople.map(labelOf);
                 return (
                   <>
                     <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className={selCls}>
@@ -417,16 +425,8 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
                       <option value="none">— Clear —</option>
                       {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
-                    <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("manager", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className={selCls}>
-                      <option value="" disabled>Set manager…</option>
-                      <option value="none">— Clear —</option>
-                      {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkSecondary(e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className={selCls}>
-                      <option value="" disabled>Also reports to…</option>
-                      <option value="none">— Clear extra —</option>
-                      {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <Combobox options={["— Clear —", ...mgrLabels]} placeholder="Set manager…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear —") { applyBulkField("manager", null); return; } const id = labelToId.get(t); if (id != null) applyBulkField("manager", id); }} />
+                    <Combobox options={["— Clear extra —", ...mgrLabels]} placeholder="Also reports to…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear extra —") { applyBulkSecondary(null); return; } const id = labelToId.get(t); if (id != null) applyBulkSecondary(id); }} />
                     <Combobox options={[...new Set(people.map((p) => p.departmentName).filter(Boolean) as string[])].sort()} placeholder="Set department…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (t) applyBulkField("department", t); }} />
                   </>
                 );

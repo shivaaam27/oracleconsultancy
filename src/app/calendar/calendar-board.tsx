@@ -9,6 +9,7 @@ import {
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { AttendeePicker } from "@/components/attendee-picker";
 import { useToast } from "@/components/toast";
+import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
@@ -134,6 +135,7 @@ export function CalendarBoard({
   companies: Company[];
 }) {
   const [formOpen, setFormOpen] = useState(false);
+  useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
   const [view, setView] = useState<ViewMode>("month");
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });

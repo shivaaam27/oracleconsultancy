@@ -9,6 +9,7 @@ import { IconAction, MenuItem } from "./register-ui";
 import { Combobox } from "./combobox";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
+import { useContextActions } from "./context-actions";
 import { cn } from "@/lib/cn";
 import {
   ASSET_CATEGORIES,
@@ -57,6 +58,8 @@ export function AssetsTable({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  // Surface the primary "add" on the floating nav "+" (consistent with Tasks/People/Documents).
+  useContextActions("assets", [{ id: "add-asset", label: "Add asset", icon: <Plus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
   const [historyAsset, setHistoryAsset] = useState<AssetRow | null>(null);
   const [editing, setEditing] = useState<AssetRow | null>(null);
   const [sharing, setSharing] = useState<AssetRow | null>(null);

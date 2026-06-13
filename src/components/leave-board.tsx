@@ -6,6 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { CalendarDays, Plus, X, Check, Ban, Trash2, Loader2, Plane, PartyPopper, Settings2 } from "lucide-react";
 import { Badge, Button } from "./ui";
 import { useToast } from "./toast";
+import { useContextActions } from "./context-actions";
 import { cn } from "@/lib/cn";
 import { LEAVE_STATUS_TONE, type LeaveType, type LeaveRequestRow, type Holiday } from "@/lib/leave-shared";
 import type { LeaveMetrics } from "@/lib/leave";
@@ -38,6 +39,7 @@ export function LeaveBoard({
   const { toast } = useToast();
   const [tab, setTab] = useState<Tab>("overview");
   const [newOpen, setNewOpen] = useState(false);
+  useContextActions("leave", [{ id: "new-leave", label: "New leave request", icon: <Plus size={16} />, onClick: () => setNewOpen(true), primary: true, tone: "accent" }], []);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [, start] = useTransition();
 

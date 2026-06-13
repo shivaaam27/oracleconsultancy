@@ -7,6 +7,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Plus, X, FileText, Loader2 } from "lucide-react";
 import { Badge, Button } from "./ui";
 import { useToast } from "./toast";
+import { useContextActions } from "./context-actions";
 import { cn } from "@/lib/cn";
 import { LETTER_TEMPLATES, type LetterRow } from "@/lib/letters-shared";
 import { createLetterAction } from "@/app/letters/actions";
@@ -19,6 +20,7 @@ function fmt(iso: string | null): string {
 
 export function LettersList({ letters, companies, people }: { letters: LetterRow[]; companies: Lite[]; people: Lite[] }) {
   const [open, setOpen] = useState(false);
+  useContextActions("letters", [{ id: "new-letter", label: "New letter", icon: <Plus size={16} />, onClick: () => setOpen(true), primary: true, tone: "accent" }], []);
 
   return (
     <div className="space-y-4">
