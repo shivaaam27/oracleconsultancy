@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, MessageCircle, Phone, AlertCircle, MoonStar, UserX } from "lucide-react";
+import { Mail, MessageCircle, Phone, AlertCircle, MoonStar, UserX, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
 import { StaffIdChip } from "./staff-id-chip";
@@ -34,6 +34,7 @@ export function PersonCard({
   onOpen,
   compliance,
   hint,
+  directReports = 0,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -44,6 +45,8 @@ export function PersonCard({
   onOpen: () => void;
   compliance?: { score: number; status: "Good" | "Watch" | "Risk" } | null;
   hint?: { onLeave: boolean; present: number; absent: number } | null;
+  /** Count of people who report to this person (primary line) — for the directory. */
+  directReports?: number;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
   onPointerUp?: (e: React.PointerEvent) => void;
@@ -88,6 +91,17 @@ export function PersonCard({
           {snoozed && <MoonStar size={12} className="text-warn shrink-0" />}
         </div>
         <div className="text-xs text-fg-muted truncate mt-0.5">{metaLine}</div>
+        {(p.managerName || directReports > 0 || p.secondaryManagers.length > 0) && (
+          <div className="flex items-center gap-1.5 text-[11px] text-fg-subtle truncate mt-0.5">
+            {p.managerName && <span className="truncate">↳ {p.managerName}</span>}
+            {p.secondaryManagers.length > 0 && <span className="text-info/80 shrink-0">+{p.secondaryManagers.length}</span>}
+            {directReports > 0 && (
+              <span className="inline-flex items-center gap-0.5 shrink-0 text-fg-muted">
+                <Users size={10} /> {directReports}
+              </span>
+            )}
+          </div>
+        )}
         {displayNote(p.notes) && (
           <div className="text-xs text-fg-subtle truncate mt-0.5">{displayNote(p.notes)}</div>
         )}

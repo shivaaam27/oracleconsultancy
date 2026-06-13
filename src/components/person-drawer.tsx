@@ -7,7 +7,7 @@ import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
-  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake,
+  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake, Users,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -117,6 +117,7 @@ type DrawerData = {
   events: PersonEvent[];
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
   portal: { enabled: boolean; role: string; lastLoginAt: string | null };
+  directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
 };
 
 /* -------------------------------------------------------------------------
@@ -423,6 +424,12 @@ export function PersonDrawer() {
               <button type="button" onClick={() => goToManager(person.managerId!)} className="hover:text-accent transition-colors">↳ {person.managerName}</button>
             </>
           )}
+          {data.directReports.length > 0 && (
+            <>
+              <span className="text-fg-subtle">·</span>
+              <span className="inline-flex items-center gap-1" title="People who report to this person"><Users size={11} /> {data.directReports.length} report{data.directReports.length === 1 ? "" : "s"}</span>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
           <Badge tone="info" className="normal-case">{personTypeLabel(person.personType)}</Badge>
@@ -677,6 +684,21 @@ export function PersonDrawer() {
               <div className="space-y-1.5"><GroupLabel>Identity</GroupLabel><DefGrid rows={identity} /></div>
               <div className="space-y-1.5"><GroupLabel>Contact</GroupLabel><DefGrid rows={contact} /></div>
               <div className="space-y-1.5"><GroupLabel>Employment</GroupLabel><DefGrid rows={employment} /></div>
+              {data.directReports.length > 0 && (
+                <div className="space-y-1.5">
+                  <GroupLabel>Direct reports ({data.directReports.length})</GroupLabel>
+                  <div className="rounded-xl ring-1 ring-border/60 divide-y divide-border/50 overflow-hidden">
+                    {data.directReports.map((r) => (
+                      <button key={`${r.kind}-${r.id}`} type="button" onClick={() => goToManager(r.id)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-bg-muted/40 transition-colors">
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{r.name}</span>
+                        <span className="text-[11px] text-fg-subtle truncate shrink-0 max-w-[45%]">{[r.role, r.companyName].filter(Boolean).join(" · ")}</span>
+                        {r.kind === "dotted" && <span className="text-[9px] font-semibold uppercase tracking-wide text-info/80 shrink-0">dotted</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </SectionCard>
           );
         })()}

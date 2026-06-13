@@ -786,6 +786,40 @@ export async function bulkSetPeopleField(
   return { ok: true };
 }
 
+/**
+ * Add (or clear) a secondary "also reports to" manager for many people at once —
+ * e.g. "everyone in Finance now also reports to the new CFO". Passing managerId
+ * = null clears ALL secondary managers for the selected people. Never adds a
+ * person as their own manager, nor a duplicate of their primary manager.
+ */
+export async function bulkAddSecondaryManager(ids: number[], managerId: number | null): Promise<ActionResult> {
+  const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
+  if (!clean.length) return { ok: false, error: "No people selected." };
+
+  if (managerId == null) {
+    const { error } = await sb.from("reporting_lines").delete().in("person_id", clean);
+    if (error) return { ok: false, error: error.message };
+    invalidate();
+    return { ok: true };
+  }
+
+  // Skip the manager themselves and anyone whose PRIMARY manager is already them.
+  const { data: primaries } = await sb.from("people").select("id,manager_id").in("id", clean);
+  const targets = (primaries ?? [])
+    .filter((p) => p.id !== managerId && (p.manager_id as number | null) !== managerId)
+    .map((p) => p.id as number);
+  if (!targets.length) return { ok: false, error: "Nothing to update." };
+
+  const rows = targets.map((pid) => ({ person_id: pid, manager_id: managerId }));
+  const { error } = await sb.from("reporting_lines").upsert(rows, { onConflict: "person_id,manager_id" });
+  if (error) return { ok: false, error: error.message };
+
+  const { data: mgr } = await sb.from("people").select("name").eq("id", managerId).maybeSingle();
+  await Promise.all(targets.map((pid) => logPersonFieldChanges(pid, [{ field: "Also reports to", oldValue: null, newValue: (mgr?.name as string | null) ?? null }])));
+  invalidate();
+  return { ok: true };
+}
+
 /* ----------------------------------------------------------------------
  * Snooze / unsnooze reminders
  * ---------------------------------------------------------------------- */

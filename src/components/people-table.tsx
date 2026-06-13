@@ -11,7 +11,7 @@ import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
 import { useToast } from "./toast";
-import { snoozePerson, togglePersonActive, setPeopleActive, bulkSetPeopleField } from "@/app/people/actions";
+import { snoozePerson, togglePersonActive, setPeopleActive, bulkSetPeopleField, bulkAddSecondaryManager } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 
@@ -115,6 +115,15 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       if (res.ok) { setBulkEditing(false); router.refresh(); }
     });
   }
+  function applyBulkSecondary(value: number | null) {
+    const ids = [...selected];
+    if (!ids.length) return;
+    startBulk(async () => {
+      const res = await bulkAddSecondaryManager(ids, value);
+      toast(res.ok ? (value == null ? `Cleared extra managers on ${ids.length}` : `Updated ${ids.length} ${ids.length === 1 ? "person" : "people"}`) : (res.error || "Couldn't update"), { tone: res.ok ? "success" : "warn" });
+      if (res.ok) { setBulkEditing(false); router.refresh(); }
+    });
+  }
   async function copyContact(p: PersonRow) {
     const value = p.whatsapp || p.phone || p.email || "";
     if (!value) return;
@@ -206,6 +215,13 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
 
     return rows;
   }, [people, search, filter, companyFilter, typeFilter, sortKey, sortDir, showInactive]);
+
+  // How many active people report (primary line) to each person — for the card.
+  const reportsCountById = useMemo(() => {
+    const m: Record<number, number> = {};
+    for (const p of people) if (p.active && p.managerId != null) m[p.managerId] = (m[p.managerId] ?? 0) + 1;
+    return m;
+  }, [people]);
 
   const counts = useMemo(() => {
     const now = new Date();
@@ -347,6 +363,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
               <PersonCard
                 key={p.id}
                 person={p}
+                directReports={reportsCountById[p.id] ?? 0}
                 compliance={complianceById?.[p.id] ?? null}
                 hint={directoryHints?.[p.id] ?? null}
                 onOpen={() => {
@@ -369,21 +386,27 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       {selectMode && selected.size > 0 && (
         <div className="fixed left-1/2 -translate-x-1/2 bottom-[5.5rem] md:bottom-24 z-40 flex flex-col items-center gap-2">
           {bulkEditing && (
-            <div className="glass elevated rounded-2xl shadow-pill p-2.5 flex flex-wrap items-center gap-2 max-w-[92vw]">
+            <div className="w-[min(94vw,40rem)] rounded-2xl bg-bg-elev ring-1 ring-border shadow-pill p-3 backdrop-blur-xl grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
               <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
-                className="rounded-lg bg-bg-subtle text-xs ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40">
+                className="w-full sm:w-auto min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
                 <option value="" disabled>Set company…</option>
                 <option value="none">— Clear —</option>
                 {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("manager", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
-                className="rounded-lg bg-bg-subtle text-xs ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40">
+                className="w-full sm:w-auto min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
                 <option value="" disabled>Set manager…</option>
                 <option value="none">— Clear —</option>
                 {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkSecondary(e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }}
+                className="w-full sm:w-auto min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
+                <option value="" disabled>Also reports to…</option>
+                <option value="none">— Clear extra —</option>
+                {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
               <input list="bulk-dept-list" placeholder="Set department…" onKeyDown={(e) => { if (e.key === "Enter") { const v = (e.target as HTMLInputElement).value.trim(); applyBulkField("department", v || null); (e.target as HTMLInputElement).value = ""; } }}
-                className="w-36 rounded-lg bg-bg-subtle text-xs ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40" />
+                className="w-full sm:w-36 min-w-0 rounded-lg bg-bg-subtle text-xs text-fg ring-1 ring-border px-2 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40" />
               <datalist id="bulk-dept-list">
                 {[...new Set(people.map((p) => p.departmentName).filter(Boolean))].map((d) => <option key={d as string} value={d as string} />)}
               </datalist>

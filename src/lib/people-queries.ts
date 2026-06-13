@@ -240,6 +240,8 @@ export type PersonDetail = {
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
   /** Staff-portal access status (read-only here; managed in Settings). */
   portal: { enabled: boolean; role: string; lastLoginAt: string | null };
+  /** People who report to THIS person — primary (solid) and dotted (secondary) lines. */
+  directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
 };
 
 export async function getPersonDetail(id: number): Promise<PersonDetail | null> {
@@ -397,6 +399,23 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     person.managerName = peopleList.find((p) => p.id === person.managerId)?.name ?? null;
   }
 
+  // Direct reports — who reports to THIS person (primary line) + dotted-line reports.
+  const directReports: PersonDetail["directReports"] = [];
+  const [{ data: primReports }, { data: dotRows }] = await Promise.all([
+    sb.from("people").select("id,name,role,company_id").eq("manager_id", id).eq("active", true).order("name"),
+    sb.from("reporting_lines").select("person_id").eq("manager_id", id),
+  ]);
+  for (const r of primReports ?? []) {
+    directReports.push({ id: r.id as number, name: r.name as string, role: (r.role as string | null) ?? null, companyName: r.company_id ? cMap.get(r.company_id as number) ?? null : null, kind: "primary" });
+  }
+  const dotIds = (dotRows ?? []).map((r) => r.person_id as number);
+  if (dotIds.length) {
+    const { data: dp } = await sb.from("people").select("id,name,role,company_id,active").in("id", dotIds).order("name");
+    for (const r of dp ?? []) if (r.active) {
+      directReports.push({ id: r.id as number, name: r.name as string, role: (r.role as string | null) ?? null, companyName: r.company_id ? cMap.get(r.company_id as number) ?? null : null, kind: "dotted" });
+    }
+  }
+
   const [events, leaveBalances, leaveRequests, attendance, { data: portalRow }] = await Promise.all([
     listPersonEvents(id, 40),
     personLeaveBalances(id),
@@ -413,6 +432,6 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
   return {
     person, workload, assignedTasks, documents, recentUpdates, companies, peopleList, departments, events,
     leave: { balances: leaveBalances, requests: leaveRequests, attendance },
-    portal,
+    portal, directReports,
   };
 }

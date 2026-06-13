@@ -16,6 +16,8 @@ import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import { countNodes, type CompanyTree, type OrgNode } from "@/lib/org-chart";
 import type { OrgPersonExtras } from "@/lib/org-extras";
 import { OrgWeb, type WebPerson } from "@/components/org-web";
+import { OrgFlow } from "@/components/org-flow";
+import type { FlowPerson } from "@/lib/org-flow";
 import { OrgDirectorPicker, type PickPerson } from "@/components/org-director-picker";
 
 export type Extras = Record<number, OrgPersonExtras>;
@@ -787,11 +789,12 @@ function OrgSwitcher({
 /* ------------------------------------------------------------------ */
 
 export function OrgChart({
-  companies, trees, portfolioTree, extras = {}, webPeople, associatedByCompany = {}, deptHeads = {}, pickerPeople, initialCompanyId, showSwitcher = true, showEveryone = true,
+  companies, trees, portfolioTree, flowPeople, extras = {}, webPeople, associatedByCompany = {}, deptHeads = {}, pickerPeople, initialCompanyId, showSwitcher = true, showEveryone = true,
 }: {
   companies: OrgChartCompany[];
   trees: Record<number, CompanyTree>;
   portfolioTree?: CompanyTree;
+  flowPeople?: FlowPerson[];
   extras?: Extras;
   webPeople?: WebPerson[];
   associatedByCompany?: Record<number, AssociatedPerson[]>;
@@ -802,7 +805,7 @@ export function OrgChart({
   showEveryone?: boolean;
 }) {
   const everyoneOn = showEveryone && !!webPeople;
-  const portfolioOn = showEveryone && !!portfolioTree;
+  const portfolioOn = showEveryone && (!!flowPeople?.length || !!portfolioTree);
   const [view, setView] = useState<"everyone" | "portfolio" | number>(
     initialCompanyId != null ? initialCompanyId : everyoneOn ? "everyone" : (companies[0]?.id ?? 0)
   );
@@ -819,6 +822,8 @@ export function OrgChart({
 
       {view === "everyone" && webPeople ? (
         <OrgWeb people={webPeople} companies={companies} extras={extras} onPickCompany={(id) => setView(id)} />
+      ) : view === "portfolio" && flowPeople?.length ? (
+        <OrgFlow people={flowPeople} extras={extras} />
       ) : view === "portfolio" && portfolioTree ? (
         <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio pickerPeople={pickerPeople} />
       ) : typeof view === "number" && trees[view] ? (

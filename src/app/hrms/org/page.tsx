@@ -62,6 +62,17 @@ export default async function OrgChartPage({
   // One portfolio-wide tree (cross-company chain of command up to the owner).
   const portfolioTree = buildPortfolioTree(people, accentById);
 
+  // Flat, multi-parent people list for the portfolio flowchart (ELK-laid).
+  const flowPeople = people
+    .filter((p) => p.active)
+    .map((p) => ({
+      id: p.id, name: p.name, role: p.role, personType: p.personType,
+      staffCategory: p.staffCategory,
+      companyId: p.companyId, companyName: p.companyName,
+      accentColor: p.companyId != null ? accentById.get(p.companyId) ?? null : null,
+      managerId: p.managerId, secondary: p.secondaryManagers.map((m) => m.id),
+    }));
+
   // People list for the one-tap director/manager pickers.
   const pickerPeople = people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, companyName: p.companyName }));
 
@@ -112,6 +123,7 @@ export default async function OrgChartPage({
           companies={companies}
           trees={trees}
           portfolioTree={portfolioTree}
+          flowPeople={flowPeople}
           extras={extras}
           deptHeads={deptHeads}
           pickerPeople={pickerPeople}
