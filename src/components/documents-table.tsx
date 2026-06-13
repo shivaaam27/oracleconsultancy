@@ -570,8 +570,8 @@ function DocDialog({ open, onOpenChange, title, children }: {
           data-[state=open]:animate-in data-[state=open]:fade-in-0
           data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(560px,calc(100vw-2rem))] max-h-[85vh]
-          -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl
-          bg-bg-elev border border-border shadow-2xl outline-none
+          -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl
+          glass glass-menu elevated outline-none
           data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
           data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">

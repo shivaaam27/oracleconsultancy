@@ -114,7 +114,7 @@ function HrmsLauncher({ active }: { active: boolean }) {
           data-[state=open]:animate-in data-[state=open]:fade-in-0
           data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[61] w-[min(420px,calc(100vw-2rem))]
-          -translate-x-1/2 -translate-y-1/2 glass glass-menu elevated rounded-3xl p-4 shadow-2xl outline-none
+          -translate-x-1/2 -translate-y-1/2 glass glass-menu elevated rounded-3xl p-4 shadow-pill outline-none
           data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
           data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
           <div className="flex items-center justify-between mb-3 px-1">

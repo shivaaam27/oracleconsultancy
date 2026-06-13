@@ -76,7 +76,7 @@ function NewLetterDialog({ open, onOpenChange, companies, people }: { open: bool
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(460px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-bg-elev border border-border shadow-2xl outline-none">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(460px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl glass glass-menu elevated outline-none">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
             <Dialog.Title className="text-sm font-semibold">New letter</Dialog.Title>
             <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>

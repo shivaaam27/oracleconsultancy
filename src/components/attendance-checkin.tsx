@@ -44,7 +44,7 @@ export function AttendanceCheckin({ firstName, status, editable }: { firstName: 
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) dismiss(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[81] w-[min(86vw,19rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-bg-elev ring-1 ring-border shadow-2xl p-5 data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0 focus:outline-none">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[81] w-[min(86vw,19rem)] -translate-x-1/2 -translate-y-1/2 rounded-3xl glass glass-menu elevated p-5 data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0 focus:outline-none">
           <Dialog.Title className="text-[15px] font-semibold tracking-tight">{greeting()}, {firstName} 👋</Dialog.Title>
           <Dialog.Description className="text-xs text-fg-muted mt-0.5">Mark your attendance for today.</Dialog.Description>
           <div className="mt-4 grid grid-cols-2 gap-2">
