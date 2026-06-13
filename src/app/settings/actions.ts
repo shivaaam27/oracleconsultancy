@@ -132,10 +132,15 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
   const { saveAutomationConfig } = await import("@/lib/email-automation");
   const field = String(fd.get("field") ?? "");
   const on = fd.get("value") === "1";
+  // Each category's "on" state maps to its natural mode (outward = prepare; the
+  // owner's own internal emails = auto-send).
+  const NATURAL: Record<string, "prepare" | "auto"> = {
+    overdue: "prepare", renewals: "prepare", directorBrief: "auto", lifecycle: "auto",
+  };
   if (field === "paused") {
     await saveAutomationConfig({ paused: on });
-  } else if (field === "overdue") {
-    await saveAutomationConfig({ categories: { overdue: { mode: on ? "prepare" : "off" } } as never });
+  } else if (field in NATURAL) {
+    await saveAutomationConfig({ categories: { [field]: { mode: on ? NATURAL[field] : "off" } } as never });
   }
   revalidatePath("/settings");
   redirect("/settings?saved=1");

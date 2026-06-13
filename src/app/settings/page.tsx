@@ -367,21 +367,25 @@ export default async function SettingsPage({
             <Button type="submit" variant={emailAuto.paused ? "primary" : "secondary"}>{emailAuto.paused ? "Resume all" : "Pause all"}</Button>
           </form>
 
-          <form action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
-            <div>
-              <p className="text-sm font-medium">Overdue-task reminders</p>
-              <p className="text-[11px] text-fg-muted">
-                {emailAuto.categories.overdue.mode === "off"
-                  ? "Off."
-                  : "On — prepares a daily reminder draft per person with overdue work."}
-              </p>
-            </div>
-            <input type="hidden" name="field" value="overdue" />
-            <input type="hidden" name="value" value={emailAuto.categories.overdue.mode === "off" ? "1" : "0"} />
-            <Button type="submit" variant={emailAuto.categories.overdue.mode === "off" ? "primary" : "secondary"}>
-              {emailAuto.categories.overdue.mode === "off" ? "Turn on" : "Turn off"}
-            </Button>
-          </form>
+          {([
+            { key: "overdue", label: "Overdue-task reminders", on: "Prepares a daily reminder draft per person with overdue work." },
+            { key: "renewals", label: "Document / permit renewals", on: "Prepares a daily renewal nudge for each expiring or expired document." },
+            { key: "directorBrief", label: "Weekly Director Brief (to you)", on: "Auto-sends the portfolio brief to your inbox each Monday." },
+            { key: "lifecycle", label: "Probation & leave reminders (to you)", on: "Auto-sends a daily HR summary (probations ending, leave to approve)." },
+          ] as const).map((c) => {
+            const off = emailAuto.categories[c.key].mode === "off";
+            return (
+              <form key={c.key} action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{c.label}</p>
+                  <p className="text-[11px] text-fg-muted">{off ? "Off." : `On — ${c.on}`}</p>
+                </div>
+                <input type="hidden" name="field" value={c.key} />
+                <input type="hidden" name="value" value={off ? "1" : "0"} />
+                <Button type="submit" variant={off ? "primary" : "secondary"}>{off ? "Turn on" : "Turn off"}</Button>
+              </form>
+            );
+          })}
         </div>
 
         <div className="flex justify-end">

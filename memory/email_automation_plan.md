@@ -97,8 +97,19 @@ on what already exists — do not rebuild.
     `authoriseCron` (CRON_SECRET) — also unblocks notify/snapshots/cleanup which were being 307'd.
   - Verified: paused→skip, active→prepared 8, same-day rerun→deduped, outside-window→held;
     cron 200 with bearer / 401 without. NEXT: Phase B (renewals prepare; weekly Director Brief auto-send to owner; probation/leave reminders).
-- **Phase B — Core categories.** Document/permit renewals (prepare), weekly
-  Director Brief (**auto-send to owner**), probation + leave reminders (to owner).
+- **Phase B — Core categories.** ✅ DONE (June 2026).
+  - **renewals** (prepare): loops `getDocumentRenewalCandidates` → `draftDocumentRenewalAction`
+    (de-duped per doc/day). Daily.
+  - **directorBrief** (auto-send to owner): `getBrief` + `briefEmail` → `sendOrDraftToOwner`
+    (sends to the configured from-address; Draft fallback if email off). Runs on `cfg.briefDay`
+    (default Monday) only.
+  - **lifecycle** (auto-send to owner): probation-ending + pending-leave summary from
+    `getBrief().hr` → `sendOrDraftToOwner`. Daily.
+  - Settings: 4 category on/off toggles (overdue/renewals/brief/lifecycle) + master Pause; each
+    category's "on" maps to its natural mode (outward=prepare, owner=auto). `sendOrDraftToOwner`
+    records a Sent/Draft outbox row for visibility.
+  - Verified via the cron in the Next runtime: renewals processed, brief + lifecycle auto-sent
+    (real emails to the owner's own inbox), then reset to all-off.
 - **Phase C — Extra categories.** Birthdays, statutory/tax deadlines, meeting
   follow-ups.
 - **Phase D — Custom recurring email.** The free-form builder + its processor.
