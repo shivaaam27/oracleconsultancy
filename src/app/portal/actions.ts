@@ -9,6 +9,7 @@ import { parseMentionIds } from "@/lib/mentions";
 import { createTaskAttachment, createDocument, uploadDocumentFile } from "@/lib/documents";
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
+import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
 import { createEventAction } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
@@ -597,6 +598,27 @@ export async function portalDecideLeave(
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/portal");
+  revalidatePath("/hrms/leave");
+  revalidatePath("/people");
+  return { ok: true };
+}
+
+/** Staff self-check-in: record TODAY's attendance for the signed-in person.
+ *  Trusted (no approval); managers/admin can override later. Only the
+ *  self-settable statuses are accepted. */
+export async function portalMarkAttendance(status: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (!(ATTENDANCE_SELF_STATUSES as string[]).includes(status)) return { ok: false, error: "That status isn't allowed." };
+  const now = new Date();
+  const iso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+  const ts = now.toISOString();
+  const { error } = await sb.from("attendance").upsert(
+    { person_id: me.id, date: iso, status, note: `portal:${me.name}`, updated_at: ts, created_at: ts },
+    { onConflict: "person_id,date" }
+  );
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/portal/profile");
   revalidatePath("/hrms/leave");
   revalidatePath("/people");
   return { ok: true };

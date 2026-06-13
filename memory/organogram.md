@@ -45,6 +45,18 @@ Verified live; tsc clean; no console errors.
 
 Also this session: people bulk Set-fields panel made compact (was oversized) — `w-[min(90vw,26rem)]`, h-8 controls, 2-col grid, opaque `bg-bg-elev`. (uncommitted)
 
+## Phase 4 — Attendance (DONE, June 2026, uncommitted)
+Owner decisions: **staff self check-in, trusted, manager can override**; **status-per-day** (no clock in/out). No schema change — uses existing `attendance` table (person_id, date unique, status, note).
+- `lib/leave-shared.ts`: `ATTENDANCE_SELF_STATUSES` (Present/Remote/Half-day/Sick), `ATTENDANCE_ABBR`, `ATTENDANCE_CELL` classes.
+- `lib/attendance.ts`: `getAttendanceMonth(y,m)` (admin grid: people + recorded map + approved-leave overlay + holidays) and `personAttendanceWeek(personId)` (portal: this week Mon–Sat, derives On leave/Holiday, today editable + lockReason).
+- Admin actions in `hrms/leave/actions.ts`: `recordAttendanceAction(personId,date,status|null)` (upsert/clear on person_id+date) + `bulkRecordAttendanceAction(ids,date,status)` ("mark all Present today").
+- Admin UI: **Leave | Attendance tab** on `/hrms/leave` (`?view=attendance&ym=YYYY-MM`). `attendance-register.tsx` = month grid, **brush-to-paint** (pick a status, click cells), company filter, month nav, On leave/Holiday auto-filled & read-only. VERIFIED LIVE (painted a cell → DB row + "P" shows).
+- Portal: `portalMarkAttendance(status)` (stamps note `portal:<Name>`, only self statuses) + `portal-attendance.tsx` ("Your attendance" on `/portal/profile`: today buttons + this-week strip; locks on leave/holiday). Built + tsc-clean; NOT visually tested (needs a staff portal login).
+- **Check-in pop-up** (`attendance-checkin.tsx`, Radix Dialog, ~304px minimal): auto-opens once/day on portal landing (mounted in `portal/(app)/layout.tsx` via `personAttendanceToday`) when today not marked & not leave/holiday; greeting + 4 self buttons + "Maybe later"; dismiss remembered in localStorage per-day. Shows for ALL portal roles (managers/directors are staff too).
+- **Manager "Team attendance today"** card on portal home (`teamAttendanceToday(reportIds)`): "{N} in · {M} not marked", per-report status badges. Same reportIds gate as "My team" (only managers with reports).
+- VERIFIED LIVE end-to-end via a temp manager login (Shivam): pop-up opened → marked Present → closed; profile week strip showed Sat→P; manager card showed "0 in · 5 not marked / 0/5 recorded". Temp login + test rows reverted after.
+Lights up existing readers (person drawer monthly card, directory "abs" chip).
+
 ## Known tuning / next steps (not bugs)
 - Leadership row is wide (~13) because each of 7 companies has real directors — inherent; pan/zoom/fit handle it.
 - Possible refinements: collapse/expand a person's subtree, search-to-highlight, apply the flowchart to per-company views too, more tiers (Senior Mgr) if 3 feels flat.

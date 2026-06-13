@@ -134,3 +134,43 @@ export async function deleteHolidayAction(id: number): Promise<Result> {
   invalidate();
   return { ok: true };
 }
+
+/* ---- Attendance register ---- */
+function dayMidnightISO(dateStr: string): string | null {
+  const d = new Date(`${dateStr.slice(0, 10)}T00:00:00Z`);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Record (or clear, when status is null) one person's status for one day. */
+export async function recordAttendanceAction(personId: number, dateStr: string, status: string | null): Promise<Result> {
+  if (!personId) return { ok: false, error: "No person." };
+  const iso = dayMidnightISO(dateStr);
+  if (!iso) return { ok: false, error: "Bad date." };
+  if (!status) {
+    const { error } = await sb.from("attendance").delete().eq("person_id", personId).eq("date", iso);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const now = new Date().toISOString();
+    const { error } = await sb.from("attendance").upsert(
+      { person_id: personId, date: iso, status, updated_at: now, created_at: now },
+      { onConflict: "person_id,date" }
+    );
+    if (error) return { ok: false, error: error.message };
+  }
+  invalidate();
+  return { ok: true };
+}
+
+/** Set the same status for several people on one day (e.g. "mark team Present today"). */
+export async function bulkRecordAttendanceAction(personIds: number[], dateStr: string, status: string): Promise<Result> {
+  const ids = [...new Set(personIds)].filter((n) => Number.isFinite(n));
+  if (!ids.length) return { ok: false, error: "No people." };
+  const iso = dayMidnightISO(dateStr);
+  if (!iso) return { ok: false, error: "Bad date." };
+  const now = new Date().toISOString();
+  const rows = ids.map((person_id) => ({ person_id, date: iso, status, updated_at: now, created_at: now }));
+  const { error } = await sb.from("attendance").upsert(rows, { onConflict: "person_id,date" });
+  if (error) return { ok: false, error: error.message };
+  invalidate();
+  return { ok: true };
+}

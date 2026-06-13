@@ -7,6 +7,9 @@ import { Reveal } from "@/components/reveal";
 import { AccessibilityControls } from "@/components/portal-prefs";
 import { PortalDocuments, type PortalChecklistItem } from "@/components/portal-documents";
 import { PortalLeave } from "@/components/portal-leave";
+import { PortalAttendance } from "@/components/portal-attendance";
+import { personAttendanceWeek } from "@/lib/attendance";
+import { Clock } from "lucide-react";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getPersonChecklist } from "@/lib/requirements";
 import { personLeaveBalances, listLeaveRequests } from "@/lib/leave";
@@ -38,11 +41,12 @@ export default async function PortalProfile() {
     expiryLabel: it.expiryLabel,
   }));
 
-  const [leaveBalances, leaveRequests, journey, equipment] = await Promise.all([
+  const [leaveBalances, leaveRequests, journey, equipment, attendance] = await Promise.all([
     personLeaveBalances(me.id),
     listLeaveRequests({ personId: me.id }),
     getJourney(me.id, "onboarding"),
     assetsForPerson(me.id),
+    personAttendanceWeek(me.id),
   ]);
 
   const details: Array<{ label: string; value: string }> = [
@@ -85,6 +89,12 @@ export default async function PortalProfile() {
           </p>
         </Reveal>
       )}
+
+      <Reveal delay={0.085} className="flex flex-col gap-2.5">
+        <SectionLabel icon={<Clock size={13} />}>Your attendance</SectionLabel>
+        <PortalAttendance days={attendance.days} todayEditable={attendance.todayEditable} lockReason={attendance.lockReason} />
+        <p className="px-1 text-[11px] text-fg-subtle">Check in each day. Your manager can adjust this if needed.</p>
+      </Reveal>
 
       {leaveBalances.length > 0 && (
         <Reveal delay={0.09} className="flex flex-col gap-2.5">

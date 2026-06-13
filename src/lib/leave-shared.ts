@@ -26,6 +26,25 @@ export const ATTENDANCE_TONE: Record<AttendanceStatus, "default" | "success" | "
   Sick: "warn",
 };
 
+/** Statuses a staff member may set for themselves on the portal. */
+export const ATTENDANCE_SELF_STATUSES: AttendanceStatus[] = ["Present", "Remote", "Half-day", "Sick"];
+
+/** One-letter abbreviations for the register grid. */
+export const ATTENDANCE_ABBR: Record<AttendanceStatus, string> = {
+  Present: "P", Absent: "A", "On leave": "L", Holiday: "H", Remote: "R", "Half-day": "½", Sick: "S",
+};
+
+/** Tailwind cell classes for the register grid. */
+export const ATTENDANCE_CELL: Record<AttendanceStatus, string> = {
+  Present: "bg-success-soft text-success",
+  Absent: "bg-danger-soft text-danger",
+  "On leave": "bg-info-soft text-info",
+  Holiday: "bg-bg-muted text-fg-subtle",
+  Remote: "bg-accent-soft text-accent",
+  "Half-day": "bg-warn-soft text-warn",
+  Sick: "bg-warn-soft text-warn",
+};
+
 export type LeaveType = {
   id: number;
   name: string;

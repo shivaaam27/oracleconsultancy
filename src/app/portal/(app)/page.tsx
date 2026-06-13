@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, CheckCircle2, ListTodo, Users, Plane } from "lucide-react";
+import { CalendarDays, CheckCircle2, ListTodo, Users, Plane, Clock } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -10,6 +10,8 @@ import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team
 import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { getJourney } from "@/lib/onboarding";
+import { teamAttendanceToday } from "@/lib/attendance";
+import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +121,9 @@ export default async function PortalHome() {
   }
 
   const reportIds = me.portalRole === "manager" ? await directReportIds(me.id) : [];
+  const teamToday = reportIds.length > 0 ? await teamAttendanceToday(reportIds) : [];
+  const teamPresent = teamToday.filter((m) => m.status === "Present" || m.status === "Remote").length;
+  const teamMarked = teamToday.filter((m) => m.status).length;
 
   // Managers: pending leave from reports + a team status glance (compliance + onboarding).
   let teamLeave: TeamLeaveRequest[] = [];
@@ -220,6 +225,26 @@ export default async function PortalHome() {
         <Reveal delay={0.08} className="flex flex-col gap-2.5">
           <SectionLabel icon={<Plane size={13} />}>Leave to approve ({teamLeave.length})</SectionLabel>
           <PortalTeamLeave requests={teamLeave} />
+        </Reveal>
+      )}
+
+      {teamToday.length > 0 && (
+        <Reveal delay={0.085} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Clock size={13} />}>Team attendance today</SectionLabel>
+          <Panel className="overflow-hidden p-0">
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border/60">
+              <span className="text-sm font-semibold">{teamPresent} in · {teamToday.length - teamMarked} not marked</span>
+              <span className="text-[11px] text-fg-subtle">{teamMarked}/{teamToday.length} recorded</span>
+            </div>
+            <ul className="divide-y divide-border/50">
+              {teamToday.map((m) => (
+                <li key={m.id} className="flex items-center justify-between gap-2 px-4 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">{m.name}</span>
+                  {m.status ? <Badge tone={ATTENDANCE_TONE[m.status]}>{m.status}</Badge> : <span className="text-[11px] text-fg-subtle">Not marked</span>}
+                </li>
+              ))}
+            </ul>
+          </Panel>
         </Reveal>
       )}
 
