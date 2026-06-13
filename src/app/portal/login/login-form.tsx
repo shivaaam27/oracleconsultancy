@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { LogIn } from "lucide-react";
 import { PasswordField, ShakeOnError, authInputCls } from "@/components/auth-fields";
 import { portalLogin } from "../actions";
@@ -10,6 +10,7 @@ const REMEMBER_KEY = "portal.rememberedName";
 export function LoginForm() {
   const [state, action, pending] = useActionState(portalLogin, null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const [remember, setRemember] = useState(true);
 
   // Pre-fill the remembered name on this device.
   useEffect(() => {
@@ -23,7 +24,8 @@ export function LoginForm() {
         action={action}
         onSubmit={() => {
           const v = nameRef.current?.value.trim();
-          if (v) localStorage.setItem(REMEMBER_KEY, v);
+          if (remember && v) localStorage.setItem(REMEMBER_KEY, v);
+          else localStorage.removeItem(REMEMBER_KEY);
         }}
         className="flex flex-col gap-3"
       >
@@ -39,6 +41,10 @@ export function LoginForm() {
           />
         </label>
         <PasswordField name="password" label="Password" autoComplete="current-password" />
+        <label className="flex items-center gap-2 text-xs text-fg-muted cursor-pointer select-none">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-3.5 w-3.5 rounded accent-[hsl(var(--accent))]" />
+          Remember me on this device
+        </label>
         {state?.error && (
           <p className="text-sm text-danger" role="alert">
             {state.error}

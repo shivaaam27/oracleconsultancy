@@ -55,6 +55,36 @@ export async function bumpAdminSessionGen(): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+const OWNER_NAME_KEY = "v2.ownerName";
+const OWNER_EMAIL_KEY = "v2.ownerEmail";
+
+/** The configured owner identity (shown/edited in Settings). Either may be null. */
+export async function getOwnerIdentity(): Promise<{ name: string | null; email: string | null }> {
+  const { data } = await sb.from("settings").select("key,value").in("key", [OWNER_NAME_KEY, OWNER_EMAIL_KEY]);
+  const map = new Map((data ?? []).map((r) => [r.key as string, (r.value as string | null) ?? ""]));
+  const norm = (v: string | undefined) => (v && v.trim() ? v.trim() : null);
+  return { name: norm(map.get(OWNER_NAME_KEY)), email: norm(map.get(OWNER_EMAIL_KEY)) };
+}
+
+export async function setOwnerIdentity(name: string | null, email: string | null): Promise<void> {
+  const rows = [
+    { key: OWNER_NAME_KEY, value: name ?? "" },
+    { key: OWNER_EMAIL_KEY, value: email ?? "" },
+  ];
+  const { error } = await sb.from("settings").upsert(rows, { onConflict: "key" });
+  if (error) throw new Error(error.message);
+}
+
+/** Does a submitted identifier match the configured owner name/email?
+ *  When no owner identity is set yet, accept anything (so no one is locked out). */
+export async function ownerIdentifierMatches(identifier: string): Promise<boolean> {
+  const { name, email } = await getOwnerIdentity();
+  if (!name && !email) return true; // not configured
+  const id = identifier.trim().toLowerCase();
+  if (!id) return false;
+  return (!!email && id === email.toLowerCase()) || (!!name && id === name.toLowerCase());
+}
+
 export async function setAdminPassword(password: string): Promise<void> {
   const { error } = await sb
     .from("settings")

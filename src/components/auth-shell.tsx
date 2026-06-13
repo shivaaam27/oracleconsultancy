@@ -12,8 +12,8 @@ export function AuthShell({
   footer,
 }: {
   kicker: string;
-  title: string;
-  subtitle: ReactNode;
+  title?: string;
+  subtitle?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
 }) {
@@ -39,18 +39,28 @@ export function AuthShell({
         <ThemeToggle />
       </div>
 
-      <div className="relative text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl glass elevated ring-1 ring-border text-xl font-semibold text-accent">
-          OC
+      <div className="relative text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500">
+        <div className="relative mx-auto mb-4 h-20 w-20">
+          {/* Soft accent halo — reads well in both light and dark. */}
+          <div aria-hidden className="absolute -inset-3 rounded-[2rem] bg-accent/15 blur-2xl" />
+          {/* Gradient frame around the white logo tile. */}
+          <div className="relative h-20 w-20 rounded-[1.15rem] bg-gradient-to-br from-accent/50 via-border to-info/40 p-[2px] shadow-md">
+            <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-white">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-source.png" alt="Oracle Consultancy" className="h-16 w-16 object-contain" />
+            </div>
+          </div>
         </div>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-muted">{kicker}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-1 text-sm text-fg-muted">{subtitle}</p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{kicker}</h1>
+        {title && <p className="mt-1 text-sm font-medium text-fg-muted">{title}</p>}
+        {subtitle && <p className="mt-0.5 text-sm text-fg-muted">{subtitle}</p>}
       </div>
 
-      <div className="relative rounded-3xl glass elevated p-5 sm:p-6">{children}</div>
+      <div className="relative rounded-3xl glass elevated p-5 sm:p-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500">{children}</div>
 
       {footer && <div className="relative text-center text-xs text-fg-subtle">{footer}</div>}
+
+      <p className="relative text-center text-[11px] text-fg-subtle/70">Oracle Consultancy · secure sign-in</p>
     </div>
   );
 }

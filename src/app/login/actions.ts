@@ -5,8 +5,10 @@ import {
   bumpAdminSessionGen,
   clearAdminCookie,
   getAdminHash,
+  ownerIdentifierMatches,
   setAdminCookie,
   setAdminPassword,
+  setOwnerIdentity,
   verifyAdminPassword,
 } from "@/lib/admin-auth";
 
@@ -25,12 +27,25 @@ export async function adminSetup(_prev: LoginState, fd: FormData): Promise<Login
 }
 
 export async function adminLogin(_prev: LoginState, fd: FormData): Promise<LoginState> {
+  const identifier = String(fd.get("identifier") ?? "");
   const password = String(fd.get("password") ?? "");
+  // When an owner identity is configured, the name/email must match too.
+  if (!(await ownerIdentifierMatches(identifier))) {
+    return { error: "Sign-in details not recognised." };
+  }
   if (!(await verifyAdminPassword(password))) {
     return { error: "Wrong password." };
   }
   await setAdminCookie();
   redirect("/");
+}
+
+/** Save the owner name/email used to verify the Command Centre sign-in (Settings). */
+export async function adminSaveOwnerIdentity(fd: FormData): Promise<void> {
+  const name = String(fd.get("ownerName") ?? "").trim() || null;
+  const email = String(fd.get("ownerEmail") ?? "").trim() || null;
+  await setOwnerIdentity(name, email);
+  redirect("/settings?owner=identity-saved");
 }
 
 export async function adminLogout() {

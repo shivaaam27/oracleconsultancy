@@ -10,7 +10,8 @@ import { sb } from "@/db/supabase";
 import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, sendDirectorBriefNow, runEmailAutomationNow } from "./actions";
 import { getAutomationConfig } from "@/lib/email-automation";
 import { EmailStatus } from "./email-test";
-import { adminChangePassword, adminLogout } from "../login/actions";
+import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
+import { getOwnerIdentity } from "@/lib/admin-auth";
 import Link from "next/link";
 import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck } from "lucide-react";
 
@@ -21,7 +22,7 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string }>;
 }) {
-  const [s, sp, googleStatus, { data: peopleRows }] = await Promise.all([
+  const [s, sp, googleStatus, { data: peopleRows }, ownerIdentity] = await Promise.all([
     getAppSettings(),
     searchParams,
     getGoogleStatus(),
@@ -30,6 +31,7 @@ export default async function SettingsPage({
       .select("id,name,portal_password_hash,portal_last_login_at")
       .eq("active", true)
       .order("name"),
+    getOwnerIdentity(),
   ]);
   const signatureImageUrl = s.emailSignatureImagePath
     ? await signDocumentFile(s.emailSignatureImagePath, 3600)
@@ -445,6 +447,24 @@ export default async function SettingsPage({
         )}
         {sp.owner === "wrong" && <p className="text-sm text-danger">Current password was wrong.</p>}
         {sp.owner === "short" && <p className="text-sm text-danger">New password must be at least 8 characters.</p>}
+        {sp.owner === "identity-saved" && <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Owner identity saved.</p>}
+
+        {/* Owner identity — name/email required on the Command Centre sign-in */}
+        <form action={adminSaveOwnerIdentity} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end border-b border-border/50 pb-4">
+          <div>
+            <FieldLabel>Owner name</FieldLabel>
+            <Input name="ownerName" defaultValue={ownerIdentity.name ?? ""} placeholder="e.g. Pulin Manek" autoComplete="name" />
+          </div>
+          <div>
+            <FieldLabel>Owner email</FieldLabel>
+            <Input name="ownerEmail" type="email" defaultValue={ownerIdentity.email ?? ""} placeholder="admin@oracle.co.tz" autoComplete="email" />
+          </div>
+          <Button type="submit" variant="secondary">Save identity</Button>
+          <p className="sm:col-span-3 text-[11px] text-fg-subtle -mt-1">
+            When set, the Command Centre sign-in requires this name or email <span className="font-medium">and</span> the password. Leave both blank to sign in with the password alone.
+          </p>
+        </form>
+
         <form action={adminChangePassword} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
           <div>
             <FieldLabel>Current password</FieldLabel>
