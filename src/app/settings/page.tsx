@@ -46,6 +46,8 @@ export default async function SettingsPage({
   const directorPaused = (dirKill?.value as string | null) === "1";
   const whatsAppOn = whatsAppConfigured();
   const emailAuto = await getAutomationConfig();
+  const { data: tmRow } = await sb.from("settings").select("value").eq("key", "email.testMode").maybeSingle();
+  const emailTestMode = (tmRow?.value as string | null) === "1";
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -362,6 +364,21 @@ export default async function SettingsPage({
           Scheduled email reminders. Each runs once a day inside the send window (08:00–18:00).
           {emailCfg ? "" : " Email isn't connected yet, so these prepare Outbox drafts you send with one tap."}
         </p>
+
+        {/* Test mode — redirects ALL outgoing email to the owner's inbox */}
+        <form action={setEmailAutomation} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ${emailTestMode ? "bg-warn-soft/50 ring-1 ring-warn/30" : "bg-bg-subtle/50"}`}>
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{emailTestMode ? "🧪 Test mode is ON" : "Test mode"}</p>
+            <p className="text-[11px] text-fg-muted">
+              {emailTestMode
+                ? "Every email is redirected to your inbox — nothing reaches staff or clients. Turn off to go live."
+                : "Redirect every outgoing email to your own inbox, so you can trial safely."}
+            </p>
+          </div>
+          <input type="hidden" name="field" value="testMode" />
+          <input type="hidden" name="value" value={emailTestMode ? "0" : "1"} />
+          <Button type="submit" variant={emailTestMode ? "secondary" : "primary"}>{emailTestMode ? "Turn off" : "Turn on"}</Button>
+        </form>
 
         <form action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
           <div>

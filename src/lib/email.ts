@@ -119,11 +119,26 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     .filter((s) => VALID_EMAIL.test(s));
   if (to.length === 0) return { ok: false, reason: "no-recipients" };
 
-  const finalInput = await withSignature(input, cfg);
+  // Test mode: redirect EVERY message to the owner's own inbox so nothing reaches
+  // staff/clients while trialling. The intended recipients are noted in the body.
+  let prepared = input;
+  let deliverTo = to;
+  if (cfg.testMode) {
+    deliverTo = [cfg.fromAddress];
+    const note = `[TEST MODE] This would have been sent to: ${to.join(", ")}`;
+    prepared = {
+      ...input,
+      subject: `[TEST] ${input.subject}`,
+      text: input.text ? `${note}\n\n${input.text}` : note,
+      html: input.html ? `<p style="color:#b45309;font-size:12px;margin:0 0 12px">${note}</p>${input.html}` : undefined,
+    };
+  }
+
+  const finalInput = await withSignature(prepared, cfg);
 
   return cfg.provider === "smtp"
-    ? sendViaSmtp(cfg, to, finalInput)
-    : sendViaResend(cfg, to, finalInput);
+    ? sendViaSmtp(cfg, deliverTo, finalInput)
+    : sendViaResend(cfg, deliverTo, finalInput);
 }
 
 async function sendViaSmtp(

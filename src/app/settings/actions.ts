@@ -137,7 +137,9 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
   const NATURAL: Record<string, "prepare" | "auto"> = {
     overdue: "prepare", renewals: "prepare", directorBrief: "auto", lifecycle: "auto",
   };
-  if (field === "paused") {
+  if (field === "testMode") {
+    await sb.from("settings").upsert({ key: "email.testMode", value: on ? "1" : "0" }, { onConflict: "key" });
+  } else if (field === "paused") {
     await saveAutomationConfig({ paused: on });
   } else if (field in NATURAL) {
     await saveAutomationConfig({ categories: { [field]: { mode: on ? NATURAL[field] : "off" } } as never });

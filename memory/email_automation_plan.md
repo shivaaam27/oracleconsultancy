@@ -117,6 +117,13 @@ on what already exists — do not rebuild.
   failures on Home, per-recipient cap tuning, optional deliverability/bounce
   tracking (would need Resend or a webhook — parked).
 
+## Test mode (added June 2026)
+Settings key `email.testMode` ("1"/"0"), surfaced on `EmailConfig.testMode` (getEmailConfig).
+When ON, `sendEmail` redirects EVERY message to the owner's from-address, prefixes the subject
+with "[TEST]" and notes the intended recipients in the body — so nothing reaches staff/clients
+while trialling. Covers automation, outbox sends, calendar invites, and the Settings test send.
+Toggle in Settings → Email automation ("Test mode" — warn-tinted when on). Owner-controlled on/off.
+
 ## Guardrails
 
 - Reuse existing builders/sender; no new business logic, no schema churn beyond the

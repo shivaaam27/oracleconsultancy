@@ -171,6 +171,9 @@ export type EmailConfig = {
   signature: string;
   /** Storage path of a branded signature image to embed inline (may be empty). */
   signatureImagePath: string;
+  /** Test mode: when true, sendEmail redirects EVERY message to the owner's own
+   *  inbox (no email reaches staff/clients) — for safe trialling. */
+  testMode: boolean;
 } & (
   | { provider: "resend"; apiKey: string }
   | { provider: "smtp"; host: string; port: number; user: string; pass: string }
@@ -197,12 +200,14 @@ export async function getEmailConfig(): Promise<EmailConfig | null> {
   // is set (the image usually already contains the name/contact details).
   const sigText = emailSignature.trim();
   const signature = sigText || (signatureImagePath ? "" : [fromName, fromAddress].filter(Boolean).join("\n"));
+  const { data: tmRow } = await sb.from("settings").select("value").eq("key", "email.testMode").maybeSingle();
   const identity = {
     fromAddress,
     fromName,
     signature,
     signatureImagePath,
     from: fromName ? `${fromName} <${fromAddress}>` : fromAddress,
+    testMode: (tmRow?.value as string | null) === "1",
   };
 
   const smtpUser = process.env.GMAIL_USER;

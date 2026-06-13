@@ -33,6 +33,7 @@ export function PersonCard({
   person: p,
   onOpen,
   compliance,
+  hint,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -42,6 +43,7 @@ export function PersonCard({
   person: PersonRow;
   onOpen: () => void;
   compliance?: { score: number; status: "Good" | "Watch" | "Risk" } | null;
+  hint?: { onLeave: boolean; present: number; absent: number } | null;
   onPointerDown?: (e: React.PointerEvent) => void;
   onPointerMove?: (e: React.PointerEvent) => void;
   onPointerUp?: (e: React.PointerEvent) => void;
@@ -98,6 +100,17 @@ export function PersonCard({
         {p.phone && <a href={`tel:${p.phone}`} title={p.phone} className="hover:text-accent transition-colors"><Phone size={14} /></a>}
         {!p.hasContact && <span title="No contact info" className="text-danger"><AlertCircle size={14} /></span>}
       </div>
+
+      {hint?.onLeave && (
+        <span title="On approved leave today" className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ring-1 bg-info-soft/70 ring-info/30 text-info">
+          On leave
+        </span>
+      )}
+      {hint && hint.absent > 0 && (
+        <span title={`${hint.absent} absence(s) recorded this month`} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium tabular shrink-0 ring-1 bg-danger-soft/60 ring-danger/25 text-danger">
+          {hint.absent} abs
+        </span>
+      )}
 
       {compliance && (
         <span

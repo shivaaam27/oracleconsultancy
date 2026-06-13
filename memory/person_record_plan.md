@@ -111,7 +111,10 @@ compliance audit). Best-effort logging — never blocks the user action.*
   approve → taken balance, both recompute live. The drawer refreshes via `onChanged`.
 
 #### Follow-on sub-phases (future, owner-priority)
-- [ ] **2f** Leave on the directory list (a column/peek hint: on-leave-today / balance-low).
+- [x] **2f** Leave + attendance on the directory list — people page loads on-leave-today (from
+  approved leave_requests) + this-month attendance (bulk); `PersonCard` shows an "On leave" chip
+  and an "{n} abs" chip. Attendance is empty until the register is used, so its chip lights up
+  automatically when data exists ("just works" on activation). Passed via `directoryHints`.
 - [x] **2g** Leave liability roll-up — `portfolioLeaveLiability()` (lib/leave.ts): accrued annual
   days × daily wage across active staff; folded into the Director Brief HR section (on-page card +
   share text). Honestly flags people with no wage on record. (Built as part of Phase 7.)

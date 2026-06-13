@@ -39,10 +39,11 @@ function probationEndingSoon(p: PersonRow, now: Date): boolean {
   return days >= 0 && days <= 30;
 }
 
-export function PeopleTable({ people, companies, complianceById }: {
+export function PeopleTable({ people, companies, complianceById, directoryHints }: {
   people: PersonRow[];
   companies: Array<{ id: number; name: string }>;
   complianceById?: Record<number, { score: number; status: "Good" | "Watch" | "Risk" }>;
+  directoryHints?: Record<number, { onLeave: boolean; present: number; absent: number }>;
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterKind>("all");
@@ -347,6 +348,7 @@ export function PeopleTable({ people, companies, complianceById }: {
                 key={p.id}
                 person={p}
                 compliance={complianceById?.[p.id] ?? null}
+                hint={directoryHints?.[p.id] ?? null}
                 onOpen={() => {
                   if (longPressed.current) { longPressed.current = false; return; }
                   if (lastPointerType.current === "touch") return; // touch handled in onPointerUp
