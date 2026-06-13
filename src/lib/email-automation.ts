@@ -157,16 +157,17 @@ async function sendToPerson(toEmail: string | null, subject: string, text: strin
  * once per EAT day. Categories in "prepare" mode create Outbox drafts; "auto"
  * mode sends email (redirected to the owner while Test mode is on).
  */
-export async function runDueAutomations(now = new Date()): Promise<AutomationRunSummary> {
+export async function runDueAutomations(now = new Date(), opts: { force?: boolean } = {}): Promise<AutomationRunSummary> {
+  const force = opts.force === true; // manual "run now" — ignore window + daily dedupe
   const cfg = await getAutomationConfig();
   if (cfg.paused) return { ran: false, reason: "paused", categories: [] };
-  if (!withinSendWindow(cfg, now)) return { ran: false, reason: "outside-send-window", categories: [] };
+  if (!force && !withinSendWindow(cfg, now)) return { ran: false, reason: "outside-send-window", categories: [] };
 
   const results: AutomationRunSummary["categories"] = [];
 
   // --- Overdue-task reminders (Phase A) ---
   const overdue = cfg.categories.overdue;
-  if (overdue.mode !== "off" && !(await alreadyRanToday("overdue"))) {
+  if (overdue.mode !== "off" && (force || !(await alreadyRanToday("overdue")))) {
     const { getAllTasks } = await import("@/lib/queries");
     const rows = await getAllTasks();
     let prepared = 0, sent = 0, skipped = 0;
@@ -191,14 +192,14 @@ export async function runDueAutomations(now = new Date()): Promise<AutomationRun
       const res = await createOverdueReminderDrafts(rows);
       prepared = res.created; skipped = res.skipped;
     }
-    await markRanToday("overdue");
+    if (!force) await markRanToday("overdue");
     results.push({ category: "overdue", mode: overdue.mode, prepared, sent, skipped });
     await recordEvent("email.automation.overdue", "ok", { prepared, sent, skipped, mode: overdue.mode });
   }
 
   // --- Document/permit renewal nudges (PREPARE) ---
   const renewals = cfg.categories.renewals;
-  if (renewals.mode !== "off" && !(await alreadyRanToday("renewals"))) {
+  if (renewals.mode !== "off" && (force || !(await alreadyRanToday("renewals")))) {
     const { listDocuments } = await import("@/lib/documents");
     const { getDocumentRenewalCandidates } = await import("@/lib/automation-suggestions");
     const docs = await listDocuments();
@@ -219,26 +220,26 @@ export async function runDueAutomations(now = new Date()): Promise<AutomationRun
         if (r.ok && r.created) prepared++;
       }
     }
-    await markRanToday("renewals");
+    if (!force) await markRanToday("renewals");
     results.push({ category: "renewals", mode: renewals.mode, prepared, sent, skipped: 0 });
     await recordEvent("email.automation.renewals", "ok", { prepared, sent, candidates: candidates.length, mode: renewals.mode });
   }
 
   // --- Weekly Director Brief to the owner (AUTO-SEND, on the chosen weekday) ---
   const brief = cfg.categories.directorBrief;
-  if (brief.mode !== "off" && eatWeekday(now) === cfg.briefDay && !(await alreadyRanToday("directorBrief"))) {
+  if (brief.mode !== "off" && (force || (eatWeekday(now) === cfg.briefDay && !(await alreadyRanToday("directorBrief"))))) {
     const { getBrief, briefEmail } = await import("@/lib/director-brief");
     const data = await getBrief(now, "month", null);
     const email = briefEmail(data);
     const r = await sendOrDraftToOwner(email.subject, email.body, "automation-brief");
-    await markRanToday("directorBrief");
+    if (!force) await markRanToday("directorBrief");
     results.push({ category: "directorBrief", mode: brief.mode, prepared: r.prepared, sent: r.sent, skipped: 0 });
     await recordEvent("email.automation.directorBrief", "ok", { sent: r.sent, prepared: r.prepared });
   }
 
   // --- Probation + leave-approval reminders to the owner (AUTO-SEND) ---
   const lifecycle = cfg.categories.lifecycle;
-  if (lifecycle.mode !== "off" && !(await alreadyRanToday("lifecycle"))) {
+  if (lifecycle.mode !== "off" && (force || !(await alreadyRanToday("lifecycle")))) {
     const { getBrief } = await import("@/lib/director-brief");
     const data = await getBrief(now, "month", null);
     const hr = data.hr;
@@ -250,10 +251,10 @@ export async function runDueAutomations(now = new Date()): Promise<AutomationRun
     if (lines.length > 0) {
       const text = `HR reminders — as at ${data.asAt}\n\n${lines.join("\n")}\n\nReview in the HR area when you can.`;
       const r = await sendOrDraftToOwner("HR reminders — probation & leave", text, "automation-lifecycle");
-      await markRanToday("lifecycle");
+      if (!force) await markRanToday("lifecycle");
       results.push({ category: "lifecycle", mode: lifecycle.mode, prepared: r.prepared, sent: r.sent, skipped: 0 });
       await recordEvent("email.automation.lifecycle", "ok", { sent: r.sent, prepared: r.prepared, items: lines.length });
-    } else {
+    } else if (!force) {
       await markRanToday("lifecycle");
     }
   }

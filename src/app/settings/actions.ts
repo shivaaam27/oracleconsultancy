@@ -148,6 +148,16 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
   redirect("/settings?saved=1");
 }
 
+/** Run all enabled email-automation categories right now (manual test fire from
+ *  the site). Ignores the daily once-only guard + send window. With Test mode on,
+ *  everything redirects to the owner's inbox. */
+export async function runEmailAutomationNow(): Promise<void> {
+  const { runDueAutomations } = await import("@/lib/email-automation");
+  await runDueAutomations(new Date(), { force: true });
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
 /** Send the Director Brief to the owner right now (one-off, ignores the schedule). */
 export async function sendDirectorBriefNow(): Promise<void> {
   const { getBrief, briefEmail } = await import("@/lib/director-brief");
