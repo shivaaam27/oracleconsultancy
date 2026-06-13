@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Mail, Loader2, Send, X, Copy, Check } from "lucide-react";
 import { recordSent } from "@/app/outbox/actions";
+import { friendlyAIError } from "@/lib/ai-errors";
 import { useContextActions } from "./context-actions";
 
 type Draft = {
@@ -37,7 +38,7 @@ export function DraftEmailButton({ taskId }: { taskId: number }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error === "AI not configured" ? "AI key not set." : data.error || `HTTP ${res.status}`);
+        setError(friendlyAIError(data.error || `groq-${res.status}`).message);
         return;
       }
       const data = await res.json();
@@ -46,7 +47,7 @@ export function DraftEmailButton({ taskId }: { taskId: number }) {
       setBody(data.body);
       setRecipient(data.recipient || "");
     } catch {
-      setError("Network error. Try again.");
+      setError(friendlyAIError("network").message);
     } finally {
       setLoading(false);
     }

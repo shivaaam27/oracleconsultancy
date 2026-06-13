@@ -60,7 +60,7 @@ export function AuthShell({
 
       {footer && <div className="relative text-center text-xs text-fg-subtle">{footer}</div>}
 
-      <p className="relative text-center text-[11px] text-fg-subtle/70">Oracle Consultancy · secure sign-in</p>
+      <p className="relative text-center text-[11px] text-fg-subtle">Oracle Consultancy · secure sign-in</p>
     </div>
   );
 }

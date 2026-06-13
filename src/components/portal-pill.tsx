@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Home, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
@@ -12,7 +13,7 @@ import { NotificationBell } from "./notification-bell";
  * as the admin pill (top-pill.tsx) but a deliberately tiny, fixed menu —
  * only safe destinations exist here, so staff can never reach admin pages. */
 
-function PillTab({ href, icon: Icon, label, active }: { href: string; icon: LucideIcon; label: string; active: boolean }) {
+function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; icon: LucideIcon; label: string; active: boolean; reduce: boolean }) {
   return (
     <Link
       href={href}
@@ -24,11 +25,15 @@ function PillTab({ href, icon: Icon, label, active }: { href: string; icon: Luci
       )}
     >
       {active && (
-        <motion.span
-          layoutId="portalpill"
-          className="absolute inset-0 rounded-2xl bg-accent-soft"
-          transition={{ type: "spring", stiffness: 500, damping: 36 }}
-        />
+        reduce ? (
+          <span className="absolute inset-0 rounded-2xl bg-accent-soft" />
+        ) : (
+          <motion.span
+            layoutId="portalpill"
+            className="absolute inset-0 rounded-2xl bg-accent-soft"
+            transition={{ type: "spring", stiffness: 500, damping: 36 }}
+          />
+        )
       )}
       <Icon size={19} strokeWidth={active ? 2.4 : 2} className="relative" />
       <span className="relative mt-0.5 text-[10px] font-medium">{label}</span>
@@ -43,6 +48,16 @@ export function PortalPill({ canCreate = false }: { canCreate?: boolean }) {
   const onChat = pathname.startsWith("/portal/chat");
   const onProfile = pathname.startsWith("/portal/profile");
 
+  // Honour reduced-motion — both the OS setting AND the portal's own manual toggle
+  // (which sets data-motion="reduced" on <html>; framer's JS animations ignore CSS,
+  // so we must check it ourselves).
+  const prefersReduced = useReducedMotion();
+  const [manualReduced, setManualReduced] = useState(false);
+  useEffect(() => {
+    setManualReduced(document.documentElement.getAttribute("data-motion") === "reduced");
+  }, [pathname]);
+  const reduce = !!prefersReduced || manualReduced;
+
   return (
     // On mobile, chat is a full-screen app of its own — the pill steps aside.
     <div className={cn(
@@ -50,15 +65,15 @@ export function PortalPill({ canCreate = false }: { canCreate?: boolean }) {
       onChat ? "hidden md:flex" : "flex"
     )}>
       <motion.div
-        initial={{ y: 20, opacity: 0 }}
+        initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+        transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
         className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-2 h-16"
       >
-        <PillTab href="/portal" icon={Home} label="Home" active={onHome} />
-        <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} />
-        <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} />
-        <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} />
+        <PillTab href="/portal" icon={Home} label="Home" active={onHome} reduce={reduce} />
+        <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} reduce={reduce} />
+        <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
+        <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} reduce={reduce} />
         {canCreate && (
           <Link
             href="/portal/task/new"

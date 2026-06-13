@@ -72,7 +72,7 @@ export async function buildDigest(opts?: { companyId?: number | null; companyNam
 
   const headerSub = scopeName
     ? `${scopeName.toUpperCase()} · Chief of Staff briefing`
-    : `${BRAND_NAME} · Chief of Staff Command Center`;
+    : `${BRAND_NAME} · operations command centre`;
   const lines: string[] = [
     `📊 Oracle Consultancy WEEKLY DIGEST — ${today.toUpperCase()}`,
     headerSub,

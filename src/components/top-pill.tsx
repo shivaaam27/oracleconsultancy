@@ -144,7 +144,7 @@ function HrmsLauncher({ active }: { active: boolean }) {
           {/* Preferences — appearance + comfort controls, consolidated here so
               the nav pill stays minimal (especially on mobile). */}
           <div className="mt-3 flex items-center gap-1 rounded-2xl border border-border bg-bg-elev/60 px-2 py-1.5">
-            <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">Preferences</span>
+            <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
             <div className="ml-auto flex items-center gap-0.5">
               <ThemeToggle />
               <DensityToggle />
@@ -206,7 +206,7 @@ function NavActionButton() {
             <>
               <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
               <div className="absolute z-[56] bottom-full mb-3 right-0 w-56 max-w-[calc(100vw-2rem)] glass glass-menu elevated rounded-2xl p-1.5 shadow-lg">
-                <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-subtle">Actions</div>
+                <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-muted">Actions</div>
                 {actions.map((a) => {
                   const row = "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left text-fg hover:bg-bg-muted/60 transition-colors";
                   const inner = (

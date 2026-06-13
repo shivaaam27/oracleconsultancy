@@ -158,7 +158,7 @@ function Chip({
       disabled={count === 0}
       className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 text-[11px] rounded-full transition-all backdrop-blur-md hover:shadow-sm ${cls}`}
     >
-      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">
+      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-elev/50 font-semibold tabular">
         {count}
       </span>
       <span className="font-medium">{label}</span>

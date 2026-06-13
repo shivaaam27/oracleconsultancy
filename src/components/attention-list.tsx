@@ -55,12 +55,12 @@ export function AttentionList({
 
   // Remember the collapsed state across visits.
   useEffect(() => {
-    try { setCollapsed(localStorage.getItem("aumio.attn.collapsed") === "1"); } catch { /* ignore */ }
+    try { setCollapsed(localStorage.getItem("cos.attn.collapsed") === "1"); } catch { /* ignore */ }
   }, []);
   function toggleCollapsed() {
     setCollapsed((c) => {
       const next = !c;
-      try { localStorage.setItem("aumio.attn.collapsed", next ? "1" : "0"); } catch { /* ignore */ }
+      try { localStorage.setItem("cos.attn.collapsed", next ? "1" : "0"); } catch { /* ignore */ }
       return next;
     });
   }

@@ -141,9 +141,11 @@ function MagneticChip({ onClick, className, children }: { onClick?: () => void; 
 export function CommandPaletteProvider({
   children,
   operatorName,
+  voiceLanguage,
 }: {
   children: React.ReactNode;
   operatorName?: string;
+  voiceLanguage?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<"search" | "chat">("search");
@@ -462,6 +464,7 @@ export function CommandPaletteProvider({
                   thinking={thinking}
                   pageLabel={pageContext.label}
                   operatorName={operatorName}
+                  voiceLanguage={voiceLanguage}
                   suggestions={suggestionsFor(pageContext)}
                   onSubmit={submitPrompt}
                   onRetry={(t) => { append({ id: newId(), role: "user", text: t }); if (looksLikeCommand(t) || isDeterministicQuery(t)) runCommand(t); else runAsk(t); }}
@@ -529,7 +532,7 @@ export function CommandPaletteProvider({
                         className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <Command.Item
-                          value="__qa ask aumio assistant"
+                          value="__qa ask oracle intelligence assistant"
                           onSelect={() => { setMode("chat"); }}
                           className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
                         >
@@ -692,6 +695,7 @@ function ConversationPane({
   thinking,
   pageLabel,
   operatorName,
+  voiceLanguage,
   suggestions,
   onSubmit,
   onRetry,
@@ -704,6 +708,7 @@ function ConversationPane({
   thinking: boolean;
   pageLabel: string;
   operatorName?: string;
+  voiceLanguage?: string;
   suggestions: { label: string; q: string; icon: React.ComponentType<{ size?: number; className?: string }> }[];
   onSubmit: (text: string) => void;
   onRetry: (text: string) => void;
@@ -890,6 +895,7 @@ function ConversationPane({
             className="flex-1 resize-none !bg-transparent !border-0 !shadow-none !rounded-none px-0 py-1 text-[15px] leading-6 min-h-[2rem] max-h-32 focus:outline-none focus:!ring-0 placeholder:text-fg-subtle"
           />
           <VoiceButton
+            lang={voiceLanguage}
             onInterim={(t) => setInput((dictatedRef.current + " " + t).trim())}
             onResult={(t) => { dictatedRef.current = (dictatedRef.current + " " + t).trim(); setInput(dictatedRef.current); }}
             onStop={() => { dictatedRef.current = input; }}

@@ -409,7 +409,7 @@ export function DocumentsTable({
           return (
             <button key={key} type="button" onClick={() => setStatusFilter(active && key !== "all" ? "all" : key)}
               className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}>
-              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-white/30 dark:bg-black/20 font-semibold tabular">{count}</span>
+              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-bg-elev/50 font-semibold tabular">{count}</span>
               <span className="font-medium">{label}</span>
             </button>
           );

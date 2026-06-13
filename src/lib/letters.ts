@@ -137,11 +137,15 @@ async function nextRef(companyId: number | null, type: string): Promise<string> 
     prefix = (data?.code_prefix as string | null) || (data?.code as string | null) || "ORC";
   }
   const code = TYPE_CODE[type] ?? "LTR";
-  const { count } = await sb
+  // Number each company's letters of a given type independently (so Cocozuri's
+  // first invitation is …/001, not …/002 just because Dar Spices issued one).
+  let q = sb
     .from("letters")
     .select("id", { count: "exact", head: true })
     .eq("type", type)
     .gte("created_at", new Date(Date.UTC(year, 0, 1)).toISOString());
+  q = companyId ? q.eq("company_id", companyId) : q.is("company_id", null);
+  const { count } = await q;
   const seq = String((count ?? 0) + 1).padStart(3, "0");
   return `${prefix}/${code}/${year}/${seq}`;
 }

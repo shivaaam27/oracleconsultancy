@@ -1,7 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { MotionConfig } from "framer-motion";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+// One self-hosted webfont so the app renders identically on every device
+// (Windows/iPhone/Mac), instead of the per-device system font. Exposed as the
+// CSS variable --font-inter, which globals.css feeds into --font-sans.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 import { ThemeProvider } from "@/components/theme-provider";
 import { TopPillServer } from "@/components/top-pill-server";
 import { CommandPaletteProvider } from "@/components/command-palette";
@@ -25,7 +31,7 @@ import { getAppSettings } from "@/lib/settings";
 
 export const metadata: Metadata = {
   title: "Oracle Consultancy Limited — Operations",
-  description: "Chief of Staff Command Center",
+  description: "Chief-of-Staff command centre for Oracle Consultancy",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Oracle Consultancy" },
   icons: {
@@ -52,9 +58,9 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
-  const { operatorName } = await getAppSettings();
+  const { operatorName, voiceLanguage } = await getAppSettings();
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         <DensityScript />
         <FocusScript />
@@ -66,7 +72,7 @@ export default async function RootLayout({ children, modal }: { children: React.
           <ToastProvider>
             <UndoBanner />
             <Suspense>
-            <CommandPaletteProvider operatorName={operatorName}>
+            <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage}>
               <RecentsTracker />
               <ContextActionsProvider>
                 <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-32">

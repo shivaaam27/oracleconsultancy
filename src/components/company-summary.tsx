@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Sparkles, Loader2, Copy, Check } from "lucide-react";
+import { friendlyAIError } from "@/lib/ai-errors";
 
 export function CompanySummary({ companyId }: { companyId: number }) {
   const [summary, setSummary] = useState<string>("");
@@ -20,13 +21,13 @@ export function CompanySummary({ companyId }: { companyId: number }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error === "AI not configured" ? "AI key not set." : data.error || `HTTP ${res.status}`);
+        setError(friendlyAIError(data.error || `groq-${res.status}`).message);
         return;
       }
       const data = await res.json();
       setSummary(data.summary || "");
     } catch {
-      setError("Network error. Try again.");
+      setError(friendlyAIError("network").message);
     } finally {
       setLoading(false);
     }

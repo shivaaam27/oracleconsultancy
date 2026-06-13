@@ -78,6 +78,7 @@ function actorLabel(by: string | null | undefined): string | null {
   if (by === "web-ui") return "You";
   if (by === "ai-command") return "AI";
   if (by === "meeting-mode") return "Meeting";
+  if (by === "capture") return "Capture";
   // Portal posts are stamped "portal:<Name>" (staff) or "portal-mgr:<Name>"
   // (managers) — show just the name.
   if (by.startsWith("portal-mgr:")) return by.slice(11);

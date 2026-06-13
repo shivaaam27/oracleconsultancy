@@ -216,7 +216,7 @@ export function NeedsAttentionPanel({
             return (
               <button key={key} type="button" onClick={() => { setFilter(active && key !== "all" ? "all" : key); setExpanded(false); }}
                 className={cn("inline-flex items-center gap-1.5 rounded-full py-1 pl-1.5 pr-2.5 text-xs backdrop-blur-md transition-all", tint)}>
-                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-white/30 px-1 text-[10px] font-semibold tabular dark:bg-black/20">{n}</span>
+                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-bg-elev/50 px-1 text-[10px] font-semibold tabular">{n}</span>
                 {label}
               </button>
             );

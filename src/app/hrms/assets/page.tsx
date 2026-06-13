@@ -34,13 +34,14 @@ export default async function AssetVendorPage({
 
   const initial = view === "vendors" ? "vendors" : view === "tools" ? "tools" : "assets";
 
-  const metrics: { label: string; value: number; tone: Tone }[] = [
+  const metrics: { label: string; value: number | string; tone: Tone }[] = [
     { label: "Assets", value: m.total, tone: "accent" },
     { label: "Assigned", value: m.assigned, tone: "info" },
     { label: "In store", value: m.inStore, tone: "muted" },
     { label: "Tool units", value: tm.units, tone: "accent" },
     { label: "Low stock", value: tm.lowStock, tone: tm.lowStock ? "warn" : "muted" },
     { label: "Vendors", value: vendors.length, tone: "muted" },
+    { label: "Total value", value: `TZS ${new Intl.NumberFormat("en-GB").format(m.totalValue)}`, tone: "muted" },
   ];
 
   return (
