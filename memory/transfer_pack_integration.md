@@ -49,6 +49,37 @@ extractions surface there rather than silently saving). Hybrid stronger-model fa
 
 ## Groq harness PUSHED to master, commit 6489463 (2026-06-14). Live.
 
+## Area B (governance + board pack) DONE + Pack v3 (09 seeding) + LIVE-DATA SEEDED — 2026-06-14
+Pack updated again: NEW `09-SEEDING-AND-BACKFILL.md` ("seed reference tables, there is NO training") +
+`live-data/` (full canonical dataset: companies/people/118 facts/governance/risks/decisions/processes/
+registers + Excel) + minimal `seed-data.json`. 00 updated to list them. KEY: the ID-first matcher built in
+Area C was INERT because live companies lacked TINs — seeding fixes that.
+
+**Area B — DONE (migration 0065), commit 685c7e3:** tables cap_table/beneficial_owners/key_persons/
+signatories/resolutions/risks/decisions + companies.authorised/issued_shares (shapes match governance.json/
+risks.json/decisions.json). lib/governance.ts + governance-shared.ts (riskScore L×I→band ≥9 Critical/≥6 High/
+≥3 Medium). GovernancePanel on company profile (cap-table bars/signatories/resolutions, hidden when empty).
+**/brief/board** board pack (exec/risk/decisions/key-person/UBO/per-company ownership/immigration/safety-net
+appendix; confidential director+CFO; print-to-PDF; linked from Director Brief). Monthly nudge = new
+email-automation category "boardPack" (1st EAT, reminds owner to open+send; real PDF-attach deferred).
+
+**SEEDING — DONE (applied to LIVE DB):** `scripts/seed-live-data.ts` (committed; reads confidential
+`live-data/` from OUTSIDE the repo via LIVE_DATA_DIR, default the transfer-pack path; dry-run default,
+`--apply` to write, `--create-people` optional). Reconcile-not-insert. APPLIED safe seed:
+- Companies: filled TINs for all 7 (Terra/DSC/PES/MES + corrected Cocozuri 172-574→172-547, cleared PES
+  garbage VRN), legal names/addr/email/phone blanks-only, placeholder TODO/N/A filtered; **created V1
+  Intertrade** (8th company). → matcher now LIVE (every company has a TIN).
+- Governance: 13 cap-table, 8 UBO, 4 key-persons, 10 signatories, 2 resolutions; risks 6; decisions 5.
+- Facts: 52 seeded (created_by="seed-live-data", re-runnable: deletes own rows first) — company facts +
+  4 matched people.
+- People: **only 4 enriched, 0 created** — owner's live people table is a MESSY TEST DB (junk "dvd"/"Fire"/
+  "Unknown", partial dups "Pulin" vs "Pulin Manek"). 26 unmatched real staff intentionally NOT created
+  (would dup); they'll arrive via intake doc-upload or a later --create-people run. Owner chose "safe seed".
+Verified: board pack populated (Single-PC risk, Pulin key-person, cap tables); tsc clean; no console errors.
+NOT seeded yet: processes.json (pipeline — no table; still a gap), registers.json (overlaps assets/vendors),
+obligations.json (recurring_obligations already exists/seeded differently). Backfill (Job 2: bulk-upload the
+real document copy through intake) = owner-driven, needs the folder copy.
+
 ## Next areas — owner LOCKED sequence: A → C → B. Build only on owner's go-ahead, one area end-to-end.
 
 **A — Fact Ledger — CORE DONE (migration 0063 applied to live DB), 2026-06-14:**
