@@ -5,7 +5,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
-  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, type LucideIcon,
+  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, type LucideIcon,
 } from "lucide-react";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
@@ -25,6 +25,8 @@ const OVERLAY_META: Record<OverlayKind, { icon: LucideIcon; tone: string; dot: s
   birthday: { icon: Cake, tone: "text-accent", dot: "hsl(var(--accent))" },
   anniversary: { icon: Award, tone: "text-accent", dot: "hsl(var(--accent))" },
   probation: { icon: UserCheck, tone: "text-warn", dot: "hsl(var(--warn))" },
+  commitment: { icon: FileWarning, tone: "text-danger", dot: "hsl(var(--danger))" },
+  pipeline: { icon: ClipboardList, tone: "text-info", dot: "hsl(var(--info))" },
 };
 
 export type CalendarEventView = CalendarEvent & {
