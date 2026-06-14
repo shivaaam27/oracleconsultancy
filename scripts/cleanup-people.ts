@@ -47,6 +47,8 @@ const REF_TABLES: Array<{ table: string; col: string; otherKey?: string }> = [
   { table: "todos", col: "person_id" },
   { table: "person_events", col: "person_id" },
   { table: "pipeline", col: "person_id" },
+  { table: "reporting_lines", col: "person_id", otherKey: "manager_id" },
+  { table: "reporting_lines", col: "manager_id", otherKey: "person_id" },
 ];
 
 async function main() {
@@ -67,15 +69,27 @@ async function main() {
       const { data: keeperRows } = await sb.from(table).select(otherKey).eq(col, keeper);
       const keeperSet = new Set((keeperRows ?? []).map((r: any) => String(r[otherKey])));
       for (const row of loserRows as any[]) {
-        const collides = keeperSet.has(String(row[otherKey]));
-        if (collides) { dropped++; if (APPLY) await sb.from(table).delete().eq(col, loser).eq(otherKey, row[otherKey]); }
-        else { moved++; if (APPLY) await sb.from(table).update({ [col]: keeper }).eq(col, loser).eq(otherKey, row[otherKey]); }
+        const key = row[otherKey];
+        const isNull = key == null;
+        const collides = !isNull && keeperSet.has(String(key));
+        // Use .is() for SQL NULL (supabase .eq(col, null) emits the literal string "null").
+        const sel = (q: any) => (isNull ? q.is(otherKey, null) : q.eq(otherKey, key));
+        if (collides) { dropped++; if (APPLY) await sel(sb.from(table).delete().eq(col, loser)); }
+        else { moved++; if (APPLY) await sel(sb.from(table).update({ [col]: keeper }).eq(col, loser)); }
       }
     }
-    // People who report to the loser → repoint to the keeper.
-    const { data: reports } = await sb.from("people").select("id").eq("manager_id", loser);
-    if (reports?.length) { moved += reports.length; if (APPLY) await sb.from("people").update({ manager_id: keeper }).eq("manager_id", loser); }
-    if (APPLY) await sb.from("people").delete().eq("id", loser);
+    // People/rows that point AT the loser via other FK columns → repoint.
+    for (const fk of ["manager_id"]) {
+      const { data: rows } = await sb.from("people").select("id").eq(fk, loser);
+      if (rows?.length) { moved += rows.length; if (APPLY) await sb.from("people").update({ [fk]: keeper }).eq(fk, loser); }
+    }
+    // tasks.owner_id is a FK with ON DELETE no action — repoint or the delete fails.
+    const { data: ownedTasks } = await sb.from("tasks").select("id").eq("owner_id", loser);
+    if (ownedTasks?.length) { moved += ownedTasks.length; if (APPLY) await sb.from("tasks").update({ owner_id: keeper }).eq("owner_id", loser); }
+    if (APPLY) {
+      const { error } = await sb.from("people").delete().eq("id", loser);
+      if (error) { console.log(`  ⚠ ${label}: DELETE FAILED for id ${loser} — ${error.message} (references moved, loser still present)`); continue; }
+    }
     console.log(`  ${label}: moved ${moved} ref(s), dropped ${dropped} duplicate-ref(s), deleted id ${loser}`);
   }
 

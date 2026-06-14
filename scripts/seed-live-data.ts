@@ -48,6 +48,9 @@ const KEY_TO_NAME: Record<string, string | null> = {
 };
 
 const CREATE_PEOPLE = process.argv.includes("--create-people");
+// Governance/risks/decisions are wiped+reseeded ONLY with this flag — otherwise a
+// normal re-run (e.g. the backfill) would erase any in-app operator edits.
+const RESET_GOV = process.argv.includes("--reset-governance");
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 const digits = (s: string | null | undefined) => (s ? s.replace(/[^\d]/g, "") : "");
 const realVrn = (vat: string | null | undefined) => (vat && digits(vat).length >= 7 ? vat.trim() : null);
@@ -82,6 +85,9 @@ async function main() {
   for (const c of companiesJson) {
     const liveName = KEY_TO_NAME[c.key];
     let live = liveName ? byName.get(norm(liveName)) : null;
+    // V1 may already exist from a prior run — match by name first so a re-run
+    // enriches it (and registers its id) instead of inserting a duplicate.
+    if (!live && c.key === "V1") live = byName.get(norm("V1 Intertrade"));
     if (!live && liveName === null && c.key === "V1") {
       // Create V1 Intertrade.
       L(`  COMPANY create: V1 Intertrade (${c.legal_name})`);
@@ -184,6 +190,11 @@ async function main() {
   L(`  facts: ${fOk} to load, ${fSkip} skipped (no entity match)`);
 
   // ---- Governance: cap table / UBO / key persons / signatories / resolutions ----
+  // These tables have an in-app write path, so only wipe+reseed when explicitly
+  // asked (--reset-governance); a normal re-run leaves operator edits intact.
+  if (!RESET_GOV) {
+    L(`  governance/risks/decisions: SKIPPED (pass --reset-governance to wipe + reseed)`);
+  } else {
   if (APPLY) { await sb.from("cap_table").delete().neq("id", -1); await sb.from("beneficial_owners").delete().neq("id", -1); await sb.from("key_persons").delete().neq("id", -1); await sb.from("signatories").delete().neq("id", -1); await sb.from("resolutions").delete().neq("id", -1); }
   let capRows = 0;
   for (const [key, ct] of Object.entries(governance.captable ?? {})) {
@@ -216,6 +227,7 @@ async function main() {
     if (APPLY) await sb.from("decisions").insert({ code: d.id, title: d.title, company_id: id ?? null, type: d.type ?? null, raised_by: d.raisedBy ?? null, due: d.due ? new Date(d.due + "T00:00:00Z").toISOString() : null, status: d.status ?? "Pending", context: d.context ?? null, decision: d.decision || null, decided_on: d.decidedOn ? new Date(d.decidedOn + "T00:00:00Z").toISOString() : null });
   }
   L(`  decisions: ${decisionsJson.length}`);
+  } // end RESET_GOV
 
   // ---- Pipeline (in-flight bureaucracy) ----
   if (APPLY) await sb.from("pipeline").delete().eq("created_by", "seed-live-data");
