@@ -6,6 +6,7 @@
 
 import { sb } from "@/db/supabase";
 import { recordEvent } from "@/lib/system-events";
+import { appBaseUrl } from "@/lib/app-url";
 
 export type RuleMode = "off" | "prepare" | "auto";
 export type EmailCategory =
@@ -93,10 +94,7 @@ function eatWeekday(now = new Date()): number {
 function eatDayOfMonth(now = new Date()): number {
   return new Date(now.getTime() + 3 * 3600 * 1000).getUTCDate();
 }
-/** Best-effort absolute app URL for links in emails. */
-function appUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://oracle.co.tz");
-}
+const appUrl = appBaseUrl;
 
 /**
  * Auto-send an internal email to the owner (their own mailbox = the configured
@@ -291,8 +289,10 @@ export async function runDueAutomations(now = new Date(), opts: { force?: boolea
     } catch (e) {
       await recordEvent("email.automation.boardPack", "error", { message: "pdf-render-failed", detail: e instanceof Error ? e.message : String(e) });
     }
+    // Worded to stay honest whether the PDF is attached (sent path), missing
+    // (render failed), or this becomes an Outbox draft with no attachment.
     const text = [
-      `The monthly board pack is attached${attachments ? "" : " (PDF unavailable — open it online)"}.`,
+      attachments ? `The monthly board pack PDF is attached (open it online if your client strips it).` : `The monthly board pack is ready — open it online (PDF not attached).`,
       ``,
       `It covers compliance, finance, the risk register, governance (cap table / UBO / signatories), immigration and the safety-net appendix.`,
       `Most sensitive artifact — for the director + CFO only.`,

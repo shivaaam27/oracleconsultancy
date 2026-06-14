@@ -56,11 +56,20 @@ export async function listFacts(entity: EntityRef): Promise<Fact[]> {
  * by field name for stable display.
  */
 export async function currentFacts(entity: EntityRef): Promise<Fact[]> {
-  const all = await listFacts(entity); // already newest-first
+  const all = await listFacts(entity);
+  // Current = latest effective CALENDAR DAY; tie-broken by which was recorded
+  // last (createdAt, then id), so a back-dated correction recorded today wins
+  // over an earlier same-day fact regardless of intra-day timestamps.
+  const ranked = [...all].sort((a, b) => {
+    const dayA = a.effectiveDate.slice(0, 10), dayB = b.effectiveDate.slice(0, 10);
+    if (dayA !== dayB) return dayB.localeCompare(dayA);
+    if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt);
+    return b.id - a.id;
+  });
   const seen = new Set<string>();
   const current: Fact[] = [];
-  for (const f of all) {
-    if (seen.has(f.field)) continue; // first occurrence = latest effective_date
+  for (const f of ranked) {
+    if (seen.has(f.field)) continue;
     seen.add(f.field);
     current.push(f);
   }
@@ -126,12 +135,13 @@ export async function recordFact(input: RecordFactInput): Promise<Fact | null> {
  * the 180-day staleness clock restarts. This is the ONE allowed in-place edit —
  * it confirms a fact, it does not change its value.
  */
-export async function setFactVerified(id: number, verified: boolean, createdBy = "web-ui"): Promise<void> {
-  await sb
+export async function setFactVerified(id: number, verified: boolean, createdBy = "web-ui"): Promise<boolean> {
+  const { error } = await sb
     .from("facts")
     .update({ verified, verified_at: verified ? new Date().toISOString() : null })
     .eq("id", id);
   void createdBy; // reserved for a future fact-events audit trail
+  return !error;
 }
 
 /**
@@ -139,6 +149,7 @@ export async function setFactVerified(id: number, verified: boolean, createdBy =
  * for retiring a value (that's done by recording a newer one). Append-only is
  * about never overwriting history, not about being unable to undo a slip.
  */
-export async function deleteFact(id: number): Promise<void> {
-  await sb.from("facts").delete().eq("id", id);
+export async function deleteFact(id: number): Promise<boolean> {
+  const { error } = await sb.from("facts").delete().eq("id", id);
+  return !error;
 }

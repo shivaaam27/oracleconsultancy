@@ -9,7 +9,7 @@ import {
   deleteFact,
   type EntityRef,
 } from "@/lib/facts";
-import { renderFactValue, type Fact, type FactEntityType, type FactValue } from "@/lib/facts-shared";
+import { coerceFactValue, type Fact, type FactEntityType } from "@/lib/facts-shared";
 
 function refFor(entityType: FactEntityType, entityId: number): EntityRef {
   return { type: entityType, id: entityId };
@@ -44,32 +44,6 @@ export type RecordFactFormInput = {
   note?: string;
 };
 
-// Identifier-style fields whose digits must be kept verbatim — never coerced to
-// a Number (which would drop leading zeros and lose precision past 2^53).
-const IDENTIFIER_FIELD = /account|passport|tin\b|vrn|registration|reg\b|national|nida|phone|mobile|\bid\b|number|no\.?\b|swift/i;
-
-/** Coerce typed text into a structured value: a plain number, a comma list, or text. */
-function coerceValue(field: string, raw: string): { value: FactValue; display: string } {
-  const text = raw.trim();
-  // A clean number (allowing thousands separators) → store as a number — but ONLY
-  // for genuine quantities. Identifier fields, leading-zero strings, and values
-  // beyond safe-integer precision stay as the original text so no digit changes.
-  const numeric = text.replace(/[, ]/g, "");
-  const looksNumeric = !!numeric && /^-?\d+(\.\d+)?$/.test(numeric);
-  const safeNumber = looksNumeric && !(/^0\d/.test(numeric)) && Math.abs(Number(numeric)) <= Number.MAX_SAFE_INTEGER;
-  if (safeNumber && !IDENTIFIER_FIELD.test(field)) {
-    const n = Number(numeric);
-    // Let the shared renderer format money fields (TZS …) and thousands.
-    return { value: n, display: renderFactValue(field, n) };
-  }
-  // Multi-valued fields (Directors, Shareholding) typed as "A; B; C" → a list.
-  if (/directors|shareholders?|signatories/i.test(field) && /[;,]/.test(text)) {
-    const list = text.split(/[;,]/).map((s) => s.trim()).filter(Boolean);
-    return { value: list, display: list.join(", ") };
-  }
-  return { value: text, display: text };
-}
-
 export async function recordFactAction(
   input: RecordFactFormInput
 ): Promise<{ ok: boolean; error?: string }> {
@@ -78,7 +52,7 @@ export async function recordFactAction(
   if (!field) return { ok: false, error: "Pick a fact to record." };
   if (!valueText) return { ok: false, error: "Enter the value." };
 
-  const { value, display } = coerceValue(field, valueText);
+  const { value, display } = coerceFactValue(field, valueText);
   const fact = await recordFact({
     entity: refFor(input.entityType, input.entityId),
     field,
@@ -100,9 +74,9 @@ export async function verifyFactAction(
   entityType: FactEntityType,
   entityId: number
 ): Promise<{ ok: boolean }> {
-  await setFactVerified(id, verified);
-  revalidateFor(entityType, entityId);
-  return { ok: true };
+  const ok = await setFactVerified(id, verified);
+  if (ok) revalidateFor(entityType, entityId);
+  return { ok };
 }
 
 export async function deleteFactAction(
@@ -110,7 +84,7 @@ export async function deleteFactAction(
   entityType: FactEntityType,
   entityId: number
 ): Promise<{ ok: boolean }> {
-  await deleteFact(id);
-  revalidateFor(entityType, entityId);
-  return { ok: true };
+  const ok = await deleteFact(id);
+  if (ok) revalidateFor(entityType, entityId);
+  return { ok };
 }

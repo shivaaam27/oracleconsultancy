@@ -80,6 +80,29 @@ export function renderFactValue(field: string, value: FactValue): string {
   return String(value);
 }
 
+// Identifier-style fields whose digits must be kept verbatim — never coerced to
+// a Number (which would drop leading zeros and lose precision past 2^53).
+const IDENTIFIER_FIELD = /account|passport|tin\b|vrn|registration|reg\b|national|nida|phone|mobile|\bid\b|number|no\.?\b|swift/i;
+
+/** Coerce typed/extracted text into a structured value: a plain number (genuine
+ *  quantities only), a comma/semicolon list (directors/shareholders), or text.
+ *  Shared by the manual record form and the AI document-intake append path. */
+export function coerceFactValue(field: string, raw: string): { value: FactValue; display: string } {
+  const text = raw.trim();
+  const numeric = text.replace(/[, ]/g, "");
+  const looksNumeric = !!numeric && /^-?\d+(\.\d+)?$/.test(numeric);
+  const safeNumber = looksNumeric && !/^0\d/.test(numeric) && Math.abs(Number(numeric)) <= Number.MAX_SAFE_INTEGER;
+  if (safeNumber && !IDENTIFIER_FIELD.test(field)) {
+    const n = Number(numeric);
+    return { value: n, display: renderFactValue(field, n) };
+  }
+  if (/directors|shareholders?|signatories/i.test(field) && /[;,]/.test(text)) {
+    const list = text.split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+    return { value: list, display: list.join(", ") };
+  }
+  return { value: text, display: text };
+}
+
 /** Common fact fields, offered as suggestions in the "record a fact" form. */
 export const COMMON_FACT_FIELDS = [
   "Salary",

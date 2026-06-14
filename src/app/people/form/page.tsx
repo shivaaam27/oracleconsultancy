@@ -2,11 +2,11 @@ import QRCode from "qrcode";
 import { PrintButton } from "@/components/print-button";
 import { sb } from "@/db/supabase";
 import { BRAND_NAME } from "@/lib/brand";
+import { appBaseUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
-const appUrl = () => process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
 /**
  * Printable A4 "Staff Data Collection Form" — bilingual (English / Swahili) for
@@ -37,7 +37,7 @@ export default async function StaffDataFormPage({ searchParams }: { searchParams
     }
     // QR encodes a link straight to this person's record, so a returned form can
     // be matched to the right profile by scanning instead of by name.
-    try { qrDataUrl = await QRCode.toDataURL(`${appUrl()}/people?person=${personId}`, { margin: 1, width: 120 }); } catch { qrDataUrl = null; }
+    try { qrDataUrl = await QRCode.toDataURL(`${appBaseUrl()}/people?person=${personId}`, { margin: 1, width: 120 }); } catch { qrDataUrl = null; }
   }
   const isOutsider = (person?.person_type as string | null) === "outsider";
   const v = (k: string) => (person ? (person[k] as string | null) ?? "" : "");

@@ -69,6 +69,7 @@ export function CommitmentsRegister({ items, companies, documents = [] }: { item
             const urg = commitmentUrgency(c);
             const nb = noticeByDate(c);
             const d = daysToNotice(c);
+            const hasNotice = (c.noticeDays ?? 0) > 0;
             return (
               <li key={c.id} className="flex items-center gap-2.5 px-4 py-2.5">
                 <span className="shrink-0 text-fg-subtle" title={KIND_LABEL[c.kind]}>{KIND_ICON[c.kind]}</span>
@@ -80,10 +81,10 @@ export function CommitmentsRegister({ items, companies, documents = [] }: { item
                 </span>
                 <span className="hidden sm:block shrink-0 text-right text-[11px] text-fg-subtle">
                   {c.endDate ? <>ends {fmt(c.endDate)}<br /></> : null}
-                  {nb ? <>notice by {fmt(nb.toISOString())}</> : c.status}
+                  {nb && hasNotice ? <>notice by {fmt(nb.toISOString())}</> : c.endDate ? null : c.status}
                 </span>
                 <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", TONE_CHIP[URGENCY_TONE[urg]])}>
-                  {urg === "overdue" ? "Notice overdue" : urg === "soon" ? `${d}d to notice` : urg === "ok" ? "OK" : c.status}
+                  {urg === "overdue" ? (hasNotice ? "Notice overdue" : "Expired") : urg === "soon" ? `${d}d to ${hasNotice ? "notice" : "expiry"}` : urg === "ok" ? "OK" : c.status}
                 </span>
                 <DocLinkControl documentId={c.documentId} documents={documents} companyId={c.companyId} onLink={(docId) => linkCommitmentDocumentAction(c.id, docId).then(() => {})} />
                 <button type="button" onClick={() => archive(c.id)} disabled={busy === c.id} title="Archive"

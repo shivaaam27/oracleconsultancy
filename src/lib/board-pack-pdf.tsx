@@ -72,7 +72,7 @@ export async function renderBoardPackPdf(asOf = new Date()): Promise<Buffer> {
             <Stat n={String(d.gaps)} l="Compliance gaps" />
             <Stat n={String(critical)} l="Critical/High risks" />
             <Stat n={String(pending)} l="Pending decisions" />
-            <Stat n={tzs(d.liability.totalCost)} l="Leave liability" />
+            <Stat n={tzs(d.liability.totalCost)} l={d.liability.peopleNoWage ? `Leave liability (excl. ${d.liability.peopleNoWage})` : "Leave liability"} />
             <Stat n={String(d.immDocs.length)} l="Expiring immigration" />
             <Stat n={String(d.findings.filter((f) => f.severity !== "low").length)} l="Data issues" />
           </View>
@@ -104,6 +104,7 @@ export async function renderBoardPackPdf(asOf = new Date()): Promise<Buffer> {
 
         <View style={s.section}>
           <Text style={s.h2}>Key-person concentration</Text>
+          {d.keyPersons.length === 0 && <Text style={s.muted}>No key-person data.</Text>}
           {d.keyPersons.map((k) => (
             <View key={k.id} style={{ marginBottom: 2 }}>
               <Text><Text style={s.bold}>{k.name}</Text>{k.risk ? <Text style={[s.chip, { backgroundColor: k.risk === "Critical" ? "#b91c1c" : "#b45309", marginLeft: 4 }]}> {k.risk}</Text> : null}  <Text style={s.muted}>director x{k.directorOf ?? 0} · secretary x{k.secretaryOf ?? 0} · signatory x{k.signatoryOf ?? 0} · shareholder x{k.shareholderOf ?? 0}</Text></Text>
@@ -134,6 +135,9 @@ export async function renderBoardPackPdf(asOf = new Date()): Promise<Buffer> {
               </View>
             );
           })}
+          {d.companies.every((c) => { const g = d.govByCompany.get(c.id); return !g || (g.capTable.holders.length === 0 && g.signatories.length === 0); }) && (
+            <Text style={s.muted}>No ownership data recorded yet.</Text>
+          )}
         </View>
 
         <View style={s.section}>

@@ -3,6 +3,7 @@
 import { GROQ_FAST, GROQ_VISION } from "@/lib/ai-models";
 import { callGroqJson, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
 import { recordFact } from "@/lib/facts";
+import { coerceFactValue } from "@/lib/facts-shared";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import {
@@ -168,11 +169,26 @@ async function appendDocumentFacts(
   for (const f of facts) {
     const entityId = f.entityType === "company" ? companyId : personId;
     if (!entityId) continue; // no owner of that kind on this document — skip
+    // Dedupe: a re-saved/retried document must not append the same fact twice.
+    try {
+      const col = f.entityType === "company" ? "company_id" : "person_id";
+      const { data: existing } = await supa
+        .from("facts")
+        .select("id")
+        .eq(col, entityId)
+        .eq("field", f.field)
+        .eq("document_id", documentId)
+        .limit(1);
+      if (existing && existing.length) continue;
+    } catch { /* if the check fails, fall through and insert */ }
+    // Type the value the same way the manual form does (money → number, lists → array).
+    const { value, display } = coerceFactValue(f.field, f.value);
     try {
       await recordFact({
         entity: { type: f.entityType, id: entityId },
         field: f.field,
-        value: f.value,
+        value,
+        display,
         effectiveDate: f.effectiveDate,
         source,
         documentId,
@@ -230,12 +246,17 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
     // that no longer belongs to them.
     const { data: priorDoc } = await supa
       .from("documents")
-      .select("person_id,company_id")
+      .select("person_id,company_id,review_status")
       .eq("id", id)
       .maybeSingle();
     const priorPersonId = (priorDoc?.person_id as number | null) ?? null;
     const priorCompanyId = (priorDoc?.company_id as number | null) ?? null;
 
+    // A manual edit-save IS a human confirmation — clear any "needs review" flag
+    // (the operator has just reviewed the fields), unless the form set it explicitly.
+    if (priorDoc?.review_status === "needs_review" && parsed.reviewStatus === undefined) {
+      parsed.reviewStatus = "ok";
+    }
     await updateDocument(id, parsed);
     const file = fileFromForm(fd);
     if (file) await uploadDocumentFile(id, file);

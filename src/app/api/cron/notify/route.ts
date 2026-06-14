@@ -38,11 +38,14 @@ export async function GET(req: NextRequest) {
     // Documents: expired, or inside their per-document reminder window.
     const documents = await listDocuments();
     const docsExpired = documents.filter((d) => deriveDocStatus(d) === "Expired");
-    const docsExpiring = documents.filter((d) => deriveDocStatus(d) === "Expiring");
     // Tiered cadence (transfer-pack 02 §4): documents whose days-to-expiry lands
     // on a reminder tier TODAY (immigration 120/90/30/5 + past expiry; others
     // 30/10). These are the ones actively "due for a nudge" right now.
     const remindersDue = documents.filter((d) => !d.archived && isReminderDueToday(d));
+    // "Expiring" = in the lead window but NOT already counted as a reminder-due
+    // today, so the push line doesn't double-count the same documents.
+    const remindersSet = new Set(remindersDue.map((d) => d.id));
+    const docsExpiring = documents.filter((d) => deriveDocStatus(d) === "Expiring" && !remindersSet.has(d.id));
 
     // Compliance gaps: missing or expired MANDATORY requirements across people and
     // companies. Catches requirement review-date lapses + missing docs that aren't

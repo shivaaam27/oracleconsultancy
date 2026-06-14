@@ -32,7 +32,9 @@ export async function getCompanyGovernance(companyId: number): Promise<CompanyGo
     holderType: (r.holder_type as string | null) ?? null,
     note: (r.note as string | null) ?? null,
   }));
-  const issued = (company?.issued_shares as number | null) ?? (holders.length ? holders.reduce((s, h) => s + (h.shares ?? 0), 0) : null);
+  // Fall back to the sum of holder shares ONLY when at least one holder records a
+  // share count — otherwise leave null (a pct-only cap table shouldn't read "issued 0").
+  const issued = (company?.issued_shares as number | null) ?? (holders.some((h) => h.shares != null) ? holders.reduce((s, h) => s + (h.shares ?? 0), 0) : null);
   const signatories: Signatory[] = (sigRows ?? []).map((r) => ({ id: r.id as number, name: r.name as string, scope: (r.scope as string | null) ?? null, note: (r.note as string | null) ?? null }));
   const resolutions: Resolution[] = (resRows ?? []).map((r) => ({
     id: r.id as number,

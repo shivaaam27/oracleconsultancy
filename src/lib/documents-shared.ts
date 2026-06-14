@@ -96,6 +96,11 @@ export type DocStatusInput = {
   expiryDate?: Date | null;
   reminderLeadDays?: number | null;
   archived?: boolean;
+  // Optional — when supplied, immigration-class docs open their "Expiring" window
+  // at the wider tiered lead (120d) so the early heads-up is visible, not just in
+  // the daily push. Callers passing only {expiryDate,reminderLeadDays} are unchanged.
+  category?: string | null;
+  docType?: string | null;
 };
 
 /** Whole days until expiry (negative = already expired). Null if no expiry. */
@@ -110,7 +115,10 @@ export function deriveDocStatus(d: DocStatusInput): DocStatus {
   const dte = daysToExpiry(d);
   if (dte === null) return "No expiry";
   if (dte < 0) return "Expired";
-  const lead = d.reminderLeadDays ?? 30;
+  // The "Expiring" window is the wider of the per-document lead and the category's
+  // tiered widest lead (immigration → 120d), so the early heads-up surfaces in the
+  // UI. Without a category, this is just the per-document lead (unchanged).
+  const lead = Math.max(d.reminderLeadDays ?? 30, d.category != null ? widestLeadFor(d.category, d.docType) : 0);
   if (dte <= lead) return "Expiring";
   return "Valid";
 }

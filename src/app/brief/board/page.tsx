@@ -78,7 +78,7 @@ export default async function BoardPackPage() {
           <Stat label="Compliance gaps" value={String(gaps)} tone={gaps ? "warn" : "ok"} />
           <Stat label="Critical/High risks" value={String(criticalRisks)} tone={criticalRisks ? "danger" : "ok"} />
           <Stat label="Pending decisions" value={String(pendingDecisions)} tone={pendingDecisions ? "warn" : "ok"} />
-          <Stat label="Leave liability" value={tzs(liability.totalCost)} />
+          <Stat label={liability.peopleNoWage ? `Leave liability · excl. ${liability.peopleNoWage} no wage` : "Leave liability"} value={tzs(liability.totalCost)} />
           <Stat label="Expiring immigration" value={String(immDocs.length)} tone={immDocs.length ? "warn" : "ok"} />
           <Stat label="Data-quality issues" value={String(findings.filter((f) => f.severity !== "low").length)} />
         </div>
