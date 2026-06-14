@@ -142,4 +142,30 @@ Fixed and pushed across batches (commits 291a53b → ee10abc):
   board-pack data-assembly extraction + N+1 (perf/maintenance only), Jitesh/CFO email recipients (owner
   decision — board pack stays owner-only until confirmed), company-fact chip entity indicator.
 
+## Automatic bulk intake — "Add all" (June 2026, commit bba79a9)
+Owner's UX ask: drop the whole pile, AI sorts automatically, only review the exceptions (NOT one-by-one).
+Decisions: fully-auto + review-exceptions · never guess the company · added Banking + Legal categories.
+- `autoFileDocumentAction` (documents/actions): reads ONE file → ID-first company match → FILES it (no form).
+  Confident + owner → `review_status=ok`; unclear/unreadable/no-owner → still filed, `needs_review` (never lost,
+  never guessed). Enriches matched person/company profile BLANKS-ONLY, appends AI facts, recomputes compliance.
+- `components/bulk-auto-upload.tsx` (`BulkAutoUpload`): multi-file pick → progress bar → end summary
+  ("N filed · M need a look") + per-file rows. Flagged ones → existing NeedsReviewPanel on /documents.
+- /documents primary bulk button = **"Add all (auto)"**; legacy one-by-one `BulkUploadDialog` kept for the
+  Inbox bundle flow. Needs-review "Open" → `/documents?doc=ID` opens the full editable form (reacts to same-page
+  nav); edit-save clears the review flag. Categories: + Banking, + Legal. Shared `lib/downscale-image.ts`.
+
+## DOCUMENT STORAGE + COMPLIANCE MAP (the owner's "complete breakdown")
+ENTRY POINTS (all write the same store): /documents Add + **Add all (auto)**; /inbox Process (bundles);
+person-drawer Compliance → Add (onto a requirement gap); company profile Documents; staff portal "Your
+documents"; task chat drag-file (category Attachment); vendor contracts (documents.vendor_id).
+STORAGE: file bytes → private Supabase "documents" bucket (storage_path); metadata → `documents` row
+(title/category/docType/issuer/referenceNo/issue+expiry dates/reminderLeadDays/notes/owner[company_id±person_id
+±vendor_id]/review_status/needs_original/supersedes_id/archived).
+COMPLIANCE: requirement_profiles→requirement_items define per-type/company required docs → per-entity
+person_requirements/company_requirements checklist. On doc save → reconcileOwnerCompliance auto-links the doc to
+the matching item (category + title/type synonyms) → score recomputes. Expiry derived live (deriveDocStatus);
+renewal supersedes old copy → gap clears. AI facts → facts ledger.
+SHOWS UP ON: /documents (score+needs-attention+safety-net+needs-review), person-drawer Compliance tab, company
+profile, Home, Director Brief, board pack, staff portal. Update a doc once → all reflect it.
+
 See [[transfer_pack_integration]] for the blow-by-blow + the GAP-MAP.
