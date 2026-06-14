@@ -22,6 +22,8 @@ const TONE_CHIP: Record<string, string> = {
   danger: "bg-danger-soft text-danger", warn: "bg-warn-soft text-warn", success: "bg-success-soft text-success", muted: "bg-bg-muted text-fg-muted",
 };
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—");
+const STATUS_LABEL: Record<string, string> = { active: "Active", needs_doc: "Needs document", quoting: "Quoting", partial: "Partial", expired: "Expired" };
+const statusLabel = (s: string) => STATUS_LABEL[s] ?? s;
 
 /**
  * Commitments register + calendar: leases, insurance and contracts with their
@@ -81,10 +83,10 @@ export function CommitmentsRegister({ items, companies, documents = [] }: { item
                 </span>
                 <span className="hidden sm:block shrink-0 text-right text-[11px] text-fg-subtle">
                   {c.endDate ? <>ends {fmt(c.endDate)}<br /></> : null}
-                  {nb && hasNotice ? <>notice by {fmt(nb.toISOString())}</> : c.endDate ? null : c.status}
+                  {nb && hasNotice ? <>notice by {fmt(nb.toISOString())}</> : c.endDate ? null : statusLabel(c.status)}
                 </span>
                 <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", TONE_CHIP[URGENCY_TONE[urg]])}>
-                  {urg === "overdue" ? (hasNotice ? "Notice overdue" : "Expired") : urg === "soon" ? `${d}d to ${hasNotice ? "notice" : "expiry"}` : urg === "ok" ? "OK" : c.status}
+                  {urg === "overdue" ? (hasNotice ? "Notice overdue" : "Expired") : urg === "soon" ? `${d}d to ${hasNotice ? "notice" : "expiry"}` : urg === "ok" ? "OK" : statusLabel(c.status)}
                 </span>
                 <DocLinkControl documentId={c.documentId} documents={documents} companyId={c.companyId} onLink={(docId) => linkCommitmentDocumentAction(c.id, docId).then(() => {})} />
                 <button type="button" onClick={() => archive(c.id)} disabled={busy === c.id} title="Archive"
@@ -109,6 +111,8 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   const [endDate, setEndDate] = useState("");
   const [noticeDays, setNoticeDays] = useState("");
   const [amount, setAmount] = useState("");
+  const [status, setStatus] = useState("active");
+  const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[13px] outline-none focus:border-accent/60";
@@ -118,6 +122,7 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
     const res = await createCommitmentAction({
       kind, title, companyId: companyId ? Number(companyId) : null, counterparty: counterparty || null,
       endDate: endDate || null, noticeDays: noticeDays ? Number(noticeDays) : null, amount: amount || null,
+      status, reference: reference || null,
     });
     setSaving(false);
     if (!res.ok) { setError(res.error ?? "Couldn't save."); return; }
@@ -147,6 +152,12 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
         <label className="text-[11px] text-fg-muted">End date<input type="date" className={input} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
         <label className="text-[11px] text-fg-muted">Notice (days)<input type="number" min={0} className={input} value={noticeDays} onChange={(e) => setNoticeDays(e.target.value)} /></label>
         <label className="text-[11px] text-fg-muted">Amount<input className={input} placeholder="rent/premium" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-[11px] text-fg-muted">Status<select className={input} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="active">Active</option><option value="needs_doc">Needs document</option><option value="quoting">Quoting</option><option value="partial">Partial</option><option value="expired">Expired</option>
+        </select></label>
+        <label className="text-[11px] text-fg-muted">Reference / policy no.<input className={input} value={reference} onChange={(e) => setReference(e.target.value)} /></label>
       </div>
       <div className="flex items-center justify-end gap-1.5">
         <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-[12px] text-fg-muted hover:bg-bg-muted/60">Cancel</button>

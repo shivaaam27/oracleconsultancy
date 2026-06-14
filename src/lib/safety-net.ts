@@ -170,5 +170,26 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
     });
   }
 
+  // 7. In-flight applications (pipeline) overdue or due soon by their deadline.
+  const { data: pipeRows } = await sb
+    .from("pipeline")
+    .select("id,subject,type,stage,deadline")
+    .eq("archived", false)
+    .neq("stage", "Issued")
+    .not("deadline", "is", null);
+  const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+  for (const p of (pipeRows ?? []) as Array<{ id: number; subject: string; type: string; stage: string; deadline: string }>) {
+    const days = Math.floor((new Date(p.deadline).getTime() - todayMid.getTime()) / 86_400_000);
+    if (days > 14) continue;
+    findings.push({
+      id: `pipeline-deadline:${p.id}`,
+      severity: days < 0 ? "high" : "medium",
+      kind: "pipeline-deadline",
+      title: `${p.type} for ${p.subject} — ${days < 0 ? "overdue" : "due soon"}`,
+      detail: days < 0 ? `Deadline passed ${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} ago (stage: ${p.stage}).` : `Due in ${days} day${days === 1 ? "" : "s"} (stage: ${p.stage}).`,
+      href: "/hrms/pipeline",
+    });
+  }
+
   return sortFindings(findings);
 }

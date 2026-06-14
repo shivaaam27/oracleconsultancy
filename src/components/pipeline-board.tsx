@@ -101,13 +101,16 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
   const [type, setType] = useState("");
   const [companyId, setCompanyId] = useState<string>("");
   const [nextAction, setNextAction] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [controlNo, setControlNo] = useState("");
+  const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[13px] outline-none focus:border-accent/60";
 
   async function save() {
     setSaving(true); setError(null);
-    const res = await createPipelineItemAction({ subject, type, companyId: companyId ? Number(companyId) : null, nextAction: nextAction || null });
+    const res = await createPipelineItemAction({ subject, type, companyId: companyId ? Number(companyId) : null, nextAction: nextAction || null, deadline: deadline || null, controlNo: controlNo || null, amount: amount || null });
     setSaving(false);
     if (!res.ok) { setError(res.error ?? "Couldn't save."); return; }
     onDone();
@@ -129,6 +132,11 @@ function AddForm({ companies, onDone }: { companies: Array<{ id: number; name: s
           {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <input className={input} placeholder="Next action" value={nextAction} onChange={(e) => setNextAction(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <label className="text-[11px] text-fg-muted">Deadline<input type="date" className={input} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></label>
+        <label className="text-[11px] text-fg-muted">Control no.<input className={input} value={controlNo} onChange={(e) => setControlNo(e.target.value)} /></label>
+        <label className="text-[11px] text-fg-muted">Amount/fee<input className={input} value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
       </div>
       <div className="flex items-center justify-end gap-1.5">
         <button type="button" onClick={onDone} className="rounded-lg px-2.5 py-1 text-[12px] text-fg-muted hover:bg-bg-muted/60">Cancel</button>
