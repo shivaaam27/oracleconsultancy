@@ -156,8 +156,13 @@ export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
 }
 
 /** May this portal person see/touch this task? Staff: on the task. Manager:
- *  on the task or a direct report is. */
+ *  on the task or a direct report is. Director: any non-archived task (they are
+ *  group-wide operators — matches visibleTaskIds). */
 export async function personCanSeeTask(person: PortalPerson, taskId: number): Promise<boolean> {
+  if (person.portalRole === "director") {
+    const { data } = await sb.from("tasks").select("archived").eq("id", taskId).maybeSingle();
+    return Boolean(data) && data!.archived !== true;
+  }
   if (await personOnTask(person.id, taskId)) return true;
   if (person.portalRole !== "manager") return false;
   const reports = await directReportIds(person.id);

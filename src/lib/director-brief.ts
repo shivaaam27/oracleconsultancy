@@ -77,7 +77,7 @@ export type BriefCompany = {
   tasks: ReportTask[]; // open tasks (incl. in progress), for the detailed PDF report
 };
 export type BriefDelivered = { company: string; items: { id: number; actionItem: string; status: string; closedDate: Date | null }[] };
-export type BriefWatch = { id: number; actionItem: string; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
+export type BriefWatch = { id: number; code: string; actionItem: string; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
 export type BriefCompliance = {
   companyId: number;
   companyName: string;
@@ -353,7 +353,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .filter((r) => sev(r) > 0)
     .sort((a, b) => sev(b) - sev(a))
     .slice(0, 8)
-    .map((r) => ({ id: r.id, actionItem: r.actionItem, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
+    .map((r) => ({ id: r.id, code: r.code, actionItem: r.actionItem, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
   const compliance: BriefCompliance[] = (
     await buildCompanyRequirementScores(kpis.map((k) => ({ id: k.id, name: k.name })))

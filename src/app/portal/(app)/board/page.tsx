@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ShieldCheck, Users, AlertTriangle, Wallet, Building2, Target, ListTodo, CloudOff } from "lucide-react";
 import { sb } from "@/db/supabase";
@@ -182,12 +183,12 @@ async function BriefSections() {
           <SectionLabel icon={<AlertTriangle size={13} />}>Key risks</SectionLabel>
           <Panel className="divide-y divide-border/50 p-0">
             {brief.watch.slice(0, 10).map((w) => (
-              <div key={w.id} className="flex items-center gap-2.5 px-4 py-2.5">
+              <Link key={w.id} href={`/portal/task/${w.code}`} className="flex items-center gap-2.5 px-4 py-2.5 transition-colors hover:bg-bg-muted/50">
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${w.overdue ? "bg-danger" : "bg-warn"}`} />
                 <span className="min-w-0 flex-1 text-sm truncate">{w.actionItem}</span>
                 <span className="text-[11px] text-fg-subtle shrink-0">{w.companyName}</span>
                 <Badge tone={w.overdue ? "danger" : "warn"}>{w.overdue ? "Overdue" : w.priority}</Badge>
-              </div>
+              </Link>
             ))}
           </Panel>
         </Reveal>

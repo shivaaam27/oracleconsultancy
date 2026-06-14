@@ -437,10 +437,12 @@ export async function portalAddUpdate(formData: FormData) {
   if (tErr || !t) return;
 
   const isManager = me.portalRole === "manager";
-  // Managers are stamped distinctly so their posts get the management accent
-  // everywhere (see authorOf in the portal task page and actorLabel in
-  // timeline-entry.tsx).
-  const createdBy = `${isManager ? "portal-mgr" : "portal"}:${me.name}`;
+  const isDirector = me.portalRole === "director";
+  const isManagement = isManager || isDirector;
+  // Managers/directors are stamped distinctly so their posts get the management
+  // accent everywhere (see authorOf in the portal task page and actorLabel in
+  // timeline-entry.tsx). Directors → portal-dir, managers → portal-mgr.
+  const createdBy = `${isDirector ? "portal-dir" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
   // Store an attached file as a real Document (linked to this task).
@@ -514,8 +516,9 @@ export async function portalAddUpdate(formData: FormData) {
   const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
 
   // Optional status change, limited to the role's allowed set, and never
-  // on a task that is already Completed/Closed.
-  const allowed = isManager ? MANAGER_STATUSES : STAFF_STATUSES;
+  // on a task that is already Completed/Closed. Managers and directors may
+  // complete; staff signal "done" via Under Review.
+  const allowed = isManagement ? MANAGER_STATUSES : STAFF_STATUSES;
   const currentStatus = t.status as string;
   const canChange =
     newStatus &&
@@ -533,7 +536,7 @@ export async function portalAddUpdate(formData: FormData) {
       "status",
       currentStatus,
       newStatus,
-      isManager ? "Completed/updated from manager portal" : "Updated from staff portal",
+      isManagement ? "Completed/updated from portal" : "Updated from staff portal",
       createdBy
     );
   }
@@ -782,7 +785,7 @@ export async function portalAcknowledge(formData: FormData) {
 export async function portalTogglePin(formData: FormData) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "manager") return;
+  if (me.portalRole !== "manager" && me.portalRole !== "director") return;
 
   const updateId = Number(formData.get("updateId"));
   const code = String(formData.get("code") ?? "");

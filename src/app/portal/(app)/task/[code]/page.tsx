@@ -60,6 +60,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   if (!me) redirect("/portal/login");
   const { code } = await params;
   const isManager = me.portalRole === "manager";
+  const isManagement = isManager || me.portalRole === "director";
 
   const { data: task } = await sb
     .from("tasks")
@@ -187,7 +188,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   const closed = task.status === "Completed" || task.status === "Closed";
   const company = task.companies as unknown as { name: string } | null;
-  const statusOptions = (isManager ? MANAGER_STATUSES : STAFF_STATUSES).filter((s) => s !== task.status);
+  const statusOptions = (isManagement ? MANAGER_STATUSES : STAFF_STATUSES).filter((s) => s !== task.status);
 
   return (
     <div className="flex flex-col gap-4">
@@ -246,11 +247,11 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         addAction={portalAddUpdate}
         pinAction={portalTogglePin}
         ackAction={portalAcknowledge}
-        canPin={isManager}
+        canPin={isManagement}
         canAck={true}
         composerHint={
-          isManager
-            ? "As a manager you can mark this task Completed once you're satisfied."
+          isManagement
+            ? "You can mark this task Completed once you're satisfied."
             : "Marking work finished? Choose Under Review — your manager confirms completion."
         }
       />
