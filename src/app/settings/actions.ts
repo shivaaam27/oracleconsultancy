@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { hashPassword } from "@/lib/portal-auth";
+import { recordEvent } from "@/lib/system-events";
 import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
 import { disconnectGoogle } from "@/lib/google";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
@@ -114,6 +115,10 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
   if (password.length < 8) redirect("/settings?portal=short");
 
+  // Was this a brand-new grant or a password reset? (for the audit note)
+  const { data: before } = await sb.from("people").select("portal_password_hash").eq("id", personId).maybeSingle();
+  const wasEnabled = Boolean(before?.portal_password_hash);
+
   const { error } = await sb
     .from("people")
     .update({
@@ -123,8 +128,32 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
     })
     .eq("id", personId);
   if (error) throw new Error(error.message);
+  await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role });
   revalidatePath("/settings");
   redirect("/settings?portal=saved");
+}
+
+/** Change a portal user's access level WITHOUT resetting their password. Only
+ *  applies to people who already have access. */
+export async function setPortalRole(fd: FormData): Promise<void> {
+  const personId = Number(fd.get("personId"));
+  const roleRaw = fd.get("portalRole");
+  const role = roleRaw === "manager" ? "manager" : roleRaw === "director" ? "director" : "staff";
+  if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
+
+  // Guard: never silently grant access via a role change — the person must
+  // already have a password set.
+  const { data: row } = await sb.from("people").select("portal_password_hash,portal_role").eq("id", personId).maybeSingle();
+  if (!row?.portal_password_hash) redirect("/settings?portal=error");
+  const prevRole = (row.portal_role as string | null) ?? "staff";
+
+  const { error } = await sb.from("people").update({ portal_role: role }).eq("id", personId);
+  if (error) throw new Error(error.message);
+  await recordEvent("portal.role.changed", "ok", { personId, from: prevRole, to: role });
+  revalidatePath("/settings");
+  // The change is read fresh on the person's next request (getPortalPerson hits
+  // the DB every time), so it takes effect on their next navigation.
+  redirect("/settings?portal=role");
 }
 
 /** Email automation: master pause + per-category mode (Phase A: overdue). */
@@ -192,15 +221,21 @@ export async function setDirectorOutreach(fd: FormData): Promise<void> {
   redirect("/settings?portal=saved");
 }
 
-/** Revoke portal access — the person's session stops working immediately. */
+/** Revoke portal access — the person's session stops working immediately
+ *  (getPortalPerson re-checks the DB on every request and a null password hash
+ *  fails the check). This only removes their ability to sign in: every record
+ *  they created (tasks, updates, chat messages, documents, attendance, leave)
+ *  is kept. Also resets the role to "staff" so a later re-grant never silently
+ *  restores manager/director powers. */
 export async function revokePortalAccess(fd: FormData): Promise<void> {
   const personId = Number(fd.get("personId"));
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
   const { error } = await sb
     .from("people")
-    .update({ portal_password_hash: null, portal_enabled_at: null })
+    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff" })
     .eq("id", personId);
   if (error) throw new Error(error.message);
+  await recordEvent("portal.access.revoked", "ok", { personId });
   revalidatePath("/settings");
   redirect("/settings?portal=revoked");
 }

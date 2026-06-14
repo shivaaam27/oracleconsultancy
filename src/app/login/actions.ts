@@ -62,11 +62,15 @@ export async function adminLogout() {
   redirect("/login");
 }
 
-/** Change the owner password (Settings). Requires the current password. */
+/** Change the owner password (Settings). Requires the current password — and,
+ *  when an owner identity is configured, the matching name/email too (so a brief
+ *  unlocked-device window can't be used to silently take over the password). */
 export async function adminChangePassword(fd: FormData): Promise<void> {
+  const identifier = String(fd.get("identifier") ?? "");
   const current = String(fd.get("current") ?? "");
   const next = String(fd.get("next") ?? "");
   if (next.length < 8) redirect("/settings?owner=short");
+  if (!(await ownerIdentifierMatches(identifier))) redirect("/settings?owner=identity");
   if (!(await verifyAdminPassword(current))) redirect("/settings?owner=wrong");
   await setAdminPassword(next);
   // Sign out every other device (~1 min) but keep this one signed in by

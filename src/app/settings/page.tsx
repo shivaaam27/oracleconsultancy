@@ -10,7 +10,8 @@ import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, sendDirectorBriefNow, runEmailAutomationNow } from "./actions";
+import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, sendDirectorBriefNow, runEmailAutomationNow } from "./actions";
+import { RevealPassword } from "@/components/reveal-password";
 import { getAutomationConfig } from "@/lib/email-automation";
 import { EmailStatus } from "./email-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
@@ -34,7 +35,7 @@ export default async function SettingsPage({
     getGoogleStatus(),
     sb
       .from("people")
-      .select("id,name,portal_password_hash,portal_last_login_at")
+      .select("id,name,portal_password_hash,portal_last_login_at,portal_role")
       .eq("active", true)
       .order("name"),
     getOwnerIdentity(),
@@ -49,6 +50,7 @@ export default async function SettingsPage({
     name: p.name as string,
     enabled: Boolean(p.portal_password_hash),
     lastLogin: p.portal_last_login_at as string | null,
+    role: ((p.portal_role as string | null) ?? "staff") as "staff" | "manager" | "director",
   }));
   const portalEnabled = portalPeople.filter((p) => p.enabled);
   const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -368,6 +370,7 @@ export default async function SettingsPage({
             )}
             {sp.owner === "wrong" && <p className="text-sm text-danger">Current password was wrong.</p>}
             {sp.owner === "short" && <p className="text-sm text-danger">New password must be at least 8 characters.</p>}
+            {sp.owner === "identity" && <p className="text-sm text-danger">Your owner name/email didn&apos;t match. Enter the same one you sign in with.</p>}
             {sp.owner === "identity-saved" && <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Owner identity saved.</p>}
 
             <form action={adminSaveOwnerIdentity} className="grid grid-cols-1 items-end gap-3 border-b border-border/50 pb-4 sm:grid-cols-[1fr_1fr_auto]">
@@ -386,6 +389,12 @@ export default async function SettingsPage({
             </form>
 
             <form action={adminChangePassword} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
+              {(ownerIdentity.name || ownerIdentity.email) && (
+                <div className="sm:col-span-3">
+                  <FieldLabel>Your owner name or email</FieldLabel>
+                  <Input name="identifier" type="text" autoComplete="username" required placeholder={ownerIdentity.email ?? ownerIdentity.name ?? ""} />
+                </div>
+              )}
               <div>
                 <FieldLabel>Current password</FieldLabel>
                 <Input name="current" type="password" autoComplete="current-password" required />
@@ -413,36 +422,58 @@ export default async function SettingsPage({
             {sp.portal === "saved" && (
               <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Portal access saved.</p>
             )}
+            {sp.portal === "role" && (
+              <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Access level updated — it applies the next time they open the portal.</p>
+            )}
             {sp.portal === "revoked" && (
-              <p className="text-sm text-fg-muted">Portal access revoked.</p>
+              <p className="text-sm text-fg-muted">Portal access revoked. Their records (tasks, messages, documents) are kept.</p>
             )}
             {sp.portal === "short" && (
               <p className="text-sm text-danger">Password must be at least 8 characters.</p>
             )}
+            {sp.portal === "error" && (
+              <p className="text-sm text-danger">Couldn&apos;t update portal access — please try again.</p>
+            )}
 
             {portalEnabled.length > 0 && (
               <div className="space-y-2">
+                <FieldLabel>People with access</FieldLabel>
                 {portalEnabled.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 rounded-xl bg-bg-subtle/60 px-3 py-2 ring-1 ring-border">
-                    <span className="grow text-sm font-medium">{p.name}</span>
-                    <span className="text-xs text-fg-subtle">
+                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-bg-subtle/60 px-3 py-2.5 ring-1 ring-border">
+                    <span className="min-w-0 grow text-sm font-medium truncate">{p.name}</span>
+                    <span className="text-[11px] text-fg-subtle">
                       {p.lastLogin
-                        ? `Last signed in ${new Date(p.lastLogin).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                        ? `Last in ${new Date(p.lastLogin).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
                         : "Never signed in"}
                     </span>
+                    {/* Change role without resetting the password. */}
+                    <form action={setPortalRole} className="flex items-center gap-1.5">
+                      <input type="hidden" name="personId" value={p.id} />
+                      <Select name="portalRole" defaultValue={p.role} className="h-8 text-xs">
+                        <option value="staff">Staff</option>
+                        <option value="manager">Manager</option>
+                        <option value="director">Director</option>
+                      </Select>
+                      <Button type="submit" variant="secondary" size="sm">Save</Button>
+                    </form>
                     <form action={revokePortalAccess}>
                       <input type="hidden" name="personId" value={p.id} />
                       <button type="submit" className="text-xs font-medium text-danger hover:underline">Revoke</button>
                     </form>
                   </div>
                 ))}
+                <p className="text-[11px] text-fg-subtle">
+                  Changing the access level here doesn&apos;t change their password. <strong className="text-fg-muted">Revoking</strong> only stops them signing in — everything they created (tasks, updates, chat messages, documents, attendance, leave) stays in the system, and you can grant access again at any time.
+                </p>
               </div>
             )}
 
             <form action={setPortalAccess} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]">
+              <div className="sm:col-span-2 lg:col-span-4">
+                <FieldLabel>Add access or reset a password</FieldLabel>
+              </div>
               <div>
-                <FieldLabel>Person</FieldLabel>
-                <Select name="personId" defaultValue="">
+                <Select name="personId" defaultValue="" aria-label="Person">
                   <option value="" disabled>Choose a person…</option>
                   {portalPeople.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}{p.enabled ? " (has access — reset password)" : ""}</option>
@@ -450,16 +481,14 @@ export default async function SettingsPage({
                 </Select>
               </div>
               <div>
-                <FieldLabel>Access level</FieldLabel>
-                <Select name="portalRole" defaultValue="staff">
+                <Select name="portalRole" defaultValue="staff" aria-label="Access level">
                   <option value="staff">Staff — own tasks only</option>
                   <option value="manager">Manager — own + direct reports&apos; tasks, can complete</option>
                   <option value="director">Director — board view + create tasks/events across all companies</option>
                 </Select>
               </div>
               <div>
-                <FieldLabel>Password (min 8 characters)</FieldLabel>
-                <Input name="password" type="text" minLength={8} required placeholder="e.g. shivam2026" />
+                <RevealPassword name="password" minLength={8} required placeholder="Password (min 8 characters)" />
               </div>
               <Button type="submit"><KeyRound size={13} /> Enable access</Button>
             </form>
