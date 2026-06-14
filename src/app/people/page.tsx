@@ -1,3 +1,4 @@
+import { FileText } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import { PeopleTable } from "@/components/people-table";
 import { NewPersonButton } from "@/components/new-person-button";
@@ -72,7 +73,15 @@ export default async function PeoplePage({
       <PageHeader
         title="People Directory"
         sub={`${activeCount} active · ${overdueLoad} carrying overdue work · ${complianceIssues} compliance issue${complianceIssues === 1 ? "" : "s"}`}
-        action={<NewPersonButton companies={companies} peopleList={peopleList} departments={departments} sites={sites} roles={roles} />}
+        action={
+          <div className="flex items-center gap-2">
+            <a href="/people/form" target="_blank" rel="noopener" title="Printable data-collection form for staff with no system access"
+              className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev ring-1 ring-border px-3 py-1.5 text-xs font-medium hover:ring-accent/40 transition">
+              <FileText size={13} /> Blank data form
+            </a>
+            <NewPersonButton companies={companies} peopleList={peopleList} departments={departments} sites={sites} roles={roles} />
+          </div>
+        }
       />
       <PeopleTable people={people} companies={companies} complianceById={complianceById} directoryHints={directoryHints} />
     </div>

@@ -786,6 +786,10 @@ export function PersonDrawer() {
           {person.active && (
             <PersonProbation personId={person.id} probationEndDate={person.probationEndDate} onChanged={refresh} />
           )}
+          <a href={`/people/form?person=${person.id}`} target="_blank" rel="noopener"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle/70 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
+            <FileText size={13} /> Data form (PDF) — for staff with no system access
+          </a>
           <div className="flex items-center gap-2 text-[11px]">
             <span className="font-medium uppercase tracking-wider text-fg-subtle">Portal access</span>
             {data.portal.enabled ? (
