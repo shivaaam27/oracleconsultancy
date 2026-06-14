@@ -11,19 +11,12 @@ import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge } from "../../../actions";
+import { taskStatusTone as statusTone } from "@/lib/badge-tones";
 
 export const dynamic = "force-dynamic";
 
 const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
 const MANAGER_STATUSES = [...STAFF_STATUSES, "Completed"];
-
-function statusTone(s: string): "default" | "success" | "warn" | "danger" | "info" {
-  if (s === "Completed" || s === "Closed") return "success";
-  if (s === "Blocked" || s === "Escalated") return "danger";
-  if (s === "Waiting External" || s === "Under Review") return "warn";
-  if (s === "In Progress") return "info";
-  return "default";
-}
 
 /** Maps a created_by stamp to a display name + whether it is "management"
  *  (owner/admin or a portal manager) — management posts get the accent. */

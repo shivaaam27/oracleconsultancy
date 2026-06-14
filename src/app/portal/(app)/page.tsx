@@ -13,25 +13,11 @@ import { buildPersonRequirementScores } from "@/lib/requirements";
 import { getJourney } from "@/lib/onboarding";
 import { teamAttendanceToday, personAttendanceToday } from "@/lib/attendance";
 import { ATTENDANCE_TONE } from "@/lib/leave-shared";
+import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 
 export const dynamic = "force-dynamic";
 
 const OPEN_EXCLUDED = ["Completed", "Closed"];
-
-function statusTone(s: string): "default" | "success" | "warn" | "danger" | "info" {
-  if (s === "Completed" || s === "Closed") return "success";
-  if (s === "Blocked" || s === "Escalated") return "danger";
-  if (s === "Waiting External" || s === "Under Review") return "warn";
-  if (s === "In Progress") return "info";
-  return "default";
-}
-
-function priorityTone(p: string): "default" | "warn" | "danger" | "info" {
-  if (p === "Critical") return "danger";
-  if (p === "High") return "warn";
-  if (p === "Medium") return "info";
-  return "default";
-}
 
 type Row = {
   id: number;
