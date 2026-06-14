@@ -99,6 +99,29 @@ The two remaining gaps from the GAP-MAP, both built end-to-end:
   assets/vendors in registers.json (already have tables). Backfill (Job 2, bulk-upload real doc copy via
   intake) remains owner-driven (needs the folder copy — owner advised to use site bulk-upload, NOT chat).
 
+## People-table cleanup DONE (applied to live DB) — 2026-06-14
+`scripts/cleanup-people.ts` (committed; dry-run default, --apply). Reviewed plan, owner approved
+"apply 8 merges + 13 junk deletes, leave ambiguous". Applied: **55 → 34 people** (32 active).
+- MERGES (move refs → keeper, then delete stub; person_requirements/events/attendance excluded as
+  derived/cascade): Pulin→Pulin Manek, Jitesh→Jitesh Solanki, Hiral→Hiral Borsadiya, Amal→Amal Somaiya,
+  Shvam→Shivam Parmar, Visha;l→Vishal Pragji, Hanisha→Hanisha Parmar, Shivam→Shivam Parmar.
+  Verified keepers retained history (Jitesh Solanki 12 tasks, Pulin Manek 4 assets, Vishal Pragji 7 todos).
+- DELETES (junk, 0 meaningful refs; cascade clears auto-checklist): Ahmed Hassan, Benja, David Chen, dvd,
+  Fire, Jigna, Maria Torres, Mona, Pankaj, Sahel, Sarah Johnson, Yuvi, Vishak.
+- LEFT for owner (ambiguous, untouched): Sanjay (52 — Kaushik vs Manek?), To Who It May Apply (53),
+  Unknown (12, 2 docs), Aryan/Beka/Nayan/Rashmit/Hitesh (stray single task). Kept functional contacts
+  Sulleiman Immigration / Suma Company Driver + real short-names Joemar/Juma/Rakesh/Sanjay Kaushik.
+People page renders; merge-key collision handling (task_assignees/person_companies/attendance/
+person_requirements) worked via delete-collide-then-update.
+
+## STILL OUTSTANDING (owner actions / deferred polish):
+1. Document BACKFILL (Job 2) — owner uploads a COPY of the real doc folder via site "Add several" (NOT chat).
+   Will auto-create the 26 unmatched staff + load their ~68 facts.
+2. Board-pack real PDF auto-attach (needs headless chromium) — currently a link nudge.
+3. Commitments/pipeline on /calendar overlay; pipeline/commitment file-path → uploaded-doc linking (at backfill).
+4. obligations.json cross-check (site has own recurring_obligations).
+5. Ambiguous people above.
+
 ## Next areas — owner LOCKED sequence: A → C → B. Build only on owner's go-ahead, one area end-to-end.
 
 **A — Fact Ledger — CORE DONE (migration 0063 applied to live DB), 2026-06-14:**
