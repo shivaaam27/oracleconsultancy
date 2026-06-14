@@ -26,6 +26,15 @@ export function workingDaysBetween(start: Date, end: Date, holidays: Set<string>
   return n;
 }
 
+/** Each YYYY-MM-DD in an inclusive [start,end] range (whole days, UTC). */
+function eachDay(startISO: string, endISO: string): string[] {
+  const out: string[] = [];
+  const d = new Date(new Date(startISO).toISOString().slice(0, 10) + "T00:00:00Z");
+  const last = new Date(new Date(endISO).toISOString().slice(0, 10) + "T00:00:00Z");
+  while (d <= last) { out.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); }
+  return out;
+}
+
 const holidaySet = cache(async (): Promise<Set<string>> => {
   const { data } = await sb.from("public_holidays").select("date");
   return new Set((data ?? []).map((h) => new Date(h.date as string).toISOString().slice(0, 10)));
@@ -120,10 +129,24 @@ export async function listLeaveRequests(opts?: { personId?: number; status?: Lea
 
 export type LeaveMetrics = { pending: number; onLeaveToday: number; approvedThisMonth: number };
 
-export async function leaveMetrics(): Promise<LeaveMetrics> {
+/** Resolve the active person ids for a company (used to scope portfolio figures). */
+async function activePersonIdsForCompany(companyId: number): Promise<number[]> {
+  const { data } = await sb.from("people").select("id").eq("active", true).eq("company_id", companyId);
+  return (data ?? []).map((p) => p.id as number);
+}
+
+/** Portfolio leave metrics, or scoped to one company when `companyId` is given. */
+export async function leaveMetrics(companyId?: number | null): Promise<LeaveMetrics> {
   const today = new Date().toISOString().slice(0, 10);
   const monthStart = new Date(); monthStart.setUTCDate(1);
-  const { data } = await sb.from("leave_requests").select("status,start_date,end_date,decided_at");
+  let ids: number[] | null = null;
+  if (companyId) {
+    ids = await activePersonIdsForCompany(companyId);
+    if (ids.length === 0) return { pending: 0, onLeaveToday: 0, approvedThisMonth: 0 };
+  }
+  let q = sb.from("leave_requests").select("person_id,status,start_date,end_date,decided_at");
+  if (ids) q = q.in("person_id", ids);
+  const { data } = await q;
   const rows = data ?? [];
   return {
     pending: rows.filter((r) => r.status === "Pending").length,
@@ -164,7 +187,12 @@ export async function personLeaveBalances(personId: number): Promise<PersonLeave
       entitlement: t.defaultDays,
       taken,
       pending,
-      remaining: t.defaultDays > 0 ? t.defaultDays - taken : null,
+      // Displayed remaining nets off PENDING requests too, so the staff member
+      // sees what they can actually still book (the booking guard already blocks
+      // approved + pending past entitlement). NOTE: this is deliberately stricter
+      // than the accrual/liability calculation, which counts APPROVED days only —
+      // do not "align" them: a pending request shouldn't yet cost the company.
+      remaining: t.defaultDays > 0 ? t.defaultDays - taken - pending : null,
     };
   });
 }
@@ -182,10 +210,12 @@ export type LeaveLiability = {
   peopleNoWage: number; // have accrued days but no wage on record
 };
 
-export async function portfolioLeaveLiability(): Promise<LeaveLiability> {
+export async function portfolioLeaveLiability(companyId?: number | null): Promise<LeaveLiability> {
+  let peopleQ = sb.from("people").select("id,wage_amount,wage_basis").eq("active", true);
+  if (companyId) peopleQ = peopleQ.eq("company_id", companyId);
   const [{ data: annual }, { data: people }, { data: reqs }] = await Promise.all([
     sb.from("leave_types").select("id,default_days,cycle_months").ilike("name", "%annual%").eq("active", true).limit(1).maybeSingle(),
-    sb.from("people").select("id,wage_amount,wage_basis").eq("active", true),
+    peopleQ,
     sb.from("leave_requests").select("person_id,days,status,start_date,leave_type_id"),
   ]);
   const empty: LeaveLiability = { totalDays: 0, totalCost: 0, peopleCosted: 0, peopleNoWage: 0 };
@@ -227,10 +257,12 @@ export async function portfolioLeaveLiability(): Promise<LeaveLiability> {
 /* ------------------------------------------------------------------ */
 export type SickLeaveCost = { totalDays: number; fullPayDays: number; halfPayDays: number; totalCost: number; peopleCosted: number };
 
-export async function portfolioSickLeaveCost(): Promise<SickLeaveCost> {
+export async function portfolioSickLeaveCost(companyId?: number | null): Promise<SickLeaveCost> {
+  let peopleQ = sb.from("people").select("id,wage_amount,wage_basis").eq("active", true);
+  if (companyId) peopleQ = peopleQ.eq("company_id", companyId);
   const [{ data: sick }, { data: people }, { data: reqs }] = await Promise.all([
     sb.from("leave_types").select("id,default_days,half_pay_days,cycle_months").ilike("name", "%sick%").eq("active", true).limit(1).maybeSingle(),
-    sb.from("people").select("id,wage_amount,wage_basis").eq("active", true),
+    peopleQ,
     sb.from("leave_requests").select("person_id,days,status,start_date,leave_type_id"),
   ]);
   const empty: SickLeaveCost = { totalDays: 0, fullPayDays: 0, halfPayDays: 0, totalCost: 0, peopleCosted: 0 };
@@ -278,22 +310,44 @@ export type PersonAttendanceSummary = { recorded: number; present: number; absen
 
 export async function personAttendanceThisMonth(personId: number): Promise<PersonAttendanceSummary> {
   const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-  const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
-  const { data } = await sb
-    .from("attendance")
-    .select("status")
-    .eq("person_id", personId)
-    .gte("date", monthStart)
-    .lt("date", monthEnd);
-  const rows = data ?? [];
-  const sum: PersonAttendanceSummary = { recorded: rows.length, present: 0, absent: 0, onLeave: 0, other: 0 };
-  for (const r of rows) {
-    const s = (r.status as string) ?? "";
-    if (s === "Present" || s === "Remote") sum.present++;
-    else if (s === "Absent") sum.absent++;
-    else if (s === "On leave" || s === "Sick" || s === "Half-day") sum.onLeave++;
-    else sum.other++;
+  const y = now.getUTCFullYear();
+  const m0 = now.getUTCMonth();
+  const monthStart = new Date(Date.UTC(y, m0, 1)).toISOString();
+  const monthEnd = new Date(Date.UTC(y, m0 + 1, 1)).toISOString();
+  const monthDays = new Set<string>();
+  for (let d = new Date(Date.UTC(y, m0, 1)); d.getUTCMonth() === m0; d.setUTCDate(d.getUTCDate() + 1)) {
+    monthDays.add(d.toISOString().slice(0, 10));
+  }
+
+  // Same overlay the register + portal week strip derive: recorded status wins,
+  // then approved leave, then a public holiday. Without this the drawer card
+  // disagreed with the register (it counted only the attendance table).
+  const [{ data: att }, { data: leaveRaw }, { data: hols }] = await Promise.all([
+    sb.from("attendance").select("date,status").eq("person_id", personId).gte("date", monthStart).lt("date", monthEnd),
+    sb.from("leave_requests").select("start_date,end_date,status").eq("person_id", personId).eq("status", "Approved").lt("start_date", monthEnd).gte("end_date", monthStart),
+    sb.from("public_holidays").select("date"),
+  ]);
+
+  const recorded = new Map<string, string>();
+  for (const r of att ?? []) recorded.set(new Date(r.date as string).toISOString().slice(0, 10), (r.status as string) ?? "");
+  const leaveDays = new Set<string>();
+  for (const lr of leaveRaw ?? []) for (const day of eachDay(lr.start_date as string, lr.end_date as string)) { if (monthDays.has(day)) leaveDays.add(day); }
+  const holidayDays = new Set<string>();
+  for (const h of hols ?? []) { const d = new Date(h.date as string).toISOString().slice(0, 10); if (monthDays.has(d)) holidayDays.add(d); }
+
+  const sum: PersonAttendanceSummary = { recorded: recorded.size, present: 0, absent: 0, onLeave: 0, other: 0 };
+  for (const day of monthDays) {
+    const rec = recorded.get(day);
+    if (rec) {
+      if (rec === "Present" || rec === "Remote") sum.present++;
+      else if (rec === "Absent") sum.absent++;
+      else if (rec === "On leave" || rec === "Sick" || rec === "Half-day") sum.onLeave++;
+      else sum.other++;
+    } else if (leaveDays.has(day)) {
+      sum.onLeave++; // derived approved-leave day
+    } else if (holidayDays.has(day)) {
+      sum.other++; // derived public holiday
+    }
   }
   return sum;
 }

@@ -3,12 +3,15 @@ import { cn } from "@/lib/cn";
 import { TONE, type Tone } from "@/components/surface-kit";
 
 /* ------------------------------------------------------------------ *
- * WidgetCard — the universal "modern widget" shell for the whole system.
- * A glass surface with an optional aurora glow and three composable
- * zones: header (title + an info/pulse area + actions), body, and an
- * action rail (footer). Headers and cards across Tasks, People,
- * Documents, HRMS and the portal adopt this so everything speaks one
- * design language. Pure presentational — works in server OR client trees.
+ * WidgetCard / WidgetHeader — a glass "modern widget" shell (aurora glow,
+ * header + body zones). NOTE: this was an experiment that ended up being
+ * the oversized outlier — its tall, glowing header pushed page content
+ * below the fold. The Tasks tab (its only adopter) was moved to the
+ * compact shared `PageHeader` (src/components/ui.tsx) to match /people and
+ * /documents, so `WidgetCard` and `WidgetHeader` are now UNUSED. Only
+ * `ChipRail` below is still in use (by the Tasks tab). Prefer `PageHeader`
+ * for page headers — do not reintroduce this shell as a page header.
+ * Pure presentational — works in server OR client trees.
  * ------------------------------------------------------------------ */
 
 export function WidgetCard({

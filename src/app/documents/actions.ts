@@ -168,6 +168,18 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
   const parsed = inputFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
+    // Remember who owned this document BEFORE the edit, so if the owner changes
+    // we can also release/relink the old owner's requirement — otherwise the
+    // checklist item on the previous person/company keeps pointing at a document
+    // that no longer belongs to them.
+    const { data: priorDoc } = await supa
+      .from("documents")
+      .select("person_id,company_id")
+      .eq("id", id)
+      .maybeSingle();
+    const priorPersonId = (priorDoc?.person_id as number | null) ?? null;
+    const priorCompanyId = (priorDoc?.company_id as number | null) ?? null;
+
     await updateDocument(id, parsed);
     const file = fileFromForm(fd);
     if (file) await uploadDocumentFile(id, file);
@@ -181,7 +193,33 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
       });
       revalidatePath(`/companies/${parsed.companyId}`);
     }
-    await reconcileOwnerCompliance(parsed.personId ?? null, parsed.companyId ?? null);
+
+    // If the owner moved off a previous person/company, release any requirement
+    // that was linked to this document on the OLD owner (back to "missing",
+    // auto-link on) so it doesn't keep ticking for someone who no longer holds it.
+    const nextPersonId = parsed.personId ?? null;
+    const nextCompanyId = parsed.companyId ?? null;
+    const now = new Date().toISOString();
+    if (priorPersonId && priorPersonId !== nextPersonId) {
+      await supa
+        .from("person_requirements")
+        .update({ document_id: null, status: "missing", verified_at: null, verified_by: null, auto_link: true, updated_at: now })
+        .eq("document_id", id)
+        .eq("person_id", priorPersonId);
+    }
+    if (priorCompanyId && priorCompanyId !== nextCompanyId) {
+      await supa
+        .from("company_requirements")
+        .update({ document_id: null, status: "missing", verified_at: null, verified_by: null, auto_link: true, updated_at: now })
+        .eq("document_id", id)
+        .eq("company_id", priorCompanyId);
+    }
+
+    // Reconcile both the new owner (re-link there) AND the prior owner (recompute
+    // their score after the release above).
+    await reconcileOwnerCompliance(nextPersonId, nextCompanyId);
+    if (priorPersonId && priorPersonId !== nextPersonId) await reconcileOwnerCompliance(priorPersonId, null);
+    if (priorCompanyId && priorCompanyId !== nextCompanyId) await reconcileOwnerCompliance(null, priorCompanyId);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -636,6 +674,14 @@ export async function extractDocumentFromFile(
     const content = await groqVision(images, extractPrompt(companies, people), apiKey);
     if (!content) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo." };
     return { ok: true, fields: coerceFields(safeJson(content), companies, people), source: "vision" };
+  }
+
+  // HEIC (Apple's iPhone photo format) can't be read by the vision model and the
+  // browser can't downscale it — tell the operator how to share it instead of
+  // failing silently. Common for forwarded iPhone IDs.
+  const isHeic = lowerName.endsWith(".heic") || lowerName.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
+  if (isHeic) {
+    return { ok: false, fields: {}, source: "vision", note: "HEIC photos can't be read — please share it as a JPEG or PNG (on iPhone: open the photo, Share, then Save/Export as JPEG)." };
   }
 
   if (file.type.startsWith("image/")) {

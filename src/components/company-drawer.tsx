@@ -247,6 +247,7 @@ export function CompanyDrawer() {
       error={error}
       errorLabel="Couldn't load company."
       maxWidth="560px"
+      fullScreenOnMobile
       hero={heroNode}
       tabs={tabs}
       activeTab={tab}

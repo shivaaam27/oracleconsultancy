@@ -20,7 +20,7 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
       aria-label={label}
       title={label}
       className={cn(
-        "relative inline-flex flex-col items-center justify-center h-12 w-16 rounded-2xl shrink-0 transition-colors",
+        "relative inline-flex flex-col items-center justify-center h-12 w-12 sm:w-16 rounded-2xl shrink-0 transition-colors",
         active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
@@ -36,7 +36,7 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
         )
       )}
       <Icon size={19} strokeWidth={active ? 2.4 : 2} className="relative" />
-      <span className="relative mt-0.5 text-[10px] font-medium">{label}</span>
+      <span className="relative mt-0.5 hidden text-[10px] font-medium sm:block">{label}</span>
     </Link>
   );
 }
@@ -70,13 +70,20 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
         initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-2 h-16"
+        className="pointer-events-auto max-w-[calc(100vw-1rem)] glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-1.5 sm:px-2 h-16"
       >
-        {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} reduce={reduce} />}
-        <PillTab href="/portal" icon={Home} label="Home" active={onHome} reduce={reduce} />
-        <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} reduce={reduce} />
-        <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
-        <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} reduce={reduce} />
+        {/* Tabs scroll horizontally if they can't all fit (5 tabs for a
+            director on a ~320px phone); the controls below stay anchored so
+            the bell + theme are always reachable. */}
+        <div className="no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto">
+          {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} reduce={reduce} />}
+          {/* Directors are board-first (/portal redirects them to /portal/board),
+              so a Home tab is redundant for them — show it for everyone else. */}
+          {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} reduce={reduce} />}
+          <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} reduce={reduce} />
+          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
+          <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} reduce={reduce} />
+        </div>
         {canCreate && (
           <Link
             href="/portal/task/new"
@@ -87,11 +94,11 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
             <Plus size={20} strokeWidth={2.4} />
           </Link>
         )}
-        <span className="mx-1 h-7 w-px bg-border" />
-        <div className="px-0.5">
+        <span className="mx-1 h-7 w-px bg-border shrink-0" />
+        <div className="px-0.5 shrink-0">
           <NotificationBell to="/portal/task" />
         </div>
-        <div className="px-1">
+        <div className="px-1 shrink-0">
           <ThemeToggle />
         </div>
       </motion.div>

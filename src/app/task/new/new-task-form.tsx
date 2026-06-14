@@ -21,12 +21,16 @@ export function NewTaskForm({
   companies,
   people,
   presetCompany,
+  defaultAccountable,
   returnTo,
   variant = "page",
 }: {
   companies: Array<{ id: number; name: string }>;
   people: PickerPerson[];
   presetCompany?: number;
+  /** Pre-select these people in the Accountable picker (e.g. opening from a
+   *  person's drawer so their name fills in). */
+  defaultAccountable?: string[];
   returnTo?: string;
   variant?: "page" | "modal";
 }) {
@@ -81,7 +85,7 @@ export function NewTaskForm({
           </div>
           <div className="col-span-2">
             <FieldLabel>Accountable</FieldLabel>
-            <PersonPicker people={people} placeholder="Search people, or type a new name…" />
+            <PersonPicker people={people} defaultNames={defaultAccountable} placeholder="Search people, or type a new name…" />
           </div>
         </div>
       </div>

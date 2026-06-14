@@ -6,7 +6,14 @@ import { TONE, type Tone } from "@/components/surface-kit";
 /* Living "widget" stat tiles — the Apple-style glanceable cards: a small
  * title top-left, one dominant metric, a tiny inline visualization, and a
  * status line, each on a tone-tinted glowing glass surface. Optionally a
- * Link so a tile doubles as a quick filter. Used across the system. */
+ * Link so a tile doubles as a quick filter.
+ *
+ * NOTE: these were the big gauge tiles on the Tasks header. They duplicated
+ * the ChipRail counts and made the header too tall, so the Tasks tab was
+ * decluttered onto the compact shared `PageHeader`. As a result these
+ * exports (StatTile/BigStat/StackBar/MiniRing) are currently UNUSED. Kept
+ * for possible reuse; the per-company `StatTile` in companies/[id] is a
+ * separate, locally-defined component (different props) — not this one. */
 
 export function StatTile({
   title,

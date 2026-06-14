@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, type CSSProperties } from "react";
+import { type ReactNode, type CSSProperties, useEffect, useRef } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion } from "framer-motion";
 import { X, Loader2, AlertCircle } from "lucide-react";
@@ -162,34 +162,7 @@ export function EntityDrawer({
               </div>
 
               {/* Tab pill */}
-              {tabs.length > 1 && (
-                <div className="shrink-0 px-4 pb-2">
-                  <div className="-mx-4 px-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-                    <div className="inline-flex w-max items-center gap-1 p-1 rounded-full glass elevated">
-                      {tabs.map((t) => {
-                        const active = t.id === current.id;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => onTabChange(t.id)}
-                            className={cn(
-                              "inline-flex shrink-0 items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all",
-                              active ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-                            )}
-                          >
-                            {t.icon}
-                            {t.label}
-                            {t.badge != null && (
-                              <span className={cn("text-xs tabular", active ? "text-accent-fg/80" : "text-fg-subtle")}>{t.badge}</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
+              <TabPill tabs={tabs} current={current} onTabChange={onTabChange} />
 
               {/* Body — all tabs mounted (so summaries report + switching is
                   instant); only the active one is shown, with a gentle entrance. */}
@@ -275,34 +248,7 @@ function DrawerBody({
       </div>
 
       {/* Tab pill */}
-      {tabs.length > 1 && (
-        <div className="shrink-0 px-4 pb-2">
-          <div className="-mx-4 px-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-            <div className="inline-flex w-max items-center gap-1 p-1 rounded-full glass elevated">
-              {tabs.map((t) => {
-                const active = t.id === current.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onTabChange(t.id)}
-                    className={cn(
-                      "inline-flex shrink-0 items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all",
-                      active ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-                    )}
-                  >
-                    {t.icon}
-                    {t.label}
-                    {t.badge != null && (
-                      <span className={cn("text-xs tabular", active ? "text-accent-fg/80" : "text-fg-subtle")}>{t.badge}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      <TabPill tabs={tabs} current={current} onTabChange={onTabChange} />
 
       {/* Body — all tabs mounted; only the active one is shown. */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
@@ -327,5 +273,75 @@ function DrawerBody({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Scrollable segmented tab pill. On phones the row can overflow, so:
+ *  - a right-edge mask-fade hints there's more to the right (and clears once
+ *    you scroll to the end);
+ *  - the active tab is scrolled into view whenever it changes;
+ *  - on the narrowest screens, with 5+ tabs, labels collapse to icons to keep
+ *    every tab reachable without horizontal scrolling.
+ */
+function TabPill({
+  tabs,
+  current,
+  onTabChange,
+}: {
+  tabs: DrawerTab[];
+  current: DrawerTab;
+  onTabChange: (id: string) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  // Keep the active tab visible as it changes (it can sit off-screen on phones).
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [current.id]);
+
+  if (tabs.length <= 1) return null;
+  // Collapse to icons on the narrowest screens once the row gets crowded.
+  const iconOnly = tabs.length >= 5 && tabs.every((t) => t.icon != null);
+
+  return (
+    <div className="shrink-0 px-4 pb-2">
+      <div
+        ref={scrollRef}
+        style={{
+          maskImage: "linear-gradient(to right, #000 calc(100% - 1.5rem), transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to right, #000 calc(100% - 1.5rem), transparent 100%)",
+        }}
+        className="-mx-4 px-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+      >
+        <div className="inline-flex w-max items-center gap-1 p-1 rounded-full glass elevated">
+          {tabs.map((t) => {
+            const active = t.id === current.id;
+            return (
+              <button
+                key={t.id}
+                ref={active ? activeRef : undefined}
+                type="button"
+                onClick={() => onTabChange(t.id)}
+                aria-label={iconOnly ? t.label : undefined}
+                title={iconOnly ? t.label : undefined}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 px-3.5 py-1.5 text-sm rounded-full transition-all",
+                  iconOnly && "max-[380px]:px-2.5",
+                  active ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+                )}
+              >
+                {t.icon}
+                <span className={cn(iconOnly && "max-[380px]:sr-only")}>{t.label}</span>
+                {t.badge != null && (
+                  <span className={cn("text-xs tabular", iconOnly && "max-[380px]:hidden", active ? "text-accent-fg/80" : "text-fg-subtle")}>{t.badge}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

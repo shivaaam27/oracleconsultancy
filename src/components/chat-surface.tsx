@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Bell,
+  BellOff,
   Check,
   CheckCheck,
   Clock,
@@ -14,6 +16,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  RotateCw,
   Search,
   Send,
   Trash2,
@@ -119,6 +122,7 @@ export function ChatSurface(props: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<DisplayMessage[]>([]);
   const [filter, setFilter] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<null | "dm" | "group">(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Assigned from the realtime hook below; used by callbacks defined before it.
@@ -135,6 +139,9 @@ export function ChatSurface(props: Props) {
       if (res.ok) {
         setDetail(res.detail ?? null);
         setMessages(res.messages ?? []);
+        setLoadError(null);
+      } else {
+        setLoadError(res.error ?? "Couldn't load this conversation.");
       }
     },
     [actions]
@@ -167,6 +174,7 @@ export function ChatSurface(props: Props) {
   }, [selected, reloadList]);
   useEffect(() => {
     setPending([]);
+    setLoadError(null);
     if (selected != null) reloadThread(selected).then(() => notifyRef.current("read"));
   }, [selected, reloadThread]);
 
@@ -246,6 +254,17 @@ export function ChatSurface(props: Props) {
 
   const shown = threads.filter((t) => t.title.toLowerCase().includes(filter.toLowerCase()));
   const otherReaders = (detail?.participants ?? []).filter((p) => p.participant !== me);
+  const selectedThread = threads.find((t) => t.id === selected) ?? null;
+
+  // Mute/unmute the open conversation (stops it counting toward the unread badge).
+  const toggleMute = useCallback(async () => {
+    if (selected == null) return;
+    const next = !(selectedThread?.muted ?? false);
+    // Optimistic: flip the flag locally, then reconcile from the server.
+    setThreads((ts) => ts.map((t) => (t.id === selected ? { ...t, muted: next } : t)));
+    await actions.muteThread(selected, next);
+    reloadList();
+  }, [selected, selectedThread, actions, reloadList]);
 
   return (
     <div className="fixed inset-0 z-50 flex bg-bg md:static md:z-auto md:h-[calc(100dvh_-_13rem)] md:min-h-[420px] md:overflow-hidden md:rounded-[1.75rem] md:bg-bg-elev/70 md:shadow-pill md:ring-1 md:ring-border md:backdrop-blur-xl">
@@ -369,7 +388,7 @@ export function ChatSurface(props: Props) {
                 <ArrowLeft size={20} />
               </button>
               <Avatar name={detail?.title ?? "?"} group={detail?.kind === "group"} size={40} />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-semibold">{detail?.title ?? "Conversation"}</p>
                 <p className="truncate text-[12px] text-fg-muted">
                   {typing.length > 0
@@ -379,6 +398,15 @@ export function ChatSurface(props: Props) {
                       : "Direct message"}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={toggleMute}
+                title={selectedThread?.muted ? "Unmute conversation" : "Mute conversation"}
+                aria-label={selectedThread?.muted ? "Unmute conversation" : "Mute conversation"}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+              >
+                {selectedThread?.muted ? <BellOff size={18} className="text-fg-subtle" /> : <Bell size={18} />}
+              </button>
             </header>
 
             <div
@@ -391,6 +419,18 @@ export function ChatSurface(props: Props) {
                 backgroundPosition: "0 0, 11px 11px",
               }}
             >
+              {loadError && (
+                <div className="mx-auto mb-3 flex max-w-2xl flex-col items-center gap-2 rounded-2xl bg-bg-elev/80 px-4 py-5 text-center shadow-sm ring-1 ring-border/60 backdrop-blur">
+                  <p className="text-[14px] text-fg-muted">{loadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => selected != null && reloadThread(selected)}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-[13px] font-semibold text-accent-fg shadow-sm transition-transform hover:scale-105 active:scale-95"
+                  >
+                    <RotateCw size={14} /> Try again
+                  </button>
+                </div>
+              )}
               <MessageList
                 messages={display}
                 me={me}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Clock, Hourglass, AlertOctagon, UserMinus, ArrowRight, X, CheckCircle2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -23,8 +23,19 @@ const FLAG_TONE: Record<string, string> = {
  */
 export function TodayBrief({ onAsk }: { onAsk?: (q: string) => void }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [brief, setBrief] = useState<Brief | null>(null);
   const [dismissed, setDismissed] = useState(false);
+
+  // Open a task in place via the `?task=CODE` drawer (the app-wide pattern),
+  // rather than a full-page redirect through the `/task/[code]` stub.
+  function openTask(code: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("task", code);
+    params.delete("person");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   useEffect(() => {
     let on = true;
@@ -88,7 +99,7 @@ export function TodayBrief({ onAsk }: { onAsk?: (q: string) => void }) {
                 <button
                   key={t.code}
                   type="button"
-                  onClick={() => router.push(`/task/${t.code}`)}
+                  onClick={() => openTask(t.code)}
                   className="w-full flex items-center gap-2 text-left rounded-lg px-2 py-1.5 hover:bg-bg-muted/50 transition-colors group"
                 >
                   <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", FLAG_TONE[t.flag]?.replace("text-", "bg-") || "bg-fg-subtle")} />

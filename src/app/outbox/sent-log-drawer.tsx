@@ -68,7 +68,7 @@ export function SentLogDrawer({
             aria-label="Close"
             className="flex-1 bg-black/40 backdrop-blur-sm"
           />
-          <aside className="w-full sm:w-[440px] bg-bg-elev border-l border-border h-full overflow-y-auto shadow-2xl">
+          <aside className="w-full sm:w-[440px] bg-bg-elev border-l border-border h-full overflow-y-auto shadow-lg">
             <div className="sticky top-0 bg-bg-elev border-b border-border px-4 py-3 flex items-center justify-between">
               <div className="font-medium text-sm inline-flex items-center gap-2">
                 <History size={14} /> Sent log

@@ -201,7 +201,7 @@ export function Sheet({
             exit={isRight ? { x: "100%" } : { opacity: 0, y: 12, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 360, damping: 32 }}
             className={cn(
-              "fixed z-[81] bg-bg-elev border-border shadow-2xl flex flex-col",
+              "fixed z-[81] bg-bg-elev border-border shadow-lg flex flex-col",
               isRight
                 ? "right-0 top-0 bottom-0 w-full sm:max-w-md border-l"
                 : "inset-x-0 bottom-0 sm:inset-0 sm:m-auto sm:h-fit sm:max-w-lg rounded-t-2xl sm:rounded-2xl border max-h-[88svh]",

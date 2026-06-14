@@ -658,11 +658,17 @@ html.hide-brief-note-company .brief-note-company { display: none !important; }
   .org-root { page: org-landscape; }
   .org-root, .org-root * { font-family: var(--font-sans) !important; }
   .org-root > :not(.org-print-title):not(.org-printable) { display: none !important; }
-  .org-printable, .org-canvas { overflow: visible !important; max-height: none !important; }
+  .org-printable, .org-canvas { overflow: visible !important; max-height: none !important; height: auto !important; }
   .org-stage { transform: scale(var(--org-print-scale, 1)) !important; transform-origin: top center !important; transition: none !important; }
+  /* Portfolio flowchart (ELK): the laid-out canvas is absolutely-positioned from
+     its top-left, so scale from there (no pan offset) to fit one page. */
+  .org-flow-stage { transform: scale(var(--org-print-scale, 1)) !important; transform-origin: top left !important; transition: none !important; }
   /* Brief-style cards: white, hairline border, no glass/shadow (accent rail + avatar kept). */
   .org-card > div { background: #fff !important; border: 1px solid #e3e3e3 !important; box-shadow: none !important; }
   .org-signals, .org-card button { display: none !important; }
+  /* Same crisp print treatment for the flowchart cards + dim hidden hover state. */
+  .flow-card > div { background: #fff !important; border: 1px solid #e3e3e3 !important; box-shadow: none !important; }
+  .flow-card { opacity: 1 !important; }
   @page { margin: 14mm; }
 }
 

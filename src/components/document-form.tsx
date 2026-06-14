@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
 import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findOwnerDocuments, archiveDocumentAction, type ExtractedFields, type OwnerDocMatch } from "@/app/documents/actions";
 import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
 import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
 import { DOC_CATEGORIES, DEFAULT_LEAD_DAYS, type DocumentRow } from "@/lib/documents-shared";
+import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 import { Segmented } from "@/components/macos";
 import { Button } from "@/components/ui";
 import { submitOnEnterKeyDown, EnterHint } from "@/components/form-keys";
@@ -81,6 +83,7 @@ export function DocumentForm({
   submitLabel?: string;
   cancelLabel?: string;
 }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
@@ -94,6 +97,7 @@ export function DocumentForm({
   useEffect(() => { setLocalPeople(people); }, [people]);
   const [creatingPerson, setCreatingPerson] = useState(false);
   const [newPersonName, setNewPersonName] = useState("");
+  const [newPersonType, setNewPersonType] = useState<PersonType>("local_staff");
   const [savingPerson, setSavingPerson] = useState(false);
   // Unified capture: Upload · Link · Paste text. Default depends on what's there.
   const [capMode, setCapMode] = useState<CaptureMode>(
@@ -168,6 +172,8 @@ export function DocumentForm({
       if (res.ok) {
         setEnrichNote(res.filled.length ? `Updated ${res.filled.length} company field${res.filled.length === 1 ? "" : "s"}: ${res.filled.join(", ")}.` : "Company profile already had those details — nothing changed.");
         setCompanyProfile(null);
+        // Refresh the open list so the updated company details show without a reload.
+        router.refresh();
       } else {
         setEnrichNote(res.error ?? "Couldn't update the company profile.");
       }
@@ -185,6 +191,8 @@ export function DocumentForm({
       if (res.ok) {
         setEnrichNote(res.filled.length ? `Updated ${res.filled.length} profile field${res.filled.length === 1 ? "" : "s"}: ${res.filled.join(", ")}.` : "Profile already had those details — nothing changed.");
         setPersonProfile(null);
+        // Refresh the open list so the updated person details show without a reload.
+        router.refresh();
       } else {
         setEnrichNote(res.error ?? "Couldn't update the profile.");
       }
@@ -199,11 +207,22 @@ export function DocumentForm({
     const cat = (form.elements.namedItem("category") as HTMLSelectElement | null)?.value || "";
     const companyId = parseInt((form.elements.namedItem("companyId") as HTMLSelectElement | null)?.value || "", 10);
     const personId = parseInt((form.elements.namedItem("personId") as HTMLSelectElement | null)?.value || "", 10);
-    const owner = !Number.isNaN(personId) ? { kind: "person" as const, id: personId }
-      : !Number.isNaN(companyId) ? { kind: "company" as const, id: companyId } : null;
-    if (!owner || !cat) { setDupDocs([]); setSupersedeId(null); return; }
-    const matches = await findOwnerDocuments(owner, cat);
-    setDupDocs(matches);
+    // Check EVERY owner the document is being filed against — in "both" mode that
+    // means the person AND the company, so a company-side duplicate isn't missed.
+    const owners: Array<{ kind: "person" | "company"; id: number }> = [];
+    if (!Number.isNaN(personId)) owners.push({ kind: "person", id: personId });
+    if (!Number.isNaN(companyId)) owners.push({ kind: "company", id: companyId });
+    if (owners.length === 0 || !cat) { setDupDocs([]); setSupersedeId(null); return; }
+    const results = await Promise.all(owners.map((o) => findOwnerDocuments(o, cat)));
+    // Merge, de-duping by document id (a doc owned by both would appear twice).
+    const seen = new Set<number>();
+    const merged: OwnerDocMatch[] = [];
+    for (const m of results.flat()) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
+      merged.push(m);
+    }
+    setDupDocs(merged);
     setSupersedeId(null); // default: add as new (never auto-replace)
   }
 
@@ -354,7 +373,11 @@ export function DocumentForm({
     try {
       const fd = new FormData();
       fd.set("name", name);
-      fd.set("personType", "local_staff");
+      fd.set("personType", newPersonType);
+      // Inherit the company chosen on the document form so the new person lands in
+      // the right company (and gets the correct checklist), not company-less.
+      const cid = selectedCompanyId();
+      if (cid) fd.set("companyId", String(cid));
       const res = await createPerson(fd);
       if (res.ok && res.id) {
         setLocalPeople((prev) => [...prev, { id: res.id!, name }].sort((a, b) => a.name.localeCompare(b.name)));
@@ -363,6 +386,7 @@ export function DocumentForm({
         setOwnerMode((m) => (m === "company" ? "both" : m === "person" ? "person" : m));
         setCreatingPerson(false);
         setNewPersonName("");
+        setNewPersonType("local_staff");
       } else if (!res.ok) {
         setError(res.error);
       }
@@ -404,7 +428,7 @@ export function DocumentForm({
         {/* Upload — the file is stored AND read automatically (PDF, Word, Excel, photo, scan). */}
         <div className={capMode === "upload" ? "" : "hidden"}>
           <input ref={fileInputRef} name="file" type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { setChosenFile(f.name); setRemoveExisting(false); runExtractFile(f); } }}
             className="hidden" />
           {chosenFile ? (
@@ -510,16 +534,24 @@ export function DocumentForm({
             {localPeople.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {creatingPerson ? (
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <input value={newPersonName} onChange={(e) => setNewPersonName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreatePerson(); } }}
-                placeholder="New person's name" autoFocus
-                className="flex-1 rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent" />
-              <Button type="button" size="xs" onClick={handleCreatePerson} disabled={savingPerson || !newPersonName.trim()}>
-                {savingPerson ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Add
-              </Button>
-              <button type="button" onClick={() => { setCreatingPerson(false); setNewPersonName(""); }}
-                className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
+            <div className="mt-1.5 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <input value={newPersonName} onChange={(e) => setNewPersonName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreatePerson(); } }}
+                  placeholder="New person's name" autoFocus
+                  className="flex-1 rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent" />
+                <select value={newPersonType} onChange={(e) => setNewPersonType(e.target.value as PersonType)}
+                  title="What kind of person is this?"
+                  className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent">
+                  {PERSON_TYPES.map((t) => <option key={t} value={t}>{PERSON_TYPE_LABELS[t]}</option>)}
+                </select>
+                <Button type="button" size="xs" onClick={handleCreatePerson} disabled={savingPerson || !newPersonName.trim()}>
+                  {savingPerson ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Add
+                </Button>
+                <button type="button" onClick={() => { setCreatingPerson(false); setNewPersonName(""); }}
+                  className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
+              </div>
+              <p className="text-[10px] text-fg-subtle">Pick the right type so they get the correct document checklist.</p>
             </div>
           ) : (
             <button type="button" onClick={() => setCreatingPerson(true)}

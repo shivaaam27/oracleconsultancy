@@ -2,9 +2,9 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import * as Dialog from "@radix-ui/react-dialog";
 import { CalendarDays, Plus, X, Check, Ban, Trash2, Loader2, Plane, PartyPopper, Settings2 } from "lucide-react";
-import { Badge, Button } from "./ui";
+import { Badge, Button, FieldLabel, RegisterList, Select } from "./ui";
+import { HrmsDialog } from "./hrms/hrms-dialog";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { cn } from "@/lib/cn";
@@ -17,6 +17,11 @@ import {
 
 type Lite = { id: number; name: string };
 type Tab = "overview" | "requests" | "setup";
+
+// Visual styling for the shared <Select> — border/bg/focus only; Select owns
+// padding (incl. its chevron gap), height, rounding and appearance, so we must
+// NOT pass px-* here or twMerge would drop Select's pr-8 chevron room.
+const SELECT_CLASS = "border border-border bg-bg-subtle focus:outline-none focus:border-accent";
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -97,7 +102,7 @@ export function LeaveBoard({
           </div>
 
           <div className="glass elevated rounded-2xl overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-wider text-fg-muted">On leave today</div>
+            <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">On leave today</div>
             {onLeaveToday.length ? (
               <div className="divide-y divide-border/50">
                 {onLeaveToday.map((r) => (
@@ -113,7 +118,7 @@ export function LeaveBoard({
 
           {pending.length > 0 && (
             <div className="glass elevated rounded-2xl overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-wider text-fg-muted">Awaiting your decision</div>
+              <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Awaiting your decision</div>
               <div className="divide-y divide-border/50">
                 {pending.map((r) => <RequestRow key={r.id} r={r} busy={busyId === r.id} run={run} />)}
               </div>
@@ -122,7 +127,7 @@ export function LeaveBoard({
 
           {upcomingHolidays.length > 0 && (
             <div className="glass elevated rounded-2xl overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-wider text-fg-muted flex items-center gap-1.5"><PartyPopper size={12} /> Upcoming holidays</div>
+              <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted flex items-center gap-1.5"><PartyPopper size={12} /> Upcoming holidays</div>
               <div className="divide-y divide-border/50">
                 {upcomingHolidays.map((h) => (
                   <div key={h.id} className="flex items-center gap-2 px-4 py-2 text-sm">
@@ -137,10 +142,10 @@ export function LeaveBoard({
       )}
 
       {tab === "requests" && (
-        <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <RegisterList>
           {requests.length ? requests.map((r) => <RequestRow key={r.id} r={r} busy={busyId === r.id} run={run} showDelete />)
             : <div className="px-4 py-10 text-center text-sm text-fg-muted">No leave requests yet.</div>}
-        </div>
+        </RegisterList>
       )}
 
       {tab === "setup" && (
@@ -218,7 +223,7 @@ function SetupTab({ types, holidays, companies, busyId, run }: {
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <div className="glass elevated rounded-2xl overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-wider text-fg-muted">Leave types</div>
+        <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Leave types</div>
         <div className="divide-y divide-border/50">
           {types.map((t) => (
             <div key={t.id} className={cn("flex items-center gap-2 px-4 py-2 text-sm", !t.active && "opacity-50")}>
@@ -247,7 +252,7 @@ function SetupTab({ types, holidays, companies, busyId, run }: {
       </div>
 
       <div className="glass elevated rounded-2xl overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-wider text-fg-muted">Public holidays</div>
+        <div className="px-4 py-2.5 border-b border-border/70 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Public holidays</div>
         <div className="divide-y divide-border/50 max-h-64 overflow-y-auto">
           {holidays.length ? holidays.map((h) => (
             <div key={h.id} className="flex items-center gap-2 px-4 py-2 text-sm">
@@ -261,10 +266,10 @@ function SetupTab({ types, holidays, companies, busyId, run }: {
         <form onSubmit={addHoliday} className="p-3 border-t border-border/70 grid grid-cols-2 gap-2">
           <input name="name" placeholder="Holiday name" className={cn(input, "col-span-2")} required />
           <input name="date" type="date" className={input} required />
-          <select name="companyId" className={input} defaultValue="">
+          <Select name="companyId" className={SELECT_CLASS} defaultValue="">
             <option value="">All companies</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </Select>
           <Button type="submit" size="sm" loading={pending} className="col-span-2"><Plus size={13} /> Add holiday</Button>
         </form>
       </div>
@@ -280,7 +285,6 @@ function NewRequestDialog({ open, onOpenChange, people, types }: {
   const [pending, start] = useTransition();
   const [half, setHalf] = useState(false);
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -295,56 +299,53 @@ function NewRequestDialog({ open, onOpenChange, people, types }: {
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(480px,calc(100vw-2rem))] max-h-[88dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">New leave request</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New leave request"
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" size="sm" form="leave-request-form" loading={pending}>Add request</Button>
+        </>
+      }
+    >
+      <form id="leave-request-form" onSubmit={submit} className="space-y-3">
+        <div>
+          <FieldLabel>Person *</FieldLabel>
+          <Select name="personId" required defaultValue="" className={SELECT_CLASS}>
+            <option value="" disabled>Choose…</option>
+            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Select>
+        </div>
+        <div>
+          <FieldLabel>Leave type *</FieldLabel>
+          <Select name="leaveTypeId" required defaultValue="" className={SELECT_CLASS}>
+            <option value="" disabled>Choose…</option>
+            {types.map((t) => <option key={t.id} value={t.id}>{t.name}{t.defaultDays > 0 ? ` (${t.defaultDays}/yr)` : ""}</option>)}
+          </Select>
+        </div>
+        <label className="inline-flex items-center gap-1.5 text-xs text-fg-muted">
+          <input type="checkbox" name="halfDay" checked={half} onChange={(e) => setHalf(e.target.checked)} className="accent-accent" /> Half day
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>{half ? "Date *" : "Start *"}</FieldLabel>
+            <input name="startDate" type="date" required className={input} />
           </div>
-          <form onSubmit={submit} className="p-5 space-y-3">
+          {!half && (
             <div>
-              <label className={label}>Person *</label>
-              <select name="personId" required defaultValue="" className={input}>
-                <option value="" disabled>Choose…</option>
-                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <FieldLabel>End *</FieldLabel>
+              <input name="endDate" type="date" required className={input} />
             </div>
-            <div>
-              <label className={label}>Leave type *</label>
-              <select name="leaveTypeId" required defaultValue="" className={input}>
-                <option value="" disabled>Choose…</option>
-                {types.map((t) => <option key={t.id} value={t.id}>{t.name}{t.defaultDays > 0 ? ` (${t.defaultDays}/yr)` : ""}</option>)}
-              </select>
-            </div>
-            <label className="inline-flex items-center gap-1.5 text-xs text-fg-muted">
-              <input type="checkbox" name="halfDay" checked={half} onChange={(e) => setHalf(e.target.checked)} className="accent-accent" /> Half day
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>{half ? "Date *" : "Start *"}</label>
-                <input name="startDate" type="date" required className={input} />
-              </div>
-              {!half && (
-                <div>
-                  <label className={label}>End *</label>
-                  <input name="endDate" type="date" required className={input} />
-                </div>
-              )}
-            </div>
-            <div>
-              <label className={label}>Reason</label>
-              <input name="reason" className={input} placeholder="Optional" />
-            </div>
-            <p className="text-[11px] text-fg-subtle">Days are counted Mon–Sat, excluding public holidays.</p>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" size="sm" loading={pending}>Add request</Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          )}
+        </div>
+        <div>
+          <FieldLabel>Reason</FieldLabel>
+          <input name="reason" className={input} placeholder="Optional" />
+        </div>
+        <p className="text-[11px] text-fg-subtle">Days are counted Mon–Sat, excluding public holidays.</p>
+      </form>
+    </HrmsDialog>
   );
 }

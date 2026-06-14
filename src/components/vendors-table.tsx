@@ -2,14 +2,13 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Search, Plus, X, Building, Pencil, Archive, Loader2, FilePlus, Mail, Phone, MapPin, MoreHorizontal } from "lucide-react";
-import { Badge, Button } from "./ui";
+import { Search, Plus, Building, Pencil, Archive, Loader2, FilePlus, Mail, Phone, MapPin, MoreHorizontal } from "lucide-react";
+import { Badge, Button, FieldLabel, RegisterList, RegisterRow, Select } from "./ui";
+import { HrmsDialog } from "./hrms/hrms-dialog";
 import { MenuItem } from "./register-ui";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
-import { cn } from "@/lib/cn";
 import { VENDOR_CATEGORIES, type VendorRow } from "@/lib/vendors-shared";
 import { createVendorAction, updateVendorAction, archiveVendorAction } from "@/app/hrms/vendors/actions";
 
@@ -56,7 +55,7 @@ export function VendorsTable({ vendors, companies, assetCounts = {} }: { vendors
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative w-full sm:flex-1 min-w-0 sm:min-w-[240px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text" value={search} onChange={(e) => setSearch(e.target.value)}
@@ -73,12 +72,12 @@ export function VendorsTable({ vendors, companies, assetCounts = {} }: { vendors
       </div>
 
       {filtered.length > 0 ? (
-        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <RegisterList>
           {filtered.map((v) => {
             const busy = busyId === v.id;
             const contact = [v.contactName, v.email, v.phone].filter(Boolean).join(" · ");
             return (
-              <div key={v.id} className={cn("flex items-center gap-3 px-3 sm:px-3.5 py-3 transition-colors hover:bg-bg-subtle/40", busy && "opacity-60")}>
+              <RegisterRow key={v.id} className={busy ? "opacity-60" : undefined}>
                 <span className="h-9 w-9 rounded-xl bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
                   <Building size={15} />
                 </span>
@@ -125,10 +124,10 @@ export function VendorsTable({ vendors, companies, assetCounts = {} }: { vendors
                     </DropdownMenu.Portal>
                   </DropdownMenu.Root>
                 </div>
-              </div>
+              </RegisterRow>
             );
           })}
-        </div>
+        </RegisterList>
       ) : (
         <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           {vendors.length === 0 ? "No vendors yet. Add your first to begin." : "No vendors match these filters."}
@@ -163,71 +162,69 @@ function VendorDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
+  // Visual styling for the shared <Select> — border/bg/focus only; Select owns
+  // padding (incl. room for its chevron), height, rounding and appearance, so we
+  // must NOT pass px-* here or twMerge would drop Select's pr-8 chevron gap.
+  const selectClass = "border border-border bg-bg-subtle focus:outline-none focus:border-accent";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(560px,calc(100vw-2rem))] max-h-[88dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">{editing ? "Edit vendor" : "Add a vendor"}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
-              <X size={14} />
-            </Dialog.Close>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? "Edit vendor" : "Add a vendor"}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" size="sm" form="vendor-form" loading={pending}>{editing ? "Save changes" : "Add vendor"}</Button>
+        </>
+      }
+    >
+      <form id="vendor-form" onSubmit={onSubmit} className="space-y-3">
+        <div>
+          <FieldLabel>Name *</FieldLabel>
+          <input name="name" required defaultValue={editing?.name ?? ""} placeholder="e.g. Zanzibar Internet Ltd" className={input} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Category</FieldLabel>
+            <Select name="category" defaultValue={editing?.category ?? ""} className={selectClass}>
+              <option value="">—</option>
+              {VENDOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
           </div>
-          <form onSubmit={onSubmit} className="p-5 space-y-3">
-            <div>
-              <label className={label}>Name *</label>
-              <input name="name" required defaultValue={editing?.name ?? ""} placeholder="e.g. Zanzibar Internet Ltd" className={input} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Category</label>
-                <select name="category" defaultValue={editing?.category ?? ""} className={input}>
-                  <option value="">—</option>
-                  {VENDOR_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={label}>Serves company</label>
-                <select name="companyId" defaultValue={editing?.companyId ?? ""} className={input}>
-                  <option value="">—</option>
-                  {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Contact name</label>
-                <input name="contactName" defaultValue={editing?.contactName ?? ""} className={input} />
-              </div>
-              <div>
-                <label className={label}>Location / site</label>
-                <input name="location" defaultValue={editing?.location ?? ""} placeholder="e.g. Expat House A" className={input} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Email</label>
-                <input type="email" name="email" defaultValue={editing?.email ?? ""} className={input} />
-              </div>
-              <div>
-                <label className={label}>Phone</label>
-                <input name="phone" defaultValue={editing?.phone ?? ""} className={input} />
-              </div>
-            </div>
-            <div>
-              <label className={label}>Notes</label>
-              <textarea name="notes" rows={2} defaultValue={editing?.notes ?? ""} className={input} />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" size="sm" loading={pending}>{editing ? "Save changes" : "Add vendor"}</Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <div>
+            <FieldLabel>Serves company</FieldLabel>
+            <Select name="companyId" defaultValue={editing?.companyId ?? ""} className={selectClass}>
+              <option value="">—</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Contact name</FieldLabel>
+            <input name="contactName" defaultValue={editing?.contactName ?? ""} className={input} />
+          </div>
+          <div>
+            <FieldLabel>Location / site</FieldLabel>
+            <input name="location" defaultValue={editing?.location ?? ""} placeholder="e.g. Expat House A" className={input} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Email</FieldLabel>
+            <input type="email" name="email" defaultValue={editing?.email ?? ""} className={input} />
+          </div>
+          <div>
+            <FieldLabel>Phone</FieldLabel>
+            <input name="phone" defaultValue={editing?.phone ?? ""} className={input} />
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Notes</FieldLabel>
+          <textarea name="notes" rows={2} defaultValue={editing?.notes ?? ""} className={input} />
+        </div>
+      </form>
+    </HrmsDialog>
   );
 }

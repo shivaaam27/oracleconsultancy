@@ -64,20 +64,32 @@ export function InboxList({
   const [fetchingId, setFetchingId] = useState<number | null>(null);
   const [processing, setProcessing] = useState<{ id: number; files: File[]; note: string } | null>(null);
 
-  // Open the unified review queue for a bundle: download any stored attachments
-  // as Files, and pass the message text so it can also fill the person's profile.
+  // Open the unified review queue for a bundle: download any attachments as Files
+  // (stored bucket objects AND forwarded-email/share links that only carry a
+  // url), and pass the message text so it can also fill the person's profile.
   // Works for text-only items too (no attachments → message-profile + add files).
   async function processBundle(item: InboxItem) {
-    const atts = item.attachments.filter((a) => a.storagePath);
     const note = [item.subject, item.body].filter(Boolean).join("\n");
     setFetchingId(item.id);
     try {
       const files: File[] = [];
-      for (const a of atts) {
-        const { url } = await signInboxAttachment(a.storagePath!);
-        if (!url) continue;
-        const blob = await (await fetch(url)).blob();
-        files.push(new File([blob], a.name || "file", { type: a.type || blob.type }));
+      for (const a of item.attachments) {
+        try {
+          if (a.storagePath) {
+            const { url } = await signInboxAttachment(a.storagePath);
+            if (!url) continue;
+            const blob = await (await fetch(url)).blob();
+            files.push(new File([blob], a.name || "file", { type: a.type || blob.type }));
+          } else if (a.url) {
+            // Forwarded-email / share link with no stored object — try to pull it
+            // into the queue. Cross-origin fetches may fail (CORS); if so we skip
+            // it here and it stays rendered as a clickable link on the card.
+            const blob = await (await fetch(a.url)).blob();
+            files.push(new File([blob], a.name || "file", { type: a.type || blob.type }));
+          }
+        } catch {
+          /* one bad attachment shouldn't block the rest */
+        }
       }
       setProcessing({ id: item.id, files, note });
     } finally {
@@ -215,6 +227,18 @@ export function InboxList({
                     >
                       <Paperclip size={10} /> {a.name || a.type || "attachment"}
                     </button>
+                  ) : a.url ? (
+                    // Forwarded-email / share link — make it clickable so the file
+                    // is always reachable even if Process can't fetch it (CORS).
+                    <a
+                      key={i}
+                      href={a.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-accent bg-accent-soft/50 ring-1 ring-accent/20 rounded-full px-2 py-0.5 hover:bg-accent-soft transition-colors"
+                    >
+                      <Paperclip size={10} /> {a.name || a.type || "attachment"}
+                    </a>
                   ) : (
                     <span key={i} className="inline-flex items-center gap-1 text-[11px] text-fg-muted bg-bg-muted rounded-full px-2 py-0.5">
                       <Paperclip size={10} /> {a.name || a.type || "attachment"}
@@ -224,42 +248,63 @@ export function InboxList({
               </div>
             )}
 
-            {!isEditing && (
-              <div className="flex items-center gap-2 pt-0.5">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => fileIt(item)}
-                >
-                  <Sparkles size={13} /> File it
+            {!isEditing && (() => {
+              // Two distinct outcomes, made explicit. "Make a task" turns the
+              // message into a tracked task; "File documents / update person"
+              // saves any attached files and fills a person's profile. The
+              // PRIMARY (solid) button is whichever fits this item: if it carries
+              // attachments, filing comes first; otherwise making a task does.
+              const hasFiles = item.attachments.length > 0;
+              const makeTaskBtn = (solid: boolean) => solid ? (
+                <Button type="button" size="sm" onClick={() => fileIt(item)}>
+                  <Sparkles size={13} /> Make a task
                 </Button>
-                <button
-                  type="button"
-                  onClick={() => processBundle(item)}
-                  disabled={fetchingId === item.id}
-                  title="Review this message: update the person's profile and file any documents"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-accent/40 bg-accent-soft/40 text-xs text-accent hover:bg-accent-soft transition-colors disabled:opacity-50"
-                >
-                  {fetchingId === item.id ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} Process
+              ) : (
+                <button type="button" onClick={() => fileIt(item)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors">
+                  <Sparkles size={13} /> Make a task
                 </button>
-                <button
-                  type="button"
-                  onClick={() => startEdit(item)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
-                >
-                  <Pencil size={13} /> Edit
+              );
+              const processBtn = (solid: boolean) => solid ? (
+                <Button type="button" size="sm" onClick={() => processBundle(item)} disabled={fetchingId === item.id}>
+                  {fetchingId === item.id ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} File documents / update person
+                </Button>
+              ) : (
+                <button type="button" onClick={() => processBundle(item)} disabled={fetchingId === item.id}
+                  title="Save any attached files and fill the person's profile"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-accent/40 bg-accent-soft/40 text-xs text-accent hover:bg-accent-soft transition-colors disabled:opacity-50">
+                  {fetchingId === item.id ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} File documents / update person
                 </button>
-                <CopyChip text={item.body} />
-                <button
-                  type="button"
-                  onClick={() => dismiss(item.id)}
-                  disabled={isBusy}
-                  className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
-                >
-                  {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Dismiss
-                </button>
+              );
+              return (
+              <div className="space-y-1.5 pt-0.5">
+                <p className="text-[11px] text-fg-subtle">
+                  {hasFiles
+                    ? "Has attachments — file the documents, or make a task to track follow-up."
+                    : "Make a task to track follow-up, or file documents / update a person's profile."}
+                </p>
+                <div className="flex items-center gap-2">
+                  {hasFiles ? <>{processBtn(true)}{makeTaskBtn(false)}</> : <>{makeTaskBtn(true)}{processBtn(false)}</>}
+                  <button
+                    type="button"
+                    onClick={() => startEdit(item)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors"
+                  >
+                    <Pencil size={13} /> Edit
+                  </button>
+                  <CopyChip text={item.body} />
+                  <button
+                    type="button"
+                    onClick={() => dismiss(item.id)}
+                    disabled={isBusy}
+                    className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
+                  >
+                    {isBusy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Dismiss
+                  </button>
+                </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         );
 
@@ -270,7 +315,7 @@ export function InboxList({
           <SwipeRow
             key={item.id}
             className="rounded-xl"
-            rightLabel="File it"
+            rightLabel="Make a task"
             leftLabel="Dismiss"
             onSwipeRight={() => fileIt(item)}
             onSwipeLeft={() => dismiss(item.id)}

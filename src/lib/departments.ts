@@ -20,7 +20,7 @@ export type DepartmentAdminRow = {
 export async function getDepartmentsAdmin(): Promise<DepartmentAdminRow[]> {
   const [{ data: depts }, { data: ppl }, { data: heads }, { data: taskRows }] = await Promise.all([
     sb.from("departments").select("id,name").order("name"),
-    sb.from("people").select("department_id,company_id,active"),
+    sb.from("people").select("id,department_id,company_id,active"),
     sb.from("department_heads").select("department_id,head_person_id"),
     sb.from("tasks").select("department_id").eq("archived", false),
   ]);
@@ -33,8 +33,13 @@ export async function getDepartmentsAdmin(): Promise<DepartmentAdminRow[]> {
     if (p.company_id != null) e.companies.add(p.company_id as number);
     byDept.set(d, e);
   }
+  // Only count heads who are still active — an archived leaver no longer leads.
+  const activePersonIds = new Set((ppl ?? []).filter((p) => p.active ?? true).map((p) => p.id as number));
   const headCount = new Map<number, number>();
-  for (const h of heads ?? []) if (h.head_person_id != null) headCount.set(h.department_id as number, (headCount.get(h.department_id as number) ?? 0) + 1);
+  for (const h of heads ?? []) {
+    const hp = h.head_person_id as number | null;
+    if (hp != null && activePersonIds.has(hp)) headCount.set(h.department_id as number, (headCount.get(h.department_id as number) ?? 0) + 1);
+  }
   const taskCount = new Map<number, number>();
   for (const t of taskRows ?? []) { const d = t.department_id as number | null; if (d != null) taskCount.set(d, (taskCount.get(d) ?? 0) + 1); }
 
@@ -48,13 +53,18 @@ export async function getDepartmentsAdmin(): Promise<DepartmentAdminRow[]> {
   }));
 }
 
-/** All per-company department heads, keyed `${companyId}:${departmentId}`. */
+/** All per-company department heads, keyed `${companyId}:${departmentId}`.
+ *  Heads who have been archived are dropped — a leaver shouldn't keep leading. */
 export async function getDepartmentHeads(): Promise<Record<string, number>> {
-  const { data } = await sb.from("department_heads").select("company_id,department_id,head_person_id");
+  const [{ data }, { data: active }] = await Promise.all([
+    sb.from("department_heads").select("company_id,department_id,head_person_id"),
+    sb.from("people").select("id").eq("active", true),
+  ]);
+  const activeIds = new Set((active ?? []).map((p) => p.id as number));
   const out: Record<string, number> = {};
   for (const r of data ?? []) {
     const hp = r.head_person_id as number | null;
-    if (hp != null) out[`${r.company_id}:${r.department_id}`] = hp;
+    if (hp != null && activeIds.has(hp)) out[`${r.company_id}:${r.department_id}`] = hp;
   }
   return out;
 }

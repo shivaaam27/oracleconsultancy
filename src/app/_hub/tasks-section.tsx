@@ -1,7 +1,7 @@
 import { getAllTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
 import { sb } from "@/db/supabase";
 import { getSavedViews } from "@/lib/task-views";
-import { Card, EmptyState } from "@/components/ui";
+import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { TaskActions } from "./task-actions";
 import { SavedViewsBar } from "@/components/saved-views-bar";
 import { TaskToolbar } from "@/components/task-toolbar";
@@ -13,10 +13,8 @@ import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
-import { CheckSquare, Sparkles, Clock, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X } from "lucide-react";
-import { WidgetCard, WidgetHeader, ChipRail } from "@/components/widget-card";
-import { ArcGauge } from "@/components/arc-gauge";
-import { StatTile, BigStat, StackBar, MiniRing } from "@/components/stat-tiles";
+import { CheckSquare, Sparkles, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X } from "lucide-react";
+import { ChipRail } from "@/components/widget-card";
 
 type Sp = {
   company?: string;
@@ -151,17 +149,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     (r) => (r.status === "Completed" || r.status === "Closed") && r.closedDate &&
       r.closedDate.getMonth() === now.getMonth() && r.closedDate.getFullYear() === now.getFullYear()
   ).length;
-  const donePct = completedThisMonth + openScoped.length === 0
-    ? 0
-    : Math.round((completedThisMonth / (completedThisMonth + openScoped.length)) * 100);
   const needYou = kpi.overdue + kpi.escalated;
-  // Status mix of open tasks — the mini stacked bar on the "Open" tile.
-  const statusMix = [
-    { value: openScoped.filter((r) => r.status === "In Progress").length, color: "hsl(var(--info))", label: "In progress" },
-    { value: openScoped.filter((r) => r.status === "Under Review" || r.status === "Waiting External").length, color: "hsl(var(--warn))", label: "In review" },
-    { value: openScoped.filter((r) => r.status === "Blocked" || r.status === "Escalated").length, color: "hsl(var(--danger))", label: "Blocked" },
-    { value: openScoped.filter((r) => !["In Progress", "Under Review", "Waiting External", "Blocked", "Escalated"].includes(r.status)).length, color: "hsl(var(--fg-subtle))", label: "To start" },
-  ];
 
   const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread);
 
@@ -221,49 +209,30 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     <div className="space-y-4">
       <TaskActions />
       <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
-      {/* The Task Management widget — pulse gauge, controls, signal rail. */}
-      <WidgetCard>
-        <WidgetHeader
-          title="Task management"
-          actions={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
-        >
-        <div className="space-y-3">
-          {/* Living stat tiles — glanceable widgets that fill the width. */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-            <StatTile title="On track" tone={onTrackPct >= 70 ? "success" : onTrackPct >= 40 ? "warn" : "danger"}>
-              <ArcGauge
-                percent={onTrackPct}
-                color={onTrackPct >= 70 ? "hsl(var(--success))" : onTrackPct >= 40 ? "hsl(var(--warn))" : "hsl(var(--danger))"}
-                size={104}
-                stroke={10}
-              />
-            </StatTile>
+      {/* Compact, table-first header — matches /people & /documents. The
+          headline signals live in the sub-line + the chip rail below (which
+          double as filters), so the table sits near the top of the page. */}
+      <PageHeader
+        title="Task management"
+        sub={
+          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span><span className="font-medium text-fg">{openScoped.length}</span> open</span>
+            <span aria-hidden className="text-fg-subtle">·</span>
+            <span className={needYou > 0 ? "text-danger" : ""}>
+              <span className="font-medium">{needYou}</span> need{needYou === 1 ? "s" : ""} you
+            </span>
+            <span aria-hidden className="text-fg-subtle">·</span>
+            <span><span className="font-medium text-fg">{onTrackPct}%</span> on track</span>
+            <span aria-hidden className="text-fg-subtle">·</span>
+            <span><span className="font-medium text-fg">{completedThisMonth}</span> done this month</span>
+          </span>
+        }
+        action={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
+      />
 
-            <StatTile title="Open" tone="accent" footer={<StackBar segments={statusMix} />}>
-              <BigStat value={openScoped.length} unit="tasks" />
-            </StatTile>
-
-            <StatTile
-              title="Needs you"
-              tone={needYou > 0 ? "danger" : "muted"}
-              href={needYou > 0 ? buildHref({ ...sp, all: "1" }, { flag: "overdue" }) : undefined}
-              footer={<span className="text-[11px] text-fg-muted">{kpi.overdue} overdue · {kpi.escalated} escalated</span>}
-            >
-              <BigStat value={needYou} unit={needYou > 0 ? "now" : "clear"} tone={needYou > 0 ? "danger" : undefined} />
-            </StatTile>
-
-            <StatTile
-              title="Done · month"
-              tone="info"
-              footer={<span className="text-[11px] text-fg-muted">{donePct}% of this month</span>}
-            >
-              <div className="flex items-center gap-2.5">
-                <BigStat value={completedThisMonth} />
-                <MiniRing percent={donePct} color="hsl(var(--info))" />
-              </div>
-            </StatTile>
-          </div>
-
+      {/* Controls — toolbar · Focus/All · chip filters · group-by. Plain
+          stack (no glass card) so the table stays the focal point. */}
+      <div className="space-y-3">
           {/* Toolbar — search · company · filters · show closed (consolidated). */}
           <TaskToolbar
             view={view}
@@ -301,11 +270,14 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             </div>
           )}
 
-          {/* Secondary quick-filters — only the ones that actually have tasks,
-              so the rail stays short and non-repetitive (the tiles carry the
-              headline signals like Overdue/Done). */}
+          {/* Quick-filters — only the ones that actually have tasks, so the
+              rail stays short. Overdue & Escalated lead (the headline "needs
+              you" signals), then the secondary flags. Each chip is also a
+              filter, so it shows the count AND narrows the table. */}
           <ChipRail className="sm:flex-wrap sm:[mask-image:none]">
         {([
+          { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
+          { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
           { label: "Unread",      count: kpi.unread,      key: "1",           filterKey: "unread" as const,  tone: "info" as const,   Icon: Sparkles },
           { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
           { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const, Icon: PauseCircle },
@@ -367,9 +339,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               </div>
             </div>
           )}
-        </div>
-        </WidgetHeader>
-      </WidgetCard>
+      </div>
 
       <SavedViewsBar
         initialViews={savedViews}

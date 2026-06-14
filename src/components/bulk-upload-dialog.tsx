@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import { UploadCloud, X, Check, Plus, Sparkles, Loader2, UserPlus } from "lucide-react";
 import { useToast } from "./toast";
 import { Button } from "./ui";
+import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { cn } from "@/lib/cn";
 import { DocumentForm } from "./document-form";
 import { extractPersonFields, enrichPersonProfile, createPerson, type PersonProfileFields } from "@/app/people/actions";
+import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 
 const PROFILE_LABELS: Record<keyof PersonProfileFields, string> = {
   name: "Name", email: "Email", phone: "Phone", whatsapp: "WhatsApp", role: "Role",
@@ -26,10 +27,16 @@ function MessageProfilePanel({
   noteText,
   people,
   onPersonCreated,
+  onEnriched,
+  onChanged,
 }: {
   noteText: string;
   people: Array<{ id: number; name: string }>;
   onPersonCreated: (p: { id: number; name: string }) => void;
+  /** Fired after a successful profile enrich (so a text-only bundle can be filed). */
+  onEnriched?: () => void;
+  /** Fired after any standalone change so the open list can refresh. */
+  onChanged?: () => void;
 }) {
   const [fields, setFields] = useState<PersonProfileFields | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -39,6 +46,7 @@ function MessageProfilePanel({
   const [note, setNote] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<PersonType>("local_staff");
   const [savingPerson, setSavingPerson] = useState(false);
 
   async function scan() {
@@ -65,7 +73,13 @@ function MessageProfilePanel({
       setNote(res.ok
         ? (res.filled.length ? `Updated ${res.filled.length} field${res.filled.length === 1 ? "" : "s"}: ${res.filled.join(", ")}.` : "Profile already had those details.")
         : (res.error ?? "Couldn't update the profile."));
-      if (res.ok) setFields(null);
+      if (res.ok) {
+        setFields(null);
+        // Mark the bundle as worked (so a text-only item can be filed) and
+        // refresh the open list to show the updated profile.
+        onEnriched?.();
+        onChanged?.();
+      }
     } finally { setEnriching(false); }
   }
 
@@ -76,12 +90,12 @@ function MessageProfilePanel({
     try {
       const fd = new FormData();
       fd.set("name", name);
-      fd.set("personType", "local_staff");
+      fd.set("personType", newType);
       const res = await createPerson(fd);
       if (res.ok && res.id) {
         onPersonCreated({ id: res.id, name });
         setPersonId(res.id);
-        setCreating(false); setNewName("");
+        setCreating(false); setNewName(""); setNewType("local_staff");
       }
     } finally { setSavingPerson(false); }
   }
@@ -117,10 +131,15 @@ function MessageProfilePanel({
                 <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New person's name" autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPerson(); } }}
                   className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent" />
+                <select value={newType} onChange={(e) => setNewType(e.target.value as PersonType)}
+                  title="What kind of person is this?"
+                  className="rounded-md border border-border bg-bg-subtle px-2 py-1 text-xs focus:outline-none focus:border-accent">
+                  {PERSON_TYPES.map((t) => <option key={t} value={t}>{PERSON_TYPE_LABELS[t]}</option>)}
+                </select>
                 <Button type="button" size="xs" onClick={addPerson} disabled={savingPerson || !newName.trim()}>
                   {savingPerson ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Add
                 </Button>
-                <button type="button" onClick={() => { setCreating(false); setNewName(""); }} className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
+                <button type="button" onClick={() => { setCreating(false); setNewName(""); setNewType("local_staff"); }} className="text-fg-muted hover:text-fg p-1"><X size={12} /></button>
               </span>
             ) : (
               <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline"><UserPlus size={11} /> New</button>
@@ -169,6 +188,9 @@ export function BulkUploadDialog({
   const [index, setIndex] = useState(0);
   const [done, setDone] = useState<Set<number>>(new Set());
   const [savedAny, setSavedAny] = useState(false);
+  // Whether any profile enrich succeeded — lets a text-only (no-file) bundle be
+  // marked filed, which otherwise could only happen after saving a file.
+  const [enrichedAny, setEnrichedAny] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   // People can grow if someone is created from the message-profile panel; the
   // file forms should see them immediately too.
@@ -176,7 +198,7 @@ export function BulkUploadDialog({
 
   // Fresh start every time the dialog opens (fixes stale data on reopen).
   useEffect(() => {
-    if (open) { setFiles(initialFiles ?? []); setIndex(0); setDone(new Set()); setSavedAny(false); setLocalPeople(people); }
+    if (open) { setFiles(initialFiles ?? []); setIndex(0); setDone(new Set()); setSavedAny(false); setEnrichedAny(false); setLocalPeople(people); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -211,64 +233,61 @@ export function BulkUploadDialog({
   const current = files[index];
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(640px,calc(100vw-2rem))] max-h-[90dvh] -translate-x-1/2 -translate-y-1/2 flex flex-col overflow-hidden rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
-            <div>
-              <Dialog.Title className="text-sm font-semibold">Add several documents</Dialog.Title>
-              <Dialog.Description className="mt-0.5 text-xs text-fg-muted">
-                {files.length === 0
-                  ? "Pick several files — each is auto-read, then reviewed in the normal form."
-                  : `Reviewing ${Math.min(done.size + 1, files.length)} of ${files.length}`}
-              </Dialog.Description>
-            </div>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
-          </div>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      width={640}
+      title="Add several documents"
+      sub={
+        files.length === 0
+          ? "Pick several files — each is auto-read, then reviewed in the normal form."
+          : `Reviewing ${Math.min(done.size + 1, files.length)} of ${files.length}`
+      }
+    >
+      {/* Queue strip */}
+      {files.length > 0 && (
+        <div className="-mx-5 -mt-5 mb-4 flex items-center gap-1.5 overflow-x-auto border-b border-border/70 px-4 py-2">
+          {files.map((f, j) => (
+            <button
+              key={j}
+              type="button"
+              onClick={() => !done.has(j) && setIndex(j)}
+              title={f.name}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] whitespace-nowrap ring-1 transition-colors",
+                done.has(j) ? "bg-success-soft/60 ring-success/30 text-success"
+                  : j === index ? "bg-accent-soft ring-accent/40 text-accent"
+                  : "bg-bg-subtle ring-border text-fg-muted hover:bg-bg-muted"
+              )}
+            >
+              {done.has(j) && <Check size={11} />} {f.name.length > 18 ? f.name.slice(0, 16) + "…" : f.name}
+            </button>
+          ))}
+          <button type="button" onClick={() => fileInput.current?.click()}
+            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-fg-muted ring-1 ring-dashed ring-border hover:text-fg whitespace-nowrap">
+            <Plus size={11} /> More
+          </button>
+        </div>
+      )}
 
-          {/* Queue strip */}
-          {files.length > 0 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border/70 px-4 py-2 shrink-0">
-              {files.map((f, j) => (
-                <button
-                  key={j}
-                  type="button"
-                  onClick={() => !done.has(j) && setIndex(j)}
-                  title={f.name}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] whitespace-nowrap ring-1 transition-colors",
-                    done.has(j) ? "bg-success-soft/60 ring-success/30 text-success"
-                      : j === index ? "bg-accent-soft ring-accent/40 text-accent"
-                      : "bg-bg-subtle ring-border text-fg-muted hover:bg-bg-muted"
-                  )}
-                >
-                  {done.has(j) && <Check size={11} />} {f.name.length > 18 ? f.name.slice(0, 16) + "…" : f.name}
-                </button>
-              ))}
-              <button type="button" onClick={() => fileInput.current?.click()}
-                className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] text-fg-muted ring-1 ring-dashed ring-border hover:text-fg whitespace-nowrap">
-                <Plus size={11} /> More
-              </button>
-            </div>
-          )}
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,.csv,application/pdf"
+        className="hidden"
+        onChange={(e) => { addFiles(e.target.files); if (e.target) e.target.value = ""; }}
+      />
 
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx,.csv,image/*,application/pdf"
-            className="hidden"
-            onChange={(e) => { addFiles(e.target.files); if (e.target) e.target.value = ""; }}
-          />
-
-          <div className="flex-1 overflow-y-auto p-4">
-            {noteText && noteText.trim() && (
+      <div>
+        {noteText && noteText.trim() && (
               <>
                 <MessageProfilePanel
                   noteText={noteText}
                   people={localPeople}
                   onPersonCreated={(p) => setLocalPeople((prev) => [...prev, p].sort((a, b) => a.name.localeCompare(b.name)))}
+                  onEnriched={() => setEnrichedAny(true)}
+                  onChanged={() => onDone?.()}
                 />
                 <details className="mb-3 rounded-xl bg-bg-subtle/50 ring-1 ring-border/60 px-3 py-2">
                   <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wider text-fg-subtle">Message from sender</summary>
@@ -277,15 +296,41 @@ export function BulkUploadDialog({
               </>
             )}
             {files.length === 0 ? (
-              <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                className="w-full rounded-xl border border-dashed border-border-strong bg-bg-subtle/40 px-4 py-10 text-center hover:border-accent hover:bg-bg-muted/40 transition-colors"
-              >
-                <UploadCloud size={24} className="mx-auto text-fg-subtle" />
-                <div className="mt-2 text-sm font-medium">Choose files to upload</div>
-                <div className="text-xs text-fg-muted">PDFs, photos/scans, Word, Excel — many at once</div>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInput.current?.click()}
+                  className="w-full rounded-xl border border-dashed border-border-strong bg-bg-subtle/40 px-4 py-10 text-center hover:border-accent hover:bg-bg-muted/40 transition-colors"
+                >
+                  <UploadCloud size={24} className="mx-auto text-fg-subtle" />
+                  <div className="mt-2 text-sm font-medium">Choose files to upload</div>
+                  <div className="text-xs text-fg-muted">PDFs, photos/scans, Word, Excel — many at once</div>
+                </button>
+                {/* Text-only bundle: no files to save, but once a profile was
+                    updated (or even if nothing was) let the operator close it off
+                    so it doesn't linger as pending. */}
+                {noteText && noteText.trim() && (
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenChange(false)}
+                      className="px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted"
+                    >
+                      Close
+                    </button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        toast(enrichedAny ? "Profile updated — bundle filed." : "Bundle marked filed.", { tone: "success" });
+                        onAllDone?.();
+                        onOpenChange(false);
+                      }}
+                    >
+                      <Check size={13} /> {enrichedAny ? "Done — mark filed" : "Mark filed"}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : allHandled || !current ? (
               <div className="py-10 text-center text-sm text-fg-muted">All files reviewed.</div>
             ) : (
@@ -301,9 +346,7 @@ export function BulkUploadDialog({
                 onComplete={(res) => { if (res.ok) afterHandled(true); }}
               />
             )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+      </div>
+    </HrmsDialog>
   );
 }

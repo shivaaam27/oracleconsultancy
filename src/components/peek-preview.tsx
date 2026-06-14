@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquarePlus, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -39,6 +39,20 @@ export function PeekPreview({
 }) {
   const [showUpdate, setShowUpdate] = useState(false);
 
+  // Close on Escape and lock the page behind from scrolling while open.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   return (
     <AnimatePresence onExitComplete={() => setShowUpdate(false)}>
       {open && (
@@ -50,6 +64,8 @@ export function PeekPreview({
             className="fixed inset-0 z-[85] bg-black/45 backdrop-blur-[3px]"
           />
           <motion.div
+            role="dialog"
+            aria-modal="true"
             initial={{ opacity: 0, scale: 0.9, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 8 }}

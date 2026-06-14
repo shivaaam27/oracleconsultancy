@@ -134,8 +134,13 @@ export async function directReportIds(managerId: number): Promise<number[]> {
 }
 
 /** Every task id this portal person may see: their own (assignee or owner),
- *  plus — for managers — their direct reports' tasks. */
+ *  plus — for managers — their direct reports' tasks. Directors are group-scoped
+ *  operators, so they see every (non-archived) task across the portfolio. */
 export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
+  if (person.portalRole === "director") {
+    const { data } = await sb.from("tasks").select("id").eq("archived", false);
+    return (data ?? []).map((r) => r.id as number);
+  }
   const ids = [person.id];
   if (person.portalRole === "manager") ids.push(...(await directReportIds(person.id)));
   const [{ data: assigned }, { data: owned }] = await Promise.all([

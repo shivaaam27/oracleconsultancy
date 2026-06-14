@@ -18,6 +18,7 @@ import { countNodes, type CompanyTree, type OrgNode } from "@/lib/org-chart";
 import type { OrgPersonExtras } from "@/lib/org-extras";
 import { OrgWeb, type WebPerson } from "@/components/org-web";
 import type { FlowPerson } from "@/lib/org-flow";
+import type { OrgFlowCompany } from "@/components/org-flow";
 import { OrgDirectorPicker, type PickPerson } from "@/components/org-director-picker";
 
 // Lazy-load the heavy ELK graph engine — it only downloads when the flowchart
@@ -142,7 +143,7 @@ function HoverDetail({
 /* ------------------------------------------------------------------ */
 
 function NodeCard({
-  node, extras, accentColor, collapsed, onToggle, matched, onHoverShow, onHoverHide, showCompany, onFocus,
+  node, extras, accentColor, collapsed, onToggle, matched, onHoverShow, onHoverHide, showCompany, onFocus, isHead,
 }: {
   node: OrgNode;
   extras?: OrgPersonExtras;
@@ -154,6 +155,7 @@ function NodeCard({
   onHoverHide?: () => void;
   showCompany?: boolean;
   onFocus?: () => void;
+  isHead?: boolean;
 }) {
   const hasChildren = node.children.length > 0;
   const accent = node.companyAccent || accentColor || "hsl(var(--accent))";
@@ -170,6 +172,7 @@ function NodeCard({
           matched && "ring-2 ring-accent"
         )}
       >
+        {isHead && <span className="absolute -top-2 left-2 z-10 text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shadow-sm">Head</span>}
         {/* company accent rail */}
         <span className="self-stretch w-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
 
@@ -250,7 +253,7 @@ function NodeCard({
 /* ------------------------------------------------------------------ */
 
 function Subtree({
-  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand, onHoverShow, onHoverHide, showCompany, onFocus,
+  node, extras, accentColor, collapsedIds, toggle, matchIds, forceExpand, onHoverShow, onHoverHide, showCompany, onFocus, headIds,
 }: {
   node: OrgNode;
   extras: Extras;
@@ -263,6 +266,7 @@ function Subtree({
   onHoverHide: () => void;
   showCompany?: boolean;
   onFocus?: (id: number) => void;
+  headIds?: Set<number>;
 }) {
   const hasChildren = node.children.length > 0;
   const collapsed = !forceExpand && collapsedIds.has(node.id);
@@ -272,13 +276,13 @@ function Subtree({
       <NodeCard node={node} extras={extras[node.id]} accentColor={accentColor}
         collapsed={collapsed} onToggle={() => toggle(node.id)} matched={matchIds.has(node.id)}
         onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany}
-        onFocus={onFocus ? () => onFocus(node.id) : undefined} />
+        onFocus={onFocus ? () => onFocus(node.id) : undefined} isHead={headIds?.has(node.id)} />
       {showChildren && (
         <ul className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200">
           {node.children.map((c) => (
             <Subtree key={c.id} node={c} extras={extras} accentColor={accentColor}
               collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={forceExpand}
-              onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany} onFocus={onFocus} />
+              onHoverShow={onHoverShow} onHoverHide={onHoverHide} showCompany={showCompany} onFocus={onFocus} headIds={headIds} />
           ))}
         </ul>
       )}
@@ -288,10 +292,10 @@ function Subtree({
 
 /* Compact vertical outline (zero horizontal scroll — great on mobile). */
 function OutlineRow({
-  node, depth, collapsedIds, toggle, onFocus, matchIds, showCompany, extras, pickerPeople,
+  node, depth, collapsedIds, toggle, onFocus, matchIds, showCompany, extras, pickerPeople, headIds,
 }: {
   node: OrgNode; depth: number; collapsedIds: Set<number>; toggle: (id: number) => void;
-  onFocus: (id: number) => void; matchIds: Set<number>; showCompany?: boolean; extras: Extras; pickerPeople?: PickPerson[];
+  onFocus: (id: number) => void; matchIds: Set<number>; showCompany?: boolean; extras: Extras; pickerPeople?: PickPerson[]; headIds?: Set<number>;
 }) {
   const hasChildren = node.children.length > 0;
   const collapsed = collapsedIds.has(node.id);
@@ -306,6 +310,7 @@ function OutlineRow({
         ) : <span className="w-5 shrink-0 inline-flex items-center justify-center"><span className="w-1 h-1 rounded-full bg-border" /></span>}
         <span className={cn("h-6 w-6 rounded-full ring-1 flex items-center justify-center text-[10px] font-semibold shrink-0", TYPE_TINT[node.personType] ?? TYPE_TINT.outsider)}>{initials(node.name)}</span>
         <PersonDrawerLink id={node.id} name={node.name} className="text-[13px] font-medium text-fg hover:text-accent truncate" />
+        {headIds?.has(node.id) && <span className="text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shrink-0">Head</span>}
         <span className="text-[11px] text-fg-subtle truncate hidden sm:inline">{node.role || PERSON_TYPE_LABELS[node.personType]}{showCompany && node.companyName ? ` · ${node.companyName}` : ""}</span>
         <span className="ml-auto flex items-center gap-1.5 shrink-0">
           {x?.overdue ? <span className="text-[10px] font-bold text-danger tabular">{x.overdue}!</span> : x?.open ? <span className="text-[10px] font-bold text-info tabular">{x.open}</span> : null}
@@ -315,7 +320,7 @@ function OutlineRow({
         </span>
       </div>
       {hasChildren && !collapsed && node.children.map((c) => (
-        <OutlineRow key={c.id} node={c} depth={depth + 1} collapsedIds={collapsedIds} toggle={toggle} onFocus={onFocus} matchIds={matchIds} showCompany={showCompany} extras={extras} pickerPeople={pickerPeople} />
+        <OutlineRow key={c.id} node={c} depth={depth + 1} collapsedIds={collapsedIds} toggle={toggle} onFocus={onFocus} matchIds={matchIds} showCompany={showCompany} extras={extras} pickerPeople={pickerPeople} headIds={headIds} />
       ))}
     </>
   );
@@ -336,7 +341,7 @@ function initialCollapsed(tree: CompanyTree): Set<number> {
   return new Set(collapsibleIds(tree.roots).filter((id) => !rootIds.has(id)));
 }
 
-function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {}, pickerPeople }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number>; pickerPeople?: PickPerson[] }) {
+function TreeView({ tree, extras, accentColor, companyName, associated = [], portfolio = false, companyId, deptHeads = {}, pickerPeople, headIds }: { tree: CompanyTree; extras: Extras; accentColor: string | null; companyName: string | null; associated?: AssociatedPerson[]; portfolio?: boolean; companyId?: number; deptHeads?: Record<string, number>; pickerPeople?: PickPerson[]; headIds?: Set<number> }) {
   const router = useRouter();
   const [, startHead] = useTransition();
   const saveHead = (departmentId: number, headPersonId: number | null) => {
@@ -619,7 +624,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                     {rootsToRender.map((n) => (
                       <Subtree key={n.id} node={n} extras={extras} accentColor={accentColor}
                         collapsedIds={collapsedIds} toggle={toggle} matchIds={matchIds} forceExpand={!!q}
-                        onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} onFocus={setFocusId} />
+                        onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} onFocus={setFocusId} headIds={headIds} />
                     ))}
                   </ul>
                 </div>
@@ -628,7 +633,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
           ) : (
             <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 p-2 overflow-auto motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-300" style={{ maxHeight: isFs ? "calc(100dvh - 130px)" : "72vh" }}>
               {rootsToRender.map((n) => (
-                <OutlineRow key={n.id} node={n} depth={0} collapsedIds={collapsedIds} toggle={toggle} onFocus={setFocusId} matchIds={matchIds} showCompany={portfolio} extras={extras} pickerPeople={pickerPeople} />
+                <OutlineRow key={n.id} node={n} depth={0} collapsedIds={collapsedIds} toggle={toggle} onFocus={setFocusId} matchIds={matchIds} showCompany={portfolio} extras={extras} pickerPeople={pickerPeople} headIds={headIds} />
               ))}
             </div>
           )}
@@ -689,7 +694,7 @@ function TreeView({ tree, extras, accentColor, companyName, associated = [], por
                 <div key={n.id} className="relative">
                   {pickerPeople && <span className="absolute -top-2 right-1 z-20"><OrgDirectorPicker personId={n.id} currentManagerId={n.managerId} people={pickerPeople} compact missing={n.managerId == null} /></span>}
                   <NodeCard node={n} extras={extras[n.id]} accentColor={accentColor} collapsed={false} onToggle={() => {}} matched={matchIds.has(n.id)}
-                    onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} />
+                    onHoverShow={showHover} onHoverHide={hideHover} showCompany={portfolio} isHead={headIds?.has(n.id)} />
                 </div>
               ))}
             </div>
@@ -818,6 +823,11 @@ export function OrgChart({
   const companyName = (id: number) => companies.find((c) => c.id === id)?.name ?? null;
   const accentFor = (id: number) => companies.find((c) => c.id === id)?.accentColor ?? null;
 
+  // The set of people who head a department — shown with a "Head" pill in every
+  // hierarchical view, not just By-department (the keys are `companyId:deptId`).
+  const headIds = useMemo(() => new Set(Object.values(deptHeads)), [deptHeads]);
+  const flowCompanies: OrgFlowCompany[] = companies;
+
   return (
     <div className="space-y-4">
       {showSwitcher && showBar && (
@@ -827,11 +837,11 @@ export function OrgChart({
       {view === "everyone" && webPeople ? (
         <OrgWeb people={webPeople} companies={companies} extras={extras} onPickCompany={(id) => setView(id)} />
       ) : view === "portfolio" && flowPeople?.length ? (
-        <OrgFlow people={flowPeople} extras={extras} />
+        <OrgFlow people={flowPeople} extras={extras} headIds={headIds} companies={flowCompanies} />
       ) : view === "portfolio" && portfolioTree ? (
-        <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio pickerPeople={pickerPeople} />
+        <TreeView key="portfolio" tree={portfolioTree} extras={extras} accentColor={null} companyName={null} portfolio pickerPeople={pickerPeople} headIds={headIds} />
       ) : typeof view === "number" && trees[view] ? (
-        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} companyId={view} deptHeads={deptHeads} pickerPeople={pickerPeople} />
+        <TreeView key={view} tree={trees[view]} extras={extras} accentColor={accentFor(view)} companyName={companyName(view)} associated={associatedByCompany[view] ?? []} companyId={view} deptHeads={deptHeads} pickerPeople={pickerPeople} headIds={headIds} />
       ) : (
         <p className="text-sm text-fg-subtle italic py-6 text-center">Select a company.</p>
       )}

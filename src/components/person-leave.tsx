@@ -188,7 +188,11 @@ export function PersonLeave({
             <select name="leaveTypeId" required defaultValue=""
               className="w-full rounded-md bg-bg-elev text-sm ring-1 ring-border px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40">
               <option value="" disabled>Leave type…</option>
-              {balances.map((b) => <option key={b.typeId} value={b.typeId}>{b.typeName}</option>)}
+              {balances.map((b) => (
+                <option key={b.typeId} value={b.typeId}>
+                  {b.typeName}{b.remaining != null ? ` (${b.remaining} left)` : ""}
+                </option>
+              ))}
             </select>
             <div className="flex items-center gap-2">
               <input type="date" name="startDate" required className="flex-1 rounded-md bg-bg-elev text-xs ring-1 ring-border px-2 py-1.5" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { AtSign, Bell, CornerUpLeft, MessageCircle, Pin, UserPlus } from "lucide-react";
 
 type Notif = {
@@ -38,6 +38,8 @@ function ago(iso: string): string {
  *  for staff, "/task" for the owner). */
 export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<Notif[]>([]);
@@ -124,7 +126,17 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
                         const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
                         router.push(`${chatBase}/${n.threadId}`);
                       } else if (n.taskCode) {
-                        router.push(`${to}/${n.taskCode}`);
+                        // On the admin side, open the task in place via the
+                        // `?task=CODE` drawer rather than the `/task/[code]`
+                        // redirect stub. The portal keeps its dedicated page.
+                        if (to === "/task" && pathname && !pathname.startsWith("/portal")) {
+                          const params = new URLSearchParams(searchParams?.toString() ?? "");
+                          params.set("task", n.taskCode);
+                          params.delete("person");
+                          router.push(`${pathname}?${params.toString()}`, { scroll: false });
+                        } else {
+                          router.push(`${to}/${n.taskCode}`);
+                        }
                       }
                     }}
                     className={`flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-bg-muted/60 transition-colors border-b border-border/50 ${

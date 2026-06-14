@@ -7,7 +7,7 @@ import { PersonCard } from "./person-card";
 import { Combobox } from "./combobox";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
-import { Button } from "./ui";
+import { Button, CountPill, RegisterList, Select } from "./ui";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
@@ -324,9 +324,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
               onClick={() => setFilter(key as FilterKind)}
               className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
             >
-              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-bg-elev/50 font-semibold tabular">
-                {count}
-              </span>
+              <CountPill count={count} tone="inherit" />
               <span className="font-medium">{label}</span>
             </button>
           );
@@ -365,15 +363,15 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
 
       {/* Compact list — one elevated container, divided rows */}
       {filtered.length > 0 && (
-        <div className="glass elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <RegisterList>
           {filtered.map((p) =>
             selectMode ? (
               <div key={p.id} role="button" tabIndex={0}
                 onClick={() => toggleSelect(p.id)}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSelect(p.id); } }}
-                className={cn("flex items-center gap-2 pl-3 cursor-pointer transition-colors", selected.has(p.id) ? "bg-accent-soft/40" : "hover:bg-bg-muted/40")}>
+                className={cn("flex items-center gap-2 pl-3 cursor-pointer transition-colors", selected.has(p.id) ? "bg-accent-soft/40" : "hover:bg-bg-subtle/40")}>
                 <span className={cn("h-5 w-5 rounded-md border flex items-center justify-center shrink-0",
-                  selected.has(p.id) ? "bg-accent border-accent text-white" : "border-border-strong")}>
+                  selected.has(p.id) ? "bg-accent border-accent text-accent-fg" : "border-border-strong")}>
                   {selected.has(p.id) && <Check size={13} strokeWidth={3} />}
                 </span>
                 <div className="flex-1 min-w-0 pointer-events-none">
@@ -400,7 +398,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
               />
             )
           )}
-        </div>
+        </RegisterList>
       )}
 
       {/* Bulk action bar — floats above the nav pill while selecting */}
@@ -420,11 +418,11 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
                 const mgrLabels = activePeople.map(labelOf);
                 return (
                   <>
-                    <select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className={selCls}>
+                    <Select defaultValue="" onChange={(e) => { if (e.target.value !== "") applyBulkField("company", e.target.value === "none" ? null : Number(e.target.value)); e.currentTarget.selectedIndex = 0; }} className="h-8 min-w-0 bg-bg-subtle text-[11px] text-fg ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40">
                       <option value="" disabled>Set company…</option>
                       <option value="none">— Clear —</option>
                       {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                    </Select>
                     <Combobox options={["— Clear —", ...mgrLabels]} placeholder="Set manager…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear —") { applyBulkField("manager", null); return; } const id = labelToId.get(t); if (id != null) applyBulkField("manager", id); }} />
                     <Combobox options={["— Clear extra —", ...mgrLabels]} placeholder="Also reports to…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear extra —") { applyBulkSecondary(null); return; } const id = labelToId.get(t); if (id != null) applyBulkSecondary(id); }} />
                     <Combobox options={[...new Set(people.map((p) => p.departmentName).filter(Boolean) as string[])].sort()} placeholder="Set department…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (t) applyBulkField("department", t); }} />
@@ -480,7 +478,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       />
 
       {filtered.length === 0 && (
-        <div className="glass elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
+        <div className="bg-bg-elev ring-1 ring-border rounded-2xl elevated text-center py-12 text-fg-muted text-sm">
           No people match these filters.
         </div>
       )}

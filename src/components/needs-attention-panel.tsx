@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle, Clock, FileWarning, ListTodo, RefreshCw, Plus, ChevronDown,
-  Building2, User as UserIcon, ExternalLink, Loader2, MessageSquarePlus,
+  Building2, User as UserIcon, ExternalLink, Loader2, MessageSquarePlus, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { CountPill } from "./ui";
 import { useToast } from "./toast";
 import {
   deriveDocStatus, daysToExpiry, expiryLabel, type DocumentRow,
@@ -47,11 +48,13 @@ function categoryForRequirement(label: string) {
   if (l.includes("registration")) return "Registration";
   return undefined;
 }
-function addHrefFor(score: ComplianceScore, label: string) {
-  const params = new URLSearchParams({ newdoc: "1", title: label });
+function addHrefFor(score: ComplianceScore, gap: ComplianceScore["gaps"][number]) {
+  const params = new URLSearchParams({ newdoc: "1", title: gap.label });
   if (score.ownerType === "company") params.set("company", String(score.ownerId));
   else params.set("person", String(score.ownerId));
-  const cat = categoryForRequirement(label);
+  // Carry the requirement's own category so the saved document auto-links straight
+  // back to this gap. Fall back to a keyword guess only when the gap has none.
+  const cat = gap.categories?.[0] ?? categoryForRequirement(gap.label);
   if (cat) params.set("category", cat);
   return `/documents?${params.toString()}`;
 }
@@ -70,12 +73,15 @@ export function NeedsAttentionPanel({
   people,
   companyScores,
   personScores,
+  pendingLeaveCount = 0,
 }: {
   documents: DocumentRow[];
   companies: Array<{ id: number; name: string; accentColor?: string | null }>;
   people: Array<{ id: number; name: string }>;
   companyScores: ComplianceScore[];
   personScores: ComplianceScore[];
+  /** Pending leave requests awaiting a decision — surfaces a "Leave to approve" tile. */
+  pendingLeaveCount?: number;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -127,7 +133,7 @@ export function NeedsAttentionPanel({
           accent: null,
           rank: 200000, // after all expiry items
           caption: `${score.score}% compliant`,
-          addHref: addHrefFor(score, gap.label),
+          addHref: addHrefFor(score, gap),
           viewHref: score.ownerType === "company" ? `/documents?company=${score.ownerId}` : `/people?person=${score.ownerId}`,
         });
       }
@@ -170,8 +176,42 @@ export function NeedsAttentionPanel({
     });
   }
 
-  // Nothing to do — a calm, reassuring state.
+  // A standalone tile for pending leave requests, shown above the document rows
+  // (and on its own when there's nothing else). Reads the count; the approver
+  // notification itself is fired elsewhere.
+  const leaveTile = pendingLeaveCount > 0 ? (
+    <Link
+      href="/hrms/leave"
+      className="flex items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-bg-muted/40"
+    >
+      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/25">
+        <CalendarClock size={15} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">Leave to approve</div>
+        <div className="mt-0.5 text-[11px] text-fg-subtle">
+          {pendingLeaveCount} request{pendingLeaveCount === 1 ? "" : "s"} waiting for a decision
+        </div>
+      </div>
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-medium text-accent">
+        Review <ExternalLink size={13} />
+      </span>
+    </Link>
+  ) : null;
+
+  // Nothing to do — a calm, reassuring state. (Still show the leave tile if any.)
   if (items.length === 0) {
+    if (leaveTile) {
+      return (
+        <section className="glass elevated overflow-hidden rounded-3xl">
+          <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 text-sm font-semibold">
+            <ListTodo size={16} className="text-accent" /> Needs attention
+            <CountPill count={pendingLeaveCount} />
+          </div>
+          <div className="divide-y divide-border/40">{leaveTile}</div>
+        </section>
+      );
+    }
     return (
       <section className="glass elevated flex items-center gap-3 rounded-3xl px-4 py-3.5">
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-success-soft/60 text-success ring-1 ring-success/20">
@@ -195,7 +235,7 @@ export function NeedsAttentionPanel({
       <div className="relative flex flex-col gap-3 border-b border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <ListTodo size={16} className="text-accent" /> Needs attention
-          <span className="rounded-full bg-bg-muted/70 px-2 py-0.5 text-xs font-medium tabular text-fg-muted">{counts.all}</span>
+          <CountPill count={counts.all + pendingLeaveCount} />
         </div>
         {/* Filter chips */}
         <div className="flex flex-wrap items-center gap-1.5">
@@ -216,7 +256,7 @@ export function NeedsAttentionPanel({
             return (
               <button key={key} type="button" onClick={() => { setFilter(active && key !== "all" ? "all" : key); setExpanded(false); }}
                 className={cn("inline-flex items-center gap-1.5 rounded-full py-1 pl-1.5 pr-2.5 text-xs backdrop-blur-md transition-all", tint)}>
-                <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-bg-elev/50 px-1 text-[10px] font-semibold tabular">{n}</span>
+                <CountPill count={n} tone={t === "danger" ? "danger" : t === "accent" ? "accent" : "default"} />
                 {label}
               </button>
             );
@@ -225,6 +265,8 @@ export function NeedsAttentionPanel({
       </div>
 
       <div className="relative divide-y divide-border/40">
+        {/* Pending leave sits above the document rows; only on the "All" filter. */}
+        {filter === "all" && leaveTile}
         {shown.map((item) => {
           const meta = KIND_META[item.kind];
           const Icon = meta.icon;

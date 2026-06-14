@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Search, Plus, X, Wrench, Pencil, Archive, Loader2, Upload, Minus, MapPin, ArrowLeftRight, PackageMinus, History, Clock, MoreHorizontal } from "lucide-react";
-import { Badge, Button } from "./ui";
+import { Search, Plus, Wrench, Pencil, Archive, Loader2, Upload, Minus, MapPin, ArrowLeftRight, PackageMinus, History, Clock, MoreHorizontal } from "lucide-react";
+import { Badge, Button, FieldLabel, RegisterList, RegisterRow, Select } from "./ui";
+import { HrmsDialog } from "./hrms/hrms-dialog";
 import { IconAction, MenuItem } from "./register-ui";
 import { FluidSelect } from "./fluid-select";
 import { useToast } from "./toast";
@@ -31,6 +31,11 @@ import {
 } from "@/app/hrms/assets/site-tools-actions";
 
 type Lite = { id: number; name: string };
+
+// Visual styling for the shared <Select> — border/bg/focus only; Select owns
+// padding (incl. its chevron gap), height, rounding and appearance, so we must
+// NOT pass px-* here or twMerge would drop Select's pr-8 chevron room.
+const SELECT_CLASS = "border border-border bg-bg-subtle focus:outline-none focus:border-accent";
 
 export function SiteToolsTable({
   tools,
@@ -133,12 +138,12 @@ export function SiteToolsTable({
       </div>
 
       {filtered.length > 0 ? (
-        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <RegisterList>
           {filtered.map((t) => {
             const busy = busyId === t.id;
             const meta = [t.specification, t.location].filter(Boolean).join(" · ");
             return (
-              <div key={t.id} className={cn("flex items-center gap-3 px-3 sm:px-3.5 py-3 transition-colors hover:bg-bg-subtle/40", busy && "opacity-60")}>
+              <RegisterRow key={t.id} className={busy ? "opacity-60" : undefined}>
                 <span className="h-9 w-9 rounded-xl bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
                   <Wrench size={15} />
                 </span>
@@ -179,7 +184,7 @@ export function SiteToolsTable({
                     <DropdownMenu.Portal>
                       <DropdownMenu.Content align="end" sideOffset={6}
                         className="z-[60] min-w-[190px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm">
-                        <DropdownMenu.Label className="px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-fg-subtle">Condition</DropdownMenu.Label>
+                        <DropdownMenu.Label className="px-2.5 pt-1.5 pb-1 text-[10px] uppercase tracking-[0.08em] text-fg-subtle">Condition</DropdownMenu.Label>
                         {(Object.keys(TOOL_CONDITION_LABELS) as ToolCondition[]).map((c) => (
                           <MenuItem key={c} icon={<span className={cn("h-2 w-2 rounded-full", c === "good" ? "bg-success" : c === "needs_repair" ? "bg-warn" : "bg-danger")} />}
                             onSelect={() => { if (c !== t.condition) run(t.id, () => setSiteToolConditionAction(t.id, c), "Condition updated."); }}>
@@ -197,10 +202,10 @@ export function SiteToolsTable({
                     </DropdownMenu.Portal>
                   </DropdownMenu.Root>
                 </div>
-              </div>
+              </RegisterRow>
             );
           })}
-        </div>
+        </RegisterList>
       ) : (
         <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           {tools.length === 0 ? "No site tools yet. Add your first or import a list." : "No tools match these filters."}
@@ -249,47 +254,44 @@ function TransferDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">Move {tool?.name}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Move ${tool?.name ?? ""}`}
+      width={440}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" size="sm" loading={pending} onClick={submit}>Move</Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-xs text-fg-muted">{tool?.quantity} at {tool?.location ?? "—"}. Move some or all to another site; matching stock there is merged.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Quantity</FieldLabel>
+            <input type="number" min="1" max={tool?.quantity} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={String(tool?.quantity ?? "")} className={input} />
           </div>
-          <div className="p-5 space-y-3">
-            <p className="text-xs text-fg-muted">{tool?.quantity} at {tool?.location ?? "—"}. Move some or all to another site; matching stock there is merged.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Quantity</label>
-                <input type="number" min="1" max={tool?.quantity} value={qty} onChange={(e) => setQty(e.target.value)} placeholder={String(tool?.quantity ?? "")} className={input} />
-              </div>
-              <div>
-                <label className={label}>To site</label>
-                <select value={dest} onChange={(e) => setDest(e.target.value)} className={input}>
-                  <option value="">—</option>
-                  {sites.filter((s) => s !== tool?.location).map((s) => <option key={s} value={s}>{s}</option>)}
-                  <option value="__new__">+ New site…</option>
-                </select>
-              </div>
-            </div>
-            {dest === "__new__" && (
-              <div>
-                <label className={label}>New site name</label>
-                <input value={newSite} onChange={(e) => setNewSite(e.target.value)} placeholder="e.g. Matongo" className={input} />
-              </div>
-            )}
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="button" size="sm" loading={pending} onClick={submit}>Move</Button>
-            </div>
+          <div>
+            <FieldLabel>To site</FieldLabel>
+            <Select value={dest} onChange={(e) => setDest(e.target.value)} className={SELECT_CLASS}>
+              <option value="">—</option>
+              {sites.filter((s) => s !== tool?.location).map((s) => <option key={s} value={s}>{s}</option>)}
+              <option value="__new__">+ New site…</option>
+            </Select>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </div>
+        {dest === "__new__" && (
+          <div>
+            <FieldLabel>New site name</FieldLabel>
+            <input value={newSite} onChange={(e) => setNewSite(e.target.value)} placeholder="e.g. Matongo" className={input} />
+          </div>
+        )}
+      </div>
+    </HrmsDialog>
   );
 }
 
@@ -313,35 +315,32 @@ function WriteOffDialog({ tool, onOpenChange }: { tool: SiteToolRow | null; onOp
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">Write off {tool?.name}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
-          </div>
-          <div className="p-5 space-y-3">
-            <p className="text-xs text-fg-muted">Remove lost or disposed units from {tool?.location ?? "this site"} ({tool?.quantity} on hand). This is recorded in history.</p>
-            <div>
-              <label className={label}>Quantity to write off</label>
-              <input type="number" min="1" max={tool?.quantity} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="1" className={input} />
-            </div>
-            <div>
-              <label className={label}>Reason</label>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Lost on site / broken beyond repair" className={input} />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="button" size="sm" loading={pending} onClick={submit}>Write off</Button>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Write off ${tool?.name ?? ""}`}
+      width={440}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" size="sm" loading={pending} onClick={submit}>Write off</Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-xs text-fg-muted">Remove lost or disposed units from {tool?.location ?? "this site"} ({tool?.quantity} on hand). This is recorded in history.</p>
+        <div>
+          <FieldLabel>Quantity to write off</FieldLabel>
+          <input type="number" min="1" max={tool?.quantity} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="1" className={input} />
+        </div>
+        <div>
+          <FieldLabel>Reason</FieldLabel>
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Lost on site / broken beyond repair" className={input} />
+        </div>
+      </div>
+    </HrmsDialog>
   );
 }
 
@@ -373,37 +372,26 @@ function HistoryDialog({ target, onOpenChange }: { target: SiteToolRow | "all" |
   }, [open, single]);
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(520px,calc(100vw-2rem))] max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">{single ? `History — ${single.name}` : "Tool movement history"}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
-          </div>
-          <div className="p-5">
-            {rows == null ? (
-              <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
-            ) : rows.length === 0 ? (
-              <p className="text-sm text-fg-muted text-center py-6">No movements recorded yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {rows.map((m) => (
-                  <div key={m.id} className="flex items-start gap-2.5 text-sm">
-                    <span className="h-2 w-2 rounded-full bg-accent mt-1.5 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      {!single && <span className="font-medium">{m.toolName} · </span>}
-                      <span>{movementText(m)}</span>
-                      <div className="text-[11px] text-fg-subtle">{fmtWhen(m.createdAt)}</div>
-                    </div>
-                  </div>
-                ))}
+    <HrmsDialog open={open} onOpenChange={onOpenChange} title={single ? `History — ${single.name}` : "Tool movement history"}>
+      {rows == null ? (
+        <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-fg-muted text-center py-6">No movements recorded yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((m) => (
+            <div key={m.id} className="flex items-start gap-2.5 text-sm">
+              <span className="h-2 w-2 rounded-full bg-accent mt-1.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                {!single && <span className="font-medium">{m.toolName} · </span>}
+                <span>{movementText(m)}</span>
+                <div className="text-[11px] text-fg-subtle">{fmtWhen(m.createdAt)}</div>
               </div>
-            )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+            </div>
+          ))}
+        </div>
+      )}
+    </HrmsDialog>
   );
 }
 
@@ -433,77 +421,72 @@ function ToolDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(560px,calc(100vw-2rem))] max-h-[88dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">{editing ? "Edit tool" : "Add a tool"}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
-              <X size={14} />
-            </Dialog.Close>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? "Edit tool" : "Add a tool"}
+      width={560}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" size="sm" loading={pending} form="site-tool-form">{editing ? "Save changes" : "Add tool"}</Button>
+        </>
+      }
+    >
+      <form id="site-tool-form" onSubmit={onSubmit} className="space-y-3">
+        <div>
+          <FieldLabel>Tool / equipment name *</FieldLabel>
+          <input name="name" required defaultValue={editing?.name ?? ""} placeholder="e.g. Adjustable spanner" className={input} />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <FieldLabel>Quantity</FieldLabel>
+            <input type="number" min="0" step="1" name="quantity" defaultValue={editing?.quantity ?? 1} className={input} />
           </div>
-          <form onSubmit={onSubmit} className="p-5 space-y-3">
-            <div>
-              <label className={label}>Tool / equipment name *</label>
-              <input name="name" required defaultValue={editing?.name ?? ""} placeholder="e.g. Adjustable spanner" className={input} />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className={label}>Quantity</label>
-                <input type="number" min="0" step="1" name="quantity" defaultValue={editing?.quantity ?? 1} className={input} />
-              </div>
-              <div>
-                <label className={label}>Min level</label>
-                <input type="number" min="0" step="1" name="minQty" defaultValue={editing?.minQty ?? 0} className={input} />
-              </div>
-              <div>
-                <label className={label}>Condition</label>
-                <select name="condition" defaultValue={editing?.condition ?? "good"} className={input}>
-                  {(Object.keys(TOOL_CONDITION_LABELS) as ToolCondition[]).map((c) => (
-                    <option key={c} value={c}>{TOOL_CONDITION_LABELS[c]}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Specification</label>
-                <input name="specification" defaultValue={editing?.specification ?? ""} placeholder="e.g. Size 30cm" className={input} />
-              </div>
-              <div>
-                <label className={label}>Site / location</label>
-                <input name="location" defaultValue={editing?.location ?? ""} placeholder="e.g. Police Post" className={input} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Owning company</label>
-                <select name="companyId" defaultValue={editing?.companyId ?? ""} className={input}>
-                  <option value="">—</option>
-                  {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={label}>Purchased date</label>
-                <input type="date" name="purchasedDate" defaultValue={editing?.purchasedDate ? editing.purchasedDate.slice(0, 10) : ""} className={input} />
-              </div>
-            </div>
-            <div>
-              <label className={label}>Remark</label>
-              <textarea name="remark" rows={2} defaultValue={editing?.remark ?? ""} className={input} />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" size="sm" loading={pending}>{editing ? "Save changes" : "Add tool"}</Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <div>
+            <FieldLabel>Min level</FieldLabel>
+            <input type="number" min="0" step="1" name="minQty" defaultValue={editing?.minQty ?? 0} className={input} />
+          </div>
+          <div>
+            <FieldLabel>Condition</FieldLabel>
+            <Select name="condition" defaultValue={editing?.condition ?? "good"} className={SELECT_CLASS}>
+              {(Object.keys(TOOL_CONDITION_LABELS) as ToolCondition[]).map((c) => (
+                <option key={c} value={c}>{TOOL_CONDITION_LABELS[c]}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Specification</FieldLabel>
+            <input name="specification" defaultValue={editing?.specification ?? ""} placeholder="e.g. Size 30cm" className={input} />
+          </div>
+          <div>
+            <FieldLabel>Site / location</FieldLabel>
+            <input name="location" defaultValue={editing?.location ?? ""} placeholder="e.g. Police Post" className={input} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Owning company</FieldLabel>
+            <Select name="companyId" defaultValue={editing?.companyId ?? ""} className={SELECT_CLASS}>
+              <option value="">—</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <FieldLabel>Purchased date</FieldLabel>
+            <input type="date" name="purchasedDate" defaultValue={editing?.purchasedDate ? editing.purchasedDate.slice(0, 10) : ""} className={input} />
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Remark</FieldLabel>
+          <textarea name="remark" rows={2} defaultValue={editing?.remark ?? ""} className={input} />
+        </div>
+      </form>
+    </HrmsDialog>
   );
 }
 
@@ -592,57 +575,52 @@ function ToolImportDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(640px,calc(100vw-2rem))] max-h-[88dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">Import tools from a spreadsheet</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
-              <X size={14} />
-            </Dialog.Close>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Import tools from a spreadsheet"
+      width={640}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" size="sm" loading={pending} disabled={parsed.length === 0} onClick={submit}>
+            Import {parsed.length > 0 ? `${parsed.length} ` : ""}tool{parsed.length === 1 ? "" : "s"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-xs text-fg-muted">
+          Copy the rows from Excel (<strong>include the header line</strong>) and paste below. Columns recognised:
+          Tool/Equipment Name, Quantity, Specification, Location/Site, Condition, Purchased Date, Remark.
+        </p>
+        <div>
+          <FieldLabel>Owning company</FieldLabel>
+          <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={SELECT_CLASS}>
+            <option value="">—</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </div>
+        <div>
+          <FieldLabel>Paste rows</FieldLabel>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={8}
+            placeholder={"Tool/Equipment Name\tQuantity\tSpecification\tLocation/Site\tCondition\nAdjustable Spaner\t4\tSize 30cm\tPolice Post\tGood"}
+            className={cn(input, "font-mono text-xs whitespace-pre")}
+          />
+        </div>
+        {text.trim() && (
+          <div className="text-xs text-fg-muted">
+            {parsed.length > 0
+              ? <><strong className="text-fg">{parsed.length}</strong> row{parsed.length === 1 ? "" : "s"} ready · first: <span className="text-fg">{parsed[0].name}</span></>
+              : "No rows detected — make sure the first line is the header."}
           </div>
-          <div className="p-5 space-y-3">
-            <p className="text-xs text-fg-muted">
-              Copy the rows from Excel (<strong>include the header line</strong>) and paste below. Columns recognised:
-              Tool/Equipment Name, Quantity, Specification, Location/Site, Condition, Purchased Date, Remark.
-            </p>
-            <div>
-              <label className={label}>Owning company</label>
-              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={input}>
-                <option value="">—</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={label}>Paste rows</label>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={8}
-                placeholder={"Tool/Equipment Name\tQuantity\tSpecification\tLocation/Site\tCondition\nAdjustable Spaner\t4\tSize 30cm\tPolice Post\tGood"}
-                className={cn(input, "font-mono text-xs whitespace-pre")}
-              />
-            </div>
-            {text.trim() && (
-              <div className="text-xs text-fg-muted">
-                {parsed.length > 0
-                  ? <><strong className="text-fg">{parsed.length}</strong> row{parsed.length === 1 ? "" : "s"} ready · first: <span className="text-fg">{parsed[0].name}</span></>
-                  : "No rows detected — make sure the first line is the header."}
-              </div>
-            )}
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="button" size="sm" loading={pending} disabled={parsed.length === 0} onClick={submit}>
-                Import {parsed.length > 0 ? `${parsed.length} ` : ""}tool{parsed.length === 1 ? "" : "s"}
-              </Button>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        )}
+      </div>
+    </HrmsDialog>
   );
 }

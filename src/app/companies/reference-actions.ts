@@ -3,16 +3,17 @@
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
 import { people, sites, jobTitles } from "@/db/schema";
-import { eq, ilike } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-/** Escape SQL LIKE/ILIKE wildcards so a free-text value containing % or _ matches
- *  only itself (case-insensitively) when we re-point people's role text. Without
- *  this, a role like "Manager_HR" would wildcard-match the wrong people. */
-function likeEscape(s: string): string {
-  return s.replace(/[\\%_]/g, (c) => "\\" + c);
+/** Match people whose role text equals `name` ignoring surrounding whitespace and
+ *  case — mirrors how getRolesAdmin counts them (lower(trim(role))). A raw ILIKE
+ *  would skip padded rows (" Manager "), leaving stale role text after a
+ *  rename/merge even though the count promised they'd be touched. */
+function roleMatches(name: string) {
+  return sql`lower(trim(${people.role})) = ${name.trim().toLowerCase()}`;
 }
 
 function revalidate() {
@@ -105,7 +106,7 @@ export async function renameRole(id: number, name: string): Promise<Result> {
   try {
     await db.transaction(async (tx) => {
       await tx.update(jobTitles).set({ name: clean }).where(eq(jobTitles.id, id));
-      if (oldName) await tx.update(people).set({ role: clean }).where(ilike(people.role, likeEscape(oldName)));
+      if (oldName) await tx.update(people).set({ role: clean }).where(roleMatches(oldName));
     });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not rename the job title." };
@@ -124,7 +125,7 @@ export async function mergeRoles(fromId: number, intoId: number): Promise<Result
   try {
     await db.transaction(async (tx) => {
       if (from?.name && into?.name) {
-        await tx.update(people).set({ role: into.name as string }).where(ilike(people.role, likeEscape(from.name as string)));
+        await tx.update(people).set({ role: into.name as string }).where(roleMatches(from.name as string));
       }
       await tx.delete(jobTitles).where(eq(jobTitles.id, fromId));
     });

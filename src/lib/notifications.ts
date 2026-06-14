@@ -9,7 +9,7 @@ import { sendToRecipient } from "./push";
  * the bell in each pill.
  * ------------------------------------------------------------------ */
 
-export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention";
+export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "leave";
 
 export type Notification = {
   id: number;
@@ -32,7 +32,13 @@ export function personRecipient(personId: number): string {
 export async function recipientForCreatedBy(by: string | null): Promise<string | null> {
   if (!by) return null;
   if (by === "web-ui" || by === "ai-command" || by === "meeting-mode") return "admin";
-  const name = by.startsWith("portal-mgr:") ? by.slice(11) : by.startsWith("portal:") ? by.slice(7) : null;
+  const name = by.startsWith("portal-dir:")
+    ? by.slice(11)
+    : by.startsWith("portal-mgr:")
+      ? by.slice(11)
+      : by.startsWith("portal:")
+        ? by.slice(7)
+        : null;
   if (!name) return null;
   const { data } = await sb.from("people").select("id").ilike("name", name).maybeSingle();
   return data ? personRecipient(data.id as number) : null;
@@ -62,8 +68,10 @@ export async function notifyPinned(taskId: number, code: string, actor: string, 
 export async function createNotification(input: {
   recipient: string;
   kind: NotifKind;
-  taskId: number;
-  taskCode: string;
+  // Task notifications carry a task; task-less ones (e.g. a leave request)
+  // leave these null and deep-link to the surface below.
+  taskId?: number | null;
+  taskCode?: string | null;
   title: string;
   body?: string | null;
   actor?: string | null;
@@ -72,21 +80,28 @@ export async function createNotification(input: {
     await sb.from("notifications").insert({
       recipient: input.recipient,
       kind: input.kind,
-      task_id: input.taskId,
-      task_code: input.taskCode,
+      task_id: input.taskId ?? null,
+      task_code: input.taskCode ?? null,
       title: input.title,
       body: (input.body ?? "").slice(0, 200) || null,
       actor: input.actor ?? null,
       created_at: new Date().toISOString(),
     });
     // Push to the recipient's phone(s) too (T4b). Best-effort, no-op if push
-    // isn't configured or they have no devices registered.
-    const url = input.recipient === "admin" ? `/task/${input.taskCode}` : `/portal/task/${input.taskCode}`;
+    // isn't configured or they have no devices registered. Task-less notifs
+    // open the relevant surface (the owner's leave page / the staff portal).
+    const url = input.taskCode
+      ? input.recipient === "admin"
+        ? `/task/${input.taskCode}`
+        : `/portal/task/${input.taskCode}`
+      : input.recipient === "admin"
+        ? `/hrms/leave`
+        : `/portal/profile`;
     await sendToRecipient(input.recipient, {
       title: input.title,
       body: input.body ?? "",
       url,
-      tag: `task-${input.taskCode}`,
+      tag: input.taskCode ? `task-${input.taskCode}` : `notif-${input.kind}`,
     });
   } catch {
     /* swallow — best effort */

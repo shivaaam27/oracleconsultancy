@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
 import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
+import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { getJourney } from "@/lib/onboarding";
-import { teamAttendanceToday } from "@/lib/attendance";
+import { teamAttendanceToday, personAttendanceToday } from "@/lib/attendance";
 import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +84,11 @@ export default async function PortalHome() {
   const me = (await getPortalPerson())!;
   // Directors are board-first — send them to their operator board.
   if (me.portalRole === "director") redirect("/portal/board");
+
+  // The once-a-day check-in pop-up lives here (home only) so it can't pop over
+  // other portal surfaces or run a query on every navigation. Directors never
+  // reach this point (redirected above).
+  const today = await personAttendanceToday(me.id);
 
   // My own tasks; managers also see their direct reports' tasks.
   const ids = await visibleTaskIds(me);
@@ -188,6 +194,7 @@ export default async function PortalHome() {
   return (
     <div className="flex flex-col gap-5">
       <AutoRefresh seconds={25} />
+      <AttendanceCheckin firstName={me.name.split(" ")[0]} status={today.status} editable={today.editable} />
       <Reveal delay={0}>
         <Hero
           title={`Hello, ${me.name.split(" ")[0]}`}
@@ -253,7 +260,7 @@ export default async function PortalHome() {
           <SectionLabel icon={<Users size={13} />}>My team</SectionLabel>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {teamMembers.map((m) => (
-              <Link key={m.id} href={`/portal/chat`} className="block group">
+              <Link key={m.id} href={`/portal/chat?dm=${m.id}`} className="block group">
                 <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-accent/40">
                   <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft/60 text-accent text-xs font-semibold ring-1 ring-accent/20">
                     {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}

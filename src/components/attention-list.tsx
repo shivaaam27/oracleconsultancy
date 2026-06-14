@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { CountPill } from "./ui";
 import { type PillTone } from "./macos";
 import { SwipeRow } from "./swipe-row";
 import { spring } from "@/lib/motion";
@@ -82,7 +83,7 @@ export function AttentionList({
 
   // Runs the configured swipe action for a row. Effective per Settings.
   async function runAction(action: SwipeAction, t: AttnItem) {
-    if (action === "open") { router.push(`/task/${t.code}`); return; }
+    if (action === "open") { open(t.code); return; }
     if (action === "update") { open(t.code); return; }
     if (action === "none") return;
 
@@ -124,9 +125,7 @@ export function AttentionList({
         >
           <Sparkles size={12} /> Attention today
           {items.length > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-danger-soft/70 text-danger text-[11px] font-semibold tabular normal-case">
-              {items.length}
-            </span>
+            <CountPill count={items.length} tone="danger" className="normal-case" />
           )}
           {items.length > 0 && (
             <ChevronDown size={14} className={cn("ml-auto text-fg-subtle transition-transform", collapsed && "-rotate-90")} />

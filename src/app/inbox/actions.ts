@@ -91,7 +91,29 @@ export async function pendingInboxCount(): Promise<number> {
   return count ?? 0;
 }
 
+/**
+ * Delete a bundle's stored attachment objects from the bucket. Only touches our
+ * own `inbox/` uploads (never a forwarded-email url, which we don't own) so that
+ * filing/dismissing a bundle doesn't leave orphaned files behind — Process copies
+ * them into the document's own path, so the inbox copy is no longer needed.
+ */
+async function removeInboxAttachments(id: number): Promise<void> {
+  const { data } = await sb.from("inbox").select("attachments").eq("id", id).maybeSingle();
+  const atts = parseAttachments((data?.attachments as string | null) ?? null);
+  const paths = atts
+    .map((a) => a.storagePath)
+    .filter((p): p is string => !!p && p.startsWith("inbox/"));
+  if (paths.length) {
+    try {
+      await sb.storage.from(DOCUMENTS_BUCKET).remove(paths);
+    } catch {
+      /* best-effort cleanup — never block the status change on it */
+    }
+  }
+}
+
 export async function dismissInboxItem(id: number): Promise<void> {
+  await removeInboxAttachments(id);
   await sb.from("inbox").update({ status: "dismissed" }).eq("id", id);
   revalidatePath("/inbox");
 }
@@ -109,6 +131,10 @@ export async function markInboxFiled(
   filedKind: "task" | "note" | "documents",
   filedRef: string
 ): Promise<void> {
+  // The files have been re-saved into their own document paths by Process, so the
+  // bundle's `inbox/` copies are now redundant — clean them up to avoid storing
+  // the same file twice.
+  await removeInboxAttachments(id);
   await sb
     .from("inbox")
     .update({ status: "filed", filed_kind: filedKind, filed_ref: filedRef, filed_at: new Date().toISOString() })

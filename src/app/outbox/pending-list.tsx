@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
 import { OutboxCard } from "./outbox-card";
-import { Card } from "@/components/ui";
+import { Card, CountPill } from "@/components/ui";
 import { Search, X } from "lucide-react";
 
 type Filter = "all" | "critical" | "overdue" | "missing";
@@ -158,9 +158,7 @@ function Chip({
       disabled={count === 0}
       className={`inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 text-[11px] rounded-full transition-all backdrop-blur-md hover:shadow-sm ${cls}`}
     >
-      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-elev/50 font-semibold tabular">
-        {count}
-      </span>
+      <CountPill count={count} tone={tone === "danger" ? "danger" : "default"} />
       <span className="font-medium">{label}</span>
     </button>
   );

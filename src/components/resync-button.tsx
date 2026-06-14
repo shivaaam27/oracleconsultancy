@@ -38,9 +38,9 @@ export function ResyncLatestUpdateButton() {
         type="button"
         onClick={() => setConfirming(true)}
         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors border border-border"
-        title="Re-derive tasks.latest_update from task_updates (use if the header callout has drifted)"
+        title="Rebuild the short 'latest note' summary shown on each task from its full update history"
       >
-        <RefreshCcw size={12} /> Resync latest-update mirror
+        <RefreshCcw size={12} /> Rebuild task summaries
       </button>
     );
   }
@@ -48,7 +48,7 @@ export function ResyncLatestUpdateButton() {
   return (
     <div className="inline-flex items-center gap-1.5 text-xs">
       <AlertTriangle size={12} className="text-warn" />
-      <span className="text-fg-muted">Re-derive every task's latest_update?</span>
+      <span className="text-fg-muted">Rebuild every task&apos;s latest-note summary?</span>
       <Button
         type="button"
         size="sm"

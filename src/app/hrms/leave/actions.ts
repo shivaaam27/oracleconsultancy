@@ -168,6 +168,31 @@ function dayMidnightISO(dateStr: string): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/** Write one attendance row from the admin register: insert keeps the original
+ *  created_at; an override updates only status/note/updated_at so the original
+ *  insert timestamp survives, and the provenance note is stamped 'web-ui' so an
+ *  admin correction can't masquerade as a staff self-report ('portal:<Name>'). */
+async function writeAttendanceRow(personId: number, iso: string, status: string): Promise<{ error?: string }> {
+  const now = new Date().toISOString();
+  const { data: existing } = await sb
+    .from("attendance")
+    .select("id")
+    .eq("person_id", personId)
+    .eq("date", iso)
+    .maybeSingle();
+  if (existing) {
+    const { error } = await sb
+      .from("attendance")
+      .update({ status, note: "web-ui", updated_at: now })
+      .eq("id", existing.id);
+    return error ? { error: error.message } : {};
+  }
+  const { error } = await sb
+    .from("attendance")
+    .insert({ person_id: personId, date: iso, status, note: "web-ui", updated_at: now, created_at: now });
+  return error ? { error: error.message } : {};
+}
+
 /** Record (or clear, when status is null) one person's status for one day. */
 export async function recordAttendanceAction(personId: number, dateStr: string, status: string | null): Promise<Result> {
   if (!personId) return { ok: false, error: "No person." };
@@ -177,12 +202,8 @@ export async function recordAttendanceAction(personId: number, dateStr: string, 
     const { error } = await sb.from("attendance").delete().eq("person_id", personId).eq("date", iso);
     if (error) return { ok: false, error: error.message };
   } else {
-    const now = new Date().toISOString();
-    const { error } = await sb.from("attendance").upsert(
-      { person_id: personId, date: iso, status, updated_at: now, created_at: now },
-      { onConflict: "person_id,date" }
-    );
-    if (error) return { ok: false, error: error.message };
+    const { error } = await writeAttendanceRow(personId, iso, status);
+    if (error) return { ok: false, error };
   }
   invalidate();
   return { ok: true };
@@ -194,10 +215,10 @@ export async function bulkRecordAttendanceAction(personIds: number[], dateStr: s
   if (!ids.length) return { ok: false, error: "No people." };
   const iso = dayMidnightISO(dateStr);
   if (!iso) return { ok: false, error: "Bad date." };
-  const now = new Date().toISOString();
-  const rows = ids.map((person_id) => ({ person_id, date: iso, status, updated_at: now, created_at: now }));
-  const { error } = await sb.from("attendance").upsert(rows, { onConflict: "person_id,date" });
-  if (error) return { ok: false, error: error.message };
+  for (const personId of ids) {
+    const { error } = await writeAttendanceRow(personId, iso, status);
+    if (error) return { ok: false, error };
+  }
   invalidate();
   return { ok: true };
 }

@@ -11,6 +11,10 @@ export const dynamic = "force-dynamic";
 /** Display name + management flag for a created_by stamp. */
 function authorOf(by: string | null, myName: string): { name: string; management: boolean; me: boolean } {
   if (!by) return { name: "System", management: false, me: false };
+  if (by.startsWith("portal-dir:")) {
+    const n = by.slice(11);
+    return { name: n === myName ? "You" : n, management: true, me: n === myName };
+  }
   if (by.startsWith("portal-mgr:")) {
     const n = by.slice(11);
     return { name: n === myName ? "You" : n, management: true, me: n === myName };
@@ -85,9 +89,11 @@ export default async function PortalActivity() {
         <Hero
           title="Activity"
           subtitle={
-            me.portalRole === "manager"
-              ? "Every update across your tasks and your team's tasks."
-              : "Every update across your tasks, newest first."
+            me.portalRole === "director"
+              ? "Every update across the group, newest first."
+              : me.portalRole === "manager"
+                ? "Every update across your tasks and your team's tasks."
+                : "Every update across your tasks, newest first."
           }
         />
       </Reveal>

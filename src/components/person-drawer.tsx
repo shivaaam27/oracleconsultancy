@@ -2,16 +2,17 @@
 
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
   LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake, Users,
+  Rocket, LogOut, ListPlus,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
+import { HrmsDialog } from "./hrms/hrms-dialog";
 import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel } from "./drawer-kit";
 import { CompanyDrawerLink } from "./company-drawer-link";
 import { StaffIdChip } from "./staff-id-chip";
@@ -20,6 +21,7 @@ import { PersonForm } from "./person-form";
 import { PersonPackPanel } from "./person-pack-builder";
 import { RequirementsChecklist } from "./requirements-checklist";
 import { DocumentForm } from "./document-form";
+import { NewTaskForm } from "@/app/task/new/new-task-form";
 import { JourneyChecklist } from "./journey-checklist";
 import { PersonAssets } from "./person-assets";
 import { Badge, Button } from "./ui";
@@ -241,6 +243,10 @@ export function PersonDrawer() {
   const [error, setError] = useState(false);
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [activeTab, setActiveTab] = useState("overview");
+  // Which lifecycle journey the Journey tab is showing. Defaults to the
+  // lifecycle-relevant one (onboarding while active, offboarding once archived)
+  // but you can switch to view/prepare the other regardless of active state.
+  const [journeyKind, setJourneyKind] = useState<"onboarding" | "offboarding">("onboarding");
   const [packOpen, setPackOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [snoozeInput, setSnoozeInput] = useState<string>("");
@@ -250,6 +256,9 @@ export function PersonDrawer() {
   // In-place "add document" — layered over the person so the flow stays
   // immersive (no navigation to /documents, no background page switch).
   const [addDoc, setAddDoc] = useState<{ title?: string; category: string | null } | null>(null);
+  // In-place "new task" — opens the standard NewTaskForm layered over the
+  // person, with their name + company pre-filled (the commonest HR action).
+  const [newTask, setNewTask] = useState(false);
   // Headline summaries reported up by the section components, for the hero tiles.
   const [compSum, setCompSum] = useState<{ score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number } | null>(null);
   const [journeySum, setJourneySum] = useState<{ completed: number; total: number } | null>(null);
@@ -276,6 +285,8 @@ export function PersonDrawer() {
       .then((d: DrawerData) => {
         setData(d);
         setLoading(false);
+        // Default the Journey tab to the lifecycle-relevant journey.
+        setJourneyKind(d.person.active ? "onboarding" : "offboarding");
         // Seed snooze input from current value (YYYY-MM-DD)
         if (d.person.snoozedUntil) {
           setSnoozeInput(d.person.snoozedUntil.slice(0, 10));
@@ -286,16 +297,32 @@ export function PersonDrawer() {
   }, [idStr, refreshKey]);
 
   // Reset to view mode + Overview whenever a new person opens
-  useEffect(() => { setMode("view"); setActiveTab("overview"); setRemindInfo(null); setPackOpen(openPack); }, [idStr, openPack]);
+  useEffect(() => { setMode("view"); setActiveTab("overview"); setRemindInfo(null); setPackOpen(openPack); setNewTask(false); setAddDoc(null); }, [idStr, openPack]);
 
   const refresh = () => setRefreshKey((k) => k + 1);
+
+  // After creating a task from the in-place dialog, createTask redirects back to
+  // this URL carrying ?taskcreated=… — pick that up, close the dialog, refresh
+  // the drawer's data (Tasks tab + Open tile), then strip the one-shot marker.
+  const taskCreated = searchParams.get("taskcreated");
+  useEffect(() => {
+    if (!taskCreated) return;
+    setNewTask(false);
+    refresh();
+    toast("Task created.", { tone: "success" });
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("taskcreated");
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskCreated]);
 
   // Open a person document's stored file in place (new tab); fall back to the
   // Documents centre when there's no attached file.
   const openDocFile = async (docId: number) => {
     const res = await getDocumentFileLinkAction(docId);
     if (res.ok) window.open(res.url, "_blank", "noopener,noreferrer");
-    else router.push(`/documents?person=${person?.id ?? ""}`);
+    else router.push(`/documents?person=${person?.id ?? ""}&from=person:${person?.id ?? ""}`);
   };
 
   const handleArchiveToggle = async () => {
@@ -661,7 +688,7 @@ export function PersonDrawer() {
             const doc = docFor(kind);
             if (!doc) return undefined;
             return (
-              <Link href={`/documents?person=${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent hover:underline max-w-full">
+              <Link href={`/documents?person=${person.id}&from=person:${person.id}`} onClick={close} title={`On file: ${doc.title}`} className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent hover:underline max-w-full">
                 <FileText size={10} className="shrink-0" /><span className="truncate">{value ? doc.title : `${doc.title} — on file`}</span>
               </Link>
             );
@@ -768,9 +795,9 @@ export function PersonDrawer() {
           </div>
           <div>
             <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Snooze reminders</div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input type="date" value={snoozeInput} onChange={(e) => setSnoozeInput(e.target.value)} min={new Date().toISOString().slice(0, 10)} disabled={actionPending}
-                className="flex-1 rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50" />
+                className="flex-1 min-w-[8.5rem] rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50" />
               <Button type="button" size="sm" onClick={handleSnoozeSave} disabled={actionPending}>Save</Button>
             </div>
             {person.snoozedUntil && <p className="text-[11px] text-fg-subtle mt-1">Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.</p>}
@@ -819,7 +846,30 @@ export function PersonDrawer() {
         { id: "compliance", label: "Compliance", icon: <ShieldCheck size={14} />, badge: compSum?.missing || undefined,
           content: <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /> },
         { id: "journey", label: person.active ? "Journey" : "Exit", icon: <RouteIcon size={14} />,
-          content: <div className="space-y-3"><JourneyChecklist personId={person.id} kind={person.active ? "onboarding" : "offboarding"} onChanged={refresh} onNavigate={close} onSummary={setJourneySum} /><PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} /></div> },
+          content: (() => {
+            // The lifecycle-relevant journey drives the Overview tile; the other
+            // one stays viewable (prep offboarding while active; keep onboarding
+            // visible after archive) but doesn't override that headline count.
+            const lifecycleKind = person.active ? "onboarding" : "offboarding";
+            return (
+              <div className="space-y-3">
+                <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-bg-subtle ring-1 ring-border/60 text-[11px]">
+                  {(["onboarding", "offboarding"] as const).map((k) => (
+                    <button key={k} type="button" onClick={() => setJourneyKind(k)}
+                      className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full transition-colors",
+                        journeyKind === k ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg")}>
+                      {k === "onboarding" ? <Rocket size={11} /> : <LogOut size={11} />}
+                      {k === "onboarding" ? "Onboarding" : "Offboarding"}
+                      {k === lifecycleKind && journeyKind !== k && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+                    </button>
+                  ))}
+                </div>
+                <JourneyChecklist key={journeyKind} personId={person.id} kind={journeyKind} onChanged={refresh} onNavigate={close}
+                  onSummary={journeyKind === lifecycleKind ? setJourneySum : undefined} />
+                <PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} />
+              </div>
+            );
+          })() },
         { id: "leave", label: "Leave", icon: <CalendarDays size={14} />, badge: pendingLeave || undefined,
           content: <PersonLeave personId={person.id} balances={data.leave.balances} requests={data.leave.requests} attendance={data.leave.attendance} onChanged={refresh} /> },
         { id: "tasks", label: "Tasks", icon: <ListTodo size={14} />, badge: openTasks || undefined, content: tasksContent },
@@ -847,6 +897,7 @@ export function PersonDrawer() {
         </Button>
         <div className="ml-auto flex items-center gap-1.5">
           {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
+          <IconButton icon={<ListPlus size={15} />} label="New task" onClick={() => setNewTask(true)} />
           <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href={`/chat?dm=${person.id}`} />
           <IconButton icon={<FileText size={15} />} label="Add document" onClick={() => setAddDoc({ category: null })} />
         </div>
@@ -865,6 +916,7 @@ export function PersonDrawer() {
       error={error}
       errorLabel="Couldn't load person."
       maxWidth="600px"
+      fullScreenOnMobile
       hero={heroNode}
       tabs={tabs}
       activeTab={activeTab}
@@ -874,48 +926,63 @@ export function PersonDrawer() {
 
     {/* In-place "Add document" — layered above the person, so the flow stays
         immersive: no navigation to /documents, no background page switch. On
-        save the checklist + tiles refresh in place via refreshKey. */}
+        save the checklist + tiles refresh in place via refreshKey. The shared
+        HrmsDialog gives a centred glass card on desktop and a bottom-sheet on
+        mobile, matching every other dialog. */}
     {person && data && (
-      <Dialog.Root open={!!addDoc} onOpenChange={(o) => { if (!o) setAddDoc(null); }}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm
-            data-[state=open]:animate-in data-[state=open]:fade-in-0
-            data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-          <Dialog.Content
-            aria-describedby={undefined}
-            className="fixed left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2
-              w-[min(560px,calc(100vw-1.5rem))] max-h-[88dvh] flex flex-col overflow-hidden
-              glass glass-refract rounded-2xl outline-none
-              data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
-              data-[state=closed]:animate-out data-[state=closed]:zoom-out-95"
-          >
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
-              <Dialog.Title className="text-sm font-semibold truncate">Add a document for {person.name}</Dialog.Title>
-              <Dialog.Close asChild>
-                <button type="button" aria-label="Close"
-                  className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors">
-                  <X size={14} />
-                </button>
-              </Dialog.Close>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              {addDoc && (
-                <DocumentForm
-                  mode="create"
-                  companies={data.companies}
-                  people={data.peopleList.map((p) => ({ id: p.id, name: p.name }))}
-                  initialPersonId={person.id}
-                  initialCategory={addDoc.category}
-                  initialTitle={addDoc.title}
-                  onCancel={() => setAddDoc(null)}
-                  onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setAddDoc(null); refresh(); } }}
-                />
-              )}
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <HrmsDialog
+        open={!!addDoc}
+        onOpenChange={(o) => { if (!o) setAddDoc(null); }}
+        width={560}
+        title={`Add a document for ${person.name}`}
+      >
+        {addDoc && (
+          <DocumentForm
+            mode="create"
+            companies={data.companies}
+            people={data.peopleList.map((p) => ({ id: p.id, name: p.name }))}
+            initialPersonId={person.id}
+            initialCategory={addDoc.category}
+            initialTitle={addDoc.title}
+            onCancel={() => setAddDoc(null)}
+            onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setAddDoc(null); refresh(); } }}
+          />
+        )}
+      </HrmsDialog>
     )}
+
+    {/* In-place "New task" — the standard create form layered above the person,
+        with their name + company pre-filled. createTask redirects back here with
+        ?taskcreated=… which the effect above turns into a refresh. The shared
+        HrmsDialog gives a centred glass card on desktop and a bottom-sheet on
+        mobile; the -m-5 wrapper cancels the dialog's body padding so the modal
+        form keeps owning its own scroll area + sticky "Create task" footer. */}
+    {person && data && (() => {
+      const taskReturnParams = new URLSearchParams(searchParams.toString());
+      taskReturnParams.set("taskcreated", String(Date.now()));
+      const taskReturnTo = `${pathname}?${taskReturnParams.toString()}`;
+      return (
+        <HrmsDialog
+          open={newTask}
+          onOpenChange={(o) => { if (!o) setNewTask(false); }}
+          width={640}
+          title={`New task for ${person.name}`}
+        >
+          {newTask && (
+            <div className="-m-5 flex min-h-full flex-col">
+              <NewTaskForm
+                variant="modal"
+                companies={data.companies}
+                people={data.peopleList.map((p) => ({ id: p.id, name: p.name }))}
+                presetCompany={person.companyId ?? undefined}
+                defaultAccountable={[person.name]}
+                returnTo={taskReturnTo}
+              />
+            </div>
+          )}
+        </HrmsDialog>
+      );
+    })()}
     </>
   );
 }

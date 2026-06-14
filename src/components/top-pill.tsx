@@ -7,10 +7,10 @@ import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresen
 import * as Dialog from "@radix-ui/react-dialog";
 import {
   Home, CheckSquare, NotebookPen, Briefcase, Search, X,
-  Send, Inbox, BarChart3, Settings, Plus, Package, Sparkles, Building2, Users, FileText, Laptop, CalendarDays,
-  ClipboardList, Network, CalendarClock, MessageCircle, type LucideIcon,
+  Plus, ClipboardList, MessageCircle, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { NAV_ROUTES } from "@/lib/nav";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { DensityToggle } from "./density-toggle";
@@ -62,23 +62,15 @@ function NavTab({
 /* HRMS/Workbook popovers and the "More" sheet, so the pill stays minimal.  */
 /* --------------------------------------------------------------------- */
 
-const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: "/hrms/command-centre", label: "Tax & Legal", icon: CalendarClock },
-  { href: "/hrms/org", label: "Organogram", icon: Network },
-  { href: "/hrms/oecr", label: "OECR", icon: Package },
-  { href: "/hrms/assets", label: "Assets & Vendors", icon: Laptop },
-  { href: "/hrms/leave", label: "Leave & Attendance", icon: CalendarDays },
-  { href: "/calendar", label: "Calendar", icon: CalendarClock },
-  { href: "/hrms/ocr", label: "OCR", icon: Sparkles },
-  { href: "/companies", label: "Companies", icon: Building2 },
-  { href: "/people", label: "People", icon: Users },
-  { href: "/documents", label: "Documents", icon: FileText },
-  { href: "/letters", label: "Letters & Letterheads", icon: FileText },
-  { href: "/outbox", label: "Outbox", icon: Send },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
-  { href: "/insights", label: "Insights", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+// The launcher grid is derived from the one shared NAV_ROUTES list (lib/nav.ts),
+// so the "Go to" menu, the ⌘K page-jump and the Settings pin list can never
+// drift apart. Workbook lives on its own pill tab, so it's excluded here.
+const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> =
+  NAV_ROUTES.filter((r) => r.href !== "/workbook").map((r) => ({
+    href: r.href,
+    label: r.label,
+    icon: r.icon,
+  }));
 
 function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) {
   const router = useRouter();
@@ -425,7 +417,12 @@ export function TopPill() {
   const briefActive = pathname.startsWith("/brief");
   const workbookActive = pathname.startsWith("/workbook");
   const chatActive = pathname.startsWith("/chat");
-  const hrmsActive = pathname.startsWith("/hrms");
+  // The Menu icon lights for any launcher destination, not just /hrms/* — so its
+  // non-/hrms pages (People, Documents, Companies, Calendar, Letters, Outbox,
+  // Inbox, Insights, Settings) show an active nav item too.
+  const hrmsActive =
+    pathname.startsWith("/hrms") ||
+    DESTINATIONS.some((d) => pathname === d.href || pathname.startsWith(d.href + "/"));
 
   return (
     // On mobile, chat is a full-screen app of its own — the pill steps aside.

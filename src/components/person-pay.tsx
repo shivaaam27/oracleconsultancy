@@ -49,7 +49,7 @@ export function PersonPay({
 
       {open && (
         <div className="space-y-1.5 text-[13px]">
-          <Row label={`Severance · 7 days × ${est.years} yr${est.years === 1 ? "" : "s"}`} value={tzs(est.severance)} />
+          <Row label={`Severance · 7 days × ${est.severanceYears} yr${est.severanceYears === 1 ? "" : "s"}`} value={tzs(est.severance)} />
           <label className="flex items-center justify-between gap-2 cursor-pointer">
             <span className="inline-flex items-center gap-1.5 text-fg-muted">
               <input type="checkbox" checked={notice} onChange={(e) => setNotice(e.target.checked)} className="accent-accent" />

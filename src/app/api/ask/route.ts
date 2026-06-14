@@ -130,6 +130,7 @@ async function buildContext(question: string, page?: PageCtx) {
     .from("todos")
     .select("id,title,due_at,important, companies(name), people(name)")
     .eq("done", false)
+    .is("kind", null) // exclude onboarding/offboarding journey steps (match listTodos)
     .not("due_at", "is", null)
     .lte("due_at", endToday.toISOString())
     .order("due_at", { ascending: true })

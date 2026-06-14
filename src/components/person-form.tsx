@@ -1,16 +1,16 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Loader2, Save, UserPlus, AlertCircle, Plus, X, Sparkles, Upload } from "lucide-react";
+import { Loader2, Save, UserPlus, AlertCircle, Plus, X, Sparkles, Upload, FileCheck } from "lucide-react";
 import { createPerson, updatePerson, extractPersonFields } from "@/app/people/actions";
-import { extractDocumentFromFile } from "@/app/documents/actions";
+import { extractDocumentFromFile, createDocumentAction } from "@/app/documents/actions";
 import type { PersonProfileFields } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 import { submitOnEnterKeyDown, EnterHint, FieldError, invalidFieldClass } from "@/components/form-keys";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, PERSON_TYPE_HINTS, normalizePersonType } from "@/lib/person-types";
 import { STAFF_CATEGORIES } from "@/lib/staff-id-shared";
 import { Combobox } from "@/components/combobox";
-import { Button } from "@/components/ui";
+import { Button, Select, FieldLabel } from "@/components/ui";
 
 const CHANNELS = ["WHATSAPP", "EMAIL", "SMS"] as const;
 
@@ -93,6 +93,17 @@ export function PersonForm({
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState<string | null>(null);
   const scanFileRef = useRef<HTMLInputElement>(null);
+  // After a file scan we keep the file itself so it can ALSO be filed as a
+  // document for this person (one tap) — without re-uploading via Documents.
+  const [scannedFile, setScannedFile] = useState<{
+    file: File;
+    title: string;
+    category: string | null;
+    docType: string | null;
+    expiryDate: string | null;
+  } | null>(null);
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [docSavedNote, setDocSavedNote] = useState<string | null>(null);
 
   // Apply extracted profile fields to EMPTY form fields only (never overwrites).
   // Selects (company / manager) are matched by name to an existing option.
@@ -145,6 +156,8 @@ export function PersonForm({
     if (!scanText.trim()) return;
     setScanning(true);
     setScanNote(null);
+    setScannedFile(null); // a text scan has no file to file as a document
+    setDocSavedNote(null);
     try {
       const res = await extractPersonFields(scanText);
       setScanNote(noteForFill(applyProfileFields(res.fields), res.source));
@@ -158,6 +171,8 @@ export function PersonForm({
   async function scanFileFill(file: File) {
     setScanning(true);
     setScanNote(null);
+    setDocSavedNote(null);
+    setScannedFile(null);
     try {
       const fd = new FormData();
       fd.set("file", file);
@@ -168,9 +183,49 @@ export function PersonForm({
       if (!f.role && res.fields.docType) { /* leave role alone */ }
       const filled = applyProfileFields(f);
       setScanNote(noteForFill(filled, res.source, filled === 0 ? " No personal details were found in this file." : ""));
+      // Keep the file so it can ALSO be filed as this person's document — but only
+      // when editing a saved person (we need their id to set the owner).
+      if (mode === "edit" && id) {
+        setScannedFile({
+          file,
+          title: (res.fields.title || file.name.replace(/\.[^.]+$/, "")).slice(0, 200),
+          category: res.fields.category ?? null,
+          docType: res.fields.docType ?? null,
+          expiryDate: res.fields.expiryDate ?? null,
+        });
+      }
     } finally {
       setScanning(false);
       if (scanFileRef.current) scanFileRef.current.value = "";
+    }
+  }
+
+  // One-tap "Also save as a document" — files the scanned file against this
+  // person via the existing document flow (re-using the extracted category/title/
+  // expiry). Optional + non-blocking; never touches the main person save.
+  async function saveScannedAsDocument() {
+    if (!scannedFile || !id) return;
+    setSavingDoc(true);
+    setDocSavedNote(null);
+    try {
+      const fd = new FormData();
+      fd.set("file", scannedFile.file);
+      fd.set("title", scannedFile.title);
+      fd.set("personId", String(id));
+      if (scannedFile.category) fd.set("category", scannedFile.category);
+      if (scannedFile.docType) fd.set("docType", scannedFile.docType);
+      if (scannedFile.expiryDate) fd.set("expiryDate", scannedFile.expiryDate);
+      const res = await createDocumentAction(fd);
+      if (res.ok) {
+        setDocSavedNote("Saved to this person's documents.");
+        setScannedFile(null);
+      } else {
+        setDocSavedNote(res.error || "Couldn't save the document.");
+      }
+    } catch {
+      setDocSavedNote("Couldn't save the document.");
+    } finally {
+      setSavingDoc(false);
     }
   }
   const [associations, setAssociations] = useState<Association[]>(
@@ -254,7 +309,6 @@ export function PersonForm({
     compact ? "px-2.5 py-1.5" : "px-3 py-2",
     "focus:outline-none focus:ring-2 focus:ring-accent/40"
   );
-  const labelCls = "block text-[10px] uppercase tracking-wider text-fg-subtle mb-1";
   const gap = compact ? "space-y-2.5" : "space-y-4";
 
   return (
@@ -284,13 +338,24 @@ export function PersonForm({
           </div>
           <p className="text-[11px] text-fg-subtle">Reads a passport, ID, CV or contract and fills empty profile fields only.</p>
           {scanNote && <p className="text-xs text-fg-muted">{scanNote}</p>}
+          {scannedFile && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-subtle/40 px-2.5 py-2">
+              <span className="text-[11px] text-fg-muted">Keep this file as a document for this person?</span>
+              <button type="button" onClick={saveScannedAsDocument} disabled={savingDoc}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50">
+                {savingDoc ? <Loader2 size={13} className="animate-spin" /> : <FileCheck size={13} />}
+                {savingDoc ? "Saving…" : "Also save as a document"}
+              </button>
+            </div>
+          )}
+          {docSavedNote && <p className="text-xs text-fg-muted">{docSavedNote}</p>}
         </div>
       </details>
 
       <div className="grid gap-2.5 grid-cols-2">
         {/* Name (required, full width) */}
         <div className="col-span-2">
-          <label className={labelCls}>Name <span className="text-danger">*</span></label>
+          <FieldLabel>Name <span className="text-danger">*</span></FieldLabel>
           <input
             name="name"
             defaultValue={defaults?.name ?? ""}
@@ -303,7 +368,7 @@ export function PersonForm({
 
         {/* Person type — drives whether this is an employee or an external/expat contact */}
         <div className="col-span-2">
-          <label className={labelCls}>Type</label>
+          <FieldLabel>Type</FieldLabel>
           <input type="hidden" name="personType" value={pType} />
           <div className="grid grid-cols-2 gap-1.5">
             {PERSON_TYPES.map((t) => (
@@ -326,37 +391,37 @@ export function PersonForm({
         </div>
 
         <div>
-          <label className={labelCls}>Role / Job title</label>
+          <FieldLabel>Role / Job title</FieldLabel>
           <Combobox name="role" options={roles} defaultValue={defaults?.role ?? ""} className={inputCls} placeholder="e.g. Operations Manager" />
         </div>
 
         <div>
-          <label className={labelCls}>Staff ID category</label>
-          <select name="staffCategory" defaultValue={defaults?.staffCategory ?? ""} className={inputCls}>
+          <FieldLabel>Staff ID category</FieldLabel>
+          <Select name="staffCategory" defaultValue={defaults?.staffCategory ?? ""}>
             {STAFF_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
-          </select>
+          </Select>
           <p className="mt-1 text-[11px] text-fg-subtle">Sets the letter in the staff ID (e.g. CZ-<b>D</b>04). Leave on Auto to read it from the job title.</p>
         </div>
 
         <div>
-          <label className={labelCls}>Department</label>
+          <FieldLabel>Department</FieldLabel>
           <Combobox name="department" options={departments} defaultValue={defaults?.department ?? ""} className={inputCls} placeholder="e.g. Finance" />
         </div>
 
         <div>
-          <label className={labelCls}>Work site</label>
+          <FieldLabel>Work site</FieldLabel>
           <Combobox name="workSite" options={sites} defaultValue={defaults?.workSite ?? ""} className={inputCls} placeholder="e.g. Matongo" />
         </div>
 
         <div>
-          <label className={labelCls}>Residence</label>
+          <FieldLabel>Residence</FieldLabel>
           <Combobox name="residence" options={sites} defaultValue={defaults?.residence ?? ""} className={inputCls} placeholder="e.g. Expat House A" />
         </div>
 
         <div>
-          <label className={labelCls}>Start date</label>
+          <FieldLabel>Start date</FieldLabel>
           <input
             name="startDate"
             type="date"
@@ -367,21 +432,20 @@ export function PersonForm({
         </div>
 
         <div>
-          <label className={labelCls}>Company</label>
-          <select
+          <FieldLabel>Company</FieldLabel>
+          <Select
             name="companyId"
             defaultValue={defaults?.companyId ? String(defaults.companyId) : ""}
-            className={inputCls}
           >
             <option value="">—</option>
             {companies.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div>
-          <label className={labelCls}>Email</label>
+          <FieldLabel>Email</FieldLabel>
           <input
             name="email"
             type="email"
@@ -395,7 +459,7 @@ export function PersonForm({
         </div>
 
         <div>
-          <label className={labelCls}>Phone</label>
+          <FieldLabel>Phone</FieldLabel>
           <input
             name="phone"
             type="tel"
@@ -406,7 +470,7 @@ export function PersonForm({
         </div>
 
         <div>
-          <label className={labelCls}>WhatsApp</label>
+          <FieldLabel>WhatsApp</FieldLabel>
           <input
             name="whatsapp"
             type="tel"
@@ -417,39 +481,36 @@ export function PersonForm({
         </div>
 
         <div>
-          <label className={labelCls}>Preferred channel</label>
-          <select
+          <FieldLabel>Preferred channel</FieldLabel>
+          <Select
             name="preferredChannel"
             defaultValue={defaults?.preferredChannel ?? ""}
-            className={inputCls}
           >
             <option value="">—</option>
             {CHANNELS.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div>
-          <label className={labelCls}>Reports to</label>
-          <select
+          <FieldLabel>Reports to</FieldLabel>
+          <Select
             name="managerId"
             defaultValue={defaults?.managerId ? String(defaults.managerId) : ""}
-            className={inputCls}
           >
             <option value="">— No manager</option>
             {managerOptions.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         {/* Also reports to — secondary / dotted-line managers (organogram) */}
         <div>
-          <label className={labelCls}>Also reports to</label>
-          <select
+          <FieldLabel>Also reports to</FieldLabel>
+          <Select
             value=""
-            className={inputCls}
             onChange={(e) => {
               const v = parseInt(e.target.value, 10);
               if (Number.isInteger(v)) addSecondaryManager(v);
@@ -462,7 +523,7 @@ export function PersonForm({
               .map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
-          </select>
+          </Select>
           {secondaryManagers.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {secondaryManagers.map((mid) => {
@@ -490,22 +551,21 @@ export function PersonForm({
 
         {/* Related person — e.g. an immigration agent ↔ the expat they're helping */}
         <div>
-          <label className={labelCls}>Related to</label>
-          <select
+          <FieldLabel>Related to</FieldLabel>
+          <Select
             name="relatedPersonId"
             defaultValue={defaults?.relatedPersonId ? String(defaults.relatedPersonId) : ""}
-            className={inputCls}
           >
             <option value="">— None</option>
             {relatedOptions.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         {/* Associated companies — extra company links with a relationship label */}
         <div className="col-span-2">
-          <label className={labelCls}>Associated companies</label>
+          <FieldLabel>Associated companies</FieldLabel>
           <div className="space-y-2">
             {associations.length === 0 && (
               <p className="text-xs text-fg-subtle italic">
@@ -552,10 +612,10 @@ export function PersonForm({
 
         {/* Profile details — HR master data. All optional; auto-filled from intake where possible. */}
         <div className="col-span-2 mt-1 border-t border-border/60 pt-2.5">
-          <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-2">Profile details</div>
+          <div className="text-[10px] uppercase tracking-[0.08em] text-fg-subtle mb-2">Profile details</div>
           <div className="grid gap-2.5 grid-cols-2">
             <div>
-              <label className={labelCls}>Date of birth</label>
+              <FieldLabel>Date of birth</FieldLabel>
               <input name="dateOfBirth" type="date" defaultValue={defaults?.dateOfBirth ?? ""}
                 onChange={() => clearFieldError("dateOfBirth")}
                 aria-invalid={!!fieldErrors.dateOfBirth}
@@ -563,31 +623,31 @@ export function PersonForm({
               <FieldError message={fieldErrors.dateOfBirth} />
             </div>
             <div>
-              <label className={labelCls}>Nationality</label>
+              <FieldLabel>Nationality</FieldLabel>
               <input name="nationality" defaultValue={defaults?.nationality ?? ""} className={inputCls} placeholder="e.g. Tanzanian" />
             </div>
             <div>
-              <label className={labelCls}>National ID (NIDA)</label>
+              <FieldLabel>National ID (NIDA)</FieldLabel>
               <input name="nationalId" defaultValue={defaults?.nationalId ?? ""} className={inputCls} placeholder="ID number" />
             </div>
             <div>
-              <label className={labelCls}>Passport number</label>
+              <FieldLabel>Passport number</FieldLabel>
               <input name="passportNo" defaultValue={defaults?.passportNo ?? ""} className={inputCls} placeholder="Passport no." />
             </div>
             <div className="col-span-2">
-              <label className={labelCls}>Address</label>
+              <FieldLabel>Address</FieldLabel>
               <input name="address" defaultValue={defaults?.address ?? ""} className={inputCls} placeholder="Residential address" />
             </div>
             <div>
-              <label className={labelCls}>Emergency contact</label>
+              <FieldLabel>Emergency contact</FieldLabel>
               <input name="emergencyContactName" defaultValue={defaults?.emergencyContactName ?? ""} className={inputCls} placeholder="Name" />
             </div>
             <div>
-              <label className={labelCls}>Emergency phone</label>
+              <FieldLabel>Emergency phone</FieldLabel>
               <input name="emergencyContactPhone" type="tel" defaultValue={defaults?.emergencyContactPhone ?? ""} className={inputCls} placeholder="+255…" />
             </div>
             <div>
-              <label className={labelCls}>Probation ends</label>
+              <FieldLabel>Probation ends</FieldLabel>
               <input name="probationEndDate" type="date" defaultValue={defaults?.probationEndDate ?? ""}
                 onChange={() => clearFieldError("probationEndDate")}
                 aria-invalid={!!fieldErrors.probationEndDate}
@@ -595,24 +655,24 @@ export function PersonForm({
               <FieldError message={fieldErrors.probationEndDate} />
             </div>
             <div>
-              <label className={labelCls}>Wage (TZS)</label>
+              <FieldLabel>Wage (TZS)</FieldLabel>
               <input name="wageAmount" type="text" inputMode="decimal" defaultValue={defaults?.wageAmount != null ? String(defaults.wageAmount) : ""}
                 placeholder="e.g. 800000" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Wage basis</label>
-              <select name="wageBasis" defaultValue={defaults?.wageBasis ?? ""} className={inputCls}>
+              <FieldLabel>Wage basis</FieldLabel>
+              <Select name="wageBasis" defaultValue={defaults?.wageBasis ?? ""}>
                 <option value="">—</option>
                 <option value="monthly">Per month</option>
                 <option value="daily">Per day</option>
                 <option value="hourly">Per hour</option>
-              </select>
+              </Select>
             </div>
           </div>
         </div>
 
         <div className="col-span-2">
-          <label className={labelCls}>Notes</label>
+          <FieldLabel>Notes</FieldLabel>
           <textarea
             name="notes"
             defaultValue={defaults?.notes ?? ""}

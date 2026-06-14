@@ -119,6 +119,10 @@ export async function enrichCompanyProfile(
     if (error) throw new Error(error.message);
     revalidatePath(`/companies/${companyId}`);
     revalidatePath("/letters");
+    // Parity with the person enrich path so the Documents centre + Home reflect
+    // the updated company profile without a manual reload.
+    revalidatePath("/documents");
+    revalidatePath("/");
     return { ok: true, filled };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update the profile." };

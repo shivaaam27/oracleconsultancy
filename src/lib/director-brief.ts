@@ -172,10 +172,14 @@ async function buildHrBrief(
   const [{ data: pplRows }, scores, leave, pendingReqs, leaveLiability, sickLeaveCost] = await Promise.all([
     sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date,date_of_birth").eq("active", true),
     buildPersonRequirementScores(),
-    leaveMetrics(),
+    // When the Brief is filtered to one company, the leave money + on-leave-today
+    // figures must scope to that company too (they used to stay portfolio-wide,
+    // so a single-company Brief showed one company's headcount but all 7
+    // companies' leave liability / sick cost / on-leave count).
+    leaveMetrics(selectedCompanyId),
     listLeaveRequests({ status: "Pending" }),
-    portfolioLeaveLiability(),
-    portfolioSickLeaveCost(),
+    portfolioLeaveLiability(selectedCompanyId),
+    portfolioSickLeaveCost(selectedCompanyId),
   ]);
 
   let people = (pplRows ?? []).map((p) => ({

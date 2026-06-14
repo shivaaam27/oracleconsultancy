@@ -113,7 +113,12 @@ export function PortalLeave({
             <select name="leaveTypeId" required defaultValue=""
               className="w-full rounded-md bg-bg-elev text-sm ring-1 ring-border px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-accent/40">
               <option value="" disabled>Leave type…</option>
-              {balances.map((b) => <option key={b.typeId} value={b.typeId}>{b.typeName}</option>)}
+              {/* Only types you actually have an allowance for — matches the
+                  balances panel, so staff can't pick a zero-allowance type. */}
+              {capped.map((b) => {
+                const remaining = b.remaining ?? b.entitlement;
+                return <option key={b.typeId} value={b.typeId}>{b.typeName} ({remaining} left)</option>;
+              })}
             </select>
             <div className="flex items-center gap-2">
               <input type="date" name="startDate" required className="flex-1 rounded-md bg-bg-elev text-xs ring-1 ring-border px-2 py-2" />

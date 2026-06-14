@@ -8,7 +8,7 @@ import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/p
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
-import { returnAssetsForPerson } from "@/lib/assets";
+import { returnAssetsForPerson, clearCustodianForPerson } from "@/lib/assets";
 import { getGroqKey } from "@/lib/settings";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
@@ -58,14 +58,25 @@ function dateField(formData: FormData, key: string): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-/** Resolve a department by name, creating it if new. Returns its id (or null). */
-async function resolveDepartmentId(formData: FormData): Promise<number | null> {
-  const name = s(formData, "department");
-  if (!name) return null;
-  const { data: existing } = await sb.from("departments").select("id").eq("name", name).maybeSingle();
+/**
+ * Resolve a department by name, creating it ONLY if it genuinely doesn't exist.
+ * Matches case-insensitively (.ilike) so typing "finance" when "Finance" exists
+ * re-uses the existing row instead of spawning a duplicate department — the same
+ * guard the Companies-hub admin uses. Used by the person form, bulk set-field and
+ * intake enrichment so all three stay consistent.
+ */
+async function resolveDepartmentByName(name: string | null): Promise<number | null> {
+  const clean = name?.trim();
+  if (!clean) return null;
+  const { data: existing } = await sb.from("departments").select("id").ilike("name", clean).maybeSingle();
   if (existing) return existing.id as number;
-  const { data: created } = await sb.from("departments").insert({ name }).select("id").single();
+  const { data: created } = await sb.from("departments").insert({ name: clean }).select("id").single();
   return (created?.id as number | undefined) ?? null;
+}
+
+/** Resolve the form's "department" field to an id (creating it if new). */
+async function resolveDepartmentId(formData: FormData): Promise<number | null> {
+  return resolveDepartmentByName(s(formData, "department"));
 }
 
 /** Parse the associations field (JSON array of {companyId, relationship}) submitted by the form. */
@@ -114,18 +125,60 @@ function parseSecondaryManagers(formData: FormData): number[] {
 }
 
 /**
+ * Walk up a starting person's PRIMARY-manager chain (people.manager_id) and report
+ * whether it reaches `target`. Used to reject a secondary ("also reports to") link
+ * that would close a reporting loop (A reports to B while B already reports to A).
+ * Bounded so a pre-existing data loop can't spin forever.
+ */
+async function primaryChainReaches(startId: number, target: number): Promise<boolean> {
+  let current: number | null = startId;
+  const visited = new Set<number>();
+  for (let i = 0; i < 50 && current != null; i++) {
+    if (current === target) return true;
+    if (visited.has(current)) break; // guard against an existing data loop
+    visited.add(current);
+    const { data }: { data: { manager_id: number | null } | null } = await sb
+      .from("people")
+      .select("manager_id")
+      .eq("id", current)
+      .maybeSingle();
+    current = data?.manager_id ?? null;
+  }
+  return false;
+}
+
+/**
  * Replace a person's secondary (dotted-line) reporting links. The PRIMARY manager
  * lives on people.manager_id and is excluded here to avoid a duplicate solid+dotted
  * line; a person can't report to themselves either.
+ *
+ * Rejects a manager that would create a reporting CYCLE — i.e. a manager who
+ * already reports (via their primary chain) to this person. Without this guard the
+ * cycle saves and the org chart silently drops the edge, reading as a lost change.
  */
-async function syncReportingLines(personId: number, managerIds: number[], primaryManagerId: number | null) {
-  await sb.from("reporting_lines").delete().eq("person_id", personId);
+async function syncReportingLines(
+  personId: number,
+  managerIds: number[],
+  primaryManagerId: number | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const seen = new Set<number>();
-  const rows = managerIds
-    .filter((mid) => mid !== personId && mid !== primaryManagerId && !seen.has(mid) && (seen.add(mid), true))
-    .map((mid) => ({ person_id: personId, manager_id: mid }));
-  if (rows.length === 0) return;
-  await sb.from("reporting_lines").insert(rows);
+  const wanted = managerIds.filter(
+    (mid) => mid !== personId && mid !== primaryManagerId && !seen.has(mid) && (seen.add(mid), true)
+  );
+  for (const mid of wanted) {
+    if (await primaryChainReaches(mid, personId)) {
+      const { data: mgr } = await sb.from("people").select("name").eq("id", mid).maybeSingle();
+      const who = (mgr?.name as string | null) ?? "That manager";
+      return {
+        ok: false,
+        error: `${who} already reports to this person, so adding them as a manager would create a loop. Remove one of the links first.`,
+      };
+    }
+  }
+  await sb.from("reporting_lines").delete().eq("person_id", personId);
+  const rows = wanted.map((mid) => ({ person_id: personId, manager_id: mid }));
+  if (rows.length) await sb.from("reporting_lines").insert(rows);
+  return { ok: true };
 }
 
 function invalidate() {
@@ -541,9 +594,24 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   }
 
   await syncAssociations(id, parseAssociations(formData));
-  await syncReportingLines(id, parseSecondaryManagers(formData), safeManagerId);
+  const lineRes = await syncReportingLines(id, parseSecondaryManagers(formData), safeManagerId);
+  if (!lineRes.ok) return { ok: false, error: lineRes.error };
+
   // Reconcile the checklist to the (possibly changed) type.
-  try { await ensurePersonRequirements(id, normalizePersonType(personType(formData))); } catch {}
+  const newType = normalizePersonType(personType(formData));
+  try { await ensurePersonRequirements(id, newType); } catch {}
+
+  // Recruit → hire: a Candidate (or other non-onboarding type) changing INTO a
+  // staff type starts their onboarding journey, the same as a fresh hire. Without
+  // this the standard add-as-candidate-then-promote path never gets a journey.
+  const priorType = before ? normalizePersonType(before.person_type as string | null) : null;
+  if (
+    priorType != null &&
+    !AUTO_ONBOARD_TYPES.includes(priorType) &&
+    AUTO_ONBOARD_TYPES.includes(newType)
+  ) {
+    try { await startJourney(id, "onboarding"); } catch {}
+  }
 
   invalidate();
   return { ok: true, id };
@@ -603,15 +671,10 @@ export async function enrichPersonProfile(
     filled.push(label);
   }
 
-  // Department — resolve by name (create if new), only when currently unset.
+  // Department — resolve by name (case-insensitive, create if new), only when
+  // currently unset. Shared helper avoids spawning a duplicate "finance"/"Finance".
   if (fields.department && isEmpty(current.department_id)) {
-    const name = fields.department.trim();
-    const { data: existing } = await sb.from("departments").select("id").eq("name", name).maybeSingle();
-    let deptId = (existing?.id as number | undefined) ?? null;
-    if (!deptId) {
-      const { data: created } = await sb.from("departments").insert({ name }).select("id").single();
-      deptId = (created?.id as number | undefined) ?? null;
-    }
+    const deptId = await resolveDepartmentByName(fields.department);
     if (deptId) { update.department_id = deptId; filled.push("Department"); }
   }
 
@@ -658,15 +721,28 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
 
   await logPersonEvent(id, nextActive ? "restored" : "archived");
 
-  // Archiving someone kicks off an offboarding checklist (idempotent) and
-  // returns any company assets they were holding back to the store.
+  // Archiving someone kicks off an offboarding checklist (idempotent), returns
+  // any company assets they were holding back to the store, clears them as the
+  // custodian of shared/team kit, and vacates their leadership roles.
   if (!nextActive) {
     try { await startJourney(id, "offboarding"); } catch {}
     try { await returnAssetsForPerson(id); } catch {}
+    try { await clearCustodianForPerson(id); } catch {}
+    try { await vacateLeadershipRoles(id); } catch {}
   }
 
   invalidate();
   return { ok: true, active: nextActive };
+}
+
+/**
+ * On archive, vacate the leaver's leadership roles so head counts + the org chart
+ * stop pointing at them: clear any department-head seat they hold and drop their
+ * secondary ("also reports to") manager edges. Best-effort.
+ */
+async function vacateLeadershipRoles(personId: number): Promise<void> {
+  await sb.from("department_heads").update({ head_person_id: null }).eq("head_person_id", personId);
+  await sb.from("reporting_lines").delete().eq("manager_id", personId);
 }
 
 /** Bulk activate/deactivate (archive/restore). Soft — never deletes. */
@@ -676,6 +752,19 @@ export async function setPeopleActive(ids: number[], active: boolean): Promise<A
   const { error } = await sb.from("people").update({ active }).in("id", clean);
   if (error) return { ok: false, error: error.message };
   await Promise.all(clean.map((pid) => logPersonEvent(pid, active ? "restored" : "archived")));
+
+  // Bulk archive must run the SAME offboarding side-effects as the single-row
+  // path — otherwise mass-archiving leavers leaves their laptops assigned, no exit
+  // checklist, shared kit still in their name, and head/dotted-line roles unfilled.
+  if (!active) {
+    for (const pid of clean) {
+      try { await startJourney(pid, "offboarding"); } catch {}
+      try { await returnAssetsForPerson(pid); } catch {}
+      try { await clearCustodianForPerson(pid); } catch {}
+      try { await vacateLeadershipRoles(pid); } catch {}
+    }
+  }
+
   invalidate();
   return { ok: true };
 }
@@ -694,6 +783,23 @@ export async function setProbationDateAction(personId: number, dateIso: string |
   await logPersonFieldChanges(personId, [
     { field: "Probation end", oldValue: oldFmt, newValue: dateIso ? dateIso.slice(0, 10) : "Confirmed (passed)" },
   ]);
+
+  // Confirming probation passed (date cleared) ticks the matching onboarding
+  // journey step so the two surfaces agree. Best-effort — never block the write.
+  if (dateIso == null) {
+    try {
+      const { data: steps } = await sb
+        .from("todos")
+        .select("id,title,done")
+        .eq("person_id", personId)
+        .eq("kind", "onboarding");
+      const ids = (steps ?? [])
+        .filter((t) => !(t.done as boolean | null) && /probation/i.test((t.title as string | null) ?? ""))
+        .map((t) => t.id as number);
+      if (ids.length) await sb.from("todos").update({ done: true }).in("id", ids);
+    } catch {}
+  }
+
   invalidate();
   return { ok: true };
 }
@@ -773,18 +879,10 @@ export async function bulkSetPeopleField(
       display = (data?.name as string | null) ?? null;
     }
   } else {
-    // department — resolve by name (create if new).
+    // department — resolve by name (case-insensitive, create if new). Shared
+    // helper so "finance" doesn't create a duplicate of "Finance".
     const name = value ? String(value).trim() : "";
-    let deptId: number | null = null;
-    if (name) {
-      const { data: existing } = await sb.from("departments").select("id").eq("name", name).maybeSingle();
-      deptId = (existing?.id as number | undefined) ?? null;
-      if (!deptId) {
-        const { data: created } = await sb.from("departments").insert({ name }).select("id").single();
-        deptId = (created?.id as number | undefined) ?? null;
-      }
-    }
-    patch.department_id = deptId;
+    patch.department_id = name ? await resolveDepartmentByName(name) : null;
     label = "Department";
     display = name || null;
   }

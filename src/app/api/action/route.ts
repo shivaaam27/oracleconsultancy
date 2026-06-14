@@ -754,9 +754,8 @@ export async function POST(req: NextRequest) {
         else return NextResponse.json({ intent, ok: false, message: `Company "${q}" not found` });
       } else if (t === "registry") redirect = "/registry";
       else if (t === "escalations") redirect = "/";
-      else if (t === "meeting") redirect = "/meeting";
+      else if (t === "meeting") redirect = "/workbook?tab=meetings";
       else if (t === "outbox") redirect = "/outbox";
-      else if (t === "audit") redirect = "/audit";
       else if (t === "people") redirect = "/people";
       else if (t === "companies") redirect = "/companies";
 

@@ -7,6 +7,7 @@ import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
 import { createTaskAttachment, createDocument, uploadDocumentFile } from "@/lib/documents";
+import { extractDocumentFromFile } from "@/app/documents/actions";
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
 import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
@@ -503,7 +504,7 @@ export async function portalAddUpdate(formData: FormData) {
  * "received"; verification stays with the administrator. We re-verify the
  * requirement belongs to the signed-in person — never trust the form.
  * ---------------------------------------------------------------------- */
-const MAX_PORTAL_DOC_BYTES = 15 * 1024 * 1024; // 15 MB
+const MAX_PORTAL_DOC_BYTES = 20 * 1024 * 1024; // 20 MB (matches the admin upload)
 
 export async function portalUploadRequirementDocument(
   formData: FormData
@@ -516,7 +517,7 @@ export async function portalUploadRequirementDocument(
   const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
   if (!Number.isFinite(requirementId)) return { ok: false, error: "Missing requirement." };
   if (!file) return { ok: false, error: "Choose a file to upload." };
-  if (file.size > MAX_PORTAL_DOC_BYTES) return { ok: false, error: "That file is too large (max 15 MB)." };
+  if (file.size > MAX_PORTAL_DOC_BYTES) return { ok: false, error: "That file is too large (max 20 MB)." };
 
   // Authorise: the requirement must belong to THIS person.
   const { data: req } = await sb
@@ -532,9 +533,41 @@ export async function portalUploadRequirementDocument(
   const label = (req.label as string | null) ?? file.name;
   const category = (req.category as string | null) ?? null;
 
+  // Read the file the same way the admin upload does, so a staff passport/permit
+  // gets its expiry/issuer captured — otherwise the renewal radar never sees it.
+  // The checklist already fixes the title + category, so we only take the dates
+  // and issuer/reference; nothing here can overwrite an existing value (blank
+  // record → blanks-only by definition).
+  let expiryDate: string | undefined;
+  let issueDate: string | undefined;
+  let issuer: string | undefined;
+  let referenceNo: string | undefined;
+  try {
+    const extractFd = new FormData();
+    extractFd.set("file", file);
+    const read = await extractDocumentFromFile(extractFd);
+    if (read.ok) {
+      expiryDate = read.fields.expiryDate;
+      issueDate = read.fields.issueDate;
+      issuer = read.fields.issuer;
+      referenceNo = read.fields.referenceNo;
+    }
+  } catch {
+    /* extraction is best-effort — never block the staff upload on it */
+  }
+
   try {
     const docId = await createDocument(
-      { title: label, personId: me.id, category, notes: `Uploaded by ${me.name} via the staff portal.` },
+      {
+        title: label,
+        personId: me.id,
+        category,
+        expiryDate,
+        issueDate,
+        issuer,
+        referenceNo,
+        notes: `Uploaded by ${me.name} via the staff portal.`,
+      },
       createdBy
     );
     await uploadDocumentFile(docId, file);
@@ -575,6 +608,24 @@ export async function portalRequestLeave(
   formData.set("personId", String(me.id));
   const res = await createLeaveRequestAction(formData);
   if (res.ok) {
+    // Tell someone. A pending request that pings nobody just sits unseen until
+    // the approver happens to open the leave page — so notify the requester's
+    // manager(s) (primary line + any "also reports to" lines) plus the owner.
+    const [{ data: primary }, { data: dotted }] = await Promise.all([
+      sb.from("people").select("manager_id").eq("id", me.id).maybeSingle(),
+      sb.from("reporting_lines").select("manager_id").eq("person_id", me.id),
+    ]);
+    const managerIds = new Set<number>();
+    if (primary?.manager_id) managerIds.add(primary.manager_id as number);
+    for (const r of dotted ?? []) if (r.manager_id) managerIds.add(r.manager_id as number);
+    const recipients = [...managerIds].map(personRecipient);
+    recipients.push("admin");
+    await notifyMany(recipients, {
+      kind: "leave",
+      title: `${me.name} requested leave`,
+      body: "Tap to review and approve.",
+      actor: me.name,
+    });
     revalidatePath("/portal/profile");
     revalidatePath("/portal");
     return { ok: true };
@@ -621,10 +672,27 @@ export async function portalMarkAttendance(status: string): Promise<{ ok: true }
   const now = new Date();
   const iso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
   const ts = now.toISOString();
-  const { error } = await sb.from("attendance").upsert(
-    { person_id: me.id, date: iso, status, note: `portal:${me.name}`, updated_at: ts, created_at: ts },
-    { onConflict: "person_id,date" }
-  );
+  // Select-then-insert/update (not upsert) so a repeat same-day self-check-in
+  // doesn't clobber the original created_at.
+  const existing = await sb
+    .from("attendance")
+    .select("id,note")
+    .eq("person_id", me.id)
+    .eq("date", iso)
+    .maybeSingle();
+  // On an UPDATE, only stamp the portal provenance note when there isn't already
+  // an admin note on the row — otherwise a same-day re-check-in would wipe a note
+  // the administrator left (e.g. a reason). An empty/portal note is fine to refresh.
+  const existingNote = (existing.data?.note as string | null) ?? null;
+  const adminNote = existingNote && !existingNote.startsWith("portal:");
+  const { error } = existing.data
+    ? await sb
+        .from("attendance")
+        .update(adminNote ? { status, updated_at: ts } : { status, note: `portal:${me.name}`, updated_at: ts })
+        .eq("id", existing.data.id as number)
+    : await sb
+        .from("attendance")
+        .insert({ person_id: me.id, date: iso, status, note: `portal:${me.name}`, updated_at: ts, created_at: ts });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/portal/profile");
   revalidatePath("/hrms/leave");

@@ -14,6 +14,15 @@ function revalidate() {
   revalidatePath("/people");
 }
 
+/** Wider revalidation for merge/delete: those re-point tasks (which carry a
+ *  department) and per-company heads, so the Tasks hub and each company-detail
+ *  page must refresh too — not just the reference screens. */
+function revalidateRepoint() {
+  revalidate();
+  revalidatePath("/", "layout"); // Tasks hub + anything reading task departments
+  revalidatePath("/companies/[id]", "page"); // per-company detail (Tasks / Org tabs)
+}
+
 /** Create a new department (no-op if the name already exists). */
 export async function createDepartment(name: string): Promise<Result> {
   const clean = name.trim();
@@ -75,7 +84,7 @@ export async function mergeDepartments(fromId: number, intoId: number): Promise<
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not merge the departments." };
   }
-  revalidate();
+  revalidateRepoint();
   return { ok: true };
 }
 
@@ -94,6 +103,6 @@ export async function deleteDepartment(id: number): Promise<Result> {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not delete the department." };
   }
-  revalidate();
+  revalidateRepoint();
   return { ok: true };
 }

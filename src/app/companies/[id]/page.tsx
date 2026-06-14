@@ -65,7 +65,7 @@ export default async function CompanyPage({
       listDocuments(),
       sb
         .from("companies")
-        .select("id,name,legal_name,registration_no,tin,vrn,incorporation_date,address,phone,email,signatory_name,signatory_title")
+        .select("id,name,accent_color,legal_name,registration_no,tin,vrn,incorporation_date,address,phone,email,signatory_name,signatory_title")
         .eq("id", companyId)
         .maybeSingle(),
       sb.from("person_companies").select("person_id").eq("company_id", companyId),
@@ -86,9 +86,12 @@ export default async function CompanyPage({
   }
   const teamCount = assocPersonIds.size;
   const rows = allRows.filter((r) => r.companyId === companyId);
-  if (!rows.length) return notFound();
-  const name = rows[0].companyName;
-  const accent = rows[0].companyAccent || "hsl(var(--accent))";
+  // A real company with zero tasks must still render — gate not-found on the
+  // COMPANY row missing, not on having no tasks. Name/accent come from the
+  // company record (tasks are only a fallback for older accent data).
+  if (!companyRaw) return notFound();
+  const name = (companyRaw.name as string | null) ?? rows[0]?.companyName ?? "Company";
+  const accent = (companyRaw.accent_color as string | null) || rows[0]?.companyAccent || "hsl(var(--accent))";
   const complianceScore = (
     await buildCompanyRequirementScores([{ id: companyId, name: (companyRaw?.name as string | undefined) ?? name }])
   )[0];
@@ -162,7 +165,7 @@ export default async function CompanyPage({
         <div className="flex items-center gap-3 min-w-0">
           <CompanyAvatar name={name} accent={accent} logoUrl={logoUrl} size={44} iconSize={19} />
           <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight truncate">{name}</h1>
+            <h1 className="text-lg font-semibold tracking-tight truncate">{name}</h1>
             <div className="mt-1 flex items-center gap-1.5">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-info-soft/60 ring-1 ring-info/30 text-info tabular">
                 {openRows.length} open
@@ -457,7 +460,7 @@ export default async function CompanyPage({
       {tab === "org" && orgTab && (
         <ErrorBoundary label="company-org">
         <OrgChart
-          companies={[{ id: companyId, name, accentColor: rows[0].companyAccent ?? null }]}
+          companies={[{ id: companyId, name, accentColor: (companyRaw.accent_color as string | null) ?? rows[0]?.companyAccent ?? null }]}
           trees={{ [companyId]: orgTab.tree }}
           extras={orgTab.extras}
           associatedByCompany={{ [companyId]: orgTab.associated }}

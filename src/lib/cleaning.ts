@@ -182,6 +182,22 @@ export async function signDay(dayId: number, signed: boolean, name: string | nul
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Earliest recorded cleaning day as "YYYY-MM-DD", or null if none exist.
+ * Used to floor the OCR back-navigation so paging back never materialises empty
+ * rows for arbitrary historical dates.
+ */
+export async function earliestDayKey(): Promise<string | null> {
+  const { data, error } = await sb
+    .from("cleaning_days")
+    .select("date")
+    .order("date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.date ? new Date(data.date as string).toISOString().slice(0, 10) : null;
+}
+
 export async function listDays(opts?: { limit?: number }): Promise<CleaningDay[]> {
   const { data, error } = await sb
     .from("cleaning_days")

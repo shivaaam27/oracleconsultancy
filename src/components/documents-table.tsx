@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import * as Dialog from "@radix-ui/react-dialog";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
   ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip, UploadCloud,
   CheckSquare, Check, List as ListIcon, CalendarRange,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
-import { Button } from "./ui";
+import { Button, CountPill, RegisterList, RegisterRow, RegisterGroupHeader } from "./ui";
+import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
 import { BulkUploadDialog } from "./bulk-upload-dialog";
@@ -291,10 +291,10 @@ export function DocumentsTable({
         onPointerDown={(e) => { if (!selectMode) onRowPointerDown(doc, e); }}
         onPointerMove={onRowPointerMove}
         onPointerUp={clearPress} onPointerLeave={clearPress} onPointerCancel={clearPress}
-        className={cn("flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-colors select-none", selected.has(doc.id) ? "bg-accent-soft/40" : "hover:bg-bg-muted/40", doc.archived && "opacity-60")}>
+        className={cn("flex items-center gap-3 px-3 sm:px-3.5 py-3 cursor-pointer transition-colors select-none", selected.has(doc.id) ? "bg-accent-soft/40" : "hover:bg-bg-subtle/40", doc.archived && "opacity-60")}>
         {selectMode && (
           <span className={cn("shrink-0 h-5 w-5 rounded-md border inline-flex items-center justify-center transition-colors",
-            selected.has(doc.id) ? "bg-accent border-accent text-white" : "border-border-strong")}>
+            selected.has(doc.id) ? "bg-accent border-accent text-accent-fg" : "border-border-strong")}>
             {selected.has(doc.id) && <Check size={13} strokeWidth={3} />}
           </span>
         )}
@@ -373,13 +373,13 @@ export function DocumentsTable({
         <div className="inline-flex items-center rounded-xl border border-border bg-bg-subtle/60 p-0.5">
           <button type="button" onClick={() => setView("list")} aria-pressed={view === "list"}
             title="List view"
-            className={cn("inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-sm transition-colors",
+            className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
               view === "list" ? "bg-accent-soft/70 text-accent" : "text-fg-muted hover:text-fg")}>
             <ListIcon size={15} /> <span className="hidden sm:inline">List</span>
           </button>
           <button type="button" onClick={() => setView("timeline")} aria-pressed={view === "timeline"}
             title="Timeline view (grouped by expiry)"
-            className={cn("inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-sm transition-colors",
+            className={cn("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
               view === "timeline" ? "bg-accent-soft/70 text-accent" : "text-fg-muted hover:text-fg")}>
             <CalendarRange size={15} /> <span className="hidden sm:inline">Timeline</span>
           </button>
@@ -410,7 +410,7 @@ export function DocumentsTable({
           return (
             <button key={key} type="button" onClick={() => setStatusFilter(active && key !== "all" ? "all" : key)}
               className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}>
-              <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-bg-elev/50 font-semibold tabular">{count}</span>
+              <CountPill count={count} tone="inherit" />
               <span className="font-medium">{label}</span>
             </button>
           );
@@ -449,26 +449,27 @@ export function DocumentsTable({
       {/* List / Timeline */}
       {filtered.length > 0 ? (
         view === "list" ? (
-          <div className="glass elevated rounded-3xl overflow-hidden divide-y divide-border/60">
+          <RegisterList>
             {filtered.map(renderRow)}
-          </div>
+          </RegisterList>
         ) : (
           <div className="space-y-3">
             {timelineGroups.map((g) => (
-              <div key={g.key} className="glass elevated rounded-3xl overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/60">
-                  <span className={cn("h-2 w-2 rounded-full",
-                    g.tone === "danger" ? "bg-danger" : g.tone === "warn" ? "bg-warn" : "bg-fg-subtle")} />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{g.label}</span>
-                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-[11px] font-semibold tabular text-fg-muted">{g.rows.length}</span>
-                </div>
-                <div className="divide-y divide-border/60">{g.rows.map(renderRow)}</div>
-              </div>
+              <RegisterList key={g.key} header={
+                <RegisterGroupHeader
+                  tone={g.tone === "danger" ? "danger" : g.tone === "warn" ? "warn" : "muted"}
+                  action={<CountPill count={g.rows.length} tone={g.tone === "danger" ? "danger" : g.tone === "warn" ? "warn" : "default"} />}
+                >
+                  {g.label}
+                </RegisterGroupHeader>
+              }>
+                {g.rows.map(renderRow)}
+              </RegisterList>
             ))}
           </div>
         )
       ) : documents.length === 0 ? (
-        <div className="glass elevated rounded-3xl text-center py-14 px-6">
+        <div className="bg-bg-elev ring-1 ring-border rounded-2xl elevated text-center py-14 px-6">
           <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-bg-muted/60 flex items-center justify-center text-fg-subtle">
             <FileText size={22} />
           </div>
@@ -479,7 +480,7 @@ export function DocumentsTable({
           </Button>
         </div>
       ) : (
-        <div className="glass elevated rounded-3xl text-center py-12 text-fg-muted text-sm">
+        <div className="bg-bg-elev ring-1 ring-border rounded-2xl elevated text-center py-12 text-fg-muted text-sm">
           No documents match these filters.
         </div>
       )}
@@ -564,28 +565,8 @@ function DocDialog({ open, onOpenChange, title, children }: {
   open: boolean; onOpenChange: (o: boolean) => void; title: string; children: React.ReactNode;
 }) {
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm
-          data-[state=open]:animate-in data-[state=open]:fade-in-0
-          data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(560px,calc(100vw-2rem))] max-h-[85vh]
-          -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl
-          glass glass-menu elevated outline-none
-          data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
-          data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">{title}</Dialog.Title>
-            <Dialog.Close asChild>
-              <button type="button" aria-label="Close"
-                className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors">
-                <X size={14} />
-              </button>
-            </Dialog.Close>
-          </div>
-          <div className="p-5">{children}</div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <HrmsDialog open={open} onOpenChange={onOpenChange} width={560} title={title}>
+      {children}
+    </HrmsDialog>
   );
 }

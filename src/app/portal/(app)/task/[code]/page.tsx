@@ -29,6 +29,10 @@ function statusTone(s: string): "default" | "success" | "warn" | "danger" | "inf
  *  (owner/admin or a portal manager) — management posts get the accent. */
 function authorOf(createdBy: string | null, myName: string): { name: string; management: boolean; me: boolean } {
   if (!createdBy) return { name: "System", management: false, me: false };
+  if (createdBy.startsWith("portal-dir:")) {
+    const name = createdBy.slice(11);
+    return { name: name === myName ? "You" : name, management: true, me: name === myName };
+  }
   if (createdBy.startsWith("portal-mgr:")) {
     const name = createdBy.slice(11);
     return { name: name === myName ? "You" : name, management: true, me: name === myName };

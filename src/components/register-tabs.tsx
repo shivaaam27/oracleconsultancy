@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Laptop, Building, Wrench } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { CountPill } from "@/components/ui";
 
 type TabKey = "assets" | "tools" | "vendors";
 
@@ -46,10 +47,7 @@ export function RegisterTabs({
             )}
           >
             <Icon size={14} /> {label}
-            <span className={cn(
-              "inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 rounded-full text-[11px] tabular",
-              tab === key ? "bg-accent-soft/70 text-accent" : "bg-bg-muted text-fg-muted"
-            )}>{count}</span>
+            <CountPill count={count} tone={tab === key ? "accent" : "default"} />
           </button>
         ))}
       </div>

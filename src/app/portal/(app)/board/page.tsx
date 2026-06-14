@@ -57,7 +57,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
       {/* Heavy portfolio brief streams in — a slow or failed brief degrades to a
           message here instead of hanging (or 404-ing) the whole page. */}
       <Suspense fallback={<BriefSkeleton />}>
-        <BriefSections people={people} />
+        <BriefSections />
       </Suspense>
     </div>
   );
@@ -79,7 +79,7 @@ function BriefSkeleton() {
 
 /** The portfolio brief and everything derived from it. Isolated so its latency
  *  (and any failure) never blocks the operator actions above. */
-async function BriefSections({ people }: { people: Array<{ id: number; name: string; companyId: number | null }> }) {
+async function BriefSections() {
   let brief: Awaited<ReturnType<typeof getBrief>>;
   try {
     brief = await getBrief(new Date(), "month", null);
@@ -90,30 +90,6 @@ async function BriefSections({ people }: { people: Array<{ id: number; name: str
         <span>The group summary couldn&apos;t load just now. Your actions above still work — refresh in a moment to see the latest figures.</span>
       </Panel>
     );
-  }
-
-  // Quick reminders: the assignee of each overdue task (default recipient).
-  const overdueIds = brief.watch.filter((w) => w.overdue).slice(0, 8).map((w) => w.id);
-  let reminders: Array<{ taskCode: string; title: string; personId: number; personName: string }> = [];
-  if (overdueIds.length) {
-    const [{ data: taskRows }, { data: asg }] = await Promise.all([
-      sb.from("tasks").select("id,code,action_item").in("id", overdueIds),
-      sb.from("task_assignees").select("task_id, people(id,name)").in("task_id", overdueIds),
-    ]);
-    const codeById = new Map((taskRows ?? []).map((t) => [t.id as number, { code: t.code as string, title: t.action_item as string }]));
-    const assigneeByTask = new Map<number, { id: number; name: string }>();
-    for (const r of asg ?? []) {
-      const p = (Array.isArray(r.people) ? r.people[0] : r.people) as { id: number; name: string } | null;
-      const tid = r.task_id as number;
-      if (p && !assigneeByTask.has(tid)) assigneeByTask.set(tid, { id: p.id, name: p.name });
-    }
-    reminders = overdueIds
-      .map((id) => {
-        const t = codeById.get(id);
-        const a = assigneeByTask.get(id);
-        return t && a ? { taskCode: t.code, title: t.title, personId: a.id, personName: a.name } : null;
-      })
-      .filter((x): x is { taskCode: string; title: string; personId: number; personName: string } => x != null);
   }
 
   const hr = brief.hr;
@@ -140,14 +116,6 @@ async function BriefSections({ people }: { people: Array<{ id: number; name: str
           </div>
         </Panel>
       </Reveal>
-
-      {/* Quick reminders for overdue tasks (assignee resolved) */}
-      {reminders.length > 0 && (
-        <Reveal delay={0.04} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<AlertTriangle size={13} />}>Remind on overdue work</SectionLabel>
-          <DirectorMessage people={people} reminders={reminders} />
-        </Reveal>
-      )}
 
       {/* Recommended actions */}
       {brief.directorActions.length > 0 && (

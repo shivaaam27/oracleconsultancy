@@ -167,21 +167,56 @@ async function getActiveProfileItems(type: PersonType): Promise<ProfileItem[]> {
  * Reconcile a person's checklist to their current type's profile:
  * insert snapshot rows for any missing items; remove un-actioned orphan rows
  * (no document, status missing/requested) whose item is no longer applicable.
- * Verified/received rows and anything with a document are always preserved.
+ * Verified/received rows and anything with a document are always preserved
+ * UNLESS their requirement no longer belongs to the new profile (see below).
+ *
+ * Two type-change pitfalls are handled here:
+ *  - Shared items (Employment contract, TIN, Passport photo, Bank details, CV…)
+ *    exist as a separate requirement_items row per profile. Matching only on
+ *    item_id would insert a duplicate of an item the person already holds. So we
+ *    also skip-insert when a non-removed row carries the SAME case-insensitive
+ *    label, and re-point that row's item_id to the new template item.
+ *  - Old-type mandatory items (Visa, Work permit) would otherwise keep scoring
+ *    after e.g. expat→local_staff even when verified/linked. So we soft-remove
+ *    verified/linked rows whose item is no longer in the profile AND whose label
+ *    isn't present in the new profile either.
  */
 export async function ensurePersonRequirements(personId: number, personType: PersonType): Promise<void> {
   const [items, { data: rows }] = await Promise.all([
     getActiveProfileItems(personType),
-    sb.from("person_requirements").select("id,item_id,status,document_id").eq("person_id", personId),
+    sb.from("person_requirements").select("id,item_id,label,status,document_id").eq("person_id", personId),
   ]);
   const targetItemIds = new Set(items.map((i) => i.id));
+  const targetLabels = new Set(items.map((i) => i.label.trim().toLowerCase()));
+  // Live (non-removed) rows keyed by their case-insensitive label, so a shared
+  // item already on the checklist can be re-pointed instead of duplicated.
   const existing = rows ?? [];
+  const liveByLabel = new Map<string, { id: number; itemId: number | null }>();
+  for (const r of existing) {
+    if ((r.status as string) === "removed") continue;
+    const key = (r.label as string).trim().toLowerCase();
+    if (!liveByLabel.has(key)) liveByLabel.set(key, { id: r.id as number, itemId: r.item_id as number | null });
+  }
   const existingItemIds = new Set(existing.map((r) => r.item_id as number | null).filter((x): x is number => x != null));
 
   const now = new Date().toISOString();
-  const toInsert = items
-    .filter((it) => !existingItemIds.has(it.id))
-    .map((it) => ({
+  // Rows we re-point to a new profile item this run — exclude them from the
+  // orphan/stale passes below, which read the pre-re-point `existing` snapshot.
+  const repointedIds = new Set<number>();
+  const toInsert: Array<Record<string, unknown>> = [];
+  for (const it of items) {
+    if (existingItemIds.has(it.id)) continue; // already pinned to this exact template row
+    const match = liveByLabel.get(it.label.trim().toLowerCase());
+    if (match) {
+      // Same document by name already on the checklist from a previous profile —
+      // re-point it to the new profile's item rather than inserting a duplicate.
+      repointedIds.add(match.id);
+      if (match.itemId !== it.id) {
+        await sb.from("person_requirements").update({ item_id: it.id, updated_at: now }).eq("id", match.id);
+      }
+      continue;
+    }
+    toInsert.push({
       person_id: personId,
       item_id: it.id,
       label: it.label,
@@ -191,12 +226,16 @@ export async function ensurePersonRequirements(personId: number, personType: Per
       status: "missing",
       created_at: now,
       updated_at: now,
-    }));
+    });
+  }
   if (toInsert.length) await sb.from("person_requirements").insert(toInsert);
 
+  // Un-actioned orphans (no document, missing/requested) from a profile that no
+  // longer applies are deleted outright.
   const orphanIds = existing
     .filter(
       (r) =>
+        !repointedIds.has(r.id as number) &&
         r.item_id != null &&
         !targetItemIds.has(r.item_id as number) &&
         !r.document_id &&
@@ -204,6 +243,27 @@ export async function ensurePersonRequirements(personId: number, personType: Per
     )
     .map((r) => r.id as number);
   if (orphanIds.length) await sb.from("person_requirements").delete().in("id", orphanIds);
+
+  // Verified/linked rows whose item is no longer in the profile AND whose label
+  // isn't in the new profile either (so it isn't a shared item we just re-pointed)
+  // are soft-removed so an old-type requirement (Visa, Work permit) stops scoring.
+  const staleVerifiedIds = existing
+    .filter(
+      (r) =>
+        !repointedIds.has(r.id as number) &&
+        r.item_id != null &&
+        !targetItemIds.has(r.item_id as number) &&
+        !targetLabels.has((r.label as string).trim().toLowerCase()) &&
+        (r.status as string) !== "removed" &&
+        (!!r.document_id || r.status === "received" || r.status === "verified" || r.status === "waived")
+    )
+    .map((r) => r.id as number);
+  if (staleVerifiedIds.length) {
+    await sb
+      .from("person_requirements")
+      .update({ status: "removed", updated_at: now })
+      .in("id", staleVerifiedIds);
+  }
 }
 
 /**
@@ -892,6 +952,15 @@ export async function editRequirementItem(
 }
 
 export async function deleteRequirementItem(id: number) {
+  // Soft-remove every person's snapshot of this template item FIRST. Without
+  // this, the FK set-null on delete would turn each snapshot into an
+  // item_id=null "custom" orphan that no future sync can clean (and a
+  // delete-then-re-add would then duplicate it). Marking them "removed" hides
+  // them from scoring and lets reconciliation leave them be.
+  await sb
+    .from("person_requirements")
+    .update({ status: "removed", document_id: null, updated_at: new Date().toISOString() })
+    .eq("item_id", id);
   const { error } = await sb.from("requirement_items").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

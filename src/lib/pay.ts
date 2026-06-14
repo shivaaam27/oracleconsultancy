@@ -54,7 +54,10 @@ export type FinalPayInput = {
 export type FinalPayEstimate = {
   hasWage: boolean;
   dailyWage: number;
+  /** Whole completed years of service (uncapped — for display of tenure). */
   years: number;
+  /** Years actually used to compute severance (capped at the statutory basis). */
+  severanceYears: number;
   severance: number;
   noticeInLieu: number;
   leavePayout: number;
@@ -69,14 +72,19 @@ const NOTICE_DAYS = 28;
 export function estimateFinalPay(input: FinalPayInput): FinalPayEstimate {
   const amount = input.wageAmount ?? 0;
   const daily = dailyWage(amount, input.wageBasis ?? "monthly");
-  const years = Math.min(completedYears(input.startDate, input.asOf), SEVERANCE_MAX_YEARS);
-  const severance = Math.round(daily * SEVERANCE_DAYS_PER_YEAR * years);
+  const years = completedYears(input.startDate, input.asOf);
+  // Severance is computed on the statutory-basis cap, so the displayed label must
+  // use the SAME capped number — otherwise ">10 yrs" staff saw e.g. "7 days × 15
+  // yrs" next to a 10-year amount.
+  const severanceYears = Math.min(years, SEVERANCE_MAX_YEARS);
+  const severance = Math.round(daily * SEVERANCE_DAYS_PER_YEAR * severanceYears);
   const notice = input.noticeInLieu ? Math.round(daily * NOTICE_DAYS) : 0;
   const leavePayout = Math.round(daily * Math.max(0, input.annualLeaveRemaining ?? 0));
   return {
     hasWage: amount > 0,
     dailyWage: Math.round(daily),
-    years: completedYears(input.startDate, input.asOf),
+    years,
+    severanceYears,
     severance,
     noticeInLieu: notice,
     leavePayout,

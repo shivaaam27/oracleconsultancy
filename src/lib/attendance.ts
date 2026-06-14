@@ -17,6 +17,10 @@ export type AttendanceMonth = {
   people: AttendancePerson[];
   /** Recorded status, keyed `${personId}:${YYYY-MM-DD}`. */
   recorded: Record<string, AttendanceStatus>;
+  /** Provenance note for recorded cells, keyed `${personId}:${YYYY-MM-DD}`. A
+   *  `portal:<Name>` value marks a staff self-check-in (badged in the register);
+   *  admin writes are stamped `web-ui`. */
+  notes: Record<string, string>;
   /** Approved-leave overlay (derived), keyed `${personId}:${YYYY-MM-DD}` → type name. */
   leave: Record<string, string>;
   /** Public holidays for the month, keyed YYYY-MM-DD → holiday name. */
@@ -42,13 +46,19 @@ export async function getAttendanceMonth(year: number, month: number): Promise<A
 
   const [{ data: peopleRaw }, { data: att }, { data: leaveRaw }, { data: hols }] = await Promise.all([
     sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-    sb.from("attendance").select("person_id,date,status").gte("date", startISO).lt("date", endISO),
+    sb.from("attendance").select("person_id,date,status,note").gte("date", startISO).lt("date", endISO),
     sb.from("leave_requests").select("person_id,start_date,end_date,status, leave_types(name)").eq("status", "Approved").lt("start_date", endISO).gte("end_date", startISO),
     sb.from("public_holidays").select("date,name"),
   ]);
 
   const recorded: Record<string, AttendanceStatus> = {};
-  for (const r of att ?? []) recorded[`${r.person_id}:${isoDay(r.date as string)}`] = r.status as AttendanceStatus;
+  const notes: Record<string, string> = {};
+  for (const r of att ?? []) {
+    const key = `${r.person_id}:${isoDay(r.date as string)}`;
+    recorded[key] = r.status as AttendanceStatus;
+    const note = r.note as string | null;
+    if (note) notes[key] = note;
+  }
 
   const leave: Record<string, string> = {};
   for (const lr of leaveRaw ?? []) {
@@ -65,7 +75,7 @@ export async function getAttendanceMonth(year: number, month: number): Promise<A
   return {
     year, month, days,
     people: (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null })),
-    recorded, leave, holidays,
+    recorded, notes, leave, holidays,
   };
 }
 

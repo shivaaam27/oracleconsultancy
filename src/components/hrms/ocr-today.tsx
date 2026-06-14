@@ -49,10 +49,11 @@ function Ring({ pct, done, total }: { pct: number; done: number; total: number }
 }
 
 export function OcrToday({
-  dateIso, today, day, areas, checks, people,
+  dateIso, today, floor, day, areas, checks, people,
 }: {
   dateIso: string;
   today: string;
+  floor: string;
   day: CleaningDay;
   areas: CleaningArea[];
   checks: CleaningCheck[];
@@ -134,7 +135,9 @@ export function OcrToday({
     <div className="space-y-4">
       {/* Date nav */}
       <div className="flex items-center justify-between gap-2">
-        <Link href={`/hrms/ocr?date=${shiftDay(dateIso, -1)}`} className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border text-fg-muted hover:text-fg hover:bg-bg-muted/60">
+        <Link href={`/hrms/ocr?date=${shiftDay(dateIso, -1)}`} aria-disabled={dateIso <= floor}
+          className={cn("inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border",
+            dateIso <= floor ? "opacity-40 pointer-events-none" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60")}>
           <ChevronLeft size={16} />
         </Link>
         <div className="text-center">

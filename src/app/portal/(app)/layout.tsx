@@ -1,20 +1,19 @@
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { PortalPill } from "@/components/portal-pill";
-import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson } from "@/lib/portal-auth";
-import { personAttendanceToday } from "@/lib/attendance";
 import { portalLogout } from "../actions";
 
 /* Guarded shell for every staff-portal page. No admin chrome here — the
  * portal has its own minimal header + its own bottom pill (PortalPill);
- * the global admin pill/assistant hide themselves on /portal routes. */
+ * the global admin pill/assistant hide themselves on /portal routes.
+ *
+ * The once-a-day attendance check-in lives on the home page only (not here) —
+ * so it can't pop over the director board or run a query on every navigation. */
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-
-  const today = await personAttendanceToday(me.id);
 
   return (
     <div className="flex flex-col gap-5 pb-28 max-w-3xl mx-auto">
@@ -36,7 +35,6 @@ export default async function PortalLayout({ children }: { children: React.React
         </form>
       </header>
       {children}
-      <AttendanceCheckin firstName={me.name.split(" ")[0]} status={today.status} editable={today.editable} />
       <PortalPill canCreate={me.portalRole === "manager"} role={me.portalRole} />
     </div>
   );

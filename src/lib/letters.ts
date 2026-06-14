@@ -287,6 +287,12 @@ export async function duplicateLetter(id: number): Promise<number> {
 }
 
 export async function deleteLetter(id: number): Promise<void> {
+  // An issued letter is a frozen legal record with a stamped reference number —
+  // it must never be deleted (deleting one also leaves a gap in the ref sequence).
+  const { data } = await sb.from("letters").select("status").eq("id", id).maybeSingle();
+  if (data?.status === "Issued") {
+    throw new Error("Issued letters cannot be deleted — they are a legal record.");
+  }
   const { error } = await sb.from("letters").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

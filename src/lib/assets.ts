@@ -379,6 +379,35 @@ export async function returnAssetsForPerson(personId: number): Promise<number> {
   return held.length;
 }
 
+/**
+ * Clear a leaver as custodian of shared/team kit on offboarding. Owner decision:
+ * the asset STAYS assigned to its company — only the accountable person is
+ * vacated (custodian_person_id → null) and the open custodian ledger row is
+ * closed. Without this, shared kit keeps pointing at someone who has left.
+ * Returns how many assets were updated.
+ */
+export async function clearCustodianForPerson(personId: number): Promise<number> {
+  const held = await assetsCustodianForPerson(personId);
+  if (held.length === 0) return 0;
+  const now = new Date().toISOString();
+  const ids = held.map((a) => a.id);
+  // Close the open ledger row(s) recorded against this custodian for these assets.
+  await sb
+    .from("asset_assignments")
+    .update({ returned_at: now })
+    .in("asset_id", ids)
+    .eq("person_id", personId)
+    .is("returned_at", null);
+  // Vacate the custodian but keep the company assignment + status.
+  const { error } = await sb
+    .from("assets")
+    .update({ custodian_person_id: null, updated_at: now })
+    .eq("custodian_person_id", personId)
+    .eq("archived", false);
+  if (error) throw new Error(error.message);
+  return held.length;
+}
+
 export async function setAssetStatus(assetId: number, status: AssetStatus): Promise<void> {
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { status, updated_at: now };

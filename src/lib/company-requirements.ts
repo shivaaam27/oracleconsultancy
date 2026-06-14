@@ -319,11 +319,11 @@ export async function buildCompanyRequirementScores(
   const ids = companies.map((c) => c.id);
   if (ids.length === 0) return [];
   const [{ data: reqRows }, { data: docRows }] = await Promise.all([
-    sb.from("company_requirements").select("company_id,label,category,mandatory,status,document_id,review_date").in("company_id", ids),
-    sb.from("documents").select("id,company_id,title,category,expiry_date,reminder_lead_days,archived").in("company_id", ids),
+    sb.from("company_requirements").select("id,company_id,label,category,mandatory,status,document_id,auto_link,review_date").in("company_id", ids),
+    sb.from("documents").select("id,company_id,title,category,doc_type,expiry_date,reminder_lead_days,archived").in("company_id", ids),
   ]);
 
-  type Doc = { id: number; title: string; category: string | null; status: DocStatus; expiryLabel: string | null };
+  type Doc = { id: number; title: string; category: string | null; docType: string | null; status: DocStatus; expiryLabel: string | null };
   const docsByCompany = new Map<number, Doc[]>();
   const docStatusById = new Map<number, DocStatus>();
   for (const d of docRows ?? []) {
@@ -333,7 +333,7 @@ export async function buildCompanyRequirementScores(
     const status = deriveDocStatus({ expiryDate, reminderLeadDays, archived: false });
     docStatusById.set(d.id as number, status);
     const list = docsByCompany.get(d.company_id as number) ?? [];
-    list.push({ id: d.id as number, title: d.title as string, category: (d.category as string | null) ?? null, status, expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays }) : null });
+    list.push({ id: d.id as number, title: d.title as string, category: (d.category as string | null) ?? null, docType: (d.doc_type as string | null) ?? null, status, expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays }) : null });
     docsByCompany.set(d.company_id as number, list);
   }
 
@@ -348,6 +348,57 @@ export async function buildCompanyRequirementScores(
     const list = reqsByCompany.get(cid) ?? [];
     list.push(r);
     reqsByCompany.set(cid, list);
+  }
+
+  // Auto-link un-actioned rows to saved documents BEFORE scoring — mirror the
+  // per-company getCompanyChecklist reconcile so the bulk scores (Documents
+  // centre / Home / Brief) reflect uploaded documents on first load, not 0%
+  // until someone opens the File tab. Best-effort and persisted (matches the
+  // person side's save-time reconcile).
+  const now = new Date().toISOString();
+  for (const c of companies) {
+    const rows = reqsByCompany.get(c.id);
+    if (!rows || rows.length === 0) continue;
+    const companyDocs = docsByCompany.get(c.id) ?? [];
+    const linkedDocIds = new Set(
+      rows.map((r) => r.document_id as number | null).filter((x): x is number => x != null)
+    );
+    const candidateItems = rows
+      .filter(
+        (r) =>
+          !r.document_id &&
+          (r.auto_link as boolean | null) !== false &&
+          (r.status === "missing" || r.status === "requested")
+      )
+      .map((r) => ({ id: r.id as number, label: r.label as string, category: (r.category as string | null) ?? null }));
+    if (candidateItems.length === 0) continue;
+    const candidateDocs = companyDocs
+      .filter((d) => !linkedDocIds.has(d.id))
+      .map((d) => ({ id: d.id, title: d.title, category: d.category, docType: d.docType }));
+    const matches = matchDocumentsToItems(candidateItems, candidateDocs);
+    for (const r of rows) {
+      const docId = matches.get(r.id as number);
+      if (docId == null) continue;
+      linkedDocIds.add(docId);
+      // Reflect the new link in the in-memory rows so this run scores correctly.
+      r.document_id = docId;
+      r.status = "received";
+      try {
+        await sb
+          .from("company_requirements")
+          .update({ document_id: docId, status: "received", received_at: now, updated_at: now })
+          .eq("id", r.id as number);
+        await logCompanyRequirementEvent(r.id as number, "linked", {
+          documentId: docId,
+          detail: companyDocs.find((d) => d.id === docId)?.title ?? null,
+          ownerId: c.id,
+          label: r.label as string,
+          createdBy: "auto-link",
+        });
+      } catch {
+        /* never block scoring on a write failure */
+      }
+    }
   }
 
   return companies.map((c) => {

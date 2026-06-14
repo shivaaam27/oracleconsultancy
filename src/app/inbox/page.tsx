@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui";
+import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listPendingInbox } from "./actions";
 import { InboxList } from "./inbox-list";
 import { AddInboxDialog } from "@/components/add-inbox-dialog";
@@ -6,7 +7,12 @@ import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
 
-export default async function InboxPage() {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
   const [items, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listPendingInbox(),
     sb.from("companies").select("id,name").order("name"),
@@ -16,6 +22,7 @@ export default async function InboxPage() {
   const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
+      <HrmsCrumbs from={from} />
       <PageHeader
         title="Inbox"
         sub="Forwarded emails, shared messages and uploaded bundles waiting to be filed."

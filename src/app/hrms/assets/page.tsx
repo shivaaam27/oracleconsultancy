@@ -48,7 +48,7 @@ export default async function AssetVendorPage({
     <div className="space-y-5 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
       <Hero
-        title="Asset, Tools & Vendor Register"
+        title="Assets, Tools & Vendors"
         subtitle="Durable equipment, site tools and the suppliers behind them"
       >
         <div className="flex flex-wrap gap-x-6 gap-y-3">

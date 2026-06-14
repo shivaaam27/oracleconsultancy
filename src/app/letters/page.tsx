@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui";
+import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { LettersList } from "@/components/letters-list";
 import { LettersTabs } from "@/components/letters-tabs";
 import { LetterheadEditor } from "@/components/letterhead-editor";
@@ -11,9 +12,9 @@ export const dynamic = "force-dynamic";
 export default async function LettersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; from?: string }>;
 }) {
-  const { view } = await searchParams;
+  const { view, from } = await searchParams;
   const [letters, letterheads, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listLetters(),
     listCompanyLetterheads(),
@@ -27,6 +28,7 @@ export default async function LettersPage({
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
+      <HrmsCrumbs from={from} />
       <PageHeader
         title="Letters"
         sub={`${letters.length} total · ${drafts} draft${drafts === 1 ? "" : "s"} · branded per company`}

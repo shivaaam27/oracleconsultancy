@@ -1,4 +1,5 @@
 import { PageHeader, Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
@@ -18,7 +19,7 @@ import { getOwnerIdentity } from "@/lib/admin-auth";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -59,10 +60,10 @@ export default async function SettingsPage({
 
   return (
     <div className="mx-auto max-w-5xl">
+      <HrmsCrumbs />
       <PageHeader
         title="Settings"
         sub="Live controls — changes take effect across the whole system."
-        action={<ResyncLatestUpdateButton />}
       />
 
       {(sp.saved || sp.google) && (
@@ -494,6 +495,17 @@ export default async function SettingsPage({
             <Link href="/design" className="btn-rim inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-2 text-sm text-fg transition-colors hover:bg-bg-muted">
               <Palette size={14} /> Open the design gallery <ArrowRight size={14} className="text-fg-muted" />
             </Link>
+          </SettingsCard>
+
+          {/* Maintenance / advanced */}
+          <SettingsCard id="maintenance" icon={<Wrench size={15} />} title="Maintenance" desc="Rarely needed. Safe to run any time — these tidy-up tools never change your tasks or notes.">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Rebuild task summaries</p>
+                <p className="text-[11px] text-fg-muted">Only if a task&apos;s latest note looks wrong. Rebuilds the short &ldquo;latest note&rdquo; line on each task from its full update history.</p>
+              </div>
+              <ResyncLatestUpdateButton />
+            </div>
           </SettingsCard>
         </div>
       </div>

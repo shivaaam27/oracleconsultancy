@@ -62,6 +62,12 @@ export function LetterEditor({ letter, companies }: { letter: LetterDetail; comp
   }
 
   function onIssue() {
+    // Issuing freezes the letterhead — which needs a company. Without one the
+    // letter would lock forever with a blank header, so block it early.
+    if (!companyId) {
+      toast("Pick a company before issuing — the letterhead needs it.", { tone: "danger" });
+      return;
+    }
     start(async () => {
       if (!(await save())) return;
       const res = await issueLetterAction(letter.id);
@@ -85,6 +91,8 @@ export function LetterEditor({ letter, companies }: { letter: LetterDetail; comp
     });
   }
   function onDelete() {
+    if (issued) return; // issued letters are a locked legal record — never deletable
+    if (!window.confirm("Delete this draft letter? This cannot be undone.")) return;
     start(async () => {
       const res = await deleteLetterAction(letter.id);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
@@ -97,7 +105,7 @@ export function LetterEditor({ letter, companies }: { letter: LetterDetail; comp
   const lh = letter.letterhead;
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-3xl mx-auto">
       <div className="flex flex-wrap items-center gap-2">
         <Link href="/letters" className="text-sm text-fg-muted hover:text-accent">‹ Letters</Link>
         <h1 className="text-lg font-semibold truncate flex-1 min-w-0">{letter.title}</h1>
@@ -153,10 +161,12 @@ export function LetterEditor({ letter, companies }: { letter: LetterDetail; comp
         {!issued && <Button size="sm" onClick={onIssue} loading={pending}><FileCheck2 size={14} /> Issue</Button>}
         <Button size="sm" variant="secondary" onClick={onDuplicate} loading={pending}><Copy size={14} /> Duplicate</Button>
         <Button size="sm" variant="secondary" onClick={onOutbox} loading={pending}><Send size={14} /> Outbox draft</Button>
-        <button type="button" onClick={onDelete} disabled={pending}
-          className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-danger transition-colors disabled:opacity-50">
-          {pending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
-        </button>
+        {!issued && (
+          <button type="button" onClick={onDelete} disabled={pending}
+            className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md text-fg-muted hover:text-danger transition-colors disabled:opacity-50">
+            {pending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
+          </button>
+        )}
       </div>
     </div>
   );

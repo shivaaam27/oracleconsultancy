@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
-  Pencil, Trash2, MessageCircle, X, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
-  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, type LucideIcon,
+  Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
+  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, type LucideIcon,
 } from "lucide-react";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { AttendeePicker } from "@/components/attendee-picker";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
@@ -249,7 +251,10 @@ export function CalendarBoard({
             </div>
           )}
           <span className="text-sm font-semibold tracking-tight">{periodLabel}</span>
-          <Button onClick={openNew} className="gap-1.5 ml-auto"><CalendarPlus size={16} /> New event</Button>
+          {/* The bottom nav-pill carries a page-action "+" on phones, so this
+              toolbar button (which also wraps awkwardly on a narrow screen) is
+              desktop-only — no duplicate create affordance on mobile. */}
+          <Button onClick={openNew} className="gap-1.5 ml-auto hidden sm:inline-flex"><CalendarPlus size={16} /> New event</Button>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
@@ -302,6 +307,7 @@ export function CalendarBoard({
         )}
       </div>
 
+      {/* Remounted on each open so its state seeds cleanly from `editing`. */}
       {formOpen && (
         <EventForm people={people} companies={companies} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
       )}
@@ -362,41 +368,127 @@ function MonthView({
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const dows = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+  // On phones the full chip grid is unreadable, so we show a condensed dots-per-
+  // day grid and reveal the tapped day's events in a list below. Default to today
+  // (or the 1st of the shown month if today is elsewhere) so the list is never
+  // empty on open.
+  const [selectedKey, setSelectedKey] = useState<string>(() => {
+    const inThisMonth = cells.find((c) => keyOfDate(c) === todayKeyGlobal && c.getMonth() === cursor.getMonth());
+    return inThisMonth ? todayKeyGlobal : keyOfDate(monthStart);
+  });
+  // When the month changes, re-anchor the mobile selection to today-or-1st.
+  useEffect(() => {
+    const todayInMonth = cells.some((c) => keyOfDate(c) === todayKeyGlobal && c.getMonth() === cursor.getMonth());
+    setSelectedKey(todayInMonth ? todayKeyGlobal : keyOfDate(monthStart));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursor]);
+
+  const selectedDate = cells.find((c) => keyOfDate(c) === selectedKey) ?? monthStart;
+  const selEvs = byDay.get(selectedKey) ?? [];
+  const selOvs = overlayByDay.get(selectedKey) ?? [];
+
   return (
-    <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
-        {dows.map((d) => (
-          <div key={d} className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle text-center">{d}</div>
-        ))}
+    <>
+      {/* Desktop / tablet — the full chip grid (unchanged). */}
+      <div className="hidden sm:block bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
+          {dows.map((d) => (
+            <div key={d} className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle text-center">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {cells.map((cell, i) => {
+            const k = keyOfDate(cell);
+            const evs = byDay.get(k) ?? [];
+            const ovs = overlayByDay.get(k) ?? [];
+            const inMonth = cell.getMonth() === cursor.getMonth();
+            const isToday = k === todayKeyGlobal;
+            const chips = [
+              ...evs.map((e) => <EventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />),
+              ...ovs.map((o) => <OverlayChip key={o.id} item={o} />),
+            ];
+            return (
+              <button key={i} type="button" onClick={() => onPickDay(cell)}
+                className={cn("min-h-[96px] text-left border-b border-r border-border/50 p-1.5 align-top transition-colors hover:bg-bg-subtle/40 focus:outline-none focus:ring-1 focus:ring-accent/50",
+                  i % 7 === 6 && "border-r-0", !inMonth && "bg-bg-subtle/20")}>
+                <div className={cn("text-[11px] mb-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full",
+                  isToday ? "bg-accent text-white font-semibold" : inMonth ? "text-fg" : "text-fg-subtle")}>
+                  {cell.getDate()}
+                </div>
+                <div className="space-y-0.5">
+                  {chips.slice(0, 3)}
+                  {chips.length > 3 && <div className="text-[10px] text-fg-subtle px-1.5">+{chips.length - 3} more</div>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="grid grid-cols-7">
-        {cells.map((cell, i) => {
-          const k = keyOfDate(cell);
-          const evs = byDay.get(k) ?? [];
-          const ovs = overlayByDay.get(k) ?? [];
-          const inMonth = cell.getMonth() === cursor.getMonth();
-          const isToday = k === todayKeyGlobal;
-          const chips = [
-            ...evs.map((e) => <EventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />),
-            ...ovs.map((o) => <OverlayChip key={o.id} item={o} />),
-          ];
-          return (
-            <button key={i} type="button" onClick={() => onPickDay(cell)}
-              className={cn("min-h-[78px] sm:min-h-[96px] text-left border-b border-r border-border/50 p-1 sm:p-1.5 align-top transition-colors hover:bg-bg-subtle/40 focus:outline-none focus:ring-1 focus:ring-accent/50",
-                i % 7 === 6 && "border-r-0", !inMonth && "bg-bg-subtle/20")}>
-              <div className={cn("text-[11px] mb-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full",
-                isToday ? "bg-accent text-white font-semibold" : inMonth ? "text-fg" : "text-fg-subtle")}>
-                {cell.getDate()}
-              </div>
-              <div className="space-y-0.5">
-                {chips.slice(0, 3)}
-                {chips.length > 3 && <div className="text-[10px] text-fg-subtle px-1.5">+{chips.length - 3} more</div>}
-              </div>
-            </button>
-          );
-        })}
+
+      {/* Phones — condensed dots-per-day grid; tap a day to list its events below. */}
+      <div className="sm:hidden space-y-3">
+        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-border/60 bg-bg-subtle/40">
+            {dows.map((d) => (
+              <div key={d} className="py-1 text-[10px] font-medium uppercase tracking-wider text-fg-subtle text-center">{d.charAt(0)}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {cells.map((cell, i) => {
+              const k = keyOfDate(cell);
+              const evs = byDay.get(k) ?? [];
+              const ovs = overlayByDay.get(k) ?? [];
+              const inMonth = cell.getMonth() === cursor.getMonth();
+              const isToday = k === todayKeyGlobal;
+              const isSelected = k === selectedKey;
+              // One dot per item (company colour for events, kind colour for
+              // overlays), capped at 4 then "+N" so a busy day never overflows.
+              const dots: string[] = [
+                ...evs.map((e) => accentOf(e)),
+                ...ovs.map((o) => OVERLAY_META[o.kind].dot),
+              ];
+              const total = dots.length;
+              return (
+                <button key={i} type="button" onClick={() => setSelectedKey(k)}
+                  aria-pressed={isSelected}
+                  className={cn("min-h-[44px] flex flex-col items-center justify-start gap-0.5 py-1 border-b border-r border-border/50 transition-colors focus:outline-none",
+                    i % 7 === 6 && "border-r-0", !inMonth && "bg-bg-subtle/20", isSelected && "bg-accent-soft/40")}>
+                  <span className={cn("text-[11px] inline-flex h-5 w-5 items-center justify-center rounded-full",
+                    isToday ? "bg-accent text-white font-semibold" : isSelected ? "text-accent font-semibold" : inMonth ? "text-fg" : "text-fg-subtle")}>
+                    {cell.getDate()}
+                  </span>
+                  <span className="flex items-center justify-center gap-[2px] h-2 leading-none">
+                    {dots.slice(0, 4).map((c, di) => (
+                      <span key={di} className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c }} />
+                    ))}
+                    {total > 4 && <span className="text-[8px] text-fg-subtle leading-none">+{total - 4}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tapped day's events */}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 px-0.5">
+            <span className="text-xs font-semibold">
+              {selectedDate.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
+            </span>
+            <button type="button" onClick={() => onPickDay(selectedDate)}
+              className="ml-auto text-[11px] text-accent hover:underline">Open day →</button>
+          </div>
+          {selEvs.length === 0 && selOvs.length === 0 ? (
+            <p className="text-[13px] text-fg-subtle px-0.5 py-2">Nothing scheduled.</p>
+          ) : (
+            <div className="bg-bg-elev ring-1 ring-border elevated rounded-xl p-2 space-y-1">
+              {selEvs.map((e) => <EventChip key={occKey(e)} event={e} onEdit={() => onEdit(e)} />)}
+              {selOvs.map((o) => <OverlayChip key={o.id} item={o} />)}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -595,14 +687,15 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
               <span className="inline-flex items-center gap-1 capitalize"><Repeat size={12} />{event.recurrence}</span>
             )}
             {event.meetingId && (
-              <a href="/meeting" className="inline-flex items-center gap-1 text-accent hover:underline"><ExternalLink size={12} />Meeting</a>
+              <a href={`/workbook?tab=meetings&open=${event.meetingId}`} className="inline-flex items-center gap-1 text-accent hover:underline"><ExternalLink size={12} />Meeting</a>
             )}
             {event.taskId && (
               <a href="/?tab=tasks" className="inline-flex items-center gap-1 text-accent hover:underline"><ExternalLink size={12} />Task</a>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+          {/* Desktop / tablet — the full action row (unchanged). */}
+          <div className="hidden sm:flex flex-wrap items-center gap-1.5 mt-2.5">
             <a
               href={event.icsPath}
               className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-bg-muted hover:bg-bg-muted/70 transition-colors"
@@ -668,6 +761,94 @@ function EventRow({ event, onEdit }: { event: CalendarEventView; onEdit: () => v
             <button onClick={remove} disabled={pending} className="p-1.5 rounded-lg hover:bg-danger/10 text-danger transition-colors" title="Delete">
               <Trash2 size={14} />
             </button>
+          </div>
+
+          {/* Phones — primary actions stay at a 44px tap target; everything
+              secondary folds into a kebab so nothing is crushed under-thumb. */}
+          <div className="flex sm:hidden items-center gap-1.5 mt-2.5">
+            <button onClick={onEdit} className="inline-flex items-center gap-1.5 h-11 px-3.5 rounded-xl bg-bg-muted hover:bg-bg-muted/70 text-sm font-medium transition-colors" title="Edit">
+              <Pencil size={16} /> Edit
+            </button>
+            <a
+              href={event.icsPath}
+              className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-bg-muted hover:bg-bg-muted/70 transition-colors"
+              title="Download .ics — saves to any calendar"
+              aria-label="Download .ics"
+            >
+              <Download size={18} />
+            </a>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center justify-center h-11 w-11 rounded-xl bg-bg-muted hover:bg-bg-muted/70 transition-colors"
+                  aria-label="More actions"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  sideOffset={6}
+                  align="end"
+                  className="z-[60] min-w-[180px] glass-menu rounded-xl p-1 shadow-pill ring-1 ring-border/70 text-sm"
+                >
+                  <DropdownMenu.Item asChild>
+                    <a href={event.googleUrl} target="_blank" rel="noreferrer"
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted">
+                      <CalendarDays size={15} /> Add to Google
+                    </a>
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onSelect={(e) => { e.preventDefault(); copyLink(); }}
+                    className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted"
+                  >
+                    {copied ? <Check size={15} /> : <Copy size={15} />} Copy link
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onSelect={(e) => { e.preventDefault(); shareWhatsApp(); }}
+                    className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted"
+                  >
+                    <MessageCircle size={15} /> Share
+                  </DropdownMenu.Item>
+                  {emailCount > 0 && (
+                    <DropdownMenu.Item
+                      disabled={pending}
+                      onSelect={(e) => { e.preventDefault(); sendInvite(); }}
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none text-accent data-[highlighted]:bg-accent/10 data-[disabled]:opacity-50"
+                    >
+                      <Mail size={15} /> Send invite
+                    </DropdownMenu.Item>
+                  )}
+                  {emailCount > 0 && !isPast && (
+                    <DropdownMenu.Item
+                      disabled={pending}
+                      onSelect={(e) => { e.preventDefault(); draftReminders(); }}
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted data-[disabled]:opacity-50"
+                    >
+                      <Bell size={15} /> Remind attendees
+                    </DropdownMenu.Item>
+                  )}
+                  {emailCount > 0 && isPast && (
+                    <DropdownMenu.Item
+                      disabled={pending}
+                      onSelect={(e) => { e.preventDefault(); draftFollowup(); }}
+                      className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted data-[disabled]:opacity-50"
+                    >
+                      <Reply size={15} /> Follow-up
+                    </DropdownMenu.Item>
+                  )}
+                  <DropdownMenu.Separator className="h-px bg-border my-1" />
+                  <DropdownMenu.Item
+                    disabled={pending}
+                    onSelect={(e) => { e.preventDefault(); remove(); }}
+                    className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none text-danger data-[highlighted]:bg-danger-soft data-[disabled]:opacity-50"
+                  >
+                    <Trash2 size={15} /> Delete
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           </div>
         </div>
       </div>
@@ -769,19 +950,28 @@ function EventForm({
   }
 
   return (
-    <Card className="overflow-hidden p-0">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border bg-bg-muted/40">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
+    <HrmsDialog
+      open
+      onClose={onClose}
+      width="lg"
+      title={
+        <span className="inline-flex items-center gap-2">
           <CalendarPlus size={16} className="text-accent" />
           {editing ? "Edit event" : "New event"}
-        </h3>
-        <button onClick={onClose} className="p-1.5 -mr-1 rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors" aria-label="Close">
-          <X size={16} />
-        </button>
-      </div>
-
-      <form action={submit} className="p-5 space-y-5">
+        </span>
+      }
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          {/* `form` ties this submit button to the form below even though the
+              footer renders outside it (HrmsDialog owns the footer slot). */}
+          <Button type="submit" form="calendar-event-form" loading={pending}>
+            {editing ? "Save changes" : "Create event"}
+          </Button>
+        </>
+      }
+    >
+      <form id="calendar-event-form" action={submit} className="space-y-5">
         {/* Title + when */}
         <div className="space-y-4">
           {!editing && (
@@ -900,12 +1090,7 @@ function EventForm({
           <FieldLabel>Attendees</FieldLabel>
           <AttendeePicker people={people} value={picked} onChange={setPicked} />
         </div>
-
-        <div className="flex justify-end gap-2 pt-1 border-t border-border -mx-5 px-5 -mb-5 py-4 bg-bg-muted/30">
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={pending}>{editing ? "Save changes" : "Create event"}</Button>
-        </div>
       </form>
-    </Card>
+    </HrmsDialog>
   );
 }

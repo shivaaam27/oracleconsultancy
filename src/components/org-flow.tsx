@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // elk.bundled bundles its web worker inline — works in the browser with no extra config.
 import ELK from "elkjs/lib/elk.bundled.js";
-import { ZoomIn, ZoomOut, Maximize2, Minimize2, Scaling, Loader2, ShieldCheck, Plane } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, Minimize2, Scaling, Loader2, ShieldCheck, Plane, Printer, Network } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { cn } from "@/lib/cn";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import type { OrgPersonExtras } from "@/lib/org-extras";
 import { personTier, managerIdSet, TIER_LABELS, type FlowPerson, type Tier } from "@/lib/org-flow";
+
+export type OrgFlowCompany = { id: number; name: string; accentColor: string | null };
 
 const CARD_W = 226;
 const CARD_H = 84;
@@ -43,10 +45,14 @@ const ELK_OPTS: Record<string, string> = {
 };
 
 export function OrgFlow({
-  people, extras = {},
+  people, extras = {}, headIds, companies = [],
 }: {
   people: FlowPerson[];
   extras?: Record<number, OrgPersonExtras>;
+  /** People who are head of a department — tagged with a "Head" pill. */
+  headIds?: Set<number>;
+  /** Companies present in the chart, for the colour legend ("company = colour"). */
+  companies?: OrgFlowCompany[];
 }) {
   const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
   const mgrs = useMemo(() => managerIdSet(people), [people]);
@@ -123,6 +129,14 @@ export function OrgFlow({
     return m;
   }, [layout]);
 
+  // Split the line counts: the page header counts chain-of-command (primary)
+  // only, so the toolbar must label its two kinds separately (P1-ORG-02).
+  const { primaryLines, secondaryLines } = useMemo(() => {
+    let primaryLines = 0, secondaryLines = 0;
+    for (const e of layout?.edges ?? []) (e.kind === "secondary" ? secondaryLines++ : primaryLines++);
+    return { primaryLines, secondaryLines };
+  }, [layout]);
+
   // Pan + zoom.
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -162,15 +176,43 @@ export function OrgFlow({
   const endDrag = () => { drag.current = null; canvasRef.current?.classList.remove("dragging"); };
   const zoom = (d: number) => setScale((s) => Math.min(1.6, Math.max(0.2, +(s + d).toFixed(2))));
 
+  // Print: scale the whole laid-out canvas to fit one A4 landscape page via the
+  // shared --org-print-scale variable (the same approach the per-company tree
+  // uses), then call the browser print dialog. The print CSS expands the canvas
+  // to overflow:visible and applies the scale to .org-flow-stage.
+  const print = () => {
+    if (!layout) return;
+    const treeW = layout.w + 80, treeH = layout.h + 80;
+    const s = Math.min(1040 / treeW, 624 / treeH, 1); // landscape printable px (≈277×190mm) minus header
+    document.documentElement.style.setProperty("--org-print-scale", s.toFixed(3));
+    window.print();
+    window.setTimeout(() => document.documentElement.style.removeProperty("--org-print-scale"), 800);
+  };
+
   const ctrlBtn = "h-8 w-8 inline-flex items-center justify-center rounded-lg bg-bg-subtle/80 ring-1 ring-border text-fg-muted hover:text-fg transition-colors";
   const focusOn = hovered != null;
   const isActive = (id: number) => !focusOn || id === hovered || (neighbours.get(hovered!)?.has(id) ?? false);
 
+  // Only show companies that actually appear in the chart (locked design:
+  // company = colour), so the legend doesn't list empty companies.
+  const legendCompanies = useMemo(() => {
+    const present = new Set<number>();
+    for (const p of people) if (p.companyId != null) present.add(p.companyId);
+    return companies.filter((c) => present.has(c.id));
+  }, [companies, people]);
+
   return (
-    <div className={cn("space-y-3", isFs && "fixed inset-0 z-[90] bg-bg p-4 sm:p-5")}>
+    <div className={cn("space-y-3 org-root", isFs && "fixed inset-0 z-[90] bg-bg p-4 sm:p-5")}>
+      {/* Print-only masthead — identical typography to the per-company tree. */}
+      <div className="org-print-title print-only mb-3">
+        <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-accent mb-0.5">Organogram</div>
+        <h1 className="text-xl font-semibold tracking-tight text-fg">Portfolio</h1>
+        <p className="text-[11px] text-fg-muted mt-0.5">{new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} · {people.length} people · {primaryLines} reporting lines</p>
+      </div>
+
       <div className="flex items-center justify-between gap-2 flex-wrap print-hidden">
-        <div className="flex items-center gap-3 text-[11px] text-fg-subtle">
-          <span>{people.length} people · {layout?.edges.length ?? 0} reporting lines</span>
+        <div className="flex items-center gap-3 text-[11px] text-fg-subtle flex-wrap">
+          <span>{people.length} people · {primaryLines} reporting line{primaryLines === 1 ? "" : "s"}{secondaryLines > 0 && <> · {secondaryLines} also-reports-to</>}</span>
           <span className="inline-flex items-center gap-1"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="hsl(var(--fg-muted))" strokeWidth="1.7" /></svg> primary</span>
           <span className="inline-flex items-center gap-1"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="hsl(var(--info))" strokeWidth="1.4" strokeDasharray="5 4" /></svg> also reports to</span>
         </div>
@@ -180,59 +222,87 @@ export function OrgFlow({
           <button type="button" onClick={() => zoom(0.1)} title="Zoom in" className={ctrlBtn}><ZoomIn size={14} /></button>
           <button type="button" onClick={fit} title="Fit to screen" className={ctrlBtn}><Scaling size={14} /></button>
           <button type="button" onClick={() => setIsFs((v) => !v)} title={isFs ? "Exit fullscreen" : "Fullscreen"} className={cn(ctrlBtn, isFs && "bg-accent text-accent-fg ring-accent")}>{isFs ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
+          <button type="button" onClick={print} disabled={!layout} title="Print" className="h-8 inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle/80 ring-1 ring-border px-2.5 text-xs text-fg-muted hover:text-fg transition-colors disabled:opacity-40"><Printer size={13} /> Print</button>
         </div>
       </div>
 
-      <div className="rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden relative">
+      {/* Company colour legend — "company = colour" is the locked design. */}
+      {legendCompanies.length > 0 && (
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-fg-subtle print-hidden">
+          <span className="inline-flex items-center gap-1 text-fg-muted"><Network size={12} /> Companies</span>
+          {legendCompanies.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.accentColor || "hsl(var(--accent))" }} aria-hidden />
+              {c.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="org-printable rounded-2xl bg-bg-subtle/40 ring-1 ring-border/60 overflow-hidden relative">
         {loading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center text-fg-subtle text-sm gap-2"><Loader2 size={16} className="animate-spin" /> Laying out the chart…</div>
         )}
-        <div ref={canvasRef} className="org-canvas overflow-auto" style={{ height: isFs ? "calc(100dvh - 110px)" : "74vh" }}
-          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
-          <div className="relative" style={{ width: (layout?.w ?? 0) + 48, height: (layout?.h ?? 0) + 48, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
-            {layout && (
-              <>
-                {/* tier band labels down the left edge */}
-                {layout.tierBands.map((b) => (
-                  <div key={b.tier} className="absolute -left-1 hidden sm:block text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-subtle/70 -translate-x-full pr-2 whitespace-nowrap" style={{ top: b.y + CARD_H / 2 - 6 }}>
-                    {TIER_LABELS[b.tier]}
-                  </div>
-                ))}
-                <svg className="absolute inset-0 pointer-events-none overflow-visible" width={layout.w} height={layout.h} aria-hidden>
-                  {layout.edges.map((e) => {
-                    const active = !focusOn || e.from === hovered || e.to === hovered;
+        {!loading && people.length === 0 && (
+          <div className="flex items-center justify-center py-16 px-4">
+            <p className="text-sm text-fg-subtle italic text-center">No active people to chart yet.</p>
+          </div>
+        )}
+        {!loading && people.length > 0 && !layout && (
+          <div className="flex flex-col items-center justify-center gap-2 py-16 px-4 text-center">
+            <p className="text-sm text-fg-muted">Couldn&apos;t lay out the chart.</p>
+            <button type="button" onClick={() => { setScale(1); setPan({ x: 24, y: 24 }); }} className="h-8 inline-flex items-center rounded-lg bg-bg-subtle/80 ring-1 ring-border px-3 text-xs text-fg-muted hover:text-fg transition-colors">Reset</button>
+          </div>
+        )}
+        {(loading || layout) && (
+          <div ref={canvasRef} className="org-canvas overflow-auto" style={{ height: isFs ? "calc(100dvh - 110px)" : "74vh" }}
+            onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}>
+            <div className="org-flow-stage relative" style={{ width: (layout?.w ?? 0) + 48, height: (layout?.h ?? 0) + 48, transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, transformOrigin: "0 0" }}>
+              {layout && (
+                <>
+                  {/* tier band labels down the left edge */}
+                  {layout.tierBands.map((b) => (
+                    <div key={b.tier} className="absolute -left-1 hidden sm:block text-[10px] font-semibold uppercase tracking-[0.14em] text-fg-subtle/70 -translate-x-full pr-2 whitespace-nowrap" style={{ top: b.y + CARD_H / 2 - 6 }}>
+                      {TIER_LABELS[b.tier]}
+                    </div>
+                  ))}
+                  <svg className="absolute inset-0 pointer-events-none overflow-visible" width={layout.w} height={layout.h} aria-hidden>
+                    {layout.edges.map((e) => {
+                      const active = !focusOn || e.from === hovered || e.to === hovered;
+                      return (
+                        <path key={e.id} d={e.d} fill="none"
+                          stroke={e.kind === "secondary" ? "hsl(var(--info))" : "hsl(var(--fg-muted))"}
+                          strokeWidth={e.kind === "secondary" ? 1.4 : 1.8}
+                          strokeDasharray={e.kind === "secondary" ? "5 4" : undefined}
+                          strokeLinejoin="round" strokeLinecap="round"
+                          opacity={focusOn ? (active ? 0.95 : 0.06) : e.kind === "secondary" ? 0.5 : 0.7} />
+                      );
+                    })}
+                  </svg>
+                  {[...layout.nodes.values()].map((n) => {
+                    const p = peopleById.get(n.id); if (!p) return null;
                     return (
-                      <path key={e.id} d={e.d} fill="none"
-                        stroke={e.kind === "secondary" ? "hsl(var(--info))" : "hsl(var(--fg-muted))"}
-                        strokeWidth={e.kind === "secondary" ? 1.4 : 1.8}
-                        strokeDasharray={e.kind === "secondary" ? "5 4" : undefined}
-                        strokeLinejoin="round" strokeLinecap="round"
-                        opacity={focusOn ? (active ? 0.95 : 0.06) : e.kind === "secondary" ? 0.5 : 0.7} />
+                      <div key={n.id} className="absolute flow-card" style={{ left: n.x, top: n.y, width: CARD_W, height: CARD_H, opacity: isActive(n.id) ? 1 : 0.25, transition: "opacity 120ms" }}
+                        onMouseEnter={() => setHovered(n.id)} onMouseLeave={() => setHovered(null)}>
+                        <FlowCard p={p} x={extras[n.id]} isHead={headIds?.has(n.id) ?? false} />
+                      </div>
                     );
                   })}
-                </svg>
-                {[...layout.nodes.values()].map((n) => {
-                  const p = peopleById.get(n.id); if (!p) return null;
-                  return (
-                    <div key={n.id} className="absolute flow-card" style={{ left: n.x, top: n.y, width: CARD_W, height: CARD_H, opacity: isActive(n.id) ? 1 : 0.25, transition: "opacity 120ms" }}
-                      onMouseEnter={() => setHovered(n.id)} onMouseLeave={() => setHovered(null)}>
-                      <FlowCard p={p} x={extras[n.id]} />
-                    </div>
-                  );
-                })}
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-function FlowCard({ p, x }: { p: FlowPerson; x?: OrgPersonExtras }) {
+function FlowCard({ p, x, isHead }: { p: FlowPerson; x?: OrgPersonExtras; isHead?: boolean }) {
   const accent = p.accentColor || "hsl(var(--accent))";
   return (
-    <div className="h-full w-full flex items-center gap-2 rounded-xl glass elevated pl-1 pr-2 py-1.5 ring-1 ring-border/60 hover:ring-accent/40 hover:shadow-lg transition-all">
+    <div className="relative h-full w-full flex items-center gap-2 rounded-xl glass elevated pl-1 pr-2 py-1.5 ring-1 ring-border/60 hover:ring-accent/40 hover:shadow-lg transition-all">
+      {isHead && <span className="absolute -top-2 left-2 z-10 text-[9px] font-semibold uppercase tracking-wide bg-accent text-accent-fg rounded-full px-1.5 py-0.5 shadow-sm">Head</span>}
       <span className="self-stretch w-1 rounded-full shrink-0" style={{ backgroundColor: accent }} aria-hidden />
       <span className={cn("h-9 w-9 rounded-full ring-1 flex items-center justify-center text-[12px] font-semibold shrink-0", TYPE_TINT[p.personType] ?? TYPE_TINT.outsider)}>{initials(p.name)}</span>
       <div className="min-w-0 flex-1">

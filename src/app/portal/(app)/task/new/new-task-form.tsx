@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
-import { Panel } from "@/components/surface-kit";
+import { Hero, Panel } from "@/components/surface-kit";
 import { Button } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { portalCreateTask } from "../../../actions";
@@ -24,8 +24,7 @@ export function NewTaskForm({ me, people, companies }: { me: Person; people: Per
       </Link>
 
       <Reveal delay={0}>
-        <h1 className="text-xl font-semibold tracking-tight">New task</h1>
-        <p className="mt-0.5 text-sm text-fg-muted">Delegate work to yourself or your team.</p>
+        <Hero title="New task" subtitle="Delegate work to yourself or your team." />
       </Reveal>
 
       <Reveal delay={0.05}>

@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, Loader2 } from "lucide-react";
-import { setPersonDirector, addPersonManager } from "@/app/hrms/org/actions";
+import { setPersonDirector, addPersonManager, type ReportingResult } from "@/app/hrms/org/actions";
+import { useToast } from "./toast";
 
 export type PickPerson = { id: number; name: string; companyName: string | null };
 
@@ -23,8 +24,21 @@ export function OrgDirectorPicker({
   const [open, setOpen] = useState(false);
   const [busy, start] = useTransition();
   const router = useRouter();
+  const { toast } = useToast();
   const options = people.filter((p) => p.id !== personId);
-  const run = (fn: () => Promise<void>) => start(async () => { await fn(); router.refresh(); setOpen(false); });
+  // Await the action's result. A rejected reporting cycle returns
+  // { ok: false } — show its plain message instead of closing silently
+  // (which read as "the app lost my change").
+  const run = (fn: () => Promise<ReportingResult>) =>
+    start(async () => {
+      const res = await fn();
+      if (!res.ok) {
+        toast(res.error, { tone: "warn" });
+        return; // keep the picker open so the user can pick a different manager
+      }
+      router.refresh();
+      setOpen(false);
+    });
 
   return (
     <div className="relative inline-block">

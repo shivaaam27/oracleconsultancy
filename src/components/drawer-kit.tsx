@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { CountPill } from "@/components/ui";
 
 /* ------------------------------------------------------------------ *
  * Drawer design kit — the shared primitives every drawer section uses *
@@ -75,9 +76,7 @@ export function SectionPulse({
       <div className="flex items-center gap-2">
         {icon && <span className="text-accent shrink-0">{icon}</span>}
         <span className="text-sm font-semibold">{title}</span>
-        {count != null && (
-          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular">{count}</span>
-        )}
+        {count != null && <CountPill>{count}</CountPill>}
         {action && <span className="ml-auto">{action}</span>}
       </div>
       {progress && <ProgressTrack value={progress.value} total={progress.total} tone={progress.tone} />}

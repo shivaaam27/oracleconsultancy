@@ -251,6 +251,59 @@ export function Badge({
 }
 
 /* --------------------------------------------------------------------- */
+/* CountPill                                                              */
+/* --------------------------------------------------------------------- */
+
+// One small rounded count badge — replaces the 4 hand-rolled count-badge
+// styles. Theme-token only (no hardcoded white/black). Sits next to a section
+// heading or tab to show "how many". Defaults to a neutral chip.
+//
+// Tones:
+//  - default/neutral   neutral grey chip
+//  - accent            accent-tinted
+//  - warn              amber-tinted (lapsing / attention)
+//  - danger            red-tinted
+//  - transparent/inherit  no background of its own — inherits the PARENT's
+//    currentColor (use inside an already-tinted filter chip / badge so the
+//    count blends in rather than clashing with a second colour).
+const countPillTones = {
+  default: "bg-bg-muted text-fg-muted",
+  neutral: "bg-bg-muted text-fg-muted",
+  accent: "bg-accent-soft text-accent",
+  warn: "bg-warn-soft text-warn",
+  danger: "bg-danger-soft text-danger",
+  transparent: "bg-transparent text-current",
+  inherit: "bg-transparent text-current",
+};
+
+export function CountPill({
+  count,
+  tone = "default",
+  className,
+  children,
+}: {
+  /** The number to show. Ignored if `children` is provided. */
+  count?: number;
+  tone?: keyof typeof countPillTones;
+  className?: string;
+  /** Override the content (e.g. "9+"). Falls back to `count`. */
+  children?: ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full",
+        "text-[11px] font-semibold leading-none tabular whitespace-nowrap",
+        countPillTones[tone],
+        className
+      )}
+    >
+      {children ?? count}
+    </span>
+  );
+}
+
+/* --------------------------------------------------------------------- */
 /* Stat                                                                   */
 /* --------------------------------------------------------------------- */
 
@@ -343,6 +396,115 @@ export function Td({
     >
       {children}
     </td>
+  );
+}
+
+/* --------------------------------------------------------------------- */
+/* Register list (canonical record list)                                  */
+/* --------------------------------------------------------------------- */
+
+// The ONE look for every register / record list (Documents, People, Vendors,
+// Assets, Tools, Leave …). A solid raised card whose rows are divided by a
+// hairline. Purely presentational + composable: existing per-row content drops
+// straight into <RegisterRow> children. Based on the cleanest existing solid
+// style (the Vendors register) so registers stop diverging.
+//
+//   <RegisterList header={<RegisterGroupHeader>…</RegisterGroupHeader>}>
+//     {rows.map((r) => (
+//       <RegisterRow key={r.id} onClick={() => open(r)}>
+//         …existing row content…
+//       </RegisterRow>
+//     ))}
+//   </RegisterList>
+
+export function RegisterList({
+  children,
+  header,
+  className,
+}: {
+  children: ReactNode;
+  /** Optional sticky-feel group header strip rendered above the rows
+   *  (e.g. a "OVERDUE · 3" band). Use <RegisterGroupHeader> for the stock look. */
+  header?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "bg-bg-elev ring-1 ring-border rounded-2xl elevated overflow-hidden",
+        "divide-y divide-border/60",
+        className
+      )}
+    >
+      {header}
+      {children}
+    </div>
+  );
+}
+
+// A single register row. Accepts arbitrary children (lay them out yourself —
+// usually a leading icon, a `min-w-0 flex-1` body, then trailing actions).
+// `onClick` makes the whole row activatable (adds pointer + keyboard support);
+// omit it for a static row. `className` merges in (e.g. selected/busy states).
+export function RegisterRow({
+  children,
+  onClick,
+  className,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  className?: string;
+}) {
+  const interactive = !!onClick;
+  return (
+    <div
+      onClick={onClick}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        "flex items-center gap-3 px-3 sm:px-3.5 py-3 transition-colors",
+        "hover:bg-bg-subtle/40",
+        interactive && "cursor-pointer select-none",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The stock group-header strip for a <RegisterList header={…}> — a coloured
+ *  dot + uppercase label + optional trailing count. Matches the canonical
+ *  FieldLabel/Th tracking (0.08em). */
+export function RegisterGroupHeader({
+  children,
+  tone = "muted",
+  action,
+}: {
+  children: ReactNode;
+  tone?: "muted" | "warn" | "danger";
+  action?: ReactNode;
+}) {
+  const dot =
+    tone === "danger" ? "bg-danger" : tone === "warn" ? "bg-warn" : "bg-fg-subtle";
+  return (
+    <div className="flex items-center gap-2 px-3.5 py-2.5 bg-bg-subtle/50">
+      <span className={cn("h-2 w-2 rounded-full shrink-0", dot)} />
+      <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+        {children}
+      </span>
+      {action && <span className="ml-auto">{action}</span>}
+    </div>
   );
 }
 

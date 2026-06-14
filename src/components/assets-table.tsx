@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Search, Plus, X, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users, Upload, Clock, Ban, ArchiveRestore, Printer, MoreHorizontal, UserPlus, UserCog } from "lucide-react";
-import { Badge, Button } from "./ui";
+import { Search, Plus, Laptop, Pencil, Archive, RotateCcw, Wrench, Loader2, User, Users, Upload, Clock, Ban, ArchiveRestore, Printer, MoreHorizontal, UserPlus, UserCog } from "lucide-react";
+import { Badge, Button, FieldLabel, RegisterList, RegisterRow, Select } from "./ui";
+import { HrmsDialog } from "./hrms/hrms-dialog";
 import { IconAction, MenuItem } from "./register-ui";
 import { Combobox } from "./combobox";
 import { FluidSelect } from "./fluid-select";
@@ -34,6 +34,11 @@ import {
 } from "@/app/hrms/assets/actions";
 
 type Lite = { id: number; name: string };
+
+// Visual styling for the shared <Select> — border/bg/focus only; Select owns
+// padding (incl. its chevron gap), height, rounding and appearance, so we must
+// NOT pass px-* here or twMerge would drop Select's pr-8 chevron room.
+const SELECT_CLASS = "border border-border bg-bg-subtle focus:outline-none focus:border-accent";
 
 function fmtDate(value: string | null): string | null {
   if (!value) return null;
@@ -134,12 +139,12 @@ export function AssetsTable({
       </div>
 
       {filtered.length > 0 ? (
-        <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl overflow-hidden divide-y divide-border/60">
+        <RegisterList>
           {filtered.map((a) => {
             const busy = busyId === a.id;
             const meta = [a.tag, a.serialNo ? `SN ${a.serialNo}` : null, a.companyName, a.location, a.vendorName ? `from ${a.vendorName}` : null].filter(Boolean).join(" · ");
             return (
-              <div key={a.id} className={cn("flex items-center gap-3 px-3 sm:px-3.5 py-3 transition-colors hover:bg-bg-subtle/40", busy && "opacity-60")}>
+              <RegisterRow key={a.id} className={busy ? "opacity-60" : undefined}>
                 <span className="h-9 w-9 rounded-xl bg-bg-muted ring-1 ring-border flex items-center justify-center text-fg-muted shrink-0">
                   <Laptop size={15} />
                 </span>
@@ -224,10 +229,10 @@ export function AssetsTable({
                     </DropdownMenu.Portal>
                   </DropdownMenu.Root>
                 </div>
-              </div>
+              </RegisterRow>
             );
           })}
-        </div>
+        </RegisterList>
       ) : (
         <div className="bg-bg-elev ring-1 ring-border elevated rounded-2xl text-center py-12 text-fg-muted text-sm">
           {assets.length === 0 ? "No assets yet. Add your first to begin." : "No assets match these filters."}
@@ -270,37 +275,26 @@ function AssetHistoryDialog({ asset, onOpenChange }: { asset: AssetRow | null; o
   }, [asset]);
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(520px,calc(100vw-2rem))] max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">History — {asset?.name}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
-          </div>
-          <div className="p-5">
-            {rows == null ? (
-              <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
-            ) : rows.length === 0 ? (
-              <p className="text-sm text-fg-muted text-center py-6">No assignment history yet.</p>
-            ) : (
-              <div className="space-y-2.5">
-                {rows.map((h) => (
-                  <div key={h.id} className="flex items-start gap-2.5 text-sm">
-                    <span className={cn("h-2 w-2 rounded-full mt-1.5 shrink-0", h.returnedAt ? "bg-fg-subtle" : "bg-info")} />
-                    <div className="min-w-0 flex-1">
-                      <span className="font-medium">{h.personName ?? "Unknown"}</span>
-                      <span className="text-fg-muted"> · {fmtDate(h.assignedAt)} → {h.returnedAt ? fmtDate(h.returnedAt) : "present"}</span>
-                      {h.notes && <div className="text-[11px] text-fg-subtle">{h.notes}</div>}
-                    </div>
-                  </div>
-                ))}
+    <HrmsDialog open={open} onOpenChange={onOpenChange} title={`History — ${asset?.name ?? ""}`}>
+      {rows == null ? (
+        <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-fg-muted text-center py-6">No assignment history yet.</p>
+      ) : (
+        <div className="space-y-2.5">
+          {rows.map((h) => (
+            <div key={h.id} className="flex items-start gap-2.5 text-sm">
+              <span className={cn("h-2 w-2 rounded-full mt-1.5 shrink-0", h.returnedAt ? "bg-fg-subtle" : "bg-info")} />
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">{h.personName ?? "Unknown"}</span>
+                <span className="text-fg-muted"> · {fmtDate(h.assignedAt)} → {h.returnedAt ? fmtDate(h.returnedAt) : "present"}</span>
+                {h.notes && <div className="text-[11px] text-fg-subtle">{h.notes}</div>}
               </div>
-            )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+            </div>
+          ))}
+        </div>
+      )}
+    </HrmsDialog>
   );
 }
 
@@ -326,39 +320,28 @@ function ArchivedAssetsDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(520px,calc(100vw-2rem))] max-h-[80dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">Archived assets</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
-          </div>
-          <div className="p-5">
-            {rows == null ? (
-              <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
-            ) : rows.length === 0 ? (
-              <p className="text-sm text-fg-muted text-center py-6">Nothing archived.</p>
-            ) : (
-              <div className="divide-y divide-border/60">
-                {rows.map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{a.name}</div>
-                      <div className="text-[11px] text-fg-subtle truncate">{[a.tag, a.category, a.serialNo].filter(Boolean).join(" · ") || "—"}</div>
-                    </div>
-                    <button type="button" disabled={busyId === a.id} onClick={() => restore(a.id)}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
-                      {busyId === a.id ? <Loader2 size={11} className="animate-spin" /> : <ArchiveRestore size={11} />} Restore
-                    </button>
-                  </div>
-                ))}
+    <HrmsDialog open={open} onOpenChange={onOpenChange} title="Archived assets">
+      {rows == null ? (
+        <div className="flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={15} className="animate-spin" /> Loading…</div>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-fg-muted text-center py-6">Nothing archived.</p>
+      ) : (
+        <div className="divide-y divide-border/60">
+          {rows.map((a) => (
+            <div key={a.id} className="flex items-center gap-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{a.name}</div>
+                <div className="text-[11px] text-fg-subtle truncate">{[a.tag, a.category, a.serialNo].filter(Boolean).join(" · ") || "—"}</div>
               </div>
-            )}
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+              <button type="button" disabled={busyId === a.id} onClick={() => restore(a.id)}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-border bg-bg-subtle hover:bg-bg-muted">
+                {busyId === a.id ? <Loader2 size={11} className="animate-spin" /> : <ArchiveRestore size={11} />} Restore
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </HrmsDialog>
   );
 }
 
@@ -456,59 +439,54 @@ function ImportDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(640px,calc(100vw-2rem))] max-h-[88dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">Import assets from a spreadsheet</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
-              <X size={14} />
-            </Dialog.Close>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Import assets from a spreadsheet"
+      width={640}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" size="sm" loading={pending} disabled={parsed.length === 0} onClick={submit}>
+            Import {parsed.length > 0 ? `${parsed.length} ` : ""}asset{parsed.length === 1 ? "" : "s"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-xs text-fg-muted">
+          Copy the rows from Excel (<strong>include the header line</strong>) and paste below. Columns recognised:
+          Asset ID, Category, Device Type, Brand, Model, Serial Number, Assigned To, Department, Handover date, Location, Notes.
+          Everything imports <strong>in store</strong> — assign holders afterwards.
+        </p>
+        <div>
+          <FieldLabel>Owning company</FieldLabel>
+          <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={SELECT_CLASS}>
+            <option value="">—</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </div>
+        <div>
+          <FieldLabel>Paste rows</FieldLabel>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={8}
+            placeholder={"Asset ID\tCategory\tDevice Type\tBrand\tModel\tSerial Number\t…\nLPT-001\tCOMPUTER\tLaptop\tLenovo\tIDEAPAD 3i\t…"}
+            className={cn(input, "font-mono text-xs whitespace-pre")}
+          />
+        </div>
+        {text.trim() && (
+          <div className="text-xs text-fg-muted">
+            {parsed.length > 0
+              ? <><strong className="text-fg">{parsed.length}</strong> row{parsed.length === 1 ? "" : "s"} ready · first: <span className="text-fg">{parsed[0].name}</span></>
+              : "No rows detected — make sure the first line is the header."}
           </div>
-          <div className="p-5 space-y-3">
-            <p className="text-xs text-fg-muted">
-              Copy the rows from Excel (<strong>include the header line</strong>) and paste below. Columns recognised:
-              Asset ID, Category, Device Type, Brand, Model, Serial Number, Assigned To, Department, Handover date, Location, Notes.
-              Everything imports <strong>in store</strong> — assign holders afterwards.
-            </p>
-            <div>
-              <label className={label}>Owning company</label>
-              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={input}>
-                <option value="">—</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={label}>Paste rows</label>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={8}
-                placeholder={"Asset ID\tCategory\tDevice Type\tBrand\tModel\tSerial Number\t…\nLPT-001\tCOMPUTER\tLaptop\tLenovo\tIDEAPAD 3i\t…"}
-                className={cn(input, "font-mono text-xs whitespace-pre")}
-              />
-            </div>
-            {text.trim() && (
-              <div className="text-xs text-fg-muted">
-                {parsed.length > 0
-                  ? <><strong className="text-fg">{parsed.length}</strong> row{parsed.length === 1 ? "" : "s"} ready · first: <span className="text-fg">{parsed[0].name}</span></>
-                  : "No rows detected — make sure the first line is the header."}
-              </div>
-            )}
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="button" size="sm" loading={pending} disabled={parsed.length === 0} onClick={submit}>
-                Import {parsed.length > 0 ? `${parsed.length} ` : ""}asset{parsed.length === 1 ? "" : "s"}
-              </Button>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        )}
+      </div>
+    </HrmsDialog>
   );
 }
 
@@ -547,37 +525,34 @@ function AssignDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">{reassign ? "Reassign" : "Assign"} {asset?.name}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle"><X size={14} /></Dialog.Close>
-          </div>
-          <div className="p-5 space-y-3">
-            <div>
-              <label className={label}>Search people</label>
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type a name…" className={input} />
-            </div>
-            <div>
-              <label className={label}>Assign to</label>
-              <select value={personId} onChange={(e) => setPersonId(e.target.value)} size={6} className={cn(input, "h-auto")}>
-                {matches.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                {matches.length === 0 && <option disabled>No matching people</option>}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="button" size="sm" loading={pending} onClick={submit}>{reassign ? "Reassign" : "Assign"}</Button>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`${reassign ? "Reassign" : "Assign"} ${asset?.name ?? ""}`}
+      width={440}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" size="sm" loading={pending} onClick={submit}>{reassign ? "Reassign" : "Assign"}</Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div>
+          <FieldLabel>Search people</FieldLabel>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Type a name…" className={input} />
+        </div>
+        <div>
+          <FieldLabel>Assign to</FieldLabel>
+          <select value={personId} onChange={(e) => setPersonId(e.target.value)} size={6} className={cn(input, "h-auto")}>
+            {matches.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {matches.length === 0 && <option disabled>No matching people</option>}
+          </select>
+        </div>
+      </div>
+    </HrmsDialog>
   );
 }
 
@@ -617,45 +592,40 @@ function ShareDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">Share {asset?.name}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
-              <X size={14} />
-            </Dialog.Close>
-          </div>
-          <div className="p-5 space-y-3">
-            <p className="text-xs text-fg-muted">
-              For kit a whole team shares (no single holder). Pick the team/company and one accountable custodian.
-            </p>
-            <div>
-              <label className={label}>Team / company</label>
-              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={input}>
-                <option value="">—</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={label}>Custodian (accountable person)</label>
-              <select value={custodianId} onChange={(e) => setCustodianId(e.target.value)} className={input}>
-                <option value="">—</option>
-                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="button" size="sm" loading={pending} onClick={submit}>Share asset</Button>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Share ${asset?.name ?? ""}`}
+      width={440}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" size="sm" loading={pending} onClick={submit}>Share asset</Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-xs text-fg-muted">
+          For kit a whole team shares (no single holder). Pick the team/company and one accountable custodian.
+        </p>
+        <div>
+          <FieldLabel>Team / company</FieldLabel>
+          <Select value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={SELECT_CLASS}>
+            <option value="">—</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+        </div>
+        <div>
+          <FieldLabel>Custodian (accountable person)</FieldLabel>
+          <Select value={custodianId} onChange={(e) => setCustodianId(e.target.value)} className={SELECT_CLASS}>
+            <option value="">—</option>
+            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Select>
+        </div>
+      </div>
+    </HrmsDialog>
   );
 }
 
@@ -689,7 +659,6 @@ function AssetDialog({
   }
 
   const input = "w-full rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent";
-  const label = "block text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1";
 
   // What the asset is currently assigned to — drives the assignee select.
   const isShared = !!editing && editing.status === "assigned" && !editing.assignedToPersonId &&
@@ -699,108 +668,104 @@ function AssetDialog({
     : isShared ? "shared" : "store";
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[51] w-[min(560px,calc(100vw-2rem))] max-h-[88dvh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl glass glass-menu elevated outline-none">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <Dialog.Title className="text-sm font-semibold">{editing ? "Edit asset" : "Add an asset"}</Dialog.Title>
-            <Dialog.Close className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle">
-              <X size={14} />
-            </Dialog.Close>
+    <HrmsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={editing ? "Edit asset" : "Add an asset"}
+      width={560}
+      footer={
+        <>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" size="sm" loading={pending} form="asset-form">{editing ? "Save changes" : "Add asset"}</Button>
+        </>
+      }
+    >
+      <form id="asset-form" onSubmit={onSubmit} className="space-y-3">
+        <div>
+          <FieldLabel>Name *</FieldLabel>
+          <input name="name" required defaultValue={editing?.name ?? ""} placeholder="e.g. Dell Latitude 5420" className={input} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Asset tag</FieldLabel>
+            <input name="tag" defaultValue={editing?.tag ?? ""} placeholder="LPT-001" className={input} />
           </div>
-          <form onSubmit={onSubmit} className="p-5 space-y-3">
-            <div>
-              <label className={label}>Name *</label>
-              <input name="name" required defaultValue={editing?.name ?? ""} placeholder="e.g. Dell Latitude 5420" className={input} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Asset tag</label>
-                <input name="tag" defaultValue={editing?.tag ?? ""} placeholder="LPT-001" className={input} />
-              </div>
-              <div>
-                <label className={label}>Category</label>
-                <Combobox name="category" options={[...ASSET_CATEGORIES]} defaultValue={editing?.category ?? ""} placeholder="Type or pick…" className={input} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Brand</label>
-                <input name="brand" defaultValue={editing?.brand ?? ""} placeholder="e.g. HP" className={input} />
-              </div>
-              <div>
-                <label className={label}>Model</label>
-                <input name="model" defaultValue={editing?.model ?? ""} placeholder="e.g. Probook i5" className={input} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Serial number</label>
-                <input name="serialNo" defaultValue={editing?.serialNo ?? ""} className={input} />
-              </div>
-              <div>
-                <label className={label}>Department</label>
-                <input name="department" defaultValue={editing?.department ?? ""} placeholder="e.g. Operations" className={input} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Owning company</label>
-                <select name="companyId" defaultValue={editing?.companyId ?? ""} className={input}>
-                  <option value="">—</option>
-                  {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={label}>Handover date</label>
-                <input type="date" name="handoverDate" defaultValue={editing?.assignedAt ? editing.assignedAt.slice(0, 10) : ""} className={input} />
-              </div>
-            </div>
-            <div>
-              <label className={label}>Assigned to</label>
-              <input type="hidden" name="assigneeWas" value={assigneeWas} />
-              <select name="assigneeId" defaultValue={assigneeWas} className={input}>
-                <option value="store">— In store (unassigned) —</option>
-                {isShared && <option value="shared">Shared / team — leave as is</option>}
-                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <p className="text-[11px] text-fg-subtle mt-1">Change this to correct or move who holds the asset.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Supplier (vendor)</label>
-                <select name="vendorId" defaultValue={editing?.vendorId ?? ""} className={input}>
-                  <option value="">—</option>
-                  {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={label}>Location / site</label>
-                <input name="location" defaultValue={editing?.location ?? ""} placeholder="e.g. Head Office" className={input} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={label}>Purchase date</label>
-                <input type="date" name="purchaseDate" defaultValue={editing?.purchaseDate ? editing.purchaseDate.slice(0, 10) : ""} className={input} />
-              </div>
-              <div>
-                <label className={label}>Purchase cost</label>
-                <input type="number" step="0.01" name="purchaseCost" defaultValue={editing?.purchaseCost ?? ""} className={input} />
-              </div>
-            </div>
-            <div>
-              <label className={label}>Notes</label>
-              <textarea name="notes" rows={2} defaultValue={editing?.notes ?? ""} className={input} />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button type="button" variant="secondary" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" size="sm" loading={pending}>{editing ? "Save changes" : "Add asset"}</Button>
-            </div>
-          </form>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          <div>
+            <FieldLabel>Category</FieldLabel>
+            <Combobox name="category" options={[...ASSET_CATEGORIES]} defaultValue={editing?.category ?? ""} placeholder="Type or pick…" className={input} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Brand</FieldLabel>
+            <input name="brand" defaultValue={editing?.brand ?? ""} placeholder="e.g. HP" className={input} />
+          </div>
+          <div>
+            <FieldLabel>Model</FieldLabel>
+            <input name="model" defaultValue={editing?.model ?? ""} placeholder="e.g. Probook i5" className={input} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Serial number</FieldLabel>
+            <input name="serialNo" defaultValue={editing?.serialNo ?? ""} className={input} />
+          </div>
+          <div>
+            <FieldLabel>Department</FieldLabel>
+            <input name="department" defaultValue={editing?.department ?? ""} placeholder="e.g. Operations" className={input} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Owning company</FieldLabel>
+            <Select name="companyId" defaultValue={editing?.companyId ?? ""} className={SELECT_CLASS}>
+              <option value="">—</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <FieldLabel>Handover date</FieldLabel>
+            <input type="date" name="handoverDate" defaultValue={editing?.assignedAt ? editing.assignedAt.slice(0, 10) : ""} className={input} />
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Assigned to</FieldLabel>
+          <input type="hidden" name="assigneeWas" value={assigneeWas} />
+          <Select name="assigneeId" defaultValue={assigneeWas} className={SELECT_CLASS}>
+            <option value="store">— In store (unassigned) —</option>
+            {isShared && <option value="shared">Shared / team — leave as is</option>}
+            {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Select>
+          <p className="text-[11px] text-fg-subtle mt-1">Change this to correct or move who holds the asset.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Supplier (vendor)</FieldLabel>
+            <Select name="vendorId" defaultValue={editing?.vendorId ?? ""} className={SELECT_CLASS}>
+              <option value="">—</option>
+              {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <FieldLabel>Location / site</FieldLabel>
+            <input name="location" defaultValue={editing?.location ?? ""} placeholder="e.g. Head Office" className={input} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Purchase date</FieldLabel>
+            <input type="date" name="purchaseDate" defaultValue={editing?.purchaseDate ? editing.purchaseDate.slice(0, 10) : ""} className={input} />
+          </div>
+          <div>
+            <FieldLabel>Purchase cost</FieldLabel>
+            <input type="number" step="0.01" name="purchaseCost" defaultValue={editing?.purchaseCost ?? ""} className={input} />
+          </div>
+        </div>
+        <div>
+          <FieldLabel>Notes</FieldLabel>
+          <textarea name="notes" rows={2} defaultValue={editing?.notes ?? ""} className={input} />
+        </div>
+      </form>
+    </HrmsDialog>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, CalendarDays, CalendarClock, Calendar, Check } from "lucide-react";
 import { spring } from "@/lib/motion";
@@ -26,6 +26,20 @@ export function SnoozeSheet({
   label?: string;
 }) {
   const [date, setDate] = useState("");
+
+  // Close on Escape and lock the page behind from scrolling while open.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   function pickPreset(days: number) {
     onPick(snoozeIso(Date.now(), days));
@@ -56,6 +70,8 @@ export function SnoozeSheet({
             className="fixed inset-0 z-[88] bg-black/45 backdrop-blur-[3px]"
           />
           <motion.div
+            role="dialog"
+            aria-modal="true"
             initial={{ opacity: 0, scale: 0.9, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 8 }}

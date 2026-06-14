@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2, History, CalendarClock } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2, History, CalendarClock, X } from "lucide-react";
 import { Badge, Button, LinkButton } from "./ui";
+import { DocumentForm } from "./document-form";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { CountUp } from "./arc-gauge";
@@ -136,16 +138,29 @@ export function RequirementsChecklist({
   onNavigate,
   onSummary,
   onAddDocument,
+  companies,
+  people,
   reloadSignal,
 }: {
   personId: number;
   onChanged?: () => void;
   onNavigate?: () => void;
   onSummary?: (s: { score: number; band: "Good" | "Watch" | "Risk"; missing: number; total: number }) => void;
+  /** When provided, the host opens its own "add document" surface (e.g. the
+   *  person drawer's layered dialog). When omitted but companies+people are
+   *  passed, this component hosts its OWN in-place DocumentForm dialog so the
+   *  upload-onto-a-gap flow stays on-page; otherwise it links to /documents. */
   onAddDocument?: (opts: { title: string; category: string | null }) => void;
+  /** Picker data for the self-hosted "add document" dialog (P2-JRNY-05). */
+  companies?: Array<{ id: number; name: string }>;
+  people?: Array<{ id: number; name: string }>;
   reloadSignal?: number;
 }) {
   const { toast } = useToast();
+  // Self-hosted in-place "add document" — used when the host doesn't pass
+  // onAddDocument but does supply picker data, so the flow never leaves the page.
+  const [addDoc, setAddDoc] = useState<{ title: string; category: string | null } | null>(null);
+  const canHostAdd = !onAddDocument && !!companies && !!people;
   const [data, setData] = useState<Checklist | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -226,6 +241,7 @@ export function RequirementsChecklist({
   const lastReviewed = events.find((e) => e.action === "verified");
 
   return (
+    <>
     <div className="space-y-3">
       {/* Pulse header */}
       <SectionCard className="p-3.5 space-y-2.5">
@@ -321,6 +337,51 @@ export function RequirementsChecklist({
         </SectionCard>
       )}
     </div>
+
+    {/* Self-hosted "add document" — layered over the host so the upload-onto-a-
+        gap flow stays on-page even when the host doesn't provide onAddDocument. */}
+    {canHostAdd && (
+      <Dialog.Root open={!!addDoc} onOpenChange={(o) => { if (!o) setAddDoc(null); }}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm
+            data-[state=open]:animate-in data-[state=open]:fade-in-0
+            data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed left-1/2 top-1/2 z-[61] -translate-x-1/2 -translate-y-1/2
+              w-[min(560px,calc(100vw-1.5rem))] max-h-[88dvh] flex flex-col overflow-hidden
+              glass glass-refract rounded-2xl outline-none
+              data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
+              data-[state=closed]:animate-out data-[state=closed]:zoom-out-95"
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
+              <Dialog.Title className="text-sm font-semibold truncate">Add a required document</Dialog.Title>
+              <Dialog.Close asChild>
+                <button type="button" aria-label="Close"
+                  className="h-7 w-7 inline-flex items-center justify-center rounded text-fg-muted hover:text-fg hover:bg-bg-subtle transition-colors">
+                  <X size={14} />
+                </button>
+              </Dialog.Close>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {addDoc && (
+                <DocumentForm
+                  mode="create"
+                  companies={companies!}
+                  people={people!}
+                  initialPersonId={personId}
+                  initialCategory={addDoc.category}
+                  initialTitle={addDoc.title}
+                  onCancel={() => setAddDoc(null)}
+                  onComplete={(res) => { if (res.ok) { toast("Document added.", { tone: "success" }); setAddDoc(null); load(); onChanged?.(); } }}
+                />
+              )}
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    )}
+    </>
   );
 
   function ItemRow({ item }: { item: ChecklistItem }) {
@@ -340,6 +401,10 @@ export function RequirementsChecklist({
     const primaryAdd = (label: string) =>
       onAddDocument ? (
         <Button type="button" size="xs" disabled={busy} onClick={(e) => { e.stopPropagation(); onAddDocument({ title: item.label, category: addCat }); }}>
+          <Plus size={12} /> {label}
+        </Button>
+      ) : canHostAdd ? (
+        <Button type="button" size="xs" disabled={busy} onClick={(e) => { e.stopPropagation(); setAddDoc({ title: item.label, category: addCat }); }}>
           <Plus size={12} /> {label}
         </Button>
       ) : (

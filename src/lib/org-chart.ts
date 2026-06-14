@@ -189,6 +189,30 @@ function createsCycle(nodes: Map<number, OrgNode>, personId: number, managerId: 
   return false;
 }
 
+/**
+ * Would setting `managerId` as `personId`'s primary manager create a reporting
+ * loop? Walks the EXISTING primary-manager chain (a map of person → their
+ * current primary manager) up from the proposed manager; if it reaches the
+ * person, the line would close a cycle. Used by the write paths so a loop is
+ * rejected up-front with a clear message rather than silently dropped at render.
+ */
+export function wouldCreateReportingCycle(
+  primaryManagerOf: Map<number, number | null>,
+  personId: number,
+  managerId: number,
+): boolean {
+  if (managerId === personId) return true;
+  let cursor: number | null = managerId;
+  const seen = new Set<number>();
+  while (cursor != null) {
+    if (cursor === personId) return true;
+    if (seen.has(cursor)) return true;
+    seen.add(cursor);
+    cursor = primaryManagerOf.get(cursor) ?? null;
+  }
+  return false;
+}
+
 /** Count every node in a list of trees (for headcount labels). */
 export function countNodes(roots: OrgNode[]): number {
   return roots.reduce((sum, n) => sum + 1 + countNodes(n.children), 0);

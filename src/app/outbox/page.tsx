@@ -4,6 +4,7 @@ import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, t
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
 import { Hero, Panel, TONE, type Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
+import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { Globe2 } from "lucide-react";
 import { UnsnoozeButton } from "./outbox-card";
 import { OutboxWorkspace } from "./outbox-workspace";
@@ -15,7 +16,12 @@ import { BellOff, ChevronDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function OutboxPage() {
+export default async function OutboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const { from } = await searchParams;
   const [drafts, savedDrafts, sentByName, history, snoozed, scopedId, scopeOptions, automation, todaySent] = await Promise.all([
     generateDrafts(),
     listOutboxDrafts(),
@@ -95,6 +101,7 @@ export default async function OutboxPage() {
 
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
+      <HrmsCrumbs from={from} />
       <Reveal>
         <Hero
           title="Outbox"

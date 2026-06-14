@@ -78,7 +78,7 @@ export function StockPurchases({ items, purchases }: { items: StockItemRow[]; pu
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative w-full sm:flex-1 min-w-0 sm:min-w-[240px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search item, supplier, invoice…"
@@ -238,7 +238,7 @@ export function StockIssues({ items, issues, companies }: {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative w-full sm:flex-1 min-w-0 sm:min-w-[240px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search item, recipient, company…"

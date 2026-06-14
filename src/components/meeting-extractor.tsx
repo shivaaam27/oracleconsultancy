@@ -114,7 +114,16 @@ export function MeetingExtractor({ companies, meetings, voiceLanguage = "en-GB",
     setNotes(notesRef.current ? `${notesRef.current}\n${chunk}` : chunk);
   }, []);
 
-  function flash(msg: string) { setInfo(msg); }
+  // Show a transient status line, then clear it so a stale message never lingers.
+  // Any new flash (or the next action that sets it) resets the timer. In-progress
+  // notices end with "…" and stay put — the follow-up result flash replaces them.
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function flash(msg: string) {
+    setInfo(msg);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    if (!msg.endsWith("…")) flashTimer.current = setTimeout(() => setInfo(null), 6000);
+  }
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
 
   function handleVoiceStop() {
     const raw = notesRef.current;
@@ -544,12 +553,26 @@ function TasksDrawer({
   addBlank: () => void; toggleAll: () => void; onSave: () => void;
   linkedTasks: SavedMeeting["tasks"]; saveFailures: { actionItem: string; reason: string }[]; error: string | null;
 }) {
+  // Close on Escape and lock the page behind from scrolling while open.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm" />
-          <motion.div initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.97 }} transition={{ type: "spring", stiffness: 360, damping: 32 }}
+          <motion.div role="dialog" aria-modal="true" initial={{ opacity: 0, y: 16, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.97 }} transition={{ type: "spring", stiffness: 360, damping: 32 }}
             className="fixed inset-0 m-auto z-[61] h-fit max-h-[85svh] w-[calc(100%-1.5rem)] max-w-md flex flex-col overflow-hidden glass rounded-2xl shadow-lg">
             <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border shrink-0">
               <h2 className="text-sm font-semibold inline-flex items-center gap-2"><ListChecks size={15} className="text-accent" /> Action items</h2>
