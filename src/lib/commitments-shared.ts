@@ -23,6 +23,7 @@ export type Commitment = {
   amount: string | null;
   status: string;
   note: string | null;
+  documentId: number | null;
 };
 
 const DAY = 86400 * 1000;

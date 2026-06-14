@@ -3,7 +3,7 @@ import type { Commitment, CommitmentKind } from "@/lib/commitments-shared";
 
 export type { Commitment } from "@/lib/commitments-shared";
 
-const COLS = "id,kind,company_id,title,counterparty,reference,start_date,end_date,notice_days,amount,status,note";
+const COLS = "id,kind,company_id,title,counterparty,reference,start_date,end_date,notice_days,amount,status,note,document_id";
 
 function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): Commitment {
   const companyId = (r.company_id as number | null) ?? null;
@@ -21,7 +21,13 @@ function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): Comm
     amount: (r.amount as string | null) ?? null,
     status: (r.status as string | null) ?? "active",
     note: (r.note as string | null) ?? null,
+    documentId: (r.document_id as number | null) ?? null,
   };
+}
+
+/** Link (or unlink) a supporting document to a commitment. */
+export async function linkCommitmentDocument(id: number, documentId: number | null): Promise<void> {
+  await sb.from("commitments").update({ document_id: documentId, updated_at: new Date().toISOString() }).eq("id", id);
 }
 
 /** All live commitments (not archived). */

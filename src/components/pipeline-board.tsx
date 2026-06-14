@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Plus, Archive, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PIPELINE_STAGES, STAGE_TONE, type PipelineItem, type PipelineStage } from "@/lib/pipeline-shared";
-import { createPipelineItemAction, movePipelineStageAction, archivePipelineItemAction } from "@/app/hrms/pipeline/actions";
+import { createPipelineItemAction, movePipelineStageAction, archivePipelineItemAction, linkPipelineDocumentAction } from "@/app/hrms/pipeline/actions";
+import { DocLinkControl, type LinkDoc } from "./doc-link-control";
 
 const COL_TONE: Record<string, string> = {
   muted: "border-border/60", accent: "border-accent/40", warn: "border-warn/50", success: "border-success/50",
@@ -18,7 +19,7 @@ const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
  * government stages. Move a card with the ← / → controls; add new cases; archive
  * finished ones.
  */
-export function PipelineBoard({ items, companies }: { items: PipelineItem[]; companies: Array<{ id: number; name: string }> }) {
+export function PipelineBoard({ items, companies, documents = [] }: { items: PipelineItem[]; companies: Array<{ id: number; name: string }>; documents?: LinkDoc[] }) {
   const [adding, setAdding] = useState(false);
   const [, start] = useTransition();
   const [busy, setBusy] = useState<number | null>(null);
@@ -78,7 +79,10 @@ export function PipelineBoard({ items, companies }: { items: PipelineItem[]; com
                         className="rounded-md p-1 text-fg-subtle hover:bg-bg-muted disabled:opacity-30"><ChevronLeft size={14} /></button>
                       <button type="button" disabled={PIPELINE_STAGES.indexOf(stage) === PIPELINE_STAGES.length - 1 || busy === i.id} onClick={() => move(i.id, 1, stage)}
                         className="rounded-md p-1 text-fg-subtle hover:bg-bg-muted disabled:opacity-30"><ChevronRight size={14} /></button>
-                      {i.deadline && <span className="ml-auto text-[10px] text-fg-subtle">due {fmtDate(i.deadline)}</span>}
+                      <span className="ml-auto inline-flex items-center gap-1.5">
+                        <DocLinkControl documentId={i.documentId} documents={documents} companyId={i.companyId} onLink={(docId) => linkPipelineDocumentAction(i.id, docId).then(() => {})} />
+                        {i.deadline && <span className="text-[10px] text-fg-subtle">due {fmtDate(i.deadline)}</span>}
+                      </span>
                     </div>
                   </div>
                 ))}

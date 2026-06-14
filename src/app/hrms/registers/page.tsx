@@ -8,11 +8,13 @@ import { sb } from "@/db/supabase";
 export const dynamic = "force-dynamic";
 
 export default async function RegistersPage() {
-  const [items, { data: companyRows }] = await Promise.all([
+  const [items, { data: companyRows }, { data: docRows }] = await Promise.all([
     listCommitments(),
     sb.from("companies").select("id,name").eq("active", true).order("name"),
+    sb.from("documents").select("id,title,company_id").eq("archived", false).order("title"),
   ]);
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  const documents = (docRows ?? []).map((d) => ({ id: d.id as number, title: d.title as string, companyId: (d.company_id as number | null) ?? null }));
   const due = items.filter((c) => ["overdue", "soon"].includes(commitmentUrgency(c))).length;
 
   return (
@@ -22,7 +24,7 @@ export default async function RegistersPage() {
         title="Commitments register"
         sub={`${items.length} lease${items.length === 1 ? "" : "s"}/policies/contracts · ${due} need notice soon`}
       />
-      <CommitmentsRegister items={items} companies={companies} />
+      <CommitmentsRegister items={items} companies={companies} documents={documents} />
     </div>
   );
 }

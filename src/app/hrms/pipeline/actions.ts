@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createPipelineItem, setPipelineStage, archivePipelineItem, updatePipelineItem, type PipelineInput } from "@/lib/pipeline";
+import { createPipelineItem, setPipelineStage, archivePipelineItem, updatePipelineItem, linkPipelineDocument, type PipelineInput } from "@/lib/pipeline";
 import { type PipelineStage } from "@/lib/pipeline-shared";
 
 export async function createPipelineItemAction(input: PipelineInput): Promise<{ ok: boolean; error?: string }> {
@@ -27,6 +27,12 @@ export async function updatePipelineItemAction(id: number, patch: Partial<Pipeli
 
 export async function archivePipelineItemAction(id: number): Promise<{ ok: boolean }> {
   await archivePipelineItem(id, true);
+  revalidatePath("/hrms/pipeline");
+  return { ok: true };
+}
+
+export async function linkPipelineDocumentAction(id: number, documentId: number | null): Promise<{ ok: boolean }> {
+  await linkPipelineDocument(id, documentId);
   revalidatePath("/hrms/pipeline");
   return { ok: true };
 }

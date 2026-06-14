@@ -38,6 +38,7 @@ export type PipelineItem = {
   nextAction: string | null;
   owner: string | null;
   notes: string | null;
+  documentId: number | null;
 };
 
 /** Stage → tone for the kanban column / chip. "Issued" is done (success). */

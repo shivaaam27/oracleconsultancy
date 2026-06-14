@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createCommitment, updateCommitment, archiveCommitment, type CommitmentInput } from "@/lib/commitments";
+import { createCommitment, updateCommitment, archiveCommitment, linkCommitmentDocument, type CommitmentInput } from "@/lib/commitments";
 
 export async function createCommitmentAction(input: CommitmentInput): Promise<{ ok: boolean; error?: string }> {
   if (!input.title?.trim()) return { ok: false, error: "Add a title." };
@@ -19,6 +19,12 @@ export async function updateCommitmentAction(id: number, patch: Partial<Commitme
 
 export async function archiveCommitmentAction(id: number): Promise<{ ok: boolean }> {
   await archiveCommitment(id, true);
+  revalidatePath("/hrms/registers");
+  return { ok: true };
+}
+
+export async function linkCommitmentDocumentAction(id: number, documentId: number | null): Promise<{ ok: boolean }> {
+  await linkCommitmentDocument(id, documentId);
   revalidatePath("/hrms/registers");
   return { ok: true };
 }

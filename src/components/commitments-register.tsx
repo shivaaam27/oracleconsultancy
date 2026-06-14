@@ -12,7 +12,8 @@ import {
   type Commitment,
   type CommitmentKind,
 } from "@/lib/commitments-shared";
-import { createCommitmentAction, archiveCommitmentAction } from "@/app/hrms/registers/actions";
+import { createCommitmentAction, archiveCommitmentAction, linkCommitmentDocumentAction } from "@/app/hrms/registers/actions";
+import { DocLinkControl, type LinkDoc } from "./doc-link-control";
 
 const KIND_ICON: Record<CommitmentKind, React.ReactNode> = {
   lease: <Home size={13} />, insurance: <ShieldCheck size={13} />, contract: <FileText size={13} />,
@@ -26,7 +27,7 @@ const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-
  * Commitments register + calendar: leases, insurance and contracts with their
  * notice-by deadlines (end − notice period). Items needing notice soon float up.
  */
-export function CommitmentsRegister({ items, companies }: { items: Commitment[]; companies: Array<{ id: number; name: string }> }) {
+export function CommitmentsRegister({ items, companies, documents = [] }: { items: Commitment[]; companies: Array<{ id: number; name: string }>; documents?: LinkDoc[] }) {
   const [adding, setAdding] = useState(false);
   const [, start] = useTransition();
   const [busy, setBusy] = useState<number | null>(null);
@@ -84,6 +85,7 @@ export function CommitmentsRegister({ items, companies }: { items: Commitment[];
                 <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", TONE_CHIP[URGENCY_TONE[urg]])}>
                   {urg === "overdue" ? "Notice overdue" : urg === "soon" ? `${d}d to notice` : urg === "ok" ? "OK" : c.status}
                 </span>
+                <DocLinkControl documentId={c.documentId} documents={documents} companyId={c.companyId} onLink={(docId) => linkCommitmentDocumentAction(c.id, docId).then(() => {})} />
                 <button type="button" onClick={() => archive(c.id)} disabled={busy === c.id} title="Archive"
                   className="shrink-0 rounded-md p-1 text-fg-subtle hover:bg-bg-muted hover:text-danger">
                   {busy === c.id ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}

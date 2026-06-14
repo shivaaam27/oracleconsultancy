@@ -5,7 +5,7 @@ import { normalizeStage, type PipelineItem, type PipelineStage } from "@/lib/pip
 
 export type { PipelineItem } from "@/lib/pipeline-shared";
 
-const COLS = "id,subject,subject_type,company_id,person_id,type,stage,control_no,amount,last_update,deadline,next_action,owner,notes";
+const COLS = "id,subject,subject_type,company_id,person_id,type,stage,control_no,amount,last_update,deadline,next_action,owner,notes,document_id";
 
 function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): PipelineItem {
   const companyId = (r.company_id as number | null) ?? null;
@@ -25,7 +25,13 @@ function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): Pipe
     nextAction: (r.next_action as string | null) ?? null,
     owner: (r.owner as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
+    documentId: (r.document_id as number | null) ?? null,
   };
+}
+
+/** Link (or unlink) a supporting document to a pipeline case. */
+export async function linkPipelineDocument(id: number, documentId: number | null): Promise<void> {
+  await sb.from("pipeline").update({ document_id: documentId, updated_at: new Date().toISOString() }).eq("id", id);
 }
 
 /** All open pipeline items (not archived), newest update first. */
