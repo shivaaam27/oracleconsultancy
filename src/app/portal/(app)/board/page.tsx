@@ -24,12 +24,21 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
 
   // Fast lookups only — these power the action forms and must never block on the
   // (much heavier) portfolio brief. The brief streams in separately below.
-  const [{ data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
-    sb.from("companies").select("id,name").order("name"),
-    sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-  ]);
-  const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }));
+  // Wrapped so a transient DB blip degrades the forms to empty lists instead of
+  // hard-crashing the whole board on first load (the "page couldn't load, reload
+  // fixes it" symptom on the director board).
+  let companies: Array<{ id: number; name: string }> = [];
+  let people: Array<{ id: number; name: string; companyId: number | null }> = [];
+  try {
+    const [{ data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+      sb.from("companies").select("id,name").order("name"),
+      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+    ]);
+    companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+    people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }));
+  } catch {
+    /* leave forms empty — they re-populate on the next refresh */
+  }
 
   return (
     <div className="flex flex-col gap-5">

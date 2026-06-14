@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "New task — Oracle Consultancy" };
 
 export default async function PortalNewTaskPage() {
-  const me = (await getPortalPerson())!;
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
   // Managers and directors can create tasks. Staff cannot.
   if (me.portalRole !== "manager" && me.portalRole !== "director") redirect("/portal");
   const isDirector = me.portalRole === "director";

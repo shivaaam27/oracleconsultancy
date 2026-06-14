@@ -13,17 +13,22 @@ export function LiveSync({ taskId, seconds = 5 }: { taskId: number; seconds?: nu
 
   useEffect(() => {
     let stopped = false;
+    const controller = new AbortController();
 
     const probe = async () => {
       if (stopped || document.visibilityState !== "visible") return;
       try {
-        const res = await fetch(`/api/portal/sync?taskId=${taskId}`, { cache: "no-store" });
+        const res = await fetch(`/api/portal/sync?taskId=${taskId}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         if (!res.ok) return;
         const { stamp } = (await res.json()) as { stamp: string };
+        if (stopped) return;
         if (stampRef.current !== null && stampRef.current !== stamp) router.refresh();
         stampRef.current = stamp;
       } catch {
-        // Offline blip — try again next tick.
+        // Offline blip or aborted on unmount — try again next tick.
       }
     };
 
@@ -33,6 +38,7 @@ export function LiveSync({ taskId, seconds = 5 }: { taskId: number; seconds?: nu
     window.addEventListener("focus", onFocus);
     return () => {
       stopped = true;
+      controller.abort();
       clearInterval(id);
       window.removeEventListener("focus", onFocus);
     };

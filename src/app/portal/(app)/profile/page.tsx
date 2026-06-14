@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { Bell, FileCheck2, LogOut, Settings2, UserRound, CalendarDays, Route as RouteIcon, Package, CheckCircle2, Circle } from "lucide-react";
 import { DevicePushToggle } from "@/components/device-push-toggle";
 import { sb } from "@/db/supabase";
@@ -25,7 +26,8 @@ import { portalLogout } from "../../actions";
 export const dynamic = "force-dynamic";
 
 export default async function PortalProfile() {
-  const me = (await getPortalPerson())!;
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
 
   let companyName: string | null = null;
   if (me.companyId) {

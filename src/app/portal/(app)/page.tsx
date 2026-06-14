@@ -81,7 +81,8 @@ function taskCard(t: Row, now: Date) {
 }
 
 export default async function PortalHome() {
-  const me = (await getPortalPerson())!;
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
   // Directors are board-first — send them to their operator board.
   if (me.portalRole === "director") redirect("/portal/board");
 

@@ -56,7 +56,8 @@ type Update = {
 };
 
 export default async function PortalTaskPage({ params }: { params: Promise<{ code: string }> }) {
-  const me = (await getPortalPerson())!;
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
   const { code } = await params;
   const isManager = me.portalRole === "manager";
 
