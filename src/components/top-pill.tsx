@@ -36,7 +36,7 @@ function NavTab({
       aria-label={label}
       title={label}
       className={cn(
-        "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full shrink-0 transition-colors",
+        "relative inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full shrink-0 transition-colors",
         active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
@@ -51,7 +51,7 @@ function NavTab({
           />
         )
       )}
-      <Icon size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
+      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative" />
     </Link>
   );
 }
@@ -96,7 +96,7 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           className={cn(
-            "relative inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full shrink-0 transition-colors outline-none",
+            "relative inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full shrink-0 transition-colors outline-none",
             active || open ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
           )}
         >
@@ -107,7 +107,7 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
               <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
             )
           )}
-          <Briefcase size={20} strokeWidth={active ? 2.4 : 2} className="relative" />
+          <Briefcase size={18} strokeWidth={active ? 2.4 : 2} className="relative" />
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -184,7 +184,7 @@ function NavActionButton() {
   const show = mounted && actions.length > 0 && !suppressed;
   const primary = show ? (actions.find((a) => a.primary) ?? actions[0]) : null;
   const multi = show && actions.length > 1;
-  const btn = "shrink-0 inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full text-accent hover:bg-bg-muted/60 transition-colors";
+  const btn = "shrink-0 inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full text-accent hover:bg-bg-muted/60 transition-colors";
 
   return (
     <motion.div
@@ -436,7 +436,7 @@ export function TopPill() {
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
         style={{ touchAction: "pan-y" }}
-        className="relative pointer-events-auto max-w-[calc(100vw-1rem)] glass elevated rounded-full shadow-pill flex items-center gap-0.5 md:gap-1 px-1.5 md:px-2.5 h-14 md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
+        className="relative pointer-events-auto max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 md:gap-1 px-1 md:px-2.5 h-[3.25rem] md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
         <NavLens containerRef={pillRef} onSelect={selectSlot} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} />
@@ -452,11 +452,11 @@ export function TopPill() {
 
         <button
           onClick={openPalette}
-          className="shrink-0 inline-flex items-center justify-center h-10 w-10 md:h-12 md:w-12 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+          className="shrink-0 inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
           aria-label="Search"
           title="Search (⌘K)"
         >
-          <Search size={19} />
+          <Search size={18} />
         </button>
 
         <div className="shrink-0 flex items-center md:[&>div>button]:h-11 md:[&>div>button]:w-11">

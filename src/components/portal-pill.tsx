@@ -20,7 +20,7 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
       aria-label={label}
       title={label}
       className={cn(
-        "relative inline-flex flex-col items-center justify-center h-12 w-12 sm:w-16 rounded-2xl shrink-0 transition-colors",
+        "relative inline-flex flex-col items-center justify-center h-11 w-11 sm:w-16 rounded-2xl shrink-0 transition-colors",
         active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
       )}
     >
@@ -35,7 +35,7 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
           />
         )
       )}
-      <Icon size={19} strokeWidth={active ? 2.4 : 2} className="relative" />
+      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative" />
       <span className="relative mt-0.5 hidden text-[10px] font-medium sm:block">{label}</span>
     </Link>
   );
@@ -70,7 +70,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
         initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto max-w-[calc(100vw-1rem)] glass elevated rounded-full shadow-pill flex items-center gap-0.5 px-1.5 sm:px-2 h-16"
+        className="pointer-events-auto max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 px-1 sm:px-2 h-14"
       >
         {/* Tabs scroll horizontally if they can't all fit (5 tabs for a
             director on a ~320px phone); the controls below stay anchored so
@@ -89,9 +89,9 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
             href="/portal/task/new"
             aria-label="New task"
             title="New task"
-            className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-accent text-accent-fg shrink-0 hover:opacity-90 transition-opacity mx-0.5"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-fg shrink-0 hover:opacity-90 transition-opacity mx-0.5"
           >
-            <Plus size={20} strokeWidth={2.4} />
+            <Plus size={19} strokeWidth={2.4} />
           </Link>
         )}
         <span className="mx-1 h-7 w-px bg-border shrink-0" />
