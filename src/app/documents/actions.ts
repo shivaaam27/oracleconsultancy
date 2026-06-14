@@ -2,6 +2,7 @@
 
 import { GROQ_FAST, GROQ_VISION } from "@/lib/ai-models";
 import { callGroqJson, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
+import { recordFact } from "@/lib/facts";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import {
@@ -115,7 +116,26 @@ function inputFromForm(fd: FormData): DocumentInput | { error: string } {
     fileUrl: str(fd, "fileUrl"),
     notes: str(fd, "notes"),
     ...(fd.has("supersedesId") ? { supersedesId: intOrNull(fd, "supersedesId") } : {}),
+    ...(fd.has("reviewStatus") ? { reviewStatus: str(fd, "reviewStatus") ?? "ok" } : {}),
+    ...(fd.has("needsOriginal") ? { needsOriginal: fd.get("needsOriginal") === "1" } : {}),
   };
+}
+
+// Facts the AI read off the document, posted as JSON by the form, to append to
+// the ledger after the document is saved (so they link to the new document id).
+function factsFromForm(fd: FormData): ExtractedFact[] {
+  const raw = (fd.get("facts") ?? "").toString().trim();
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((f) => f && typeof f === "object" && (f.entityType === "company" || f.entityType === "person") && f.field && f.value)
+      .map((f) => ({ entityType: f.entityType, field: String(f.field).slice(0, 60), value: String(f.value).slice(0, 200), effectiveDate: typeof f.effectiveDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(f.effectiveDate) ? f.effectiveDate : undefined }))
+      .slice(0, 12);
+  } catch {
+    return [];
+  }
 }
 
 function revalidateDocs() {
@@ -132,6 +152,39 @@ function revalidateDocs() {
  * not the live checklist) reflects the new document immediately — not only after
  * someone opens that person's/company's checklist. Best-effort.
  */
+/**
+ * Append AI-read facts to the ledger (transfer-pack 08 step 3). Each fact links
+ * to the document that proves it and its owner entity; AI-extracted facts are
+ * recorded UNVERIFIED (the operator confirms in the Tracked-facts panel). Never
+ * overwrites — recordFact always appends. Best-effort; never blocks the save.
+ */
+async function appendDocumentFacts(
+  documentId: number,
+  facts: ExtractedFact[],
+  companyId: number | null,
+  personId: number | null,
+  source: string
+) {
+  for (const f of facts) {
+    const entityId = f.entityType === "company" ? companyId : personId;
+    if (!entityId) continue; // no owner of that kind on this document — skip
+    try {
+      await recordFact({
+        entity: { type: f.entityType, id: entityId },
+        field: f.field,
+        value: f.value,
+        effectiveDate: f.effectiveDate,
+        source,
+        documentId,
+        verified: false,
+        createdBy: "ai-intake",
+      });
+    } catch {
+      /* never block the document save on a fact write */
+    }
+  }
+}
+
 async function reconcileOwnerCompliance(personId: number | null, companyId: number | null) {
   try {
     if (personId) await getPersonChecklist(personId);
@@ -148,6 +201,8 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
     const id = await createDocument(parsed);
     const file = fileFromForm(fd);
     if (file) await uploadDocumentFile(id, file);
+    // Append any AI-read facts to the ledger, linked to this document + owner.
+    await appendDocumentFacts(id, factsFromForm(fd), parsed.companyId ?? null, parsed.personId ?? null, parsed.title);
     if (parsed.companyId) {
       await backfillCompanyProfileFromDocument(parsed.companyId, {
         category: parsed.category ?? null,
@@ -228,6 +283,17 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
   }
 }
 
+/** Clear a document's "needs review" flag once the operator has confirmed it. */
+export async function confirmDocumentReviewAction(id: number): Promise<Result> {
+  try {
+    await updateDocument(id, { reviewStatus: "ok" });
+    revalidateDocs();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not confirm the document." };
+  }
+}
+
 /** Short-lived signed URL to view/download a document's stored file. */
 export async function getDocumentFileLinkAction(id: number): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {
@@ -269,6 +335,19 @@ export type ExtractedFields = {
   // V3 Phase 5: company identity details read from a company document (legal
   // name, address, etc.), for the "also update {company}'s profile" banner.
   company?: CompanyProfileFields;
+  // Intake rewire (transfer-pack 08): verifiable facts read off the document
+  // (salary, shareholding, passport no…) to APPEND to the fact ledger on save.
+  facts?: ExtractedFact[];
+  // `_NEEDORIG`: the file is only a photo/scan standing in for an official original.
+  needsOriginal?: boolean;
+};
+
+// One fact read off a document, to be appended to the ledger (never overwrites).
+export type ExtractedFact = {
+  entityType: "company" | "person";
+  field: string;
+  value: string;
+  effectiveDate?: string; // YYYY-MM-DD
 };
 
 type Entity = { id: number; name: string };
@@ -347,6 +426,42 @@ async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }
     companies: (c ?? []).map((r) => ({ id: r.id as number, name: r.name as string })),
     people: (p ?? []).map((r) => ({ id: r.id as number, name: r.name as string })),
   };
+}
+
+// Hard identifiers per company, for the deterministic ID-first match that runs
+// BEFORE the AI scan (transfer-pack 08 step 1). Names are NOT included here —
+// name matching is the last resort and stays in resolveEntity.
+type CompanyIdent = { id: number; name: string; tin: string | null; vrn: string | null; prefix: string | null; emailDomain: string | null };
+
+async function loadCompanyIdentifiers(): Promise<CompanyIdent[]> {
+  const { data } = await supa.from("companies").select("id,name,tin,vrn,code_prefix,email");
+  return (data ?? []).map((r) => {
+    const email = (r.email as string | null) ?? null;
+    return {
+      id: r.id as number,
+      name: r.name as string,
+      tin: (r.tin as string | null)?.replace(/\D/g, "") || null,
+      vrn: (r.vrn as string | null)?.replace(/\D/g, "") || null,
+      prefix: (r.code_prefix as string | null) ?? null,
+      emailDomain: email && email.includes("@") ? email.split("@")[1].toLowerCase() : null,
+    };
+  });
+}
+
+/**
+ * Deterministic company match from a document's text/filename, in the
+ * blueprint's priority order: TIN → VRN → email domain. NEVER matches on address
+ * (PES & MES share one) and never uses director names as a signal. Returns the
+ * matched id, or null (→ leave the AI/name match, or send to review).
+ */
+function matchCompanyByIdentifiers(text: string, idents: CompanyIdent[]): CompanyIdent | null {
+  const digits = text.replace(/\D/g, "");
+  // TIN (TZ TINs are 9 digits, often written 123-456-789).
+  for (const c of idents) if (c.tin && c.tin.length >= 7 && digits.includes(c.tin)) return c;
+  for (const c of idents) if (c.vrn && c.vrn.length >= 7 && digits.includes(c.vrn)) return c;
+  const lower = text.toLowerCase();
+  for (const c of idents) if (c.emailDomain && lower.includes(`@${c.emailDomain}`)) return c;
+  return null;
 }
 
 // Match a free-text name to a known entity: exact (case-insensitive), then a
@@ -444,6 +559,23 @@ function coerceFields(
     const trimmed = Object.fromEntries(Object.entries(company).filter(([, v]) => v != null)) as CompanyProfileFields;
     if (Object.keys(trimmed).length) f.company = trimmed;
   }
+  // Facts to append to the ledger (intake rewire). Keep only well-formed entries.
+  if (Array.isArray(parsed.facts)) {
+    const date10 = (v: unknown) => { const x = s(v, 10); return x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : undefined; };
+    const facts: ExtractedFact[] = [];
+    for (const raw of parsed.facts) {
+      if (!raw || typeof raw !== "object") continue;
+      const r = raw as Record<string, unknown>;
+      const field = s(r.field, 60);
+      const value = s(r.value, 200);
+      const entityType = r.entityType === "company" ? "company" : r.entityType === "person" ? "person" : undefined;
+      if (!field || !value || !entityType) continue;
+      facts.push({ entityType, field, value, effectiveDate: date10(r.effectiveDate) });
+    }
+    if (facts.length) f.facts = facts.slice(0, 12);
+  }
+  // `_NEEDORIG` — only honour an explicit true from the model.
+  if (parsed.is_photo_placeholder === true) f.needsOriginal = true;
   // Backfill anything missing from the rule extractor + entity scan.
   if (fallbackText) {
     const ruled = ruleExtract(fallbackText);
@@ -474,6 +606,8 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
 - personProfile: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "personProfile" object for company-only documents. (Note: "person" above is just the matched name; "personProfile" is the detail object — keep them separate.)
 - companyProfile: IF the document is about a BUSINESS/COMPANY (e.g. certificate of incorporation, business licence, TIN/VRN certificate, tax document, lease), a nested JSON object with any of these you can read about THAT company: { legalName (the full registered name), registrationNo, tin, vrn (VAT/VRN number), incorporationDate (YYYY-MM-DD), address, phone, email }. Omit the whole "companyProfile" object for personal documents.
+- facts: IF the document states verifiable facts worth tracking over time, an array of objects { entityType ("company" or "person"), field (e.g. "Salary", "Shareholding", "Bank Account", "Passport Number", "Contract End", "Authorised Capital"), value (the value as written), effectiveDate (YYYY-MM-DD if the document gives a date the fact takes effect, else omit) }. Only include facts you can actually read. Omit the array entirely if there are none.
+- is_photo_placeholder: true ONLY if this file is clearly a phone photo or screenshot standing in for an official document that should be a clean scan/PDF (e.g. a photo of a paper licence, a screenshot of a bank letter). Set false for documents that are legitimately images (logos, stamps, headshots, product labels, signatures, certificates).
 - confidence: a number from 0 to 1 for how confident you are that you read this document correctly (1 = crystal-clear scan you are sure about, 0.3 = a blurry/partial/ambiguous page you mostly guessed). Always include this.
 Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
 }
@@ -511,7 +645,7 @@ export async function extractDocumentFields(text: string): Promise<ExtractResult
   }
   return {
     ok: true,
-    fields: coerceFields(result.data, companies, people, trimmed),
+    fields: await applyIdFirstCompany(coerceFields(result.data, companies, people, trimmed), trimmed),
     source: "ai",
     confidence: result.confidence,
     needsReview: isLowConfidence(result.confidence),
@@ -594,13 +728,25 @@ async function fieldsFromText(
   if (!result.ok || !result.data) {
     return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
   }
+  const fields = await applyIdFirstCompany(coerceFields(result.data, companies, people, text), text);
   return {
     ok: true,
-    fields: coerceFields(result.data, companies, people, text),
+    fields,
     source: "ai",
     confidence: result.confidence,
     needsReview: isLowConfidence(result.confidence),
   };
+}
+
+/**
+ * Deterministic company match WINS over the AI/name match (transfer-pack 08
+ * step 1): if the document text carries a hard identifier (TIN/VRN/email domain)
+ * of a known company, use that company regardless of what the scan guessed.
+ */
+async function applyIdFirstCompany(fields: ExtractedFields, text: string): Promise<ExtractedFields> {
+  if (!text.trim()) return fields;
+  const hit = matchCompanyByIdentifiers(text, await loadCompanyIdentifiers());
+  return hit ? { ...fields, companyId: hit.id, companyName: hit.name } : fields;
 }
 
 async function extractOfficeText(file: File): Promise<string> {

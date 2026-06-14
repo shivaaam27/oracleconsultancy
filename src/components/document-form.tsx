@@ -127,6 +127,12 @@ export function DocumentForm({
   // document, offered as a one-tap "update {name}'s profile" (fill-blanks-only).
   const [personProfile, setPersonProfile] = useState<PersonProfileFields | null>(null);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfileFields | null>(null);
+  // Intake rewire: facts the scan read (to append to the ledger), the
+  // `_NEEDORIG` photo-placeholder flag, and whether the scan was low-confidence
+  // (pre-ticks "needs review" so an unsure read isn't silently trusted).
+  const [extractedFacts, setExtractedFacts] = useState<NonNullable<ExtractedFields["facts"]>>([]);
+  const [needsOriginal, setNeedsOriginal] = useState(false);
+  const [needsReview, setNeedsReview] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [enrichNote, setEnrichNote] = useState<string | null>(null);
 
@@ -295,6 +301,9 @@ export function DocumentForm({
       setCompanyProfile(f.company);
       setEnrichNote(null);
     }
+    // Intake rewire: stash facts to record + the photo-placeholder flag.
+    if (f.facts && f.facts.length) setExtractedFacts(f.facts);
+    if (f.needsOriginal) setNeedsOriginal(true);
     void recheckDup();
     return [f.title, f.category, f.docType, f.issuer, f.referenceNo, f.issueDate, f.expiryDate, f.companyId, f.personId, f.notes]
       .filter((v) => v != null && v !== "").length;
@@ -316,9 +325,16 @@ export function DocumentForm({
     try {
       const res = await extractDocumentFields(extractText);
       setExtractNote(noteFor(applyFields(res.fields), res.source, res.needsReview));
+      flagReview(res.needsReview, res.fields);
     } finally {
       setExtracting(false);
     }
+  }
+
+  // Pre-tick "needs review" when the scan was low-confidence OR couldn't match a
+  // company/person owner — those are the cases the blueprint routes to review.
+  function flagReview(low: boolean | undefined, f: ExtractedFields) {
+    if (low || (!f.companyId && !f.personId)) setNeedsReview(true);
   }
 
   // Read a PDF/image/office file: extract fields AND attach the file to the document so it
@@ -344,6 +360,7 @@ export function DocumentForm({
         setRemoveExisting(false);
       } catch { /* attachment is best-effort */ }
       setExtractNote(noteFor(applyFields(res.fields), res.source, res.needsReview) + (res.note ? ` ${res.note}` : ""));
+      flagReview(res.needsReview, res.fields);
     } finally {
       setExtracting(false);
     }
@@ -679,6 +696,40 @@ export function DocumentForm({
             placeholder="Renewal steps, who chases it, conditions…" />
         </div>
       </div>
+
+      {/* Intake rewire: facts to record + the photo-placeholder / needs-review
+          flags. Hidden inputs carry them to the server on save. */}
+      {mode === "create" && (
+        <>
+          <input type="hidden" name="facts" value={extractedFacts.length ? JSON.stringify(extractedFacts) : ""} />
+          {needsOriginal && <input type="hidden" name="needsOriginal" value="1" />}
+          <input type="hidden" name="reviewStatus" value={needsReview ? "needs_review" : "ok"} />
+          {(extractedFacts.length > 0 || needsOriginal || needsReview) && (
+            <div className="rounded-xl bg-accent-soft/25 ring-1 ring-accent/20 px-3 py-2.5 space-y-2">
+              {extractedFacts.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-accent">Will also record {extractedFacts.length} fact{extractedFacts.length === 1 ? "" : "s"}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {extractedFacts.map((f, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 rounded-full bg-bg-subtle px-2 py-0.5 text-[11px] text-fg-muted">
+                        <span className="font-medium text-fg">{f.field}:</span> {f.value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <label className="flex items-center gap-1.5 text-[12px] text-fg-muted cursor-pointer">
+                <input type="checkbox" checked={needsOriginal} onChange={(e) => setNeedsOriginal(e.target.checked)} className="accent-accent" />
+                This is only a photo — official original still to collect
+              </label>
+              <label className="flex items-center gap-1.5 text-[12px] text-fg-muted cursor-pointer">
+                <input type="checkbox" checked={needsReview} onChange={(e) => setNeedsReview(e.target.checked)} className="accent-accent" />
+                Mark “needs review” (unsure — confirm later from the queue)
+              </label>
+            </div>
+          )}
+        </>
+      )}
 
       {error && (
         <div className="flex items-start gap-1.5 text-xs text-danger">

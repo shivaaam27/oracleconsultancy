@@ -26,6 +26,8 @@ type DocDbRow = {
   file_name: string | null;
   notes: string | null;
   supersedes_id: number | null;
+  review_status: string | null;
+  needs_original: boolean | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -54,6 +56,8 @@ function mapRow(r: DocDbRow): DocumentRow {
     fileName: r.file_name,
     notes: r.notes,
     supersedesId: r.supersedes_id,
+    reviewStatus: r.review_status ?? "ok",
+    needsOriginal: r.needs_original ?? false,
     archived: r.archived,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
@@ -93,6 +97,8 @@ export type DocumentInput = {
   fileUrl?: string | null;
   notes?: string | null;
   supersedesId?: number | null;
+  reviewStatus?: string | null;
+  needsOriginal?: boolean | null;
 };
 
 function toIso(v: Date | string | null | undefined): string | null {
@@ -125,6 +131,8 @@ export async function createDocument(
       file_url: input.fileUrl ?? null,
       notes: input.notes ?? null,
       supersedes_id: input.supersedesId ?? null,
+      review_status: input.reviewStatus ?? "ok",
+      needs_original: input.needsOriginal ?? false,
       archived: false,
       created_at: now,
       updated_at: now,
@@ -151,6 +159,8 @@ export async function updateDocument(id: number, patch: Partial<DocumentInput>):
   if (patch.reminderLeadDays !== undefined) payload.reminder_lead_days = patch.reminderLeadDays;
   if (patch.fileUrl !== undefined) payload.file_url = patch.fileUrl;
   if (patch.notes !== undefined) payload.notes = patch.notes;
+  if (patch.reviewStatus !== undefined) payload.review_status = patch.reviewStatus;
+  if (patch.needsOriginal !== undefined) payload.needs_original = patch.needsOriginal;
   const { error } = await sb.from("documents").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
 }

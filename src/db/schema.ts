@@ -808,6 +808,14 @@ export const documents = pgTable("documents", {
   // Renewal lineage: the (now-archived) document this one replaces. Lets the UI
   // show "Replaces …" / "Replaced by …" so a renewable document's history is clear.
   supersedesId: integer("supersedes_id").references((): AnyPgColumn => documents.id, { onDelete: "set null" }),
+  // Intake confidence gate (transfer-pack 08): "ok" once auto-filled or human
+  // -confirmed; "needs_review" when the AI scan was low-confidence / unmatched
+  // company — those sit in the Needs-review queue until a one-tap confirm.
+  reviewStatus: text("review_status").notNull().default("ok"),
+  // `_NEEDORIG` (transfer-pack 02 §6): set when the file is only a photo/scan
+  // standing in for an official original still to be collected. The Safety Net
+  // raises an "Awaiting original" finding while this is true.
+  needsOriginal: boolean("needs_original").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),

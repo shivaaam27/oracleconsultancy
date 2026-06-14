@@ -3,6 +3,7 @@ import { DocumentsTable } from "@/components/documents-table";
 import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
 import { SafetyNetPanel } from "@/components/safety-net-panel";
+import { NeedsReviewPanel } from "@/components/needs-review-panel";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { ComplianceExportButton } from "@/components/compliance-export-button";
@@ -47,6 +48,19 @@ export default async function DocumentsPage({
   const { pending: pendingLeave } = await leaveMetrics();
   const safetyFindings = await gatherSafetyFindings();
 
+  // Needs-review queue: documents the AI scan wasn't confident about.
+  const companyName = new Map(companies.map((c) => [c.id, c.name]));
+  const peopleName = new Map(people.map((p) => [p.id, p.name]));
+  const reviewDocs = documents
+    .filter((d) => !d.archived && d.reviewStatus === "needs_review")
+    .map((d) => ({
+      id: d.id,
+      title: d.title,
+      category: d.category,
+      ownerName: (d.companyId ? companyName.get(d.companyId) : null) ?? (d.personId ? peopleName.get(d.personId) : null) ?? null,
+      needsOriginal: d.needsOriginal,
+    }));
+
   // Linked renewal/action tasks per document (backward link, mirrors meeting_tasks).
   const { data: linkRows } = await sb.from("document_links").select("document_id, tasks(code,status)");
   const linkedTasks: Record<number, Array<{ code: string; status: string }>> = {};
@@ -85,6 +99,7 @@ export default async function DocumentsPage({
         personScores={personScores}
         pendingLeaveCount={pendingLeave}
       />
+      <NeedsReviewPanel docs={reviewDocs} />
       <SafetyNetPanel findings={safetyFindings} />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>

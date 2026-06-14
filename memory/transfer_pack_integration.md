@@ -86,7 +86,38 @@ extractions surface there rather than silently saving). Hybrid stronger-model fa
 - VERIFIED in preview on live data: 9 medium + 6 low findings (awaiting-original photos, asset still out with an
   inactive director, missing company IDs); no console errors; tsc clean.
 - NOT done: surfacing on Home (chose Documents page as the compliance hub instead); a stored `_NEEDORIG` column
-  (heuristic detection used instead — reversible, no migration).
+  (heuristic detection used instead — reversible, no migration). **(both now done in the intake-rewire batch below)**
+
+## Cadence v2 + Intake rewire (08-INTAKE-REWIRE) + Home safety-net — DONE 2026-06-14 (migration 0064)
+Owner read NEW pack files 08-INTAKE-REWIRE.md + updated 04/00; said "do everything".
+- **Cadence corrected** (owner clarified: intervals that CONTINUE past expiry): documents-shared.ts ALERT_CONFIG
+  = immigration {earlyHeadsUp:[120,90], window:30, interval:5}, compliance {earlyHeadsUp:[], window:30, interval:10}.
+  isReminderDueToday: >window → heads-up only; else `dte % interval === 0` (covers 30,25…0,−5… for immig;
+  30,20,10,0,−10… for compliance) — nags every 5/10 days through AND past expiry until renewed. Unit-tested.
+- **Schema (migration 0064 applied):** documents.review_status ("ok"|"needs_review", default ok) +
+  documents.needs_original (bool). Threaded through documents.ts (DocDbRow/mapRow/DocumentInput/create/update) +
+  DocumentRow type.
+- **Intake rewire (08) in documents/actions.ts** — wraps the existing bulk-scan (bulk-upload-dialog → DocumentForm
+  → extractDocumentFromFile), human-in-loop kept:
+  - Step1 ID-first company match: loadCompanyIdentifiers (tin/vrn/code_prefix/email-domain) +
+    matchCompanyByIdentifiers (TIN→VRN→email-domain, never address/director) → applyIdFirstCompany OVERRIDES the
+    AI/name company on text paths (fieldsFromText + extractDocumentFields). Vision/image (no text) skips.
+  - Step2 = the 5-guard harness (already built).
+  - Step3 conventions: extractPrompt now also returns `facts[]` ({entityType,field,value,effectiveDate}) +
+    `is_photo_placeholder`; coerceFields parses both into ExtractedFields.facts / .needsOriginal. On save,
+    appendDocumentFacts → recordFact (UNVERIFIED, createdBy "ai-intake", linked documentId+owner) — the approved
+    AI auto-record. needsOriginal stored on the doc.
+  - Step4 confidence gate: form pre-ticks "needs review" when low-confidence OR no company/person owner →
+    review_status="needs_review".
+  - DocumentForm: captures facts/needsOriginal/needsReview; shows a panel ("Will also record N facts" chips +
+    "only a photo" toggle + "Mark needs review" toggle); posts hidden facts JSON / needsOriginal / reviewStatus.
+    factsFromForm + inputFromForm read them in createDocumentAction.
+- **Needs-review queue:** components/needs-review-panel.tsx (one-tap Confirm → confirmDocumentReviewAction clears
+  flag) on /documents above the safety net.
+- **Safety-net** now reads the stored needs_original flag (OR legacy heuristic).
+- **Home safety-net:** SafetyNetPanel added to _hub/cos-home.tsx (only when findings>0).
+- VERIFIED in preview: /documents + / render, safety net 9 medium·6 low, no console/server errors, tsc clean.
+  Live AI upload not exercised (needs real file+Groq) but all paths type-safe + logic unit-tested.
 
 **B — Governance + monthly board pack (LAST, largest):** tables cap_table/beneficial_owners/signatories/
 resolutions/risks/decisions. `src/lib/governance.ts` (key-person risk, UBO completeness). Board-only views on

@@ -23,7 +23,7 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
 
   const [companies, documents, facts, openAssignments] = await Promise.all([
     sb.from("companies").select("id,name,tin,registration_no,active"),
-    sb.from("documents").select("id,title,category,file_name,archived,company_id,person_id"),
+    sb.from("documents").select("id,title,category,file_name,archived,company_id,person_id,needs_original"),
     sb.from("facts").select("id,entity_type,person_id,company_id,field,value,display,effective_date,verified,verified_at"),
     sb.from("asset_assignments").select("id,asset_id,person_id,returned_at").is("returned_at", null),
   ]);
@@ -68,18 +68,22 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
     }
   }
 
-  // 3. Awaiting original — a photo standing in for an official document.
-  const docRows = (documents.data ?? []) as Array<{ id: number; title: string; category: string | null; file_name: string | null; archived: boolean }>;
+  // 3. Awaiting original — the AI/operator flagged it (`needs_original`), or a
+  //    photo is standing in for an official document (heuristic, for legacy docs
+  //    uploaded before the flag existed).
+  const docRows = (documents.data ?? []) as Array<{ id: number; title: string; category: string | null; file_name: string | null; archived: boolean; needs_original: boolean | null }>;
   for (const d of docRows) {
     if (d.archived) continue;
-    if (!d.file_name || !IMAGE_FILE.test(d.file_name)) continue;
-    if (!d.category || !OFFICIAL_CATEGORIES.has(d.category)) continue;
+    const flagged = d.needs_original === true;
+    const heuristic = !!d.file_name && IMAGE_FILE.test(d.file_name) && !!d.category && OFFICIAL_CATEGORIES.has(d.category);
+    if (!flagged && !heuristic) continue;
+    const kindNote = d.file_name && IMAGE_FILE.test(d.file_name) ? ` (${d.file_name})` : "";
     findings.push({
       id: `awaiting-original:${d.id}`,
       severity: "medium",
       kind: "awaiting-original",
       title: `Awaiting original — ${d.title}`,
-      detail: `This ${d.category.toLowerCase()} is on file only as a photo (${d.file_name}). Get the official copy / clean scan.`,
+      detail: `On file only as a photo/scan${kindNote}. Get the official copy / clean scan.`,
       href: `/documents?doc=${d.id}`,
     });
   }

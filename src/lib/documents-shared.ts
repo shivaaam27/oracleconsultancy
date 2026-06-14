@@ -34,13 +34,14 @@ export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Other: 30,
 };
 
-// Tiered alert cadence (transfer-pack 02 §4). Immigration-class documents are
-// nudged further out and more often than ordinary compliance documents, because
-// renewals take longer and a lapse is costlier. These are the days-before-expiry
-// on which a reminder is "due".
-export const ALERT_TIERS = {
-  immigration: [120, 90, 30, 5],
-  compliance: [30, 10],
+// Alert cadence (transfer-pack 02 §4). Two early one-off heads-ups for
+// immigration cases (their renewals take months), then a RECURRING nag that
+// starts 30 days out and keeps repeating — every 5 days for immigration, every
+// 10 days for ordinary compliance — right through the expiry date and ONWARD
+// past expiry until the document is renewed.
+export const ALERT_CONFIG = {
+  immigration: { earlyHeadsUp: [120, 90], window: 30, interval: 5 },
+  compliance: { earlyHeadsUp: [] as number[], window: 30, interval: 10 },
 } as const;
 
 // Categories whose renewals behave like immigration cases (long lead, keep
@@ -56,26 +57,30 @@ export function alertClassFor(category?: string | null, docType?: string | null)
 }
 
 /**
- * Is a reminder DUE today for this document? True when days-to-expiry lands on
- * one of the document's tier thresholds. Immigration-class items also keep
- * nudging once expired (on expiry day, then every 30 days past) since the case
- * stays live until the new permit is in hand.
+ * Is a reminder DUE today for this document?
+ *  - Immigration: on the 120- and 90-day heads-ups, then every 5 days from 30
+ *    days out — 30, 25, …, 5, 0 — and every 5 days AFTER expiry (−5, −10…).
+ *  - Compliance: every 10 days from 30 days out — 30, 20, 10, 0 — and every 10
+ *    days AFTER expiry (−10, −20…).
+ * The recurring nag never stops until the document is renewed (which replaces it
+ * with a fresh expiry, dropping the old one off the scan).
  */
 export function isReminderDueToday(d: DocStatusInput & { category?: string | null; docType?: string | null }): boolean {
   const dte = daysToExpiry(d);
   if (dte === null) return false;
-  const cls = alertClassFor(d.category, d.docType);
-  if (dte > 0) return (ALERT_TIERS[cls] as readonly number[]).includes(dte);
-  // On/after expiry: immigration keeps nudging — on expiry day (0), then every
-  // 30 days past (-30, -60…) — since the case stays live until renewed.
-  return cls === "immigration" && dte % 30 === 0;
+  const cfg = ALERT_CONFIG[alertClassFor(d.category, d.docType)];
+  // Early one-off heads-ups (immigration only).
+  if (dte > cfg.window) return (cfg.earlyHeadsUp as readonly number[]).includes(dte);
+  // Recurring window: from `window` days out, on every `interval`-th day,
+  // continuing through and past expiry. dte can be negative; modulo handles it.
+  return dte % cfg.interval === 0;
 }
 
 /** The widest lead time for a category — used so the "Expiring" window opens
  *  early enough for immigration cases (120d) without per-document tuning. */
 export function widestLeadFor(category?: string | null, docType?: string | null): number {
-  const cls = alertClassFor(category, docType);
-  return ALERT_TIERS[cls][0]; // 120 for immigration, 30 for compliance
+  const cfg = ALERT_CONFIG[alertClassFor(category, docType)];
+  return cfg.earlyHeadsUp[0] ?? cfg.window; // 120 for immigration, 30 for compliance
 }
 
 export type DocStatus = "Valid" | "Expiring" | "Expired" | "No expiry" | "Archived";
@@ -154,6 +159,10 @@ export type DocumentRow = {
   notes: string | null;
   /** Renewal lineage: the (archived) document this one replaces, if any. */
   supersedesId: number | null;
+  /** Intake confidence gate: "ok" | "needs_review". */
+  reviewStatus: string;
+  /** `_NEEDORIG`: a photo standing in for an official original still to collect. */
+  needsOriginal: boolean;
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;

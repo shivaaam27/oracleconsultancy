@@ -2,6 +2,8 @@ import type { TaskRow } from "@/lib/queries";
 import { getAppSettings } from "@/lib/settings";
 import { recordHealthPoint, getHealthSeries } from "@/lib/health-history";
 import { gatherHomeSignals } from "@/lib/signals";
+import { gatherSafetyFindings } from "@/lib/safety-net";
+import { SafetyNetPanel } from "@/components/safety-net-panel";
 import { listDocuments } from "@/lib/documents";
 import { previewMorningPlan } from "@/lib/automation-suggestions";
 import { HomeActions } from "./home-actions";
@@ -26,10 +28,11 @@ function dayLabel(d: Date) {
 
 export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const now = new Date();
-  const [settings, signals, documents] = await Promise.all([
+  const [settings, signals, documents, safetyFindings] = await Promise.all([
     getAppSettings(),
     gatherHomeSignals(rows, todos),
     listDocuments(),
+    gatherSafetyFindings(),
   ]);
   const morningPlan = await previewMorningPlan(rows, documents);
 
@@ -76,6 +79,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         healthSeries={healthSeries}
         topTodos={topTodos}
       />
+      {safetyFindings.length > 0 && <SafetyNetPanel findings={safetyFindings} />}
     </div>
   );
 }
