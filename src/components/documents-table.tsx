@@ -35,7 +35,7 @@ export function DocumentsTable({
   documents, companies, people, linkedTasks = {},
 }: {
   documents: DocumentRow[];
-  companies: Array<{ id: number; name: string; accentColor?: string | null }>;
+  companies: Array<{ id: number; name: string; accentColor?: string | null; aliases?: string[] }>;
   people: Array<{ id: number; name: string }>;
   linkedTasks?: Record<number, Array<{ code: string; status: string }>>;
 }) {

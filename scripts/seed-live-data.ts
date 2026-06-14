@@ -96,6 +96,7 @@ async function main() {
           name: "V1 Intertrade", code: "V1", code_prefix: "V1", active: true,
           legal_name: c.legal_name ?? null, tin: c.tin ?? null, registration_no: c.brela_reg_no ?? null,
           vrn: realVrn(c.vat_no), email: c.email ?? null, phone: c.phone ?? null, address: c.address ?? null,
+          aliases: Array.isArray(c.aliases) && c.aliases.length ? c.aliases : null,
         }).select("id").single();
         if (error) { L(`    ! ${error.message}`); continue; }
         keyToId.set(c.key, data.id as number);
@@ -117,6 +118,8 @@ async function main() {
     if (!clean(live.phone) && clean(c.phone)) patch.phone = clean(c.phone);
     if (!clean(live.address) && clean(c.address)) patch.address = clean(c.address);
     if (!clean(live.legal_name) && legal) patch.legal_name = legal;
+    // Aliases are authoritative from the pack (drive folder/content matching).
+    if (Array.isArray(c.aliases) && c.aliases.length) patch.aliases = c.aliases;
     if (Object.keys(patch).length) {
       L(`  COMPANY enrich ${live.name}: ${JSON.stringify(patch)}`);
       if (APPLY) { const { error } = await sb.from("companies").update(patch).eq("id", live.id); if (error) L(`    ! ${error.message}`); }

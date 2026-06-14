@@ -470,7 +470,7 @@ export type ExtractedFact = {
   effectiveDate?: string; // YYYY-MM-DD
 };
 
-type Entity = { id: number; name: string };
+type Entity = { id: number; name: string; aliases?: string[] };
 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
@@ -539,11 +539,11 @@ function ruleExtract(text: string): ExtractedFields {
 // Load the companies + active people so extraction can match names to records.
 async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }> {
   const [{ data: c }, { data: p }] = await Promise.all([
-    supa.from("companies").select("id,name"),
+    supa.from("companies").select("id,name,aliases"),
     supa.from("people").select("id,name").eq("active", true),
   ]);
   return {
-    companies: (c ?? []).map((r) => ({ id: r.id as number, name: r.name as string })),
+    companies: (c ?? []).map((r) => ({ id: r.id as number, name: r.name as string, aliases: (r.aliases as string[] | null) ?? undefined })),
     people: (p ?? []).map((r) => ({ id: r.id as number, name: r.name as string })),
   };
 }
@@ -588,26 +588,41 @@ function matchCompanyByIdentifiers(text: string, idents: CompanyIdent[]): Compan
   return null;
 }
 
-// Match a free-text name to a known entity: exact (case-insensitive), then a
-// contains-either-way match, preferring the longest name.
+// Match a free-text name (an AI guess or an uploaded folder segment) to a known
+// entity: exact on the name OR any alias, then a contains-either-way match on the
+// name or a longer alias (≥4 chars, so short codes like "OC"/"V1" don't over-match).
 function resolveEntity(name: string | undefined, list: Entity[]): Entity | null {
   if (!name) return null;
   const q = name.trim().toLowerCase();
   if (!q) return null;
-  const exact = list.find((e) => e.name.toLowerCase() === q);
-  if (exact) return exact;
-  const partial = list
-    .filter((e) => { const n = e.name.toLowerCase(); return n.includes(q) || q.includes(n); })
-    .sort((a, b) => b.name.length - a.name.length)[0];
-  return partial ?? null;
+  for (const e of list) {
+    if (e.name.toLowerCase() === q) return e;
+    if (e.aliases?.some((a) => a.toLowerCase() === q)) return e;
+  }
+  const candidates = list
+    .map((e) => {
+      const names = [e.name, ...(e.aliases ?? []).filter((a) => a.length >= 4)];
+      const hit = names.find((n) => { const nn = n.toLowerCase(); return nn.includes(q) || q.includes(nn); });
+      return hit ? { e, len: hit.length } : null;
+    })
+    .filter((x): x is { e: Entity; len: number } => !!x)
+    .sort((a, b) => b.len - a.len);
+  return candidates[0]?.e ?? null;
 }
 
-// Scan raw text for any known company/person name appearing verbatim (used in
-// the AI-off path and to backfill).
+// Scan raw document text for a known company/person name OR a sufficiently long
+// company alias (≥5 chars; short codes excluded so "PES" doesn't match "expenses").
 function scanEntities(text: string, companies: Entity[], people: Entity[]): Partial<ExtractedFields> {
   const lower = text.toLowerCase();
   const out: Partial<ExtractedFields> = {};
-  const co = companies.filter((c) => lower.includes(c.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
+  const co = companies
+    .map((c) => {
+      const names = [c.name, ...(c.aliases ?? []).filter((a) => a.length >= 5)];
+      const hit = names.find((n) => lower.includes(n.toLowerCase()));
+      return hit ? { c, len: hit.length } : null;
+    })
+    .filter((x): x is { c: Entity; len: number } => !!x)
+    .sort((a, b) => b.len - a.len)[0]?.c;
   if (co) { out.companyId = co.id; out.companyName = co.name; }
   const pe = people.filter((p) => lower.includes(p.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
   if (pe) { out.personId = pe.id; out.personName = pe.name; }

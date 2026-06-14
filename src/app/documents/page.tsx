@@ -26,7 +26,7 @@ export default async function DocumentsPage({
   const { from } = await searchParams;
   const [documents, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listDocuments({ includeArchived: true }),
-    sb.from("companies").select("id,name,accent_color").order("name"),
+    sb.from("companies").select("id,name,accent_color,aliases").order("name"),
     sb.from("people").select("id,name,person_type").eq("active", true).order("name"),
   ]);
 
@@ -34,6 +34,7 @@ export default async function DocumentsPage({
     id: c.id as number,
     name: c.name as string,
     accentColor: (c.accent_color as string | null) ?? null,
+    aliases: (c.aliases as string[] | null) ?? undefined,
   }));
   const people = (peopleRaw ?? []).map((p) => ({
     id: p.id as number,

@@ -25,7 +25,7 @@ export function BulkAutoUpload({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onDone?: () => void;
-  companies?: Array<{ id: number; name: string }>;
+  companies?: Array<{ id: number; name: string; aliases?: string[] }>;
   people?: Array<{ id: number; name: string }>;
 }) {
   const router = useRouter();
@@ -54,7 +54,10 @@ export function BulkAutoUpload({
     if (!q) return null;
     const p = people.find((x) => norm(x.name) === q) ?? people.find((x) => q.includes(norm(x.name)) || norm(x.name).includes(q));
     if (p) return { kind: "person", id: p.id, name: p.name };
-    const c = companies.find((x) => norm(x.name) === q) ?? companies.find((x) => q.includes(norm(x.name)) || norm(x.name).includes(q));
+    // Match a company by its name OR any alias (exact, then longer-alias contains).
+    const names = (c: { name: string; aliases?: string[] }) => [c.name, ...(c.aliases ?? [])];
+    const c = companies.find((x) => names(x).some((n) => norm(n) === q))
+      ?? companies.find((x) => names(x).some((n) => { const nn = norm(n); return nn.length >= 4 && (q.includes(nn) || nn.includes(q)); }));
     if (c) return { kind: "company", id: c.id, name: c.name };
     return null;
   }

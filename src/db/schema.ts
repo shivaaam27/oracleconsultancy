@@ -34,6 +34,9 @@ export const companies = pgTable("companies", {
   // the sum of cap_table shares, but BRELA states both authorised and issued.
   authorisedShares: integer("authorised_shares"),
   issuedShares: integer("issued_shares"),
+  // Alternative names/short forms (e.g. "Furaha", "DSC", "OCL") used to match a
+  // company by document content or an uploaded folder name.
+  aliases: jsonb("aliases").$type<string[]>(),
 });
 
 export const departments = pgTable("departments", {
