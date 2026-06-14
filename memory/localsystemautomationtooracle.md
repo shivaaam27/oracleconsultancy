@@ -116,4 +116,30 @@ Launcher entries: "Applications in progress", "Commitments register".
 4. **Seed auto-match of pipeline/commitment file paths → uploaded docs** at backfill (manual Attach
    works today).
 
+## Comprehensive audit + fixes (June 2026, run wf_1d9809bc-cf5)
+A multi-agent adversarial audit (11 area finders → verify → synthesize) found **44 confirmed issues**.
+Fixed and pushed across batches (commits 291a53b → ee10abc):
+- **CRITICAL:** `recordEvent(..,"warn")` was an invalid EventStatus → the ONLY tsc error → broke
+  `next build`/deploy since the auto-PDF commit. Fixed → "error". (Lesson: background tsc output capture
+  was flaky and misread as clean; now always run tsc in the FOREGROUND.)
+- **HIGH:** coerceValue corrupted identifier digits (leading zeros / >2^53) → now keeps account/passport/
+  TIN/NIDA/phone verbatim; matchCompanyByIdentifiers digit-substring → exact boundary-token equality + 8-digit
+  floor (no wrong-company misfiling); cleanup-people now repoints tasks.owner_id + reporting_lines and surfaces
+  delete errors (production verified CLEAN — 0 orphans); **governance/risk/decisions are now editable in-app**
+  (GovernancePanel add/remove cap/signatory/resolution; GovernanceQuickEdit on /brief/board for risks +
+  "mark decided").
+- **MEDIUM:** commitmentUrgency honours status (expired stops firing); asset-on-leaver skips archived assets;
+  confidence gate fail-CLOSED on missing confidence; ai-json fence-strip removed (corrupted backticks in
+  string values); AI fact-append deduped + typed via shared coerceFactValue; edit-saving a needs-review doc
+  clears the flag; board leave-liability shows "excl. N no-wage"; daily-notify no longer double-counts;
+  pipeline form captures deadline/control-no/amount; safety-net surfaces overdue pipeline deadlines.
+- **LOW:** date validator round-trips (rejects 2027-02-30); MONEY_FIELD + placeholder regexes anchored;
+  fact verify/delete report DB failure; currentFacts tie-breaks same-day by created_at; getCompanyGovernance
+  no "issued 0"; shared appBaseUrl(); seed wipe scoped behind --reset-governance; seed V1 re-run match-by-name;
+  commitment labels ("notice today" / "to expiry" when no notice period); board PDF empty-state guards.
+- **Deferred (low value / owner-decision):** Director-Brief pipeline/commitment blocks (Home safety-net covers
+  the surfacing), full inline edit of existing pipeline/commitment rows, command-parser per-intent validation,
+  board-pack data-assembly extraction + N+1 (perf/maintenance only), Jitesh/CFO email recipients (owner
+  decision — board pack stays owner-only until confirmed), company-fact chip entity indicator.
+
 See [[transfer_pack_integration]] for the blow-by-blow + the GAP-MAP.
