@@ -21,11 +21,12 @@ export type { CompanyGovernance, Ubo, KeyPerson, Risk, Decision } from "@/lib/go
 export async function getCompanyGovernance(companyId: number): Promise<CompanyGovernance> {
   const [{ data: company }, { data: capRows }, { data: sigRows }, { data: resRows }] = await Promise.all([
     sb.from("companies").select("authorised_shares,issued_shares").eq("id", companyId).maybeSingle(),
-    sb.from("cap_table").select("holder,shares,pct,holder_type,note").eq("company_id", companyId).order("shares", { ascending: false }),
+    sb.from("cap_table").select("id,holder,shares,pct,holder_type,note").eq("company_id", companyId).order("shares", { ascending: false }),
     sb.from("signatories").select("id,name,scope,note").eq("company_id", companyId).order("name"),
     sb.from("resolutions").select("id,date,type,summary,document_id").eq("company_id", companyId).order("date", { ascending: false }),
   ]);
   const holders: Holder[] = (capRows ?? []).map((r) => ({
+    id: r.id as number,
     holder: r.holder as string,
     shares: (r.shares as number | null) ?? null,
     pct: (r.pct as number | null) ?? null,
@@ -106,6 +107,38 @@ export async function getRiskRegister(): Promise<Risk[]> {
     };
   });
   return risks.sort((a, b) => b.score - a.score);
+}
+
+// ── Writes (in-app governance editing; CLI seed is one-off) ────────────────
+
+export async function addCapHolder(companyId: number, holder: string, shares: number | null, pct: number | null, holderType: string | null): Promise<void> {
+  await sb.from("cap_table").insert({ company_id: companyId, holder, shares, pct, holder_type: holderType });
+}
+export async function deleteCapHolder(id: number): Promise<void> { await sb.from("cap_table").delete().eq("id", id); }
+
+export async function addSignatory(companyId: number, name: string, scope: string | null): Promise<void> {
+  await sb.from("signatories").insert({ company_id: companyId, name, scope });
+}
+export async function deleteSignatory(id: number): Promise<void> { await sb.from("signatories").delete().eq("id", id); }
+
+export async function addResolution(companyId: number, date: string | null, type: string | null, summary: string): Promise<void> {
+  await sb.from("resolutions").insert({ company_id: companyId, date: date ? new Date(date + "T00:00:00Z").toISOString() : null, type, summary });
+}
+export async function deleteResolution(id: number): Promise<void> { await sb.from("resolutions").delete().eq("id", id); }
+
+export async function addRisk(input: { code: string; title: string; category: string | null; likelihood: number | null; impact: number | null; owner: string | null; mitigation: string | null }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await sb.from("risks").insert({ ...input, status: "Open" });
+  return { ok: !error, error: error?.message };
+}
+export async function setRiskStatus(id: number, status: string): Promise<void> { await sb.from("risks").update({ status }).eq("id", id); }
+export async function deleteRisk(id: number): Promise<void> { await sb.from("risks").delete().eq("id", id); }
+
+export async function addDecision(input: { code: string; title: string; companyId: number | null; type: string | null; context: string | null; due: string | null }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await sb.from("decisions").insert({ code: input.code, title: input.title, company_id: input.companyId, type: input.type, context: input.context, due: input.due ? new Date(input.due + "T00:00:00Z").toISOString() : null, status: "Pending" });
+  return { ok: !error, error: error?.message };
+}
+export async function decideDecision(id: number, decision: string): Promise<void> {
+  await sb.from("decisions").update({ status: "Decided", decision, decided_on: new Date().toISOString() }).eq("id", id);
 }
 
 /** The board decisions / approvals log, soonest-due first. */

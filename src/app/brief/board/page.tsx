@@ -1,5 +1,6 @@
 import { Lock, ShieldAlert, Landmark, Users, AlertTriangle, Gavel, ClipboardCheck } from "lucide-react";
 import { PrintButton } from "@/components/print-button";
+import { GovernanceQuickEdit } from "@/components/governance-quick-edit";
 import { sb } from "@/db/supabase";
 import { getRiskRegister, getDecisions, getKeyPersons, getBeneficialOwners, getCompanyGovernance } from "@/lib/governance";
 import { RISK_BAND_TONE } from "@/lib/governance-shared";
@@ -69,6 +70,11 @@ export default async function BoardPackPage() {
         </div>
         <div className="print-hidden"><PrintButton label="Save as PDF" /></div>
       </header>
+
+      <GovernanceQuickEdit
+        pendingDecisions={decisions.filter((d) => d.status === "Pending").map((d) => ({ id: d.id, code: d.code, title: d.title }))}
+        openRisks={risks.filter((r) => r.status !== "Closed").map((r) => ({ id: r.id, code: r.code, title: r.title, status: r.status }))}
+      />
 
       {/* 1. Executive summary */}
       <Section icon={<ClipboardCheck size={15} />} title="Executive summary">

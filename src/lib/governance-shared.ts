@@ -1,7 +1,7 @@
 // governance-shared.ts — client-safe types + pure helpers for the board-level
 // Governance & Risk layer. No DB imports.
 
-export type Holder = { holder: string; shares: number | null; pct: number | null; holderType: string | null; note: string | null };
+export type Holder = { id: number; holder: string; shares: number | null; pct: number | null; holderType: string | null; note: string | null };
 export type CapTable = { authorised: number | null; issued: number | null; holders: Holder[] };
 export type Signatory = { id: number; name: string; scope: string | null; note: string | null };
 export type Resolution = { id: number; date: string | null; type: string | null; summary: string; documentId: number | null };
