@@ -47,4 +47,37 @@ tsc clean. All server-side already (guard "key on server" satisfied). Not yet do
 review-queue TABLE (current "queue" = the human-confirm step in the upload dialog — failed/low-conf
 extractions surface there rather than silently saving). Hybrid stronger-model fallback (07 optional) not built.
 
-## Next candidates (owner to pick): fact ledger · governance+board pack · tiered alerts+safety-net.
+## Groq harness PUSHED to master, commit 6489463 (2026-06-14). Live.
+
+## Next areas — owner LOCKED sequence: A → C → B. Build only on owner's go-ahead, one area end-to-end.
+
+**A — Fact Ledger — CORE DONE (migration 0063 applied to live DB), 2026-06-14:**
+- `facts` table (schema.ts): entity_type/person_id/company_id/field/value JSONB/display/effective_date/
+  source/document_id/source_hash/verified/verified_at/note/created_by/created_at + 3 indexes. Migration
+  `drizzle/0063_superb_captain_britain.sql` generated + `npm run db:migrate` APPLIED.
+- `src/lib/facts-shared.ts` (client-safe): Fact type, factStatus (verified|unverified|stale>180d|incomplete
+  via NOT-STATED/VERIFY/placeholder regex), renderFactValue (money fields → TZS), COMMON_FACT_FIELDS.
+- `src/lib/facts.ts` (server): listFacts, currentFacts (latest effective_date per field), factHistory,
+  recordFact (append-only, never mutate), setFactVerified (restamps verified_at), deleteFact (mistake-fix only).
+- `src/app/facts/actions.ts` ("use server"): loadEntityFacts, recordFactAction (coerceValue → number/list/text,
+  money display via renderFactValue), verifyFactAction, deleteFactAction; revalidates /people + /companies/[id].
+- `src/components/facts-panel.tsx` (shared client): current facts + status chips + per-field history expander +
+  source/effective-date + verify/delete + inline "Record a fact" form (Combobox field). Wired into
+  person-drawer.tsx (Details tab, after PersonPay) AND company-profile.tsx (after the form).
+- VERIFIED in preview on live DB: render, record (Authorised Capital 20M on MES), display, delete, empty state;
+  no console errors; tsc clean.
+- NOT done (deferred sub-item, owner to choose): AI auto-record hook — current doc extraction only surfaces
+  passportNo (not salary/shareholding), so auto "record as fact" needs a small extraction extension first.
+  Manual ledger is complete and shippable without it. Also: facts don't yet feed the safety-net (that's Area C).
+
+**C — Tiered alerts + safety-net (SECOND):** extend `documents-shared.ts` so category → LIST of lead-days;
+notify cron fires per matching tier (immigration 120/90/30/5 + past expiry; compliance 30/10). `_NEEDORIG`
+flag (col + auto-detect photo-standing-in-for-original, NOT logos/headshots). `src/lib/safety-net.ts` rules
+→ findings: dup TIN, malformed expiry, awaiting-original, stale facts (needs A), assets on archived people.
+Surface on Home + daily cron line.
+
+**B — Governance + monthly board pack (LAST, largest):** tables cap_table/beneficial_owners/signatories/
+resolutions/risks/decisions. `src/lib/governance.ts` (key-person risk, UBO completeness). Board-only views on
+company profile, EXCLUDED from daily dashboard + weekly digest. Monthly cron (1st) renders board-pack PDF
+(reuse letters/print + email) to director+CFO ONLY. Recipient-rules config (routine→director+CFO;
+board pack→director+CFO only) — not hardcoded.

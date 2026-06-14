@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { FactsPanel } from "@/components/facts-panel";
 import { Save, Loader2, Building2, FileSignature, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { saveCompanyProfileAction } from "../actions";
 import { useToast } from "@/components/toast";
@@ -78,6 +79,7 @@ export function CompanyProfile({
   }
 
   return (
+    <div className="space-y-4">
     <form onSubmit={onSubmit} onChange={() => setDirty(true)} className="space-y-4">
       <p className="text-xs text-fg-muted">
         These details are this company&apos;s record and the source for{" "}
@@ -194,5 +196,9 @@ export function CompanyProfile({
         </button>
       </div>
     </form>
+
+      {/* Tracked facts (source-linked fact ledger) */}
+      <FactsPanel entityType="company" entityId={companyId} />
+    </div>
   );
 }

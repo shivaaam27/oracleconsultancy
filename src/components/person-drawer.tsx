@@ -37,6 +37,7 @@ import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person
 import { PersonLeave } from "./person-leave";
 import { PersonProbation } from "./person-probation";
 import { PersonPay } from "./person-pay";
+import { FactsPanel } from "./facts-panel";
 import type { PersonLeaveBalance, LeaveRequestRow } from "@/lib/leave-shared";
 import type { PersonAttendanceSummary } from "@/lib/leave";
 
@@ -753,6 +754,9 @@ export function PersonDrawer() {
           startDate={person.startDate}
           annualLeaveRemaining={data.leave.balances.find((b) => /annual/i.test(b.typeName))?.remaining ?? null}
         />
+
+        {/* Tracked facts (source-linked fact ledger) */}
+        <FactsPanel entityType="person" entityId={person.id} />
 
         {/* Documents */}
         {data.documents.length > 0 && (

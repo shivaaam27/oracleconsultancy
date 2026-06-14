@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, primaryKey, uniqueIndex, index, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, jsonb, primaryKey, uniqueIndex, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -303,6 +303,42 @@ export const personEvents = pgTable(
     createdBy: text("created_by"),
   },
   (t) => [index("person_events_person_idx").on(t.personId)]
+);
+
+// Append-only FACT LEDGER (transfer-pack 03). A flexible, source-linked record of
+// any verifiable fact about a company or person — salary, shareholding, directors,
+// bank account, contract end, passport number, etc. The CURRENT value of an
+// entity+field is the row with the latest `effectiveDate`; older rows are history.
+// To record a change you ADD a new row — never edit or delete an old one.
+// `value` is JSONB so it holds a number (salary), a string (bank account) or a
+// list (directors/shareholding snapshot) without a rigid column per fact type.
+export const facts = pgTable(
+  "facts",
+  {
+    id: serial("id").primaryKey(),
+    entityType: text("entity_type").notNull(), // "company" | "person"
+    personId: integer("person_id").references(() => people.id, { onDelete: "cascade" }),
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    field: text("field").notNull(), // "Salary" | "Shareholding" | "Directors" | "Bank Account" | "Contract End" | …
+    value: jsonb("value").notNull(), // number | string | array | object
+    // A short human-readable rendering of `value`, so lists/UI never have to parse
+    // JSON to show the fact. Kept in sync by the writer (recordFact).
+    display: text("display"),
+    effectiveDate: timestamp("effective_date", { mode: "date", withTimezone: true }).notNull(),
+    source: text("source"), // e.g. "BRELA report", "Employment contract", "Payroll Jan 2026"
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    sourceHash: text("source_hash"), // hash of the proving file — mismatch ⇒ "re-verify"
+    verified: boolean("verified").notNull().default(false),
+    verifiedAt: timestamp("verified_at", { mode: "date", withTimezone: true }),
+    note: text("note"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("facts_person_idx").on(t.personId),
+    index("facts_company_idx").on(t.companyId),
+    index("facts_field_idx").on(t.field),
+  ]
 );
 
 // Editable onboarding/offboarding step templates, per person type. A person's
