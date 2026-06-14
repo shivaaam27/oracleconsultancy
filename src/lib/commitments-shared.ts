@@ -46,8 +46,11 @@ export function daysToNotice(c: Pick<Commitment, "endDate" | "noticeDays">, asOf
 
 export type CommitmentUrgency = "overdue" | "soon" | "ok" | "undated";
 
-/** Urgency from the notice window: overdue, soon (≤30d), ok, or undated. */
+/** Urgency from the notice window: overdue, soon (≤30d), ok, or undated.
+ *  A commitment already exited (`status='expired'`) is never urgent — otherwise
+ *  it would fire "notice overdue" forever until archived. */
 export function commitmentUrgency(c: Pick<Commitment, "endDate" | "noticeDays" | "status">): CommitmentUrgency {
+  if (c.status === "expired") return "ok";
   const d = daysToNotice(c);
   if (d === null) return "undated";
   if (d < 0) return "overdue";

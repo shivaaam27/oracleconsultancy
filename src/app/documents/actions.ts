@@ -455,10 +455,14 @@ async function loadCompanyIdentifiers(): Promise<CompanyIdent[]> {
  * matched id, or null (→ leave the AI/name match, or send to review).
  */
 function matchCompanyByIdentifiers(text: string, idents: CompanyIdent[]): CompanyIdent | null {
-  const digits = text.replace(/\D/g, "");
-  // TIN (TZ TINs are 9 digits, often written 123-456-789).
-  for (const c of idents) if (c.tin && c.tin.length >= 7 && digits.includes(c.tin)) return c;
-  for (const c of idents) if (c.vrn && c.vrn.length >= 7 && digits.includes(c.vrn)) return c;
+  // Pull out boundary-delimited identifier tokens (e.g. "123-456-789", "168521219")
+  // and compare by EXACT digit-equality — never a substring of the whole document,
+  // which would coincidentally match a TIN inside a phone number / amount / two
+  // adjacent fields and misfile the document to the wrong company.
+  const tokens = new Set((text.match(/\d[\d-]{5,}\d/g) ?? []).map((t) => t.replace(/\D/g, "")).filter(Boolean));
+  // TZ TINs/VRNs are 9 digits; require ≥8 to be safe but exact-match the token.
+  for (const c of idents) if (c.tin && c.tin.length >= 8 && tokens.has(c.tin)) return c;
+  for (const c of idents) if (c.vrn && c.vrn.length >= 8 && tokens.has(c.vrn)) return c;
   const lower = text.toLowerCase();
   for (const c of idents) if (c.emailDomain && lower.includes(`@${c.emailDomain}`)) return c;
   return null;
@@ -702,9 +706,10 @@ type ExtractResult = {
   note?: string;
 };
 
-/** True when the model gave a confidence and it is below the human-review gate. */
+/** True when the read should go to human review: below the gate OR no confidence
+ *  reported at all (fail-closed — an unrated read is not assumed reliable). */
 function isLowConfidence(confidence: number | null | undefined): boolean {
-  return typeof confidence === "number" && confidence < LOW_CONFIDENCE;
+  return confidence == null || confidence < LOW_CONFIDENCE;
 }
 
 async function fieldsFromText(

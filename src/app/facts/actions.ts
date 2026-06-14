@@ -44,12 +44,20 @@ export type RecordFactFormInput = {
   note?: string;
 };
 
+// Identifier-style fields whose digits must be kept verbatim — never coerced to
+// a Number (which would drop leading zeros and lose precision past 2^53).
+const IDENTIFIER_FIELD = /account|passport|tin\b|vrn|registration|reg\b|national|nida|phone|mobile|\bid\b|number|no\.?\b|swift/i;
+
 /** Coerce typed text into a structured value: a plain number, a comma list, or text. */
 function coerceValue(field: string, raw: string): { value: FactValue; display: string } {
   const text = raw.trim();
-  // A clean number (allowing thousands separators) → store as a number.
+  // A clean number (allowing thousands separators) → store as a number — but ONLY
+  // for genuine quantities. Identifier fields, leading-zero strings, and values
+  // beyond safe-integer precision stay as the original text so no digit changes.
   const numeric = text.replace(/[, ]/g, "");
-  if (numeric && /^-?\d+(\.\d+)?$/.test(numeric)) {
+  const looksNumeric = !!numeric && /^-?\d+(\.\d+)?$/.test(numeric);
+  const safeNumber = looksNumeric && !(/^0\d/.test(numeric)) && Math.abs(Number(numeric)) <= Number.MAX_SAFE_INTEGER;
+  if (safeNumber && !IDENTIFIER_FIELD.test(field)) {
     const n = Number(numeric);
     // Let the shared renderer format money fields (TZS …) and thousands.
     return { value: n, display: renderFactValue(field, n) };

@@ -35,12 +35,19 @@ export type FactStatus = "verified" | "unverified" | "stale" | "incomplete";
 
 export const STALE_DAYS = 180;
 
-const PLACEHOLDER = /not stated|verify|placeholder|tbc|tbd|unknown/i;
+// A value is "incomplete" only when it is WHOLLY a placeholder (so a real name
+// like "TBD Holdings" or a note "to verify with BRELA" isn't flagged), or carries
+// the local engine's explicit upper-case marker ("NOT STATED - VERIFY").
+const PLACEHOLDER_WHOLE = /^\s*(not stated|to be (confirmed|verified)|tbc|tbd|n\/a|unknown|placeholder|-+)\s*$/i;
+const VERIFY_MARKER = /NOT STATED|-\s?VERIFY|placeholder/;
+function isPlaceholder(text: string): boolean {
+  return PLACEHOLDER_WHOLE.test(text) || VERIFY_MARKER.test(text);
+}
 
 /** Compute a fact's status from its own fields. `asOf` is injectable for tests. */
 export function factStatus(f: Pick<Fact, "verified" | "verifiedAt" | "value" | "display">, asOf: Date = new Date()): FactStatus {
   const text = typeof f.value === "string" ? f.value : f.display ?? "";
-  if (PLACEHOLDER.test(text)) return "incomplete";
+  if (isPlaceholder(text)) return "incomplete";
   if (!f.verified) return "unverified";
   if (f.verifiedAt) {
     const days = (asOf.getTime() - new Date(f.verifiedAt).getTime()) / 86_400_000;
@@ -57,7 +64,9 @@ export const FACT_STATUS_LABEL: Record<FactStatus, string> = {
 };
 
 // Fields whose numeric value is money (TZS), for default display formatting.
-const MONEY_FIELD = /salary|wage|pay|amount|capital|value|fee|rent/i;
+// Whole-word anchored so "Payee" / "Coffee Supplier" / "Parent Company" don't
+// get a spurious "TZS" prefix.
+const MONEY_FIELD = /\b(salary|wage|pay|amount|capital|value|fee|rent|cost|price|premium)\b/i;
 
 /** A short human rendering of a value, used when no explicit `display` was given. */
 export function renderFactValue(field: string, value: FactValue): string {

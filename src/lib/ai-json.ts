@@ -29,8 +29,11 @@ import { GROQ_FAST } from "./ai-models";
  */
 export function extractJsonBlock(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  // Drop markdown code fences first (```json ... ``` or ``` ... ```).
-  let text = raw.replace(/```(?:json)?/gi, "").trim();
+  // Scan from the first "{" directly — the balanced-brace scan below skips braces
+  // (and backticks) inside strings, so it ignores any leading ```json fence and
+  // trailing ``` without a global strip that could delete backticks from INSIDE a
+  // legitimate JSON string value (e.g. a drafted message body containing a fence).
+  const text = raw;
   const start = text.indexOf("{");
   if (start === -1) return null;
   let depth = 0;
@@ -85,7 +88,9 @@ function typeOk(v: unknown, t: FieldType): boolean {
     case "string": return typeof v === "string";
     case "number": return typeof v === "number" && Number.isFinite(v);
     case "boolean": return typeof v === "boolean";
-    case "date": return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+    // Round-trip so impossible calendar days (e.g. 2027-02-30, which Date.parse
+    // rolls over to 2 Mar) are rejected, not silently accepted.
+    case "date": return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v + "T00:00:00Z").toISOString().slice(0, 10) === v;
     case "object": return !!v && typeof v === "object" && !Array.isArray(v);
     case "array": return Array.isArray(v);
   }

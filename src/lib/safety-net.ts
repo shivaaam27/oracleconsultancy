@@ -124,14 +124,20 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
     }
   }
 
-  // 5. Equipment still out with someone who has left.
+  // 5. Equipment still out with someone who has left. Skip assignments whose
+  //    asset is archived/retired (those open rows are stale, not actionable).
   const assignments = (openAssignments.data ?? []) as Array<{ id: number; asset_id: number; person_id: number | null }>;
   const leaverIds = assignments.map((a) => a.person_id).filter((v): v is number => v != null);
   if (leaverIds.length) {
-    const { data: peopleRows } = await sb.from("people").select("id,name,active").in("id", leaverIds);
+    const assetIds = [...new Set(assignments.map((a) => a.asset_id).filter((v) => v != null))];
+    const [{ data: peopleRows }, { data: assetRows }] = await Promise.all([
+      sb.from("people").select("id,name,active").in("id", leaverIds),
+      sb.from("assets").select("id,archived").in("id", assetIds),
+    ]);
     const inactive = new Map((peopleRows ?? []).filter((p) => !(p as { active: boolean }).active).map((p) => [(p as { id: number }).id, (p as { name: string }).name]));
+    const liveAsset = new Set((assetRows ?? []).filter((a) => !(a as { archived: boolean }).archived).map((a) => (a as { id: number }).id));
     for (const a of assignments) {
-      if (a.person_id != null && inactive.has(a.person_id)) {
+      if (a.person_id != null && inactive.has(a.person_id) && liveAsset.has(a.asset_id)) {
         findings.push({
           id: `asset-on-leaver:${a.id}`,
           severity: "medium",
