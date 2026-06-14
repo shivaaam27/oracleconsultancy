@@ -106,14 +106,15 @@ function appUrl(): string {
 async function sendOrDraftToOwner(
   subject: string,
   text: string,
-  source: string
+  source: string,
+  attachments?: Array<{ filename: string; content: string; contentType?: string; encoding?: "utf8" | "base64" }>
 ): Promise<{ sent: number; prepared: number }> {
   const { getEmailConfig } = await import("@/lib/settings");
   const cfg = await getEmailConfig();
   const to = cfg?.fromAddress ?? null;
   if (cfg && to) {
     const { sendEmail } = await import("@/lib/email");
-    const res = await sendEmail({ to, subject, text });
+    const res = await sendEmail({ to, subject, text, attachments });
     if (res.ok) {
       await sb.from("outbox").insert({
         channel: "EMAIL", recipient_name: cfg.fromName || "Owner", recipient_contact: to,
@@ -279,18 +280,29 @@ export async function runDueAutomations(now = new Date(), opts: { force?: boolea
   // director + CFO, not an automated PII email. Real PDF-attach is a later add.
   const boardPack = cfg.categories.boardPack;
   if (boardPack.mode !== "off" && (force || (eatDayOfMonth(now) === 1 && !(await alreadyRanToday("boardPack"))))) {
+    // Generate the PDF server-side and attach it (no headless browser). If the
+    // render fails for any reason, still send the link nudge so the run isn't lost.
+    let attachments: Array<{ filename: string; content: string; contentType?: string; encoding: "base64" }> | undefined;
+    try {
+      const { renderBoardPackPdf } = await import("@/lib/board-pack-pdf");
+      const buf = await renderBoardPackPdf(now);
+      const stamp = now.toISOString().slice(0, 10);
+      attachments = [{ filename: `Board-Pack-${stamp}.pdf`, content: buf.toString("base64"), contentType: "application/pdf", encoding: "base64" }];
+    } catch (e) {
+      await recordEvent("email.automation.boardPack", "warn", { message: "pdf-render-failed", detail: e instanceof Error ? e.message : String(e) });
+    }
     const text = [
-      `The monthly board pack is ready to review.`,
-      ``,
-      `Open it, then print to PDF and send to the director + CFO:`,
-      `${appUrl()}/brief/board`,
+      `The monthly board pack is attached${attachments ? "" : " (PDF unavailable — open it online)"}.`,
       ``,
       `It covers compliance, finance, the risk register, governance (cap table / UBO / signatories), immigration and the safety-net appendix.`,
+      `Most sensitive artifact — for the director + CFO only.`,
+      ``,
+      `View online: ${appUrl()}/brief/board`,
     ].join("\n");
-    const r = await sendOrDraftToOwner("Board pack — ready to review & send", text, "automation-boardpack");
+    const r = await sendOrDraftToOwner("Board pack — monthly", text, "automation-boardpack", attachments);
     if (!force) await markRanToday("boardPack");
     results.push({ category: "boardPack", mode: boardPack.mode, prepared: r.prepared, sent: r.sent, skipped: 0 });
-    await recordEvent("email.automation.boardPack", "ok", { sent: r.sent, prepared: r.prepared });
+    await recordEvent("email.automation.boardPack", "ok", { sent: r.sent, prepared: r.prepared, pdf: !!attachments });
   }
 
   return { ran: results.length > 0, categories: results };
