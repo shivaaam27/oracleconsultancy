@@ -153,6 +153,13 @@ Decisions: fully-auto + review-exceptions · never guess the company · added Ba
 - /documents primary bulk button = **"Add all (auto)"**; legacy one-by-one `BulkUploadDialog` kept for the
   Inbox bundle flow. Needs-review "Open" → `/documents?doc=ID` opens the full editable form (reacts to same-page
   nav); edit-save clears the review flag. Categories: + Banking, + Legal. Shared `lib/downscale-image.ts`.
+- **Whole-folder upload + cross-file batch context** (commit 0becd9c) — solves "isolated per-file read flags too
+  many reviews" (info for one file lives in another). Folder upload (webkitdirectory) + a "These are mostly for:
+  [company/person]" picker auto-detected from the top folder name. autoFileDocumentAction resolves owner
+  MOST-SPECIFIC-FIRST: file's own ID/name → company/person named in the folder PATH (any segment, deepest first)
+  → batch context owner → else (true orphan) review. Owner can come from folderHint/contextCompanyId/
+  contextPersonId in the FormData. Cross-file profile build is free (a person's files all resolve to them).
+  Owner choices: folder-upload + context-owner (NOT two-pass), only-true-orphans-to-review.
 
 ## DOCUMENT STORAGE + COMPLIANCE MAP (the owner's "complete breakdown")
 ENTRY POINTS (all write the same store): /documents Add + **Add all (auto)**; /inbox Process (bundles);
