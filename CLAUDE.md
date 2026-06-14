@@ -57,7 +57,13 @@ Core:
 
 Meetings: meetings, meeting_tasks
 
-Governance: audit_log, corrections
+Fact ledger (transfer-pack): **facts** — append-only, source-linked facts (salary/shareholding/directors/bank/passport/contract); current = latest `effective_date`, older = history; never overwrite. `factStatus` verified/unverified/stale>180d/incomplete. See `memory/localsystemautomationtooracle.md`.
+
+Governance & Risk (board-level, transfer-pack; kept out of daily/weekly): **cap_table**, **beneficial_owners**, **key_persons**, **signatories**, **resolutions**, **risks** (L×I band), **decisions** (+ companies.`authorised_shares`/`issued_shares`). Surfaced on the company profile + `/brief/board` board pack.
+
+In-flight + commitments: **pipeline** (bureaucracy stages To Apply→Issued), **commitments** (leases/insurance/contracts; notice-by = end − notice_days). Both link a supporting `document_id`.
+
+Governance audit: audit_log, corrections
 
 To-dos:
 
@@ -78,7 +84,7 @@ HRMS — Leave & Attendance (grounded in Tanzania ELR Act 2004):
 
 Documents & intake:
 
-- documents (now also `vendor_id`), document_links
+- documents (now also `vendor_id`, plus intake-rewire cols `review_status` ["ok"/"needs_review"] + `needs_original` [`_NEEDORIG`]), document_links
 - inbox (manual bundles too: pasted text + uploaded files stored in `attachments` JSON under `inbox/` storage prefix)
 
 Letters:
@@ -111,6 +117,10 @@ See `memory/database_schema.md`.
 - `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle
 - `/hrms/leave` - **Leave & Attendance** — segmented **Leave | Attendance** tabs. Leave: types/requests/approvals (ELR Act-accurate), balances, holidays. **Attendance register (built June 2026)**: month grid, brush-to-paint status, company filter, "mark all Present today"; On-leave/Holiday auto-filled. See `memory/hrms.md`.
 - `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
+- `/hrms/pipeline` - **Applications in progress** (transfer-pack) — kanban of in-flight bureaucracy (permits/visas/licences): To Apply → Applied → Control No. Issued → Paid → Receipt Received → Issued; attach a supporting document. See `memory/localsystemautomationtooracle.md`.
+- `/hrms/registers` - **Commitments register** (transfer-pack) — leases/insurance/commercial contracts with **notice-by = end − notice_days** (flagged when notice is due soon); attach a supporting document.
+- `/brief/board` - **Board pack** (transfer-pack, confidential/director+CFO): exec summary, risk register, decisions, key-person concentration, UBO, per-company ownership+signatories, expiring immigration, safety-net appendix; print-to-PDF + monthly auto-PDF email.
+- `/people/form` - **Staff data-collection form** (transfer-pack) — printable bilingual EN/Swahili form for staff with no system access; `?person=<id>` pre-fills, `?missing=1` shows only blanks, QR to the record, signature/thumbprint + on-behalf field-agent line; outsider type hides employment/payroll. Fill by hand → photograph → upload → intake builds the profile.
 - `/companies` - **Companies hub = reference-data centre**: tabs **Companies · Departments · Sites · Roles** (`companies-hub-tabs.tsx`); each ref list has add/rename/**merge**/delete. `/companies/[id]` = company detail (Overview/Profile/Tasks/Timeline/Org).
 - `/people` - person record now has HR profile fields inc. **Work site + Residence** (shared `sites` list, combobox), a glanceable drawer (hero tiles + accordion sections), manager + N-direct-reports on cards, a **Direct reports** list + an **All Locations** directory filter. Bulk "also reports to" in the select bar.
 - `/documents` - Documents & Compliance (+ "Add several" bulk multi-file upload via the full doc form; recency-aware duplicate detection)
