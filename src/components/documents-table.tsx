@@ -547,7 +547,7 @@ export function DocumentsTable({
       />
 
       {/* Automatic bulk intake — drop all, AI files them, review only exceptions. */}
-      <BulkAutoUpload open={autoOpen} onOpenChange={setAutoOpen} onDone={() => router.refresh()} />
+      <BulkAutoUpload open={autoOpen} onOpenChange={setAutoOpen} companies={companies} people={people} onDone={() => router.refresh()} />
 
       {/* Legacy one-by-one bulk review (kept for the Inbox bundle flow). */}
       <BulkUploadDialog

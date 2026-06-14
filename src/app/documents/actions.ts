@@ -231,11 +231,39 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
   const file = fd.get("file");
   const fileName = file instanceof File ? file.name : "document";
   const fallbackTitle = fileName.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 120) || "Document";
+  // Batch context (cross-file): the folder path the file came from, plus an
+  // operator-declared "mostly for" owner. Used ONLY to resolve a file that does
+  // not self-identify — most-specific signal wins, so nothing is mis-filed.
+  const folderHint = (fd.get("folderHint") ?? "").toString();
+  const ctxCompanyId = intOrNull(fd, "contextCompanyId");
+  const ctxPersonId = intOrNull(fd, "contextPersonId");
   try {
     const res = await extractDocumentFromFile(fd);
     const f = res.fields ?? {};
-    const hasOwner = !!f.companyId || !!f.personId;
-    // Confidence gate: unreadable, unclear, or no owner → flag for review.
+
+    // Owner resolution order: (1) the file's own ID/name (already in f) →
+    // (2) a company/person named in the folder path → (3) the batch context owner.
+    let companyId = f.companyId ?? null;
+    let personId = f.personId ?? null;
+    let resolvedBy: "file" | "folder" | "context" | null = companyId || personId ? "file" : null;
+    if (!companyId && !personId && (folderHint || ctxCompanyId || ctxPersonId)) {
+      const { companies, people } = await loadEntities();
+      // Folder path segments (deepest-first), matched against people then companies.
+      const segs = folderHint.split(/[\\/]/).map((s) => s.trim()).filter(Boolean).reverse();
+      for (const seg of segs) {
+        if (!personId) { const p = resolveEntity(seg, people); if (p) { personId = p.id; resolvedBy = "folder"; } }
+        if (!companyId) { const c = resolveEntity(seg, companies); if (c) { companyId = c.id; resolvedBy = "folder"; } }
+      }
+      // Fall back to the operator-declared batch owner.
+      if (!companyId && !personId) {
+        if (ctxPersonId) { personId = ctxPersonId; resolvedBy = "context"; }
+        if (ctxCompanyId) { companyId = ctxCompanyId; resolvedBy = "context"; }
+      }
+    }
+
+    const hasOwner = !!companyId || !!personId;
+    // Review only when the read failed, the scan was genuinely unclear, or NO
+    // signal at all resolved an owner (the true orphans).
     const needsReview = !res.ok || !!res.needsReview || !hasOwner;
     const reason = !res.ok ? (res.note ?? "Couldn't read the file") : !hasOwner ? "No company/person matched" : res.needsReview ? "Scan was unclear" : undefined;
 
@@ -247,8 +275,8 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       referenceNo: f.referenceNo ?? null,
       issueDate: f.issueDate ?? null,
       expiryDate: f.expiryDate ?? null,
-      companyId: f.companyId ?? null,
-      personId: f.personId ?? null,
+      companyId,
+      personId,
       notes: f.notes ?? null,
       needsOriginal: f.needsOriginal ?? false,
       reviewStatus: needsReview ? "needs_review" : "ok",
@@ -256,18 +284,24 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     const id = await createDocument(input, "ai-intake");
     if (file instanceof File && file.size > 0) await uploadDocumentFile(id, file);
     await appendDocumentFacts(id, f.facts ?? [], input.companyId ?? null, input.personId ?? null, input.title);
-    // Enrich the matched person/company profile (blanks-only — never overwrites).
-    if (f.personId && f.person && Object.keys(f.person).length) { try { await enrichPersonProfile(f.personId, f.person); } catch { /* best effort */ } }
-    if (f.companyId && f.company && Object.keys(f.company).length) { try { await enrichCompanyProfile(f.companyId, f.company); } catch { /* best effort */ } }
+    // Enrich the resolved person/company profile (blanks-only — never overwrites).
+    if (personId && f.person && Object.keys(f.person).length) { try { await enrichPersonProfile(personId, f.person); } catch { /* best effort */ } }
+    if (companyId && f.company && Object.keys(f.company).length) { try { await enrichCompanyProfile(companyId, f.company); } catch { /* best effort */ } }
     if (input.companyId) {
       await backfillCompanyProfileFromDocument(input.companyId, { category: input.category ?? null, title: input.title ?? null, referenceNo: input.referenceNo ?? null, issueDate: input.issueDate ?? null });
     }
     await reconcileOwnerCompliance(input.personId ?? null, input.companyId ?? null);
     revalidateDocs();
+    // Owner name for the summary line.
+    let owner = f.companyName ?? f.personName ?? null;
+    if (!owner && hasOwner) {
+      const { companies, people } = await loadEntities();
+      owner = (companyId ? companies.find((c) => c.id === companyId)?.name : null) ?? (personId ? people.find((p) => p.id === personId)?.name : null) ?? null;
+    }
     return {
       ok: true, id, title: input.title,
       status: needsReview ? "needs_review" : "filed",
-      owner: f.companyName ?? f.personName ?? null,
+      owner: resolvedBy && resolvedBy !== "file" && owner ? `${owner} (from ${resolvedBy})` : owner,
       reason,
     };
   } catch (e) {
