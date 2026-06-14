@@ -289,7 +289,7 @@ export async function runDueAutomations(now = new Date(), opts: { force?: boolea
       const stamp = now.toISOString().slice(0, 10);
       attachments = [{ filename: `Board-Pack-${stamp}.pdf`, content: buf.toString("base64"), contentType: "application/pdf", encoding: "base64" }];
     } catch (e) {
-      await recordEvent("email.automation.boardPack", "warn", { message: "pdf-render-failed", detail: e instanceof Error ? e.message : String(e) });
+      await recordEvent("email.automation.boardPack", "error", { message: "pdf-render-failed", detail: e instanceof Error ? e.message : String(e) });
     }
     const text = [
       `The monthly board pack is attached${attachments ? "" : " (PDF unavailable — open it online)"}.`,
