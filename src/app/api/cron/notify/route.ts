@@ -7,6 +7,8 @@ import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sendToAll, configurePush } from "@/lib/push";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
+import { isReminderDueToday } from "@/lib/documents-shared";
+import { gatherSafetyFindings } from "@/lib/safety-net";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
 
@@ -37,6 +39,10 @@ export async function GET(req: NextRequest) {
     const documents = await listDocuments();
     const docsExpired = documents.filter((d) => deriveDocStatus(d) === "Expired");
     const docsExpiring = documents.filter((d) => deriveDocStatus(d) === "Expiring");
+    // Tiered cadence (transfer-pack 02 §4): documents whose days-to-expiry lands
+    // on a reminder tier TODAY (immigration 120/90/30/5 + past expiry; others
+    // 30/10). These are the ones actively "due for a nudge" right now.
+    const remindersDue = documents.filter((d) => !d.archived && isReminderDueToday(d));
 
     // Compliance gaps: missing or expired MANDATORY requirements across people and
     // companies. Catches requirement review-date lapses + missing docs that aren't
@@ -52,13 +58,20 @@ export async function GET(req: NextRequest) {
       0
     );
 
+    // Safety-net data-quality issues (high/medium only — low items are FYI and
+    // shouldn't ping the owner daily).
+    const findings = await gatherSafetyFindings();
+    const dataIssues = findings.filter((f) => f.severity !== "low").length;
+
     const parts: string[] = [];
     if (overdue.length) parts.push(`${overdue.length} overdue`);
     if (escalated.length) parts.push(`${escalated.length} escalated`);
     if (dueToday.length) parts.push(`${dueToday.length} due today`);
     if (docsExpired.length) parts.push(`${docsExpired.length} doc${docsExpired.length === 1 ? "" : "s"} expired`);
     if (docsExpiring.length) parts.push(`${docsExpiring.length} doc${docsExpiring.length === 1 ? "" : "s"} expiring`);
+    if (remindersDue.length) parts.push(`${remindersDue.length} renewal reminder${remindersDue.length === 1 ? "" : "s"} due`);
     if (complianceGaps) parts.push(`${complianceGaps} compliance gap${complianceGaps === 1 ? "" : "s"}`);
+    if (dataIssues) parts.push(`${dataIssues} data issue${dataIssues === 1 ? "" : "s"}`);
 
     // Nothing actionable — don't notify.
     if (parts.length === 0) {
@@ -67,7 +80,7 @@ export async function GET(req: NextRequest) {
     }
 
     // De-dupe: only push when the situation changes from the last run.
-    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${complianceGaps}`;
+    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${remindersDue.length}|${complianceGaps}|${dataIssues}`;
     const { data: last } = await sb.from("settings").select("value").eq("key", SIG_KEY).maybeSingle();
     if ((last?.value as string | null) === signature) {
       await recordEvent("cron.notify", "ok", { sent: 0, reason: "unchanged" });

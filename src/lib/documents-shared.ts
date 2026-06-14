@@ -34,6 +34,50 @@ export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Other: 30,
 };
 
+// Tiered alert cadence (transfer-pack 02 §4). Immigration-class documents are
+// nudged further out and more often than ordinary compliance documents, because
+// renewals take longer and a lapse is costlier. These are the days-before-expiry
+// on which a reminder is "due".
+export const ALERT_TIERS = {
+  immigration: [120, 90, 30, 5],
+  compliance: [30, 10],
+} as const;
+
+// Categories whose renewals behave like immigration cases (long lead, keep
+// nudging past expiry). Matches the blueprint's passport|visa|permit|… rule.
+const IMMIGRATION_CLASS = /immigration|passport|permit|visa|residence|interim|work[- ]?permit|nida/i;
+
+export type AlertClass = "immigration" | "compliance";
+
+/** Which alert cadence a document follows, from its category (+ type as a hint). */
+export function alertClassFor(category?: string | null, docType?: string | null): AlertClass {
+  const hay = `${category ?? ""} ${docType ?? ""}`;
+  return IMMIGRATION_CLASS.test(hay) ? "immigration" : "compliance";
+}
+
+/**
+ * Is a reminder DUE today for this document? True when days-to-expiry lands on
+ * one of the document's tier thresholds. Immigration-class items also keep
+ * nudging once expired (on expiry day, then every 30 days past) since the case
+ * stays live until the new permit is in hand.
+ */
+export function isReminderDueToday(d: DocStatusInput & { category?: string | null; docType?: string | null }): boolean {
+  const dte = daysToExpiry(d);
+  if (dte === null) return false;
+  const cls = alertClassFor(d.category, d.docType);
+  if (dte > 0) return (ALERT_TIERS[cls] as readonly number[]).includes(dte);
+  // On/after expiry: immigration keeps nudging — on expiry day (0), then every
+  // 30 days past (-30, -60…) — since the case stays live until renewed.
+  return cls === "immigration" && dte % 30 === 0;
+}
+
+/** The widest lead time for a category — used so the "Expiring" window opens
+ *  early enough for immigration cases (120d) without per-document tuning. */
+export function widestLeadFor(category?: string | null, docType?: string | null): number {
+  const cls = alertClassFor(category, docType);
+  return ALERT_TIERS[cls][0]; // 120 for immigration, 30 for compliance
+}
+
 export type DocStatus = "Valid" | "Expiring" | "Expired" | "No expiry" | "Archived";
 
 const DAY = 86400 * 1000;

@@ -70,11 +70,23 @@ extractions surface there rather than silently saving). Hybrid stronger-model fa
   passportNo (not salary/shareholding), so auto "record as fact" needs a small extraction extension first.
   Manual ledger is complete and shippable without it. Also: facts don't yet feed the safety-net (that's Area C).
 
-**C — Tiered alerts + safety-net (SECOND):** extend `documents-shared.ts` so category → LIST of lead-days;
-notify cron fires per matching tier (immigration 120/90/30/5 + past expiry; compliance 30/10). `_NEEDORIG`
-flag (col + auto-detect photo-standing-in-for-original, NOT logos/headshots). `src/lib/safety-net.ts` rules
-→ findings: dup TIN, malformed expiry, awaiting-original, stale facts (needs A), assets on archived people.
-Surface on Home + daily cron line.
+**C — Tiered alerts + safety-net — DONE (no migration), 2026-06-14:**
+- `documents-shared.ts`: ALERT_TIERS {immigration:[120,90,30,5], compliance:[30,10]}, alertClassFor (regex
+  immigration|passport|permit|visa|residence|interim|nida), isReminderDueToday (tier day when dte>0; immigration
+  also on/after expiry every 30d incl. day 0 — edge caught + fixed by unit test), widestLeadFor. Unit-tested.
+- notify cron: adds `remindersDue` (tier-day docs) + `dataIssues` (safety-net high/medium) to the push line +
+  signature.
+- `src/lib/safety-net-shared.ts` (Finding type/severity/tones/sort) + `src/lib/safety-net.ts` gatherSafetyFindings()
+  (compute-on-read, no findings table): rules = duplicate-tin, missing-company-id (TIN/reg, low), awaiting-original
+  (image file in official category — `_NEEDORIG` WITHOUT a stored col; Certificate excluded to avoid false +ves),
+  stale-fact + incomplete-fact (from the ledger via factStatus on current value per entity+field), asset-on-leaver
+  (open asset_assignments to an inactive person).
+- `src/components/safety-net-panel.tsx`: collapsible card (high/medium/low summary, all-clear state, deep links)
+  on `/documents` under NeedsAttention.
+- VERIFIED in preview on live data: 9 medium + 6 low findings (awaiting-original photos, asset still out with an
+  inactive director, missing company IDs); no console errors; tsc clean.
+- NOT done: surfacing on Home (chose Documents page as the compliance hub instead); a stored `_NEEDORIG` column
+  (heuristic detection used instead — reversible, no migration).
 
 **B — Governance + monthly board pack (LAST, largest):** tables cap_table/beneficial_owners/signatories/
 resolutions/risks/decisions. `src/lib/governance.ts` (key-person risk, UBO completeness). Board-only views on

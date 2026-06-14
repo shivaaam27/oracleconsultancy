@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui";
 import { DocumentsTable } from "@/components/documents-table";
 import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
+import { SafetyNetPanel } from "@/components/safety-net-panel";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { ComplianceExportButton } from "@/components/compliance-export-button";
@@ -9,6 +10,7 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { buildCompanyRequirementScores, ensureAllCompanyRequirements } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
+import { gatherSafetyFindings } from "@/lib/safety-net";
 import { leaveMetrics } from "@/lib/leave";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
@@ -43,6 +45,7 @@ export default async function DocumentsPage({
   const companyScores = await buildCompanyRequirementScores(companies);
   const personScores = await buildPersonRequirementScores();
   const { pending: pendingLeave } = await leaveMetrics();
+  const safetyFindings = await gatherSafetyFindings();
 
   // Linked renewal/action tasks per document (backward link, mirrors meeting_tasks).
   const { data: linkRows } = await sb.from("document_links").select("document_id, tasks(code,status)");
@@ -82,6 +85,7 @@ export default async function DocumentsPage({
         personScores={personScores}
         pendingLeaveCount={pendingLeave}
       />
+      <SafetyNetPanel findings={safetyFindings} />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>
   );
