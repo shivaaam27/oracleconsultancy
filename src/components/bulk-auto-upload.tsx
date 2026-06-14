@@ -30,7 +30,18 @@ export function BulkAutoUpload({
 }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
-  const folderInput = useRef<HTMLInputElement>(null);
+  const folderInput = useRef<HTMLInputElement | null>(null);
+  // Callback ref: set the directory-picker attributes the instant the input
+  // mounts (a useEffect can run before the dialog's input is in the DOM, which
+  // left it as a plain file picker). Vendor-prefixed for cross-browser support.
+  const setFolderRef = (el: HTMLInputElement | null) => {
+    folderInput.current = el;
+    if (el) {
+      el.setAttribute("webkitdirectory", "");
+      el.setAttribute("mozdirectory", "");
+      el.setAttribute("directory", "");
+    }
+  };
   const [running, setRunning] = useState(false);
   const [total, setTotal] = useState(0);
   const [done, setDone] = useState(0);
@@ -38,11 +49,6 @@ export function BulkAutoUpload({
   const [rows, setRows] = useState<Row[]>([]);
   const [finished, setFinished] = useState(false);
   const [ctx, setCtx] = useState<Owner | null>(null);
-
-  // Mark the folder input as a directory picker (not a typed React attribute).
-  useEffect(() => {
-    if (folderInput.current) { folderInput.current.setAttribute("webkitdirectory", ""); folderInput.current.setAttribute("directory", ""); }
-  }, [open]);
 
   useEffect(() => {
     if (open) { setRunning(false); setTotal(0); setDone(0); setCurrent(""); setRows([]); setFinished(false); setCtx(null); }
@@ -107,7 +113,7 @@ export function BulkAutoUpload({
       <input ref={fileInput} type="file" multiple className="hidden"
         accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx,.xls,.xlsx,.csv,application/pdf"
         onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (e.target) e.target.value = ""; if (fs.length) void run(fs); }} />
-      <input ref={folderInput} type="file" multiple className="hidden"
+      <input ref={setFolderRef} type="file" multiple className="hidden"
         onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (e.target) e.target.value = ""; if (fs.length) void run(fs); }} />
 
       {!running && !finished && (
@@ -135,10 +141,14 @@ export function BulkAutoUpload({
               className="rounded-xl border border-dashed border-border-strong bg-bg-subtle/40 px-4 py-10 text-center hover:border-accent hover:bg-bg-muted/40 transition-colors">
               <FolderUp size={24} className="mx-auto text-fg-subtle" />
               <div className="mt-2 text-sm font-medium">Choose a folder</div>
-              <div className="text-[11px] text-fg-muted">subfolders give context</div>
+              <div className="text-[11px] text-fg-muted">all subfolders included</div>
             </button>
           </div>
-          <p className="text-[11px] text-fg-subtle">Nothing is filed to the wrong place — a file the AI can’t place is flagged for you to confirm.</p>
+          <p className="text-[11px] text-fg-subtle">
+            Pick <strong>one</strong> folder — everything inside it (and its sub-folders) is uploaded. To do many companies/people
+            at once, select the <strong>parent</strong> folder that contains their sub-folders. Nothing is filed to the wrong
+            place — a file the AI can’t place is flagged for you to confirm. (Folder picking needs a desktop browser — on a phone use “Choose files”.)
+          </p>
         </div>
       )}
 
