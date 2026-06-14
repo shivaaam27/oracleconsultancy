@@ -13,6 +13,8 @@ export const DOC_CATEGORIES = [
   "Immigration",
   "Passport",
   "Tax",
+  "Banking",
+  "Legal",
   "Attachment",
   "Other",
 ] as const;
@@ -30,6 +32,8 @@ export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Contract: 30,
   Certificate: 30,
   Tax: 30,
+  Banking: 30,
+  Legal: 60,
   Attachment: 30,
   Other: 30,
 };

@@ -13,6 +13,7 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
 import { BulkUploadDialog } from "./bulk-upload-dialog";
+import { BulkAutoUpload } from "./bulk-auto-upload";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
@@ -50,6 +51,7 @@ export function DocumentsTable({
 
   const [createOpen, setCreateOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
   const [peek, setPeek] = useState<DocumentRow | null>(null);
   // Text to pre-load the create form's auto-fill panel (e.g. filing an Inbox item).
@@ -106,6 +108,17 @@ export function DocumentsTable({
     if (person && /^\d+$/.test(person)) setPersonFilter(parseInt(person, 10));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Deep-link: /documents?doc=ID opens that document's editable form (the
+  // Needs-review queue "Open" button). Reacts to URL changes (same-page nav).
+  useEffect(() => {
+    const doc = searchParams.get("doc");
+    if (doc && /^\d+$/.test(doc)) {
+      const target = documents.find((d) => d.id === parseInt(doc, 10));
+      if (target) { setEditDoc(target); router.replace(pathname, { scroll: false }); }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
@@ -360,9 +373,9 @@ export function DocumentsTable({
             { value: "Valid", label: "Valid" },
             { value: "No expiry", label: "No expiry" },
           ]} />
-        <button type="button" onClick={() => setBulkOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-bg-subtle/60 px-3 py-2 text-sm text-fg-muted hover:text-fg hover:border-accent transition-colors">
-          <UploadCloud size={15} /> Add several
+        <button type="button" onClick={() => setAutoOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-accent/50 bg-accent-soft/50 px-3 py-2 text-sm text-accent hover:bg-accent-soft transition-colors">
+          <UploadCloud size={15} /> Add all (auto)
         </button>
         <button type="button" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
           className={cn("inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm transition-colors",
@@ -533,7 +546,10 @@ export function DocumentsTable({
         actionsLayout="row"
       />
 
-      {/* Create dialog */}
+      {/* Automatic bulk intake — drop all, AI files them, review only exceptions. */}
+      <BulkAutoUpload open={autoOpen} onOpenChange={setAutoOpen} onDone={() => router.refresh()} />
+
+      {/* Legacy one-by-one bulk review (kept for the Inbox bundle flow). */}
       <BulkUploadDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}

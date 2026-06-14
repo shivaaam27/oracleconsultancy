@@ -24,8 +24,8 @@ import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import { buildCompanyRequirementScores, getCompanyChecklist } from "@/lib/company-requirements";
 import { buildPersonRequirementScores, getPersonChecklist } from "@/lib/requirements";
 import { buildComplianceCsv, complianceCsvFilename } from "@/lib/compliance-export";
-import type { PersonProfileFields } from "@/app/people/actions";
-import type { CompanyProfileFields } from "@/app/companies/[id]/actions";
+import { enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
+import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
 
 export type OwnerDocMatch = {
   id: number;
@@ -207,6 +207,71 @@ async function reconcileOwnerCompliance(personId: number | null, companyId: numb
     if (companyId) await getCompanyChecklist(companyId);
   } catch {
     /* never block the save on reconciliation */
+  }
+}
+
+export type AutoFileResult = {
+  ok: boolean;
+  id?: number;
+  title: string;
+  status: "filed" | "needs_review";
+  owner: string | null; // company/person name, for the summary
+  reason?: string; // why it needs review (no company / unclear / unreadable)
+  error?: string;
+};
+
+/**
+ * Fully-automatic intake (transfer-pack 08 + 09): read ONE dropped file, match
+ * the company by hard ID, and FILE it without a per-file form. Confident +
+ * owned → filed; unclear or no company → still filed but flagged needs_review
+ * (never lost, never guessed). Profiles are enriched blanks-only. Returns a
+ * one-line summary for the progress UI. Never throws.
+ */
+export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResult> {
+  const file = fd.get("file");
+  const fileName = file instanceof File ? file.name : "document";
+  const fallbackTitle = fileName.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").trim().slice(0, 120) || "Document";
+  try {
+    const res = await extractDocumentFromFile(fd);
+    const f = res.fields ?? {};
+    const hasOwner = !!f.companyId || !!f.personId;
+    // Confidence gate: unreadable, unclear, or no owner → flag for review.
+    const needsReview = !res.ok || !!res.needsReview || !hasOwner;
+    const reason = !res.ok ? (res.note ?? "Couldn't read the file") : !hasOwner ? "No company/person matched" : res.needsReview ? "Scan was unclear" : undefined;
+
+    const input: DocumentInput = {
+      title: f.title || fallbackTitle,
+      category: f.category ?? null,
+      docType: f.docType ?? null,
+      issuer: f.issuer ?? null,
+      referenceNo: f.referenceNo ?? null,
+      issueDate: f.issueDate ?? null,
+      expiryDate: f.expiryDate ?? null,
+      companyId: f.companyId ?? null,
+      personId: f.personId ?? null,
+      notes: f.notes ?? null,
+      needsOriginal: f.needsOriginal ?? false,
+      reviewStatus: needsReview ? "needs_review" : "ok",
+    };
+    const id = await createDocument(input, "ai-intake");
+    if (file instanceof File && file.size > 0) await uploadDocumentFile(id, file);
+    await appendDocumentFacts(id, f.facts ?? [], input.companyId ?? null, input.personId ?? null, input.title);
+    // Enrich the matched person/company profile (blanks-only — never overwrites).
+    if (f.personId && f.person && Object.keys(f.person).length) { try { await enrichPersonProfile(f.personId, f.person); } catch { /* best effort */ } }
+    if (f.companyId && f.company && Object.keys(f.company).length) { try { await enrichCompanyProfile(f.companyId, f.company); } catch { /* best effort */ } }
+    if (input.companyId) {
+      await backfillCompanyProfileFromDocument(input.companyId, { category: input.category ?? null, title: input.title ?? null, referenceNo: input.referenceNo ?? null, issueDate: input.issueDate ?? null });
+    }
+    await reconcileOwnerCompliance(input.personId ?? null, input.companyId ?? null);
+    revalidateDocs();
+    return {
+      ok: true, id, title: input.title,
+      status: needsReview ? "needs_review" : "filed",
+      owner: f.companyName ?? f.personName ?? null,
+      reason,
+    };
+  } catch (e) {
+    return { ok: false, title: fallbackTitle, status: "needs_review", owner: null, error: e instanceof Error ? e.message : "Could not file the document." };
   }
 }
 
