@@ -669,6 +669,19 @@ html.hide-brief-note-company .brief-note-company { display: none !important; }
   /* Same crisp print treatment for the flowchart cards + dim hidden hover state. */
   .flow-card > div { background: #fff !important; border: 1px solid #e3e3e3 !important; box-shadow: none !important; }
   .flow-card { opacity: 1 !important; }
+  /* Staff data form: print with a guaranteed-available font (the web font isn't
+     reliably applied at print time, which made the type render oddly), solid
+     black ink, and crisp field lines regardless of theme. */
+  .data-form, .data-form * {
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+    color: #000 !important;
+    letter-spacing: normal !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .data-form { background: #fff !important; }
+  .data-form .field-line { border-bottom: 1px solid #000 !important; min-height: 18px; }
+  .data-form .doc-box { border: 1px solid #000 !important; }
   @page { margin: 14mm; }
 }
 
