@@ -76,11 +76,13 @@ function categoryForRequirement(label: string) {
   return undefined;
 }
 
-function addDocumentHref(score: ComplianceScore, label: string) {
-  const params = new URLSearchParams({ newdoc: "1", title: label });
+function addDocumentHref(score: ComplianceScore, gap: ComplianceScore["gaps"][number]) {
+  const params = new URLSearchParams({ newdoc: "1", title: gap.label });
   if (score.ownerType === "company") params.set("company", String(score.ownerId));
   else params.set("person", String(score.ownerId));
-  const category = categoryForRequirement(label);
+  // Carry the requirement's own category so the saved document auto-links straight
+  // back to this gap. Fall back to a keyword guess only when the gap has none.
+  const category = gap.categories?.[0] ?? categoryForRequirement(gap.label);
   if (category) params.set("category", category);
   return `/documents?${params.toString()}`;
 }
@@ -233,7 +235,7 @@ function ScoreDetailBody({ score }: { score: ComplianceScore }) {
                     <span className="text-fg-muted"> · {gap.label}</span>
                   </span>
                   <Link
-                    href={addDocumentHref(score, gap.label)}
+                    href={addDocumentHref(score, gap)}
                     className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2 py-1 text-xs text-accent transition-colors hover:bg-accent/20"
                   >
                     <Plus size={12} /> Add
