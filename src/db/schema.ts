@@ -1364,3 +1364,44 @@ export const letters = pgTable("letters", {
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
 });
+
+// Announcements — a one-to-many noticeboard. Authored by the owner (admin) or by
+// portal directors/managers, delivered to a resolved live audience across the
+// admin home + staff portal. Read/acknowledge state lives in announcement_receipts.
+export const announcements = pgTable("announcements", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  // policy | holiday | safety | celebration | operational | urgent
+  type: text("type").notNull().default("operational"),
+  // all | company | department | site | role | person_type | people | managers | directors
+  audienceKind: text("audience_kind").notNull().default("all"),
+  // number[] (company/department/site/people ids) or string[] (role/person_type)
+  audienceValues: jsonb("audience_values").$type<(number | string)[]>().notNull().default([]),
+  pinned: boolean("pinned").notNull().default(false),
+  // When true, recipients must tick "read & understood" (tracked per person).
+  requireAck: boolean("require_ack").notNull().default(false),
+  // draft | published | archived
+  status: text("status").notNull().default("draft"),
+  // Scheduled go-live (null = live as soon as published). Stored UTC.
+  publishAt: timestamp("publish_at", { mode: "date", withTimezone: true }),
+  expiresAt: timestamp("expires_at", { mode: "date", withTimezone: true }),
+  // "web-ui" (owner) | "portal-dir:<Name>" | "portal-mgr:<Name>"
+  createdBy: text("created_by").notNull().default("web-ui"),
+  authorPersonId: integer("author_person_id").references(() => people.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  publishedAt: timestamp("published_at", { mode: "date", withTimezone: true }),
+});
+
+// Per-person read / acknowledge state for an announcement. Rows are created
+// lazily (on first view), mirroring chat's last_read_at pattern.
+export const announcementReceipts = pgTable(
+  "announcement_receipts",
+  {
+    announcementId: integer("announcement_id").notNull().references(() => announcements.id, { onDelete: "cascade" }),
+    recipient: text("recipient").notNull(), // "person:<id>" | "admin"
+    seenAt: timestamp("seen_at", { mode: "date", withTimezone: true }),
+    ackAt: timestamp("ack_at", { mode: "date", withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.announcementId, t.recipient] })]
+);

@@ -9,7 +9,7 @@ import { sendToRecipient } from "./push";
  * the bell in each pill.
  * ------------------------------------------------------------------ */
 
-export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "leave";
+export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "leave" | "announcement";
 
 export type Notification = {
   id: number;

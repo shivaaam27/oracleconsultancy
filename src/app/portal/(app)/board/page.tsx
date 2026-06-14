@@ -11,6 +11,9 @@ import { DirectorEventForm } from "@/components/director-event-form";
 import { DirectorMessage } from "@/components/director-message";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getBrief } from "@/lib/director-brief";
+import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
+import { AnnouncementFeed } from "@/components/announcement-feed";
+import { Megaphone } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +25,9 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   if (!me) redirect("/portal/login");
   if (me.portalRole !== "director") redirect("/portal");
   const { created } = await searchParams;
+
+  const audienceAttrs = await getPersonAudienceAttrs(me.id);
+  const announcements = audienceAttrs ? await feedForPerson(audienceAttrs) : [];
 
   // Fast lookups only — these power the action forms and must never block on the
   // (much heavier) portfolio brief. The brief streams in separately below.
@@ -62,6 +68,20 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
           <DirectorEventForm people={people} companies={companies} />
           <DirectorMessage people={people} reminders={[]} />
         </div>
+      </Reveal>
+
+      <Reveal delay={0.05} className="flex flex-col gap-2.5">
+        <SectionLabel
+          icon={<Megaphone size={13} />}
+          action={<Link href="/portal/announcements" className="text-[11px] text-accent hover:underline">Post / manage</Link>}
+        >
+          Announcements
+        </SectionLabel>
+        {announcements.length > 0 ? (
+          <AnnouncementFeed items={announcements.slice(0, 3)} />
+        ) : (
+          <Panel className="p-4 text-sm text-fg-muted">No announcements yet. <Link href="/portal/announcements" className="text-accent hover:underline">Post one</Link>.</Panel>
+        )}
       </Reveal>
 
       {/* Heavy portfolio brief streams in — a slow or failed brief degrades to a

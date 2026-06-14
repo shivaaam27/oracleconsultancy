@@ -9,6 +9,9 @@ import { Reveal } from "@/components/reveal";
 import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
+import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
+import { AnnouncementFeed } from "@/components/announcement-feed";
+import { Megaphone } from "lucide-react";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { getJourney } from "@/lib/onboarding";
 import { teamAttendanceToday, personAttendanceToday } from "@/lib/attendance";
@@ -76,6 +79,10 @@ export default async function PortalHome() {
   // other portal surfaces or run a query on every navigation. Directors never
   // reach this point (redirected above).
   const today = await personAttendanceToday(me.id);
+
+  // Announcements that target this person (pinned + newest, with their read state).
+  const audienceAttrs = await getPersonAudienceAttrs(me.id);
+  const announcements = audienceAttrs ? await feedForPerson(audienceAttrs) : [];
 
   // My own tasks; managers also see their direct reports' tasks.
   const ids = await visibleTaskIds(me);
@@ -206,6 +213,22 @@ export default async function PortalHome() {
           </div>
         </Hero>
       </Reveal>
+
+      {announcements.length > 0 && (
+        <Reveal delay={0.045} className="flex flex-col gap-2.5">
+          <SectionLabel
+            icon={<Megaphone size={13} />}
+            action={
+              announcements.length > 3 ? (
+                <Link href="/portal/announcements" className="text-[11px] text-accent hover:underline">See all</Link>
+              ) : undefined
+            }
+          >
+            Announcements
+          </SectionLabel>
+          <AnnouncementFeed items={announcements.slice(0, 3)} />
+        </Reveal>
+      )}
 
       <Reveal delay={0.05} className="flex flex-col gap-2.5">
         <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>

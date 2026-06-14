@@ -7,6 +7,7 @@ import { SafetyNetPanel } from "@/components/safety-net-panel";
 import { listDocuments } from "@/lib/documents";
 import { previewMorningPlan } from "@/lib/automation-suggestions";
 import { HomeActions } from "./home-actions";
+import { AnnouncementAdminBanner } from "@/components/announcement-admin-banner";
 import type { Todo } from "@/app/todos/actions";
 import { HomeMissionControl } from "@/components/home-mission-control";
 
@@ -63,6 +64,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
   return (
     <div className="space-y-4">
       <HomeActions />
+      <AnnouncementAdminBanner />
       <HomeMissionControl
         greeting={greeting(now.getHours())}
         dateLabel={`${dayLabel(now)} · ${settings.weatherCity}`}
