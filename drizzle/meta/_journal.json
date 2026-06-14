@@ -456,6 +456,13 @@
       "when": 1781440873272,
       "tag": "0064_hard_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1781442750256,
+      "tag": "0065_faulty_black_knight",
+      "breakpoints": true
     }
   ]
 }

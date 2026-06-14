@@ -16,6 +16,7 @@ export type EmailCategory =
   | "birthdays"
   | "statutory"
   | "meetingFollowup"
+  | "boardPack"     // monthly board-pack reminder (director + CFO audience)
   | "custom";
 
 export type CategoryRule = { mode: RuleMode };
@@ -47,6 +48,7 @@ const DEFAULTS: AutomationConfig = {
     birthdays: { mode: "off" },
     statutory: { mode: "off" },
     meetingFollowup: { mode: "off" },
+    boardPack: { mode: "off" },
     custom: { mode: "off" },
   },
 };
@@ -87,6 +89,13 @@ function eatDateKey(now = new Date()): string {
 }
 function eatWeekday(now = new Date()): number {
   return new Date(now.getTime() + 3 * 3600 * 1000).getUTCDay();
+}
+function eatDayOfMonth(now = new Date()): number {
+  return new Date(now.getTime() + 3 * 3600 * 1000).getUTCDate();
+}
+/** Best-effort absolute app URL for links in emails. */
+function appUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://oracle.co.tz");
 }
 
 /**
@@ -262,6 +271,26 @@ export async function runDueAutomations(now = new Date(), opts: { force?: boolea
     } else if (!force) {
       await markRanToday("lifecycle");
     }
+  }
+
+  // --- Monthly board-pack reminder (1st of the month, EAT) ---
+  // The board pack concentrates the most sensitive data (passports, salaries,
+  // governance) — so this is a NUDGE to the owner to open it and send to the
+  // director + CFO, not an automated PII email. Real PDF-attach is a later add.
+  const boardPack = cfg.categories.boardPack;
+  if (boardPack.mode !== "off" && (force || (eatDayOfMonth(now) === 1 && !(await alreadyRanToday("boardPack"))))) {
+    const text = [
+      `The monthly board pack is ready to review.`,
+      ``,
+      `Open it, then print to PDF and send to the director + CFO:`,
+      `${appUrl()}/brief/board`,
+      ``,
+      `It covers compliance, finance, the risk register, governance (cap table / UBO / signatories), immigration and the safety-net appendix.`,
+    ].join("\n");
+    const r = await sendOrDraftToOwner("Board pack — ready to review & send", text, "automation-boardpack");
+    if (!force) await markRanToday("boardPack");
+    results.push({ category: "boardPack", mode: boardPack.mode, prepared: r.prepared, sent: r.sent, skipped: 0 });
+    await recordEvent("email.automation.boardPack", "ok", { sent: r.sent, prepared: r.prepared });
   }
 
   return { ran: results.length > 0, categories: results };

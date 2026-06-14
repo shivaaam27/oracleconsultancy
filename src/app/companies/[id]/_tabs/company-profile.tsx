@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FactsPanel } from "@/components/facts-panel";
+import { GovernancePanel } from "@/components/governance-panel";
 import { Save, Loader2, Building2, FileSignature, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { saveCompanyProfileAction } from "../actions";
 import { useToast } from "@/components/toast";
@@ -199,6 +200,9 @@ export function CompanyProfile({
 
       {/* Tracked facts (source-linked fact ledger) */}
       <FactsPanel entityType="company" entityId={companyId} />
+
+      {/* Governance (board reference: cap table / signatories / resolutions) */}
+      <GovernancePanel companyId={companyId} />
     </div>
   );
 }

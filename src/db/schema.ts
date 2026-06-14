@@ -30,6 +30,10 @@ export const companies = pgTable("companies", {
   // Body margins (mm) reserved for the design so text never overlaps the bands.
   contentTopMm: integer("content_top_mm"),
   contentBottomMm: integer("content_bottom_mm"),
+  // Share capital totals (governance/cap-table) — issued is also derivable from
+  // the sum of cap_table shares, but BRELA states both authorised and issued.
+  authorisedShares: integer("authorised_shares"),
+  issuedShares: integer("issued_shares"),
 });
 
 export const departments = pgTable("departments", {
@@ -340,6 +344,111 @@ export const facts = pgTable(
     index("facts_field_idx").on(t.field),
   ]
 );
+
+// ── Governance & Risk (transfer-pack 03 §governance / §risks) ──────────────
+// Board-level reference data: who owns what, who can sign, key-person risk, the
+// risk register and the decisions log. Deliberately kept OUT of the daily/weekly
+// surfaces (02 §8) — it appears only on company profiles (board view) and the
+// monthly board pack. Seeded from governance.json / risks.json / decisions.json.
+
+// Cap table — one row per shareholder per company. Authorised/issued totals live
+// on the companies row (authorisedShares/issuedShares).
+export const capTable = pgTable(
+  "cap_table",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    holder: text("holder").notNull(),
+    shares: integer("shares"),
+    pct: doublePrecision("pct"),
+    holderType: text("holder_type"), // "Person" | "Corporate"
+    note: text("note"),
+  },
+  (t) => [index("cap_table_company_idx").on(t.companyId)]
+);
+
+// Ultimate beneficial owners — natural persons, with cross-company interests and
+// a completeness flag (corporate shareholders needing look-through).
+export const beneficialOwners = pgTable("beneficial_owners", {
+  id: serial("id").primaryKey(),
+  personName: text("person_name").notNull(),
+  interests: text("interests"), // e.g. "DarSpices 48% · Oracle 99%"
+  flag: text("flag"),
+  complete: boolean("complete").notNull().default(true),
+});
+
+// Key-person concentration — how many companies one person directs/secretaries/
+// owns/signs for; risk band Critical/Conflict/…
+export const keyPersons = pgTable("key_persons", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  directorOf: integer("director_of"),
+  secretaryOf: integer("secretary_of"),
+  shareholderOf: integer("shareholder_of"),
+  signatoryOf: integer("signatory_of"),
+  risk: text("risk"), // "Critical" | "Conflict" | "Low"
+  note: text("note"),
+});
+
+// Signatory matrix — who can sign (bank/legal) for a company.
+export const signatories = pgTable(
+  "signatories",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    scope: text("scope"), // "Bank" | "Legal" | "All" (free text)
+    note: text("note"),
+  },
+  (t) => [index("signatories_company_idx").on(t.companyId)]
+);
+
+// Board resolutions log.
+export const resolutions = pgTable(
+  "resolutions",
+  {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+    date: timestamp("date", { mode: "date", withTimezone: true }),
+    type: text("type"), // "Special Resolution" | "Board Resolution" | …
+    summary: text("summary").notNull(),
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    file: text("file"), // legacy file path from the local engine
+  },
+  (t) => [index("resolutions_company_idx").on(t.companyId)]
+);
+
+// Risk register — structural risks scored L×I, plus a band. Operational risks are
+// still computed live elsewhere; these are the standing structural ones.
+export const risks = pgTable("risks", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(), // e.g. "R-INFRA-01"
+  category: text("category"),
+  title: text("title").notNull(),
+  description: text("description"),
+  likelihood: integer("likelihood"), // 1..3
+  impact: integer("impact"), // 1..3
+  owner: text("owner"),
+  mitigation: text("mitigation"),
+  status: text("status").notNull().default("Open"),
+  linked: text("linked"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }),
+});
+
+// Board decisions / approvals log.
+export const decisions = pgTable("decisions", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(), // e.g. "D-2026-001"
+  title: text("title").notNull(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  type: text("type"),
+  raisedBy: text("raised_by"),
+  due: timestamp("due", { mode: "date", withTimezone: true }),
+  status: text("status").notNull().default("Pending"),
+  context: text("context"),
+  decision: text("decision"),
+  decidedOn: timestamp("decided_on", { mode: "date", withTimezone: true }),
+});
 
 // Editable onboarding/offboarding step templates, per person type. A person's
 // journey (todos tagged with `kind`) is created from / synced to these rows.

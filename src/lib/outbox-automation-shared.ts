@@ -14,6 +14,7 @@ export const CATEGORY_LABELS: Record<EmailCategory, string> = {
   birthdays: "Birthday greetings",
   statutory: "Statutory deadlines",
   meetingFollowup: "Meeting follow-ups",
+  boardPack: "Monthly board pack",
   custom: "Custom rules",
 };
 
@@ -23,6 +24,7 @@ const SOURCE_TO_CATEGORY: Record<string, EmailCategory> = {
   "automation-brief": "directorBrief",
   "automation-lifecycle": "lifecycle",
   "automation-overdue": "overdue",
+  "automation-boardpack": "boardPack",
 };
 
 export function labelForSource(source: string | null): string | null {

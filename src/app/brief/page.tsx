@@ -1,4 +1,4 @@
-import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users, CalendarClock } from "lucide-react";
+import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users, CalendarClock, Lock } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { Hero, TONE } from "@/components/surface-kit";
 import { CountUp } from "@/components/arc-gauge";
@@ -42,6 +42,9 @@ export default async function DirectorBriefPage({
             <div className="flex items-center gap-2 flex-wrap">
               <BriefDraftButton period={b.period} companyId={b.selectedCompanyId} />
               <ShareBrief text={briefShareText(b)} emailSubject={email.subject} emailBody={email.body} />
+              <a href="/brief/board" className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev ring-1 ring-border px-3 py-1.5 text-xs font-medium hover:ring-accent/40 transition">
+                <Lock size={13} /> Board pack
+              </a>
             </div>
           }
         >
