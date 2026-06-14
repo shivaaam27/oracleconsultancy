@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { factStatus, type FactValue } from "@/lib/facts-shared";
+import { commitmentUrgency, daysToNotice, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
 import type { Finding } from "@/lib/safety-net-shared";
 import { sortFindings } from "@/lib/safety-net-shared";
 
@@ -141,6 +142,26 @@ export async function gatherSafetyFindings(): Promise<Finding[]> {
         });
       }
     }
+  }
+
+  // 6. Commitments needing notice soon (lease renewal / insurance lapse / contract).
+  const { data: commitRows } = await sb
+    .from("commitments")
+    .select("id,kind,title,end_date,notice_days,status")
+    .eq("archived", false);
+  for (const c of (commitRows ?? []) as Array<{ id: number; kind: string; title: string; end_date: string | null; notice_days: number | null; status: string }>) {
+    const com = { endDate: c.end_date, noticeDays: c.notice_days, status: c.status };
+    const urg = commitmentUrgency(com);
+    if (urg !== "overdue" && urg !== "soon") continue;
+    const d = daysToNotice(com);
+    findings.push({
+      id: `commitment-notice:${c.id}`,
+      severity: urg === "overdue" ? "high" : "medium",
+      kind: "commitment-notice",
+      title: `${KIND_LABEL[c.kind as CommitmentKind] ?? "Commitment"} notice ${urg === "overdue" ? "overdue" : "due soon"} — ${c.title}`,
+      detail: urg === "overdue" ? "The notice window has passed — act now to renew or exit." : `Give notice within ${d} day${d === 1 ? "" : "s"} (or it auto-renews / lapses).`,
+      href: "/hrms/registers",
+    });
   }
 
   return sortFindings(findings);

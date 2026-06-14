@@ -435,6 +435,65 @@ export const risks = pgTable("risks", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }),
 });
 
+// In-flight bureaucracy pipeline (transfer-pack 03 §processes): permits/visas/
+// licence/lease/tax-clearance renewals moving through government stages. A small
+// kanban so nothing stalls mid-application unnoticed.
+export const pipeline = pgTable(
+  "pipeline",
+  {
+    id: serial("id").primaryKey(),
+    subject: text("subject").notNull(), // the person or thing the case is about
+    subjectType: text("subject_type"), // "Person" | "Company"
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+    personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+    type: text("type").notNull(), // "Work Permit (Class C)", "Residence Permit", …
+    stage: text("stage").notNull().default("To Apply"), // see PIPELINE_STAGES
+    controlNo: text("control_no"),
+    amount: text("amount"), // free text (fees vary in format/currency)
+    lastUpdate: timestamp("last_update", { mode: "date", withTimezone: true }),
+    deadline: timestamp("deadline", { mode: "date", withTimezone: true }),
+    nextAction: text("next_action"),
+    owner: text("owner"),
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    file: text("file"), // legacy file path from the local engine
+    notes: text("notes"),
+    archived: boolean("archived").notNull().default(false),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+    createdBy: text("created_by").notNull().default("web-ui"),
+  },
+  (t) => [index("pipeline_company_idx").on(t.companyId), index("pipeline_stage_idx").on(t.stage)]
+);
+
+// Commitments register (transfer-pack 03 §registers): leases, insurance policies
+// and commercial contracts — the standing obligations whose RENEWAL/NOTICE dates
+// matter. Drives a commitments calendar: notice-by = end_date − notice_days, so a
+// lease auto-renewal or an insurance lapse is flagged before it bites. (Assets &
+// vendors already live in their own tables; this covers the rest.)
+export const commitments = pgTable(
+  "commitments",
+  {
+    id: serial("id").primaryKey(),
+    kind: text("kind").notNull(), // "lease" | "insurance" | "contract"
+    companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    counterparty: text("counterparty"), // landlord / insurer / other party
+    reference: text("reference"), // policy no. / title ref
+    startDate: timestamp("start_date", { mode: "date", withTimezone: true }),
+    endDate: timestamp("end_date", { mode: "date", withTimezone: true }),
+    noticeDays: integer("notice_days"),
+    amount: text("amount"), // rent / premium / contract value (free text)
+    status: text("status").notNull().default("active"), // active | needs_doc | quoting | partial | expired
+    note: text("note"),
+    documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    archived: boolean("archived").notNull().default(false),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+    createdBy: text("created_by").notNull().default("web-ui"),
+  },
+  (t) => [index("commitments_company_idx").on(t.companyId), index("commitments_kind_idx").on(t.kind)]
+);
+
 // Board decisions / approvals log.
 export const decisions = pgTable("decisions", {
   id: serial("id").primaryKey(),

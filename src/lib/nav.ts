@@ -13,6 +13,8 @@ import {
   Sparkles,
   Building2,
   BarChart3,
+  ClipboardList,
+  FileWarning,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,6 +40,8 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "oecr",        href: "/hrms/oecr",           label: "OECR",                icon: Package },
   { id: "assets",      href: "/hrms/assets",         label: "Assets, Tools & Vendors", icon: Laptop },
   { id: "leave",       href: "/hrms/leave",          label: "Leave & Attendance",  icon: CalendarDays },
+  { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications in progress", icon: ClipboardList },
+  { id: "registers",   href: "/hrms/registers",      label: "Commitments register", icon: FileWarning },
   { id: "calendar",    href: "/calendar",            label: "Calendar",            icon: CalendarClock },
   { id: "ocr",         href: "/hrms/ocr",            label: "OCR",                 icon: Sparkles },
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },

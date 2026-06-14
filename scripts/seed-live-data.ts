@@ -69,6 +69,8 @@ async function main() {
   const governance = read("governance.json") as any;
   const risksJson = arr(read("risks.json"), "risks");
   const decisionsJson = arr(read("decisions.json"), "decisions");
+  const processesJson = arr(read("processes.json"), "processes");
+  const registers = read("registers.json") as any;
 
   L(`\n=== ${APPLY ? "APPLY" : "DRY RUN"} · reading ${DIR} ===`);
 
@@ -214,6 +216,43 @@ async function main() {
     if (APPLY) await sb.from("decisions").insert({ code: d.id, title: d.title, company_id: id ?? null, type: d.type ?? null, raised_by: d.raisedBy ?? null, due: d.due ? new Date(d.due + "T00:00:00Z").toISOString() : null, status: d.status ?? "Pending", context: d.context ?? null, decision: d.decision || null, decided_on: d.decidedOn ? new Date(d.decidedOn + "T00:00:00Z").toISOString() : null });
   }
   L(`  decisions: ${decisionsJson.length}`);
+
+  // ---- Pipeline (in-flight bureaucracy) ----
+  if (APPLY) await sb.from("pipeline").delete().eq("created_by", "seed-live-data");
+  const stageMap = (s: string) => { const v = (s || "").toLowerCase(); if (v.includes("control")) return "Control No. Issued"; if (v.includes("receipt")) return "Receipt Received"; if (v.includes("paid")) return "Paid"; if (v.includes("applied")) return "Applied"; if (v === "issued") return "Issued"; return "To Apply"; };
+  for (const p of processesJson) {
+    const now = new Date().toISOString();
+    if (APPLY) await sb.from("pipeline").insert({
+      subject: p.subject, subject_type: p.subject_type ?? null, company_id: keyToId.get(p.company) ?? null,
+      person_id: p.subject_type === "Person" ? (personByName.get(norm(p.subject)) ?? null) : null,
+      type: p.type, stage: stageMap(p.stage), control_no: clean(p.control_no), amount: clean(p.amount),
+      last_update: p.last_update ? new Date(p.last_update + "T00:00:00Z").toISOString() : now,
+      deadline: p.deadline ? new Date(p.deadline + "T00:00:00Z").toISOString() : null,
+      next_action: clean(p.next_action), owner: clean(p.owner), file: p.file ?? null, notes: clean(p.notes),
+      created_at: now, updated_at: now, created_by: "seed-live-data",
+    });
+  }
+  L(`  pipeline: ${processesJson.length}`);
+
+  // ---- Registers → commitments (leases / insurance / commercial contracts) ----
+  if (APPLY) await sb.from("commitments").delete().eq("created_by", "seed-live-data");
+  let commits = 0;
+  const addCommit = async (kind: string, companyKey: string, title: string, counterparty: string | null, ref: string | null, start: any, end: any, noticeDays: any, amount: string | null, status: string | null, note: string | null) => {
+    commits++;
+    if (!APPLY) return;
+    const now = new Date().toISOString();
+    await sb.from("commitments").insert({
+      kind, company_id: keyToId.get(companyKey) ?? null, title, counterparty: clean(counterparty), reference: clean(ref),
+      start_date: start ? new Date(start + "T00:00:00Z").toISOString() : null,
+      end_date: end ? new Date(end + "T00:00:00Z").toISOString() : null,
+      notice_days: typeof noticeDays === "number" ? noticeDays : null, amount: clean(amount), status: clean(status) ?? "active",
+      note: clean(note), created_at: now, updated_at: now, created_by: "seed-live-data",
+    });
+  };
+  for (const l of registers.leases ?? []) await addCommit("lease", l.company, l.property ?? "Lease", l.landlord, null, l.start, l.end, l.noticeDays, l.rent, l.status, l.note);
+  for (const i of registers.insurance ?? []) await addCommit("insurance", i.company, i.policyType ?? "Insurance", i.insurer, i.policyNo, i.start, i.expiry, null, i.premium, i.status, i.note);
+  for (const c of registers.commercialContracts ?? []) await addCommit("contract", c.company, c.title ?? "Contract", c.counterparty, null, c.start, c.end, c.noticeDays, c.value, c.status, c.note);
+  L(`  commitments: ${commits}`);
 
   L(`\n=== ${APPLY ? "APPLIED" : "DRY RUN COMPLETE — re-run with --apply to write"} ===`);
   process.exit(0);

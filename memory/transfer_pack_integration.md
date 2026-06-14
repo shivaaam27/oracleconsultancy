@@ -80,6 +80,25 @@ NOT seeded yet: processes.json (pipeline — no table; still a gap), registers.j
 obligations.json (recurring_obligations already exists/seeded differently). Backfill (Job 2: bulk-upload the
 real document copy through intake) = owner-driven, needs the folder copy.
 
+## Pipeline + Registers (commitments) DONE — 2026-06-14 (migrations 0066, 0067), seeded + pushed
+The two remaining gaps from the GAP-MAP, both built end-to-end:
+- **Pipeline** (processes.json): `pipeline` table (migration 0066) + pipeline-shared.ts (PIPELINE_STAGES:
+  To Apply→Applied→Control No. Issued→Paid→Receipt Received→Issued, normalizeStage) + lib/pipeline.ts +
+  `/hrms/pipeline` kanban (pipeline-board.tsx: ←/→ move, add case, archive) + actions. Nav entry
+  "Applications in progress" (ClipboardList). Seeded 7 cases (Sanjay work permit etc.).
+- **Registers** (registers.json leases/insurance/commercialContracts → unified `commitments` table,
+  migration 0067): commitments-shared.ts (noticeByDate = end − notice_days, daysToNotice, commitmentUrgency
+  overdue/soon≤30d/ok/undated) + lib/commitments.ts + `/hrms/registers` (commitments-register.tsx: list
+  sorted by notice-by, "N need notice soon" banner, add form) + actions. Nav entry "Commitments register"
+  (FileWarning). Seeded 11 (7 leases, 2 insurance, 2 contracts). Assets+vendors NOT duplicated (already exist).
+  **Safety-net rule added**: commitment-notice (high if overdue, medium if ≤30d to notice) → surfaces on
+  /documents + Home safety net.
+- Seed script extended for both (created_by "seed-live-data", re-runnable); applied to live DB.
+- Verified: both pages render with seeded data; tsc clean (needs 4GB heap); no console errors.
+- ALL live-data now seeded EXCEPT: obligations.json (recurring_obligations already exists separately),
+  assets/vendors in registers.json (already have tables). Backfill (Job 2, bulk-upload real doc copy via
+  intake) remains owner-driven (needs the folder copy — owner advised to use site bulk-upload, NOT chat).
+
 ## Next areas — owner LOCKED sequence: A → C → B. Build only on owner's go-ahead, one area end-to-end.
 
 **A — Fact Ledger — CORE DONE (migration 0063 applied to live DB), 2026-06-14:**
