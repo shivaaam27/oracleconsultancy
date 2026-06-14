@@ -10,9 +10,10 @@ import { PortalLeave } from "@/components/portal-leave";
 import { PortalAttendance } from "@/components/portal-attendance";
 import { personAttendanceWeek } from "@/lib/attendance";
 import { PasskeyManager } from "@/components/passkey-manager";
+import { PortalPassword } from "@/components/portal-password";
 import { listCredentials } from "@/lib/webauthn";
 import { staffBeginPasskey, staffFinishPasskey, staffRemovePasskey } from "@/app/portal/passkey-actions";
-import { Clock, ScanFace } from "lucide-react";
+import { Clock, ScanFace, KeyRound } from "lucide-react";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getPersonChecklist } from "@/lib/requirements";
 import { personLeaveBalances, listLeaveRequests } from "@/lib/leave";
@@ -151,6 +152,14 @@ export default async function PortalProfile() {
           <p className="px-1 text-[11px] text-fg-subtle">Company equipment currently assigned to you.</p>
         </Reveal>
       )}
+
+      <Reveal delay={0.093} className="flex flex-col gap-2.5">
+        <SectionLabel icon={<KeyRound size={13} />}>Password</SectionLabel>
+        <Panel className="p-4">
+          <PortalPassword />
+        </Panel>
+        <p className="px-1 text-[11px] text-fg-subtle">Change the password you use to sign in. Only you can do this.</p>
+      </Reveal>
 
       <Reveal delay={0.095} className="flex flex-col gap-2.5">
         <SectionLabel icon={<ScanFace size={13} />}>Sign in faster</SectionLabel>

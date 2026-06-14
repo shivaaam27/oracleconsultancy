@@ -6,7 +6,7 @@ import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { Hero, Panel } from "@/components/surface-kit";
 import { Button } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
-import { portalCreateTask } from "../../../actions";
+import { portalCreateTask, portalDirectorCreateTask } from "../../../actions";
 
 type Person = { id: number; name: string };
 type Company = { id: number; name: string };
@@ -14,17 +14,36 @@ type Company = { id: number; name: string };
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const inputCls = "w-full rounded-2xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none";
 
-export function NewTaskForm({ me, people, companies }: { me: Person; people: Person[]; companies: Company[] }) {
-  const [state, action, pending] = useActionState(portalCreateTask, null);
+export function NewTaskForm({
+  me,
+  people,
+  companies,
+  isDirector = false,
+}: {
+  me: Person;
+  people: Person[];
+  companies: Company[];
+  isDirector?: boolean;
+}) {
+  // Directors assign group-wide (portalDirectorCreateTask); managers assign to
+  // their team (portalCreateTask). Same form fields, same return shape.
+  const [state, action, pending] = useActionState(
+    isDirector ? portalDirectorCreateTask : portalCreateTask,
+    null
+  );
+  const backHref = isDirector ? "/portal/board" : "/portal";
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/portal" className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
-        <ArrowLeft size={15} /> My tasks
+      <Link href={backHref} className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
+        <ArrowLeft size={15} /> {isDirector ? "Board" : "My tasks"}
       </Link>
 
       <Reveal delay={0}>
-        <Hero title="New task" subtitle="Delegate work to yourself or your team." />
+        <Hero
+          title="New task"
+          subtitle={isDirector ? "Assign work to anyone, in any company." : "Delegate work to yourself or your team."}
+        />
       </Reveal>
 
       <Reveal delay={0.05}>

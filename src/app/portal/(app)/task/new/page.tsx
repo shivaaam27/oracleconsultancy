@@ -8,24 +8,38 @@ export const metadata = { title: "New task — Oracle Consultancy" };
 
 export default async function PortalNewTaskPage() {
   const me = (await getPortalPerson())!;
-  // Only managers can create tasks.
-  if (me.portalRole !== "manager") redirect("/portal");
+  // Managers and directors can create tasks. Staff cannot.
+  if (me.portalRole !== "manager" && me.portalRole !== "director") redirect("/portal");
+  const isDirector = me.portalRole === "director";
 
-  const reportIds = await directReportIds(me.id);
-  const ids = Array.from(new Set([me.id, ...reportIds]));
+  let people: Array<{ id: number; name: string }>;
+  let companies: Array<{ id: number; name: string }>;
 
-  const { data: peopleRows } = await sb.from("people").select("id,name,company_id").in("id", ids);
-  const people = (peopleRows ?? [])
-    .map((p) => ({ id: p.id as number, name: p.name as string }))
-    .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
-
-  // Companies those people belong to.
-  const companyIds = Array.from(new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean)));
-  let companies: Array<{ id: number; name: string }> = [];
-  if (companyIds.length > 0) {
-    const { data: compRows } = await sb.from("companies").select("id,name").in("id", companyIds).order("name");
+  if (isDirector) {
+    // Directors are group-wide operators: anyone active, any company.
+    const [{ data: peopleRows }, { data: compRows }] = await Promise.all([
+      sb.from("people").select("id,name").eq("active", true).order("name"),
+      sb.from("companies").select("id,name").order("name"),
+    ]);
+    people = (peopleRows ?? [])
+      .map((p) => ({ id: p.id as number, name: p.name as string }))
+      .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
     companies = (compRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  } else {
+    // Managers: themselves + their direct reports, within those people's companies.
+    const reportIds = await directReportIds(me.id);
+    const ids = Array.from(new Set([me.id, ...reportIds]));
+    const { data: peopleRows } = await sb.from("people").select("id,name,company_id").in("id", ids);
+    people = (peopleRows ?? [])
+      .map((p) => ({ id: p.id as number, name: p.name as string }))
+      .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
+    const companyIds = Array.from(new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean)));
+    companies = [];
+    if (companyIds.length > 0) {
+      const { data: compRows } = await sb.from("companies").select("id,name").in("id", companyIds).order("name");
+      companies = (compRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+    }
   }
 
-  return <NewTaskForm me={{ id: me.id, name: me.name }} people={people} companies={companies} />;
+  return <NewTaskForm me={{ id: me.id, name: me.name }} people={people} companies={companies} isDirector={isDirector} />;
 }

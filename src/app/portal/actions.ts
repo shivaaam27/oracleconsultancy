@@ -49,7 +49,7 @@ export async function portalLogin(
   // Match by email first (exact), then by name (case-insensitive).
   const { data: byEmail } = await sb
     .from("people")
-    .select("id,portal_password_hash,active")
+    .select("id,portal_password_hash,active,portal_role")
     .ilike("email", identifier)
     .not("portal_password_hash", "is", null)
     .maybeSingle();
@@ -57,7 +57,7 @@ export async function portalLogin(
   if (!person) {
     const { data: byName } = await sb
       .from("people")
-      .select("id,portal_password_hash,active")
+      .select("id,portal_password_hash,active,portal_role")
       .ilike("name", identifier)
       .not("portal_password_hash", "is", null)
       .maybeSingle();
@@ -81,12 +81,60 @@ export async function portalLogin(
   after(() => {
     sb.from("people").update({ portal_last_login_at: new Date().toISOString() }).eq("id", personId);
   });
-  redirect("/portal");
+  // Land directors straight on their board. Going via /portal (which then
+  // re-redirects directors to /portal/board) is a second redirect hop that
+  // intermittently shows "the page couldn't load" until a manual reload.
+  redirect(person.portal_role === "director" ? "/portal/board" : "/portal");
 }
 
+/* Sign out lands on the unified login screen (/login), NOT /portal/login — so
+ * every role (staff, manager, director, and the owner) returns to the same
+ * default sign-in, with the Staff Login / Command Centre tabs. */
 export async function portalLogout() {
   await clearSessionCookie();
-  redirect("/portal/login");
+  redirect("/login");
+}
+
+/* ----------------------------------------------------------------------
+ * Self-service password change. Any portal person (staff/manager/director) can
+ * change their OWN sign-in password from their profile — they no longer need to
+ * ask the administrator. Re-verifies the current password before changing it.
+ * ---------------------------------------------------------------------- */
+export async function portalChangePassword(
+  _prev: { ok?: boolean; error?: string } | null,
+  formData: FormData
+): Promise<{ ok?: boolean; error?: string } | null> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+
+  const current = String(formData.get("current") ?? "");
+  const next = String(formData.get("next") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+  if (!current || !next) return { error: "Fill in both your current and new password." };
+  if (next.length < 8) return { error: "Your new password must be at least 8 characters." };
+  if (next !== confirm) return { error: "The new passwords don't match." };
+
+  const { data: row } = await sb
+    .from("people")
+    .select("portal_password_hash")
+    .eq("id", me.id)
+    .maybeSingle();
+  const stored = (row?.portal_password_hash as string | null) ?? null;
+  if (!stored || !verifyPassword(current, stored)) {
+    return { error: "Your current password isn't right." };
+  }
+  if (verifyPassword(next, stored)) {
+    return { error: "Choose a password different from your current one." };
+  }
+
+  const { hashPassword } = await import("@/lib/portal-auth");
+  const { error } = await sb
+    .from("people")
+    .update({ portal_password_hash: hashPassword(next) })
+    .eq("id", me.id);
+  if (error) return { error: "Could not update your password. Try again." };
+
+  return { ok: true };
 }
 
 /* ----------------------------------------------------------------------
