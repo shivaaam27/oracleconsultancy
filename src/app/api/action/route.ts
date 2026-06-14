@@ -5,6 +5,7 @@
 //   POST { command, confirm: true }      → parses AND executes
 
 import { GROQ_FAST } from "@/lib/ai-models";
+import { parseJsonObject } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -339,11 +340,9 @@ async function parseCommand(
 
   const data = await res.json();
   const content: string = data?.choices?.[0]?.message?.content?.trim() ?? "{}";
-  try {
-    return JSON.parse(content) as ParsedIntent;
-  } catch {
-    return { type: "unknown", reason: "bad-json" };
-  }
+  // Strip-and-parse (guard 2): tolerate code fences / stray prose around the JSON.
+  const parsed = parseJsonObject(content);
+  return parsed ? (parsed as ParsedIntent) : { type: "unknown", reason: "bad-json" };
 }
 
 type TaskRow = {

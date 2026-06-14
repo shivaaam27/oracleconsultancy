@@ -1,6 +1,7 @@
 "use server";
 
 import { GROQ_FAST } from "@/lib/ai-models";
+import { parseJsonObject } from "@/lib/ai-json";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
@@ -410,7 +411,9 @@ ${trimmed.slice(0, 6000)}`;
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content as string | undefined;
     if (!content) return { ok: true, fields: rulePersonFields(trimmed), source: "rules" };
-    const parsed = JSON.parse(content) as Record<string, unknown>;
+    // Strip-and-parse (guard 2): tolerate fences/prose; fall back to rules if absent.
+    const parsed = parseJsonObject(content);
+    if (!parsed) return { ok: true, fields: rulePersonFields(trimmed), source: "rules" };
     const f: PersonProfileFields = {
       name: str120(parsed.name),
       email: str120(parsed.email),

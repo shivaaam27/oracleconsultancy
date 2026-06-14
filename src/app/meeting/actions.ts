@@ -1,6 +1,7 @@
 "use server";
 
 import { GROQ_FAST } from "@/lib/ai-models";
+import { parseJsonObject } from "@/lib/ai-json";
 import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
 import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
@@ -420,8 +421,9 @@ Example — notes: "caught up w/ dipto. he'll send the TRA invoice by fri. also 
     }
     const data = await res.json();
     const content: string = data?.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(content);
-    const rawTasks: any[] = Array.isArray(parsed?.tasks) ? parsed.tasks : [];
+    // Strip-and-parse (guard 2): tolerate fences/prose around the JSON.
+    const parsed = parseJsonObject(content);
+    const rawTasks: any[] = Array.isArray(parsed?.tasks) ? (parsed!.tasks as any[]) : [];
 
     const valid = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
     const validPriority = ["Critical", "High", "Medium", "Low"];

@@ -300,9 +300,12 @@ export function DocumentForm({
       .filter((v) => v != null && v !== "").length;
   }
 
-  function noteFor(filled: number, source: string): string {
+  function noteFor(filled: number, source: string, needsReview?: boolean): string {
     if (filled === 0) return "Couldn't find document details. Fill the fields in manually.";
     const how = source === "vision" ? " from the image" : source === "rules" ? " (AI off — used basic rules)" : "";
+    // Confidence gate: when the model flagged the read as unclear, ask for a
+    // careful check rather than presenting the guesses as if they were certain.
+    if (needsReview) return `Filled ${filled} field${filled === 1 ? "" : "s"}${how}, but the document was unclear — please double-check every field, especially the expiry date.`;
     return `Filled ${filled} field${filled === 1 ? "" : "s"}${how}. Check before saving.`;
   }
 
@@ -312,7 +315,7 @@ export function DocumentForm({
     setExtractNote(null);
     try {
       const res = await extractDocumentFields(extractText);
-      setExtractNote(noteFor(applyFields(res.fields), res.source));
+      setExtractNote(noteFor(applyFields(res.fields), res.source, res.needsReview));
     } finally {
       setExtracting(false);
     }
@@ -340,7 +343,7 @@ export function DocumentForm({
         setChosenFile(prepared.name);
         setRemoveExisting(false);
       } catch { /* attachment is best-effort */ }
-      setExtractNote(noteFor(applyFields(res.fields), res.source) + (res.note ? ` ${res.note}` : ""));
+      setExtractNote(noteFor(applyFields(res.fields), res.source, res.needsReview) + (res.note ? ` ${res.note}` : ""));
     } finally {
       setExtracting(false);
     }

@@ -1,6 +1,7 @@
 "use server";
 
 import { GROQ_FAST, GROQ_VISION } from "@/lib/ai-models";
+import { callGroqJson, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import {
@@ -452,10 +453,10 @@ function coerceFields(
   return f;
 }
 
-function safeJson(content: string | null): Record<string, unknown> {
-  if (!content) return {};
-  try { return JSON.parse(content) as Record<string, unknown>; } catch { return {}; }
-}
+// coerceFields already discards malformed dates field-by-field, so we only sanity
+// -check confidence here and gate the whole extraction on it (guard 5). A wholesale
+// reject would needlessly drop the good fields alongside one bad date.
+const EXTRACT_SHAPE: ShapeSpec = { optional: { confidence: "number" } };
 
 function extractPrompt(companies: Entity[], people: Entity[]): string {
   const cNames = companies.map((c) => c.name).join(", ") || "(none)";
@@ -473,29 +474,21 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
 - personProfile: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "personProfile" object for company-only documents. (Note: "person" above is just the matched name; "personProfile" is the detail object — keep them separate.)
 - companyProfile: IF the document is about a BUSINESS/COMPANY (e.g. certificate of incorporation, business licence, TIN/VRN certificate, tax document, lease), a nested JSON object with any of these you can read about THAT company: { legalName (the full registered name), registrationNo, tin, vrn (VAT/VRN number), incorporationDate (YYYY-MM-DD), address, phone, email }. Omit the whole "companyProfile" object for personal documents.
+- confidence: a number from 0 to 1 for how confident you are that you read this document correctly (1 = crystal-clear scan you are sure about, 0.3 = a blurry/partial/ambiguous page you mostly guessed). Always include this.
 Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
 }
 
-async function groqJson(messages: unknown[], model: string, apiKey: string): Promise<string | null> {
-  try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, temperature: 0, max_tokens: 400, response_format: { type: "json_object" } }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.choices?.[0]?.message?.content ?? null;
-  } catch {
-    return null;
-  }
+// Run an extraction through the shared Groq harness: retries on 429/5xx/network,
+// strips-and-parses the JSON, validates the date fields, and reports confidence.
+async function groqExtract(messages: unknown[], model: string, apiKey: string): Promise<GroqJsonResult> {
+  return callGroqJson({ messages, model, apiKey, maxTokens: 400, shape: EXTRACT_SHAPE });
 }
 
 /**
  * Extract document fields from pasted text (renewal email / certificate text).
  * Groq text model when configured, rule-based fallback when AI is off.
  */
-export async function extractDocumentFields(text: string): Promise<{ ok: boolean; fields: ExtractedFields; source: "ai" | "rules" }> {
+export async function extractDocumentFields(text: string): Promise<ExtractResult> {
   const trimmed = (text ?? "").toString().trim();
   if (!trimmed) return { ok: false, fields: {}, source: "rules" };
   const { companies, people } = await loadEntities();
@@ -503,7 +496,7 @@ export async function extractDocumentFields(text: string): Promise<{ ok: boolean
   if (!apiKey) {
     return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
   }
-  const content = await groqJson(
+  const result = await groqExtract(
     [
       { role: "system", content: "You extract structured data and reply with strict JSON only." },
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${trimmed.slice(0, 6000)}` },
@@ -511,8 +504,18 @@ export async function extractDocumentFields(text: string): Promise<{ ok: boolean
     GROQ_FAST,
     apiKey
   );
-  if (!content) return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
-  return { ok: true, fields: coerceFields(safeJson(content), companies, people, trimmed), source: "ai" };
+  // AI failed (rate-limited after retries / bad JSON / off) → fall back to rules
+  // rather than crash or store nothing.
+  if (!result.ok || !result.data) {
+    return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
+  }
+  return {
+    ok: true,
+    fields: coerceFields(result.data, companies, people, trimmed),
+    source: "ai",
+    confidence: result.confidence,
+    needsReview: isLowConfidence(result.confidence),
+  };
 }
 
 // Rough base64-length ceiling for Groq's 4 MB-per-image limit.
@@ -545,13 +548,29 @@ async function renderPdfPages(base: Buffer, maxPages = 2): Promise<string[]> {
   }
 }
 
-/** Read one or more images with the Groq vision model. */
-async function groqVision(imageUrls: string[], prompt: string, apiKey: string): Promise<string | null> {
+/** Read one or more images with the Groq vision model (through the harness). */
+async function groqVision(imageUrls: string[], prompt: string, apiKey: string): Promise<GroqJsonResult> {
   const content = [
     { type: "text", text: prompt },
     ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
   ];
-  return groqJson([{ role: "user", content }], GROQ_VISION, apiKey);
+  return groqExtract([{ role: "user", content }], GROQ_VISION, apiKey);
+}
+
+// Shared shape for every extraction return: fields + provenance + (when AI ran)
+// the model's confidence and a needs-human-review flag for low-confidence reads.
+type ExtractResult = {
+  ok: boolean;
+  fields: ExtractedFields;
+  source: "ai" | "rules" | "vision";
+  confidence?: number | null;
+  needsReview?: boolean;
+  note?: string;
+};
+
+/** True when the model gave a confidence and it is below the human-review gate. */
+function isLowConfidence(confidence: number | null | undefined): boolean {
+  return typeof confidence === "number" && confidence < LOW_CONFIDENCE;
 }
 
 async function fieldsFromText(
@@ -559,12 +578,12 @@ async function fieldsFromText(
   companies: Entity[],
   people: Entity[],
   apiKey: string | undefined
-): Promise<{ ok: boolean; fields: ExtractedFields; source: "ai" | "rules" }> {
+): Promise<ExtractResult> {
   if (!text.trim()) return { ok: false, fields: {}, source: "rules" };
   if (!apiKey) {
     return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
   }
-  const content = await groqJson(
+  const result = await groqExtract(
     [
       { role: "system", content: "You extract structured data and reply with strict JSON only." },
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
@@ -572,8 +591,16 @@ async function fieldsFromText(
     GROQ_FAST,
     apiKey
   );
-  if (!content) return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
-  return { ok: true, fields: coerceFields(safeJson(content), companies, people, text), source: "ai" };
+  if (!result.ok || !result.data) {
+    return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+  }
+  return {
+    ok: true,
+    fields: coerceFields(result.data, companies, people, text),
+    source: "ai",
+    confidence: result.confidence,
+    needsReview: isLowConfidence(result.confidence),
+  };
 }
 
 async function extractOfficeText(file: File): Promise<string> {
@@ -614,9 +641,7 @@ async function extractOfficeText(file: File): Promise<string> {
  * by the Groq vision model (scanned PDFs are rasterised to images first). Never
  * throws.
  */
-export async function extractDocumentFromFile(
-  fd: FormData
-): Promise<{ ok: boolean; fields: ExtractedFields; source: "ai" | "rules" | "vision"; note?: string }> {
+export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResult> {
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, fields: {}, source: "rules", note: "No file provided." };
 
@@ -671,9 +696,15 @@ export async function extractDocumentFromFile(
     if (!images.length) {
       return { ok: false, fields: {}, source: "vision", note: "Couldn't render this PDF to read it. Try uploading a clear photo of the document instead." };
     }
-    const content = await groqVision(images, extractPrompt(companies, people), apiKey);
-    if (!content) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo." };
-    return { ok: true, fields: coerceFields(safeJson(content), companies, people), source: "vision" };
+    const result = await groqVision(images, extractPrompt(companies, people), apiKey);
+    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo." };
+    return {
+      ok: true,
+      fields: coerceFields(result.data, companies, people),
+      source: "vision",
+      confidence: result.confidence,
+      needsReview: isLowConfidence(result.confidence),
+    };
   }
 
   // HEIC (Apple's iPhone photo format) can't be read by the vision model and the
@@ -692,9 +723,15 @@ export async function extractDocumentFromFile(
     }
     const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const dataUrl = `data:${file.type};base64,${b64}`;
-    const content = await groqVision([dataUrl], extractPrompt(companies, people), apiKey);
-    if (!content) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo." };
-    return { ok: true, fields: coerceFields(safeJson(content), companies, people), source: "vision" };
+    const result = await groqVision([dataUrl], extractPrompt(companies, people), apiKey);
+    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo." };
+    return {
+      ok: true,
+      fields: coerceFields(result.data, companies, people),
+      source: "vision",
+      confidence: result.confidence,
+      needsReview: isLowConfidence(result.confidence),
+    };
   }
 
   return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF, Word, Excel/CSV or an image (PNG/JPG)." };

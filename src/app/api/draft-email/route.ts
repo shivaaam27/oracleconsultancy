@@ -1,4 +1,5 @@
 import { GROQ_FAST } from "@/lib/ai-models";
+import { parseJsonObject } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -101,18 +102,16 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
     const content: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
-    try {
-      const parsed = JSON.parse(content);
-      return NextResponse.json({
-        subject: parsed.subject || "Follow-up",
-        body: parsed.body || "",
-        recipient: assignees.join(", ") || null,
-        company: companyName,
-        taskCode: task.code,
-      });
-    } catch {
-      return NextResponse.json({ error: "bad-json", raw: content }, { status: 502 });
-    }
+    // Strip-and-parse (guard 2): tolerate fences/prose around the JSON.
+    const parsed = parseJsonObject(content);
+    if (!parsed) return NextResponse.json({ error: "bad-json", raw: content }, { status: 502 });
+    return NextResponse.json({
+      subject: (parsed.subject as string) || "Follow-up",
+      body: (parsed.body as string) || "",
+      recipient: assignees.join(", ") || null,
+      company: companyName,
+      taskCode: task.code,
+    });
   } catch (e) {
     console.error("Draft email route error:", e);
     return NextResponse.json({ error: "server-error" }, { status: 500 });
