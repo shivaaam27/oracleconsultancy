@@ -87,3 +87,66 @@ The whole admin side is now behind a single owner password:
 - **Passkeys (Face ID / Touch ID / Windows Hello / fingerprint) — WebAuthn** for BOTH owner and staff. Table `webauthn_credentials` (public key only). `lib/webauthn.ts` (discoverable registration + authentication; rpID/origin from headers; challenge in cookie `cos_webauthn`). Register while signed in: owner in **Settings → Face ID & fingerprint** (`app/settings/passkey-actions.ts`), staff in **portal profile → Sign in faster** (`app/portal/passkey-actions.ts`); shared `components/passkey-manager.tsx`. Login screen: "Use Face ID instead" button (`passkey-login-button.tsx`, platform-aware label) + **conditional-UI autofill** (auto-prompts on iPhone). NOT live-tested (no biometric hardware in the dev preview); needs HTTPS/localhost.
 - **Portal profile additions** (`portal/(app)/profile/page.tsx`): Your documents · **Your attendance** (`portal-attendance.tsx`, self check-in + week strip) · Your leave · onboarding · equipment · **Sign in faster** (passkeys).
 - **Portal home additions** (`portal/(app)/page.tsx`): managers get **Team attendance today** + Leave-to-approve + My team. A once-a-day **attendance check-in pop-up** (`attendance-checkin.tsx`) auto-opens on landing (mounted in portal `(app)/layout.tsx`).
+
+## June 2026 — Portal hardening sweep (crashes, roles, settings, baseline)
+
+A 5-wave audit-and-fix pass after the owner reported mobile crashes, sign-out landing on the wrong screen, and unclear director/manager powers. Driven by an 8-dimension multi-agent audit (82 findings). All pushed to master.
+
+**Wave 1 — crash safety nets + auth (commit de69d1c):**
+- **Error boundaries added** (previously NONE existed anywhere): `app/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx`, `app/portal/(app)/error.tsx`, `app/portal/(app)/not-found.tsx`. Any thrown/transient error now shows a recoverable "Try again" screen instead of a blank/crash — this was the root cause of "the page couldn't load, reload fixes it" and blank-screen-on-back on mobile.
+- **Sign-out → `/login`** (was `/portal/login`). `portalLogout` redirects every role + owner to the unified tabbed login.
+- **Directors land straight on `/portal/board`** at login (removed the `/portal`→`/portal/board` double-redirect hop that intermittently failed).
+- **Directors + managers both create tasks**: `/portal/task/new` is role-aware (director = group-wide via `portalDirectorCreateTask`, manager = team via `portalCreateTask`); the pill `+` shows for both (`canCreate = manager||director`).
+- **Self-service password change**: `portalChangePassword` (re-verifies current pw) + `components/portal-password.tsx` in the profile "Password" section. Any portal user changes their own password — no admin needed.
+
+**Wave 2 — crash hardening (commit 32db408):**
+- Replaced unsafe `(await getPortalPerson())!` with explicit `if (!me) redirect("/portal/login")` on every portal page.
+- Director board wraps its top companies/people query in try/catch (degrades forms to empty instead of crashing the board).
+- `LiveSync` aborts the in-flight probe on unmount (AbortController); `AutoRefresh` has a pending guard.
+- **Service worker `cos-v5`: never caches `/portal` HTML** (a cached snapshot could flash a previous/signed-out session before the server re-checks auth).
+
+**Wave 3 — Command Centre / Settings + data lifecycle (commit f3d757d):**
+- **`setPortalRole`** changes a portal user's access level WITHOUT resetting their password (per-person role dropdown in Settings → Staff portal access).
+- Portal password field masked with show/hide (`components/reveal-password.tsx`) — was plain `type="text"`.
+- **Revoke** now also resets `portal_role` to `staff` (a re-grant never silently restores manager/director powers) + clear help text that all their records are kept.
+- Owner password change requires the owner name/email when an owner identity is configured (`adminChangePassword`).
+- Portal grant/reset/role-change/revoke logged to `system_events` (`portal.access.granted|reset|revoked`, `portal.role.changed`).
+
+**Wave 4 — director task access (commit e1d3772):**
+- `personCanSeeTask` lets **directors view any non-archived task** (matches `visibleTaskIds`) — they could create tasks group-wide but couldn't open any.
+- Director task-update posts stamped `portal-dir:` (were mis-stamped as plain staff); directors can set **Completed** and **pin** like managers (`portalAddUpdate`/`portalTogglePin` + task page `isManagement`).
+- Director board "Key risks" items link through to `/portal/task/CODE` (added `code` to `BriefWatch`).
+
+**Wave 5 — unification (commit 01f8bc5):**
+- `lib/badge-tones.ts` is the single source of truth for task status/priority `Badge` colours (portal home + task page import it). New code should import it; ~20 admin files still have local copies — adopt over time, not swept (admin is stable).
+- Portal layout matches admin `md:pb-32` (pill never covers content in landscape).
+
+### Role capability matrix (portal)
+
+| Capability | staff | manager | director |
+| --- | --- | --- | --- |
+| See tasks | own (assignee/owner) | own + direct reports' | **all non-archived** |
+| Create/assign tasks | ✗ | own team, own company | **any person, any company** |
+| Set status | In Progress/Under Review/Blocked | + **Completed** | + **Completed** |
+| Pin instruction | ✗ | ✓ | ✓ |
+| Approve leave | ✗ | direct reports only | ✗ (not their lane) |
+| Board (portfolio brief) | ✗ | ✗ | ✓ (landing page) |
+| Schedule events / draft messages | ✗ | ✗ | ✓ (group-wide; outreach kill-switch in Settings) |
+| `created_by` stamp | `portal:Name` | `portal-mgr:Name` | `portal-dir:Name` |
+
+### Data-ownership rule (revoke / role-change / archive)
+
+Business data belongs to the **person/company record**, NOT to the portal session. The session is only an access key.
+- **Revoke** (`revokePortalAccess`): clears `portal_password_hash`/`portal_enabled_at` + resets role to `staff`. They can't sign in (checked every request). **Nothing they created is deleted** — tasks, task updates, chat messages, documents, attendance, leave all stay. Re-grant a password and they're fully back.
+- **Role change** (`setPortalRole`): takes effect on their next request/navigation (`getPortalPerson` reads the DB every time; no cross-request cache).
+- **Archive** (`togglePersonActive` active=false): also blocks portal sign-in (`getPortalPerson` checks `active`), runs offboarding (asset return, custodian clear, vacate leadership), keeps all records. ⚠️ Known offboarding gap (not portal-specific): an archived manager's reports lose manager visibility and the archived person's own task assignments drop out of team views — track separately.
+
+### Canonical pattern — NEW PORTAL PAGE
+`src/app/portal/(app)/<feature>/page.tsx`: `export const dynamic = "force-dynamic"`; server component; `const me = await getPortalPerson(); if (!me) redirect("/portal/login");` first; role-gate with `redirect("/portal")`; wrap DB reads that can fail in try/catch; re-verify per-item access server-side (`personCanSeeTask`) — never trust the URL; wrap sections in `Reveal`; use `Panel`/`SectionLabel`/`Hero` from surface-kit + `taskStatusTone` from `lib/badge-tones`; `notFound()` only after the role gate. The `(app)/error.tsx` + `not-found.tsx` catch anything unhandled.
+
+### Canonical pattern — NEW PORTAL ACTION (`src/app/portal/actions.ts`)
+1) `const me = await getPortalPerson(); if (!me) redirect("/portal/login");` 2) role gate → `return { error }`; 3) validate input; 4) **re-check authorisation server-side** (`personCanSeeTask`/`directReportIds`/active check) — never trust the form; 5) mutate via `sb`; 6) stamp `created_by` with the role prefix (`portal:` / `portal-mgr:` / `portal-dir:`); 7) audit_log for task changes; 8) `recordEvent(...)`; 9) `revalidatePath`; 10) return/redirect. Timestamps = `new Date().toISOString()` (UTC, timestamptz).
+
+### Email login (owner's question)
+- **Staff/manager/director portal** at `/login` (Staff tab) or `/portal/login`: sign in with **name OR email** + password (`portalLogin` matches email first, then name; case-insensitive). Email login works.
+- **Command Centre** (owner): password is primary; the name/email is an **optional** second factor — only required if an owner identity is set in Settings → Owner sign-in (blank = password-only, no lockout).
