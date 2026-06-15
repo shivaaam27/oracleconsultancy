@@ -23,6 +23,8 @@ export type AdminAnnouncement = {
   status: "draft" | "published" | "archived";
   pinned: boolean;
   requireAck: boolean;
+  takeover: boolean;
+  channels: string[];
   audienceText: string;
   whenLabel: string;
   scheduledLabel: string | null;
@@ -52,6 +54,8 @@ export function AnnouncementAdminList({ items }: { items: AdminAnnouncement[] })
             {a.status === "draft" && <Badge tone="default">Draft</Badge>}
             {a.status === "published" && a.scheduledLabel && <Badge tone="warn">Scheduled</Badge>}
             {a.requireAck && <Badge tone="info">Ack required</Badge>}
+            {a.takeover && <Badge tone="danger">Takeover</Badge>}
+            {a.channels.map((c) => <Badge key={c} tone="default">{c === "email" ? "Email" : "WhatsApp"}</Badge>)}
             <span className="grow" />
             <span className="text-[11px] text-fg-subtle">{a.scheduledLabel ?? a.whenLabel}</span>
           </div>

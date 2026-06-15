@@ -1381,6 +1381,11 @@ export const announcements = pgTable("announcements", {
   pinned: boolean("pinned").notNull().default(false),
   // When true, recipients must tick "read & understood" (tracked per person).
   requireAck: boolean("require_ack").notNull().default(false),
+  // Extra delivery beyond the in-app banner: ["email","whatsapp"] → Outbox drafts.
+  // Push notifications fire automatically and aren't listed here.
+  deliverChannels: jsonb("deliver_channels").$type<string[]>().notNull().default([]),
+  // Full-screen "must acknowledge before continuing" card on next portal landing.
+  takeover: boolean("takeover").notNull().default(false),
   // draft | published | archived
   status: text("status").notNull().default("draft"),
   // Scheduled go-live (null = live as soon as published). Stored UTC.
@@ -1405,3 +1410,27 @@ export const announcementReceipts = pgTable(
   },
   (t) => [primaryKey({ columns: [t.announcementId, t.recipient] })]
 );
+
+// Emoji reactions on an announcement (one row per person+emoji; toggles).
+export const announcementReactions = pgTable(
+  "announcement_reactions",
+  {
+    announcementId: integer("announcement_id").notNull().references(() => announcements.id, { onDelete: "cascade" }),
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.announcementId, t.personId, t.emoji] })]
+);
+
+// Questions/replies under an announcement. personId null = owner (admin) reply.
+export const announcementComments = pgTable("announcement_comments", {
+  id: serial("id").primaryKey(),
+  announcementId: integer("announcement_id").notNull().references(() => announcements.id, { onDelete: "cascade" }),
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  authorName: text("author_name").notNull(),
+  body: text("body").notNull(),
+  // True when posted by the author/owner as an answer (rendered differently).
+  isAnswer: boolean("is_answer").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+});

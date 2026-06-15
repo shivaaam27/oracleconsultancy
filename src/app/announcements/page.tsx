@@ -63,6 +63,8 @@ export default async function AnnouncementsPage() {
         status: a.status,
         pinned: a.pinned,
         requireAck: a.requireAck,
+        takeover: a.takeover,
+        channels: a.deliverChannels,
         audienceText: audienceLabel(a, { companies: companyMap, departments: deptMap, sites: siteMap, people: peopleMap }),
         whenLabel: fmt(a.publishedAt ?? a.createdAt),
         scheduledLabel: scheduled ? `Goes live ${fmtDateTime(a.publishAt)}` : null,

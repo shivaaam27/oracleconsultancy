@@ -59,6 +59,8 @@ export type Announcement = {
   audienceValues: (number | string)[];
   pinned: boolean;
   requireAck: boolean;
+  deliverChannels: string[];
+  takeover: boolean;
   status: "draft" | "published" | "archived";
   publishAt: string | null;
   expiresAt: string | null;
@@ -68,7 +70,24 @@ export type Announcement = {
   publishedAt: string | null;
 };
 
-export type FeedAnnouncement = Announcement & { seenAt: string | null; ackAt: string | null };
+export const REACTION_EMOJIS = ["👍", "❤️", "🎉", "👏"] as const;
+
+export type AnnouncementComment = {
+  id: number;
+  personId: number | null;
+  authorName: string;
+  body: string;
+  isAnswer: boolean;
+  createdAt: string;
+};
+
+export type FeedAnnouncement = Announcement & {
+  seenAt: string | null;
+  ackAt: string | null;
+  reactions: Record<string, number>;
+  myReactions: string[];
+  commentCount: number;
+};
 
 export type PersonAudienceAttrs = {
   id: number;

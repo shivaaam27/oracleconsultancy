@@ -18,7 +18,7 @@ import {
 export * from "./announcements-shared";
 
 const COLS =
-  "id,title,body,type,audience_kind,audience_values,pinned,require_ack,status,publish_at,expires_at,created_by,author_person_id,created_at,published_at";
+  "id,title,body,type,audience_kind,audience_values,pinned,require_ack,deliver_channels,takeover,status,publish_at,expires_at,created_by,author_person_id,created_at,published_at";
 
 function mapRow(r: Record<string, unknown>): Announcement {
   return {
@@ -30,6 +30,8 @@ function mapRow(r: Record<string, unknown>): Announcement {
     audienceValues: (r.audience_values as (number | string)[] | null) ?? [],
     pinned: Boolean(r.pinned),
     requireAck: Boolean(r.require_ack),
+    deliverChannels: (r.deliver_channels as string[] | null) ?? [],
+    takeover: Boolean(r.takeover),
     status: (r.status as Announcement["status"]) ?? "draft",
     publishAt: (r.publish_at as string | null) ?? null,
     expiresAt: (r.expires_at as string | null) ?? null,
@@ -125,16 +127,144 @@ export async function feedForPerson(attrs: PersonAudienceAttrs): Promise<FeedAnn
     .order("published_at", { ascending: false });
   const live = (data ?? []).map(mapRow).filter((a) => isLive(a, now) && announcementTargetsPerson(a, attrs));
   if (live.length === 0) return [];
-  const { data: receipts } = await sb
-    .from("announcement_receipts")
-    .select("announcement_id,seen_at,ack_at")
-    .eq("recipient", `person:${attrs.id}`)
-    .in("announcement_id", live.map((a) => a.id));
+  const liveIds = live.map((a) => a.id);
+  const [{ data: receipts }, { data: reactions }, { data: comments }] = await Promise.all([
+    sb.from("announcement_receipts").select("announcement_id,seen_at,ack_at").eq("recipient", `person:${attrs.id}`).in("announcement_id", liveIds),
+    sb.from("announcement_reactions").select("announcement_id,person_id,emoji").in("announcement_id", liveIds),
+    sb.from("announcement_comments").select("announcement_id").in("announcement_id", liveIds),
+  ]);
   const byId = new Map((receipts ?? []).map((r) => [r.announcement_id as number, r]));
+  const rxSummary = new Map<number, Record<string, number>>();
+  const rxMine = new Map<number, string[]>();
+  for (const r of reactions ?? []) {
+    const aid = r.announcement_id as number;
+    const emoji = r.emoji as string;
+    const s = rxSummary.get(aid) ?? {};
+    s[emoji] = (s[emoji] ?? 0) + 1;
+    rxSummary.set(aid, s);
+    if ((r.person_id as number) === attrs.id) rxMine.set(aid, [...(rxMine.get(aid) ?? []), emoji]);
+  }
+  const commentCount = new Map<number, number>();
+  for (const c of comments ?? []) {
+    const aid = c.announcement_id as number;
+    commentCount.set(aid, (commentCount.get(aid) ?? 0) + 1);
+  }
   return live.map((a) => {
     const r = byId.get(a.id);
-    return { ...a, seenAt: (r?.seen_at as string | null) ?? null, ackAt: (r?.ack_at as string | null) ?? null };
+    return {
+      ...a,
+      seenAt: (r?.seen_at as string | null) ?? null,
+      ackAt: (r?.ack_at as string | null) ?? null,
+      reactions: rxSummary.get(a.id) ?? {},
+      myReactions: rxMine.get(a.id) ?? [],
+      commentCount: commentCount.get(a.id) ?? 0,
+    };
   });
+}
+
+/* --------------------------- reactions & questions (A6) --------------------------- */
+
+/** Toggle an emoji reaction for a person; returns whether it's now on. */
+export async function toggleReaction(announcementId: number, personId: number, emoji: string): Promise<boolean> {
+  const { data: existing } = await sb
+    .from("announcement_reactions")
+    .select("emoji")
+    .eq("announcement_id", announcementId)
+    .eq("person_id", personId)
+    .eq("emoji", emoji)
+    .maybeSingle();
+  if (existing) {
+    await sb.from("announcement_reactions").delete().eq("announcement_id", announcementId).eq("person_id", personId).eq("emoji", emoji);
+    return false;
+  }
+  await sb.from("announcement_reactions").insert({ announcement_id: announcementId, person_id: personId, emoji, created_at: new Date().toISOString() });
+  return true;
+}
+
+export async function listComments(announcementId: number) {
+  const { data } = await sb
+    .from("announcement_comments")
+    .select("id,person_id,author_name,body,is_answer,created_at")
+    .eq("announcement_id", announcementId)
+    .order("created_at", { ascending: true });
+  return (data ?? []).map((c) => ({
+    id: c.id as number,
+    personId: (c.person_id as number | null) ?? null,
+    authorName: c.author_name as string,
+    body: c.body as string,
+    isAnswer: Boolean(c.is_answer),
+    createdAt: c.created_at as string,
+  }));
+}
+
+export async function addComment(input: {
+  announcementId: number;
+  personId: number | null;
+  authorName: string;
+  body: string;
+  isAnswer: boolean;
+}): Promise<number | null> {
+  const { data } = await sb
+    .from("announcement_comments")
+    .insert({
+      announcement_id: input.announcementId,
+      person_id: input.personId,
+      author_name: input.authorName,
+      body: input.body,
+      is_answer: input.isAnswer,
+      created_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+  return (data?.id as number | undefined) ?? null;
+}
+
+/** Live "takeover" announcements targeting this person that they must still
+ *  acknowledge — drives the full-screen blocking card on portal landing. */
+export async function takeoverFeedForPerson(attrs: PersonAudienceAttrs): Promise<FeedAnnouncement[]> {
+  const feed = await feedForPerson(attrs);
+  return feed.filter((a) => a.takeover && a.requireAck && !a.ackAt);
+}
+
+/* --------------------------- delivery (A4) --------------------------- */
+
+/** For an announcement's selected channels, create Outbox drafts to the audience
+ *  (one per person with that contact). Push fires separately via notifications.
+ *  Best-effort — a delivery hiccup never blocks publishing. */
+export async function createDeliveryDrafts(a: Announcement): Promise<void> {
+  const channels = (a.deliverChannels ?? []).map((c) => c.toLowerCase());
+  const wantEmail = channels.includes("email");
+  const wantWhatsapp = channels.includes("whatsapp");
+  if (!wantEmail && !wantWhatsapp) return;
+  try {
+    const ids = await resolveAudiencePersonIds(a);
+    if (ids.length === 0) return;
+    const { data } = await sb
+      .from("people")
+      .select("id,name,email,whatsapp,phone,companies(name)")
+      .in("id", ids);
+    const nowIso = new Date().toISOString();
+    const rows: Record<string, unknown>[] = [];
+    for (const p of data ?? []) {
+      const company = (Array.isArray(p.companies) ? p.companies[0] : p.companies) as { name: string } | null;
+      const base = {
+        company: company?.name ?? null,
+        subject: a.title,
+        body: a.body || a.title,
+        message_type: "ANNOUNCEMENT",
+        status: "Draft",
+        source: "announcement",
+        person_id: p.id as number,
+        created_at: nowIso,
+      };
+      if (wantEmail && p.email) rows.push({ ...base, channel: "EMAIL", recipient_name: p.name, recipient_contact: p.email });
+      const wa = (p.whatsapp as string | null) ?? (p.phone as string | null);
+      if (wantWhatsapp && wa) rows.push({ ...base, channel: "WHATSAPP", recipient_name: p.name, recipient_contact: wa });
+    }
+    if (rows.length > 0) await sb.from("outbox").insert(rows);
+  } catch {
+    /* best-effort */
+  }
 }
 
 /* --------------------------- receipts --------------------------- */

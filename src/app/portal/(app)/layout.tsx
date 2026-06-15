@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { PortalPill } from "@/components/portal-pill";
+import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
 import { portalLogout } from "../actions";
 
 /* Guarded shell for every staff-portal page. No admin chrome here — the
@@ -14,6 +16,10 @@ import { portalLogout } from "../actions";
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+
+  // Urgent "takeover" announcements block the portal until acknowledged.
+  const attrs = await getPersonAudienceAttrs(me.id);
+  const takeovers = attrs ? await takeoverFeedForPerson(attrs) : [];
 
   return (
     <div className="flex flex-col gap-5 pb-28 md:pb-32 max-w-3xl mx-auto">
@@ -36,6 +42,7 @@ export default async function PortalLayout({ children }: { children: React.React
       </header>
       {children}
       <PortalPill canCreate={me.portalRole === "manager" || me.portalRole === "director"} role={me.portalRole} />
+      {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
     </div>
   );
 }

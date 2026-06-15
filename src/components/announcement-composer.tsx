@@ -1,12 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Megaphone, X, Pin, CheckCircle2 } from "lucide-react";
+import { Megaphone, X, Pin, CheckCircle2, Sparkles, Languages } from "lucide-react";
 import { Button } from "@/components/ui";
 import { Panel } from "@/components/surface-kit";
-import { cn } from "@/lib/cn";
 import { ANNOUNCEMENT_TYPES, AUDIENCE_KINDS, type AudienceKind } from "@/lib/announcements-shared";
-import { saveAnnouncementAction, portalCreateAnnouncement } from "@/app/announcements/actions";
+import {
+  saveAnnouncementAction,
+  portalCreateAnnouncement,
+  draftAnnouncementAction,
+  translateAnnouncementAction,
+} from "@/app/announcements/actions";
 
 export type Opt = { value: string; label: string };
 
@@ -37,6 +41,11 @@ export function AnnouncementComposer({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Controlled so the AI helpers can fill them in.
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
 
   const kinds = AUDIENCE_KINDS.filter((k) => !allowedKinds || allowedKinds.includes(k.value));
   const meta = AUDIENCE_KINDS.find((k) => k.value === kind);
@@ -61,11 +70,36 @@ export function AnnouncementComposer({
         setDone(action === "draft" ? "Saved as draft." : "Published.");
         form.reset();
         setKind("all");
+        setTitle(""); setBody(""); setAiPrompt("");
         setTimeout(() => { setOpen(false); setDone(null); }, 1200);
       } else {
         setError(res.error);
       }
     });
+  }
+
+  function aiDraft() {
+    if (!aiPrompt.trim()) return;
+    setError(null);
+    setAiBusy(true);
+    (async () => {
+      const res = await draftAnnouncementAction(aiPrompt);
+      if (res.ok) { setTitle(res.title); setBody(res.body); }
+      else setError(res.error);
+      setAiBusy(false);
+    })();
+  }
+
+  function translate(to: "sw" | "en") {
+    if (!body.trim()) return;
+    setError(null);
+    setAiBusy(true);
+    (async () => {
+      const res = await translateAnnouncementAction(body, to);
+      if (res.ok) setBody(res.text);
+      else setError(res.error);
+      setAiBusy(false);
+    })();
   }
 
   if (!open) {
@@ -89,18 +123,45 @@ export function AnnouncementComposer({
           </button>
         </div>
 
+        {/* AI draft — describe it, COS writes the title + body for review. */}
+        <div className="flex flex-col gap-2 rounded-xl border border-accent/25 bg-accent-soft/30 p-2.5 sm:flex-row sm:items-center">
+          <Sparkles size={15} className="hidden shrink-0 text-accent sm:block" />
+          <input
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="Describe it — e.g. office closed Friday for Eid"
+            className="min-w-0 flex-1 rounded-lg border border-border bg-bg-elev px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-accent-ring/50"
+          />
+          <Button type="button" size="sm" variant="secondary" loading={aiBusy} disabled={!aiPrompt.trim()} onClick={aiDraft} className="gap-1.5 shrink-0">
+            <Sparkles size={13} /> Draft with AI
+          </Button>
+        </div>
+
         <input
           name="title"
           required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
           placeholder="Title — e.g. Office closed Friday"
           className="w-full rounded-xl border border-border bg-bg-elev px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-ring/50"
         />
         <textarea
           name="body"
           rows={4}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
           placeholder="Write the announcement…"
           className="w-full resize-y rounded-xl border border-border bg-bg-elev px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-ring/50"
         />
+        <div className="-mt-1.5 flex items-center gap-2">
+          <span className="text-[11px] text-fg-muted">Translate:</span>
+          <button type="button" disabled={aiBusy || !body.trim()} onClick={() => translate("sw")} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent-soft/60 disabled:opacity-40">
+            <Languages size={12} /> Swahili
+          </button>
+          <button type="button" disabled={aiBusy || !body.trim()} onClick={() => translate("en")} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent-soft/60 disabled:opacity-40">
+            <Languages size={12} /> English
+          </button>
+        </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-xs text-fg-muted">
@@ -149,6 +210,23 @@ export function AnnouncementComposer({
             <input type="checkbox" name="requireAck" className="accent-[hsl(var(--accent))]" />
             <CheckCircle2 size={13} className="text-fg-muted" /> Require acknowledgement
           </label>
+          <label className="flex items-center gap-2 text-sm text-fg" title="Shows as a full-screen card staff must acknowledge before continuing. Best for true emergencies.">
+            <input type="checkbox" name="takeover" className="accent-[hsl(var(--danger))]" />
+            <Megaphone size={13} className="text-danger" /> Urgent takeover
+          </label>
+        </div>
+
+        <div className="rounded-xl border border-border bg-bg-subtle/40 p-2.5">
+          <div className="mb-1 text-[11px] font-medium uppercase tracking-wider text-fg-muted">Also send by</div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+            <label className="flex items-center gap-2 text-sm text-fg">
+              <input type="checkbox" name="deliverChannels" value="email" className="accent-[hsl(var(--accent))]" /> Email draft
+            </label>
+            <label className="flex items-center gap-2 text-sm text-fg">
+              <input type="checkbox" name="deliverChannels" value="whatsapp" className="accent-[hsl(var(--accent))]" /> WhatsApp draft
+            </label>
+            <span className="text-[11px] text-fg-subtle">Drafts land in the Outbox · push &amp; in-app are automatic</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
