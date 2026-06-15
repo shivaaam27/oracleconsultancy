@@ -1,4 +1,5 @@
 import { GROQ_FAST } from "@/lib/ai-models";
+import { callGroqText } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -109,29 +110,22 @@ export async function POST(req: NextRequest) {
       recentUpdates: recentUpdates.map(u => ({ body: u.body.slice(0, 150) })),
     };
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Write the executive briefing for this company:\n\n${JSON.stringify(snapshot, null, 2)}` },
-        ],
-        max_tokens: 450,
-        temperature: 0.25,
-      }),
+    const result = await callGroqText({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Write the executive briefing for this company:\n\n${JSON.stringify(snapshot, null, 2)}` },
+      ],
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: 450,
+      temperature: 0.25,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("Company summary error:", res.status, err);
-      return NextResponse.json({ error: `groq-${res.status}`, detail: err.slice(0, 500) }, { status: 502 });
+    if (!result.ok || !result.text) {
+      console.error("Company summary error:", result.error);
+      return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
     }
-
-    const data = await res.json();
-    const summary: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
-    return NextResponse.json({ summary, source: "ai" });
+    return NextResponse.json({ summary: result.text.trim(), source: "ai" });
   } catch (e) {
     console.error("Company summary route error:", e);
     return NextResponse.json({ error: "server-error" }, { status: 500 });

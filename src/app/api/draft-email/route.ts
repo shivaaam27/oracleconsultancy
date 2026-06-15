@@ -1,5 +1,5 @@
 import { GROQ_FAST } from "@/lib/ai-models";
-import { parseJsonObject } from "@/lib/ai-json";
+import { callGroqJson } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -76,35 +76,22 @@ export async function POST(req: NextRequest) {
       escalation: task.escalation,
     };
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Draft a follow-up email for this task:\n\n${JSON.stringify(taskContext, null, 2)}` },
-        ],
-        max_tokens: 500,
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-      }),
+    const result = await callGroqJson({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Draft a follow-up email for this task:\n\n${JSON.stringify(taskContext, null, 2)}` },
+      ],
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: 500,
+      temperature: 0.3,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("Draft email error:", res.status, err);
-      return NextResponse.json({ error: `groq-${res.status}`, detail: err.slice(0, 500) }, { status: 502 });
+    if (!result.ok || !result.data) {
+      console.error("Draft email error:", result.error);
+      return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
     }
-
-    const data = await res.json();
-    const content: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
-    // Strip-and-parse (guard 2): tolerate fences/prose around the JSON.
-    const parsed = parseJsonObject(content);
-    if (!parsed) return NextResponse.json({ error: "bad-json", raw: content }, { status: 502 });
+    const parsed = result.data;
     return NextResponse.json({
       subject: (parsed.subject as string) || "Follow-up",
       body: (parsed.body as string) || "",

@@ -1,7 +1,7 @@
 "use server";
 
 import { GROQ_FAST } from "@/lib/ai-models";
-import { parseJsonObject } from "@/lib/ai-json";
+import { callGroqJson, callGroqText } from "@/lib/ai-json";
 import { extractMeetingTasks, type MeetingTask } from "@/lib/meeting-parse";
 import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
@@ -172,12 +172,12 @@ export async function generateMeetingMinutes(input: {
   if (!apiKey) return { minutes: fallbackMinutes(input.rawNotes), source: "no-key" };
 
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
+    const result = await callGroqText({
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: 900,
+      temperature: 0.2,
+      messages: [
           {
             role: "system",
             content: `You write concise British-English meeting minutes for a Chief of Staff command centre.
@@ -203,14 +203,10 @@ Rules:
               notes: input.rawNotes,
             }),
           },
-        ],
-        max_tokens: 900,
-        temperature: 0.2,
-      }),
+      ],
     });
-    if (!res.ok) return { minutes: fallbackMinutes(input.rawNotes), source: "error", message: `AI returned HTTP ${res.status}` };
-    const data = await res.json();
-    const minutes = String(data?.choices?.[0]?.message?.content || "").trim();
+    if (!result.ok || !result.text) return { minutes: fallbackMinutes(input.rawNotes), source: "error", message: result.error ? `AI error: ${result.error}` : undefined };
+    const minutes = result.text.trim();
     return { minutes: minutes || fallbackMinutes(input.rawNotes), source: minutes ? "ai" : "rules" };
   } catch (err) {
     return {
@@ -232,12 +228,12 @@ export async function improveMeetingNotes(input: {
   if (!apiKey) return { notes: fallback, source: "no-key" };
 
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
+    const result = await callGroqText({
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: 1000,
+      temperature: 0.15,
+      messages: [
           {
             role: "system",
             content: `Clean rough meeting notes in British English without changing meaning.
@@ -257,14 +253,10 @@ Rules:
               notes: input.rawNotes,
             }),
           },
-        ],
-        max_tokens: 1000,
-        temperature: 0.15,
-      }),
+      ],
     });
-    if (!res.ok) return { notes: fallback, source: "error", message: `AI returned HTTP ${res.status}` };
-    const data = await res.json();
-    const cleaned = String(data?.choices?.[0]?.message?.content || "").trim();
+    if (!result.ok || !result.text) return { notes: fallback, source: "error", message: result.error ? `AI error: ${result.error}` : undefined };
+    const cleaned = result.text.trim();
     return { notes: cleaned || fallback, source: cleaned ? "ai" : "rules" };
   } catch (err) {
     return {
@@ -313,12 +305,12 @@ export async function generateMeetingInsight(input: {
         : "Draft a concise follow-up message to attendees summarising decisions and next actions. British English, professional, no invented facts.";
 
   try {
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
+    const result = await callGroqText({
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: input.kind === "follow-up" ? 700 : 450,
+      temperature: 0.2,
+      messages: [
           {
             role: "system",
             content: `${instruction}
@@ -337,14 +329,10 @@ Preserve names, companies, dates, amounts, and task references.`,
               minutes: input.minutes || null,
             }),
           },
-        ],
-        max_tokens: input.kind === "follow-up" ? 700 : 450,
-        temperature: 0.2,
-      }),
+      ],
     });
-    if (!res.ok) return { text: fallback, source: "error", message: `AI returned HTTP ${res.status}` };
-    const data = await res.json();
-    const text = String(data?.choices?.[0]?.message?.content || "").trim();
+    if (!result.ok || !result.text) return { text: fallback, source: "error", message: result.error ? `AI error: ${result.error}` : undefined };
+    const text = result.text.trim();
     return { text: text || fallback, source: text ? "ai" : "rules" };
   } catch (err) {
     return {
@@ -400,30 +388,23 @@ Rules:
 Example — notes: "caught up w/ dipto. he'll send the TRA invoice by fri. also need to chase gofiber re printer, urgent."
 → { "tasks": [ { "actionItem": "Send the TRA invoice", "companyName": null, "assigneeNames": ["Dipto"], "priority": "Medium", "status": "Not Started", "deadline": null, "deadlineLabel": "by Friday", "category": "Finance", "escalation": "No" }, { "actionItem": "Chase Gofiber about the printer", "companyName": null, "assigneeNames": [], "priority": "High", "status": "Not Started", "deadline": null, "deadlineLabel": null, "category": "Operations", "escalation": "No" } ] }`;
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: notes },
-        ],
-        max_tokens: 2500,
-        temperature: 0.15,
-        response_format: { type: "json_object" },
-      }),
+    const result = await callGroqJson({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: notes },
+      ],
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: 2500,
+      temperature: 0.15,
     });
 
-    if (!res.ok) {
-      console.error("AI meeting extract failed:", res.status);
-      return { ok: false, reason: "http-error", detail: `HTTP ${res.status}` };
+    if (!result.ok || !result.data) {
+      console.error("AI meeting extract failed:", result.error);
+      return { ok: false, reason: "http-error", detail: result.error };
     }
-    const data = await res.json();
-    const content: string = data?.choices?.[0]?.message?.content ?? "{}";
-    // Strip-and-parse (guard 2): tolerate fences/prose around the JSON.
-    const parsed = parseJsonObject(content);
-    const rawTasks: any[] = Array.isArray(parsed?.tasks) ? (parsed!.tasks as any[]) : [];
+    const parsed = result.data;
+    const rawTasks: any[] = Array.isArray(parsed.tasks) ? (parsed.tasks as any[]) : [];
 
     const valid = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
     const validPriority = ["Critical", "High", "Medium", "Low"];

@@ -5,7 +5,7 @@
 //   POST { command, confirm: true }      → parses AND executes
 
 import { GROQ_FAST } from "@/lib/ai-models";
-import { parseJsonObject } from "@/lib/ai-json";
+import { callGroqJson } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -321,28 +321,16 @@ async function parseCommand(
     { role: "user", content: command },
   ];
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: GROQ_FAST,
-      messages,
-      max_tokens: 200,
-      temperature: 0.1,
-      response_format: { type: "json_object" },
-    }),
+  // Retry + timeout + strip-and-parse via the shared harness.
+  const result = await callGroqJson({
+    messages,
+    apiKey,
+    model: GROQ_FAST,
+    maxTokens: 200,
+    temperature: 0.1,
   });
-
-  if (!res.ok) return { type: "unknown", reason: `groq-${res.status}` };
-
-  const data = await res.json();
-  const content: string = data?.choices?.[0]?.message?.content?.trim() ?? "{}";
-  // Strip-and-parse (guard 2): tolerate code fences / stray prose around the JSON.
-  const parsed = parseJsonObject(content);
-  return parsed ? (parsed as ParsedIntent) : { type: "unknown", reason: "bad-json" };
+  if (!result.ok || !result.data) return { type: "unknown", reason: result.error ?? "bad-json" };
+  return result.data as ParsedIntent;
 }
 
 type TaskRow = {

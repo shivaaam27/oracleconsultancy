@@ -61,6 +61,10 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: groqForm,
+      // Audio upload + transcription can run longer than a chat call; cap well
+      // under the 60s function wall so a hung request can't block the whole time.
+      // A timeout throws -> caught below -> client falls back to browser speech.
+      signal: AbortSignal.timeout(45000),
     });
 
     if (!res.ok) {

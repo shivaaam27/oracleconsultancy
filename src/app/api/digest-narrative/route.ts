@@ -1,4 +1,5 @@
 import { GROQ_FAST } from "@/lib/ai-models";
+import { callGroqText } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqKey } from "@/lib/settings";
 
@@ -29,32 +30,22 @@ export async function POST(req: NextRequest) {
 
 ${JSON.stringify(stats, null, 2)}`;
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 350,
-        temperature: 0.3,
-      }),
+    const result = await callGroqText({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: 350,
+      temperature: 0.3,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("Digest narrative error:", res.status, err);
-      return NextResponse.json({ result: "", source: "error", error: err.slice(0, 500) });
+    if (!result.ok || !result.text) {
+      console.error("Digest narrative error:", result.error);
+      return NextResponse.json({ result: "", source: "error", error: result.error });
     }
-
-    const data = await res.json();
-    const aiResult: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
-    return NextResponse.json({ result: aiResult, source: "ai" });
+    return NextResponse.json({ result: result.text.trim(), source: "ai" });
   } catch (e) {
     console.error("Digest narrative route error:", e);
     return NextResponse.json({ result: "", source: "error" });

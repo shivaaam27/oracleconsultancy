@@ -333,6 +333,7 @@ export function CommandPaletteProvider({
 
   async function runAsk(text: string) {
     setThinking(true);
+    let streamId: string | null = null;
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
@@ -355,19 +356,26 @@ export function CommandPaletteProvider({
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let acc = "";
-      let id: string | null = null;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         acc += dec.decode(value, { stream: true });
-        if (!id) { id = newId(); setThinking(false); append({ id, role: "assistant", text: acc, streaming: true }); }
-        else updateMsg(id, { text: acc });
+        if (!streamId) { streamId = newId(); setThinking(false); append({ id: streamId, role: "assistant", text: acc, streaming: true }); }
+        else updateMsg(streamId, { text: acc });
       }
-      if (id) updateMsg(id, { streaming: false, taskCount });
+      if (streamId) updateMsg(streamId, { streaming: false, taskCount });
       else { setThinking(false); append({ id: newId(), role: "assistant", text: "(no answer)" }); }
     } catch {
       setThinking(false);
-      append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
+      // If the stream failed mid-answer, finalise the partial bubble and flag it
+      // as cut off — never leave a half-answer that looks complete (or a cursor
+      // pulsing forever).
+      if (streamId) {
+        updateMsg(streamId, { streaming: false });
+        append({ id: newId(), role: "error", text: "That answer was cut off before it finished. Tap to try again.", retry: text });
+      } else {
+        append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
+      }
     }
   }
 

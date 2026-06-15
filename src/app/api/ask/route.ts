@@ -3,6 +3,7 @@
 // from the DB and asks Groq to answer using that context.
 
 import { GROQ_FAST } from "@/lib/ai-models";
+import { callGroqText } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -458,36 +459,70 @@ export async function POST(req: NextRequest) {
       { role: "user", content: question },
     ];
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GROQ_FAST,
+    // Non-streaming answers go through the shared harness (retry + timeout).
+    if (!wantStream) {
+      const result = await callGroqText({
         messages,
-        max_tokens: 600,
+        apiKey,
+        model: GROQ_FAST,
+        maxTokens: 600,
         temperature: 0.2,
-        stream: wantStream,
-      }),
-    });
+      });
+      if (!result.ok || !result.text) {
+        return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
+      }
+      return NextResponse.json({
+        answer: result.text.trim(),
+        taskCount: context.tasks.length,
+        meetingCount: context.meetings.length,
+        source: "ai",
+      });
+    }
+
+    // Streaming: the harness buffers, so streaming keeps a direct fetch. A
+    // connection timeout guards against a hung Groq; a 600-token answer streams
+    // well within the 60s function wall.
+    let res: Response;
+    try {
+      res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: GROQ_FAST,
+          messages,
+          max_tokens: 600,
+          temperature: 0.2,
+          stream: true,
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (e) {
+      console.error("Ask stream connect error:", e);
+      return NextResponse.json({ error: "groq-timeout" }, { status: 504 });
+    }
 
     if (!res.ok) {
       const err = await res.text();
       console.error("Ask error:", res.status, err);
       return NextResponse.json({ error: `groq-${res.status}`, detail: err.slice(0, 500) }, { status: 502 });
     }
+    if (!res.body) {
+      return NextResponse.json({ error: "groq-no-body" }, { status: 502 });
+    }
 
-    // Streaming: proxy Groq's SSE straight through to the client as plain text
-    // deltas. taskCount is known already, so send it in a header.
-    if (wantStream && res.body) {
-      const upstream = res.body.getReader();
-      const decoder = new TextDecoder();
-      const encoder = new TextEncoder();
-      let buffer = "";
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(controller) {
+    // Proxy Groq's SSE through to the client as plain-text deltas. On a mid-stream
+    // failure we controller.error() rather than close silently, so the client can
+    // tell a truncated half-answer apart from a complete one.
+    const upstream = res.body.getReader();
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    let buffer = "";
+    const stream = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
           const { done, value } = await upstream.read();
           if (done) { controller.close(); return; }
           buffer += decoder.decode(value, { stream: true });
@@ -504,26 +539,19 @@ export async function POST(req: NextRequest) {
               if (delta) controller.enqueue(encoder.encode(delta));
             } catch { /* skip keep-alives / partial frames */ }
           }
-        },
-        cancel() { upstream.cancel().catch(() => {}); },
-      });
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          "X-Task-Count": String(context.tasks.length),
-        },
-      });
-    }
-
-    const data = await res.json();
-    const answer: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
-
-    return NextResponse.json({
-      answer,
-      taskCount: context.tasks.length,
-      meetingCount: context.meetings.length,
-      source: "ai",
+        } catch (e) {
+          controller.error(e); // surface mid-stream failure to the client
+        }
+      },
+      cancel() { upstream.cancel().catch(() => {}); },
+    });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Task-Count": String(context.tasks.length),
+        "X-Meeting-Count": String(context.meetings.length),
+      },
     });
   } catch (e) {
     console.error("Ask route error:", e);

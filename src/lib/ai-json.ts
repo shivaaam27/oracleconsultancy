@@ -118,6 +118,11 @@ export function validateShape(obj: Record<string, unknown> | null, shape: ShapeS
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+/** Default per-attempt request timeout. Without it, a hung Groq request blocks
+ *  until the platform's 60s function wall. A thrown AbortError is caught as a
+ *  transient "network" error, so a timeout simply triggers the existing retry. */
+export const DEFAULT_TIMEOUT_MS = 20000;
+
 export type GroqJsonError =
   | "no-key"
   | "rate-limited" // 429 after all retries
@@ -154,6 +159,8 @@ export interface CallGroqJsonOpts {
   attempts?: number;
   /** Base backoff in ms (default 500 -> 500, 1000, 2000 …). */
   backoffMs?: number;
+  /** Per-attempt request timeout in ms (default DEFAULT_TIMEOUT_MS). */
+  timeoutMs?: number;
 }
 
 /**
@@ -171,6 +178,7 @@ export async function callGroqJson(opts: CallGroqJsonOpts): Promise<GroqJsonResu
     shape,
     attempts = 3,
     backoffMs = 500,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
   } = opts;
 
   if (!apiKey) return { ok: false, data: null, confidence: null, error: "no-key" };
@@ -190,9 +198,10 @@ export async function callGroqJson(opts: CallGroqJsonOpts): Promise<GroqJsonResu
           max_tokens: maxTokens,
           response_format: { type: "json_object" },
         }),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
-      lastError = "network"; // transient — retry
+      lastError = "network"; // transient (incl. AbortError timeout) — retry
       continue;
     }
     // Retry the genuinely transient HTTP statuses; give up on the rest.
@@ -238,3 +247,91 @@ function readConfidence(obj: Record<string, unknown>): number | null {
  *  document when the model is genuinely confident; everything else waits for a
  *  one-tap human confirm. Reconfirming is cheap now (cache-backed). */
 export const LOW_CONFIDENCE = 0.75;
+
+// --- callGroqText: the prose sibling of callGroqJson -----------------------
+//
+// Same retry / backoff / timeout guards as callGroqJson, but returns free text
+// (no JSON mode) and supports an optional model-fallback ladder (e.g. try the
+// stronger model first, drop to the fast one if it is busy). Used by every prose
+// caller — Ask COS, company summary, meeting minutes/notes/insight, action-item
+// polish, draft narrative — so a brief 429 / 5xx / hang is retried instead of
+// dropping to a weaker fallback (or erroring) on the first hiccup.
+
+export type GroqTextError = "no-key" | "rate-limited" | "http-error" | "network" | "empty";
+
+export interface GroqTextResult {
+  ok: boolean;
+  text: string | null;
+  error?: GroqTextError;
+  /** Last HTTP status seen, for logging. */
+  status?: number;
+}
+
+export interface CallGroqTextOpts {
+  messages: unknown[];
+  apiKey: string | null | undefined;
+  /** Single model (ignored when `models` is given). Defaults to GROQ_FAST. */
+  model?: string;
+  /** Optional fallback ladder, tried in order on persistent transient failure. */
+  models?: string[];
+  maxTokens?: number;
+  temperature?: number;
+  /** Attempts PER model (default 3). */
+  attempts?: number;
+  /** Base backoff in ms (default 500 -> 500, 1000, 2000 …). */
+  backoffMs?: number;
+  /** Per-attempt request timeout in ms (default DEFAULT_TIMEOUT_MS). */
+  timeoutMs?: number;
+}
+
+export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResult> {
+  const {
+    messages,
+    apiKey,
+    maxTokens = 600,
+    temperature = 0.2,
+    attempts = 3,
+    backoffMs = 500,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  } = opts;
+
+  if (!apiKey) return { ok: false, text: null, error: "no-key" };
+
+  const ladder = opts.models?.length ? opts.models : [opts.model ?? GROQ_FAST];
+  let lastError: GroqTextError = "network";
+  let lastStatus: number | undefined;
+
+  for (const model of ladder) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (attempt > 0) await sleep(backoffMs * 2 ** (attempt - 1));
+      let res: Response;
+      try {
+        res = await fetch(GROQ_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
+          signal: AbortSignal.timeout(timeoutMs),
+        });
+      } catch {
+        lastError = "network"; // includes AbortError (timeout) — transient, retry
+        continue;
+      }
+      lastStatus = res.status;
+      if (res.status === 429) { lastError = "rate-limited"; continue; }
+      if (res.status >= 500) { lastError = "http-error"; continue; }
+      if (!res.ok) return { ok: false, text: null, error: "http-error", status: res.status };
+
+      let content: string | null = null;
+      try {
+        const body = await res.json();
+        content = body?.choices?.[0]?.message?.content ?? null;
+      } catch {
+        lastError = "http-error"; continue;
+      }
+      if (!content) { lastError = "empty"; continue; }
+      return { ok: true, text: content, status: res.status };
+    }
+    // this model exhausted its attempts on a transient error — fall to the next
+  }
+  return { ok: false, text: null, error: lastError, status: lastStatus };
+}

@@ -1,4 +1,5 @@
 import { GROQ_FAST } from "@/lib/ai-models";
+import { callGroqText } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqKey } from "@/lib/settings";
 import { polishActionItem } from "@/lib/smart-parse";
@@ -69,36 +70,26 @@ export async function POST(req: NextRequest) {
       systemPrompt = buildSystemPrompt([], [], []);
     }
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GROQ_FAST,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: text },
-        ],
-        max_tokens: 80,
-        temperature: 0.15,
-      }),
+    const result = await callGroqText({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text },
+      ],
+      apiKey,
+      model: GROQ_FAST,
+      maxTokens: 80,
+      temperature: 0.15,
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      console.error("Groq error:", res.status, err);
+    if (!result.ok || !result.text) {
       return NextResponse.json({
         result: fallback,
         source: "rules",
-        debug: `groq-${res.status}`,
+        debug: `groq-${result.error}`,
       });
     }
 
-    const data = await res.json();
-    const aiResult: string =
-      data?.choices?.[0]?.message?.content?.trim() ?? "";
+    const aiResult: string = result.text.trim();
 
     if (!aiResult || aiResult.length > 200 || aiResult.includes("\n")) {
       return NextResponse.json({

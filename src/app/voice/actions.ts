@@ -1,6 +1,7 @@
 "use server";
 
 import { GROQ_FAST, GROQ_SMART } from "@/lib/ai-models";
+import { DEFAULT_TIMEOUT_MS } from "@/lib/ai-json";
 import { getAppSettings, getGroqKey, saveAppSettings } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 
@@ -68,11 +69,17 @@ async function groqOnce(
   apiKey: string,
   body: Record<string, unknown>,
 ): Promise<{ ok: true; content: string } | { ok: false; status: number; transient: boolean }> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+    });
+  } catch {
+    return { ok: false, status: 0, transient: true }; // network / timeout — transient, retry
+  }
   if (res.ok) {
     const data = await res.json();
     return { ok: true, content: String(data?.choices?.[0]?.message?.content || "").trim() };
