@@ -16,7 +16,7 @@ export const siteNameMap = cache(async (): Promise<Map<number, string>> => {
 export type SiteAdminRow = { id: number; name: string; workCount: number; residenceCount: number };
 
 /** Sites with usage counts (people based here / living here), for the admin. */
-export async function getSitesAdmin(): Promise<SiteAdminRow[]> {
+export const getSitesAdmin = cache(async (): Promise<SiteAdminRow[]> => {
   const [{ data: rows }, { data: ppl }] = await Promise.all([
     sb.from("sites").select("id,name").order("name"),
     sb.from("people").select("work_site_id,residence_site_id,active"),
@@ -30,7 +30,7 @@ export async function getSitesAdmin(): Promise<SiteAdminRow[]> {
     const r = p.residence_site_id as number | null; if (r != null) res.set(r, (res.get(r) ?? 0) + 1);
   }
   return (rows ?? []).map((s) => ({ id: s.id as number, name: s.name as string, workCount: work.get(s.id as number) ?? 0, residenceCount: res.get(s.id as number) ?? 0 }));
-}
+});
 
 /** Resolve a site by name, creating it if new. Returns its id (or null for blank). */
 export async function resolveSiteId(name: string | null | undefined): Promise<number | null> {
