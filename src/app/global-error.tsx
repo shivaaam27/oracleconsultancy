@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 
 /* Last-resort boundary: only fires when the ROOT layout itself errors (so it
  * must render its own <html>/<body>). Kept dependency-free and inline-styled so
@@ -14,6 +15,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[global] fatal error:", error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (

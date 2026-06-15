@@ -154,7 +154,10 @@ export const personCompanies = pgTable(
     companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
     relationship: text("relationship"),
   },
-  (t) => [primaryKey({ columns: [t.personId, t.companyId] })]
+  (t) => [
+    primaryKey({ columns: [t.personId, t.companyId] }),
+    index("person_companies_company_idx").on(t.companyId),
+  ]
 );
 
 // Organogram — secondary / "dotted-line" reporting. The PRIMARY manager stays on
@@ -169,7 +172,10 @@ export const reportingLines = pgTable(
     // Optional label for the relationship, e.g. "Functional", "Project", "Dotted".
     note: text("note"),
   },
-  (t) => [primaryKey({ columns: [t.personId, t.managerId] })]
+  (t) => [
+    primaryKey({ columns: [t.personId, t.managerId] }),
+    index("reporting_lines_manager_idx").on(t.managerId),
+  ]
 );
 
 // HR compliance — requirement profiles (one per person type) and their items.
@@ -233,7 +239,10 @@ export const personRequirements = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   },
-  (t) => [uniqueIndex("person_requirements_person_item_idx").on(t.personId, t.itemId)]
+  (t) => [
+    uniqueIndex("person_requirements_person_item_idx").on(t.personId, t.itemId),
+    index("person_requirements_document_idx").on(t.documentId),
+  ]
 );
 
 // Per-company document compliance checklist. Mirrors person_requirements, but
@@ -264,7 +273,10 @@ export const companyRequirements = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   },
-  (t) => [uniqueIndex("company_requirements_company_source_idx").on(t.companyId, t.sourceKey)]
+  (t) => [
+    uniqueIndex("company_requirements_company_source_idx").on(t.companyId, t.sourceKey),
+    index("company_requirements_document_idx").on(t.documentId),
+  ]
 );
 
 // Append-only audit trail for document-compliance actions (verify, waive, link,
@@ -557,7 +569,12 @@ export const tasks = pgTable("tasks", {
   // (manager/director/HR); null for owner/web-ui created tasks. Powers the
   // "raised by" column and the "Tasks I assigned" portal view.
   createdByPersonId: integer("created_by_person_id").references(() => people.id),
-});
+}, (t) => [
+  index("tasks_company_idx").on(t.companyId),
+  index("tasks_owner_idx").on(t.ownerId),
+  index("tasks_status_idx").on(t.status),
+  index("tasks_created_by_idx").on(t.createdByPersonId),
+]);
 
 export const taskAssignees = pgTable(
   "task_assignees",
@@ -569,7 +586,10 @@ export const taskAssignees = pgTable(
     // additional accountable people are assignees with this role.
     role: text("role").notNull().default("working"),
   },
-  (t) => [primaryKey({ columns: [t.taskId, t.personId] })]
+  (t) => [
+    primaryKey({ columns: [t.taskId, t.personId] }),
+    index("task_assignees_person_idx").on(t.personId),
+  ]
 );
 
 // Web-push device subscriptions per recipient ("admin" or "person:<id>").
@@ -598,7 +618,7 @@ export const notifications = pgTable("notifications", {
   actor: text("actor"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   readAt: timestamp("read_at", { mode: "date", withTimezone: true }),
-});
+}, (t) => [index("notifications_recipient_idx").on(t.recipient)]);
 
 // People @mentioned in an update — drives highlight now, notifications in T4.
 export const updateMentions = pgTable(
@@ -655,7 +675,7 @@ export const taskUpdates = pgTable("task_updates", {
   /** Optional file attached to this message — stored as a real `documents`
    *  row (so it appears in the Documents centre and is linked to the task). */
   attachmentDocumentId: integer("attachment_document_id"),
-});
+}, (t) => [index("task_updates_task_idx").on(t.taskId)]);
 
 /* ------------------------------------------------------------------ *
  * Chat — free-standing messaging, separate from task `task_updates`.
@@ -688,7 +708,10 @@ export const chatParticipants = pgTable(
     lastReadAt: timestamp("last_read_at", { mode: "date", withTimezone: true }),
     mutedAt: timestamp("muted_at", { mode: "date", withTimezone: true }),
   },
-  (t) => [primaryKey({ columns: [t.threadId, t.participant] })]
+  (t) => [
+    primaryKey({ columns: [t.threadId, t.participant] }),
+    index("chat_participants_participant_idx").on(t.participant),
+  ]
 );
 
 export const chatMessages = pgTable("chat_messages", {
@@ -704,7 +727,7 @@ export const chatMessages = pgTable("chat_messages", {
   editedAt: timestamp("edited_at", { mode: "date", withTimezone: true }),
   originalBody: text("original_body"),
   deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
-});
+}, (t) => [index("chat_messages_thread_idx").on(t.threadId)]);
 
 // People @mentioned in a chat message — mirrors update_mentions.
 export const chatMessageMentions = pgTable(
@@ -805,7 +828,7 @@ export const outbox = pgTable("outbox", {
   scheduledFor: timestamp("scheduled_for", { mode: "date", withTimezone: true }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   sentAt: timestamp("sent_at", { mode: "date", withTimezone: true }),
-});
+}, (t) => [index("outbox_person_idx").on(t.personId)]);
 
 export const dailySnapshots = pgTable(
   "daily_snapshots",
@@ -886,7 +909,7 @@ export const todos = pgTable("todos", {
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
-});
+}, (t) => [index("todos_person_idx").on(t.personId)]);
 
 // Director Brief notes — free narrative the operator writes by hand: Admin/HR
 // "updates" that aren't tasks (e.g. "Renewed the office lease", "Onboarded two
@@ -945,7 +968,10 @@ export const calendarEvents = pgTable("calendar_events", {
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
-});
+}, (t) => [
+  index("calendar_events_start_idx").on(t.startAt),
+  index("calendar_events_company_idx").on(t.companyId),
+]);
 
 // Compliance & Documents centre — tracks licences, contracts, certificates,
 // registrations, insurance, leases, permits, immigration/visas, tax filings, etc.
@@ -1013,7 +1039,12 @@ export const documents = pgTable("documents", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
-});
+}, (t) => [
+  index("documents_company_idx").on(t.companyId),
+  index("documents_person_idx").on(t.personId),
+  index("documents_vendor_idx").on(t.vendorId),
+  index("documents_file_hash_idx").on(t.fileHash),
+]);
 
 // Extraction memory: the AI's structured read of a file, keyed by the file's
 // CONTENT hash. Reading the same bytes again returns this cached result with no
@@ -1091,7 +1122,7 @@ export const stockPurchases = pgTable("stock_purchases", {
   ref: text("ref"), // invoice / PO number
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
-});
+}, (t) => [index("stock_purchases_item_idx").on(t.itemCode)]);
 
 // Stock OUT. Each row lowers the linked item's current stock automatically.
 // `companyId` tags the issue to one of the 7 portfolio companies (replaces the
@@ -1106,7 +1137,7 @@ export const stockIssues = pgTable("stock_issues", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
-});
+}, (t) => [index("stock_issues_item_idx").on(t.itemCode)]);
 
 // HRMS — Asset Register. Durable, individually-tracked company assets (laptops,
 // phones, vehicles, access cards) — distinct from consumable OECR stock. Each
@@ -1146,7 +1177,10 @@ export const assets = pgTable("assets", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
-});
+}, (t) => [
+  index("assets_company_idx").on(t.companyId),
+  index("assets_assigned_person_idx").on(t.assignedToPersonId),
+]);
 
 // Assign/return ledger for assets. An open row (returnedAt IS NULL) = currently held.
 export const assetAssignments = pgTable("asset_assignments", {
@@ -1158,7 +1192,10 @@ export const assetAssignments = pgTable("asset_assignments", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
-});
+}, (t) => [
+  index("asset_assignments_asset_idx").on(t.assetId),
+  index("asset_assignments_person_idx").on(t.personId),
+]);
 
 // HRMS — Site tools & equipment. Quantity-tracked, site-owned durable tools
 // (spanners, buckets, saws) — distinct from individually-serialised assets and
@@ -1276,7 +1313,7 @@ export const publicHolidays = pgTable("public_holidays", {
   name: text("name").notNull(),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-});
+}, (t) => [index("public_holidays_date_idx").on(t.date)]);
 
 // Leave requests — the owner approves/rejects. `days` is working days (Mon–Sat
 // minus holidays), supports half-days.
@@ -1297,7 +1334,10 @@ export const leaveRequests = pgTable("leave_requests", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
-});
+}, (t) => [
+  index("leave_requests_person_idx").on(t.personId),
+  index("leave_requests_status_idx").on(t.status),
+]);
 
 // Daily attendance register — one row per (person, date). Status:
 // Present | Absent | On leave | Holiday | Remote | Half-day | Sick.
@@ -1312,7 +1352,10 @@ export const attendance = pgTable(
     createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   },
-  (t) => [uniqueIndex("attendance_person_date_idx").on(t.personId, t.date)]
+  (t) => [
+    uniqueIndex("attendance_person_date_idx").on(t.personId, t.date),
+    index("attendance_date_idx").on(t.date),
+  ]
 );
 
 // Recurring statutory / admin obligations — the cadence master list (from the
@@ -1441,7 +1484,10 @@ export const announcementReceipts = pgTable(
     seenAt: timestamp("seen_at", { mode: "date", withTimezone: true }),
     ackAt: timestamp("ack_at", { mode: "date", withTimezone: true }),
   },
-  (t) => [primaryKey({ columns: [t.announcementId, t.recipient] })]
+  (t) => [
+    primaryKey({ columns: [t.announcementId, t.recipient] }),
+    index("announcement_receipts_recipient_idx").on(t.recipient),
+  ]
 );
 
 // Emoji reactions on an announcement (one row per person+emoji; toggles).
@@ -1466,4 +1512,4 @@ export const announcementComments = pgTable("announcement_comments", {
   // True when posted by the author/owner as an answer (rendered differently).
   isAnswer: boolean("is_answer").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
-});
+}, (t) => [index("announcement_comments_announcement_idx").on(t.announcementId)]);
