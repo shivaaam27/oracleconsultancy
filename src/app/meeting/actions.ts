@@ -10,7 +10,7 @@ import { sb } from "@/db/supabase";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 import { verifyProseAgainstSource, type ProseFlag } from "@/lib/ai-verify";
-import { indexEmbedding } from "@/lib/embeddings";
+import { indexEmbedding, removeEmbedding } from "@/lib/embeddings";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 export type SavedMeeting = {
@@ -166,6 +166,7 @@ export async function saveMeeting(input: {
 export async function deleteMeeting(id: number): Promise<void> {
   const { error } = await sb.from("meetings").delete().eq("id", id);
   if (error) throw new Error(error.message);
+  void removeEmbedding("meeting", id);
   revalidatePath("/meeting");
   revalidatePath("/workbook");
 }

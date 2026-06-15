@@ -1,10 +1,27 @@
 {
-  "note": "Golden set for semantic-search evaluation (run: npm run eval:search). Each case: a real question + 'expect' = words/task-codes that SHOULD appear in a correct top result. EXPAND THIS with your own real questions, and keep some Swahili/Hindi/Gujarati cases as the multilingual regression guard. A phase only ships if Recall@10 + MRR don't drop.",
+  "note": "Golden set for semantic-search evaluation (run: npm run eval:search). Each case = a real question + 'expect' = words/task-codes that SHOULD appear in a correct top result (case-insensitive substring match against the result's label + content). Seeded from real data; EXPAND/CORRECT with your own questions. Keep the Swahili cases (and add Hindi/Gujarati) as the multilingual regression guard. A phase only ships if Recall@10 + MRR don't drop. Note: a 'MISS' may just mean the 'expect' words are wrong for your data — tune them.",
   "cases": [
-    { "query": "tax filing and TRA accounts", "expect": ["TRA", "tax"] },
-    { "query": "overdue payments and invoices", "expect": ["payment", "tax", "rent", "withholding"] },
-    { "query": "bank reconciliation", "expect": ["reconciliation", "bank"] },
-    { "query": "withholding tax certificate", "expect": ["withholding"] },
-    { "query": "malipo ya kodi na ankara", "expect": ["tax", "payment", "TRA", "withholding"] }
+    { "query": "outstanding tax across all the companies", "expect": ["tax", "TRA"] },
+    { "query": "TRA accounts finalization and machine processing", "expect": ["TRA"] },
+    { "query": "unfiled provisional tax returns", "expect": ["tax return", "provision"] },
+    { "query": "bank and machine reconciliation", "expect": ["reconciliation", "bank"] },
+    { "query": "update the employment contract", "expect": ["contract", "employment"] },
+    { "query": "lease agreement for premises", "expect": ["lease"] },
+    { "query": "OSHA health and safety training", "expect": ["OSHA", "training"] },
+    { "query": "repair the office glass door", "expect": ["door", "repair"] },
+    { "query": "launch the live website", "expect": ["website"] },
+    { "query": "company structure and org chart", "expect": ["structure"] },
+    { "query": "business visa and work permit", "expect": ["visa", "permit"] },
+    { "query": "VAT and TIN tax certificate", "expect": ["TIN", "VAT", "tax certificate"] },
+    { "query": "certificate of incorporation of the company", "expect": ["incorporation"] },
+    { "query": "yellow fever vaccination certificate", "expect": ["yellow fever", "vaccination"] },
+    { "query": "premises registration permit", "expect": ["premises", "registration permit"] },
+    { "query": "memorandum and articles of association", "expect": ["memorandum", "articles"] },
+    { "query": "who is the senior accountant", "expect": ["accountant", "hriday"] },
+    { "query": "operations manager", "expect": ["operations manager", "hanisha"] },
+    { "query": "business development manager", "expect": ["business development", "diptobrato"] },
+    { "query": "the company directors", "expect": ["director", "manek"] },
+    { "query": "mkataba wa ajira na wafanyakazi", "expect": ["contract", "employment"] },
+    { "query": "malipo ya kodi na TRA", "expect": ["tax", "TRA"] }
   ]
 }

@@ -134,7 +134,13 @@ separate "key missing" from "AI switched off" (both surface as `no-key` today, c
   (Groq translate→English for Devanagari/Gujarati + Swahili-heuristic) before embedding;
   original text kept for FTS. `embeddings.ts` rewritten; `indexEmbedding` now chunk-aware;
   `hybridSearch`/`semanticSearch` exported. tsc clean, 42 tests pass, eval green.
-- **Part A S5 (durable multilingual EU container) + S6 (freshness: update-reembed +
-  repair cron + ON DELETE CASCADE): NOT built — owner decides on S5 (the ~£3-7/mo cost).**
-  Also still: index UPDATES (only creates hooked today; backfill is re-runnable meanwhile).
+- **Part A S6: BUILT + LIVE.** `src/lib/embeddings-reindex.ts` `reindexAll()` re-indexes
+  all active rows (content_hash skip) + removes orphan/archived vectors; nightly cron
+  `/api/cron/reindex` (vercel.json 05:00, authoriseCron, no-op when toggle off); immediate
+  delete hooks on `deleteMeeting` + `setDocumentArchived`; backfill refactored to call
+  `reindexAll(true)` (DRY). Covers edits (re-embed on change), deletes/archives (orphan
+  sweep), and missed fire-and-forget hooks. Golden set expanded to 22 real cases (incl. 2
+  Swahili) → Recall@10 95%, MRR 0.92.
+- **Part A S5 (durable multilingual EU container, multilingual-e5-small ~£3-7/mo): NOT
+  built — owner's cost decision.** That's the only remaining advanced-search phase.
 - Part B (Phases 4/5/6 + deferred): PLANNED, parked.

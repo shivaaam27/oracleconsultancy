@@ -6,7 +6,7 @@
 import { cache } from "react";
 import { createHash } from "crypto";
 import { sb } from "@/db/supabase";
-import { indexEmbedding } from "@/lib/embeddings";
+import { indexEmbedding, removeEmbedding } from "@/lib/embeddings";
 import { DEFAULT_LEAD_DAYS, type DocumentRow } from "./documents-shared";
 
 export * from "./documents-shared";
@@ -203,6 +203,8 @@ export async function setDocumentArchived(id: number, archived: boolean): Promis
     .update({ archived, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
+  // Drop its vectors immediately on archive (the nightly sweep would catch it too).
+  if (archived) void removeEmbedding("document", id);
 }
 
 /* ---------------------------------------------------------------------- */
