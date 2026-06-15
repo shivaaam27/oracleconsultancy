@@ -15,12 +15,12 @@ export function friendlyAIError(raw: string | null | undefined): FriendlyError {
   if (groq) {
     const status = Number(groq[1]);
     if (status === 429 || status === 413)
-      return { message: "Oracle Intelligence is busy right now — give it a moment and try again.", retryable: true };
+      return { message: "ORI is busy right now — give it a moment and try again.", retryable: true };
     if (status === 401 || status === 403)
-      return { message: "Oracle Intelligence's AI key isn't working. Check the AI key in Settings.", retryable: false };
+      return { message: "ORI's AI key isn't working. Check the AI key in Settings.", retryable: false };
     if (status >= 500)
       return { message: "The AI service had a hiccup. Try again in a moment.", retryable: true };
-    return { message: "Oracle Intelligence couldn't complete that. Try rephrasing, or try again.", retryable: true };
+    return { message: "ORI couldn't complete that. Try rephrasing, or try again.", retryable: true };
   }
 
   switch (code) {
@@ -28,7 +28,7 @@ export function friendlyAIError(raw: string | null | undefined): FriendlyError {
     case "ai not configured":
       return { message: "AI is switched off. Turn it on in Settings to ask questions.", retryable: false };
     case "bad-json":
-      return { message: "Oracle Intelligence didn't quite understand that. Try rephrasing it.", retryable: true };
+      return { message: "ORI didn't quite understand that. Try rephrasing it.", retryable: true };
     case "network error":
     case "network":
       return { message: "Couldn't reach the server — check your connection and try again.", retryable: true };

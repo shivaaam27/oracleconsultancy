@@ -216,8 +216,8 @@ export async function teachVoiceDictionary(term: string): Promise<{ saved: boole
     .map((item) => item.trim())
     .filter(Boolean);
   const seen = new Set(existing.map((item) => item.toLowerCase()));
-  if (seen.has(clean.toLowerCase())) return { saved: false, message: "Oracle Intelligence already knows that phrase." };
+  if (seen.has(clean.toLowerCase())) return { saved: false, message: "ORI already knows that phrase." };
 
   await saveAppSettings({ voiceDictionary: [...existing, clean].join("\n") });
-  return { saved: true, message: "Added to the Oracle Intelligence voice dictionary." };
+  return { saved: true, message: "Added to the ORI voice dictionary." };
 }

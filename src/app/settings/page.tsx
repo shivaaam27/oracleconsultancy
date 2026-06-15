@@ -95,7 +95,7 @@ export default async function SettingsPage({
         <div className="min-w-0 space-y-4">
           {/* About you */}
           <form action={saveSettings} className="space-y-4">
-            <SettingsCard id="about" icon={<Sparkles size={15} />} title="About you" desc="Your name — used to greet you in the Oracle Intelligence assistant.">
+            <SettingsCard id="about" icon={<Sparkles size={15} />} title="About you" desc="Your name — used to greet you in the ORI assistant.">
               <div className="max-w-xs">
                 <FieldLabel>Your name</FieldLabel>
                 <Input name="operatorName" defaultValue={s.operatorName} placeholder="e.g. Sunny" />
@@ -225,15 +225,15 @@ export default async function SettingsPage({
                     className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
                   />
                   <span className="text-sm">
-                    Semantic search (Ask COS)
-                    <span className="block text-xs text-fg-subtle">Let Ask COS find tasks, meetings and documents by meaning, not just matching words. Only switch on after the one-time setup (deploy the &ldquo;embed&rdquo; function and run the backfill — see SEMANTIC_SEARCH.md). Off = keyword search.</span>
+                    Semantic search (ORI)
+                    <span className="block text-xs text-fg-subtle">Let ORI find tasks, meetings and documents by meaning, not just matching words. Only switch on after the one-time setup (deploy the &ldquo;embed&rdquo; function and run the backfill — see SEMANTIC_SEARCH.md). Off = keyword search.</span>
                   </span>
                 </label>
               </div>
             </SettingsCard>
 
             {/* Voice */}
-            <SettingsCard id="voice" icon={<Mic2 size={15} />} title="Voice intelligence" desc="Dictation language and trusted words used when Oracle Intelligence cleans rough speech into polished notes.">
+            <SettingsCard id="voice" icon={<Mic2 size={15} />} title="Voice intelligence" desc="Dictation language and trusted words used when ORI cleans rough speech into polished notes.">
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <FieldLabel>Primary dictation language</FieldLabel>
@@ -245,12 +245,12 @@ export default async function SettingsPage({
                   </Select>
                 </div>
                 <div>
-                  <FieldLabel>Oracle Intelligence voice dictionary</FieldLabel>
+                  <FieldLabel>ORI voice dictionary</FieldLabel>
                   <Textarea
                     name="voiceDictionary"
                     rows={7}
                     defaultValue={s.voiceDictionary}
-                    placeholder="Add names, companies, places, acronyms, and phrases Oracle Intelligence should preserve..."
+                    placeholder="Add names, companies, places, acronyms, and phrases ORI should preserve..."
                   />
                 </div>
               </div>

@@ -501,7 +501,7 @@ export function CommandPaletteProvider({
                           }
                         }
                       }}
-                      placeholder="Search, ask Oracle Intelligence, or type a command…"
+                      placeholder="Search, ask ORI, or type a command…"
                       className="flex-1 w-full min-w-0 !bg-transparent !border-0 !rounded-none !shadow-none text-[15px] leading-6 focus:outline-none focus:!shadow-none focus:!ring-0 placeholder:text-fg-subtle"
                     />
                     <kbd className="shrink-0 text-[10px] font-mono text-fg-subtle border border-border rounded-md px-1.5 py-0.5">
@@ -510,13 +510,13 @@ export function CommandPaletteProvider({
                   </div>
                   <Command.List className="max-h-[460px] overflow-y-auto p-1.5">
                     <Command.Empty className="py-8 text-center text-sm text-fg-muted">
-                      {trimmed ? "Hit ↵ to ask Oracle Intelligence or run this command." : "No results."}
+                      {trimmed ? "Hit ↵ to ask ORI or run this command." : "No results."}
                     </Command.Empty>
 
                     {/* AI affordance — Enter routes to conversation. */}
                     {trimmed.length >= 2 && (
                       <Command.Group
-                        heading="Oracle Intelligence"
+                        heading="ORI"
                         className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <Command.Item
@@ -527,7 +527,7 @@ export function CommandPaletteProvider({
                         >
                           {routeToAction ? <Zap size={14} className="text-accent" /> : <Sparkles size={14} className="text-accent" />}
                           <span className="flex-1 truncate">
-                            {routeToAction ? "Run command" : "Ask Oracle Intelligence"}: <span className="text-fg-muted italic">"{trimmed}"</span>
+                            {routeToAction ? "Run command" : "Ask ORI"}: <span className="text-fg-muted italic">"{trimmed}"</span>
                           </span>
                           <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
                         </Command.Item>
@@ -541,12 +541,12 @@ export function CommandPaletteProvider({
                         className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
                       >
                         <Command.Item
-                          value="__qa ask oracle intelligence assistant"
+                          value="__qa ask ori oracle intelligence assistant"
                           onSelect={() => { setMode("chat"); }}
                           className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
                         >
                           <Sparkles size={14} className="text-accent" />
-                          <span className="flex-1">Ask Oracle Intelligence</span>
+                          <span className="flex-1">Ask ORI</span>
                           <kbd className="text-[10px] font-mono text-fg-subtle">↵</kbd>
                         </Command.Item>
                         <Command.Item
@@ -696,7 +696,7 @@ export function CommandPaletteProvider({
 }
 
 /* --------------------------------------------------------------------- */
-/* Conversation pane — the expanded "Ask Oracle Intelligence" surface.                   */
+/* Conversation pane — the expanded "Ask ORI" surface.                   */
 /* --------------------------------------------------------------------- */
 
 function ConversationPane({
@@ -735,7 +735,7 @@ function ConversationPane({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
-  // Proactive: pull a live snapshot so Oracle Intelligence opens knowing what's happening.
+  // Proactive: pull a live snapshot so ORI opens knowing what's happening.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/pulse", { cache: "no-store" })
@@ -818,7 +818,7 @@ function ConversationPane({
           <Sparkles size={15} />
         </span>
         <div className="flex flex-col leading-tight min-w-0">
-          <span className="font-semibold text-sm tracking-tight">Oracle Intelligence</span>
+          <span className="font-semibold text-sm tracking-tight">ORI</span>
           <span className="text-[10px] text-fg-muted truncate">{pageLabel}</span>
         </div>
         <button
