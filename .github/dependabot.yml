@@ -1,0 +1,37 @@
+# Dependabot — automated dependency hygiene, tuned for low noise.
+#
+# This file controls *version-update* PRs. The real security net is the two
+# repo toggles you enable once in GitHub:
+#   Settings → Code security and analysis →
+#     • Dependabot alerts            (tells you about vulnerabilities)
+#     • Dependabot security updates  (auto-opens PRs that ONLY fix vulnerabilities)
+# Those are the "security patches without chasing version fashion" piece.
+#
+# Below keeps routine version bumps to a single, grouped weekly PR so the
+# noticeboard stays quiet; security fixes are prioritised automatically.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Africa/Dar_es_Salaam"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      # One combined PR for all routine minor/patch bumps — easy to review or skip.
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Keep the GitHub Actions workflows current too (rarely changes, low noise).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "ci"
