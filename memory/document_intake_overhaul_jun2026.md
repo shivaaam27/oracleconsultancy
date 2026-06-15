@@ -49,6 +49,11 @@ Owner-requested sweep fixing the bulk-upload / smart-intake pain points. Built *
 - **`find-duplicates-button.tsx` + `duplicate-sweep-dialog.tsx`** (NEW) — "Find duplicates" on the Documents header → review clusters, pick which to keep, archive the rest (kept as history); "Fingerprint old files" runs the hash backfill.
 - **`company-documents.tsx`** — document **title is now clickable** to open the file. Person-drawer rows were already fully clickable.
 
+## Retro-fix for ALREADY-uploaded documents (commit 95a06d6)
+The above only changes NEW reads. For the existing library:
+- **Existing duplicates** → the "Find duplicates" sweep already scans all live docs (built in 6ffae2d). Press "Fingerprint old files" first so identical old copies are caught too.
+- **Existing wrong expiries / missed reads** → new **"Re-scan documents"** tool on `/documents` (button beside Find duplicates): per-company, re-reads each stored file with the new brain and PROPOSES corrections — **propose-then-approve, nothing changes silently**. Headline = fix the old false-expiry dates (proposes clearing a bogus expiry when expiryKind="no"); also fills blank issuer/ref/dates/owner and flags already-uploaded bundles to split. Actions: `listRescanCompaniesAction` / `listRescanCandidatesAction` / `rescanDocumentAction` (reads, saves nothing) / `applyDocumentRescanAction` (whitelisted patch of approved fields). UI `rescan-documents-dialog.tsx` processes sequentially with progress + Stop; per-field checkboxes. Owner chose: propose-all + per-company scope.
+
 ## Still open / notes
 - A `next build` wasn't run (heavy, needs 4 GB heap); `tsc` clean + `/documents` 200 in dev is the gate used.
 - Backfill is batched (40/call) — for a big library the owner presses "Fingerprint old files" a few times.
