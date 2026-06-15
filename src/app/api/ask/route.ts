@@ -412,7 +412,7 @@ async function buildContext(question: string, page?: PageCtx) {
     documentCtx = scored
       .filter((x) => x.include)
       .sort((a, b) => (daysToExpiry(a.d) ?? Infinity) - (daysToExpiry(b.d) ?? Infinity))
-      .slice(0, 20)
+      .slice(0, 12)
       .map(({ d, status }) => ({
         title: d.title,
         company: d.companyId ? cMap.get(d.companyId) ?? null : null,
@@ -425,7 +425,7 @@ async function buildContext(question: string, page?: PageCtx) {
       }));
     const companyScores = await buildCompanyRequirementScores(companies);
     const personScores = await buildPersonRequirementScores();
-    complianceCtx = worstComplianceScores([...companyScores, ...personScores], 12).map((score) => ({
+    complianceCtx = worstComplianceScores([...companyScores, ...personScores], 8).map((score) => ({
       owner: score.ownerName,
       ownerType: score.ownerType,
       score: score.score,
@@ -456,7 +456,7 @@ async function buildContext(question: string, page?: PageCtx) {
     people: peopleAll.map(p => p.name),
     matchedCompanies: matchedCompanies.map(c => c.name),
     matchedPeople: [...new Set([...matchedPeople.map(p => p.name), ...peopleAll.filter(p => semanticPersonIds.has(p.id)).map(p => p.name)])],
-    tasks: filtered.map(t => ({
+    tasks: filtered.slice(0, 12).map(t => ({
       code: t.code,
       action: t.actionItem,
       status: t.status,
@@ -465,24 +465,22 @@ async function buildContext(question: string, page?: PageCtx) {
       assignees: assigneesByTask[t.id] || [],
       deadline: t.deadline ? new Date(t.deadline).toISOString().slice(0, 10) : null,
       escalation: t.escalation,
-      latestUpdate: t.latestUpdate,
-      closedDate: t.closedDate ? new Date(t.closedDate).toISOString().slice(0, 10) : null,
+      latestUpdate: t.latestUpdate ? t.latestUpdate.slice(0, 140) : null,
       daysToDeadline: t.deadline ? Math.floor((new Date(t.deadline).getTime() - now) / 86400000) : null,
-      daysOpen: t.createdDate ? Math.floor((now - new Date(t.createdDate).getTime()) / 86400000) : null,
     })),
-    recentUpdates: updates.slice(0, 15).map(u => ({
+    recentUpdates: updates.slice(0, 8).map(u => ({
       taskId: filtered.find(t => t.id === u.taskId)?.code,
-      body: u.body.slice(0, 200),
+      body: u.body.slice(0, 130),
       createdAt: u.createdAt.toISOString().slice(0, 10),
     })),
-    meetings: meetingRows.slice(0, 12).map((m) => ({
+    meetings: meetingRows.slice(0, 6).map((m) => ({
       id: m.id as number,
       title: m.title as string,
       company: m.company_id ? cMap.get(m.company_id as number) ?? null : "Group-wide",
       date: m.meeting_date ? new Date(m.meeting_date as string).toISOString().slice(0, 10) : null,
       attendees: (m.attendees as string | null) ?? null,
-      minutes: ((m.minutes as string | null) ?? "").slice(0, 1400),
-      rawNotes: ((m.raw_notes as string | null) ?? "").slice(0, 900),
+      minutes: ((m.minutes as string | null) ?? "").slice(0, 500),
+      rawNotes: ((m.raw_notes as string | null) ?? "").slice(0, 300),
       linkedTaskCodes: tasksByMeeting[m.id as number] ?? [],
     })),
   };
@@ -493,7 +491,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const question: string = (body?.question ?? "").toString().trim();
     const history: { role: "user" | "assistant"; content: string }[] =
-      Array.isArray(body?.history) ? body.history.slice(-6) : [];
+      (Array.isArray(body?.history) ? body.history.slice(-4) : []).map(
+        (m: { role: "user" | "assistant"; content: string }) => ({ role: m.role, content: String(m.content ?? "").slice(0, 500) }),
+      );
     const pageContext: PageCtx | undefined = body?.pageContext ?? undefined;
     const wantStream: boolean = !!body?.stream;
     if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
