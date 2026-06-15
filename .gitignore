@@ -49,3 +49,6 @@ next-env.d.ts
 
 # Local DB backups (contain business data)
 backups/
+
+# Supabase CLI local cache (created by `supabase functions deploy`)
+supabase/.temp/
