@@ -545,30 +545,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Streaming: the harness buffers, so streaming keeps a direct fetch. A
-    // connection timeout guards against a hung Groq; a 600-token answer streams
-    // well within the 60s function wall.
-    let res: Response;
-    try {
-      res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: GROQ_FAST,
-          messages,
-          max_tokens: 600,
-          temperature: 0.2,
-          stream: true,
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
-    } catch (e) {
-      console.error("Ask stream connect error:", e);
-      return NextResponse.json({ error: "groq-timeout" }, { status: 504 });
+    // Streaming keeps a direct fetch (the harness buffers). Retry a transient
+    // 429/5xx — a busy free-tier minute, or another job using the same account —
+    // with backoff before giving up, mirroring the non-stream path's retries.
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
+      try {
+        res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: GROQ_FAST,
+            messages,
+            max_tokens: 600,
+            temperature: 0.2,
+            stream: true,
+          }),
+          signal: AbortSignal.timeout(30000),
+        });
+      } catch (e) {
+        console.error("Ask stream connect error:", e);
+        res = null;
+        continue;
+      }
+      if ((res.status === 429 || res.status >= 500) && attempt < 2) { res = null; continue; }
+      break;
     }
+    if (!res) return NextResponse.json({ error: "groq-timeout" }, { status: 504 });
 
     if (!res.ok) {
       const err = await res.text();
