@@ -195,15 +195,29 @@ export default async function SettingsPage({
 
             {/* AI */}
             <SettingsCard id="ai" icon={<Sparkles size={15} />} title="AI assistance" desc="Master switch for all AI features (Ask, polish, drafting, meeting extraction). Turn off to run the system fully manually — everything keeps working without AI.">
-              <label className="flex cursor-pointer select-none items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="aiEnabled"
-                  defaultChecked={s.aiEnabled}
-                  className="h-4 w-4 accent-[var(--accent)]"
-                />
-                <span className="text-sm">Enable AI features</span>
-              </label>
+              <div className="grid grid-cols-1 gap-3">
+                <label className="flex cursor-pointer select-none items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="aiEnabled"
+                    defaultChecked={s.aiEnabled}
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="text-sm">Enable AI features</span>
+                </label>
+                <label className="flex cursor-pointer select-none items-start gap-3">
+                  <input
+                    type="checkbox"
+                    name="aiHighQuality"
+                    defaultChecked={s.aiHighQuality}
+                    className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="text-sm">
+                    Higher-quality reading
+                    <span className="block text-xs text-fg-subtle">Use the stronger AI model to read documents and write meeting minutes — more accurate, a little slower. Turn off if AI feels slow or rate-limited.</span>
+                  </span>
+                </label>
+              </div>
             </SettingsCard>
 
             {/* Voice */}

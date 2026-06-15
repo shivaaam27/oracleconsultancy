@@ -7,7 +7,9 @@ import { revalidatePath, updateTag } from "next/cache";
 import { mutate } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
 import { sb } from "@/db/supabase";
-import { getGroqKey } from "@/lib/settings";
+import { getGroqKey, getQualityTextModel } from "@/lib/settings";
+import { loadContext } from "@/lib/ai-context";
+import { verifyProseAgainstSource, type ProseFlag } from "@/lib/ai-verify";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 export type SavedMeeting = {
@@ -161,12 +163,27 @@ export async function deleteMeeting(id: number): Promise<void> {
   revalidatePath("/workbook");
 }
 
+// Cheap post-check: flag any name or money figure in AI prose that isn't in the
+// source notes (or the known company/people list). Surfaced to the operator as a
+// "please confirm" note — never blocks. Best-effort; returns undefined on failure.
+async function verifyMeetingProse(output: string, source: string): Promise<ProseFlag[] | undefined> {
+  if (!output.trim()) return undefined;
+  try {
+    const ctx = await loadContext();
+    const known = [...ctx.companies.map((c) => c.name), ...ctx.people.map((p) => p.name)];
+    const flags = verifyProseAgainstSource(output, source, known);
+    return flags.length ? flags : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function generateMeetingMinutes(input: {
   title: string;
   companyName?: string | null;
   attendees?: string | null;
   rawNotes: string;
-}): Promise<{ minutes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string }> {
+}): Promise<{ minutes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string; flags?: ProseFlag[] }> {
   const apiKey = await getGroqKey();
   if (!input.rawNotes.trim()) return { minutes: "", source: "rules", message: "Add notes before generating minutes." };
   if (!apiKey) return { minutes: fallbackMinutes(input.rawNotes), source: "no-key" };
@@ -174,7 +191,7 @@ export async function generateMeetingMinutes(input: {
   try {
     const result = await callGroqText({
       apiKey,
-      model: GROQ_FAST,
+      model: await getQualityTextModel(),
       maxTokens: 900,
       temperature: 0.2,
       messages: [
@@ -207,7 +224,8 @@ Rules:
     });
     if (!result.ok || !result.text) return { minutes: fallbackMinutes(input.rawNotes), source: "error", message: result.error ? `AI error: ${result.error}` : undefined };
     const minutes = result.text.trim();
-    return { minutes: minutes || fallbackMinutes(input.rawNotes), source: minutes ? "ai" : "rules" };
+    const flags = await verifyMeetingProse(minutes, input.rawNotes);
+    return { minutes: minutes || fallbackMinutes(input.rawNotes), source: minutes ? "ai" : "rules", flags };
   } catch (err) {
     return {
       minutes: fallbackMinutes(input.rawNotes),
@@ -221,7 +239,7 @@ export async function improveMeetingNotes(input: {
   title: string;
   companyName?: string | null;
   rawNotes: string;
-}): Promise<{ notes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string }> {
+}): Promise<{ notes: string; source: "ai" | "rules" | "no-key" | "error"; message?: string; flags?: ProseFlag[] }> {
   const apiKey = await getGroqKey();
   if (!input.rawNotes.trim()) return { notes: "", source: "rules", message: "Add notes before cleaning them." };
   const fallback = fallbackCleanNotes(input.rawNotes);
@@ -257,7 +275,8 @@ Rules:
     });
     if (!result.ok || !result.text) return { notes: fallback, source: "error", message: result.error ? `AI error: ${result.error}` : undefined };
     const cleaned = result.text.trim();
-    return { notes: cleaned || fallback, source: cleaned ? "ai" : "rules" };
+    const flags = await verifyMeetingProse(cleaned, input.rawNotes);
+    return { notes: cleaned || fallback, source: cleaned ? "ai" : "rules", flags };
   } catch (err) {
     return {
       notes: fallback,
@@ -276,7 +295,7 @@ export async function generateMeetingInsight(input: {
   attendees?: string | null;
   rawNotes: string;
   minutes?: string | null;
-}): Promise<{ text: string; source: "ai" | "rules" | "no-key" | "error"; message?: string }> {
+}): Promise<{ text: string; source: "ai" | "rules" | "no-key" | "error"; message?: string; flags?: ProseFlag[] }> {
   const sourceText = [input.minutes, input.rawNotes].filter(Boolean).join("\n\n");
   if (!sourceText.trim()) return { text: "", source: "rules", message: "Add notes or minutes first." };
 
@@ -333,7 +352,8 @@ Preserve names, companies, dates, amounts, and task references.`,
     });
     if (!result.ok || !result.text) return { text: fallback, source: "error", message: result.error ? `AI error: ${result.error}` : undefined };
     const text = result.text.trim();
-    return { text: text || fallback, source: text ? "ai" : "rules" };
+    const flags = await verifyMeetingProse(text, sourceText);
+    return { text: text || fallback, source: text ? "ai" : "rules", flags };
   } catch (err) {
     return {
       text: fallback,

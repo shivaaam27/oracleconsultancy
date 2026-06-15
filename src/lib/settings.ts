@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { DUE_SOON_DAYS, AGING_CRITICAL_DAYS, BLOCKED_STALLED_DAYS } from "./derive";
+import { GROQ_FAST, GROQ_SMART } from "./ai-models";
 
 /**
  * Canonical V2 app settings. These are the ONLY settings that drive behaviour.
@@ -28,6 +29,9 @@ export type AppSettings = {
   weatherLat: number;
   weatherLon: number;
   aiEnabled: boolean;
+  /** Use the stronger (slower) model for high-stakes reads — document extraction
+   *  and meeting minutes. Owner can switch off if the 70B model is rate-limited. */
+  aiHighQuality: boolean;
   voiceLanguage: string;
   voiceDictionary: string;
   swipeRightAction: SwipeAction;
@@ -58,6 +62,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   weatherLat: -6.7924,
   weatherLon: 39.2083,
   aiEnabled: true,
+  aiHighQuality: true,
   voiceLanguage: "en-GB",
   voiceDictionary: [
     "Oracle Consultancy",
@@ -88,6 +93,7 @@ const KEY: Record<keyof AppSettings, string> = {
   weatherLat: "v2.weatherLat",
   weatherLon: "v2.weatherLon",
   aiEnabled: "v2.aiEnabled",
+  aiHighQuality: "v2.aiHighQuality",
   voiceLanguage: "v2.voiceLanguage",
   voiceDictionary: "v2.voiceDictionary",
   swipeRightAction: "v2.swipeRightAction",
@@ -128,6 +134,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     weatherLat: toNum(map.get(KEY.weatherLat), d.weatherLat),
     weatherLon: toNum(map.get(KEY.weatherLon), d.weatherLon),
     aiEnabled: toBool(map.get(KEY.aiEnabled), d.aiEnabled),
+    aiHighQuality: toBool(map.get(KEY.aiHighQuality), d.aiHighQuality),
     voiceLanguage: map.get(KEY.voiceLanguage) ?? d.voiceLanguage,
     voiceDictionary: map.get(KEY.voiceDictionary) ?? d.voiceDictionary,
     swipeRightAction: (map.get(KEY.swipeRightAction) as AppSettings["swipeRightAction"]) ?? d.swipeRightAction,
@@ -160,6 +167,16 @@ export async function getGroqKey(): Promise<string | undefined> {
   if (!key) return undefined;
   const { aiEnabled } = await getAppSettings();
   return aiEnabled ? key : undefined;
+}
+
+/**
+ * The text model used for higher-stakes reads (document extraction, meeting
+ * minutes). Defaults to the stronger model; the owner can drop to the faster
+ * one in Settings if the 70B model is being rate-limited.
+ */
+export async function getQualityTextModel(): Promise<string> {
+  const { aiHighQuality } = await getAppSettings();
+  return aiHighQuality ? GROQ_SMART : GROQ_FAST;
 }
 
 export type EmailConfig = {

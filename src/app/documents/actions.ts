@@ -1,6 +1,6 @@
 "use server";
 
-import { GROQ_FAST, GROQ_VISION } from "@/lib/ai-models";
+import { GROQ_VISION } from "@/lib/ai-models";
 import { callGroqJson, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
 import { recordFact } from "@/lib/facts";
 import { coerceFactValue } from "@/lib/facts-shared";
@@ -29,7 +29,7 @@ import { categoryExpiryDefault } from "@/lib/documents-shared";
 import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { getGroqKey } from "@/lib/settings";
+import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import { buildCompanyRequirementScores, getCompanyChecklist } from "@/lib/company-requirements";
@@ -1396,7 +1396,7 @@ export async function extractDocumentFields(text: string): Promise<ExtractResult
       { role: "system", content: "You extract structured data and reply with strict JSON only." },
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${trimmed.slice(0, 6000)}` },
     ],
-    GROQ_FAST,
+    await getQualityTextModel(),
     apiKey,
     900
   );
@@ -1497,7 +1497,7 @@ async function fieldsFromText(
       { role: "system", content: "You extract structured data and reply with strict JSON only." },
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
     ],
-    GROQ_FAST,
+    await getQualityTextModel(),
     apiKey,
     900
   );
