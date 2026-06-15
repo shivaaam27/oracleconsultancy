@@ -25,7 +25,7 @@ export async function sendTestEmail(
 
   const result = await sendEmail({
     to: addr,
-    subject: "Test email from your COS command centre",
+    subject: "Test email from your Oracle Consultancy command centre",
     text:
       "This is a test message from your Chief-of-Staff command centre.\n\n" +
       "If you're reading this, real email sending is working — drafts you approve in the Outbox will be delivered from here.",
@@ -166,7 +166,7 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
   // Each category's "on" state maps to its natural mode (outward = prepare; the
   // owner's own internal emails = auto-send).
   const NATURAL: Record<string, "prepare" | "auto"> = {
-    overdue: "auto", renewals: "auto", directorBrief: "auto", lifecycle: "auto",
+    overdue: "auto", renewals: "auto", directorBrief: "auto", lifecycle: "auto", morningDigest: "auto",
   };
   if (field === "testMode") {
     await sb.from("settings").upsert({ key: "email.testMode", value: on ? "1" : "0" }, { onConflict: "key" });

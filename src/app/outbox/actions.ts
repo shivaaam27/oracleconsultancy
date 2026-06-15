@@ -60,6 +60,38 @@ export async function sendDraftEmail(
   return { ok: true };
 }
 
+/**
+ * Bulk: send every EMAIL draft that has a valid address, in one click. Stops if
+ * the provider isn't switched on (there's no per-draft manual fallback in bulk).
+ * Returns counts so the UI can report "N sent · M failed".
+ */
+export async function sendAllEmailDrafts(): Promise<{ sent: number; failed: number; notConfigured: boolean }> {
+  const { data, error } = await sb
+    .from("outbox")
+    .select("id,recipient_contact")
+    .eq("status", "Draft")
+    .eq("channel", "EMAIL");
+  if (error) return { sent: 0, failed: 0, notConfigured: false };
+
+  const ids = (data ?? [])
+    .filter((r) => EMAIL_RE.test(((r.recipient_contact as string | null) ?? "").trim()))
+    .map((r) => r.id as number);
+
+  let sent = 0;
+  let failed = 0;
+  let notConfigured = false;
+  for (const id of ids) {
+    const res = await sendDraftEmail(id);
+    if (res.ok) { sent++; continue; }
+    if (res.reason === "not-configured") { notConfigured = true; break; }
+    failed++;
+  }
+
+  revalidatePath("/outbox");
+  updateTag("outbox");
+  return { sent, failed, notConfigured };
+}
+
 export async function recordSent(
   formData: FormData
 ): Promise<{ ok: boolean; reason?: "duplicate" | "error"; undoToken?: string }> {

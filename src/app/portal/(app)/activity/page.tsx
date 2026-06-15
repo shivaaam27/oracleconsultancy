@@ -23,7 +23,7 @@ function authorOf(by: string | null, myName: string): { name: string; management
     const n = by.slice(7);
     return { name: n === myName ? "You" : n, management: false, me: n === myName };
   }
-  if (by === "ai-command") return { name: "COS Assistant", management: true, me: false };
+  if (by === "ai-command") return { name: "ORI", management: true, me: false };
   return { name: "Management", management: true, me: false };
 }
 

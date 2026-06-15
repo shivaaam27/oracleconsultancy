@@ -238,7 +238,7 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
     documentRenewalCandidates.length > 0 && {
       id: "automation-document-renewals",
       title: `Create ${documentRenewalCandidates.length} renewal task${documentRenewalCandidates.length === 1 ? "" : "s"}`,
-      detail: "COS found expiring documents without an open linked renewal task.",
+      detail: "Oracle Consultancy found expiring documents without an open linked renewal task.",
       href: "/documents",
       actionLabel: "Create renewals",
       tone: expiredDocs.length ? "danger" : "warn",

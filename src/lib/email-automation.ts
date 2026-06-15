@@ -13,6 +13,7 @@ export type EmailCategory =
   | "overdue"      // overdue-task reminders
   | "renewals"     // document/permit renewal nudges
   | "directorBrief"// weekly Director Brief to the owner
+  | "morningDigest"// daily "here's your day" to the owner
   | "lifecycle"    // probation + leave-approval reminders
   | "birthdays"
   | "statutory"
@@ -30,6 +31,8 @@ export type AutomationConfig = {
   windowEndHour: number;
   /** Max automated emails per day across all categories. */
   dailyCap: number;
+  /** Don't re-nudge the same person within this many days (any channel). 0 = off. */
+  cooldownDays: number;
   /** Weekday (0=Sun..6=Sat, EAT) the weekly Director Brief auto-sends. Default Mon. */
   briefDay: number;
   categories: Record<EmailCategory, CategoryRule>;
@@ -40,11 +43,13 @@ const DEFAULTS: AutomationConfig = {
   windowStartHour: 8,
   windowEndHour: 18,
   dailyCap: 50,
+  cooldownDays: 2,
   briefDay: 1, // Monday
   categories: {
     overdue: { mode: "off" },        // owner opts in (Phase A ships it as a switch)
     renewals: { mode: "off" },
     directorBrief: { mode: "off" },
+    morningDigest: { mode: "off" },
     lifecycle: { mode: "off" },
     birthdays: { mode: "off" },
     statutory: { mode: "off" },
@@ -160,6 +165,50 @@ async function sendToPerson(toEmail: string | null, subject: string, text: strin
   return res.ok ? { sent: 1, skipped: 0 } : { sent: 0, skipped: 1 };
 }
 
+/** Compose the owner's "here's your day" digest. Returns null when there's
+ *  genuinely nothing to report (so we never send an empty email). */
+async function buildMorningDigest(now: Date): Promise<{ subject: string; text: string } | null> {
+  const [{ getAllTasks }, { isOpen }, { listDocuments }, { isReminderDueToday }, { ownerReminderTodosDueBy }, { listCalendarEvents }] =
+    await Promise.all([
+      import("@/lib/queries"),
+      import("@/lib/derive"),
+      import("@/lib/documents"),
+      import("@/lib/documents-shared"),
+      import("@/lib/todo-reminders"),
+      import("@/lib/calendar"),
+    ]);
+
+  const start = new Date(now); start.setHours(0, 0, 0, 0);
+  const end = new Date(now); end.setHours(23, 59, 59, 999);
+  const tomorrow = new Date(start); tomorrow.setDate(start.getDate() + 1);
+  const TZ = "Africa/Nairobi";
+  const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
+
+  const [rows, docs, dueReminders, events] = await Promise.all([
+    getAllTasks(),
+    listDocuments(),
+    ownerReminderTodosDueBy(end),
+    listCalendarEvents({ from: start.toISOString(), to: tomorrow.toISOString() }),
+  ]);
+  const overdue = rows.filter((r) => r.flag === "overdue" || r.flag === "escalate-now");
+  const dueToday = rows.filter((r) => isOpen(r.status) && r.deadline && r.deadline >= start && r.deadline <= end);
+  const renewals = docs.filter((d) => !d.archived && isReminderDueToday(d));
+
+  const sections: string[] = [];
+  if (events.length) sections.push(`Today's events (${events.length}):\n${events.slice(0, 10).map((e) => `• ${fmtTime(e.startAt)} — ${e.title}`).join("\n")}`);
+  if (dueReminders.length) sections.push(`Your reminders (${dueReminders.length}):\n${dueReminders.slice(0, 10).map((r) => `• ${fmtTime(r.remindAt)} — ${r.title}`).join("\n")}`);
+  if (overdue.length) sections.push(`Overdue tasks (${overdue.length}):\n${overdue.slice(0, 10).map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}`);
+  if (dueToday.length) sections.push(`Due today (${dueToday.length}):\n${dueToday.slice(0, 10).map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}`);
+  if (renewals.length) sections.push(`Documents to renew (${renewals.length}):\n${renewals.slice(0, 10).map((d) => `• ${d.title}`).join("\n")}`);
+
+  if (sections.length === 0) return null;
+  const dateLabel = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
+  return {
+    subject: `Your day — ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: TZ })}`,
+    text: `Good morning. Here's your day — ${dateLabel}.\n\n${sections.join("\n\n")}\n\nOpen Oracle Consultancy for the full picture.`,
+  };
+}
+
 /**
  * Run every category that is enabled + due now. Each daily category runs at most
  * once per EAT day. Categories in "prepare" mode create Outbox drafts; "auto"
@@ -182,27 +231,48 @@ export async function runDueAutomations(now = new Date(), opts: { force?: boolea
     if (overdue.mode === "auto") {
       // Email each person their overdue list (test mode → redirected to owner).
       const { getOverdueReminderCandidates } = await import("@/lib/automation-suggestions");
+      const { lastChasedByName } = await import("@/lib/outbox-history");
       const cands = getOverdueReminderCandidates(rows);
       const byPerson = new Map<number, typeof cands>();
       for (const t of cands) for (const pid of t.assigneeIds) { const l = byPerson.get(pid) ?? []; l.push(t); byPerson.set(pid, l); }
       const ids = [...byPerson.keys()];
       const { data: ppl } = ids.length ? await sb.from("people").select("id,name,email").in("id", ids) : { data: [] as any[] };
       const emailById = new Map((ppl ?? []).map((p: any) => [p.id as number, { name: p.name as string, email: (p.email as string | null) ?? null }]));
+      // Cooldown: don't re-email anyone chased (any channel) within the window —
+      // otherwise a daily auto-run nags the same person every morning.
+      const chased = cfg.cooldownDays > 0 ? await lastChasedByName() : {};
+      const chasedRecently = (name: string): boolean => {
+        if (cfg.cooldownDays <= 0) return false;
+        const lc = chased[name.trim().toLowerCase()];
+        return !!lc && Date.now() - new Date(lc.sentAt).getTime() < cfg.cooldownDays * 86_400_000;
+      };
       // Enforce the daily cap the Outbox advertises ("cap N/day"). Without this it
       // was unbounded — a switch to auto-send (or a forced run) could mass-email.
       let budget = cfg.dailyCap;
       for (const [pid, tasks] of byPerson) {
         const person = emailById.get(pid);
         if (!person) { skipped++; continue; }
+        if (chasedRecently(person.name)) { skipped++; continue; }
         if (budget <= 0) { skipped++; continue; }
         const body = `Hi ${person.name.split(" ")[0]}, a reminder of your overdue work:\n\n${tasks.map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}\n\nPlease update the tracker when you can. Thank you.`;
         const r = await sendToPerson(person.email, "Your overdue tasks", body);
         sent += r.sent; skipped += r.skipped;
         budget -= r.sent;
+        // Log the auto-send so it appears in the Outbox sent log and feeds the
+        // "chased Nd ago" hint + cooldown on the next run.
+        if (r.sent > 0) {
+          const iso = new Date().toISOString();
+          await sb.from("outbox").insert({
+            channel: "EMAIL", recipient_name: person.name, recipient_contact: person.email,
+            subject: "Your overdue tasks", body, message_type: "OVERDUE TASK REMINDER",
+            status: "Sent", source: "automation-overdue", person_id: pid,
+            created_at: iso, sent_at: iso,
+          });
+        }
       }
     } else {
       const { createOverdueReminderDrafts } = await import("@/lib/automation-suggestions");
-      const res = await createOverdueReminderDrafts(rows);
+      const res = await createOverdueReminderDrafts(rows, { cooldownDays: cfg.cooldownDays });
       prepared = res.created; skipped = res.skipped;
     }
     if (!force) await markRanToday("overdue");
@@ -270,6 +340,18 @@ export async function runDueAutomations(now = new Date(), opts: { force?: boolea
     } else if (!force) {
       await markRanToday("lifecycle");
     }
+  }
+
+  // --- Morning digest to the owner ("here's your day", AUTO-SEND) ---
+  const digest = cfg.categories.morningDigest;
+  if (digest.mode !== "off" && (force || !(await alreadyRanToday("morningDigest")))) {
+    const built = await buildMorningDigest(now);
+    if (built) {
+      const r = await sendOrDraftToOwner(built.subject, built.text, "automation-morning");
+      results.push({ category: "morningDigest", mode: digest.mode, prepared: r.prepared, sent: r.sent, skipped: 0 });
+      await recordEvent("email.automation.morningDigest", "ok", { sent: r.sent, prepared: r.prepared });
+    }
+    if (!force) await markRanToday("morningDigest");
   }
 
   // --- Monthly board-pack reminder (1st of the month, EAT) ---

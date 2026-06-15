@@ -904,12 +904,16 @@ export const todos = pgTable("todos", {
   // Ordering within a generated journey checklist (0-based); NULL for ad-hoc to-dos.
   sortOrder: integer("sort_order"),
   dueAt: timestamp("due_at", { mode: "date", withTimezone: true }),
+  // When set, this to-do is a "reminder": it fires a timed push (cron) and shows
+  // in the morning digest. NULL = an ordinary to-do (no ping). `pushed` dedupes.
+  remindAt: timestamp("remind_at", { mode: "date", withTimezone: true }),
+  pushed: boolean("pushed").notNull().default(false),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   completedAt: timestamp("completed_at", { mode: "date", withTimezone: true }),
-}, (t) => [index("todos_person_idx").on(t.personId)]);
+}, (t) => [index("todos_person_idx").on(t.personId), index("todos_remind_idx").on(t.done, t.remindAt)]);
 
 // Director Brief notes — free narrative the operator writes by hand: Admin/HR
 // "updates" that aren't tasks (e.g. "Renewed the office lease", "Onboarded two

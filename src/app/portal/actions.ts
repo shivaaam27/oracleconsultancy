@@ -764,6 +764,51 @@ export async function portalMarkAttendance(status: string): Promise<{ ok: true }
   return { ok: true };
 }
 
+/* ----------------------------------------------------------------------
+ * Staff personal to-dos (kind 'self'). A to-do with a time set becomes a
+ * reminder — a timed push fires via /api/cron/reminders. Mirrors the owner's
+ * to-do card on the admin Home; kept out of the admin Workbook by kind.
+ * -------------------------------------------------------------------- */
+
+export async function portalCreateTodo(input: {
+  title: string;
+  remindAt: string | null;
+}): Promise<{ ok: boolean; error?: string; todo?: import("@/lib/todo-reminders").TodoCardItem }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, error: "Please sign in again." };
+  const title = input.title?.trim();
+  if (!title) return { ok: false, error: "Type what you need to do." };
+  if (input.remindAt && Number.isNaN(Date.parse(input.remindAt))) return { ok: false, error: "That date didn't make sense." };
+  const { createTodo } = await import("@/app/todos/actions");
+  const todo = await createTodo({ title, remindAt: input.remindAt ?? null, personId: me.id, kind: "self" });
+  revalidatePath("/portal");
+  return { ok: true, todo };
+}
+
+export async function portalToggleTodoDone(id: number, done: boolean): Promise<{ ok: boolean; error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, error: "Please sign in again." };
+  const { todoOwner } = await import("@/lib/todo-reminders");
+  const o = await todoOwner(id);
+  if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
+  const { toggleTodo } = await import("@/app/todos/actions");
+  await toggleTodo(id, done);
+  revalidatePath("/portal");
+  return { ok: true };
+}
+
+export async function portalDeleteTodo(id: number): Promise<{ ok: boolean; error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, error: "Please sign in again." };
+  const { todoOwner } = await import("@/lib/todo-reminders");
+  const o = await todoOwner(id);
+  if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
+  const { deleteTodo } = await import("@/app/todos/actions");
+  await deleteTodo(id);
+  revalidatePath("/portal");
+  return { ok: true };
+}
+
 /** Any portal person on the task: confirm they have read an update
  *  ("Understood"). Idempotent — re-tapping is harmless. */
 export async function portalAcknowledge(formData: FormData) {

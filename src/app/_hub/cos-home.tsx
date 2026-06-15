@@ -10,6 +10,9 @@ import { HomeActions } from "./home-actions";
 import { AnnouncementAdminBanner } from "@/components/announcement-admin-banner";
 import type { Todo } from "@/app/todos/actions";
 import { HomeMissionControl } from "@/components/home-mission-control";
+import { TodoCard } from "@/components/todo-card";
+import { listOwnerTodos } from "@/lib/todo-reminders";
+import { createOwnerTodoAction, toggleOwnerTodoDoneAction, deleteOwnerTodoAction } from "@/app/todos/actions";
 
 function greeting(h: number): string {
   if (h < 12) return "Good morning";
@@ -35,7 +38,10 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     listDocuments(),
     gatherSafetyFindings(),
   ]);
-  const morningPlan = await previewMorningPlan(rows, documents);
+  const [morningPlan, ownerTodos] = await Promise.all([
+    previewMorningPlan(rows, documents),
+    listOwnerTodos(),
+  ]);
 
   // Persist today's health so the gauge can show a real "vs last reading"
   // delta. Returns the most recent earlier-day value (null on the first day).
@@ -80,6 +86,13 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         morningPlan={morningPlan}
         healthSeries={healthSeries}
         topTodos={topTodos}
+      />
+      <TodoCard
+        items={ownerTodos}
+        createAction={createOwnerTodoAction}
+        toggleAction={toggleOwnerTodoDoneAction}
+        deleteAction={deleteOwnerTodoAction}
+        title="Your to-dos"
       />
       {safetyFindings.length > 0 && <SafetyNetPanel findings={safetyFindings} />}
     </div>

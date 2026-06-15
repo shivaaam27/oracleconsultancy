@@ -132,7 +132,7 @@ const sectionGroups: Array<{
   },
   {
     title: "Saved documents",
-    hint: "Show what COS already has for this person.",
+    hint: "Show what Oracle Consultancy already has for this person.",
     icon: FileText,
     keys: ["linkedDocuments", "fileLinks"],
   },

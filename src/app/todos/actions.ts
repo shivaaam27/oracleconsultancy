@@ -11,6 +11,7 @@ export type Todo = {
   done: boolean;
   important: boolean;
   dueAt: string | null;
+  remindAt: string | null;
   companyId: number | null;
   companyName: string | null;
   personId: number | null;
@@ -22,7 +23,7 @@ export type Todo = {
 };
 
 type Row = {
-  id: number; title: string; done: boolean; important: boolean; due_at: string | null;
+  id: number; title: string; done: boolean; important: boolean; due_at: string | null; remind_at: string | null;
   company_id: number | null; person_id: number | null; task_id: number | null;
   created_at: string; completed_at: string | null;
   companies?: { name: string } | { name: string }[] | null;
@@ -35,7 +36,7 @@ function map(row: Row): Todo {
   const person = Array.isArray(row.people) ? row.people[0] : row.people;
   const task = Array.isArray(row.tasks) ? row.tasks[0] : row.tasks;
   return {
-    id: row.id, title: row.title, done: row.done, important: row.important ?? false, dueAt: row.due_at,
+    id: row.id, title: row.title, done: row.done, important: row.important ?? false, dueAt: row.due_at, remindAt: row.remind_at,
     companyId: row.company_id, companyName: company?.name ?? null,
     personId: row.person_id, personName: person?.name ?? null,
     taskId: row.task_id, taskCode: task?.code ?? null,
@@ -43,7 +44,7 @@ function map(row: Row): Todo {
   };
 }
 
-const SELECT = "id,title,done,important,due_at,company_id,person_id,task_id,created_at,completed_at, companies(name), people(name), tasks(code)";
+const SELECT = "id,title,done,important,due_at,remind_at,company_id,person_id,task_id,created_at,completed_at, companies(name), people(name), tasks(code)";
 
 export async function listTodos(): Promise<Todo[]> {
   // Only ad-hoc personal to-dos here. Onboarding/offboarding journey steps
@@ -53,26 +54,30 @@ export async function listTodos(): Promise<Todo[]> {
   return ((data ?? []) as Row[]).map(map);
 }
 
-export async function createTodo(input: { title: string; dueAt?: string | null; companyId?: number | null; personId?: number | null; taskId?: number | null; important?: boolean }): Promise<Todo> {
+export async function createTodo(input: { title: string; dueAt?: string | null; remindAt?: string | null; companyId?: number | null; personId?: number | null; taskId?: number | null; important?: boolean; kind?: string | null }): Promise<Todo> {
   const { data, error } = await sb.from("todos").insert({
     title: input.title.trim() || "Untitled",
     due_at: input.dueAt ?? null,
+    remind_at: input.remindAt ?? null,
     company_id: input.companyId ?? null,
     person_id: input.personId ?? null,
     task_id: input.taskId ?? null,
     important: input.important ?? false,
+    kind: input.kind ?? null,
     created_at: new Date().toISOString(),
     done: false,
   }).select(SELECT).single();
   if (error) throw new Error(error.message);
   revalidatePath("/workbook");
+  revalidatePath("/");
   return map(data as Row);
 }
 
-export async function updateTodo(input: { id: number; title?: string; dueAt?: string | null; companyId?: number | null; personId?: number | null; taskId?: number | null; important?: boolean }): Promise<void> {
+export async function updateTodo(input: { id: number; title?: string; dueAt?: string | null; remindAt?: string | null; companyId?: number | null; personId?: number | null; taskId?: number | null; important?: boolean }): Promise<void> {
   const patch: Record<string, unknown> = {};
   if (input.title !== undefined) patch.title = input.title.trim() || "Untitled";
   if (input.dueAt !== undefined) patch.due_at = input.dueAt;
+  if (input.remindAt !== undefined) patch.remind_at = input.remindAt;
   if (input.companyId !== undefined) patch.company_id = input.companyId;
   if (input.personId !== undefined) patch.person_id = input.personId;
   if (input.taskId !== undefined) patch.task_id = input.taskId;
@@ -81,18 +86,45 @@ export async function updateTodo(input: { id: number; title?: string; dueAt?: st
   const { error } = await sb.from("todos").update(patch).eq("id", input.id);
   if (error) throw new Error(error.message);
   revalidatePath("/workbook");
+  revalidatePath("/");
 }
 
 export async function toggleTodo(id: number, done: boolean): Promise<void> {
   const { error } = await sb.from("todos").update({ done, completed_at: done ? new Date().toISOString() : null }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/workbook");
+  revalidatePath("/");
 }
 
 export async function deleteTodo(id: number): Promise<void> {
   const { error } = await sb.from("todos").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/workbook");
+  revalidatePath("/");
+}
+
+/* ------------------------------------------------------------------ *
+ * Owner "to-do / remind me" wrappers for the Home card. Thin shells over
+ * createTodo/toggleTodo/deleteTodo that return {ok} for the client card.
+ * A to-do with remindAt set becomes a timed reminder (push + digest).
+ * ------------------------------------------------------------------ */
+
+export async function createOwnerTodoAction(input: { title: string; remindAt?: string | null }): Promise<{ ok: boolean; error?: string; todo?: Todo }> {
+  const title = input.title?.trim();
+  if (!title) return { ok: false, error: "Type what you need to do." };
+  if (input.remindAt && Number.isNaN(Date.parse(input.remindAt))) return { ok: false, error: "That date didn't make sense." };
+  const todo = await createTodo({ title, remindAt: input.remindAt ?? null });
+  return { ok: true, todo };
+}
+
+export async function toggleOwnerTodoDoneAction(id: number, done: boolean): Promise<{ ok: boolean; error?: string }> {
+  await toggleTodo(id, done);
+  return { ok: true };
+}
+
+export async function deleteOwnerTodoAction(id: number): Promise<{ ok: boolean; error?: string }> {
+  await deleteTodo(id);
+  return { ok: true };
 }
 
 /**

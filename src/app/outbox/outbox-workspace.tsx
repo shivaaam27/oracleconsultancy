@@ -1,16 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
 import type { OutboxDraftRow } from "@/lib/outbox-drafts";
+import type { LastChased } from "@/lib/outbox-history";
 import { OutboxCard } from "./outbox-card";
 import { DraftCard } from "./drafts-list";
+import { sendAllEmailDrafts } from "./actions";
 import { labelForSource } from "@/lib/outbox-automation-shared";
+import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import {
   MessageCircle, Mail, Phone, Search, X, Bot,
-  Inbox, ChevronLeft, Check, Clock,
+  Inbox, ChevronLeft, Check, Clock, Send, Loader2,
 } from "lucide-react";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /* ------------------------------------------------------------------ *
  * Outbox workspace — an email-client split view. Left: one compact,
@@ -44,7 +50,7 @@ const urgDot: Record<Urg, string> = {
 type Item =
   | {
       kind: "reminder"; key: string; name: string; channel: string; urg: Urg; rank: number;
-      sub: string; auto: false; companies: string[]; draft: OutboxDraft;
+      sub: string; auto: false; companies: string[]; draft: OutboxDraft; chased: LastChased | null;
     }
   | {
       kind: "draft"; key: string; name: string; channel: string; urg: Urg; rank: number;
@@ -78,23 +84,60 @@ function timeOf(iso: string | null): string {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** "just now" / "3h ago" / "yesterday" / "4d ago" / "2w ago" / "7 Jun". */
+function chasedAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 3_600_000) return "just now";
+  const days = Math.floor(ms / 86_400_000);
+  if (days < 1) return `${Math.floor(ms / 3_600_000)}h ago`;
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  const wks = Math.floor(days / 7);
+  if (wks < 5) return `${wks}w ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 export function OutboxWorkspace({
   reminders,
   drafts,
   sent,
   scopeName = null,
+  lastChased = {},
 }: {
   reminders: OutboxDraft[];
   drafts: OutboxDraftRow[];
   sent: SentEntry[];
   scopeName?: string | null;
+  lastChased?: Record<string, LastChased>;
 }) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [seg, setSeg] = useState<Seg>("all");
   const [q, setQ] = useState("");
   const [company, setCompany] = useState("all");
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [bulkPending, startBulk] = useTransition();
+
+  const emailDraftCount = useMemo(
+    () => drafts.filter((d) => d.channel === "EMAIL" && EMAIL_RE.test(d.recipientContact ?? "")).length,
+    [drafts],
+  );
+
+  function onBulkSend() {
+    startBulk(async () => {
+      const res = await sendAllEmailDrafts();
+      if (res.notConfigured && res.sent === 0) {
+        toast("Email sending isn't switched on — open each draft and use ‘Open email’.", { tone: "warn", duration: 6000 });
+        return;
+      }
+      const bits = [`${res.sent} email${res.sent === 1 ? "" : "s"} sent`];
+      if (res.failed) bits.push(`${res.failed} failed`);
+      toast(bits.join(" · "), { tone: res.failed ? "warn" : "success", duration: 5000 });
+      router.refresh();
+    });
+  }
 
   // Build the unified item list (stable; removal handled via `removed`).
   const allItems = useMemo<Item[]>(() => {
@@ -109,6 +152,7 @@ export function OutboxWorkspace({
       return {
         kind: "reminder", key: `r:${d.recipientName}`, name: d.recipientName,
         channel: reminderChannel(d), urg, rank, sub, auto: false, companies, draft: d,
+        chased: lastChased[d.recipientName.trim().toLowerCase()] ?? null,
       };
     });
     const dItems: Item[] = drafts.map((row) => {
@@ -126,7 +170,7 @@ export function OutboxWorkspace({
       sub: `Sent ${timeOf(e.sentAt)}`, auto: false, companies: [], entry: e,
     }));
     return [...rItems, ...dItems, ...sItems];
-  }, [reminders, drafts, sent]);
+  }, [reminders, drafts, sent, lastChased]);
 
   const companyOptions = useMemo(() => {
     const m = new Map<string, number>();
@@ -225,6 +269,19 @@ export function OutboxWorkspace({
           </select>
         )}
 
+        {emailDraftCount > 0 && (
+          <button
+            type="button"
+            onClick={onBulkSend}
+            disabled={bulkPending}
+            title="Send every email draft now from admin@oracle.co.tz"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full bg-accent text-accent-fg hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {bulkPending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+            Send all email <span className="tabular opacity-80">({emailDraftCount})</span>
+          </button>
+        )}
+
         <div className="relative ml-auto flex-1 sm:flex-none min-w-[8rem]">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
@@ -269,7 +326,12 @@ export function OutboxWorkspace({
                         <span className="font-medium text-[13px] truncate">{it.name}</span>
                         {it.kind === "draft" && it.auto && <Bot size={12} className="text-accent shrink-0" />}
                       </span>
-                      <span className="block text-[11px] text-fg-subtle truncate mt-0.5">{it.sub}</span>
+                      <span className="block text-[11px] text-fg-subtle truncate mt-0.5">
+                        {it.sub}
+                        {it.kind === "reminder" && it.chased && (
+                          <span className="text-fg-subtle/70"> · chased {chasedAgo(it.chased.sentAt)}</span>
+                        )}
+                      </span>
                     </span>
                     <TypeChip kind={it.kind} />
                   </button>
@@ -333,7 +395,15 @@ function DetailPane({
   return (
     <div className="bg-bg-elev ring-1 ring-border rounded-2xl elevated p-4 md:sticky md:top-4">
       {item.kind === "reminder" && (
-        <OutboxCard key={item.key} draft={item.draft} detail scopeName={scopeName} onResolved={() => onResolved(item.key)} />
+        <>
+          {item.chased && (
+            <div className="mb-2.5 flex items-center gap-1.5 text-[11px] text-fg-muted">
+              <Clock size={11} className="shrink-0" />
+              Last chased {chasedAgo(item.chased.sentAt)} · {channelLabel(item.chased.channel)}
+            </div>
+          )}
+          <OutboxCard key={item.key} draft={item.draft} detail scopeName={scopeName} onResolved={() => onResolved(item.key)} />
+        </>
       )}
       {item.kind === "draft" && (
         <DraftCard key={item.key} draft={item.row} detail onGone={() => onResolved(item.key)} />

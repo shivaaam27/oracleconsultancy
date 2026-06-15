@@ -103,7 +103,7 @@ export function buildIcs(ev: IcsEvent): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//COS System//Calendar//EN",
+    "PRODID:-//Oracle Consultancy//Calendar//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:REQUEST",
     "BEGIN:VEVENT",

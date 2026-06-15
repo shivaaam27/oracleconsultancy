@@ -52,6 +52,31 @@ export async function todaysSentChannelsByName(): Promise<SentTodayPlain> {
   return out;
 }
 
+// When each person was last actually chased (most recent Sent outbox row, any
+// channel), keyed by lowercased recipient name. Powers the "chased 3d ago" hint
+// in the Outbox and the auto-send cooldown guard.
+export type LastChased = { sentAt: string; channel: string };
+
+export async function lastChasedByName(): Promise<Record<string, LastChased>> {
+  const { data, error } = await sb
+    .from("outbox")
+    .select("recipient_name,channel,sent_at")
+    .eq("status", "Sent")
+    .not("sent_at", "is", null)
+    .order("sent_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const out: Record<string, LastChased> = {};
+  for (const r of data ?? []) {
+    const name = (r.recipient_name as string | null)?.trim().toLowerCase();
+    if (!name || out[name]) continue; // desc order → first seen is most recent
+    out[name] = {
+      sentAt: r.sent_at as string,
+      channel: ((r.channel as string) || "").toUpperCase(),
+    };
+  }
+  return out;
+}
+
 export type HistoryEntry = {
   id: number;
   channel: string;

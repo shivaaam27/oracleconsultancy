@@ -297,7 +297,7 @@ export default async function SettingsPage({
           </form>
 
           {/* Google Calendar connection */}
-          <SettingsCard id="google" icon={<CalendarCheck size={15} />} title="Google Calendar" desc="Connect a Google account so events created in COS appear in guests' calendars automatically and generate real Google Meet links. When connected, invites are sent through Google; otherwise they go out as email invitations.">
+          <SettingsCard id="google" icon={<CalendarCheck size={15} />} title="Google Calendar" desc="Connect a Google account so events created in Oracle Consultancy appear in guests' calendars automatically and generate real Google Meet links. When connected, invites are sent through Google; otherwise they go out as email invitations.">
             {!googleStatus.configured ? (
               <p className="text-xs text-warn">
                 Not configured yet — the Google client credentials need adding to the app before this can be switched on.
@@ -353,6 +353,7 @@ export default async function SettingsPage({
               { key: "overdue", label: "Overdue-task reminders", on: "Prepares a daily reminder draft per person with overdue work." },
               { key: "renewals", label: "Document / permit renewals", on: "Prepares a daily renewal nudge for each expiring or expired document." },
               { key: "directorBrief", label: "Weekly Director Brief (to you)", on: "Auto-sends the portfolio brief to your inbox each Monday." },
+              { key: "morningDigest", label: "Daily morning digest (to you)", on: "Auto-sends a 'here's your day' each morning — today's events, your reminders, overdue & due tasks, renewals." },
               { key: "lifecycle", label: "Probation & leave reminders (to you)", on: "Auto-sends a daily HR summary (probations ending, leave to approve)." },
             ] as const).map((c) => {
               const off = emailAuto.categories[c.key].mode === "off";

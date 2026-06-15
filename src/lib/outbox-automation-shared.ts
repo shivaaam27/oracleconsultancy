@@ -10,6 +10,7 @@ export const CATEGORY_LABELS: Record<EmailCategory, string> = {
   overdue: "Overdue-task reminders",
   renewals: "Document & permit renewals",
   directorBrief: "Weekly Director Brief",
+  morningDigest: "Daily morning digest",
   lifecycle: "Probation & leave reminders",
   birthdays: "Birthday greetings",
   statutory: "Statutory deadlines",
@@ -22,6 +23,7 @@ export const CATEGORY_LABELS: Record<EmailCategory, string> = {
 const SOURCE_TO_CATEGORY: Record<string, EmailCategory> = {
   "automation-renewals": "renewals",
   "automation-brief": "directorBrief",
+  "automation-morning": "morningDigest",
   "automation-lifecycle": "lifecycle",
   "automation-overdue": "overdue",
   "automation-boardpack": "boardPack",

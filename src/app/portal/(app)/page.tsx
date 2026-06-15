@@ -17,6 +17,9 @@ import { getJourney } from "@/lib/onboarding";
 import { teamAttendanceToday, personAttendanceToday } from "@/lib/attendance";
 import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
+import { TodoCard } from "@/components/todo-card";
+import { listSelfTodos } from "@/lib/todo-reminders";
+import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo } from "@/app/portal/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +82,7 @@ export default async function PortalHome() {
   // other portal surfaces or run a query on every navigation. Directors never
   // reach this point (redirected above).
   const today = await personAttendanceToday(me.id);
+  const myTodos = await listSelfTodos(me.id);
 
   // Announcements that target this person (pinned + newest, with their read state).
   const audienceAttrs = await getPersonAudienceAttrs(me.id);
@@ -236,6 +240,16 @@ export default async function PortalHome() {
           <Panel className="p-6 text-center text-sm text-fg-muted">No open tasks assigned to you right now.</Panel>
         )}
         {myOpen.map((t) => taskCard(t, now))}
+      </Reveal>
+
+      <Reveal delay={0.07}>
+        <TodoCard
+          items={myTodos}
+          createAction={portalCreateTodo}
+          toggleAction={portalToggleTodoDone}
+          deleteAction={portalDeleteTodo}
+          title="Your to-dos"
+        />
       </Reveal>
 
       {teamLeave.length > 0 && (

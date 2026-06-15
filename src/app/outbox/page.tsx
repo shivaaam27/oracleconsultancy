@@ -1,6 +1,6 @@
 import { generateDrafts } from "@/lib/outbox-gen";
 import { listOutboxDrafts } from "@/lib/outbox-drafts";
-import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords } from "@/lib/outbox-history";
+import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords, lastChasedByName } from "@/lib/outbox-history";
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
 import { Hero, Panel, TONE, type Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
@@ -22,7 +22,7 @@ export default async function OutboxPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [drafts, savedDrafts, sentByName, history, snoozed, scopedId, scopeOptions, automation, todaySent] = await Promise.all([
+  const [drafts, savedDrafts, sentByName, history, snoozed, scopedId, scopeOptions, automation, todaySent, lastChased] = await Promise.all([
     generateDrafts(),
     listOutboxDrafts(),
     todaysSentChannelsByName(),
@@ -32,6 +32,7 @@ export default async function OutboxPage({
     getScopeOptions(),
     getAutomationSnapshot(),
     todaysSentRecords(),
+    lastChasedByName(),
   ]);
   const scopeName = scopedId != null
     ? scopeOptions.find((o) => o.id === scopedId)?.name ?? null
@@ -159,6 +160,7 @@ export default async function OutboxPage({
           drafts={savedDrafts}
           sent={todayDoneEntries}
           scopeName={scopeName}
+          lastChased={lastChased}
         />
       </Reveal>
 

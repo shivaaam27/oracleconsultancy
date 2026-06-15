@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 function adminAuthorOf(by: string | null): { name: string; management: boolean; me: boolean } {
   if (!by) return { name: "System", management: false, me: false };
   if (by === "web-ui") return { name: "You", management: true, me: true };
-  if (by === "ai-command") return { name: "COS Assistant", management: true, me: false };
+  if (by === "ai-command") return { name: "ORI", management: true, me: false };
   if (by === "meeting-mode") return { name: "Meeting", management: true, me: false };
   if (by.startsWith("portal-mgr:")) return { name: by.slice(11), management: true, me: false };
   if (by.startsWith("portal:")) return { name: by.slice(7), management: false, me: false };

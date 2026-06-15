@@ -34,7 +34,7 @@ function authorOf(createdBy: string | null, myName: string): { name: string; man
     const name = createdBy.slice(7);
     return { name: name === myName ? "You" : name, management: false, me: name === myName };
   }
-  if (createdBy === "ai-command") return { name: "COS Assistant", management: true, me: false };
+  if (createdBy === "ai-command") return { name: "ORI", management: true, me: false };
   return { name: "Management", management: true, me: false };
 }
 

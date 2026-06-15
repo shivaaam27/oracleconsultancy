@@ -8,6 +8,7 @@ import {
   type Channel,
 } from "@/lib/outbox-gen";
 import { contactForChannel, linkFor, pickChannel } from "@/lib/outbox-links";
+import { lastChasedByName } from "@/lib/outbox-history";
 import { deriveDocStatus, type DocumentRow, linkDocumentTask } from "@/lib/documents";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
@@ -64,7 +65,7 @@ export function buildAutomationSuggestions(rows: TaskRow[]): AutomationSuggestio
     overdue.length > 0 && {
       id: "overdue-reminder-drafts",
       title: `Prepare ${overdue.length} overdue reminder${overdue.length === 1 ? "" : "s"}`,
-      detail: "COS can create Outbox drafts for accountable people. You still approve and send them.",
+      detail: "Oracle Consultancy can create Outbox drafts for accountable people. You still approve and send them.",
       count: overdue.length,
       href: "/outbox",
       tone: "danger" as const,
@@ -378,9 +379,22 @@ export async function commitRenewalTaskFor(
   return { created: false, reason: skipped > 0 ? "already" : "none" };
 }
 
-export async function createOverdueReminderDrafts(rows: TaskRow[]): Promise<{ created: number; skipped: number }> {
+export async function createOverdueReminderDrafts(
+  rows: TaskRow[],
+  opts: { cooldownDays?: number } = {},
+): Promise<{ created: number; skipped: number }> {
   const candidates = getOverdueReminderCandidates(rows);
   if (candidates.length === 0) return { created: 0, skipped: 0 };
+
+  // Cooldown: skip anyone actually chased (any channel) within the last N days,
+  // so a daily auto-run doesn't nag the same person every morning. 0 = off.
+  const cooldownDays = opts.cooldownDays ?? 0;
+  const lastChased = cooldownDays > 0 ? await lastChasedByName() : {};
+  const chasedRecently = (name: string): boolean => {
+    if (cooldownDays <= 0) return false;
+    const lc = lastChased[name.trim().toLowerCase()];
+    return !!lc && Date.now() - new Date(lc.sentAt).getTime() < cooldownDays * 86_400_000;
+  };
 
   const personIds = [...new Set(candidates.flatMap((r) => r.assigneeIds))];
   const { data: peopleRows, error: peopleError } = await sb
@@ -420,6 +434,11 @@ export async function createOverdueReminderDrafts(rows: TaskRow[]): Promise<{ cr
   for (const [personId, tasks] of byPerson) {
     const person = people.get(personId);
     if (!person) {
+      skipped++;
+      continue;
+    }
+
+    if (chasedRecently(person.name)) {
       skipped++;
       continue;
     }
