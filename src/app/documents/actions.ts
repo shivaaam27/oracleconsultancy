@@ -17,6 +17,7 @@ import {
   hashFile,
   hashBuffer,
   attachStoredFile,
+  setDocumentText,
   findDocumentsByHash,
   getDocument,
   getCachedExtraction,
@@ -868,6 +869,39 @@ async function reExtractStored(doc: { storagePath: string | null; fileName: stri
   return cachedExtract(fd, hash, force);
 }
 
+/** DR1: capture a stored document's full body text + (re-)index it so ORI can
+ *  search INSIDE the file. Skips docs that already have text (unless force).
+ *  Typed PDFs/Office yield text now; scans yield none until OCR (DR2). */
+export async function ensureDocumentText(id: number, force = false): Promise<"done" | "skip" | "none"> {
+  const doc = await getDocument(id);
+  if (!doc || !doc.storagePath) return "none";
+  if (!force && doc.extractedText) return "skip";
+  let res = await reExtractStored(doc, force);
+  // Older cache entries predate full-text capture — re-read TYPED docs once to get
+  // the body. Skip scans: their cached `source` is "vision" and OCR text waits for DR2.
+  if (res?.ok && !res.fullText && res.source !== "vision" && !force) {
+    res = await reExtractStored(doc, true);
+  }
+  if (res?.ok && res.fullText && res.fullText.trim()) {
+    await setDocumentText(id, res.fullText, res.textSource ?? "typed");
+    return "done";
+  }
+  // No readable text (e.g. a scan before OCR) — mark so the backfill skips it next time.
+  if (!doc.extractedText) await setDocumentText(id, null, "none");
+  return "none";
+}
+
+/** Backfill body text across all stored documents (re-runnable; skips done ones). */
+export async function backfillDocumentText(): Promise<{ done: number; skipped: number; none: number }> {
+  const { data } = await supa.from("documents").select("id").eq("archived", false).not("storage_path", "is", null);
+  let done = 0, skipped = 0, none = 0;
+  for (const r of data ?? []) {
+    const out = await ensureDocumentText(r.id as number, false);
+    if (out === "done") done++; else if (out === "skip") skipped++; else none++;
+  }
+  return { done, skipped, none };
+}
+
 /**
  * Re-read ONE existing document and PROPOSE corrections — never saves. The headline
  * fix is the old false-expiry bug: if the type genuinely has no expiry, propose
@@ -1470,6 +1504,9 @@ type ExtractResult = {
   confidence?: number | null;
   needsReview?: boolean;
   note?: string;
+  /** Full body text read from the file (typed docs now; OCR later) — for search. */
+  fullText?: string | null;
+  textSource?: "typed" | "ocr" | null;
   // SHA-256 of the uploaded file's bytes (so callers can dedup before saving).
   fileHash?: string | null;
   // Machine-readable failure reason for diagnostics: why a read failed / needs review.
@@ -1638,7 +1675,7 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
         return { ok: false, fields: {}, source: "rules", note: "Couldn't read useful text from that Word/Excel file.", failKind: "unreadable" };
       }
       const result = await fieldsFromText(text, companies, people, apiKey);
-      return { ...result, note: result.source === "rules" ? "Read the file text with rule-based extraction." : undefined };
+      return { ...result, fullText: text, textSource: "typed", note: result.source === "rules" ? "Read the file text with rule-based extraction." : undefined };
     } catch {
       return { ok: false, fields: {}, source: "rules", note: "Couldn't read that Word/Excel file. Try saving it as PDF or paste the text.", failKind: "unreadable" };
     }
@@ -1658,7 +1695,8 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
 
     // Text-layer PDF → read the embedded text (all pages were merged above).
     if (text.trim().length >= 40) {
-      return fieldsFromText(text, companies, people, apiKey);
+      const result = await fieldsFromText(text, companies, people, apiKey);
+      return { ...result, fullText: text, textSource: "typed" };
     }
 
     // Scanned / image-only PDF → rasterise the pages and read with the vision model.

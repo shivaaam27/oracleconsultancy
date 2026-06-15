@@ -547,6 +547,13 @@
       "when": 1781600100000,
       "tag": "0077_semantic_hybrid_chunks",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1781600200000,
+      "tag": "0078_document_text",
+      "breakpoints": true
     }
   ]
 }

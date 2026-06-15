@@ -144,3 +144,51 @@ separate "key missing" from "AI switched off" (both surface as `no-key` today, c
 - **Part A S5 (durable multilingual EU container, multilingual-e5-small ~£3-7/mo): NOT
   built — owner's cost decision.** That's the only remaining advanced-search phase.
 - Part B (Phases 4/5/6 + deferred): PLANNED, parked.
+- **Part C (document content reading / full-text RAG): PLANNED — owner chose "everything incl scans" 2026-06-15. Build order DR0→DR4 below.**
+
+## Part C — Document content reading (full-text RAG over uploaded files)
+
+**Goal:** index the full BODY text of every uploaded document so ORI answers questions
+from INSIDE files (clauses, amounts, names), not just by the document's label.
+
+**Current state:** on upload `extractDocumentFromFileInner` (documents/actions.ts) reads
+the file — text-layer PDF via `unpdf` (all pages), scans/photos via GROQ_VISION,
+Office via mammoth/xlsx — but only KEEPS the extracted FIELDS (title/type/dates/person/
+company/facts) + a `notes` summary in `extraction_cache` (keyed on file_hash; stores the
+fields JSON, NOT raw text). Semantic search indexes documents on METADATA only
+(`[title, doc_type, issuer, category, reference_no, notes]`). So document bodies are not
+searchable. Reuses the whole chunk/embed/hybrid/cron pipeline already built (S0-S6).
+
+**Phases (build order):**
+- **DR1 — Typed docs: DONE + LIVE (migration 0078, commit pending).** Added
+  `documents.extracted_text`/`text_source`/`extracted_text_at`; the extractor now returns
+  `fullText`/`textSource` for typed PDFs/Office; `uploadDocumentFile` captures it from the
+  extraction cache (zero re-read) via `setDocumentText` (writes + re-indexes metadata+body);
+  `ensureDocumentText`/`backfillDocumentText` (force-re-read typed docs whose cache predated
+  this) + `npm run db:doc-text-backfill`; reindexAll indexes `extracted_text`. Backfilled:
+  **183+18 = 201 docs now searchable by body** (101 = scans awaiting DR2 / no file). Verified
+  ORI reads inside files (lease rent, termination clauses, Articles text). Eval steady
+  (Recall@10 95%, MRR 0.93). gte-small/translate/hybrid/chunk pipeline reused.
+- **DR0 (prereq = Phase 4 items): HEIC support + raise page cap.** HEIC is hard-rejected
+  today (`@napi-rs/canvas` already a dep → convert to JPEG); `MAX_VISION_PAGES = 8` drops
+  pages 9+. Both needed for full SCAN coverage. Low-med effort.
+- **DR1 — Typed docs (free, fast, biggest win):** migration adds `documents.extracted_text`
+  (+ `text_source` typed/ocr/none, `extracted_text_at`). Capture the full text in the
+  extractor for text-layer PDF/Office (it already reads it — currently truncates to 6000
+  for the field prompt; keep the full text). Persist on upload. Index full text (metadata +
+  body, chunked) instead of metadata-only. Backfill existing text-layer docs. Low effort, ~free.
+- **DR2 — Scanned/OCR docs (the costly part; needs DR0):** new "OCR-to-text" path (render
+  pages → vision prompt "transcribe ALL text verbatim") → store in `extracted_text`. Backfill
+  all scans (one-time vision cost: ~hundreds of pages across ~325 docs, ~1-2s/page; Groq
+  cost low). Cache by file_hash+model so never re-OCR. Moderate effort + one-time AI cost.
+- **DR3 — Wiring + quality:** ORI document hits cite the passage/page ("found in <Lease>,
+  p.3"); skip junk (pure logos/photos with no text); cap chunks/doc; hybrid ranking dampens
+  boilerplate. Low-med.
+- **DR4 — Freshness:** re-extract + re-index when a doc's FILE is replaced (hook
+  updateDocument/file-replace); the nightly reindex cron re-indexes from stored
+  `extracted_text` (cheap, no re-OCR). Low.
+
+**Trade-offs (flag to owner):** typed docs are free/instant; SCANS cost vision-model OCR
+(Groq, US egress — same read that already happens at upload), variable accuracy on faded/
+handwritten pages, one-time backfill. Full bodies (salaries, ID numbers, contract terms)
+become searchable text stored in the DB + embedded in-region — overlaps Phase 6 privacy.

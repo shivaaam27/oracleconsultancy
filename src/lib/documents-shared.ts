@@ -185,6 +185,8 @@ export type DocumentRow = {
   storagePath: string | null;
   fileName: string | null;
   notes: string | null;
+  /** Full extracted body text (typed/OCR) so ORI can search inside the file. */
+  extractedText: string | null;
   /** Renewal lineage: the (archived) document this one replaces, if any. */
   supersedesId: number | null;
   /** Intake confidence gate: "ok" | "needs_review". */

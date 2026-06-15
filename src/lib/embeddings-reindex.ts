@@ -23,8 +23,8 @@ async function activeRows(): Promise<Row[]> {
   const { data: meetings } = await sb.from("meetings").select("id,title,attendees,raw_notes,minutes");
   for (const m of meetings ?? []) rows.push({ type: "meeting", id: m.id as number, content: join(m.title as string, m.attendees as string, m.raw_notes as string, m.minutes as string) });
 
-  const { data: docs } = await sb.from("documents").select("id,title,doc_type,issuer,category,reference_no,notes").eq("archived", false);
-  for (const d of docs ?? []) rows.push({ type: "document", id: d.id as number, content: join(d.title as string, d.doc_type as string, d.issuer as string, d.category as string, d.reference_no as string, d.notes as string) });
+  const { data: docs } = await sb.from("documents").select("id,title,doc_type,issuer,category,reference_no,notes,extracted_text").eq("archived", false);
+  for (const d of docs ?? []) rows.push({ type: "document", id: d.id as number, content: join(d.title as string, d.doc_type as string, d.issuer as string, d.category as string, d.reference_no as string, d.notes as string, d.extracted_text as string) });
 
   const { data: people } = await sb.from("people").select("id,name,role,staff_category,notes").eq("active", true);
   for (const p of people ?? []) rows.push({ type: "person", id: p.id as number, content: join(p.name as string, p.role as string, p.staff_category as string, p.notes as string) });

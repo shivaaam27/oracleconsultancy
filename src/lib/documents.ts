@@ -27,6 +27,7 @@ type DocDbRow = {
   storage_path: string | null;
   file_name: string | null;
   notes: string | null;
+  extracted_text: string | null;
   supersedes_id: number | null;
   review_status: string | null;
   needs_original: boolean | null;
@@ -62,6 +63,7 @@ function mapRow(r: DocDbRow): DocumentRow {
     storagePath: r.storage_path,
     fileName: r.file_name,
     notes: r.notes,
+    extractedText: r.extracted_text ?? null,
     supersedesId: r.supersedes_id,
     reviewStatus: r.review_status ?? "ok",
     needsOriginal: r.needs_original ?? false,
@@ -227,6 +229,7 @@ export async function uploadDocumentFile(documentId: number, file: File): Promis
 
   const path = `${documentId}/${Date.now()}-${safeName(file.name)}`;
   const buffer = Buffer.from(await file.arrayBuffer());
+  const hash = hashBuffer(buffer);
   const { error } = await sb.storage
     .from(DOCUMENTS_BUCKET)
     .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: true });
@@ -234,10 +237,44 @@ export async function uploadDocumentFile(documentId: number, file: File): Promis
 
   const { error: uErr } = await sb
     .from("documents")
-    .update({ storage_path: path, file_name: file.name, file_hash: hashBuffer(buffer), updated_at: new Date().toISOString() })
+    .update({ storage_path: path, file_name: file.name, file_hash: hash, updated_at: new Date().toISOString() })
     .eq("id", documentId);
   if (uErr) throw new Error(uErr.message);
+
+  // Capture the document's full text for semantic search — the upload form already
+  // extracted it, so it's in the cache under this hash (no re-read). Best-effort.
+  try {
+    const cached = (await getCachedExtraction(hash)) as { fullText?: string; textSource?: string } | null;
+    if (cached?.fullText) await setDocumentText(documentId, cached.fullText, cached.textSource ?? "typed");
+  } catch { /* best-effort */ }
   return path;
+}
+
+const MAX_DOC_TEXT = 60000; // cap on stored body text (chars) — keeps chunking sane
+
+/** Persist a document's full body text and re-index it (metadata + body) so ORI
+ *  can search INSIDE the file. Best-effort, never throws. */
+export async function setDocumentText(id: number, text: string | null, source: string): Promise<void> {
+  try {
+    const clean = (text ?? "").replace(/[ \t]+\n/g, "\n").trim().slice(0, MAX_DOC_TEXT);
+    await sb.from("documents").update({
+      extracted_text: clean || null,
+      text_source: clean ? source : "none",
+      extracted_text_at: new Date().toISOString(),
+    }).eq("id", id);
+    if (!clean) return;
+    const { data: row } = await sb
+      .from("documents")
+      .select("title,doc_type,issuer,category,reference_no,notes")
+      .eq("id", id)
+      .maybeSingle();
+    const content = [row?.title, row?.doc_type, row?.issuer, row?.category, row?.reference_no, row?.notes, clean]
+      .filter(Boolean)
+      .join("\n");
+    void indexEmbedding("document", id, content);
+  } catch {
+    /* best-effort */
+  }
 }
 
 /** SHA-256 of a buffer, hex — the file's content fingerprint for dedup. */
