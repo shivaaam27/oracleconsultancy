@@ -44,9 +44,10 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
 export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; role?: string }) {
   const pathname = usePathname() || "/portal";
   const isDirector = role === "director";
-  // Managers and HR juggle many tasks, so they get a dedicated filterable Tasks
-  // list; staff manage few (the Home page lists those) and directors use the board.
-  const showTasks = role === "manager" || role === "hr";
+  // Managers, HR and directors get a dedicated filterable Tasks list (group-wide
+  // for HR/directors, company-wide for managers). Staff manage few — the Home
+  // page lists those — so they don't need the tab.
+  const showTasks = role === "manager" || role === "hr" || role === "director";
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");

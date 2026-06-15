@@ -142,7 +142,7 @@ export function PortalTasksTable({
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
                     {t.companyName && <span className="text-xs text-fg-subtle">· {t.companyName}</span>}
-                    {t.raisedByMe && <Badge tone="muted">Raised by me</Badge>}
+                    {t.raisedByMe && <Badge tone="default">Raised by me</Badge>}
                     <span className="grow" />
                     <Badge tone={statusTone(t.status)}>{t.status}</Badge>
                     <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>

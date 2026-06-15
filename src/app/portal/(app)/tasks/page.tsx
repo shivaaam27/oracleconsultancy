@@ -13,8 +13,6 @@ export const metadata = { title: "Tasks — Oracle Consultancy" };
 export default async function PortalTasksPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // Directors have their board; the dedicated list is for the staff/manager/HR surface.
-  if (me.portalRole === "director") redirect("/portal/board");
 
   const ids = await visibleTaskIds(me);
 
@@ -62,9 +60,9 @@ export default async function PortalTasksPage() {
     }));
   }
 
-  const canRaise = me.portalRole === "manager" || me.portalRole === "hr";
+  const canRaise = me.portalRole !== "staff";
   const scopeNote =
-    me.portalRole === "hr"
+    me.portalRole === "hr" || me.portalRole === "director"
       ? "Every task across all companies."
       : me.portalRole === "manager"
         ? "Your company's tasks, plus your own and your team's."
