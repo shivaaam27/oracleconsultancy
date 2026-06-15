@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UploadCloud, X, Check, Plus, Sparkles, Loader2, UserPlus } from "lucide-react";
+import { UploadCloud, X, Check, Plus, Sparkles, Loader2, UserPlus, SkipForward, AlertTriangle } from "lucide-react";
 import { useToast } from "./toast";
 import { Button } from "./ui";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
@@ -187,6 +187,12 @@ export function BulkUploadDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [index, setIndex] = useState(0);
   const [done, setDone] = useState<Set<number>>(new Set());
+  // What happened to each handled file, keyed by its queue index. Drives the
+  // end-of-queue summary so skipped/failed files don't silently disappear.
+  const [outcomes, setOutcomes] = useState<Record<number, "saved" | "skipped" | "failed">>({});
+  // Once every file is handled, show the summary INSIDE the dialog instead of
+  // closing it — so the owner can jump back to anything skipped or failed.
+  const [showSummary, setShowSummary] = useState(false);
   const [savedAny, setSavedAny] = useState(false);
   // Whether any profile enrich succeeded — lets a text-only (no-file) bundle be
   // marked filed, which otherwise could only happen after saving a file.
@@ -198,7 +204,7 @@ export function BulkUploadDialog({
 
   // Fresh start every time the dialog opens (fixes stale data on reopen).
   useEffect(() => {
-    if (open) { setFiles(initialFiles ?? []); setIndex(0); setDone(new Set()); setSavedAny(false); setEnrichedAny(false); setLocalPeople(people); }
+    if (open) { setFiles(initialFiles ?? []); setIndex(0); setDone(new Set()); setOutcomes({}); setShowSummary(false); setSavedAny(false); setEnrichedAny(false); setLocalPeople(people); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -213,20 +219,30 @@ export function BulkUploadDialog({
     return null;
   }
 
-  function afterHandled(savedOk: boolean) {
+  function afterHandled(outcome: "saved" | "skipped" | "failed") {
+    const savedOk = outcome === "saved";
     const nextDone = new Set(done);
     nextDone.add(index);
     setDone(nextDone);
+    setOutcomes((prev) => ({ ...prev, [index]: outcome }));
     if (savedOk) { onDone?.(); setSavedAny(true); }
-    // Move to the next unhandled file, or finish.
+    // Move to the next unhandled file, or show the end-of-queue summary.
     const remaining = files.map((_, j) => j).filter((j) => !nextDone.has(j));
     if (remaining.length === 0) {
-      toast(`${nextDone.size} file${nextDone.size === 1 ? "" : "s"} reviewed.`, { tone: "success" });
       if (savedOk || savedAny) onAllDone?.();
-      onOpenChange(false);
+      setShowSummary(true);
       return;
     }
     setIndex(remaining[0]);
+  }
+
+  // Re-open a handled file (from the summary) so the owner can fix it. Clearing
+  // its done/outcome puts it back into the active queue at that index.
+  function reopen(j: number) {
+    setDone((prev) => { const next = new Set(prev); next.delete(j); return next; });
+    setOutcomes((prev) => { const next = { ...prev }; delete next[j]; return next; });
+    setShowSummary(false);
+    setIndex(j);
   }
 
   const allHandled = files.length > 0 && done.size >= files.length;
@@ -331,8 +347,13 @@ export function BulkUploadDialog({
                   </div>
                 )}
               </>
-            ) : allHandled || !current ? (
-              <div className="py-10 text-center text-sm text-fg-muted">All files reviewed.</div>
+            ) : showSummary || allHandled || !current ? (
+              <BulkSummary
+                files={files}
+                outcomes={outcomes}
+                onReopen={reopen}
+                onClose={() => onOpenChange(false)}
+              />
             ) : (
               <DocumentForm
                 key={`${index}-${current.name}`}
@@ -342,11 +363,70 @@ export function BulkUploadDialog({
                 initialFile={current}
                 submitLabel={advanceFrom(index) === null ? "Save & finish" : "Save & next"}
                 cancelLabel="Skip"
-                onCancel={() => afterHandled(false)}
-                onComplete={(res) => { if (res.ok) afterHandled(true); }}
+                onCancel={() => afterHandled("skipped")}
+                onComplete={(res) => afterHandled(res.ok ? "saved" : "failed")}
               />
             )}
       </div>
     </HrmsDialog>
+  );
+}
+
+/**
+ * End-of-queue summary shown inside the dialog: how many saved, plus any files
+ * that were skipped or failed — each clickable to re-open and fix on the spot.
+ */
+function BulkSummary({
+  files, outcomes, onReopen, onClose,
+}: {
+  files: File[];
+  outcomes: Record<number, "saved" | "skipped" | "failed">;
+  onReopen: (j: number) => void;
+  onClose: () => void;
+}) {
+  const saved = files.map((_, j) => j).filter((j) => outcomes[j] === "saved");
+  const leftovers = files.map((_, j) => j).filter((j) => outcomes[j] === "skipped" || outcomes[j] === "failed");
+  return (
+    <div className="py-6 space-y-4">
+      <div className="text-center">
+        <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-success-soft text-success">
+          <Check size={18} />
+        </div>
+        <p className="text-sm font-medium">All files reviewed.</p>
+        <p className="text-xs text-fg-muted">{saved.length} saved · {leftovers.length} still need a look.</p>
+      </div>
+
+      {leftovers.length > 0 && (
+        <div>
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-warn">
+            <AlertTriangle size={12} /> Skipped or couldn’t save
+          </div>
+          <ul className="rounded-xl ring-1 ring-warn/30 divide-y divide-border/50">
+            {leftovers.map((j) => (
+              <li key={j}>
+                <button
+                  type="button"
+                  onClick={() => onReopen(j)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] hover:bg-bg-muted/50"
+                >
+                  {outcomes[j] === "failed"
+                    ? <X size={13} className="shrink-0 text-danger" />
+                    : <SkipForward size={13} className="shrink-0 text-fg-subtle" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{files[j].name}</span>
+                    <span className="block text-[11px] text-fg-muted">{outcomes[j] === "failed" ? "Couldn’t save — tap to try again" : "Skipped — tap to review"}</span>
+                  </span>
+                  <span className="shrink-0 text-[10px] text-fg-subtle">Open</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex items-center justify-end">
+        <Button type="button" onClick={onClose}>Done</Button>
+      </div>
+    </div>
   );
 }

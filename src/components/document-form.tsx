@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Save, FilePlus, AlertCircle, Paperclip, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
-import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findOwnerDocuments, archiveDocumentAction, type ExtractedFields, type OwnerDocMatch } from "@/app/documents/actions";
+import { Loader2, Save, FilePlus, AlertCircle, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
+import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findDuplicateDocumentsAction, archiveDocumentAction, type ExtractedFields, type DuplicateMatch, type ExtractedSegment } from "@/app/documents/actions";
+import { DocPreview } from "@/components/doc-preview";
 import { downscaleImage } from "@/lib/downscale-image";
 import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
 import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
@@ -95,12 +96,24 @@ export function DocumentForm({
   // File upload state.
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [chosenFile, setChosenFile] = useState<string | null>(null);
+  // The actual picked File, kept so we can preview it before saving.
+  const [chosenFileObj, setChosenFileObj] = useState<File | null>(null);
   const [removeExisting, setRemoveExisting] = useState(false);
   const hasExistingFile = !!doc?.storagePath && !removeExisting;
+  // Content hash of the picked file (from extraction) — lets dedup catch the
+  // identical file even under a different name/owner.
+  const [fileHash, setFileHash] = useState<string | null>(null);
 
-  // Duplicate detection: existing docs for this owner + category.
-  const [dupDocs, setDupDocs] = useState<OwnerDocMatch[]>([]);
+  // Duplicate detection: identical-file / same-reference / similar-title matches.
+  const [dupDocs, setDupDocs] = useState<DuplicateMatch[]>([]);
   const [supersedeId, setSupersedeId] = useState<number | null>(null);
+
+  // Expiry intelligence: "yes" = expires, "no" = no expiry by nature. Drives the
+  // "No expiry" toggle so a blank expiry on a CV/invoice reads as correct, not missing.
+  const [expiryKind, setExpiryKind] = useState<"yes" | "no" | "">(doc?.expiryKind === "yes" || doc?.expiryKind === "no" ? doc.expiryKind : "");
+
+  // Compilation: parts detected in one uploaded file (a multi-document bundle).
+  const [segments, setSegments] = useState<ExtractedSegment[]>([]);
 
   // Person profile enrichment (unified intake): profile details read from the
   // document, offered as a one-tap "update {name}'s profile" (fill-blanks-only).
@@ -186,28 +199,26 @@ export function DocumentForm({
     }
   }
 
-  async function recheckDup() {
+  async function recheckDup(hashOverride?: string | null) {
     const form = formRef.current;
-    if (!form || mode !== "create") return;
+    if (!form) return;
     const cat = (form.elements.namedItem("category") as HTMLSelectElement | null)?.value || "";
+    const title = (form.elements.namedItem("title") as HTMLInputElement | null)?.value || "";
+    const referenceNo = (form.elements.namedItem("referenceNo") as HTMLInputElement | null)?.value || "";
     const companyId = parseInt((form.elements.namedItem("companyId") as HTMLSelectElement | null)?.value || "", 10);
     const personId = parseInt((form.elements.namedItem("personId") as HTMLSelectElement | null)?.value || "", 10);
-    // Check EVERY owner the document is being filed against — in "both" mode that
-    // means the person AND the company, so a company-side duplicate isn't missed.
-    const owners: Array<{ kind: "person" | "company"; id: number }> = [];
-    if (!Number.isNaN(personId)) owners.push({ kind: "person", id: personId });
-    if (!Number.isNaN(companyId)) owners.push({ kind: "company", id: companyId });
-    if (owners.length === 0 || !cat) { setDupDocs([]); setSupersedeId(null); return; }
-    const results = await Promise.all(owners.map((o) => findOwnerDocuments(o, cat)));
-    // Merge, de-duping by document id (a doc owned by both would appear twice).
-    const seen = new Set<number>();
-    const merged: OwnerDocMatch[] = [];
-    for (const m of results.flat()) {
-      if (seen.has(m.id)) continue;
-      seen.add(m.id);
-      merged.push(m);
-    }
-    setDupDocs(merged);
+    // hashOverride lets a just-read file dedup immediately (state hasn't flushed yet).
+    const hash = hashOverride !== undefined ? hashOverride : fileHash;
+    // Prefer the person as the owner for the title-match leg; the hash and
+    // reference legs are owner-independent so cross-owner copies are still caught.
+    const owner = !Number.isNaN(personId) ? { kind: "person" as const, id: personId } : !Number.isNaN(companyId) ? { kind: "company" as const, id: companyId } : null;
+    // Nothing identifying yet → no check.
+    if (!hash && !referenceNo && !(owner && cat)) { setDupDocs([]); setSupersedeId(null); return; }
+    const matches = await findDuplicateDocumentsAction({
+      fileHash: hash, referenceNo, title, category: cat, owner,
+      excludeId: mode === "edit" ? doc?.id ?? null : null,
+    });
+    setDupDocs(matches);
     setSupersedeId(null); // default: add as new (never auto-replace)
   }
 
@@ -280,6 +291,18 @@ export function DocumentForm({
       setCompanyProfile(f.company);
       setEnrichNote(null);
     }
+    // Expiry intelligence: reflect the AI's call. "no" means this type doesn't
+    // expire — clear any expiry field so a blank reads as correct, not missing.
+    if (f.expiryKind === "no") {
+      setExpiryKind("no");
+      const el = form?.elements.namedItem("expiryDate") as HTMLInputElement | null;
+      if (el) el.value = "";
+    } else if (f.expiryKind === "yes") {
+      setExpiryKind("yes");
+    }
+    // Compilation: a bundle of several documents detected in this one file.
+    // Flag for review — a split is a deliberate, operator-confirmed step.
+    if (f.segments && f.segments.length > 1) { setSegments(f.segments); setNeedsReview(true); }
     // Intake rewire: stash facts to record + the photo-placeholder flag.
     if (f.facts && f.facts.length) setExtractedFacts(f.facts);
     if (f.needsOriginal) setNeedsOriginal(true);
@@ -326,8 +349,13 @@ export function DocumentForm({
       const fd = new FormData();
       fd.set("file", prepared);
       const res = await extractDocumentFromFile(fd);
+      // The content hash comes back even on a failed read — keep it for dedup.
+      setFileHash(res.fileHash ?? null);
+      setChosenFileObj(prepared);
       if (!res.ok) {
         setExtractNote(res.note ?? "Couldn't read that file.");
+        // Still dedup on the file hash — an identical file may already be on record.
+        void recheckDup(res.fileHash ?? null);
         return;
       }
       // Attach the (prepared) file to the document's upload field.
@@ -340,6 +368,7 @@ export function DocumentForm({
       } catch { /* attachment is best-effort */ }
       setExtractNote(noteFor(applyFields(res.fields), res.source, res.needsReview) + (res.note ? ` ${res.note}` : ""));
       flagReview(res.needsReview, res.fields);
+      void recheckDup(res.fileHash ?? null);
     } finally {
       setExtracting(false);
     }
@@ -431,18 +460,22 @@ export function DocumentForm({
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { setChosenFile(f.name); setRemoveExisting(false); runExtractFile(f); } }}
             className="hidden" />
           {chosenFile ? (
-            <div className="flex items-center gap-2 text-sm rounded-lg border border-border bg-bg-subtle/60 px-3 py-2">
-              <Paperclip size={14} className="text-accent shrink-0" />
-              <span className="truncate flex-1">{chosenFile}</span>
-              <button type="button" onClick={() => { setChosenFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                className="text-fg-muted hover:text-danger" title="Clear"><X size={14} /></button>
+            <div className="rounded-lg border border-border bg-bg-subtle/60 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-2">
+                {/* Click the name (or Preview) to see the picked file before saving. */}
+                <DocPreview file={chosenFileObj} fileName={chosenFile} className="flex-1 min-w-0" />
+                <button type="button" onClick={() => { setChosenFile(null); setChosenFileObj(null); setFileHash(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                  className="text-fg-muted hover:text-danger shrink-0" title="Clear"><X size={14} /></button>
+              </div>
             </div>
           ) : hasExistingFile ? (
-            <div className="flex items-center gap-2 text-sm rounded-lg border border-border bg-bg-subtle/60 px-3 py-2">
-              <Paperclip size={14} className="text-fg-subtle shrink-0" />
-              <span className="truncate flex-1">{doc?.fileName ?? "Attached file"}</span>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs text-accent hover:opacity-80">Replace</button>
-              <button type="button" onClick={() => setRemoveExisting(true)} className="text-fg-muted hover:text-danger" title="Remove file"><X size={14} /></button>
+            <div className="rounded-lg border border-border bg-bg-subtle/60 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-2">
+                {/* Click the name (or Preview/Open) to view the stored file in place. */}
+                <DocPreview documentId={doc?.id} fileName={doc?.fileName ?? "Attached file"} className="flex-1 min-w-0" />
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs text-accent hover:opacity-80 shrink-0">Replace</button>
+                <button type="button" onClick={() => setRemoveExisting(true)} className="text-fg-muted hover:text-danger shrink-0" title="Remove file"><X size={14} /></button>
+              </div>
             </div>
           ) : (
             <button type="button" onClick={() => { setRemoveExisting(false); fileInputRef.current?.click(); }}
@@ -476,6 +509,23 @@ export function DocumentForm({
             {extracting && <Loader2 size={12} className="animate-spin" />}
             {extracting ? "Reading…" : extractNote}
           </p>
+        )}
+
+        {/* Compilation: this one file looks like several documents bundled together. */}
+        {segments.length > 1 && (
+          <div className="rounded-lg bg-accent-soft/40 ring-1 ring-accent/30 p-2.5 text-xs space-y-1.5">
+            <div className="flex items-center gap-1.5 font-medium text-accent">
+              <Sparkles size={13} /> This file looks like {segments.length} separate documents
+            </div>
+            <ul className="text-fg-muted space-y-0.5">
+              {segments.slice(0, 8).map((s, i) => (
+                <li key={i}>• {s.title ?? s.category ?? "Document"}{s.category && s.title ? ` · ${s.category}` : ""}{s.pageRange ? ` · p.${s.pageRange}` : ""}</li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-fg-subtle">
+              Save it first (it&apos;s flagged for review), then open it from the queue and choose <span className="font-medium">Split into separate documents</span> — each part keeps a link to this same file.
+            </p>
+          </div>
         )}
       </div>
 
@@ -519,7 +569,7 @@ export function DocumentForm({
 
         <div className={ownerMode === "person" ? "hidden" : ""}>
           <label className={labelCls}>Company</label>
-          <select name="companyId" onChange={recheckDup} defaultValue={doc?.companyId ? String(doc.companyId) : initialCompanyId ? String(initialCompanyId) : ""} className={inputCls}>
+          <select name="companyId" onChange={() => recheckDup()} defaultValue={doc?.companyId ? String(doc.companyId) : initialCompanyId ? String(initialCompanyId) : ""} className={inputCls}>
             <option value="">—</option>
             {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -528,7 +578,7 @@ export function DocumentForm({
 
         <div className={ownerMode === "company" ? "hidden" : ""}>
           <label className={labelCls}>Person</label>
-          <select name="personId" onChange={recheckDup} defaultValue={doc?.personId ? String(doc.personId) : initialPersonId ? String(initialPersonId) : ""} className={inputCls}>
+          <select name="personId" onChange={() => recheckDup()} defaultValue={doc?.personId ? String(doc.personId) : initialPersonId ? String(initialPersonId) : ""} className={inputCls}>
             <option value="">—</option>
             {localPeople.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
@@ -606,33 +656,43 @@ export function DocumentForm({
         )}
 
         {supersedeId != null && <input type="hidden" name="supersedesId" value={supersedeId} />}
-        {dupDocs.length > 0 && (
-          <div className="col-span-2 rounded-lg bg-warn-soft/40 ring-1 ring-warn/30 p-2.5 text-xs space-y-1.5">
-            <div className="flex items-center gap-1.5 font-medium text-warn">
-              <AlertCircle size={13} /> Already on file: {dupDocs.length} {category} document{dupDocs.length === 1 ? "" : "s"}
+        {dupDocs.length > 0 && (() => {
+          const MATCH_LABEL: Record<DuplicateMatch["matchKind"], string> = {
+            "identical-file": "identical file",
+            "same-reference": "same reference no.",
+            "similar-title": "similar title",
+          };
+          const hasIdentical = dupDocs.some((d) => d.matchKind === "identical-file");
+          return (
+            <div className="col-span-2 rounded-lg bg-warn-soft/40 ring-1 ring-warn/30 p-2.5 text-xs space-y-1.5">
+              <div className="flex items-center gap-1.5 font-medium text-warn">
+                <AlertCircle size={13} /> {hasIdentical ? "This exact file is already on record" : `Possible duplicate — ${dupDocs.length} similar document${dupDocs.length === 1 ? "" : "s"} on file`}
+              </div>
+              <ul className="text-fg-muted space-y-0.5">
+                {dupDocs.slice(0, 4).map((d) => (
+                  <li key={d.id}>• {d.title}{d.expiryLabel ? ` · ${d.expiryLabel}` : ""} <span className="text-fg-subtle">({MATCH_LABEL[d.matchKind]})</span></li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                <button type="button" onClick={() => setSupersedeId(null)}
+                  className={cn("rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors", supersedeId === null ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle text-fg-muted ring-border hover:bg-bg-muted")}>
+                  Keep both (add new)
+                </button>
+                <button type="button" onClick={() => setSupersedeId(dupDocs[0].id)}
+                  className={cn("rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors", supersedeId != null ? "bg-warn-soft text-warn ring-warn/30" : "bg-bg-subtle text-fg-muted ring-border hover:bg-bg-muted")}>
+                  Replace (archive old)
+                </button>
+              </div>
+              <p className="text-[11px] text-fg-subtle">
+                {supersedeId != null
+                  ? "On save, the existing copy is archived (kept in history), not deleted."
+                  : hasIdentical
+                    ? "You may already have this. Only add it again if you mean to keep a separate copy."
+                    : "Nothing on file is touched — this is added separately. Choose Replace only if this is genuinely newer."}
+              </p>
             </div>
-            <ul className="text-fg-muted space-y-0.5">
-              {dupDocs.slice(0, 3).map((d) => (
-                <li key={d.id}>• {d.title}{d.expiryLabel ? ` · ${d.expiryLabel}` : ""} <span className="text-fg-subtle">({d.status})</span></li>
-              ))}
-            </ul>
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <button type="button" onClick={() => setSupersedeId(null)}
-                className={cn("rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors", supersedeId === null ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle text-fg-muted ring-border hover:bg-bg-muted")}>
-                Keep both (add new)
-              </button>
-              <button type="button" onClick={() => setSupersedeId(dupDocs[0].id)}
-                className={cn("rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors", supersedeId != null ? "bg-warn-soft text-warn ring-warn/30" : "bg-bg-subtle text-fg-muted ring-border hover:bg-bg-muted")}>
-                Replace newest (archive old)
-              </button>
-            </div>
-            <p className="text-[11px] text-fg-subtle">
-              {supersedeId != null
-                ? "On save, the existing copy is archived (kept in history), not deleted."
-                : "Nothing on file is touched — this is added as a separate document. Only choose Replace if this is genuinely newer."}
-            </p>
-          </div>
-        )}
+          );
+        })()}
 
         <div>
           <label className={labelCls}>Issuer</label>
@@ -655,10 +715,28 @@ export function DocumentForm({
         <div>
           <label className={labelCls}>Expiry date</label>
           <input name="expiryDate" type="date" defaultValue={toDateInput(doc?.expiryDate)}
-            onChange={() => dateError && setDateError(null)}
+            disabled={expiryKind === "no"}
+            onChange={(e) => { if (dateError) setDateError(null); if (e.target.value) setExpiryKind("yes"); }}
             aria-invalid={!!dateError}
-            className={cn(inputCls, dateError && "ring-1 ring-danger/60 border-danger/60")} />
+            className={cn(inputCls, expiryKind === "no" && "opacity-50", dateError && "ring-1 ring-danger/60 border-danger/60")} />
           {dateError && <p className="mt-1 text-[11px] text-danger">{dateError}</p>}
+          {/* Expiry intelligence — let the operator confirm a document genuinely
+              has no expiry (CV, invoice, report) so a blank reads as correct. */}
+          <label className="mt-1.5 flex items-center gap-1.5 text-[11px] text-fg-muted cursor-pointer">
+            <input type="checkbox" checked={expiryKind === "no"}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setExpiryKind("no");
+                  const el = formRef.current?.elements.namedItem("expiryDate") as HTMLInputElement | null;
+                  if (el) el.value = "";
+                } else { setExpiryKind(""); }
+              }}
+              className="accent-accent" />
+            No expiry — this type of document doesn&apos;t expire
+          </label>
+          {/* Carry the expiry decision to the server so compliance treats a blank
+              expiry on a no-expiry document as complete, not missing. */}
+          <input type="hidden" name="expiryKind" value={expiryKind} />
         </div>
 
         <div>

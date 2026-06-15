@@ -4,9 +4,11 @@ import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
 import { SafetyNetPanel } from "@/components/safety-net-panel";
 import { NeedsReviewPanel } from "@/components/needs-review-panel";
+import { ExtractionHealth } from "@/components/extraction-health";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { ComplianceExportButton } from "@/components/compliance-export-button";
+import { FindDuplicatesButton } from "@/components/find-duplicates-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { buildCompanyRequirementScores, ensureAllCompanyRequirements } from "@/lib/company-requirements";
@@ -85,6 +87,7 @@ export default async function DocumentsPage({
         sub={sub}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <FindDuplicatesButton />
             <ComplianceExportButton />
             <RequirementTemplatesButton />
             <JourneyTemplatesButton />
@@ -101,6 +104,7 @@ export default async function DocumentsPage({
         pendingLeaveCount={pendingLeave}
       />
       <NeedsReviewPanel docs={reviewDocs} />
+      <ExtractionHealth />
       <SafetyNetPanel findings={safetyFindings} />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>

@@ -4,6 +4,7 @@
 // documents-shared.ts (client-safe) and are re-exported here for convenience.
 
 import { cache } from "react";
+import { createHash } from "crypto";
 import { sb } from "@/db/supabase";
 import { DEFAULT_LEAD_DAYS, type DocumentRow } from "./documents-shared";
 
@@ -28,6 +29,10 @@ type DocDbRow = {
   supersedes_id: number | null;
   review_status: string | null;
   needs_original: boolean | null;
+  file_hash: string | null;
+  compilation_id: string | null;
+  page_range: string | null;
+  expiry_kind: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -58,6 +63,10 @@ function mapRow(r: DocDbRow): DocumentRow {
     supersedesId: r.supersedes_id,
     reviewStatus: r.review_status ?? "ok",
     needsOriginal: r.needs_original ?? false,
+    fileHash: r.file_hash ?? null,
+    compilationId: r.compilation_id ?? null,
+    pageRange: r.page_range ?? null,
+    expiryKind: r.expiry_kind ?? null,
     archived: r.archived,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
@@ -99,6 +108,10 @@ export type DocumentInput = {
   supersedesId?: number | null;
   reviewStatus?: string | null;
   needsOriginal?: boolean | null;
+  fileHash?: string | null;
+  compilationId?: string | null;
+  pageRange?: string | null;
+  expiryKind?: string | null;
 };
 
 function toIso(v: Date | string | null | undefined): string | null {
@@ -133,6 +146,10 @@ export async function createDocument(
       supersedes_id: input.supersedesId ?? null,
       review_status: input.reviewStatus ?? "ok",
       needs_original: input.needsOriginal ?? false,
+      file_hash: input.fileHash ?? null,
+      compilation_id: input.compilationId ?? null,
+      page_range: input.pageRange ?? null,
+      expiry_kind: input.expiryKind ?? null,
       archived: false,
       created_at: now,
       updated_at: now,
@@ -161,6 +178,10 @@ export async function updateDocument(id: number, patch: Partial<DocumentInput>):
   if (patch.notes !== undefined) payload.notes = patch.notes;
   if (patch.reviewStatus !== undefined) payload.review_status = patch.reviewStatus;
   if (patch.needsOriginal !== undefined) payload.needs_original = patch.needsOriginal;
+  if (patch.fileHash !== undefined) payload.file_hash = patch.fileHash;
+  if (patch.compilationId !== undefined) payload.compilation_id = patch.compilationId;
+  if (patch.pageRange !== undefined) payload.page_range = patch.pageRange;
+  if (patch.expiryKind !== undefined) payload.expiry_kind = patch.expiryKind;
   const { error } = await sb.from("documents").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
 }
@@ -201,22 +222,63 @@ export async function uploadDocumentFile(documentId: number, file: File): Promis
 
   const { error: uErr } = await sb
     .from("documents")
-    .update({ storage_path: path, file_name: file.name, updated_at: new Date().toISOString() })
+    .update({ storage_path: path, file_name: file.name, file_hash: hashBuffer(buffer), updated_at: new Date().toISOString() })
     .eq("id", documentId);
   if (uErr) throw new Error(uErr.message);
   return path;
 }
 
-/** Remove the stored file (if any) for a document and clear its columns. */
+/** SHA-256 of a buffer, hex — the file's content fingerprint for dedup. */
+export function hashBuffer(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+/** SHA-256 of an uploaded File's bytes (used before saving, for pre-flight dedup). */
+export async function hashFile(file: File): Promise<string> {
+  return hashBuffer(Buffer.from(await file.arrayBuffer()));
+}
+
+/**
+ * Point a document at an ALREADY-stored file without re-uploading it. Used when
+ * one uploaded compilation is split into several documents — the original file
+ * is stored once (on the first split) and every other split references the same
+ * object key. Removing one split must NOT delete the shared object: see
+ * removeDocumentFile, which only deletes a path no other live row references.
+ */
+export async function attachStoredFile(
+  documentId: number,
+  storagePath: string,
+  fileName: string,
+  fileHash: string | null
+): Promise<void> {
+  const { error } = await sb
+    .from("documents")
+    .update({ storage_path: storagePath, file_name: fileName, file_hash: fileHash, updated_at: new Date().toISOString() })
+    .eq("id", documentId);
+  if (error) throw new Error(error.message);
+}
+
+/** Remove the stored file (if any) for a document and clear its columns. A file
+ *  shared by other live documents (a compilation split) is kept in storage —
+ *  only this row's pointer is cleared, so the siblings can still open it. */
 export async function removeDocumentFile(documentId: number): Promise<void> {
   const { data } = await sb.from("documents").select("storage_path").eq("id", documentId).maybeSingle();
   const path = (data?.storage_path as string | null) ?? null;
   if (path) {
-    await sb.storage.from(DOCUMENTS_BUCKET).remove([path]);
+    // Only delete the object if no OTHER live document still points at it.
+    const { data: others } = await sb
+      .from("documents")
+      .select("id")
+      .eq("storage_path", path)
+      .neq("id", documentId)
+      .limit(1);
+    if (!others || others.length === 0) {
+      await sb.storage.from(DOCUMENTS_BUCKET).remove([path]);
+    }
   }
   await sb
     .from("documents")
-    .update({ storage_path: null, file_name: null, updated_at: new Date().toISOString() })
+    .update({ storage_path: null, file_name: null, file_hash: null, updated_at: new Date().toISOString() })
     .eq("id", documentId);
 }
 
@@ -225,6 +287,17 @@ export async function signDocumentFile(storagePath: string, expiresInSeconds = 3
   const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).createSignedUrl(storagePath, expiresInSeconds);
   if (error) return null;
   return data?.signedUrl ?? null;
+}
+
+/** Live documents whose stored file has the exact same content hash — i.e. the
+ *  identical file already on record (possibly under a different name/owner). */
+export async function findDocumentsByHash(fileHash: string, excludeId?: number): Promise<DocumentRow[]> {
+  if (!fileHash) return [];
+  let q = sb.from("documents").select("*").eq("file_hash", fileHash).eq("archived", false);
+  if (excludeId) q = q.neq("id", excludeId);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data as DocDbRow[]).map(mapRow);
 }
 
 /** Link a renewal/action task to a document (mirrors meeting_tasks). */

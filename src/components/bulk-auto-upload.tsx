@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, FolderUp, Check, AlertTriangle, Loader2, FileText, X } from "lucide-react";
+import { UploadCloud, FolderUp, Check, AlertTriangle, Loader2, FileText, X, Copy, FileX, Paperclip } from "lucide-react";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { Button } from "./ui";
 import { downscaleImage } from "@/lib/downscale-image";
@@ -102,9 +102,29 @@ export function BulkAutoUpload({
     router.refresh();
   }
 
-  const filed = rows.filter((r) => r.status === "filed").length;
-  const review = rows.filter((r) => r.status === "needs_review").length;
+  // A row "couldn't be read" when the action (or upload) failed outright.
+  const isFailed = (r: Row) => !r.ok;
+  const filedRows = rows.filter((r) => r.ok && r.status === "filed");
+  const reviewRows = rows.filter((r) => r.ok && r.status === "needs_review");
+  const dupeRows = rows.filter((r) => r.ok && r.status === "duplicate");
+  const failedRows = rows.filter(isFailed);
+  const filed = filedRows.length;
+  const review = reviewRows.length;
+  const dupes = dupeRows.length;
+  const failed = failedRows.length;
   const pct = total ? Math.round((done / total) * 100) : 0;
+
+  // Clicking a row opens the document edit form. A duplicate opens the EXISTING
+  // doc it matched; anything else opens its own record if it has one.
+  function openRow(r: Row) {
+    const id = r.status === "duplicate" ? r.duplicateOfId : r.id;
+    if (!id) return;
+    onOpenChange(false);
+    router.push(`/documents?doc=${id}`);
+  }
+  function rowClickable(r: Row) {
+    return Boolean(r.status === "duplicate" ? r.duplicateOfId : r.id);
+  }
   const allOwners = [...people.map((p) => ({ kind: "person" as const, id: p.id, name: p.name })), ...companies.map((c) => ({ kind: "company" as const, id: c.id, name: c.name }))];
 
   return (
@@ -169,32 +189,135 @@ export function BulkAutoUpload({
             <div className="flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-xs font-medium text-success"><Check size={13} /> {filed} filed automatically</span>
               {review > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-soft px-3 py-1 text-xs font-medium text-warn"><AlertTriangle size={13} /> {review} need a quick look</span>}
+              {dupes > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle px-3 py-1 text-xs font-medium text-fg-muted"><Copy size={13} /> {dupes} already on file</span>}
+              {failed > 0 && <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-3 py-1 text-xs font-medium text-danger"><FileX size={13} /> {failed} couldn’t be read</span>}
             </div>
           )}
 
-          <ul className="max-h-64 overflow-y-auto rounded-xl ring-1 ring-border/60 divide-y divide-border/50">
-            {rows.map((r, i) => (
-              <li key={i} className="flex items-center gap-2 px-3 py-2 text-[12px]">
-                <FileText size={13} className="shrink-0 text-fg-subtle" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{r.title}</span>
-                  <span className="block truncate text-[11px] text-fg-muted">{[r.owner, r.reason || r.error].filter(Boolean).join(" · ") || "filed"}</span>
-                </span>
-                {r.status === "filed"
-                  ? <span className="shrink-0 rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-medium text-success">Filed</span>
-                  : <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-medium text-warn">Review</span>}
-              </li>
-            ))}
-          </ul>
+          {/* Live, flat list while still running; grouped sections once finished. */}
+          {running && (
+            <ul className="max-h-64 overflow-y-auto rounded-xl ring-1 ring-border/60 divide-y divide-border/50">
+              {rows.map((r, i) => (
+                <li key={i} className="flex items-center gap-2 px-3 py-2 text-[12px]">
+                  <FileText size={13} className="shrink-0 text-fg-subtle" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{r.title}</span>
+                    <span className="block truncate text-[11px] text-fg-muted">{[r.owner, r.reason || r.error].filter(Boolean).join(" · ") || "filed"}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {finished && (
+            <div className="max-h-72 overflow-y-auto space-y-3">
+              <ResultSection
+                title="Filed"
+                rows={filedRows}
+                tone="success"
+                icon={<Check size={12} />}
+                onOpen={openRow}
+                clickable={rowClickable}
+                subFor={(r) => r.owner || "Filed"}
+              />
+              <ResultSection
+                title="Needs a quick look"
+                rows={reviewRows}
+                tone="warn"
+                icon={<AlertTriangle size={12} />}
+                onOpen={openRow}
+                clickable={rowClickable}
+                subFor={(r) => [r.owner, r.reason].filter(Boolean).join(" · ") || "Needs a quick look"}
+              />
+              <ResultSection
+                title="Already on file"
+                rows={dupeRows}
+                tone="muted"
+                icon={<Copy size={12} />}
+                onOpen={openRow}
+                clickable={rowClickable}
+                subFor={() => "Skipped — identical file already saved"}
+              />
+              <ResultSection
+                title="Couldn’t read"
+                rows={failedRows}
+                tone="danger"
+                icon={<FileX size={12} />}
+                onOpen={openRow}
+                clickable={rowClickable}
+                subFor={(r) => r.error || r.reason || "Couldn’t read this file"}
+              />
+            </div>
+          )}
 
           {finished && (
             <div className="flex items-center justify-end gap-2">
               <Button type="button" onClick={() => { setFinished(false); setRows([]); setTotal(0); setDone(0); }}>Add more</Button>
-              <button type="button" onClick={() => onOpenChange(false)} className="px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">Close{review > 0 ? " — review below" : ""}</button>
+              <button type="button" onClick={() => onOpenChange(false)} className="px-3 py-1.5 text-sm rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">Close{review + failed > 0 ? " — items above need a look" : ""}</button>
             </div>
           )}
         </div>
       )}
     </HrmsDialog>
+  );
+}
+
+/** One grouped, colour-coded block of results; rows open the doc when clickable. */
+function ResultSection({
+  title, rows, tone, icon, onOpen, clickable, subFor,
+}: {
+  title: string;
+  rows: Row[];
+  tone: "success" | "warn" | "muted" | "danger";
+  icon: React.ReactNode;
+  onOpen: (r: Row) => void;
+  clickable: (r: Row) => boolean;
+  subFor: (r: Row) => string;
+}) {
+  if (rows.length === 0) return null;
+  const headTone =
+    tone === "success" ? "text-success"
+    : tone === "warn" ? "text-warn"
+    : tone === "danger" ? "text-danger"
+    : "text-fg-muted";
+  const ringTone =
+    tone === "success" ? "ring-success/25"
+    : tone === "warn" ? "ring-warn/30"
+    : tone === "danger" ? "ring-danger/30"
+    : "ring-border/60";
+  return (
+    <div>
+      <div className={`mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider ${headTone}`}>
+        {icon} {title} <span className="text-fg-subtle">· {rows.length}</span>
+      </div>
+      <ul className={`rounded-xl ring-1 ${ringTone} divide-y divide-border/50`}>
+        {rows.map((r, i) => {
+          const can = clickable(r);
+          const isBundle = (r.segmentCount ?? 0) > 1;
+          return (
+            <li key={i}>
+              <button
+                type="button"
+                onClick={() => can && onOpen(r)}
+                disabled={!can}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] ${can ? "hover:bg-bg-muted/50 cursor-pointer" : "cursor-default"}`}
+              >
+                <FileText size={13} className="shrink-0 text-fg-subtle" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{r.title || r.fileName}</span>
+                  <span className="block truncate text-[11px] text-fg-muted">{subFor(r)}</span>
+                  {isBundle && (
+                    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-accent">
+                      <Paperclip size={10} /> {r.segmentCount}-document bundle — open to split
+                    </span>
+                  )}
+                </span>
+                {can && <span className="shrink-0 text-[10px] text-fg-subtle">Open</span>}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

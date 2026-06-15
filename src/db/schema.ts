@@ -987,6 +987,18 @@ export const documents = pgTable("documents", {
   // standing in for an official original still to be collected. The Safety Net
   // raises an "Awaiting original" finding while this is true.
   needsOriginal: boolean("needs_original").notNull().default(false),
+  // SHA-256 of the uploaded file's bytes — lets dedup catch the SAME file
+  // re-uploaded even under a different name/owner (not just same owner+category).
+  fileHash: text("file_hash"),
+  // When one uploaded file (e.g. a recruit's scanned bundle) is split into
+  // several documents, every split shares one compilationId and stores the page
+  // range it covers ("1-3"). The original file is stored once and shared.
+  compilationId: text("compilation_id"),
+  pageRange: text("page_range"),
+  // Expiry intelligence: "yes" = this document type genuinely expires (renew on
+  // expiryDate); "no" = it has no expiry by nature (CV, invoice, analytical) —
+  // so a blank expiry is correct, not missing; null = not yet determined.
+  expiryKind: text("expiry_kind"),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),

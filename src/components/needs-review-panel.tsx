@@ -43,7 +43,14 @@ export function NeedsReviewPanel({ docs }: { docs: ReviewDoc[] }) {
       </div>
       <ul className="divide-y divide-border/50">
         {docs.map((d) => (
-          <li key={d.id} className="flex items-center gap-2.5 px-4 py-2.5">
+          <li
+            key={d.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => router.push(`/documents?doc=${d.id}`)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.push(`/documents?doc=${d.id}`); } }}
+            className="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer hover:bg-bg-muted/40 transition-colors focus:outline-none focus-visible:bg-bg-muted/40"
+          >
             <FileText size={14} className="shrink-0 text-fg-subtle" />
             <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-medium text-fg truncate">{d.title}</span>
@@ -53,7 +60,7 @@ export function NeedsReviewPanel({ docs }: { docs: ReviewDoc[] }) {
             </span>
             <button
               type="button"
-              onClick={() => router.push(`/documents?doc=${d.id}`)}
+              onClick={(e) => { e.stopPropagation(); router.push(`/documents?doc=${d.id}`); }}
               className="rounded-lg px-2.5 py-1 text-[12px] text-fg-muted hover:bg-bg-muted/60"
             >
               Open
@@ -61,7 +68,7 @@ export function NeedsReviewPanel({ docs }: { docs: ReviewDoc[] }) {
             <button
               type="button"
               disabled={pending && busyId === d.id}
-              onClick={() => confirm(d.id)}
+              onClick={(e) => { e.stopPropagation(); confirm(d.id); }}
               className="inline-flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-fg hover:opacity-90 disabled:opacity-50"
             >
               {pending && busyId === d.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Confirm

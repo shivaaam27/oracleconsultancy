@@ -505,6 +505,13 @@
       "when": 1781503674521,
       "tag": "0071_charming_nuke",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1781504882438,
+      "tag": "0072_regular_lady_ursula",
+      "breakpoints": true
     }
   ]
 }

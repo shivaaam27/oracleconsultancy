@@ -183,7 +183,23 @@ export function CompanyDocuments({
                 return (
                   <li key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-bg-elev/40">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{doc.title}</span>
+                      {doc.storagePath ? (
+                        <button
+                          type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
+                          className="block w-full truncate text-left text-sm font-medium text-fg hover:text-accent hover:underline transition-colors disabled:opacity-50"
+                        >
+                          {doc.title}
+                        </button>
+                      ) : doc.fileUrl ? (
+                        <a
+                          href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
+                          className="block w-full truncate text-sm font-medium text-fg hover:text-accent hover:underline transition-colors"
+                        >
+                          {doc.title}
+                        </a>
+                      ) : (
+                        <span className="block truncate text-sm font-medium">{doc.title}</span>
+                      )}
                       <span className="block truncate text-[11px] text-fg-subtle">
                         {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
                       </span>

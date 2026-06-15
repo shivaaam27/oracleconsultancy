@@ -14,8 +14,14 @@ import {
   uploadDocumentFile,
   removeDocumentFile,
   signDocumentFile,
+  hashFile,
+  attachStoredFile,
+  findDocumentsByHash,
+  getDocument,
+  DOCUMENTS_BUCKET,
   type DocumentInput,
 } from "@/lib/documents";
+import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey } from "@/lib/settings";
@@ -119,6 +125,7 @@ function inputFromForm(fd: FormData): DocumentInput | { error: string } {
     ...(fd.has("supersedesId") ? { supersedesId: intOrNull(fd, "supersedesId") } : {}),
     ...(fd.has("reviewStatus") ? { reviewStatus: str(fd, "reviewStatus") ?? "ok" } : {}),
     ...(fd.has("needsOriginal") ? { needsOriginal: fd.get("needsOriginal") === "1" } : {}),
+    ...(fd.has("expiryKind") ? { expiryKind: str(fd, "expiryKind") } : {}),
   };
 }
 
@@ -214,10 +221,16 @@ export type AutoFileResult = {
   ok: boolean;
   id?: number;
   title: string;
-  status: "filed" | "needs_review";
+  status: "filed" | "needs_review" | "duplicate";
   owner: string | null; // company/person name, for the summary
   reason?: string; // why it needs review (no company / unclear / unreadable)
   error?: string;
+  // When the SAME file is already on record, we skip creating a copy and point
+  // at the existing document instead (nothing is lost, no duplicate piles up).
+  duplicateOfId?: number;
+  duplicateOfTitle?: string;
+  // Multi-document bundle detected — how many parts the operator can split into.
+  segmentCount?: number;
 };
 
 /**
@@ -241,6 +254,18 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     const res = await extractDocumentFromFile(fd);
     const f = res.fields ?? {};
 
+    // Exact-duplicate guard: if this very file (same content hash) is already on
+    // record, do NOT create another copy — point at the existing one. This is the
+    // single biggest source of the duplicate pile-up (the same file re-dropped).
+    if (res.fileHash) {
+      try {
+        const dups = await findDocumentsByHash(res.fileHash);
+        if (dups.length) {
+          return { ok: true, title: f.title || fallbackTitle, status: "duplicate", owner: null, duplicateOfId: dups[0].id, duplicateOfTitle: dups[0].title, reason: "Already on file (identical file)" };
+        }
+      } catch { /* dedup is best-effort — fall through and file it */ }
+    }
+
     // Owner resolution order: (1) the file's own ID/name (already in f) →
     // (2) a company/person named in the folder path → (3) the batch context owner.
     let companyId = f.companyId ?? null;
@@ -262,10 +287,24 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     }
 
     const hasOwner = !!companyId || !!personId;
-    // Review only when the read failed, the scan was genuinely unclear, or NO
-    // signal at all resolved an owner (the true orphans).
-    const needsReview = !res.ok || !!res.needsReview || !hasOwner;
-    const reason = !res.ok ? (res.note ?? "Couldn't read the file") : !hasOwner ? "No company/person matched" : res.needsReview ? "Scan was unclear" : undefined;
+    // A detected multi-document bundle is NEVER auto-split — the operator confirms
+    // the split (review-before-commit). We file the whole bundle as one document
+    // flagged for review, with the proposed parts stashed in notes.
+    const segCount = f.segments?.length ?? 0;
+    const isCompilation = segCount > 1;
+    // Review when the read failed, the scan was unclear, NO owner resolved, or it
+    // looks like several documents bundled together.
+    const needsReview = !res.ok || !!res.needsReview || !hasOwner || isCompilation;
+    const reason = !res.ok
+      ? (res.note ?? "Couldn't read the file")
+      : isCompilation ? `Looks like ${segCount} documents — open to split`
+      : !hasOwner ? "No company/person matched"
+      : res.needsReview ? "Scan was unclear"
+      : undefined;
+
+    const partsNote = isCompilation
+      ? `\n\n[Bundle of ${segCount} documents detected]\n` + f.segments!.map((s, i) => `${i + 1}. ${s.title ?? s.category ?? "Document"}${s.pageRange ? ` (p.${s.pageRange})` : ""}`).join("\n")
+      : "";
 
     const input: DocumentInput = {
       title: f.title || fallbackTitle,
@@ -275,9 +314,10 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       referenceNo: f.referenceNo ?? null,
       issueDate: f.issueDate ?? null,
       expiryDate: f.expiryDate ?? null,
+      expiryKind: f.expiryKind ?? null,
       companyId,
       personId,
-      notes: f.notes ?? null,
+      notes: (f.notes ?? "") + partsNote || null,
       needsOriginal: f.needsOriginal ?? false,
       reviewStatus: needsReview ? "needs_review" : "ok",
     };
@@ -303,6 +343,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       status: needsReview ? "needs_review" : "filed",
       owner: resolvedBy && resolvedBy !== "file" && owner ? `${owner} (from ${resolvedBy})` : owner,
       reason,
+      segmentCount: isCompilation ? segCount : undefined,
     };
   } catch (e) {
     return { ok: false, title: fallbackTitle, status: "needs_review", owner: null, error: e instanceof Error ? e.message : "Could not file the document." };
@@ -414,6 +455,348 @@ export async function confirmDocumentReviewAction(id: number): Promise<Result> {
   }
 }
 
+export type DuplicateMatch = {
+  id: number;
+  title: string;
+  matchKind: "identical-file" | "same-reference" | "similar-title";
+  category: string | null;
+  expiryLabel: string | null;
+  fileName: string | null;
+};
+
+/**
+ * Find likely duplicates of a document being added — across THREE signals, not
+ * just owner+category: (1) the identical file (same content hash, even under a
+ * different name/owner), (2) the same reference/serial number, (3) a very similar
+ * title for the same owner+category. Drives the form's "already on file" panel so
+ * a re-upload is flagged in review instead of silently piling up.
+ */
+export async function findDuplicateDocumentsAction(input: {
+  fileHash?: string | null;
+  referenceNo?: string | null;
+  title?: string | null;
+  category?: string | null;
+  owner?: { kind: "company" | "person"; id: number } | null;
+  excludeId?: number | null;
+}): Promise<DuplicateMatch[]> {
+  const out: DuplicateMatch[] = [];
+  const seen = new Set<number>();
+  const add = (d: DocumentRowLite, matchKind: DuplicateMatch["matchKind"]) => {
+    if (seen.has(d.id) || d.id === input.excludeId) return;
+    seen.add(d.id);
+    const expiryDate = d.expiry_date ? new Date(d.expiry_date) : null;
+    out.push({
+      id: d.id, title: d.title, matchKind, category: d.category,
+      expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays: d.reminder_lead_days ?? 30 }) : null,
+      fileName: d.file_name,
+    });
+  };
+  try {
+    // 1. Identical file.
+    if (input.fileHash) {
+      const dups = await findDocumentsByHash(input.fileHash, input.excludeId ?? undefined);
+      for (const d of dups) add({ id: d.id, title: d.title, category: d.category, expiry_date: d.expiryDate ? d.expiryDate.toISOString() : null, reminder_lead_days: d.reminderLeadDays, file_name: d.fileName }, "identical-file");
+    }
+    // 2. Same reference number (a strong identity signal — TIN/cert/serial).
+    const ref = (input.referenceNo ?? "").trim();
+    if (ref.length >= 4) {
+      const { data } = await supa.from("documents").select("id,title,category,expiry_date,reminder_lead_days,file_name").eq("reference_no", ref).eq("archived", false).limit(8);
+      for (const d of (data ?? []) as DocumentRowLite[]) add(d, "same-reference");
+    }
+    // 3. Similar title within the same owner + category.
+    if (input.owner && input.category) {
+      const col = input.owner.kind === "company" ? "company_id" : "person_id";
+      const { data } = await supa.from("documents").select("id,title,category,expiry_date,reminder_lead_days,file_name").eq(col, input.owner.id).eq("category", input.category).eq("archived", false).limit(20);
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const t = norm(input.title ?? "");
+      for (const d of (data ?? []) as DocumentRowLite[]) {
+        const dt = norm(d.title);
+        if (t && dt && (dt === t || dt.includes(t) || t.includes(dt))) add(d, "similar-title");
+      }
+    }
+  } catch { /* best-effort — never block the form */ }
+  return out.slice(0, 10);
+}
+
+type DocumentRowLite = { id: number; title: string; category: string | null; expiry_date: string | null; reminder_lead_days: number | null; file_name: string | null };
+
+/**
+ * Re-read an already-stored file and detect whether it is a bundle of several
+ * documents. Used by the review UI to propose a split on demand (the file isn't
+ * on the client there — it lives in storage). Returns the proposed parts.
+ */
+export async function detectCompilationForDocumentAction(
+  id: number
+): Promise<{ ok: true; segments: ExtractedSegment[] } | { ok: false; error: string }> {
+  try {
+    const doc = await getDocument(id);
+    if (!doc?.storagePath) return { ok: false, error: "No file is attached to this document." };
+    const { data, error } = await supa.storage.from(DOCUMENTS_BUCKET).download(doc.storagePath);
+    if (error || !data) return { ok: false, error: "Could not open the stored file." };
+    const file = new File([await data.arrayBuffer()], doc.fileName ?? "document", { type: data.type || "application/octet-stream" });
+    const fd = new FormData();
+    fd.set("file", file);
+    const res = await extractDocumentFromFileInner(fd);
+    return { ok: true, segments: res.fields.segments ?? [] };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not scan for multiple documents." };
+  }
+}
+
+/**
+ * Split one document (a confirmed compilation) into several, all SHARING the one
+ * stored file. The original row becomes the first part; the rest become new
+ * sibling rows that reference the same storage object (page_range records which
+ * pages each covers). Review-before-commit: only ever called after the operator
+ * approves the proposed parts. Returns the created sibling ids.
+ */
+export async function splitDocumentAction(
+  id: number,
+  segments: ExtractedSegment[]
+): Promise<{ ok: true; created: number[] } | { ok: false; error: string }> {
+  try {
+    if (!Array.isArray(segments) || segments.length < 2) return { ok: false, error: "Need at least two parts to split." };
+    const doc = await getDocument(id);
+    if (!doc) return { ok: false, error: "Document not found." };
+    const compilationId = `comp-${id}`;
+    const [first, ...rest] = segments;
+
+    // The original row becomes the first part (keeps the stored file).
+    await updateDocument(id, {
+      title: first.title || doc.title,
+      category: first.category ?? doc.category,
+      docType: first.docType ?? doc.docType,
+      issuer: first.issuer ?? doc.issuer,
+      referenceNo: first.referenceNo ?? doc.referenceNo,
+      issueDate: first.issueDate ?? (doc.issueDate ? doc.issueDate.toISOString() : null),
+      expiryDate: first.expiryKind === "no" ? null : (first.expiryDate ?? null),
+      expiryKind: first.expiryKind ?? null,
+      companyId: first.companyId ?? doc.companyId,
+      personId: first.personId ?? doc.personId,
+      notes: first.notes ?? null,
+      reviewStatus: "ok",
+      compilationId,
+      pageRange: first.pageRange ?? null,
+    });
+
+    const created: number[] = [];
+    for (const seg of rest) {
+      const newId = await createDocument({
+        title: seg.title || "Document",
+        category: seg.category ?? null,
+        docType: seg.docType ?? null,
+        issuer: seg.issuer ?? null,
+        referenceNo: seg.referenceNo ?? null,
+        issueDate: seg.issueDate ?? null,
+        expiryDate: seg.expiryKind === "no" ? null : (seg.expiryDate ?? null),
+        expiryKind: seg.expiryKind ?? null,
+        companyId: seg.companyId ?? null,
+        personId: seg.personId ?? null,
+        notes: seg.notes ?? null,
+        reviewStatus: "ok",
+        compilationId,
+        pageRange: seg.pageRange ?? null,
+      }, "ai-intake");
+      // Share the original's stored file (do NOT re-upload — one object, many rows).
+      if (doc.storagePath) await attachStoredFile(newId, doc.storagePath, doc.fileName ?? "document", doc.fileHash);
+      await reconcileOwnerCompliance(seg.personId ?? null, seg.companyId ?? null);
+      created.push(newId);
+    }
+    await reconcileOwnerCompliance(first.personId ?? doc.personId ?? null, first.companyId ?? doc.companyId ?? null);
+    revalidateDocs();
+    return { ok: true, created };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not split the document." };
+  }
+}
+
+export type ExtractionHealth = {
+  total: number;
+  ok: number;
+  needsReview: number;
+  failed: number;
+  byReason: { reason: string; count: number }[];
+  recent: { at: string; file: string; status: string; reason: string; confidence: number | null }[];
+};
+
+/**
+ * Summary of recent document reads (last ~200 events) so the operator can SEE
+ * why files fail or land in review — no-key / HEIC / too-big / unreadable /
+ * low-confidence — instead of guessing. Feeds the AI-health readout on Documents.
+ */
+export async function getExtractionHealthAction(): Promise<ExtractionHealth> {
+  const empty: ExtractionHealth = { total: 0, ok: 0, needsReview: 0, failed: 0, byReason: [], recent: [] };
+  try {
+    const { data } = await supa
+      .from("system_events")
+      .select("status,details,created_at")
+      .eq("kind", "doc-extraction")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const rows = data ?? [];
+    const reasonCounts = new Map<string, number>();
+    let ok = 0, needsReview = 0, failed = 0;
+    const recent: ExtractionHealth["recent"] = [];
+    for (const r of rows) {
+      let d: Record<string, unknown> = {};
+      try { d = r.details ? JSON.parse(r.details as string) : {}; } catch { d = {}; }
+      const status = r.status as string;
+      if (status === "ok") ok++;
+      else if (status === "skip") needsReview++;
+      else failed++;
+      const reason = (d.failKind as string) || (status === "ok" ? "ok" : "unreadable");
+      if (reason !== "ok") reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+      if (recent.length < 30) {
+        recent.push({ at: r.created_at as string, file: (d.file as string) ?? "file", status, reason, confidence: (d.confidence as number | null) ?? null });
+      }
+    }
+    return {
+      total: rows.length, ok, needsReview, failed,
+      byReason: [...reasonCounts.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count),
+      recent,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+export type DuplicateCluster = {
+  key: string;
+  reason: "identical-file" | "same-reference" | "same-title";
+  ownerLabel: string | null;
+  category: string | null;
+  documents: {
+    id: number;
+    title: string;
+    fileName: string | null;
+    hasFile: boolean;
+    expiryLabel: string | null;
+    updatedAt: string;
+    needsReview: boolean;
+    suggestKeep: boolean; // the copy we suggest keeping (newest / has a file)
+  }[];
+};
+
+/**
+ * Sweep ALL live documents and surface clusters that look like duplicates — the
+ * pile-up the owner wants to clean (e.g. a business licence saved twice). Matches
+ * on THREE signals so old rows (no file hash) are still caught: identical file
+ * hash, same reference number, or same owner+category+normalised title. Each
+ * cluster suggests which copy to keep (newest, prefers one with a file). Read-only.
+ */
+export async function findExistingDuplicatesAction(): Promise<DuplicateCluster[]> {
+  try {
+    const { data } = await supa
+      .from("documents")
+      .select("id,title,category,company_id,person_id,reference_no,file_hash,storage_path,file_name,expiry_date,reminder_lead_days,review_status,updated_at")
+      .eq("archived", false);
+    const rows = (data ?? []) as Array<{
+      id: number; title: string; category: string | null; company_id: number | null; person_id: number | null;
+      reference_no: string | null; file_hash: string | null; storage_path: string | null; file_name: string | null;
+      expiry_date: string | null; reminder_lead_days: number | null; review_status: string | null; updated_at: string;
+    }>;
+    if (rows.length < 2) return [];
+
+    // Owner display names (companies + people) for the cluster headings.
+    const { companies, people } = await loadEntities();
+    const companyName = (id: number | null) => (id ? companies.find((c) => c.id === id)?.name ?? null : null);
+    const personName = (id: number | null) => (id ? people.find((p) => p.id === id)?.name ?? null : null);
+    const ownerLabelOf = (r: { company_id: number | null; person_id: number | null }) =>
+      personName(r.person_id) ?? companyName(r.company_id) ?? null;
+
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const groups = new Map<string, { reason: DuplicateCluster["reason"]; rows: typeof rows }>();
+    const keyFor = (r: (typeof rows)[number]): { key: string; reason: DuplicateCluster["reason"] } => {
+      if (r.file_hash) return { key: `h:${r.file_hash}`, reason: "identical-file" };
+      if (r.reference_no && r.reference_no.trim().length >= 4) return { key: `r:${r.reference_no.trim().toLowerCase()}`, reason: "same-reference" };
+      const owner = r.person_id ? `p${r.person_id}` : r.company_id ? `c${r.company_id}` : "none";
+      return { key: `t:${owner}:${r.category ?? ""}:${norm(r.title)}`, reason: "same-title" };
+    };
+    for (const r of rows) {
+      // Skip the owner-less, category-less untitled — too weak to cluster safely.
+      if (!r.title?.trim()) continue;
+      const { key, reason } = keyFor(r);
+      // A pure title cluster needs an owner + category to be meaningful.
+      if (reason === "same-title" && !r.category && !r.company_id && !r.person_id) continue;
+      const g = groups.get(key);
+      if (g) g.rows.push(r);
+      else groups.set(key, { reason, rows: [r] });
+    }
+
+    const clusters: DuplicateCluster[] = [];
+    for (const [key, g] of groups) {
+      if (g.rows.length < 2) continue;
+      // Suggest keeping the newest-updated copy, preferring one that has a file.
+      const sorted = [...g.rows].sort((a, b) => {
+        const af = a.storage_path ? 1 : 0, bf = b.storage_path ? 1 : 0;
+        if (af !== bf) return bf - af;
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      });
+      const keepId = sorted[0].id;
+      clusters.push({
+        key,
+        reason: g.reason,
+        ownerLabel: ownerLabelOf(g.rows[0]),
+        category: g.rows[0].category,
+        documents: sorted.map((r) => {
+          const expiryDate = r.expiry_date ? new Date(r.expiry_date) : null;
+          return {
+            id: r.id, title: r.title, fileName: r.file_name, hasFile: !!r.storage_path,
+            expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays: r.reminder_lead_days ?? 30 }) : null,
+            updatedAt: r.updated_at, needsReview: r.review_status === "needs_review",
+            suggestKeep: r.id === keepId,
+          };
+        }),
+      });
+    }
+    // Identical-file and same-reference clusters first (strongest signal).
+    const rank = (c: DuplicateCluster) => (c.reason === "identical-file" ? 0 : c.reason === "same-reference" ? 1 : 2);
+    return clusters.sort((a, b) => rank(a) - rank(b) || b.documents.length - a.documents.length);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Best-effort: compute and store the content hash for stored files that don't yet
+ * have one (everything uploaded before hashing existed). Lets exact-duplicate
+ * detection catch re-uploads of OLD files too. Processes a capped batch per call
+ * so it never times out; returns how many were hashed and how many remain.
+ */
+export async function backfillFileHashesAction(
+  limit = 40
+): Promise<{ ok: true; hashed: number; remaining: number } | { ok: false; error: string }> {
+  try {
+    const { data } = await supa
+      .from("documents")
+      .select("id,storage_path")
+      .is("file_hash", null)
+      .not("storage_path", "is", null)
+      .limit(limit);
+    const rows = (data ?? []) as Array<{ id: number; storage_path: string }>;
+    let hashed = 0;
+    for (const r of rows) {
+      try {
+        const { data: blob, error } = await supa.storage.from(DOCUMENTS_BUCKET).download(r.storage_path);
+        if (error || !blob) continue;
+        const buf = Buffer.from(await blob.arrayBuffer());
+        const { hashBuffer } = await import("@/lib/documents");
+        await supa.from("documents").update({ file_hash: hashBuffer(buf) }).eq("id", r.id);
+        hashed++;
+      } catch { /* skip this one */ }
+    }
+    const { count } = await supa
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .is("file_hash", null)
+      .not("storage_path", "is", null);
+    if (hashed) revalidateDocs();
+    return { ok: true, hashed, remaining: (count ?? 0) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not backfill file hashes." };
+  }
+}
+
 /** Short-lived signed URL to view/download a document's stored file. */
 export async function getDocumentFileLinkAction(id: number): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {
@@ -460,6 +843,35 @@ export type ExtractedFields = {
   facts?: ExtractedFact[];
   // `_NEEDORIG`: the file is only a photo/scan standing in for an official original.
   needsOriginal?: boolean;
+  // Expiry intelligence: "yes" = genuinely expires (renew on expiryDate); "no" =
+  // no expiry by nature (CV, invoice, analytical report) so a blank expiry is
+  // CORRECT, not missing. Undefined = undetermined. Never default expiry to the
+  // issue/created date.
+  expiryKind?: "yes" | "no";
+  // Compilation split: when ONE uploaded file holds several distinct documents
+  // (e.g. a recruit's scanned bundle: passport + CV + contract), the AI returns
+  // a part per document. >1 part ⇒ propose a split (review-before-commit); the
+  // primary fields above describe the whole bundle / first part.
+  segments?: ExtractedSegment[];
+};
+
+// One detected document inside a multi-document file (compilation). Mirrors the
+// top-level fields but carries the page range it occupies in the source file.
+export type ExtractedSegment = {
+  title?: string;
+  category?: string;
+  docType?: string;
+  issuer?: string;
+  referenceNo?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  expiryKind?: "yes" | "no";
+  companyId?: number;
+  companyName?: string;
+  personId?: number;
+  personName?: string;
+  notes?: string;
+  pageRange?: string; // e.g. "1" or "2-4"
 };
 
 // One fact read off a document, to be appended to the ledger (never overwrites).
@@ -521,17 +933,24 @@ function ruleExtract(text: string): ExtractedFields {
   // "No"/"number", then the value — which must contain a digit.
   const ref = text.match(/\b(?:reference|certificate|ref|number|no)\b\.?\s*(?:no\.?|number)?\s*[:#]?\s*([A-Z0-9][A-Z0-9/-]{3,})/i);
   if (ref && /\d/.test(ref[1])) fields.referenceNo = ref[1];
-  // Dates: expiry near "expir/valid until/renew"; issue near "issue/dated".
+  // Dates: ONLY set an expiry when the text actually carries an expiry/validity
+  // cue, and an issue date only near an issue cue. We deliberately do NOT guess
+  // "latest date = expiry" — a CV's most recent employment date, an invoice date
+  // or a meeting date would otherwise become a false expiry. No cue → no date.
   const dates = findDates(text);
   if (dates.length) {
-    const expHint = lower.search(/expir|valid until|valid till|renew|due/);
-    const issHint = lower.search(/issue|dated|granted|effective/);
+    const expHint = lower.search(/expir|valid until|valid till|valid up to|renew(?:al)?|due (?:date|on|by)|re-?apply/);
+    const issHint = lower.search(/issue|dated|granted|effective|date of issue/);
     if (expHint >= 0) fields.expiryDate = dates.reduce((a, b) => (Math.abs(b.idx - expHint) < Math.abs(a.idx - expHint) ? b : a)).iso;
     if (issHint >= 0) fields.issueDate = dates.reduce((a, b) => (Math.abs(b.idx - issHint) < Math.abs(a.idx - issHint) ? b : a)).iso;
-    // Fallbacks: latest date = expiry, earliest = issue.
-    const sorted = [...dates].sort((a, b) => a.iso.localeCompare(b.iso));
-    if (!fields.expiryDate) fields.expiryDate = sorted[sorted.length - 1].iso;
-    if (!fields.issueDate && sorted.length > 1 && sorted[0].iso !== fields.expiryDate) fields.issueDate = sorted[0].iso;
+  }
+  // Rule-only expiry classification: types that by nature carry no expiry.
+  if (!fields.expiryDate) {
+    if (/\b(cv|curriculum vitae|r[ée]sum[ée]|invoice|receipt|payslip|pay slip|minutes|statement|report|letter|memo|transcript)\b/.test(lower)) {
+      fields.expiryKind = "no";
+    }
+  } else {
+    fields.expiryKind = "yes";
   }
   return fields;
 }
@@ -647,6 +1066,11 @@ function coerceFields(
   f.referenceNo = s(parsed.referenceNo, 80);
   const id = s(parsed.issueDate, 10); if (id && /^\d{4}-\d{2}-\d{2}$/.test(id)) f.issueDate = id;
   const ed = s(parsed.expiryDate, 10); if (ed && /^\d{4}-\d{2}-\d{2}$/.test(ed)) f.expiryDate = ed;
+  // Expiry intelligence: trust the model's type-based call. If it says this type
+  // does not expire, DROP any expiry date it may have guessed from a stray date.
+  const ek = s(parsed.expiryKind, 4)?.toLowerCase();
+  if (ek === "yes" || ek === "no") f.expiryKind = ek as "yes" | "no";
+  if (f.expiryKind === "no") f.expiryDate = undefined;
   const co = resolveEntity(s(parsed.company, 80), companies);
   if (co) { f.companyId = co.id; f.companyName = co.name; }
   const pe = resolveEntity(s(parsed.person, 80), people);
@@ -713,6 +1137,35 @@ function coerceFields(
     }
     if (facts.length) f.facts = facts.slice(0, 12);
   }
+  // Compilation parts — several distinct documents in one file. Resolve each
+  // part's owner names to records so a split can file them straight away.
+  if (Array.isArray(parsed.parts) && parsed.parts.length > 1) {
+    const date10 = (v: unknown) => { const x = s(v, 10); return x && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : undefined; };
+    const segs: ExtractedSegment[] = [];
+    for (const raw of parsed.parts) {
+      if (!raw || typeof raw !== "object") continue;
+      const r = raw as Record<string, unknown>;
+      const seg: ExtractedSegment = {};
+      seg.title = s(r.title, 120);
+      const sc = s(r.category, 40); if (sc && (DOC_CATEGORIES as readonly string[]).includes(sc)) seg.category = sc;
+      seg.docType = s(r.docType, 80);
+      seg.issuer = s(r.issuer, 80);
+      seg.referenceNo = s(r.referenceNo, 80);
+      seg.issueDate = date10(r.issueDate);
+      const segEk = s(r.expiryKind, 4)?.toLowerCase();
+      if (segEk === "yes" || segEk === "no") seg.expiryKind = segEk as "yes" | "no";
+      seg.expiryDate = seg.expiryKind === "no" ? undefined : date10(r.expiryDate);
+      const segCo = resolveEntity(s(r.company, 80), companies);
+      if (segCo) { seg.companyId = segCo.id; seg.companyName = segCo.name; }
+      const segPe = resolveEntity(s(r.person, 80), people);
+      if (segPe) { seg.personId = segPe.id; seg.personName = segPe.name; }
+      seg.notes = s(r.notes, 400);
+      seg.pageRange = s(r.pageRange, 20);
+      // Keep a part only if it carries at least a title or a category.
+      if (seg.title || seg.category) segs.push(seg);
+    }
+    if (segs.length > 1) f.segments = segs.slice(0, 20);
+  }
   // `_NEEDORIG` — only honour an explicit true from the model.
   if (parsed.is_photo_placeholder === true) f.needsOriginal = true;
   // Backfill anything missing from the rule extractor + entity scan.
@@ -739,7 +1192,8 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - issuer: the authority/organisation that issued it
 - referenceNo: the document/certificate/serial number
 - issueDate: YYYY-MM-DD
-- expiryDate: YYYY-MM-DD (the validity end / renewal-by date)
+- expiryDate: YYYY-MM-DD — ONLY the genuine validity-end / renewal-by / "valid until" date. Do NOT put the issue date, a date mentioned in the body, or "today" here. If the document has no stated expiry, OMIT this field entirely.
+- expiryKind: "yes" if this TYPE of document genuinely expires and should be renewed (permit, visa, passport, licence, insurance policy, lease, registration, warranty, certificate with a validity period, contract with an end date); "no" if this type does NOT expire by its nature (CV/résumé, invoice, receipt, payslip, bank statement, meeting minutes, analytical/valuation/inspection report, letter, memo, transcript, incorporation/birth/marriage certificate, title deed, academic certificate). Decide from the document TYPE, not whether you happened to find a date. Always include this.
 - company: the related business — choose the closest match from: ${cNames}
 - person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
@@ -748,13 +1202,14 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - facts: IF the document states verifiable facts worth tracking over time, an array of objects { entityType ("company" or "person"), field (e.g. "Salary", "Shareholding", "Bank Account", "Passport Number", "Contract End", "Authorised Capital"), value (the value as written), effectiveDate (YYYY-MM-DD if the document gives a date the fact takes effect, else omit) }. Only include facts you can actually read. Omit the array entirely if there are none.
 - is_photo_placeholder: true ONLY if this file is clearly a phone photo or screenshot standing in for an official document that should be a clean scan/PDF (e.g. a photo of a paper licence, a screenshot of a bank letter). Set false for documents that are legitimately images (logos, stamps, headshots, product labels, signatures, certificates).
 - confidence: a number from 0 to 1 for how confident you are that you read this document correctly (1 = crystal-clear scan you are sure about, 0.3 = a blurry/partial/ambiguous page you mostly guessed). Always include this.
+- parts: ONLY if this file is clearly a COMPILATION of SEVERAL DISTINCT documents bundled together (e.g. a new recruit's scan containing a passport AND a CV AND a contract, or several different certificates scanned in one go), return an array describing each distinct document: [{ title, category (from the list above), docType, issuer, referenceNo, issueDate, expiryDate, expiryKind ("yes"/"no"), person (matched name), company (matched name), pageRange (the pages it spans, e.g. "1" or "2-3") }]. Judge by content, NOT page count — a single multi-page contract is ONE document, so OMIT "parts" for it. Only include "parts" when there are genuinely two or more different documents in the one file. When you DO return parts, still fill the top-level fields for the FIRST/primary document.
 Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
 }
 
 // Run an extraction through the shared Groq harness: retries on 429/5xx/network,
 // strips-and-parses the JSON, validates the date fields, and reports confidence.
-async function groqExtract(messages: unknown[], model: string, apiKey: string): Promise<GroqJsonResult> {
-  return callGroqJson({ messages, model, apiKey, maxTokens: 400, shape: EXTRACT_SHAPE });
+async function groqExtract(messages: unknown[], model: string, apiKey: string, maxTokens = 400): Promise<GroqJsonResult> {
+  return callGroqJson({ messages, model, apiKey, maxTokens, shape: EXTRACT_SHAPE });
 }
 
 /**
@@ -775,7 +1230,8 @@ export async function extractDocumentFields(text: string): Promise<ExtractResult
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${trimmed.slice(0, 6000)}` },
     ],
     GROQ_FAST,
-    apiKey
+    apiKey,
+    900
   );
   // AI failed (rate-limited after retries / bad JSON / off) → fall back to rules
   // rather than crash or store nothing.
@@ -799,7 +1255,7 @@ const MAX_IMAGE_DATAURL = 5_400_000;
  * the vision model can read them. Uses unpdf's renderer backed by @napi-rs/canvas.
  * Returns [] if rendering isn't possible (so callers can fall back gracefully).
  */
-async function renderPdfPages(base: Buffer, maxPages = 2): Promise<string[]> {
+async function renderPdfPages(base: Buffer, maxPages = MAX_VISION_PAGES): Promise<string[]> {
   try {
     const { renderPageAsImage } = await import("unpdf");
     const urls: string[] = [];
@@ -821,13 +1277,21 @@ async function renderPdfPages(base: Buffer, maxPages = 2): Promise<string[]> {
   }
 }
 
-/** Read one or more images with the Groq vision model (through the harness). */
+// How many pages of a scanned PDF we rasterise + send to the vision model. Raised
+// from 2 so multi-page bundles (and compilations) are actually read end-to-end,
+// while capping cost/latency for very long files.
+const MAX_VISION_PAGES = 8;
+
+/** Read one or more images with the Groq vision model (through the harness).
+ *  More images (a multi-page bundle) needs a bigger answer budget so a `parts`
+ *  array isn't truncated. */
 async function groqVision(imageUrls: string[], prompt: string, apiKey: string): Promise<GroqJsonResult> {
   const content = [
     { type: "text", text: prompt },
     ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
   ];
-  return groqExtract([{ role: "user", content }], GROQ_VISION, apiKey);
+  const maxTokens = imageUrls.length > 1 ? 1200 : 500;
+  return groqExtract([{ role: "user", content }], GROQ_VISION, apiKey, maxTokens);
 }
 
 // Shared shape for every extraction return: fields + provenance + (when AI ran)
@@ -839,6 +1303,10 @@ type ExtractResult = {
   confidence?: number | null;
   needsReview?: boolean;
   note?: string;
+  // SHA-256 of the uploaded file's bytes (so callers can dedup before saving).
+  fileHash?: string | null;
+  // Machine-readable failure reason for diagnostics: why a read failed / needs review.
+  failKind?: "no-key" | "heic" | "too-big" | "unreadable" | "unsupported" | "low-confidence" | "ok";
 };
 
 /** True when the read should go to human review: below the gate OR no confidence
@@ -863,7 +1331,8 @@ async function fieldsFromText(
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
     ],
     GROQ_FAST,
-    apiKey
+    apiKey,
+    900
   );
   if (!result.ok || !result.data) {
     return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
@@ -929,7 +1398,33 @@ async function extractOfficeText(file: File): Promise<string> {
  */
 export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResult> {
   const file = fd.get("file");
-  if (!(file instanceof File) || file.size === 0) return { ok: false, fields: {}, source: "rules", note: "No file provided." };
+  const fileName = file instanceof File ? file.name : "(none)";
+  // Content hash up-front so every caller can dedup before saving, and so the
+  // diagnostics line can fingerprint the file. Best-effort — never blocks a read.
+  let fileHash: string | null = null;
+  if (file instanceof File && file.size > 0) {
+    try { fileHash = await hashFile(file); } catch { fileHash = null; }
+  }
+  const result = await extractDocumentFromFileInner(fd);
+  const out: ExtractResult = { ...result, fileHash: fileHash ?? result.fileHash ?? null };
+  // Diagnostics: one row per read so "why did this fail / need review" is visible
+  // in the AI-health readout instead of guessed at. Telemetry never throws.
+  const failKind = out.failKind ?? (out.ok ? (out.needsReview ? "low-confidence" : "ok") : "unreadable");
+  await recordEvent("doc-extraction", out.ok ? (out.needsReview ? "skip" : "ok") : "error", {
+    file: fileName,
+    source: out.source,
+    confidence: out.confidence ?? null,
+    failKind,
+    parts: out.fields?.segments?.length ?? 0,
+    note: out.note ?? null,
+  });
+  return out;
+}
+
+/** The actual reader (wrapped by extractDocumentFromFile for hashing + diagnostics). */
+async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult> {
+  const file = fd.get("file");
+  if (!(file instanceof File) || file.size === 0) return { ok: false, fields: {}, source: "rules", note: "No file provided.", failKind: "unreadable" };
 
   const apiKey = await getGroqKey();
   const { companies, people } = await loadEntities();
@@ -948,12 +1443,12 @@ export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResu
     try {
       const text = await extractOfficeText(file);
       if (text.trim().length < 20) {
-        return { ok: false, fields: {}, source: "rules", note: "Couldn't read useful text from that Word/Excel file." };
+        return { ok: false, fields: {}, source: "rules", note: "Couldn't read useful text from that Word/Excel file.", failKind: "unreadable" };
       }
       const result = await fieldsFromText(text, companies, people, apiKey);
       return { ...result, note: result.source === "rules" ? "Read the file text with rule-based extraction." : undefined };
     } catch {
-      return { ok: false, fields: {}, source: "rules", note: "Couldn't read that Word/Excel file. Try saving it as PDF or paste the text." };
+      return { ok: false, fields: {}, source: "rules", note: "Couldn't read that Word/Excel file. Try saving it as PDF or paste the text.", failKind: "unreadable" };
     }
   }
 
@@ -969,21 +1464,23 @@ export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResu
       text = "";
     }
 
-    // Text-layer PDF → read the embedded text.
+    // Text-layer PDF → read the embedded text (all pages were merged above).
     if (text.trim().length >= 40) {
       return fieldsFromText(text, companies, people, apiKey);
     }
 
     // Scanned / image-only PDF → rasterise the pages and read with the vision model.
     if (!apiKey) {
-      return { ok: false, fields: {}, source: "rules", note: "This looks like a scanned PDF and AI is off. Type the details, or paste the document text." };
+      return { ok: false, fields: {}, source: "rules", note: "This looks like a scanned PDF and AI is off. Type the details, or paste the document text.", failKind: "no-key" };
     }
-    const images = await renderPdfPages(base, 2);
+    // Read up to MAX_VISION_PAGES (was 2) so multi-page bundles / compilations are
+    // seen end-to-end — required for the AI to detect several documents in one file.
+    const images = await renderPdfPages(base);
     if (!images.length) {
-      return { ok: false, fields: {}, source: "vision", note: "Couldn't render this PDF to read it. Try uploading a clear photo of the document instead." };
+      return { ok: false, fields: {}, source: "vision", note: "Couldn't render this PDF to read it. Try uploading a clear photo of the document instead.", failKind: "unreadable" };
     }
     const result = await groqVision(images, extractPrompt(companies, people), apiKey);
-    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo." };
+    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo.", failKind: "unreadable" };
     return {
       ok: true,
       fields: coerceFields(result.data, companies, people),
@@ -998,19 +1495,19 @@ export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResu
   // failing silently. Common for forwarded iPhone IDs.
   const isHeic = lowerName.endsWith(".heic") || lowerName.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
   if (isHeic) {
-    return { ok: false, fields: {}, source: "vision", note: "HEIC photos can't be read — please share it as a JPEG or PNG (on iPhone: open the photo, Share, then Save/Export as JPEG)." };
+    return { ok: false, fields: {}, source: "vision", note: "HEIC photos can't be read — please share it as a JPEG or PNG (on iPhone: open the photo, Share, then Save/Export as JPEG).", failKind: "heic" };
   }
 
   if (file.type.startsWith("image/")) {
-    if (!apiKey) return { ok: false, fields: {}, source: "rules", note: "AI is off, so images can't be read automatically. Type the details, or paste the document text." };
+    if (!apiKey) return { ok: false, fields: {}, source: "rules", note: "AI is off, so images can't be read automatically. Type the details, or paste the document text.", failKind: "no-key" };
     // Groq base64 image limit is 4 MB; the client downscales before sending.
     if (file.size > 4 * 1024 * 1024) {
-      return { ok: false, fields: {}, source: "vision", note: "Image is too large (max 4 MB). Try a smaller photo." };
+      return { ok: false, fields: {}, source: "vision", note: "Image is too large (max 4 MB). Try a smaller photo.", failKind: "too-big" };
     }
     const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
     const dataUrl = `data:${file.type};base64,${b64}`;
     const result = await groqVision([dataUrl], extractPrompt(companies, people), apiKey);
-    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo." };
+    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo.", failKind: "unreadable" };
     return {
       ok: true,
       fields: coerceFields(result.data, companies, people),
@@ -1020,7 +1517,7 @@ export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResu
     };
   }
 
-  return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF, Word, Excel/CSV or an image (PNG/JPG)." };
+  return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF, Word, Excel/CSV or an image (PNG/JPG).", failKind: "unsupported" };
 }
 
 /**

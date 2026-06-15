@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
   ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip, UploadCloud,
-  CheckSquare, Check, List as ListIcon, CalendarRange,
+  CheckSquare, Check, List as ListIcon, CalendarRange, Scissors,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
 import { Button, CountPill, RegisterList, RegisterRow, RegisterGroupHeader } from "./ui";
@@ -13,6 +13,7 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
 import { BulkUploadDialog } from "./bulk-upload-dialog";
+import { SplitDocumentDialog } from "./split-document-dialog";
 import { BulkAutoUpload } from "./bulk-auto-upload";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
@@ -53,6 +54,7 @@ export function DocumentsTable({
   const [bulkOpen, setBulkOpen] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
+  const [splitDoc, setSplitDoc] = useState<DocumentRow | null>(null);
   const [peek, setPeek] = useState<DocumentRow | null>(null);
   // Text to pre-load the create form's auto-fill panel (e.g. filing an Inbox item).
   const [prefillText, setPrefillText] = useState<string | undefined>(undefined);
@@ -255,6 +257,7 @@ export function DocumentsTable({
     if (doc.companyId) a.push({ label: "Renew", icon: <RefreshCw size={16} />, onClick: () => doRenew(doc) });
     if (doc.storagePath) a.push({ label: "Open file", icon: <Paperclip size={16} />, onClick: () => openStoredFile(doc) });
     else if (doc.fileUrl) a.push({ label: "Open link", icon: <ExternalLink size={16} />, onClick: () => window.open(doc.fileUrl!, "_blank") });
+    if (doc.storagePath) a.push({ label: "Split into documents", icon: <Scissors size={16} />, onClick: () => { setPeek(null); setSplitDoc(doc); } });
     a.push(doc.archived
       ? { label: "Restore", icon: <ArchiveRestore size={16} />, onClick: () => doArchive(doc, false) }
       : { label: "Archive", icon: <Archive size={16} />, tone: "danger", onClick: () => doArchive(doc, true) });
@@ -573,6 +576,17 @@ export function DocumentsTable({
             onComplete={(res) => { if (res.ok) { toast("Saved.", { tone: "success" }); setEditDoc(null); } }} />
         )}
       </DocDialog>
+
+      {/* Split a multi-document file into separate records (sharing the file). */}
+      {splitDoc && (
+        <SplitDocumentDialog
+          documentId={splitDoc.id}
+          fileName={splitDoc.fileName}
+          open={!!splitDoc}
+          onOpenChange={(o) => { if (!o) setSplitDoc(null); }}
+          onDone={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }

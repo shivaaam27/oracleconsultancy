@@ -175,6 +175,14 @@ export type DocumentRow = {
   reviewStatus: string;
   /** `_NEEDORIG`: a photo standing in for an official original still to collect. */
   needsOriginal: boolean;
+  /** SHA-256 of the stored file's bytes (dedup of identical re-uploads). */
+  fileHash: string | null;
+  /** Groups documents split from one uploaded file; they share one stored file. */
+  compilationId: string | null;
+  /** Which pages of the shared source file this document covers, e.g. "1-3". */
+  pageRange: string | null;
+  /** "yes" (genuinely expires) | "no" (no expiry by nature) | null (undetermined). */
+  expiryKind: string | null;
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;
