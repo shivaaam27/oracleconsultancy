@@ -22,7 +22,7 @@ systems that must never be rewritten. It is NOT a from-scratch redesign.
   generation (`src/lib/staff-id.ts`, task code-gen), compliance scoring
   (`src/lib/requirements.ts`, `company-requirements.ts`, `compliance.ts`), ELR Act
   leave maths (`src/lib/leave.ts`), letterhead snapshots (`src/lib/letters.ts`),
-  portal/admin auth (`src/lib/admin-auth.ts`, `portal-auth.ts`, `src/middleware.ts`),
+  portal/admin auth (`src/lib/admin-auth.ts`, `portal-auth.ts`, `src/proxy.ts` [ex-`middleware.ts`]),
   and the pooler settings in `src/db/index.ts` (`prepare:false`, `max:1`).
 - **Extend, don't replace.** Build UI on the existing shells: `entity-drawer.tsx`,
   `drawer-kit.tsx`, `surface-kit.tsx`, `macos.tsx`, tokens in `globals.css`,
