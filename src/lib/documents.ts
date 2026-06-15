@@ -28,6 +28,8 @@ type DocDbRow = {
   file_name: string | null;
   notes: string | null;
   extracted_text: string | null;
+  text_source: string | null;
+  extracted_text_at: string | null;
   supersedes_id: number | null;
   review_status: string | null;
   needs_original: boolean | null;
@@ -64,6 +66,7 @@ function mapRow(r: DocDbRow): DocumentRow {
     fileName: r.file_name,
     notes: r.notes,
     extractedText: r.extracted_text ?? null,
+    textSource: r.text_source ?? null,
     supersedesId: r.supersedes_id,
     reviewStatus: r.review_status ?? "ok",
     needsOriginal: r.needs_original ?? false,
@@ -259,7 +262,7 @@ export async function setDocumentText(id: number, text: string | null, source: s
     const clean = (text ?? "").replace(/[ \t]+\n/g, "\n").trim().slice(0, MAX_DOC_TEXT);
     await sb.from("documents").update({
       extracted_text: clean || null,
-      text_source: clean ? source : "none",
+      text_source: source,
       extracted_text_at: new Date().toISOString(),
     }).eq("id", id);
     if (!clean) return;

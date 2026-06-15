@@ -1,7 +1,7 @@
 "use server";
 
 import { GROQ_VISION } from "@/lib/ai-models";
-import { callGroqJson, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
+import { callGroqJson, callGroqText, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
 import { recordFact } from "@/lib/facts";
 import { coerceFactValue } from "@/lib/facts-shared";
 import { revalidatePath, updateTag } from "next/cache";
@@ -869,25 +869,125 @@ async function reExtractStored(doc: { storagePath: string | null; fileName: stri
   return cachedExtract(fd, hash, force);
 }
 
-/** DR1: capture a stored document's full body text + (re-)index it so ORI can
- *  search INSIDE the file. Skips docs that already have text (unless force).
- *  Typed PDFs/Office yield text now; scans yield none until OCR (DR2). */
+// --- DR0/DR2: read full body text from stored files (typed text + OCR) ---------
+
+const MAX_OCR_PAGES = 20; // scanned PDFs: OCR up to this many pages
+const MAX_OCR_IMAGE_BYTES = 4 * 1024 * 1024;
+
+function isHeicFile(file: File): boolean {
+  const n = file.name.toLowerCase();
+  return n.endsWith(".heic") || n.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
+}
+
+/** Decode a HEIC/HEIF buffer to JPEG so the vision model can read iPhone photos.
+ *  Best-effort: returns null if the optional decoder isn't available or fails. */
+async function heicToJpeg(buf: Buffer): Promise<Buffer | null> {
+  try {
+    const mod = "heic-convert";
+    const heicConvert = (await import(mod)).default as (o: { buffer: Buffer; format: "JPEG" | "PNG"; quality: number }) => Promise<ArrayBuffer>;
+    const out = await heicConvert({ buffer: buf, format: "JPEG", quality: 0.85 });
+    return Buffer.from(out);
+  } catch {
+    return null;
+  }
+}
+
+/** Embedded text (no AI) from a typed PDF / Office file. null for scans/images. */
+async function extractTypedTextFromFile(file: File): Promise<string | null> {
+  const lower = file.name.toLowerCase();
+  const isOffice =
+    lower.endsWith(".docx") || lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".csv") ||
+    file.type.includes("spreadsheet") || file.type === "text/csv" ||
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (isOffice) {
+    try { const t = await extractOfficeText(file); return t.trim().length >= 20 ? t : null; } catch { return null; }
+  }
+  const isPdf = file.type === "application/pdf" || lower.endsWith(".pdf");
+  if (isPdf) {
+    try {
+      const { extractText, getDocumentProxy } = await import("unpdf");
+      const pdf = await getDocumentProxy(Uint8Array.from(Buffer.from(await file.arrayBuffer())));
+      const r = await extractText(pdf, { mergePages: true });
+      const text = Array.isArray(r.text) ? r.text.join("\n") : r.text;
+      return text.trim().length >= 40 ? text : null;
+    } catch { return null; }
+  }
+  return null;
+}
+
+/** Transcribe one document-page image to text via the vision model (plain text). */
+async function visionTranscribe(imageUrl: string, apiKey: string): Promise<string | null> {
+  const res = await callGroqText({
+    apiKey,
+    model: GROQ_VISION,
+    maxTokens: 3000,
+    temperature: 0,
+    messages: [{
+      role: "user",
+      content: [
+        { type: "text", text: "Transcribe ALL readable text from this document image, verbatim. Preserve names, numbers, dates, reference numbers and amounts exactly. Output ONLY the transcribed text — no commentary, no headings of your own." },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ],
+    }],
+  });
+  return res.ok && res.text ? res.text.trim() : null;
+}
+
+/** OCR a scanned PDF / image to its full text (DR2). null when AI is off or unreadable. */
+async function ocrDocumentText(file: File): Promise<string | null> {
+  const apiKey = await getGroqKey();
+  if (!apiKey) return null;
+  let images: string[] = [];
+  const lower = file.name.toLowerCase();
+  const isPdf = file.type === "application/pdf" || lower.endsWith(".pdf");
+  if (isPdf) {
+    images = await renderPdfPages(Buffer.from(await file.arrayBuffer()), MAX_OCR_PAGES);
+  } else if (file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|bmp|tiff?)$/.test(lower) || isHeicFile(file)) {
+    // Stored blobs often come back as application/octet-stream, so fall back to the
+    // file extension for the MIME the vision model needs.
+    let buf: Buffer = Buffer.from(await file.arrayBuffer());
+    let mime = file.type.startsWith("image/")
+      ? file.type
+      : lower.endsWith(".png") ? "image/png" : lower.endsWith(".webp") ? "image/webp" : "image/jpeg";
+    if (isHeicFile(file)) {
+      const jpeg = await heicToJpeg(buf);
+      if (!jpeg) return null;
+      buf = jpeg; mime = "image/jpeg";
+    }
+    if (buf.length > MAX_OCR_IMAGE_BYTES) return null;
+    images = [`data:${mime};base64,${buf.toString("base64")}`];
+  }
+  if (!images.length) return null;
+  const parts: string[] = [];
+  for (const img of images) {
+    const txt = await visionTranscribe(img, apiKey);
+    if (txt) parts.push(txt);
+  }
+  const full = parts.join("\n\n").trim();
+  return full || null;
+}
+
+/** Capture a stored document's full body text + (re-)index it so ORI can search
+ *  INSIDE the file. Typed PDFs/Office read free; scans/images are OCR'd (DR2).
+ *  Skips docs that already have text or that even OCR couldn't read. */
 export async function ensureDocumentText(id: number, force = false): Promise<"done" | "skip" | "none"> {
   const doc = await getDocument(id);
   if (!doc || !doc.storagePath) return "none";
-  if (!force && doc.extractedText) return "skip";
-  let res = await reExtractStored(doc, force);
-  // Older cache entries predate full-text capture — re-read TYPED docs once to get
-  // the body. Skip scans: their cached `source` is "vision" and OCR text waits for DR2.
-  if (res?.ok && !res.fullText && res.source !== "vision" && !force) {
-    res = await reExtractStored(doc, true);
+  if (!force && (doc.extractedText || doc.textSource === "ocr-empty")) return "skip";
+  const { data, error } = await supa.storage.from(DOCUMENTS_BUCKET).download(doc.storagePath);
+  if (error || !data) return "none";
+  let file = new File([new Uint8Array(await data.arrayBuffer())], doc.fileName ?? "document", { type: data.type || "application/octet-stream" });
+  if (isHeicFile(file)) {
+    const jpeg = await heicToJpeg(Buffer.from(await file.arrayBuffer()));
+    if (jpeg) file = new File([new Uint8Array(jpeg)], (doc.fileName ?? "document").replace(/\.hei[cf]$/i, ".jpg"), { type: "image/jpeg" });
   }
-  if (res?.ok && res.fullText && res.fullText.trim()) {
-    await setDocumentText(id, res.fullText, res.textSource ?? "typed");
-    return "done";
-  }
-  // No readable text (e.g. a scan before OCR) — mark so the backfill skips it next time.
-  if (!doc.extractedText) await setDocumentText(id, null, "none");
+  // Typed text first (free, no AI).
+  const typed = await extractTypedTextFromFile(file);
+  if (typed && typed.trim()) { await setDocumentText(id, typed, "typed"); return "done"; }
+  // Scan / image → OCR via the vision model.
+  const ocr = await ocrDocumentText(file);
+  if (ocr && ocr.trim()) { await setDocumentText(id, ocr, "ocr"); return "done"; }
+  await setDocumentText(id, null, "ocr-empty");
   return "none";
 }
 
@@ -1652,8 +1752,14 @@ export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResu
 
 /** The actual reader (wrapped by extractDocumentFromFile for hashing + diagnostics). */
 async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult> {
-  const file = fd.get("file");
+  let file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, fields: {}, source: "rules", note: "No file provided.", failKind: "unreadable" };
+
+  // HEIC (iPhone photos) → convert to JPEG up-front so the vision model can read it.
+  if (isHeicFile(file)) {
+    const jpeg = await heicToJpeg(Buffer.from(await file.arrayBuffer()));
+    if (jpeg) file = new File([new Uint8Array(jpeg)], file.name.replace(/\.hei[cf]$/i, ".jpg"), { type: "image/jpeg" });
+  }
 
   const apiKey = await getGroqKey();
   const { companies, people } = await loadEntities();

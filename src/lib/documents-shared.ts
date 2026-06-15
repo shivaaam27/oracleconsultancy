@@ -187,6 +187,8 @@ export type DocumentRow = {
   notes: string | null;
   /** Full extracted body text (typed/OCR) so ORI can search inside the file. */
   extractedText: string | null;
+  /** How the text was read: "typed" | "ocr" | "none" | "ocr-empty" (or null). */
+  textSource: string | null;
   /** Renewal lineage: the (archived) document this one replaces, if any. */
   supersedesId: number | null;
   /** Intake confidence gate: "ok" | "needs_review". */

@@ -169,6 +169,16 @@ searchable. Reuses the whole chunk/embed/hybrid/cron pipeline already built (S0-
   **183+18 = 201 docs now searchable by body** (101 = scans awaiting DR2 / no file). Verified
   ORI reads inside files (lease rent, termination clauses, Articles text). Eval steady
   (Recall@10 95%, MRR 0.93). gte-small/translate/hybrid/chunk pipeline reused.
+- **DR0 + DR2 — HEIC + scan OCR: CODE BUILT + tsc-clean + 42 tests pass (commit pending).**
+  heic-convert dep (best-effort decode→JPEG); `ocrDocumentText` renders PDF pages
+  (MAX_OCR_PAGES=20) / images → vision transcribe per page (callGroqText + GROQ_VISION, plain
+  text); `ensureDocumentText` rewritten (download once, typed-first then OCR; detects images by
+  EXTENSION since stored blobs come back octet-stream; "ocr-empty" terminal marker); HEIC also
+  handled in extractDocumentFromFileInner; setDocumentText stores text_source verbatim.
+  **OCR RUN BLOCKED: the local `.env.local` GROQ_API_KEY is EXPIRED — 401 on ALL models (incl
+  GROQ_FAST), confirmed. Prod key is valid (live app works).** To OCR the 101 scans: refresh
+  the local Groq key then `npm run db:doc-text-backfill`, OR run where a valid key exists.
+- DR0/DR2 original-plan detail below:
 - **DR0 (prereq = Phase 4 items): HEIC support + raise page cap.** HEIC is hard-rejected
   today (`@napi-rs/canvas` already a dep → convert to JPEG); `MAX_VISION_PAGES = 8` drops
   pages 9+. Both needed for full SCAN coverage. Low-med effort.
