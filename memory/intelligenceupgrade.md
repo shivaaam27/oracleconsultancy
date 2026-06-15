@@ -175,9 +175,13 @@ searchable. Reuses the whole chunk/embed/hybrid/cron pipeline already built (S0-
   text); `ensureDocumentText` rewritten (download once, typed-first then OCR; detects images by
   EXTENSION since stored blobs come back octet-stream; "ocr-empty" terminal marker); HEIC also
   handled in extractDocumentFromFileInner; setDocumentText stores text_source verbatim.
-  **OCR RUN BLOCKED: the local `.env.local` GROQ_API_KEY is EXPIRED — 401 on ALL models (incl
-  GROQ_FAST), confirmed. Prod key is valid (live app works).** To OCR the 101 scans: refresh
-  the local Groq key then `npm run db:doc-text-backfill`, OR run where a valid key exists.
+  **OCR RUN DONE (2026-06-15): owner supplied a fresh Groq key → `db:doc-text-backfill` OCR'd
+  85 scans (+201 typed = 286 docs searchable by full body; 16 truly-unreadable). Ran against
+  the prod DB so the data is LIVE (extracted_text + embeddings in prod). Eval MRR 0.93→0.955.
+  Verified ORI reads passport numbers / cert bodies.** STILL TODO (owner): set the new
+  GROQ_API_KEY in Vercel prod env + redeploy — the old prod key is likely the same expired one,
+  so prod AI generation/extraction/translate needs the new key. The new key is in the chat
+  transcript → rotate it once stable.
 - DR0/DR2 original-plan detail below:
 - **DR0 (prereq = Phase 4 items): HEIC support + raise page cap.** HEIC is hard-rejected
   today (`@napi-rs/canvas` already a dep → convert to JPEG); `MAX_VISION_PAGES = 8` drops
