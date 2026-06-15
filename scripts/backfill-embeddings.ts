@@ -1,13 +1,9 @@
-// One-off (re-runnable) backfill for semantic search (Phase 3b).
+// Re-runnable backfill for semantic search (Phase 3b + advanced upgrade).
 //
-// Embeds every existing task + meeting via the in-region `embed` Edge Function
-// and stores the vectors in the `embeddings` table. Run AFTER you've:
-//   1. deployed the migration (the `embeddings` table + RPCs exist), and
-//   2. deployed the `embed` Edge Function (`supabase functions deploy embed`).
-// Then run:  npm run db:embed-backfill
-//
-// Self-contained on purpose (no app imports): it talks to Supabase directly so
-// it doesn't depend on the "@/" path alias or the in-app semantic-search toggle.
+// Indexes every task + meeting + document + person via the app's own
+// indexEmbedding (chunking + translate + hybrid full-text + vector), forcing past
+// the on/off toggle. Run AFTER the migration + `embed` function are deployed:
+//   npm run db:embed-backfill
 // Re-running is safe — unchanged items (same content hash) are skipped.
 
 import { config } from "dotenv";
@@ -15,7 +11,12 @@ config({ path: ".env.local" });
 config({ path: ".env" });
 
 import { createClient } from "@supabase/supabase-js";
-import { createHash } from "crypto";
+import type { SourceType } from "@/lib/embeddings";
+
+// App modules import src/db/supabase, which throws if env isn't loaded — and
+// static ESM imports run BEFORE dotenv config() above. So load the app's
+// indexEmbedding lazily (after config) via a dynamic import inside main().
+let indexEmbedding!: (t: SourceType, id: number, content: string, force?: boolean) => Promise<void>;
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,81 +26,44 @@ if (!url || !key) {
 }
 const sb = createClient(url, key, { auth: { persistSession: false } });
 
-const MAX_INPUT = 8000;
-const hash = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 32);
-const toVec = (v: number[]) => `[${v.join(",")}]`;
+type Row = { type: SourceType; id: number; content: string };
+const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join("\n");
 
-async function embed(text: string): Promise<number[] | null> {
-  const input = text.trim().slice(0, MAX_INPUT);
-  if (!input) return null;
-  const { data, error } = await sb.functions.invoke("embed", { body: { input } });
-  if (error) {
-    console.error("  embed Edge Function error:", error.message, "— is it deployed? (supabase functions deploy embed)");
-    return null;
-  }
-  const emb = (data as { embedding?: unknown })?.embedding;
-  return Array.isArray(emb) && emb.length ? (emb as number[]) : null;
-}
-
-async function index(sourceType: string, sourceId: number, content: string): Promise<"done" | "skip" | "fail"> {
-  const trimmed = content.trim().slice(0, MAX_INPUT);
-  if (!trimmed) return "skip";
-  const h = hash(trimmed);
-  const { data: existing } = await sb
-    .from("embeddings")
-    .select("content_hash")
-    .eq("source_type", sourceType)
-    .eq("source_id", sourceId)
-    .maybeSingle();
-  if (existing && (existing as { content_hash?: string }).content_hash === h) return "skip";
-  const vec = await embed(trimmed);
-  if (!vec) return "fail";
-  const { error } = await sb.rpc("upsert_embedding", {
-    p_source_type: sourceType,
-    p_source_id: sourceId,
-    p_content: trimmed,
-    p_content_hash: h,
-    p_embedding: toVec(vec),
-  });
-  if (error) {
-    console.error("  upsert error:", error.message);
-    return "fail";
-  }
-  return "done";
-}
-
-async function run(label: string, rows: { id: number; content: string }[]) {
-  let done = 0, skip = 0, fail = 0;
+async function run(label: string, rows: Row[]) {
+  let processed = 0, empty = 0;
   for (const r of rows) {
-    const res = await index(label, r.id, r.content);
-    if (res === "done") done++;
-    else if (res === "skip") skip++;
-    else fail++;
-    if ((done + skip + fail) % 25 === 0) process.stdout.write(`  …${done + skip + fail}/${rows.length}\r`);
+    if (!r.content.trim()) { empty++; continue; }
+    await indexEmbedding(r.type, r.id, r.content, true); // force past the toggle
+    processed++;
+    if (processed % 10 === 0) process.stdout.write(`  …${processed}/${rows.length}\r`);
   }
-  console.log(`${label}: ${done} indexed, ${skip} unchanged, ${fail} failed (of ${rows.length}).`);
-  return fail;
+  console.log(`${label}: ${processed} processed, ${empty} empty (of ${rows.length}).`);
 }
 
 async function main() {
+  ({ indexEmbedding } = await import("@/lib/embeddings"));
   const { data: tasks, error: te } = await sb.from("tasks").select("id,action_item,latest_update").eq("archived", false);
   if (te) throw new Error(`tasks: ${te.message}`);
-  const taskRows = (tasks ?? []).map((t) => ({
-    id: t.id as number,
-    content: [t.action_item, t.latest_update].filter(Boolean).join("\n"),
-  }));
+  const taskRows: Row[] = (tasks ?? []).map((t) => ({ type: "task", id: t.id as number, content: join(t.action_item as string, t.latest_update as string) }));
 
   const { data: meetings, error: me } = await sb.from("meetings").select("id,title,attendees,raw_notes,minutes");
   if (me) throw new Error(`meetings: ${me.message}`);
-  const meetingRows = (meetings ?? []).map((m) => ({
-    id: m.id as number,
-    content: [m.title, m.attendees, m.raw_notes, m.minutes].filter(Boolean).join("\n\n"),
-  }));
+  const meetingRows: Row[] = (meetings ?? []).map((m) => ({ type: "meeting", id: m.id as number, content: join(m.title as string, m.attendees as string, m.raw_notes as string, m.minutes as string) }));
 
-  console.log(`Backfilling embeddings: ${taskRows.length} tasks, ${meetingRows.length} meetings…\n`);
-  const f1 = await run("task", taskRows);
-  const f2 = await run("meeting", meetingRows);
-  console.log(`\nDone.${f1 + f2 ? ` ${f1 + f2} failed — re-run to retry just those.` : " Re-run any time; unchanged items are skipped."}`);
+  const { data: docs, error: de } = await sb.from("documents").select("id,title,doc_type,issuer,category,reference_no,notes").eq("archived", false);
+  if (de) throw new Error(`documents: ${de.message}`);
+  const docRows: Row[] = (docs ?? []).map((d) => ({ type: "document", id: d.id as number, content: join(d.title as string, d.doc_type as string, d.issuer as string, d.category as string, d.reference_no as string, d.notes as string) }));
+
+  const { data: people, error: pe } = await sb.from("people").select("id,name,role,staff_category,notes").eq("active", true);
+  if (pe) throw new Error(`people: ${pe.message}`);
+  const personRows: Row[] = (people ?? []).map((p) => ({ type: "person", id: p.id as number, content: join(p.name as string, p.role as string, p.staff_category as string, p.notes as string) }));
+
+  console.log(`Backfilling: ${taskRows.length} tasks, ${meetingRows.length} meetings, ${docRows.length} documents, ${personRows.length} people…\n`);
+  await run("task", taskRows);
+  await run("meeting", meetingRows);
+  await run("document", docRows);
+  await run("person", personRows);
+  console.log("\nDone. Re-run any time; unchanged items are skipped.");
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

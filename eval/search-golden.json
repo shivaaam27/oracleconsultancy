@@ -1,0 +1,10 @@
+{
+  "note": "Golden set for semantic-search evaluation (run: npm run eval:search). Each case: a real question + 'expect' = words/task-codes that SHOULD appear in a correct top result. EXPAND THIS with your own real questions, and keep some Swahili/Hindi/Gujarati cases as the multilingual regression guard. A phase only ships if Recall@10 + MRR don't drop.",
+  "cases": [
+    { "query": "tax filing and TRA accounts", "expect": ["TRA", "tax"] },
+    { "query": "overdue payments and invoices", "expect": ["payment", "tax", "rent", "withholding"] },
+    { "query": "bank reconciliation", "expect": ["reconciliation", "bank"] },
+    { "query": "withholding tax certificate", "expect": ["withholding"] },
+    { "query": "malipo ya kodi na ankara", "expect": ["tax", "payment", "TRA", "withholding"] }
+  ]
+}

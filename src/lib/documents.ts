@@ -6,6 +6,7 @@
 import { cache } from "react";
 import { createHash } from "crypto";
 import { sb } from "@/db/supabase";
+import { indexEmbedding } from "@/lib/embeddings";
 import { DEFAULT_LEAD_DAYS, type DocumentRow } from "./documents-shared";
 
 export * from "./documents-shared";
@@ -160,7 +161,14 @@ export async function createDocument(
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  return data.id as number;
+  const docId = data.id as number;
+  // Best-effort semantic index (no-op unless semantic search is enabled).
+  void indexEmbedding(
+    "document",
+    docId,
+    [input.title, input.docType, input.issuer, input.category, input.referenceNo, input.notes].filter(Boolean).join("\n"),
+  );
+  return docId;
 }
 
 export async function updateDocument(id: number, patch: Partial<DocumentInput>): Promise<void> {

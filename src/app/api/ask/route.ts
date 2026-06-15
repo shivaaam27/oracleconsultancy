@@ -5,7 +5,7 @@
 import { GROQ_FAST } from "@/lib/ai-models";
 import { callGroqText } from "@/lib/ai-json";
 import { concept } from "@/lib/requirement-match";
-import { semanticSearch } from "@/lib/embeddings";
+import { hybridSearch } from "@/lib/embeddings";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -122,12 +122,14 @@ async function buildContext(question: string, page?: PageCtx) {
     tokens.some(t => p.name.toLowerCase().split(/\s+/).some(w => w === t || w.startsWith(t)))
   );
 
-  // Semantic search (Phase 3b) — best-effort; returns [] unless the owner has
-  // enabled it AND deployed the embed function + backfilled. Surfaces items the
-  // keyword pass would miss (matched by meaning, not words) and boosts their rank.
-  const semantic = await semanticSearch(question, { types: ["task", "meeting"], limit: 20 });
+  // Hybrid semantic search (full-text + vector, RRF) over tasks/meetings/documents/
+  // people — best-effort; returns [] unless semantic search is on AND backfilled.
+  // Surfaces items the keyword pass would miss (matched by meaning) and boosts rank.
+  const semantic = await hybridSearch(question, { types: ["task", "meeting", "document", "person"], limit: 24 });
   const semanticTaskIds = new Set(semantic.filter((h) => h.sourceType === "task").map((h) => h.sourceId));
   const semanticMeetingIds = new Set(semantic.filter((h) => h.sourceType === "meeting").map((h) => h.sourceId));
+  const semanticDocIds = new Set(semantic.filter((h) => h.sourceType === "document").map((h) => h.sourceId));
+  const semanticPersonIds = new Set(semantic.filter((h) => h.sourceType === "person").map((h) => h.sourceId));
 
   // Relevance ranking (semantic hit + token overlap + matched-company bonus) so
   // the slices below keep the MOST relevant rows, not just the first ones.
@@ -405,7 +407,7 @@ async function buildContext(question: string, page?: PageCtx) {
           (d.docType?.toLowerCase().includes(t) ?? false) || (d.issuer?.toLowerCase().includes(t) ?? false)
       );
       const companyHit = d.companyId != null && matchedCompanyIds.has(d.companyId);
-      return { d, status, include: urgent || (wantsDocuments && (kwHit || companyHit || true)) };
+      return { d, status, include: urgent || semanticDocIds.has(d.id) || (wantsDocuments && (kwHit || companyHit || true)) };
     });
     documentCtx = scored
       .filter((x) => x.include)
@@ -453,7 +455,7 @@ async function buildContext(question: string, page?: PageCtx) {
     companies: companies.map(c => c.name),
     people: peopleAll.map(p => p.name),
     matchedCompanies: matchedCompanies.map(c => c.name),
-    matchedPeople: matchedPeople.map(p => p.name),
+    matchedPeople: [...new Set([...matchedPeople.map(p => p.name), ...peopleAll.filter(p => semanticPersonIds.has(p.id)).map(p => p.name)])],
     tasks: filtered.map(t => ({
       code: t.code,
       action: t.actionItem,

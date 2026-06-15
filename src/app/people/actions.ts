@@ -11,6 +11,7 @@ import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPerson, clearCustodianForPerson } from "@/lib/assets";
 import { getGroqKey } from "@/lib/settings";
+import { indexEmbedding } from "@/lib/embeddings";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
 
@@ -486,6 +487,13 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
     .single();
 
   if (error) return { ok: false, error: error.message };
+
+  // Best-effort semantic index (no-op unless semantic search is enabled).
+  void indexEmbedding(
+    "person",
+    data.id as number,
+    [name, s(formData, "role"), s(formData, "staffCategory"), s(formData, "notes")].filter(Boolean).join("\n"),
+  );
 
   await syncAssociations(data.id as number, parseAssociations(formData));
   await syncReportingLines(data.id as number, parseSecondaryManagers(formData), n(formData, "managerId"));
