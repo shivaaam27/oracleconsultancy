@@ -4,6 +4,7 @@
 
 import { GROQ_FAST } from "@/lib/ai-models";
 import { callGroqText } from "@/lib/ai-json";
+import { concept } from "@/lib/requirement-match";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -90,6 +91,11 @@ async function buildContext(question: string, page?: PageCtx) {
     .filter(w => !STOP.has(w))
     .slice(0, 10);
 
+  // Widen recall with domain synonyms (NIDA↔National ID, CV↔résumé, permit↔
+  // residence, licence↔trading, …) so a question phrased differently from the
+  // stored wording still finds the data. Capped so the OR-filter stays sane.
+  const searchTokens = [...concept(new Set(tokens))].slice(0, 24);
+
   const [{ data: cRows }, { data: pRows }] = await Promise.all([
     sb.from("companies").select("id,name,code"),
     sb.from("people").select("id,name,person_type,active"),
@@ -114,6 +120,22 @@ async function buildContext(question: string, page?: PageCtx) {
   const matchedPeople = peopleAll.filter(p =>
     tokens.some(t => p.name.toLowerCase().split(/\s+/).some(w => w === t || w.startsWith(t)))
   );
+
+  // Relevance ranking (token overlap + matched-company bonus) so the slices below
+  // keep the MOST relevant rows, not just the first ones the DB returned.
+  const matchedCompanyNames = new Set(matchedCompanies.map((c) => c.name.toLowerCase()));
+  const overlap = (hay: string) => {
+    const lower = hay.toLowerCase();
+    let s = 0;
+    for (const tok of searchTokens) if (lower.includes(tok)) s++;
+    return s;
+  };
+  const rankTask = (t: EnrichedTask) =>
+    overlap(`${t.actionItem} ${t.companyName ?? ""} ${t.latestUpdate ?? ""}`) +
+    (t.companyName && matchedCompanyNames.has(t.companyName.toLowerCase()) ? 2 : 0);
+  const rankMeeting = (m: any) =>
+    overlap(`${m.title ?? ""} ${m.attendees ?? ""} ${m.raw_notes ?? ""} ${m.minutes ?? ""}`) +
+    (m.company_id && matchedCompanies.some((c) => c.id === m.company_id) ? 2 : 0);
 
   const wantsOverdue = /overdue|late|missed|behind/.test(question.toLowerCase());
   const wantsCritical = /critical|urgent|high.priority|emergency/.test(question.toLowerCase());
@@ -154,8 +176,8 @@ async function buildContext(question: string, page?: PageCtx) {
 
   // Build OR-of-ilikes for keyword retrieval; optional company-id constraint.
   const orFilters: string[] = [];
-  if (tokens.length) {
-    for (const t of tokens) orFilters.push(`action_item.ilike.%${t}%`);
+  if (searchTokens.length) {
+    for (const t of searchTokens) orFilters.push(`action_item.ilike.%${t}%`);
   }
   for (const c of matchedCompanies) orFilters.push(`company_id.eq.${c.id}`);
 
@@ -201,7 +223,13 @@ async function buildContext(question: string, page?: PageCtx) {
     filtered = filtered.filter(t => ["Completed", "Closed"].includes(t.status));
   }
   if (filtered.length === 0) filtered = allTasks;
-  filtered = filtered.slice(0, 20);
+  // Rank by relevance so the 20 we keep are the most on-point, not just whatever
+  // the DB returned first (the slice used to be arbitrary).
+  filtered = filtered
+    .map((t) => ({ t, s: rankTask(t) }))
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.t)
+    .slice(0, 20);
 
   // Always include the task whose page the operator is viewing.
   if (page?.taskCode) {
@@ -261,8 +289,8 @@ async function buildContext(question: string, page?: PageCtx) {
   }
 
   const meetingOrFilters: string[] = [];
-  if (tokens.length) {
-    for (const t of tokens) {
+  if (searchTokens.length) {
+    for (const t of searchTokens) {
       meetingOrFilters.push(`title.ilike.%${t}%`);
       meetingOrFilters.push(`raw_notes.ilike.%${t}%`);
       meetingOrFilters.push(`minutes.ilike.%${t}%`);
@@ -302,6 +330,14 @@ async function buildContext(question: string, page?: PageCtx) {
     const seenMeetings = new Set(meetingRows.map((m) => m.id));
     meetingRows = [...meetingRows, ...(data ?? []).filter((m: any) => !seenMeetings.has(m.id))];
   }
+
+  // Keep the most relevant meetings (token overlap + matched company), not just
+  // the most recent, before capping — an older minutes can be the relevant one.
+  meetingRows = meetingRows
+    .map((m) => ({ m, s: rankMeeting(m) }))
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.m)
+    .slice(0, 12);
 
   const meetingIds = meetingRows.map((m) => m.id as number);
   const tasksByMeeting: Record<number, string[]> = {};
@@ -454,7 +490,7 @@ export async function POST(req: NextRequest) {
 
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `CONTEXT:\n${JSON.stringify(context, null, 2)}\n\nUse this CONTEXT to answer follow-up questions.${pageNote}${planNote} The conversation history is provided next.` },
+      { role: "user", content: `CONTEXT:\n${JSON.stringify(context)}\n\nUse this CONTEXT to answer follow-up questions.${pageNote}${planNote} The conversation history is provided next.` },
       ...history,
       { role: "user", content: question },
     ];

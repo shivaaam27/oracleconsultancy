@@ -42,6 +42,26 @@ Proactive morning briefing; tighter meeting→task→follow-up; optional multi-s
 
 ## Build status
 - Audit: DONE (wf_334c50a7-b97), saved to `intelligence_layer_audit.md`.
-- Phase 1: in progress this sprint → push.
-- Phase 2: this sprint → push.
-- Phase 3a: this sprint → push. Phase 3b: paused for owner vendor decision.
+- Phase 1: DONE + pushed (commit 816879b) — retry + timeout on every Groq call;
+  Ask COS mid-stream truncation fixed.
+- Phase 2: DONE + pushed (commit 5bd4992) — `aiHighQuality` setting + Settings
+  toggle; doc text-extraction + meeting minutes on GROQ_SMART; `ai-verify.ts`
+  name/figure check wired into the meeting prose tools.
+- Phase 3a: DONE + pushed — `concept` exported; Ask COS now synonym-expands its
+  search tokens, ranks tasks + meetings by relevance before slicing, sends compact
+  JSON, and shows an honest "based on N tasks · M meetings" count.
+- **Phase 3b (semantic search / embeddings): PAUSED for owner decision** — Groq
+  has no embeddings API, so this needs a new vendor (data egress + cost). Options
+  to weigh: (a) Supabase/pgvector + a self-hosted/Edge embedding model (data stays
+  in your DB region); (b) a hosted embeddings provider (OpenAI/Cohere/Voyage —
+  simplest, but staff/company text leaves to one more processor); (c) stay on the
+  Phase-3a keyword+synonym ranker (no new vendor). Decide before building.
+
+## Not yet done (future phases, from the audit)
+- Phase 4: HEIC support, raise 8-page scan cap, hybrid (AI) compliance matching.
+- Phase 5: voice dictionary feedback loop; Swahili `basicClean` fix.
+- Phase 6: PII egress trim (150-name injection), monthly spend ceiling, undo token
+  on the AI `bulk` command, separate "key missing" vs "AI off".
+- Also outstanding from the audit: wire `recordEvent` into the other 8 AI surfaces
+  (observability), central `src/lib/prompts.ts`, model-aware extraction cache key,
+  GROQ_VISION deprecation watch.

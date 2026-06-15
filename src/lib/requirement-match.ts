@@ -60,7 +60,7 @@ function tokens(s: string): Set<string> {
   );
 }
 
-function concept(base: Set<string>): Set<string> {
+export function concept(base: Set<string>): Set<string> {
   const out = new Set(base);
   for (const group of SYNONYMS) {
     if (group.some((g) => base.has(g))) for (const g of group) out.add(g);

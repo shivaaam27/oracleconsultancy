@@ -29,7 +29,7 @@ type SearchItem = { code: string; label: string; sub: string; href: string; stat
 // A turn in the conversation thread.
 type Msg =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; taskCount?: number | null; streaming?: boolean }
+  | { id: string; role: "assistant"; text: string; taskCount?: number | null; meetingCount?: number | null; streaming?: boolean }
   | { id: string; role: "action"; command: string }
   | { id: string; role: "error"; text: string; retry?: string };
 
@@ -353,6 +353,7 @@ export function CommandPaletteProvider({
         return;
       }
       const taskCount = Number(res.headers.get("X-Task-Count")) || null;
+      const meetingCount = Number(res.headers.get("X-Meeting-Count")) || null;
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let acc = "";
@@ -363,7 +364,7 @@ export function CommandPaletteProvider({
         if (!streamId) { streamId = newId(); setThinking(false); append({ id: streamId, role: "assistant", text: acc, streaming: true }); }
         else updateMsg(streamId, { text: acc });
       }
-      if (streamId) updateMsg(streamId, { streaming: false, taskCount });
+      if (streamId) updateMsg(streamId, { streaming: false, taskCount, meetingCount });
       else { setThinking(false); append({ id: newId(), role: "assistant", text: "(no answer)" }); }
     } catch {
       setThinking(false);
@@ -959,7 +960,7 @@ function MessageBubble({
             <span className="inline-block w-1.5 h-3.5 -mb-0.5 ml-0.5 bg-accent/70 rounded-sm animate-pulse" aria-hidden />
           )}
           {!msg.streaming && msg.taskCount != null && (
-            <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.taskCount} task{msg.taskCount !== 1 ? "s" : ""}</div>
+            <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.taskCount} task{msg.taskCount !== 1 ? "s" : ""}{msg.meetingCount ? ` · ${msg.meetingCount} meeting${msg.meetingCount !== 1 ? "s" : ""}` : ""}</div>
           )}
         </div>
       </div>
