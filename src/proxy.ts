@@ -78,7 +78,7 @@ async function isValidAdminToken(token: string | undefined): Promise<boolean> {
   return fresh === null ? true : gen === fresh;
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const ok = await isValidAdminToken(req.cookies.get("cos_admin")?.value);
   if (ok) return NextResponse.next();
   const url = req.nextUrl.clone();
