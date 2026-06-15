@@ -10,6 +10,7 @@ import { sb } from "@/db/supabase";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 import { verifyProseAgainstSource, type ProseFlag } from "@/lib/ai-verify";
+import { indexEmbedding } from "@/lib/embeddings";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 export type SavedMeeting = {
@@ -146,6 +147,12 @@ export async function saveMeeting(input: {
       .single();
     if (error) throw new Error(error.message);
     input.id = data.id as number;
+  }
+
+  // Best-effort semantic index (no-op unless semantic search is enabled).
+  if (input.id) {
+    const content = [title, input.attendees ?? "", input.rawNotes, input.minutes ?? ""].filter(Boolean).join("\n\n");
+    void indexEmbedding("meeting", input.id, content);
   }
 
   revalidatePath("/meeting");

@@ -32,6 +32,10 @@ export type AppSettings = {
   /** Use the stronger (slower) model for high-stakes reads — document extraction
    *  and meeting minutes. Owner can switch off if the 70B model is rate-limited. */
   aiHighQuality: boolean;
+  /** Phase 3b: use in-region pgvector semantic search in Ask COS. Off until the
+   *  owner has deployed the `embed` Edge Function + run the backfill. When off,
+   *  Ask COS uses the keyword + synonym ranker. */
+  semanticSearch: boolean;
   voiceLanguage: string;
   voiceDictionary: string;
   swipeRightAction: SwipeAction;
@@ -63,6 +67,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   weatherLon: 39.2083,
   aiEnabled: true,
   aiHighQuality: true,
+  semanticSearch: false,
   voiceLanguage: "en-GB",
   voiceDictionary: [
     "Oracle Consultancy",
@@ -94,6 +99,7 @@ const KEY: Record<keyof AppSettings, string> = {
   weatherLon: "v2.weatherLon",
   aiEnabled: "v2.aiEnabled",
   aiHighQuality: "v2.aiHighQuality",
+  semanticSearch: "v2.semanticSearch",
   voiceLanguage: "v2.voiceLanguage",
   voiceDictionary: "v2.voiceDictionary",
   swipeRightAction: "v2.swipeRightAction",
@@ -135,6 +141,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     weatherLon: toNum(map.get(KEY.weatherLon), d.weatherLon),
     aiEnabled: toBool(map.get(KEY.aiEnabled), d.aiEnabled),
     aiHighQuality: toBool(map.get(KEY.aiHighQuality), d.aiHighQuality),
+    semanticSearch: toBool(map.get(KEY.semanticSearch), d.semanticSearch),
     voiceLanguage: map.get(KEY.voiceLanguage) ?? d.voiceLanguage,
     voiceDictionary: map.get(KEY.voiceDictionary) ?? d.voiceDictionary,
     swipeRightAction: (map.get(KEY.swipeRightAction) as AppSettings["swipeRightAction"]) ?? d.swipeRightAction,

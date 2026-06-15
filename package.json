@@ -12,6 +12,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:backup": "tsx scripts/backup.ts",
     "db:restore": "tsx scripts/restore.ts",
+    "db:embed-backfill": "tsx scripts/backfill-embeddings.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

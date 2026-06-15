@@ -78,6 +78,7 @@ export async function saveSettings(fd: FormData): Promise<void> {
     weatherLon: num(fd, "weatherLon"),
     aiEnabled: fd.get("aiEnabled") === "on",
     aiHighQuality: fd.get("aiHighQuality") === "on",
+    semanticSearch: fd.get("semanticSearch") === "on",
     voiceLanguage: (fd.get("voiceLanguage") as string | null)?.trim() || undefined,
     voiceDictionary: (fd.get("voiceDictionary") as string | null)?.trim() || undefined,
     swipeRightAction: swipe(fd, "swipeRightAction"),

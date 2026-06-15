@@ -50,12 +50,25 @@ Proactive morning briefing; tighter meeting→task→follow-up; optional multi-s
 - Phase 3a: DONE + pushed — `concept` exported; Ask COS now synonym-expands its
   search tokens, ranks tasks + meetings by relevance before slicing, sends compact
   JSON, and shows an honest "based on N tasks · M meetings" count.
-- **Phase 3b (semantic search / embeddings): PAUSED for owner decision** — Groq
-  has no embeddings API, so this needs a new vendor (data egress + cost). Options
-  to weigh: (a) Supabase/pgvector + a self-hosted/Edge embedding model (data stays
-  in your DB region); (b) a hosted embeddings provider (OpenAI/Cohere/Voyage —
-  simplest, but staff/company text leaves to one more processor); (c) stay on the
-  Phase-3a keyword+synonym ranker (no new vendor). Decide before building.
+- **Phase 3b (semantic search / embeddings): BUILT (in-region pgvector) + pushed,
+  INERT until owner does a one-time setup.** Owner chose in-region (data stays in
+  Supabase region). Mechanism (research-verified, see wf agent): Supabase Edge
+  Function running built-in `gte-small` (384-dim) → pgvector. Ruled out in-process
+  Transformers.js on Vercel (onnxruntime ~720MB > 250MB function limit). Shipped:
+  migration `0076_semantic_search.sql` (raw SQL — extension + `embeddings` table +
+  HNSW + `upsert_embedding`/`match_embeddings` RPCs; accessed via supabase-js, NOT
+  Drizzle, to dodge the drizzle-kit HNSW operator-class bug); `src/lib/embeddings.ts`
+  (best-effort, gated by `v2.semanticSearch` setting, default OFF); `supabase/
+  functions/embed/index.ts` (Deno Edge Function, excluded from tsc); Settings toggle;
+  Ask COS integration (semantic hits augment + boost the keyword/synonym ranker,
+  fall back to keyword when off/empty); fire-and-forget index hooks on task-create
+  (`db-helpers.insertTaskWithUniqueCodeSb`) + meeting-save; `scripts/backfill-
+  embeddings.ts` (`npm run db:embed-backfill`); `SEMANTIC_SEARCH.md` owner guide.
+  **Owner's 4 one-time steps (in SEMANTIC_SEARCH.md): db:migrate → deploy embed
+  function (Supabase CLI) → db:embed-backfill → flip the Settings toggle on.** Until
+  then everything degrades to the Phase-3a keyword ranker. Caveat: gte-small is
+  English-strong, weak on Swahili/Hindi/Gujarati (keyword covers those). Documents
+  not yet wired into semantic (only task+meeting); easy follow-up.
 
 ## Not yet done (future phases, from the audit)
 - Phase 4: HEIC support, raise 8-page scan cap, hybrid (AI) compliance matching.

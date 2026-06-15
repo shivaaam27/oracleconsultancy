@@ -217,6 +217,18 @@ export default async function SettingsPage({
                     <span className="block text-xs text-fg-subtle">Use the stronger AI model to read documents and write meeting minutes — more accurate, a little slower. Turn off if AI feels slow or rate-limited.</span>
                   </span>
                 </label>
+                <label className="flex cursor-pointer select-none items-start gap-3">
+                  <input
+                    type="checkbox"
+                    name="semanticSearch"
+                    defaultChecked={s.semanticSearch}
+                    className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="text-sm">
+                    Semantic search (Ask COS)
+                    <span className="block text-xs text-fg-subtle">Let Ask COS find tasks, meetings and documents by meaning, not just matching words. Only switch on after the one-time setup (deploy the &ldquo;embed&rdquo; function and run the backfill — see SEMANTIC_SEARCH.md). Off = keyword search.</span>
+                  </span>
+                </label>
               </div>
             </SettingsCard>
 

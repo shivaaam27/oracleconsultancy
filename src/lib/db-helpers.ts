@@ -4,6 +4,7 @@
 // off Drizzle without duplicating logic.
 
 import { sb } from "@/db/supabase";
+import { indexEmbedding } from "@/lib/embeddings";
 
 export function fmtLocalDate(d: Date): string {
   const y = d.getFullYear();
@@ -185,6 +186,8 @@ export async function insertTaskWithUniqueCodeSb(
       .select("id,code")
       .single();
     if (!error && data) {
+      // Best-effort semantic index (no-op unless semantic search is enabled).
+      void indexEmbedding("task", data.id as number, values.actionItem);
       return { id: data.id as number, code: data.code as string };
     }
     const msg = error?.message || "";

@@ -5,6 +5,7 @@
 import { GROQ_FAST } from "@/lib/ai-models";
 import { callGroqText } from "@/lib/ai-json";
 import { concept } from "@/lib/requirement-match";
+import { semanticSearch } from "@/lib/embeddings";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
@@ -121,8 +122,15 @@ async function buildContext(question: string, page?: PageCtx) {
     tokens.some(t => p.name.toLowerCase().split(/\s+/).some(w => w === t || w.startsWith(t)))
   );
 
-  // Relevance ranking (token overlap + matched-company bonus) so the slices below
-  // keep the MOST relevant rows, not just the first ones the DB returned.
+  // Semantic search (Phase 3b) — best-effort; returns [] unless the owner has
+  // enabled it AND deployed the embed function + backfilled. Surfaces items the
+  // keyword pass would miss (matched by meaning, not words) and boosts their rank.
+  const semantic = await semanticSearch(question, { types: ["task", "meeting"], limit: 20 });
+  const semanticTaskIds = new Set(semantic.filter((h) => h.sourceType === "task").map((h) => h.sourceId));
+  const semanticMeetingIds = new Set(semantic.filter((h) => h.sourceType === "meeting").map((h) => h.sourceId));
+
+  // Relevance ranking (semantic hit + token overlap + matched-company bonus) so
+  // the slices below keep the MOST relevant rows, not just the first ones.
   const matchedCompanyNames = new Set(matchedCompanies.map((c) => c.name.toLowerCase()));
   const overlap = (hay: string) => {
     const lower = hay.toLowerCase();
@@ -131,9 +139,11 @@ async function buildContext(question: string, page?: PageCtx) {
     return s;
   };
   const rankTask = (t: EnrichedTask) =>
+    (semanticTaskIds.has(t.id) ? 5 : 0) +
     overlap(`${t.actionItem} ${t.companyName ?? ""} ${t.latestUpdate ?? ""}`) +
     (t.companyName && matchedCompanyNames.has(t.companyName.toLowerCase()) ? 2 : 0);
   const rankMeeting = (m: any) =>
+    (semanticMeetingIds.has(m.id) ? 5 : 0) +
     overlap(`${m.title ?? ""} ${m.attendees ?? ""} ${m.raw_notes ?? ""} ${m.minutes ?? ""}`) +
     (m.company_id && matchedCompanies.some((c) => c.id === m.company_id) ? 2 : 0);
 
@@ -206,6 +216,14 @@ async function buildContext(question: string, page?: PageCtx) {
     seen.add(t.id);
     return true;
   });
+
+  // Pull in semantic hits the keyword pass missed, so meaning-matched tasks
+  // aren't lost before ranking (best-effort; empty unless semantic search is on).
+  const missingSemTaskIds = [...semanticTaskIds].filter((id) => !seen.has(id));
+  if (missingSemTaskIds.length) {
+    const { data } = await sb.from("tasks").select(TASK_COLS).in("id", missingSemTaskIds);
+    allTasks.push(...enrich((data ?? []) as RawTaskRow[], cMap));
+  }
 
   // Apply intent filters
   const now = Date.now();
@@ -331,8 +349,18 @@ async function buildContext(question: string, page?: PageCtx) {
     meetingRows = [...meetingRows, ...(data ?? []).filter((m: any) => !seenMeetings.has(m.id))];
   }
 
-  // Keep the most relevant meetings (token overlap + matched company), not just
-  // the most recent, before capping — an older minutes can be the relevant one.
+  // Pull in semantic-hit meetings the keyword pass missed, then keep the most
+  // relevant (semantic + token overlap + matched company), not just the most
+  // recent, before capping — an older minutes can be the relevant one.
+  const seenMeetingIds = new Set(meetingRows.map((m) => m.id as number));
+  const missingSemMeetingIds = [...semanticMeetingIds].filter((id) => !seenMeetingIds.has(id));
+  if (missingSemMeetingIds.length) {
+    const { data } = await sb
+      .from("meetings")
+      .select("id,title,company_id,meeting_date,attendees,raw_notes,minutes,updated_at")
+      .in("id", missingSemMeetingIds);
+    meetingRows = [...meetingRows, ...(data ?? [])];
+  }
   meetingRows = meetingRows
     .map((m) => ({ m, s: rankMeeting(m) }))
     .sort((a, b) => b.s - a.s)
