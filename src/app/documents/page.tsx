@@ -9,6 +9,7 @@ import { RequirementTemplatesButton } from "@/components/requirement-templates-b
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { ComplianceExportButton } from "@/components/compliance-export-button";
 import { FindDuplicatesButton } from "@/components/find-duplicates-button";
+import { RescanDocumentsButton } from "@/components/rescan-documents-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { buildCompanyRequirementScores, ensureAllCompanyRequirements } from "@/lib/company-requirements";
@@ -88,6 +89,7 @@ export default async function DocumentsPage({
         action={
           <div className="flex flex-wrap items-center gap-2">
             <FindDuplicatesButton />
+            <RescanDocumentsButton />
             <ComplianceExportButton />
             <RequirementTemplatesButton />
             <JourneyTemplatesButton />

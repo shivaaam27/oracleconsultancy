@@ -797,6 +797,130 @@ export async function backfillFileHashesAction(
   }
 }
 
+/* ---------------------------------------------------------------------- */
+/* Re-scan EXISTING documents with the new brain (propose → you approve)   */
+/* ---------------------------------------------------------------------- */
+
+export type RescanChange = { field: string; label: string; old: string | null; new: string | null };
+export type RescanProposal =
+  | { ok: true; id: number; title: string; fileName: string | null; changes: RescanChange[]; patch: Record<string, unknown>; segments: number; source: string }
+  | { ok: false; id: number; title: string; error: string };
+
+/** Companies that have at least one re-scannable document (a stored file), with
+ *  the count — drives the per-company picker on the Re-scan tool. */
+export async function listRescanCompaniesAction(): Promise<{ id: number; name: string; count: number }[]> {
+  try {
+    const { data: comps } = await supa.from("companies").select("id,name").order("name");
+    const { data: docs } = await supa.from("documents").select("company_id").eq("archived", false).not("storage_path", "is", null);
+    const counts = new Map<number, number>();
+    for (const d of (docs ?? []) as { company_id: number | null }[]) if (d.company_id) counts.set(d.company_id, (counts.get(d.company_id) ?? 0) + 1);
+    return (comps ?? [] as { id: number; name: string }[])
+      .map((c) => ({ id: c.id as number, name: c.name as string, count: counts.get(c.id as number) ?? 0 }))
+      .filter((c) => c.count > 0);
+  } catch {
+    return [];
+  }
+}
+
+/** Documents for a company that can be re-read (have a stored file). */
+export async function listRescanCandidatesAction(companyId: number): Promise<{ id: number; title: string; fileName: string | null }[]> {
+  try {
+    const { data } = await supa
+      .from("documents")
+      .select("id,title,file_name")
+      .eq("company_id", companyId)
+      .eq("archived", false)
+      .not("storage_path", "is", null)
+      .order("updated_at", { ascending: false });
+    return (data ?? []).map((r) => ({ id: r.id as number, title: r.title as string, fileName: (r.file_name as string | null) ?? null }));
+  } catch {
+    return [];
+  }
+}
+
+// Re-read an already-stored file with the current brain (no diagnostics double-log).
+async function reExtractStored(doc: { storagePath: string | null; fileName: string | null }): Promise<ExtractResult | null> {
+  if (!doc.storagePath) return null;
+  const { data, error } = await supa.storage.from(DOCUMENTS_BUCKET).download(doc.storagePath);
+  if (error || !data) return null;
+  const file = new File([await data.arrayBuffer()], doc.fileName ?? "document", { type: data.type || "application/octet-stream" });
+  const fd = new FormData();
+  fd.set("file", file);
+  return extractDocumentFromFileInner(fd);
+}
+
+/**
+ * Re-read ONE existing document and PROPOSE corrections — never saves. The headline
+ * fix is the old false-expiry bug: if the type genuinely has no expiry, propose
+ * clearing the bogus date. Category differences are proposed; identity fields
+ * (issuer/ref/dates/owner) are fill-blanks-only so a hand-correction isn't trampled.
+ * Returns the human change list + a machine patch the UI applies on approval.
+ */
+export async function rescanDocumentAction(id: number): Promise<RescanProposal> {
+  try {
+    const doc = await getDocument(id);
+    if (!doc) return { ok: false, id, title: "", error: "Document not found." };
+    if (!doc.storagePath) return { ok: false, id, title: doc.title, error: "No stored file to re-read." };
+    const res = await reExtractStored(doc);
+    if (!res || !res.ok) return { ok: false, id, title: doc.title, error: res?.note ?? "Couldn't read the file." };
+    const f = res.fields;
+    const changes: RescanChange[] = [];
+    const patch: Record<string, unknown> = {};
+    const blank = (cur: string | null | undefined) => !cur || !cur.toString().trim();
+    const curExpiry = doc.expiryDate ? doc.expiryDate.toISOString().slice(0, 10) : null;
+    const curIssue = doc.issueDate ? doc.issueDate.toISOString().slice(0, 10) : null;
+
+    // Expiry — the core fix.
+    if (f.expiryKind === "no" && curExpiry) {
+      changes.push({ field: "expiryDate", label: "Expiry date", old: curExpiry, new: null });
+      patch.expiryDate = null;
+      changes.push({ field: "expiryKind", label: "Has expiry?", old: doc.expiryKind ?? null, new: "no" });
+      patch.expiryKind = "no";
+    } else if (f.expiryDate && f.expiryDate !== curExpiry) {
+      changes.push({ field: "expiryDate", label: "Expiry date", old: curExpiry, new: f.expiryDate });
+      patch.expiryDate = f.expiryDate;
+      if (f.expiryKind && f.expiryKind !== doc.expiryKind) patch.expiryKind = f.expiryKind;
+    } else if (f.expiryKind && f.expiryKind !== doc.expiryKind) {
+      // Record the type-based decision even when the date itself is unchanged.
+      patch.expiryKind = f.expiryKind;
+    }
+    // Category — propose any difference.
+    if (f.category && f.category !== doc.category) {
+      changes.push({ field: "category", label: "Category", old: doc.category, new: f.category });
+      patch.category = f.category;
+    }
+    // Identity — fill blanks only.
+    if (f.issuer && blank(doc.issuer)) { changes.push({ field: "issuer", label: "Issuer", old: doc.issuer ?? null, new: f.issuer }); patch.issuer = f.issuer; }
+    if (f.referenceNo && blank(doc.referenceNo)) { changes.push({ field: "referenceNo", label: "Reference no.", old: doc.referenceNo ?? null, new: f.referenceNo }); patch.referenceNo = f.referenceNo; }
+    if (f.docType && blank(doc.docType)) { changes.push({ field: "docType", label: "Type", old: doc.docType ?? null, new: f.docType }); patch.docType = f.docType; }
+    if (f.issueDate && !curIssue) { changes.push({ field: "issueDate", label: "Issue date", old: null, new: f.issueDate }); patch.issueDate = f.issueDate; }
+    if (f.companyId && !doc.companyId) { changes.push({ field: "companyId", label: "Company", old: null, new: f.companyName ?? String(f.companyId) }); patch.companyId = f.companyId; }
+    if (f.personId && !doc.personId) { changes.push({ field: "personId", label: "Person", old: null, new: f.personName ?? String(f.personId) }); patch.personId = f.personId; }
+    if (f.needsOriginal && !doc.needsOriginal) { changes.push({ field: "needsOriginal", label: "Awaiting original", old: "no", new: "yes" }); patch.needsOriginal = true; }
+
+    return { ok: true, id, title: doc.title, fileName: doc.fileName, changes, patch, segments: f.segments?.length ?? 0, source: res.source };
+  } catch (e) {
+    return { ok: false, id, title: "", error: e instanceof Error ? e.message : "Re-scan failed." };
+  }
+}
+
+/** Apply the operator-approved subset of a re-scan proposal. Whitelisted keys only. */
+export async function applyDocumentRescanAction(id: number, patch: Record<string, unknown>): Promise<Result> {
+  try {
+    const allowed = ["title", "category", "docType", "issuer", "referenceNo", "issueDate", "expiryDate", "expiryKind", "companyId", "personId", "needsOriginal"] as const;
+    const clean: Partial<DocumentInput> = {};
+    for (const k of allowed) if (k in patch) (clean as Record<string, unknown>)[k] = patch[k];
+    if (Object.keys(clean).length === 0) return { ok: true, id };
+    await updateDocument(id, clean);
+    const doc = await getDocument(id);
+    await reconcileOwnerCompliance(doc?.personId ?? null, doc?.companyId ?? null);
+    revalidateDocs();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't apply the changes." };
+  }
+}
+
 /** Short-lived signed URL to view/download a document's stored file. */
 export async function getDocumentFileLinkAction(id: number): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   try {

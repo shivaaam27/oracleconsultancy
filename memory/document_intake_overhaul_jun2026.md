@@ -1,6 +1,6 @@
 # Document Intake Overhaul — June 2026
 
-Owner-requested sweep fixing the bulk-upload / smart-intake pain points. Built **all at once**, **review-before-commit** for splits & duplicates, **NOT pushed** (owner reviews first). `tsc --noEmit` clean; `/documents` renders 200 in dev. Migration **0072** applied to the live DB (additive nullable cols only — safe).
+Owner-requested sweep fixing the bulk-upload / smart-intake pain points. Built **all at once**, **review-before-commit** for splits & duplicates. **PUSHED to master (commit 6ffae2d, 2026-06-15).** `tsc --noEmit` clean; `/documents` renders 200 in dev. Migration **0072** applied to the live DB (additive nullable cols only — safe; Vercel re-runs it on deploy).
 
 ## What the owner reported
 1. After bulk upload, failed / unscanned files vanish — no way to fix them in the same pop-up.
