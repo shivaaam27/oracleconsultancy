@@ -33,6 +33,7 @@ type DocDbRow = {
   compilation_id: string | null;
   page_range: string | null;
   expiry_kind: string | null;
+  vetted_at: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -67,6 +68,7 @@ function mapRow(r: DocDbRow): DocumentRow {
     compilationId: r.compilation_id ?? null,
     pageRange: r.page_range ?? null,
     expiryKind: r.expiry_kind ?? null,
+    vettedAt: d(r.vetted_at),
     archived: r.archived,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
@@ -298,6 +300,45 @@ export async function findDocumentsByHash(fileHash: string, excludeId?: number):
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data as DocDbRow[]).map(mapRow);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Extraction cache (read once per file content; reuse forever)           */
+/* ---------------------------------------------------------------------- */
+
+/** The AI's stored read for a file hash, or null on a miss. Best-effort. */
+export async function getCachedExtraction(fileHash: string): Promise<unknown | null> {
+  if (!fileHash) return null;
+  try {
+    const { data } = await sb.from("extraction_cache").select("result").eq("file_hash", fileHash).maybeSingle();
+    if (!data?.result) return null;
+    return JSON.parse(data.result as string);
+  } catch {
+    return null;
+  }
+}
+
+/** Remember the AI's read for a file hash so the same bytes are never re-read. */
+export async function putCachedExtraction(fileHash: string, result: unknown, model: string | null): Promise<void> {
+  if (!fileHash) return;
+  try {
+    await sb.from("extraction_cache").upsert(
+      { file_hash: fileHash, result: JSON.stringify(result), model, created_at: new Date().toISOString() },
+      { onConflict: "file_hash" }
+    );
+  } catch { /* cache write is best-effort */ }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Vetted state (human-confirmed → re-scan leaves it alone)               */
+/* ---------------------------------------------------------------------- */
+
+/** Stamp a document as human-confirmed (or clear it). */
+export async function setDocumentVetted(documentId: number, vetted: boolean): Promise<void> {
+  await sb
+    .from("documents")
+    .update({ vetted_at: vetted ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
+    .eq("id", documentId);
 }
 
 /** Link a renewal/action task to a document (mirrors meeting_tasks). */

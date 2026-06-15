@@ -990,6 +990,11 @@ export const documents = pgTable("documents", {
   // SHA-256 of the uploaded file's bytes — lets dedup catch the SAME file
   // re-uploaded even under a different name/owner (not just same owner+category).
   fileHash: text("file_hash"),
+  // When a human has reviewed/confirmed this document (saved it, confirmed it out
+  // of the review queue, or approved/skipped a re-scan). The re-scan tool SKIPS
+  // vetted documents by default — so the AI only re-reads what you haven't settled,
+  // which is what makes re-scanning converge instead of churning new "discoveries".
+  vettedAt: timestamp("vetted_at", { mode: "date", withTimezone: true }),
   // When one uploaded file (e.g. a recruit's scanned bundle) is split into
   // several documents, every split shares one compilationId and stores the page
   // range it covers ("1-3"). The original file is stored once and shared.
@@ -1003,6 +1008,17 @@ export const documents = pgTable("documents", {
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
   createdBy: text("created_by").notNull().default("web-ui"),
+});
+
+// Extraction memory: the AI's structured read of a file, keyed by the file's
+// CONTENT hash. Reading the same bytes again returns this cached result with no
+// Groq call — so re-scanning an unchanged document is free AND deterministic
+// (the same answer every time), instead of the LLM inventing fresh diffs each run.
+export const extractionCache = pgTable("extraction_cache", {
+  fileHash: text("file_hash").primaryKey(),
+  result: text("result").notNull(), // JSON of the ExtractResult (minus the hash)
+  model: text("model"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
 });
 
 // HRMS — Vendor / Supplier register. The outside companies we buy from or

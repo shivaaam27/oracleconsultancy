@@ -54,6 +54,21 @@ The above only changes NEW reads. For the existing library:
 - **Existing duplicates** → the "Find duplicates" sweep already scans all live docs (built in 6ffae2d). Press "Fingerprint old files" first so identical old copies are caught too.
 - **Existing wrong expiries / missed reads** → new **"Re-scan documents"** tool on `/documents` (button beside Find duplicates): per-company, re-reads each stored file with the new brain and PROPOSES corrections — **propose-then-approve, nothing changes silently**. Headline = fix the old false-expiry dates (proposes clearing a bogus expiry when expiryKind="no"); also fills blank issuer/ref/dates/owner and flags already-uploaded bundles to split. Actions: `listRescanCompaniesAction` / `listRescanCandidatesAction` / `rescanDocumentAction` (reads, saves nothing) / `applyDocumentRescanAction` (whitelisted patch of approved fields). UI `rescan-documents-dialog.tsx` processes sequentially with progress + Stop; per-field checkboxes. Owner chose: propose-all + per-company scope.
 
+## Determinism + cost fix + compliance Safety Net (migration 0073)
+Owner reported: re-scan kept "finding new things" (different categories/expiries each run) and burned API. Root cause (confirmed by transfer-pack `07`/`06`): the LLM was being re-run on already-read docs, and LLMs vary run-to-run. Fix tracks:
+
+**Track A — stop churn + cost (migration 0073: `extraction_cache` table + `documents.vetted_at`):**
+- **Extraction cache keyed by file_hash** (`getCachedExtraction`/`putCachedExtraction`, `cachedExtract()` wraps the reader). Same file content → cached read, **zero Groq calls, identical result**. `force` bypasses (explicit re-read). Re-scan + detect-compilation both go through it. Diagnostics log `cached:true` / source "cache".
+- **Vetted-lock** (`documents.vetted_at`, `setDocumentVetted`): set on human save/edit/confirm-review/rescan-apply/rescan-skip/split. `listRescanCandidatesAction(companyId, includeVetted=false)` excludes vetted by default; per-company counts count only un-vetted. So fixing one doc never re-flags a settled one → **converges**. `markDocumentVettedAction` for skip. Rescan UI: "Re-check confirmed documents too" toggle (force + includeVetted).
+- **Deterministic expiry-by-category** (`categoryExpiryDefault` in documents-shared): Licence/Permit/Insurance/Lease/Immigration/Passport/Registration → "yes"; Attachment → "no"; rest defer to AI. Anchors expiry so it stops flip-flopping. Applied in `coerceFields`.
+- **Confidence gate 0.55 → 0.75** (`LOW_CONFIDENCE` in ai-json.ts) per pack 08 §4 — fewer wrong auto-fills; reconfirming is cache-cheap.
+
+**Track B — compliance Safety Net (transfer-pack `10` §C):**
+- Added statutory items to `COMPANY_DEFAULT_ITEMS`: MEMARTS, Tax Clearance, UBO register, BRELA Annual Return, OSHA, Fire certificate, Audited accounts, Premises lease/title. `ensureAllCompanyRequirements` now **top-ups missing items on ALL companies** (idempotent batch insert; respects removed items) — so existing companies get the new rules.
+- New Safety-Net finding **`untracked-expiry`**: a renewable doc (expiry_kind "yes" or renewable category) with no expiry date set and not in needs-review → "expiry not captured" (the reminder engine was blind to it).
+
+Owner decisions: gate 0.75; build A+B in one sweep; re-scan per-company propose-then-approve. Migration 0073 applied to live DB (additive — new table + nullable col).
+
 ## Still open / notes
 - A `next build` wasn't run (heavy, needs 4 GB heap); `tsc` clean + `/documents` 200 in dev is the gate used.
 - Backfill is batched (40/call) — for a big library the owner presses "Fingerprint old files" a few times.

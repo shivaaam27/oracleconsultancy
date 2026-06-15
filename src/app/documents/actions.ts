@@ -15,12 +15,17 @@ import {
   removeDocumentFile,
   signDocumentFile,
   hashFile,
+  hashBuffer,
   attachStoredFile,
   findDocumentsByHash,
   getDocument,
+  getCachedExtraction,
+  putCachedExtraction,
+  setDocumentVetted,
   DOCUMENTS_BUCKET,
   type DocumentInput,
 } from "@/lib/documents";
+import { categoryExpiryDefault } from "@/lib/documents-shared";
 import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
@@ -369,6 +374,9 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
       revalidatePath(`/companies/${parsed.companyId}`);
     }
     await reconcileOwnerCompliance(parsed.personId ?? null, parsed.companyId ?? null);
+    // A document the operator typed/checked and saved is confirmed — unless they
+    // deliberately left it "needs review". Vetted docs are left alone by re-scan.
+    if (parsed.reviewStatus !== "needs_review") await setDocumentVetted(id, true);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -437,6 +445,9 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
     await reconcileOwnerCompliance(nextPersonId, nextCompanyId);
     if (priorPersonId && priorPersonId !== nextPersonId) await reconcileOwnerCompliance(priorPersonId, null);
     if (priorCompanyId && priorCompanyId !== nextCompanyId) await reconcileOwnerCompliance(null, priorCompanyId);
+    // A manual edit-save is a human confirmation — settle it so re-scan leaves it
+    // alone (unless they explicitly re-flagged it "needs review").
+    if (parsed.reviewStatus !== "needs_review") await setDocumentVetted(id, true);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -448,6 +459,7 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
 export async function confirmDocumentReviewAction(id: number): Promise<Result> {
   try {
     await updateDocument(id, { reviewStatus: "ok" });
+    await setDocumentVetted(id, true); // confirming out of the queue is a human OK
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -531,12 +543,8 @@ export async function detectCompilationForDocumentAction(
   try {
     const doc = await getDocument(id);
     if (!doc?.storagePath) return { ok: false, error: "No file is attached to this document." };
-    const { data, error } = await supa.storage.from(DOCUMENTS_BUCKET).download(doc.storagePath);
-    if (error || !data) return { ok: false, error: "Could not open the stored file." };
-    const file = new File([await data.arrayBuffer()], doc.fileName ?? "document", { type: data.type || "application/octet-stream" });
-    const fd = new FormData();
-    fd.set("file", file);
-    const res = await extractDocumentFromFileInner(fd);
+    const res = await reExtractStored(doc);
+    if (!res) return { ok: false, error: "Could not open the stored file." };
     return { ok: true, segments: res.fields.segments ?? [] };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not scan for multiple documents." };
@@ -599,9 +607,11 @@ export async function splitDocumentAction(
       }, "ai-intake");
       // Share the original's stored file (do NOT re-upload — one object, many rows).
       if (doc.storagePath) await attachStoredFile(newId, doc.storagePath, doc.fileName ?? "document", doc.fileHash);
+      await setDocumentVetted(newId, true); // a confirmed split is operator-reviewed
       await reconcileOwnerCompliance(seg.personId ?? null, seg.companyId ?? null);
       created.push(newId);
     }
+    await setDocumentVetted(id, true);
     await reconcileOwnerCompliance(first.personId ?? doc.personId ?? null, first.companyId ?? doc.companyId ?? null);
     revalidateDocs();
     return { ok: true, created };
@@ -811,7 +821,8 @@ export type RescanProposal =
 export async function listRescanCompaniesAction(): Promise<{ id: number; name: string; count: number }[]> {
   try {
     const { data: comps } = await supa.from("companies").select("id,name").order("name");
-    const { data: docs } = await supa.from("documents").select("company_id").eq("archived", false).not("storage_path", "is", null);
+    // Count only UN-VETTED docs — what actually needs reviewing per company.
+    const { data: docs } = await supa.from("documents").select("company_id").eq("archived", false).not("storage_path", "is", null).is("vetted_at", null);
     const counts = new Map<number, number>();
     for (const d of (docs ?? []) as { company_id: number | null }[]) if (d.company_id) counts.set(d.company_id, (counts.get(d.company_id) ?? 0) + 1);
     return (comps ?? [] as { id: number; name: string }[])
@@ -822,31 +833,39 @@ export async function listRescanCompaniesAction(): Promise<{ id: number; name: s
   }
 }
 
-/** Documents for a company that can be re-read (have a stored file). */
-export async function listRescanCandidatesAction(companyId: number): Promise<{ id: number; title: string; fileName: string | null }[]> {
+/** Documents for a company that can be re-read (have a stored file). By default
+ *  only UN-VETTED documents (ones you haven't confirmed) — so re-scan reviews the
+ *  AI's unconfirmed reads and never re-flags what you've already settled.
+ *  `includeVetted` re-checks everything (the explicit "force" path). */
+export async function listRescanCandidatesAction(companyId: number, includeVetted = false): Promise<{ id: number; title: string; fileName: string | null; vetted: boolean }[]> {
   try {
-    const { data } = await supa
+    let q = supa
       .from("documents")
-      .select("id,title,file_name")
+      .select("id,title,file_name,vetted_at")
       .eq("company_id", companyId)
       .eq("archived", false)
-      .not("storage_path", "is", null)
-      .order("updated_at", { ascending: false });
-    return (data ?? []).map((r) => ({ id: r.id as number, title: r.title as string, fileName: (r.file_name as string | null) ?? null }));
+      .not("storage_path", "is", null);
+    if (!includeVetted) q = q.is("vetted_at", null);
+    const { data } = await q.order("updated_at", { ascending: false });
+    return (data ?? []).map((r) => ({ id: r.id as number, title: r.title as string, fileName: (r.file_name as string | null) ?? null, vetted: !!r.vetted_at }));
   } catch {
     return [];
   }
 }
 
-// Re-read an already-stored file with the current brain (no diagnostics double-log).
-async function reExtractStored(doc: { storagePath: string | null; fileName: string | null }): Promise<ExtractResult | null> {
+// Re-read an already-stored file. Goes through the CACHE keyed by file content,
+// so an unchanged file isn't re-sent to the AI (free + identical every time).
+// `force` re-reads from scratch and refreshes the cache.
+async function reExtractStored(doc: { storagePath: string | null; fileName: string | null; fileHash: string | null }, force = false): Promise<ExtractResult | null> {
   if (!doc.storagePath) return null;
   const { data, error } = await supa.storage.from(DOCUMENTS_BUCKET).download(doc.storagePath);
   if (error || !data) return null;
-  const file = new File([await data.arrayBuffer()], doc.fileName ?? "document", { type: data.type || "application/octet-stream" });
+  const buf = Buffer.from(await data.arrayBuffer());
+  const hash = doc.fileHash ?? hashBuffer(buf);
+  const file = new File([buf], doc.fileName ?? "document", { type: data.type || "application/octet-stream" });
   const fd = new FormData();
   fd.set("file", file);
-  return extractDocumentFromFileInner(fd);
+  return cachedExtract(fd, hash, force);
 }
 
 /**
@@ -856,12 +875,12 @@ async function reExtractStored(doc: { storagePath: string | null; fileName: stri
  * (issuer/ref/dates/owner) are fill-blanks-only so a hand-correction isn't trampled.
  * Returns the human change list + a machine patch the UI applies on approval.
  */
-export async function rescanDocumentAction(id: number): Promise<RescanProposal> {
+export async function rescanDocumentAction(id: number, force = false): Promise<RescanProposal> {
   try {
     const doc = await getDocument(id);
     if (!doc) return { ok: false, id, title: "", error: "Document not found." };
     if (!doc.storagePath) return { ok: false, id, title: doc.title, error: "No stored file to re-read." };
-    const res = await reExtractStored(doc);
+    const res = await reExtractStored(doc, force);
     if (!res || !res.ok) return { ok: false, id, title: doc.title, error: res?.note ?? "Couldn't read the file." };
     const f = res.fields;
     const changes: RescanChange[] = [];
@@ -910,14 +929,32 @@ export async function applyDocumentRescanAction(id: number, patch: Record<string
     const allowed = ["title", "category", "docType", "issuer", "referenceNo", "issueDate", "expiryDate", "expiryKind", "companyId", "personId", "needsOriginal"] as const;
     const clean: Partial<DocumentInput> = {};
     for (const k of allowed) if (k in patch) (clean as Record<string, unknown>)[k] = patch[k];
-    if (Object.keys(clean).length === 0) return { ok: true, id };
+    if (Object.keys(clean).length === 0) {
+      // Nothing to change, but the operator has reviewed it → settle it.
+      await setDocumentVetted(id, true);
+      revalidateDocs();
+      return { ok: true, id };
+    }
     await updateDocument(id, clean);
+    await setDocumentVetted(id, true); // approving a re-scan is a human confirmation
     const doc = await getDocument(id);
     await reconcileOwnerCompliance(doc?.personId ?? null, doc?.companyId ?? null);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn't apply the changes." };
+  }
+}
+
+/** Mark a document settled without changing it (re-scan "skip" / "looks right").
+ *  Vetted documents are left alone by future re-scans. */
+export async function markDocumentVettedAction(id: number): Promise<Result> {
+  try {
+    await setDocumentVetted(id, true);
+    revalidateDocs();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't update the document." };
   }
 }
 
@@ -1194,6 +1231,12 @@ function coerceFields(
   // does not expire, DROP any expiry date it may have guessed from a stray date.
   const ek = s(parsed.expiryKind, 4)?.toLowerCase();
   if (ek === "yes" || ek === "no") f.expiryKind = ek as "yes" | "no";
+  // Deterministic anchor: the category decides expiry for the clear cases, so the
+  // classification doesn't ride on the AI's mood (which made it flip run-to-run).
+  // Ambiguous categories defer to the AI's call above.
+  const catDefault = categoryExpiryDefault(f.category);
+  if (catDefault === "no") f.expiryKind = "no";
+  else if (catDefault === "yes" && !f.expiryKind) f.expiryKind = "yes";
   if (f.expiryKind === "no") f.expiryDate = undefined;
   const co = resolveEntity(s(parsed.company, 80), companies);
   if (co) { f.companyId = co.id; f.companyName = co.name; }
@@ -1520,26 +1563,51 @@ async function extractOfficeText(file: File): Promise<string> {
  * by the Groq vision model (scanned PDFs are rasterised to images first). Never
  * throws.
  */
+/**
+ * Cache-aware read: the same file CONTENT is only ever sent to the AI once. A
+ * cache hit returns the stored read instantly (no Groq call) AND deterministically
+ * — which is what stops re-scans from inventing fresh diffs and burning API cost.
+ * `force` bypasses the cache for an explicit re-read.
+ */
+async function cachedExtract(fd: FormData, fileHash: string | null, force: boolean): Promise<ExtractResult & { cached?: boolean }> {
+  if (!force && fileHash) {
+    const cached = (await getCachedExtraction(fileHash)) as ExtractResult | null;
+    if (cached && typeof cached === "object" && "fields" in cached) {
+      return { ...cached, fileHash, cached: true };
+    }
+  }
+  const res = await extractDocumentFromFileInner(fd);
+  if (res.ok && fileHash) {
+    // Store the read without the volatile hash field; re-attached on read.
+    const toStore: ExtractResult = { ...res, fileHash: null };
+    await putCachedExtraction(fileHash, toStore, res.source);
+  }
+  return res;
+}
+
 export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResult> {
   const file = fd.get("file");
   const fileName = file instanceof File ? file.name : "(none)";
-  // Content hash up-front so every caller can dedup before saving, and so the
-  // diagnostics line can fingerprint the file. Best-effort — never blocks a read.
+  const force = fd.get("force") === "1";
+  // Content hash up-front so every caller can dedup before saving, the cache can
+  // key on it, and the diagnostics line can fingerprint the file. Best-effort.
   let fileHash: string | null = null;
   if (file instanceof File && file.size > 0) {
     try { fileHash = await hashFile(file); } catch { fileHash = null; }
   }
-  const result = await extractDocumentFromFileInner(fd);
+  const result = await cachedExtract(fd, fileHash, force);
   const out: ExtractResult = { ...result, fileHash: fileHash ?? result.fileHash ?? null };
   // Diagnostics: one row per read so "why did this fail / need review" is visible
-  // in the AI-health readout instead of guessed at. Telemetry never throws.
+  // in the AI-health readout instead of guessed at. Telemetry never throws. A cache
+  // hit cost no API call — note it so the health readout can show the saving.
   const failKind = out.failKind ?? (out.ok ? (out.needsReview ? "low-confidence" : "ok") : "unreadable");
   await recordEvent("doc-extraction", out.ok ? (out.needsReview ? "skip" : "ok") : "error", {
     file: fileName,
-    source: out.source,
+    source: (result as { cached?: boolean }).cached ? "cache" : out.source,
     confidence: out.confidence ?? null,
     failKind,
     parts: out.fields?.segments?.length ?? 0,
+    cached: (result as { cached?: boolean }).cached ?? false,
     note: out.note ?? null,
   });
   return out;

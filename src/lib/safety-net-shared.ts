@@ -20,6 +20,7 @@ export interface Finding {
 export type FindingKind =
   | "duplicate-tin"
   | "awaiting-original"
+  | "untracked-expiry"
   | "stale-fact"
   | "incomplete-fact"
   | "asset-on-leaver"

@@ -20,6 +20,22 @@ export const DOC_CATEGORIES = [
 ] as const;
 export type DocCategory = (typeof DOC_CATEGORIES)[number];
 
+/**
+ * Deterministic anchor for "does this category expire?" — so expiry classification
+ * doesn't ride entirely on the AI's mood (which made it flip run-to-run). Clear
+ * cases are decided in code; genuinely ambiguous categories return null and defer
+ * to the AI's read. "yes" = renewable (a blank expiry means the date wasn't read
+ * → review); "no" = no expiry by nature (a blank expiry is correct, not missing).
+ */
+export function categoryExpiryDefault(category?: string | null): "yes" | "no" | null {
+  if (!category) return null;
+  const YES = new Set(["Licence", "Permit", "Insurance", "Lease", "Immigration", "Passport", "Registration"]);
+  const NO = new Set(["Attachment"]);
+  if (YES.has(category)) return "yes";
+  if (NO.has(category)) return "no";
+  return null; // Certificate / Contract / Tax / Banking / Legal / Other → trust the AI
+}
+
 // Sensible default reminder lead times (days before expiry) by category.
 export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Immigration: 90,
@@ -183,6 +199,8 @@ export type DocumentRow = {
   pageRange: string | null;
   /** "yes" (genuinely expires) | "no" (no expiry by nature) | null (undetermined). */
   expiryKind: string | null;
+  /** When a human confirmed this document — re-scan skips vetted docs. */
+  vettedAt: Date | null;
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;

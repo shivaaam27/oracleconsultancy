@@ -12,6 +12,7 @@ import {
   listRescanCandidatesAction,
   rescanDocumentAction,
   applyDocumentRescanAction,
+  markDocumentVettedAction,
   type RescanProposal,
   type RescanChange,
 } from "@/app/documents/actions";
@@ -51,6 +52,10 @@ export function RescanDocumentsDialog({
   const [loadingCompanies, setLoadingCompanies] = useState(false);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [company, setCompany] = useState<Company | null>(null);
+  // "Re-check confirmed documents too" — OFF by default. Off = only un-vetted docs
+  // using saved reads (free); On = include already-confirmed docs and force a
+  // fresh re-read (uses AI credits).
+  const [recheckVetted, setRecheckVetted] = useState(false);
 
   // Step 2: the re-scan run.
   const [running, setRunning] = useState(false);
@@ -82,6 +87,7 @@ export function RescanDocumentsDialog({
   useEffect(() => {
     if (!open) return;
     setCompany(null);
+    setRecheckVetted(false);
     setRunning(false);
     setFinished(false);
     setStopRequested(false);
@@ -124,7 +130,8 @@ export function RescanDocumentsDialog({
     setDone(0);
     setCurrent("");
 
-    const candidates = await listRescanCandidatesAction(c.id);
+    // When "Re-check confirmed documents too" is on, include already-vetted docs.
+    const candidates = await listRescanCandidatesAction(c.id, recheckVetted);
     setTotal(candidates.length);
 
     let stop = false;
@@ -142,7 +149,8 @@ export function RescanDocumentsDialog({
       if (stop) break;
       const cand = candidates[i];
       setCurrent(cand.fileName ?? cand.title);
-      const res = await rescanDocumentAction(cand.id);
+      // Force a fresh, cache-bypassing read when re-checking confirmed documents.
+      const res = await rescanDocumentAction(cand.id, recheckVetted);
       readCount += 1;
       if (res.ok) {
         // Show it only if it has proposed changes OR looks like a bundle.
@@ -199,8 +207,12 @@ export function RescanDocumentsDialog({
     }
   }
 
-  function skip(doc: ChangedDoc) {
+  // "Skip" = leave the document unchanged but mark it confirmed, so it won't be
+  // re-flagged on the next re-scan. (Apply already vets on the backend.)
+  async function skip(doc: ChangedDoc) {
     setSkippedIds((prev) => new Set(prev).add(doc.id));
+    const res = await markDocumentVettedAction(doc.id);
+    if (!res.ok) toast(res.error, { tone: "danger" });
   }
 
   const pct = total ? Math.round((done / total) * 100) : 0;
@@ -233,6 +245,26 @@ export function RescanDocumentsDialog({
             <p className="text-xs text-fg-muted">
               Pick a company. We&rsquo;ll re-read each of its saved files one at a time and list only the ones where the reader suggests a fix.
             </p>
+            <p className="text-[11px] text-fg-subtle">
+              Re-reading the same file again is free and gives the same answer — you won&rsquo;t be asked about a document once you&rsquo;ve confirmed it.
+            </p>
+
+            {/* "Re-check confirmed documents too" toggle. */}
+            <label className="flex items-start gap-2.5 rounded-xl ring-1 ring-border bg-bg-subtle/40 px-3 py-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={recheckVetted}
+                onChange={(e) => setRecheckVetted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--accent))]"
+              />
+              <span className="min-w-0">
+                <span className="block text-[12px] font-medium text-fg">Re-check confirmed documents too</span>
+                <span className="block text-[11px] text-fg-subtle">
+                  Off: only review documents you haven&rsquo;t confirmed yet (free — uses saved reads). On: re-read everything from scratch (uses AI credits).
+                </span>
+              </span>
+            </label>
+
             <ul className="space-y-1.5">
               {companies.map((c) => (
                 <li key={c.id}>

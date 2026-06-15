@@ -233,5 +233,8 @@ function readConfidence(obj: Record<string, unknown>): number | null {
   return Math.max(0, Math.min(1, n));
 }
 
-/** Default gate: below this, treat an extraction as "needs human review". */
-export const LOW_CONFIDENCE = 0.55;
+/** Default gate: below this, treat an extraction as "needs human review".
+ *  Set to 0.75 per the transfer-pack intake spec (08 §4) — only auto-fill a
+ *  document when the model is genuinely confident; everything else waits for a
+ *  one-tap human confirm. Reconfirming is cheap now (cache-backed). */
+export const LOW_CONFIDENCE = 0.75;
