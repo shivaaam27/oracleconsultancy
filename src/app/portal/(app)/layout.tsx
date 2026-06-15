@@ -26,7 +26,7 @@ export default async function PortalLayout({ children }: { children: React.React
       <header className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
-            Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
+            Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "HR / Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
           </p>
           <p className="truncate text-sm font-semibold">{me.name}</p>
         </div>
@@ -41,7 +41,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </form>
       </header>
       {children}
-      <PortalPill canCreate={me.portalRole === "manager" || me.portalRole === "director"} role={me.portalRole} />
+      <PortalPill canCreate={me.portalRole !== "staff"} role={me.portalRole} />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
     </div>
   );

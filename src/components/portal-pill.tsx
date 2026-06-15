@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { Home, LayoutDashboard, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
+import { ClipboardList, Home, LayoutDashboard, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -44,8 +44,12 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
 export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; role?: string }) {
   const pathname = usePathname() || "/portal";
   const isDirector = role === "director";
+  // Managers and HR juggle many tasks, so they get a dedicated filterable Tasks
+  // list; staff manage few (the Home page lists those) and directors use the board.
+  const showTasks = role === "manager" || role === "hr";
   const onBoard = pathname.startsWith("/portal/board");
-  const onHome = pathname === "/portal" || pathname.startsWith("/portal/task");
+  const onTasks = pathname.startsWith("/portal/tasks");
+  const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");
   const onActivity = pathname.startsWith("/portal/activity");
   const onChat = pathname.startsWith("/portal/chat");
   const onProfile = pathname.startsWith("/portal/profile");
@@ -80,6 +84,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
           {/* Directors are board-first (/portal redirects them to /portal/board),
               so a Home tab is redundant for them — show it for everyone else. */}
           {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} reduce={reduce} />}
+          {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} reduce={reduce} />}
           <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} reduce={reduce} />
           <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} reduce={reduce} />

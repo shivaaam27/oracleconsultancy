@@ -53,7 +53,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   if (!me) redirect("/portal/login");
   const { code } = await params;
   const isManager = me.portalRole === "manager";
-  const isManagement = isManager || me.portalRole === "director";
+  const isManagement = isManager || me.portalRole === "director" || me.portalRole === "hr";
 
   const { data: task } = await sb
     .from("tasks")

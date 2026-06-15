@@ -89,10 +89,10 @@ export default async function PortalActivity() {
         <Hero
           title="Activity"
           subtitle={
-            me.portalRole === "director"
+            me.portalRole === "director" || me.portalRole === "hr"
               ? "Every update across the group, newest first."
               : me.portalRole === "manager"
-                ? "Every update across your tasks and your team's tasks."
+                ? "Every update across your company's tasks and your team's."
                 : "Every update across your tasks, newest first."
           }
         />

@@ -9,15 +9,18 @@ export const metadata = { title: "New task — Oracle Consultancy" };
 export default async function PortalNewTaskPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // Managers and directors can create tasks. Staff cannot.
-  if (me.portalRole !== "manager" && me.portalRole !== "director") redirect("/portal");
+  // Managers, HR and directors can create tasks. Staff cannot.
+  if (me.portalRole === "staff") redirect("/portal");
   const isDirector = me.portalRole === "director";
+  // HR and directors both pick from anyone/any company; HR still posts through the
+  // ordinary (non-board) action, so it isn't treated as a director here.
+  const broad = isDirector || me.portalRole === "hr";
 
   let people: Array<{ id: number; name: string }>;
   let companies: Array<{ id: number; name: string }>;
 
-  if (isDirector) {
-    // Directors are group-wide operators: anyone active, any company.
+  if (broad) {
+    // Group-wide: anyone active, any company.
     const [{ data: peopleRows }, { data: compRows }] = await Promise.all([
       sb.from("people").select("id,name").eq("active", true).order("name"),
       sb.from("companies").select("id,name").order("name"),

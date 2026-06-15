@@ -290,11 +290,29 @@ export default async function PortalHome() {
         </Reveal>
       )}
 
-      {teamOpen.length > 0 && (
-        <Reveal delay={0.1} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<Users size={13} />}>My team&apos;s tasks</SectionLabel>
-          {teamOpen.map((t) => taskCard(t, now))}
+      {/* Managers get the wider list inline; HR have the whole portfolio, so they
+          use the dedicated, filterable Tasks tab instead of a giant home dump. */}
+      {me.portalRole === "hr" ? (
+        <Reveal delay={0.1}>
+          <Link href="/portal/tasks" className="block group">
+            <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
+              <div>
+                <p className="text-sm font-medium">All company tasks</p>
+                <p className="text-xs text-fg-muted">{open.length} open across all companies — open the Tasks tab to filter.</p>
+              </div>
+              <ListTodo size={18} className="text-accent shrink-0" />
+            </Panel>
+          </Link>
         </Reveal>
+      ) : (
+        teamOpen.length > 0 && (
+          <Reveal delay={0.1} className="flex flex-col gap-2.5">
+            <SectionLabel icon={<Users size={13} />}>
+              {me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
+            </SectionLabel>
+            {teamOpen.map((t) => taskCard(t, now))}
+          </Reveal>
+        )
       )}
 
       {done.length > 0 && (

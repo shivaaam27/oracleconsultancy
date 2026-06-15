@@ -129,8 +129,9 @@ export const people = pgTable("people", {
   portalPasswordHash: text("portal_password_hash"),
   portalEnabledAt: timestamp("portal_enabled_at", { mode: "date", withTimezone: true }),
   portalLastLoginAt: timestamp("portal_last_login_at", { mode: "date", withTimezone: true }),
-  // "staff" (own tasks only) or "manager" (own + direct reports' tasks,
-  // may complete tasks and pin instructions). Only meaningful with access.
+  // "staff" (own tasks only), "manager" (own + direct reports' + own company's
+  // tasks, may complete/pin), "hr" (admin/HR — every company's tasks) or
+  // "director" (group-wide operator board). Only meaningful with access.
   portalRole: text("portal_role").notNull().default("staff"),
   // Comma-separated former staff IDs, stamped when the person moves company,
   // so old references (e.g. CZ-E04) stay traceable. See lib/staff-id.ts.
@@ -552,6 +553,10 @@ export const tasks = pgTable("tasks", {
   // Previous task code (e.g. "CO01-008") kept after the DS-001 rename so old
   // /task/<code> links still resolve. Null for tasks created after the rename.
   legacyCode: text("legacy_code"),
+  // Who raised the task (the person, when known). Set for portal-created tasks
+  // (manager/director/HR); null for owner/web-ui created tasks. Powers the
+  // "raised by" column and the "Tasks I assigned" portal view.
+  createdByPersonId: integer("created_by_person_id").references(() => people.id),
 });
 
 export const taskAssignees = pgTable(

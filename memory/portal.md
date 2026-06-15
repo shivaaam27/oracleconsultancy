@@ -8,6 +8,24 @@ A standalone, locked-down view for staff members — see only your own tasks, po
 - **Session**: signed HttpOnly cookie `cos_portal` (`personId.expiry.hmac`, 30 days). Secret = `PORTAL_SESSION_SECRET` env var, falling back to a value derived from `DATABASE_URL`. All logic in `src/lib/portal-auth.ts`.
 - **Login** at `/portal/login` (name OR email + password, case-insensitive match).
 
+## Portal roles & task visibility (updated Jun 2026)
+
+`PortalRole` (in `portal-auth.ts`) is now **`staff` | `manager` | `hr` | `director`**. Set in Settings → Staff portal access (both the add-access picker and the per-person "Change role" select; validated in `settings/actions.ts` `setPortalAccess`/`setPortalRole`).
+
+**Task visibility** (`visibleTaskIds` + `personCanSeeTask`, with helper `isGroupWide(role)`):
+- **staff** — only tasks they own or are assigned to.
+- **manager** — **every non-archived task in their own company** (changed Jun 2026 — was previously only own + direct reports), plus their own and any direct report's tasks (reports may be cross-company).
+- **hr** — **group-wide**: every non-archived task across all 7 companies. Uses the ordinary staff home/Tasks surface, NOT the director board.
+- **director** — group-wide (unchanged); board-first.
+
+**Why the manager fix:** before, a manager/HR who created a task and assigned it to someone else couldn't see it afterwards (their name wasn't on it, and the portal only showed tasks your name was attached to). Company-wide visibility for managers + group-wide for HR fixes the "created task vanished" complaint. A manager can only create tasks in their own company anyway, so created tasks always stay visible.
+
+**`tasks.created_by_person_id`** (migration `0074`, nullable FK → people.id): stamps who raised a task. Set on `portalCreateTask` (manager/HR) and `portalDirectorCreateTask` (director) = `me.id`; null for web-ui/owner creation. Plumbed via `TaskInsertValues.createdByPersonId` in `db-helpers.ts`. Powers the "Raised by me" badge and the **"I raised"** scope filter.
+
+**Portal Tasks tab** (`/portal/tasks`, shown in `portal-pill.tsx` for manager + HR only — staff use Home, director uses board): filterable list (`portal-tasks-table.tsx`, client) with scope tabs **All / Assigned to me / I raised**, plus search + status + company + priority filters. Server page builds rows from `visibleTaskIds`. HR's home replaces the giant inline list with a single "All company tasks → open Tasks tab" card; managers still get the inline "Company & team tasks" section.
+
+**Task creation/completion gates** now include HR as "management": `portalCreateTask` accepts manager+HR (HR gets all-company person/company pickers in `task/new/page.tsx` via `broad`); `task/[code]` `isManagement`, `portalAddUpdate`, `portalTogglePin` all treat hr like manager/director. Creator stamps: `portal-hr:<Name>` for HR posts.
+
 ## Pages
 
 - `/portal` — guarded by `src/app/portal/(app)/layout.tsx` (redirects to login). Hero with open/due-this-week/overdue/completed tiles + "My tasks" list (assignee or owner, unarchived). Surface-kit design, own minimal header with sign-out.
