@@ -24,6 +24,8 @@ A standalone, locked-down view for staff members — see only your own tasks, po
 
 **Portal Tasks tab** (`/portal/tasks`, shown in `portal-pill.tsx` for manager + HR + director — staff use Home only): filterable list (`portal-tasks-table.tsx`, client) with scope tabs **All / Assigned to me / I raised**, plus search + status + company + priority filters. Directors keep their board too (it's the summary; the Tasks tab is the full filterable list — they're group-wide so "I raised" surfaces tasks they personally delegated). Server page builds rows from `visibleTaskIds`. HR's home replaces the giant inline list with a single "All company tasks → open Tasks tab" card; managers still get the inline "Company & team tasks" section.
 
+**`components/people-picker.tsx`** (Jun 2026): reusable searchable, collapsible multi-select for people — replaced the flat checkbox/chip grids that became unusable once HR/directors see every person. Controlled (`value`/`onChange`); pass `name` to render hidden inputs so it posts inside a `<form action>` (same shape as the old `name="workingIds"` checkboxes). In use: new-task "Also working on it" (`new-task-form.tsx`, with `name="workingIds"`) and director event "Attendees" (`director-event-form.tsx`, controlled, builds JSON). Chat group-create already had its own search picker.
+
 **Task creation/completion gates** now include HR as "management": `portalCreateTask` accepts manager+HR (HR gets all-company person/company pickers in `task/new/page.tsx` via `broad`); `task/[code]` `isManagement`, `portalAddUpdate`, `portalTogglePin` all treat hr like manager/director. Creator stamps: `portal-hr:<Name>` for HR posts.
 
 ## Pages

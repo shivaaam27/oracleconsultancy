@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { Hero, Panel } from "@/components/surface-kit";
 import { Button } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
+import { PeoplePicker } from "@/components/people-picker";
 import { portalCreateTask, portalDirectorCreateTask } from "../../../actions";
 
 type Person = { id: number; name: string };
@@ -31,6 +32,7 @@ export function NewTaskForm({
     isDirector ? portalDirectorCreateTask : portalCreateTask,
     null
   );
+  const [working, setWorking] = useState<number[]>([]);
   const backHref = isDirector ? "/portal/board" : "/portal";
 
   return (
@@ -86,14 +88,13 @@ export function NewTaskForm({
           {people.length > 1 && (
             <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Also working on it</span>
-              <div className="flex flex-wrap gap-1.5">
-                {people.filter((p) => p.id !== me.id).map((p) => (
-                  <label key={p.id} className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle ring-1 ring-border px-3 py-1.5 text-sm cursor-pointer hover:ring-accent/40">
-                    <input type="checkbox" name="workingIds" value={p.id} className="accent-[var(--accent)]" />
-                    {p.name}
-                  </label>
-                ))}
-              </div>
+              <PeoplePicker
+                people={people.filter((p) => p.id !== me.id)}
+                value={working}
+                onChange={setWorking}
+                name="workingIds"
+                emptyLabel="Add people (optional)"
+              />
             </div>
           )}
 

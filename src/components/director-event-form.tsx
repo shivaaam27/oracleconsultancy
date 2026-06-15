@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, X, Loader2, Check } from "lucide-react";
+import { CalendarPlus, X, Loader2 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
+import { PeoplePicker } from "@/components/people-picker";
 import { useToast } from "./toast";
 import { portalDirectorCreateEvent } from "@/app/portal/actions";
 
@@ -76,18 +77,7 @@ export function DirectorEventForm({ people, companies }: { people: Person[]; com
         </div>
         <div>
           <div className="text-[11px] text-fg-muted mb-1">Attendees</div>
-          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-            {people.map((p) => {
-              const on = attendees.includes(p.id);
-              return (
-                <button key={p.id} type="button"
-                  onClick={() => setAttendees((prev) => on ? prev.filter((x) => x !== p.id) : [...prev, p.id])}
-                  className={`rounded-full px-2.5 py-1 text-[11px] ring-1 transition-colors ${on ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle text-fg-muted ring-border hover:bg-bg-muted"}`}>
-                  {on && <Check size={10} className="inline mr-0.5" />}{p.name}
-                </button>
-              );
-            })}
-          </div>
+          <PeoplePicker people={people} value={attendees} onChange={setAttendees} emptyLabel="Add attendees" />
         </div>
         <label className="inline-flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
           <input type="checkbox" name="remind1d" className="accent-accent" /> Remind attendees 1 day before
