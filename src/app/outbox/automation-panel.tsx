@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Bot, Check, ChevronDown, Pause, Settings2, Clock } from "lucide-react";
-import type { AutomationSnapshot } from "@/lib/outbox-automation";
+import type { AutomationSnapshot } from "@/lib/outbox/snapshot";
 
 function modeLabel(mode: string): string {
   return mode === "auto" ? "Sends automatically" : mode === "prepare" ? "Prepares a draft" : "Off";

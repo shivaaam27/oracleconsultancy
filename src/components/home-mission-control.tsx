@@ -32,7 +32,7 @@ import { Badge, Button, LinkButton } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { AutomationActionButton } from "@/components/automation-action-button";
 import { PlanMyDayButton } from "@/components/plan-my-day-button";
-import { channelLabel } from "@/lib/outbox-links";
+import { channelLabel } from "@/lib/outbox/links";
 import type { MorningPlanItem } from "@/lib/automation-suggestions";
 import { approveReminderAction, approveRenewalAction } from "@/app/automation/actions";
 import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";

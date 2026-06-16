@@ -6,9 +6,9 @@ import {
   buildSmsMessage,
   buildWhatsAppMessage,
   type Channel,
-} from "@/lib/outbox-gen";
-import { contactForChannel, linkFor, pickChannel } from "@/lib/outbox-links";
-import { lastChasedByName } from "@/lib/outbox-history";
+} from "@/lib/outbox/gen";
+import { contactForChannel, linkFor, pickChannel } from "@/lib/outbox/links";
+import { lastChasedByName } from "@/lib/outbox/history";
 import { deriveDocStatus, type DocumentRow, linkDocumentTask } from "@/lib/documents";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 

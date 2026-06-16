@@ -1,6 +1,6 @@
 import { sb } from "@/db/supabase";
-import { getAllTasks, type TaskRow } from "./queries";
-import { isOpen } from "./derive";
+import { getAllTasks, type TaskRow } from "../queries";
+import { isOpen } from "../derive";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 

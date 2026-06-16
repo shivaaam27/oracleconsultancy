@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
+import type { OutboxDraft, Channel } from "@/lib/outbox/gen";
 import { OutboxCard } from "./outbox-card";
 import { Card, CountPill } from "@/components/ui";
 import { Search, X } from "lucide-react";

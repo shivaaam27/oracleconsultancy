@@ -1,6 +1,6 @@
-import { generateDrafts } from "@/lib/outbox-gen";
-import { listOutboxDrafts } from "@/lib/outbox-drafts";
-import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords, lastChasedByName } from "@/lib/outbox-history";
+import { generateDrafts } from "@/lib/outbox/gen";
+import { listOutboxDrafts } from "@/lib/outbox/drafts";
+import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords, lastChasedByName } from "@/lib/outbox/history";
 import { getScopedCompanyId, getScopeOptions } from "@/lib/scope";
 import { Hero, Panel, TONE, type Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
@@ -11,7 +11,7 @@ import { OutboxWorkspace } from "./outbox-workspace";
 import { type PendingItem } from "./pending-list";
 import { SentLogDrawer } from "./sent-log-drawer";
 import { AutomationPanel } from "./automation-panel";
-import { getAutomationSnapshot } from "@/lib/outbox-automation";
+import { getAutomationSnapshot } from "@/lib/outbox/snapshot";
 import { BellOff, ChevronDown } from "lucide-react";
 
 export const dynamic = "force-dynamic";

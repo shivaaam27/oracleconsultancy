@@ -2,13 +2,13 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
-import type { OutboxDraftRow } from "@/lib/outbox-drafts";
-import type { LastChased } from "@/lib/outbox-history";
+import type { OutboxDraft, Channel } from "@/lib/outbox/gen";
+import type { OutboxDraftRow } from "@/lib/outbox/drafts";
+import type { LastChased } from "@/lib/outbox/history";
 import { OutboxCard } from "./outbox-card";
 import { DraftCard } from "./drafts-list";
 import { sendAllEmailDrafts } from "./actions";
-import { labelForSource } from "@/lib/outbox-automation-shared";
+import { labelForSource } from "@/lib/automation/meta";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 import {

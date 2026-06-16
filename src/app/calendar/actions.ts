@@ -10,7 +10,7 @@ import {
   type CalendarAttendee,
 } from "@/lib/calendar";
 import { buildIcs } from "@/lib/ics";
-import { sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
 import { createGoogleEvent } from "@/lib/google-calendar";
 import { sb } from "@/db/supabase";

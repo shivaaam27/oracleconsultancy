@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { MessageCircle, Mail, Phone, Copy, Check, Send, Trash2, Pencil, ExternalLink, ListTodo, PackageCheck, Bot, FileEdit } from "lucide-react";
-import { labelForSource } from "@/lib/outbox-automation-shared";
+import { labelForSource } from "@/lib/automation/meta";
 import { SectionLabel } from "@/components/surface-kit";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
-import { linkFor, channelLabel, type Channel } from "@/lib/outbox-links";
-import type { OutboxDraftRow } from "@/lib/outbox-drafts";
+import { linkFor, channelLabel, type Channel } from "@/lib/outbox/links";
+import type { OutboxDraftRow } from "@/lib/outbox/drafts";
 import { sendDraft, sendDraftEmail, updateDraft, deleteDraft } from "./actions";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

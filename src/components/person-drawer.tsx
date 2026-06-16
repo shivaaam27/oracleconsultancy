@@ -29,7 +29,7 @@ import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
 import { getDocumentFileLinkAction } from "@/app/documents/actions";
 import { createPersonPackDraftAction } from "@/app/people/pack-actions";
-import { pickChannel } from "@/lib/outbox-links";
+import { pickChannel } from "@/lib/outbox/links";
 import type { TaskRow } from "@/lib/queries";
 import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
 import { personTypeLabel, type PersonType } from "@/lib/person-types";

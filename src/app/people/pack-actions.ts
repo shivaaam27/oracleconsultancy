@@ -3,7 +3,7 @@
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { getPersonDetail } from "@/lib/people-queries";
-import { contactForChannel, linkFor, type Channel } from "@/lib/outbox-links";
+import { contactForChannel, linkFor, type Channel } from "@/lib/outbox/links";
 import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
 import { savePackPrefs } from "@/lib/person-pack-prefs";
 

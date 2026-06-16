@@ -1,9 +1,9 @@
 "use server";
 import { revalidatePath, updateTag } from "next/cache";
-import { markSent } from "@/lib/outbox-gen";
+import { markSent } from "@/lib/outbox/gen";
 import { mutate } from "@/lib/mutate";
 import { sb } from "@/db/supabase";
-import { sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email/send";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

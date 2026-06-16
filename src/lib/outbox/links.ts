@@ -1,7 +1,7 @@
 // Channel deep-links + message building for one-off reminders.
 // Times are formatted in the operator's business zone (East Africa Time).
 
-import { BRAND_NAME } from "./brand";
+import { BRAND_NAME } from "../brand";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 const BIZ_TZ = "Africa/Nairobi"; // EAT (UTC+3, no DST) — same offset as Dar es Salaam.

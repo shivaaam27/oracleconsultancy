@@ -5,7 +5,7 @@ import { getPersonRequirementScore } from "@/lib/requirements";
 import { deriveDocStatus, expiryLabel, listDocuments, type DocumentRow } from "@/lib/documents";
 import { getPersonDetail, type PersonDetail } from "@/lib/people-queries";
 import type { TaskRow } from "@/lib/queries";
-import type { Channel } from "@/lib/outbox-links";
+import type { Channel } from "@/lib/outbox/links";
 import {
   blankPersonPackSelection,
   type PersonPackPurpose,

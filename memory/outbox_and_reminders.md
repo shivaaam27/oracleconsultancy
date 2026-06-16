@@ -8,12 +8,16 @@ metadata:
 
 # Outbox and Reminders
 
-Source files:
+> **Restructure (2026-06-16) — see "Outbox + email reorg" section at the bottom.** The flat `src/lib/outbox-*.ts` + `email.ts` + `email-automation.ts` files were grouped into `src/lib/outbox/`, `src/lib/email/` and a new registry-driven `src/lib/automation/`. Paths below are pre-reorg; the new map is in that section.
 
-- `src/lib/outbox-gen.ts` — live per-person task reminders (regenerated each load)
-- `src/lib/outbox-history.ts`
-- `src/lib/outbox-drafts.ts` — `listOutboxDrafts()` (persisted `status="Draft"` rows)
-- `src/lib/outbox-links.ts` — channel deep-links + the one-off message builder
+Source files (post-reorg paths):
+
+- `src/lib/outbox/gen.ts` — live per-person task reminders (regenerated each load)
+- `src/lib/outbox/history.ts`
+- `src/lib/outbox/drafts.ts` — `listOutboxDrafts()` (persisted `status="Draft"` rows)
+- `src/lib/outbox/links.ts` — channel deep-links + the one-off message builder
+- `src/lib/outbox/snapshot.ts` — read-only automation snapshot for the Outbox panel (was `outbox-automation.ts`)
+- `src/lib/email/send.ts` — real email send + signature (was `email.ts`)
 - `src/app/outbox/*` (incl. `drafts-list.tsx`)
 - `src/app/outbox/actions.ts` — `recordSent`, `snoozePerson`, plus draft mutations `sendDraft` / `updateDraft` / `deleteDraft`
 
@@ -150,3 +154,26 @@ Do not add real dispatch casually. Phase 5c should choose one provider first, th
 **Admin & HR updates (operator notes)** (2026-06): the owner can hand-write narrative notes that aren't tasks — `brief_notes` table (`body`/`company_id` nullable/`note_date`/`created_at`/`created_by`, migration `0054`). `src/lib/brief-notes.ts` `listBriefNotes(range, companyId, names)` returns notes whose `note_date` falls in the brief window (same logic as Delivered), honouring the company filter (company-tagged notes show when that company OR portfolio selected; portfolio notes always show). Surfaced in three places: screen section `src/components/brief-notes-section.tsx` (add/delete inline, sits between Delivered and Recommended director actions), the PDF report (section "2b" between Delivered table and Open work by company), and `briefShareText` ("*Admin & HR updates*" block after Delivered). Server actions `createBriefNoteAction`/`updateBriefNoteAction`/`deleteBriefNoteAction` in `src/app/brief/actions.ts`. `BriefData.notes: BriefNote[]`. Notes are inline-editable (body + company) via the pencil icon. A **hide-company toggle** ("Company shown/hidden") persists to `localStorage` key `v2.briefNotesHideCompany` and toggles class `hide-brief-note-company` on `<html>`; CSS `html.hide-brief-note-company .brief-note-company { display:none }` hides the Company column on BOTH the screen list and the PDF table (the PDF Company `<th>`/`<td>` carry the `brief-note-company` class; `window.print()` prints the live DOM so the class applies). Order across screen/PDF/share text: Admin & HR updates BEFORE Delivered; the PDF Admin block is a plain fragment (not `.report-section`) so it shares the page with Delivered.
 
 New feature: one-tap "share everything incl. closed tasks with the director", beautiful + glanceable. Decisions: default window = **this month**; format = **both** (in-app glanceable page + WhatsApp/Email text now, polished PDF after). Phases: 1 (DONE) outbox draft tweak above · 2 in-app Director Brief page (portfolio, incl. completed/closed this month: top-line stats, per-company strip, "Delivered" closed-tasks section, watch-list) · 3 (DONE) WhatsApp/Email/Copy share + Director Brief promoted to a primary nav tab · 4 (DONE) PDF via print: "PDF" button (window.print()) + @media print stylesheet in globals.css (remaps dark tokens to light, hides .fixed/.print-hidden chrome, strips glass/shadow) · 5 (optional) period filter / per-company / scheduled auto-send. Reuse `getAllTasks()` + `computeCompanyKpis`.
+
+## Outbox + email reorg + automation registry (2026-06-16) — NOT PUSHED
+
+Owner brief: "improve the outbox and emails — first structure it" → chose **tidy email automation + full code reorg**. The disorder fixed: automation categories were defined in 4 drifting places (the type listed 10, `runDueAutomations` ran 7 hand-inlined, `CATEGORY_LABELS` had its own list, Settings showed only 5 — and `boardPack` was implemented but had no Settings toggle, while `cooldownDays`/`dailyCap`/window/`briefDay` had no controls at all).
+
+**New file map** (all `@/` imports updated app-wide; `git mv` preserved history; tsc clean; 42 tests pass; `/settings`+`/outbox` 200, no console errors):
+
+- `src/lib/email/send.ts` ← `email.ts` (sendEmail, signature, EmailAttachment).
+- `src/lib/outbox/{gen,drafts,history,links}.ts` ← the old `outbox-*.ts`.
+- `src/lib/outbox/snapshot.ts` ← `outbox-automation.ts` (the panel snapshot reader; now imports from `@/lib/automation`).
+- **`src/lib/automation/`** = the registry-driven engine (replaces `email-automation.ts` + `outbox-automation-shared.ts`):
+  - `types.ts` — `EmailCategory` (trimmed to the **6 implemented**: overdue, renewals, directorBrief, morningDigest, lifecycle, boardPack — dead `birthdays`/`statutory`/`meetingFollowup`/`custom` **removed**), `RuleMode`, `AutomationConfig`, `AutomationRunSummary`. **Client-safe (no server imports).**
+  - `meta.ts` — **single source of truth** for presentation: ordered `CATEGORY_META` ({key,label,onDescription,naturalMode,source,schedule}) → derives `CATEGORY_LABELS`, `NATURAL_MODE`, `labelForSource`. **Client-safe.** Replaced `outbox-automation-shared.ts`.
+  - `config.ts` — `getAutomationConfig`/`saveAutomationConfig`/`DEFAULTS`; rebuilds `categories` strictly from known keys (drops stale ones).
+  - `runtime.ts` — EAT clock, `withinSendWindow`, `alreadyRanToday`/`markRanToday`, and `makeContext()` → a `RunContext` with **memoised** `tasks()`/`brief()` (kills the old double `getBrief` call) + `sendToOwner`/`sendToPerson`. Defines `CategoryDef`.
+  - `categories/{overdue,renewals,director-brief,morning-digest,lifecycle,board-pack}.ts` — one `CategoryDef` each (`scheduledToday()` + `run(ctx,mode)`). Logic moved **verbatim** (overdue cooldown+cap, board-pack PDF attach, morning digest builder).
+  - `registry.ts` — the ordered `REGISTRY` array.
+  - `engine.ts` — `runDueAutomations()` = a loop over `REGISTRY` applying pause→window→schedule→dedupe; per-category try/catch (a throwing category no longer marks ran, so it retries).
+  - `index.ts` — **server-only** public surface (`runDueAutomations`, config, types, re-exports meta). **Client components import `@/lib/automation/meta` directly**, never the index.
+
+**Settings tidy** (`settings/page.tsx` + `actions.ts`): the category toggle list now **derives from `CATEGORY_META`** (so `boardPack` now appears + is switchable; one label source). New **"How it behaves"** form (`setAutomationTuning` action) exposes send-window from/to, daily cap, cooldown days, and the Director-Brief weekday. `setEmailAutomation` now reads `NATURAL_MODE` from meta instead of an inline map.
+
+**Adding a category now = 3 edits**: a `CategoryDef` file, a `CATEGORY_META` entry, a key in `EmailCategory` — then registry/engine/Settings/snapshot all pick it up. **Behaviour unchanged**; this was structure only. Owner to review before push. Channels still: email truly sends, WhatsApp/SMS deep-link (Twilio WhatsApp send still half-wired + uncommitted in `lib/whatsapp.ts` — left untouched by this reorg).

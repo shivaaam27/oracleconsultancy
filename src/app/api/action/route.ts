@@ -12,7 +12,7 @@ import { getGroqKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import type { PersonPackPurpose } from "@/lib/person-pack-shared";
-import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox-links";
+import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox/links";
 import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
 import { createCalendarEvent, toIcsEvent } from "@/lib/calendar";
 import { googleCalendarUrl } from "@/lib/ics";

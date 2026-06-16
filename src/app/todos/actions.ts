@@ -3,7 +3,7 @@
 import { sb } from "@/db/supabase";
 import { revalidatePath } from "next/cache";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { pickChannel, contactForChannel, buildTodoReminderMessage, linkFor, type Channel } from "@/lib/outbox-links";
+import { pickChannel, contactForChannel, buildTodoReminderMessage, linkFor, type Channel } from "@/lib/outbox/links";
 
 export type Todo = {
   id: number;

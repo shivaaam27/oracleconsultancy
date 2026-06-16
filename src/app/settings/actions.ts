@@ -8,9 +8,11 @@ import { recordEvent } from "@/lib/system-events";
 import { saveAppSettings, type AppSettings, type SwipeAction } from "@/lib/settings";
 import { disconnectGoogle } from "@/lib/google";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
-import { sendEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email/send";
+import { sendWhatsApp } from "@/lib/whatsapp";
 
 const TEST_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TEST_PHONE_RE = /^\+?[0-9]{7,15}$/;
 
 /**
  * Send a one-off test email through the configured provider, so the owner can
@@ -42,6 +44,35 @@ export async function sendTestEmail(
   if (result.reason === "no-recipients")
     return { ok: false, reason: "no-recipients", error: "Enter a valid email address." };
   return { ok: false, error: result.error ?? "Could not send the test email." };
+}
+
+/**
+ * Send a one-off test WhatsApp message through Twilio, so the owner can confirm
+ * the connection works end-to-end without creating an Outbox draft. In the Twilio
+ * sandbox the recipient must first have texted the join code; live sends need an
+ * approved sender + (outside 24h) an approved template — here we send free text,
+ * which works in the sandbox and inside an open 24h window.
+ */
+export async function sendTestWhatsApp(
+  to: string
+): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-recipients" }> {
+  const addr = to.replace(/\s+/g, "");
+  if (!TEST_PHONE_RE.test(addr))
+    return { ok: false, reason: "no-recipients", error: "Enter a valid number in international form, e.g. +255686450999." };
+
+  const result = await sendWhatsApp({
+    to: addr,
+    text:
+      "Test from your Oracle Consultancy command centre via WhatsApp. " +
+      "If you can read this, WhatsApp sending is working — drafts you approve in the Outbox can go out from here.",
+  });
+
+  if (result.ok) return { ok: true };
+  if (result.reason === "not-configured")
+    return { ok: false, reason: "not-configured", error: "WhatsApp isn't switched on yet (no Twilio credentials configured)." };
+  if (result.reason === "no-recipient")
+    return { ok: false, reason: "no-recipients", error: "Enter a valid number in international form." };
+  return { ok: false, error: result.error ?? "Could not send the test WhatsApp message." };
 }
 
 function safeName(name: string): string {
@@ -158,23 +189,43 @@ export async function setPortalRole(fd: FormData): Promise<void> {
   redirect("/settings?portal=role");
 }
 
-/** Email automation: master pause + per-category mode (Phase A: overdue). */
+/** Email automation: master pause + per-category mode. The "on" mode for each
+ *  category comes from the single source of truth (NATURAL_MODE in the registry
+ *  meta), so adding a category never needs a change here. */
 export async function setEmailAutomation(fd: FormData): Promise<void> {
-  const { saveAutomationConfig } = await import("@/lib/email-automation");
+  const { saveAutomationConfig, NATURAL_MODE } = await import("@/lib/automation");
   const field = String(fd.get("field") ?? "");
   const on = fd.get("value") === "1";
-  // Each category's "on" state maps to its natural mode (outward = prepare; the
-  // owner's own internal emails = auto-send).
-  const NATURAL: Record<string, "prepare" | "auto"> = {
-    overdue: "auto", renewals: "auto", directorBrief: "auto", lifecycle: "auto", morningDigest: "auto",
-  };
   if (field === "testMode") {
     await sb.from("settings").upsert({ key: "email.testMode", value: on ? "1" : "0" }, { onConflict: "key" });
   } else if (field === "paused") {
     await saveAutomationConfig({ paused: on });
-  } else if (field in NATURAL) {
-    await saveAutomationConfig({ categories: { [field]: { mode: on ? NATURAL[field] : "off" } } as never });
+  } else if (field in NATURAL_MODE) {
+    const mode = on ? NATURAL_MODE[field as keyof typeof NATURAL_MODE] : "off";
+    await saveAutomationConfig({ categories: { [field]: { mode } } as never });
   }
+  revalidatePath("/settings");
+  redirect("/settings?saved=1");
+}
+
+/** Email automation: the numeric "how it behaves" tuning — send window, daily cap,
+ *  cooldown, and which weekday the Director Brief goes out. */
+export async function setAutomationTuning(fd: FormData): Promise<void> {
+  const { saveAutomationConfig } = await import("@/lib/automation");
+  const num = (k: string, lo: number, hi: number, dflt: number): number => {
+    const v = Number(fd.get(k));
+    return Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : dflt;
+  };
+  const windowStartHour = num("windowStartHour", 0, 23, 8);
+  let windowEndHour = num("windowEndHour", 1, 24, 18);
+  if (windowEndHour <= windowStartHour) windowEndHour = Math.min(24, windowStartHour + 1);
+  await saveAutomationConfig({
+    cooldownDays: num("cooldownDays", 0, 30, 2),
+    dailyCap: num("dailyCap", 1, 500, 50),
+    windowStartHour,
+    windowEndHour,
+    briefDay: num("briefDay", 0, 6, 1),
+  });
   revalidatePath("/settings");
   redirect("/settings?saved=1");
 }
@@ -183,7 +234,7 @@ export async function setEmailAutomation(fd: FormData): Promise<void> {
  *  the site). Ignores the daily once-only guard + send window. With Test mode on,
  *  everything redirects to the owner's inbox. */
 export async function runEmailAutomationNow(): Promise<void> {
-  const { runDueAutomations } = await import("@/lib/email-automation");
+  const { runDueAutomations } = await import("@/lib/automation");
   await runDueAutomations(new Date(), { force: true });
   revalidatePath("/settings");
   redirect("/settings?saved=1");
@@ -197,7 +248,7 @@ export async function sendDirectorBriefNow(): Promise<void> {
   const data = await getBrief(new Date(), "month", null);
   const email = briefEmail(data);
   if (cfg?.fromAddress) {
-    const { sendEmail } = await import("@/lib/email");
+    const { sendEmail } = await import("@/lib/email/send");
     const res = await sendEmail({ to: cfg.fromAddress, subject: email.subject, text: email.body });
     await sb.from("outbox").insert({
       channel: "EMAIL", recipient_name: cfg.fromName || "Owner", recipient_contact: cfg.fromAddress,

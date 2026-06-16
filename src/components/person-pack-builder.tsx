@@ -8,7 +8,7 @@ import { useToast } from "@/components/toast";
 import { createPersonPackDraftAction, savePersonPackPrefsAction } from "@/app/people/pack-actions";
 import { reqAdd } from "@/app/people/requirement-actions";
 import { cn } from "@/lib/cn";
-import { channelLabel, contactForChannel, pickChannel, type Channel } from "@/lib/outbox-links";
+import { channelLabel, contactForChannel, pickChannel, type Channel } from "@/lib/outbox/links";
 import type {
   PersonPackPurpose,
   PersonPackSectionKey,

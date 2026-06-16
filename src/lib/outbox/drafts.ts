@@ -1,5 +1,5 @@
 import { sb } from "@/db/supabase";
-import type { Channel } from "./outbox-links";
+import type { Channel } from "./links";
 
 export type OutboxDraftRow = {
   id: number;

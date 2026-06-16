@@ -10,10 +10,11 @@ import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, sendDirectorBriefNow, runEmailAutomationNow } from "./actions";
+import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow } from "./actions";
 import { RevealPassword } from "@/components/reveal-password";
-import { getAutomationConfig } from "@/lib/email-automation";
+import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { EmailStatus } from "./email-test";
+import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
 import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./passkey-actions";
 import { getOwnerIdentity } from "@/lib/admin-auth";
@@ -276,19 +277,7 @@ export default async function SettingsPage({
 
             {/* Messaging status */}
             <SettingsCard id="messaging" icon={<MessageCircle size={15} />} title="Messaging" desc={`Email sending is ${emailCfg ? "connected" : "not connected"}. Until a channel is connected, the Outbox prepares copy-ready drafts with one-tap send links.`}>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">WhatsApp (Cloud API)</p>
-                  <p className="text-[11px] text-fg-muted">
-                    {whatsAppOn
-                      ? "Connected — proactive messages send via approved templates; replies (within 24h) send as text."
-                      : "Not connected — messages fall back to one-tap wa.me links. Add WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID in Vercel."}
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${whatsAppOn ? "bg-success-soft text-success" : "bg-bg-muted text-fg-muted"}`}>
-                  {whatsAppOn ? "Connected" : "Not set up"}
-                </span>
-              </div>
+              <WhatsAppStatus configured={whatsAppOn} defaultTo="+255686450999" />
             </SettingsCard>
 
             <div className="sticky bottom-3 z-10 flex justify-end">
@@ -349,19 +338,13 @@ export default async function SettingsPage({
               <Button type="submit" variant={emailAuto.paused ? "primary" : "secondary"}>{emailAuto.paused ? "Resume all" : "Pause all"}</Button>
             </form>
 
-            {([
-              { key: "overdue", label: "Overdue-task reminders", on: "Prepares a daily reminder draft per person with overdue work." },
-              { key: "renewals", label: "Document / permit renewals", on: "Prepares a daily renewal nudge for each expiring or expired document." },
-              { key: "directorBrief", label: "Weekly Director Brief (to you)", on: "Auto-sends the portfolio brief to your inbox each Monday." },
-              { key: "morningDigest", label: "Daily morning digest (to you)", on: "Auto-sends a 'here's your day' each morning — today's events, your reminders, overdue & due tasks, renewals." },
-              { key: "lifecycle", label: "Probation & leave reminders (to you)", on: "Auto-sends a daily HR summary (probations ending, leave to approve)." },
-            ] as const).map((c) => {
+            {CATEGORY_META.map((c) => {
               const off = emailAuto.categories[c.key].mode === "off";
               return (
                 <form key={c.key} action={setEmailAutomation} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{c.label}</p>
-                    <p className="text-[11px] text-fg-muted">{off ? "Off." : `On — ${c.on}`}</p>
+                    <p className="text-[11px] text-fg-muted">{off ? "Off." : `On — ${c.onDescription}`}</p>
                   </div>
                   <input type="hidden" name="field" value={c.key} />
                   <input type="hidden" name="value" value={off ? "1" : "0"} />
@@ -369,6 +352,40 @@ export default async function SettingsPage({
                 </form>
               );
             })}
+
+            {/* How it behaves — send window, daily cap, cooldown, brief weekday */}
+            <form action={setAutomationTuning} className="border-t border-border/60 pt-3 space-y-3">
+              <p className="text-sm font-medium">How it behaves</p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-[11px] text-fg-muted">
+                  Send only between (from)
+                  <select name="windowStartHour" defaultValue={String(emailAuto.windowStartHour)} className="mt-1 w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-sm text-fg">
+                    {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
+                  </select>
+                </label>
+                <label className="text-[11px] text-fg-muted">
+                  …and (to)
+                  <select name="windowEndHour" defaultValue={String(emailAuto.windowEndHour)} className="mt-1 w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-sm text-fg">
+                    {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
+                  </select>
+                </label>
+                <label className="text-[11px] text-fg-muted">
+                  Daily email cap
+                  <Input name="dailyCap" type="number" min={1} max={500} defaultValue={emailAuto.dailyCap} className="mt-1" />
+                </label>
+                <label className="text-[11px] text-fg-muted">
+                  Don&apos;t re-chase within (days)
+                  <Input name="cooldownDays" type="number" min={0} max={30} defaultValue={emailAuto.cooldownDays} className="mt-1" />
+                </label>
+                <label className="text-[11px] text-fg-muted col-span-2">
+                  Send the weekly Director Brief on
+                  <select name="briefDay" defaultValue={String(emailAuto.briefDay)} className="mt-1 w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-sm text-fg">
+                    {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                </label>
+              </div>
+              <Button type="submit" variant="secondary"><Save size={13} /> Save settings</Button>
+            </form>
 
             <form action={sendDirectorBriefNow} className="flex items-center justify-between gap-3 border-t border-border/60 pt-3">
               <div>

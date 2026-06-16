@@ -1,6 +1,6 @@
 "use client";
 import { Badge, Button } from "@/components/ui";
-import type { OutboxDraft, Channel } from "@/lib/outbox-gen";
+import type { OutboxDraft, Channel } from "@/lib/outbox/gen";
 import {
   Copy, Check, AlertCircle, User, BellOff, Clock, Send, Pencil, X, StickyNote,
   ChevronDown, MessageCircle, Mail, Phone,

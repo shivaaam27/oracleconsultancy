@@ -1,14 +1,10 @@
 // Read-only snapshot of the email-automation engine for the Outbox "Automation"
-// panel. The engine itself lives in `lib/email-automation.ts` and runs on a cron
-// (/api/cron/email); this just surfaces, in plain language, what it's set to do
-// and what it has actually sent — so the Outbox is the one place the owner can
-// see automated outbound, not just the manual chase list.
+// panel. The engine lives in `lib/automation/` and runs on a cron (/api/cron/email);
+// this surfaces, in plain language, what it's set to do and what it has actually
+// sent — so the Outbox is the one place the owner can see automated outbound.
 
 import { sb } from "@/db/supabase";
-import { getAutomationConfig, type EmailCategory, type RuleMode } from "@/lib/email-automation";
-import { CATEGORY_LABELS, labelForSource } from "@/lib/outbox-automation-shared";
-
-export { CATEGORY_LABELS, labelForSource };
+import { getAutomationConfig, CATEGORY_LABELS, labelForSource, type EmailCategory, type RuleMode } from "@/lib/automation";
 
 export type AutomationCategoryState = {
   category: EmailCategory;

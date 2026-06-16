@@ -287,7 +287,7 @@ export async function portalDirectorDraftMessage(input: {
     .maybeSingle();
   if (!person) return { ok: false, error: "Recipient not found." };
 
-  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox-links");
+  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
   const contact = {
     email: (person.email as string | null) ?? null,
     phone: (person.phone as string | null) ?? null,

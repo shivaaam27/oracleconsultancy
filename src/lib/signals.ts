@@ -21,7 +21,7 @@ import type { TaskRow } from "@/lib/queries";
 import { computeGlobalKpis } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { listDocuments, deriveDocStatus, daysToExpiry, expiryLabel } from "@/lib/documents";
-import { listOutboxDrafts } from "@/lib/outbox-drafts";
+import { listOutboxDrafts } from "@/lib/outbox/drafts";
 import { listMeetings } from "@/app/meeting/actions";
 import { buildAutomationSuggestions, getDocumentRenewalCandidates, getStaleTasks } from "@/lib/automation-suggestions";
 import { worstComplianceScores } from "@/lib/compliance";

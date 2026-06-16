@@ -7,7 +7,7 @@ import { Check, Clock, Plus, Pencil, Trash2, ChevronRight, ListTodo, CircleAlert
 import type { TaskRow } from "@/lib/queries";
 import type { Todo } from "@/app/todos/actions";
 import { createTodo, updateTodo, toggleTodo, deleteTodo, promoteTodoToTask, createTodoReminderDraft } from "@/app/todos/actions";
-import { channelLabel } from "@/lib/outbox-links";
+import { channelLabel } from "@/lib/outbox/links";
 import { Deadline, hasTime } from "@/components/deadline";
 import { FluidSelect } from "@/components/fluid-select";
 import { SnoozeSheet } from "@/components/snooze-sheet";
