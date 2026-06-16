@@ -3,9 +3,11 @@
 // send when the day is genuinely empty (so we never send a blank email).
 
 import type { CategoryDef, RunContext } from "../runtime";
+import type { EmailDoc } from "@/lib/email/layout";
+import { appBaseUrl } from "@/lib/app-url";
 
 /** Compose the owner's digest. null = nothing worth reporting today. */
-async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; text: string } | null> {
+async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; text: string; doc: EmailDoc } | null> {
   const now = ctx.now;
   const [{ isOpen }, { listDocuments }, { isReminderDueToday }, { ownerReminderTodosDueBy }, { listCalendarEvents }] =
     await Promise.all([
@@ -33,17 +35,33 @@ async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; t
   const renewals = docs.filter((d) => !d.archived && isReminderDueToday(d));
 
   const sections: string[] = [];
-  if (events.length) sections.push(`Today's events (${events.length}):\n${events.slice(0, 10).map((e) => `• ${fmtTime(e.startAt)} — ${e.title}`).join("\n")}`);
-  if (dueReminders.length) sections.push(`Your reminders (${dueReminders.length}):\n${dueReminders.slice(0, 10).map((r) => `• ${fmtTime(r.remindAt)} — ${r.title}`).join("\n")}`);
-  if (overdue.length) sections.push(`Overdue tasks (${overdue.length}):\n${overdue.slice(0, 10).map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}`);
-  if (dueToday.length) sections.push(`Due today (${dueToday.length}):\n${dueToday.slice(0, 10).map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}`);
-  if (renewals.length) sections.push(`Documents to renew (${renewals.length}):\n${renewals.slice(0, 10).map((d) => `• ${d.title}`).join("\n")}`);
+  const blocks: EmailDoc["blocks"] = [];
+  const addSection = (label: string, bullets: string[]) => {
+    sections.push(`${label} (${bullets.length}):\n${bullets.map((b) => `• ${b}`).join("\n")}`);
+    blocks.push({ kind: "list", label: `${label} (${bullets.length})`, bullets });
+  };
+  if (events.length) addSection("Today's events", events.slice(0, 10).map((e) => `${fmtTime(e.startAt)} — ${e.title}`));
+  if (dueReminders.length) addSection("Your reminders", dueReminders.slice(0, 10).map((r) => `${fmtTime(r.remindAt)} — ${r.title}`));
+  if (overdue.length) addSection("Overdue tasks", overdue.slice(0, 10).map((t) => `${t.actionItem} (${t.code})`));
+  if (dueToday.length) addSection("Due today", dueToday.slice(0, 10).map((t) => `${t.actionItem} (${t.code})`));
+  if (renewals.length) addSection("Documents to renew", renewals.slice(0, 10).map((d) => d.title));
 
   if (sections.length === 0) return null;
   const dateLabel = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
+  const dateShort = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: TZ });
   return {
-    subject: `Your day — ${now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: TZ })}`,
+    subject: `Your day — ${dateShort}`,
     text: `Good morning. Here's your day — ${dateLabel}.\n\n${sections.join("\n\n")}\n\nOpen Oracle Consultancy for the full picture.`,
+    doc: {
+      preheader: `Your day — ${dateLabel}.`,
+      dateLabel: dateShort,
+      title: "Good morning",
+      subtitle: `Here's your day — ${dateLabel}`,
+      blocks,
+      cta: { label: "Open Oracle Consultancy", url: `${appBaseUrl()}/` },
+      footerNote: "You're receiving this because the daily morning digest is on. Manage in Settings → Email automation.",
+      office: "admin",
+    },
   };
 }
 
@@ -53,7 +71,7 @@ export const morningDigestCategory: CategoryDef = {
   async run(ctx) {
     const built = await buildMorningDigest(ctx);
     if (!built) return { prepared: 0, sent: 0, skipped: 0 };
-    const r = await ctx.sendToOwner(built.subject, built.text, "automation-morning");
+    const r = await ctx.sendToOwner(built.subject, built.text, "automation-morning", { doc: built.doc });
     return { prepared: r.prepared, sent: r.sent, skipped: 0 };
   },
 };

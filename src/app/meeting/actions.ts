@@ -205,7 +205,7 @@ export async function generateMeetingMinutes(input: {
       messages: [
           {
             role: "system",
-            content: `You write concise British-English meeting minutes for a Chief of Staff command centre.
+            content: `You write concise British-English meeting minutes for the Oracle Consultancy command centre.
 
 Return clean Markdown with exactly these headings:
 Summary
@@ -389,7 +389,7 @@ async function extractWithAI(notes: string, companyMap: { id: number; name: stri
 
     const todayIso = new Date().toISOString().slice(0, 10);
     const weekday = new Date().toLocaleDateString("en-GB", { weekday: "long" });
-    const systemPrompt = `You are the Chief of Staff for a multi-company portfolio. Extract the action items / commitments from raw meeting notes as JSON. Notes are often rough, casual, dictated, or in note form — read intent, not just grammar.
+    const systemPrompt = `You are ORI, the assistant for a multi-company portfolio (Oracle Consultancy). Extract the action items / commitments from raw meeting notes as JSON. Notes are often rough, casual, dictated, or in note form — read intent, not just grammar.
 
 KNOWN COMPANIES: ${cNames.join(", ") || "(none)"}
 KNOWN PEOPLE: ${pNames.join(", ") || "(none)"}

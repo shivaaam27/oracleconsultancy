@@ -11,7 +11,8 @@ export type RuleMode = "off" | "prepare" | "auto";
  * showed 5).
  */
 export type EmailCategory =
-  | "overdue"       // overdue-task reminders (per person)
+  | "taskReminders" // each person's open tasks, overdue flagged (Mon/Wed/Fri)
+  | "overdue"       // overdue-only daily safety-net + Outbox draft prep
   | "renewals"      // document / permit renewal nudges
   | "directorBrief" // weekly Director Brief to the owner
   | "morningDigest" // daily "here's your day" to the owner

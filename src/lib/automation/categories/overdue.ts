@@ -3,6 +3,7 @@
 
 import { sb } from "@/db/supabase";
 import type { CategoryDef } from "../runtime";
+import { appBaseUrl } from "@/lib/app-url";
 
 export const overdueCategory: CategoryDef = {
   key: "overdue",
@@ -39,7 +40,17 @@ export const overdueCategory: CategoryDef = {
         if (chasedRecently(person.name)) { skipped++; continue; }
         if (budget <= 0) { skipped++; continue; }
         const body = `Hi ${person.name.split(" ")[0]}, a reminder of your overdue work:\n\n${tasks.map((t) => `• ${t.actionItem} (${t.code})`).join("\n")}\n\nPlease update the tracker when you can. Thank you.`;
-        const r = await ctx.sendToPerson(person.email, "Your overdue tasks", body);
+        const r = await ctx.sendToPerson(person.email, "Your overdue tasks", body, {
+          doc: {
+            preheader: `You have ${tasks.length} overdue task${tasks.length === 1 ? "" : "s"}.`,
+            title: "Your overdue tasks",
+            subtitle: `Hi ${person.name.split(" ")[0]} — a quick reminder`,
+            blocks: [{ kind: "list", bullets: tasks.map((t) => `${t.actionItem} (${t.code})`) }],
+            cta: { label: "Open the tracker", url: `${appBaseUrl()}/?tab=tasks` },
+            footerNote: "Please update the tracker when you can. Thank you.",
+            office: "admin",
+          },
+        });
         sent += r.sent; skipped += r.skipped;
         budget -= r.sent;
         // Log the auto-send so it shows in the Outbox sent log and feeds the

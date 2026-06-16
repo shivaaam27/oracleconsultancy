@@ -27,9 +27,17 @@ export type CategoryMeta = {
 /** Ordered — drives the order categories appear in Settings + the snapshot panel. */
 export const CATEGORY_META: CategoryMeta[] = [
   {
+    key: "taskReminders",
+    label: "Task reminders to staff",
+    onDescription: "Emails each person their open tasks (overdue flagged) on Mon, Wed & Fri.",
+    naturalMode: "auto",
+    source: "automation-taskreminders",
+    schedule: "weekly",
+  },
+  {
     key: "overdue",
-    label: "Overdue-task reminders",
-    onDescription: "Emails each person their overdue work daily (inside the send window).",
+    label: "Overdue-task safety net",
+    onDescription: "A daily catch for anyone still overdue (in addition to the Mon/Wed/Fri reminder).",
     naturalMode: "auto",
     source: "automation-overdue",
     schedule: "daily",

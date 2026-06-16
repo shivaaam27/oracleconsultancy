@@ -242,14 +242,16 @@ export async function runEmailAutomationNow(): Promise<void> {
 
 /** Send the Director Brief to the owner right now (one-off, ignores the schedule). */
 export async function sendDirectorBriefNow(): Promise<void> {
-  const { getBrief, briefEmail } = await import("@/lib/director-brief");
+  const { getBrief, briefEmail, briefEmailDoc } = await import("@/lib/director-brief");
   const { getEmailConfig } = await import("@/lib/settings");
   const cfg = await getEmailConfig();
   const data = await getBrief(new Date(), "month", null);
   const email = briefEmail(data);
   if (cfg?.fromAddress) {
     const { sendEmail } = await import("@/lib/email/send");
-    const res = await sendEmail({ to: cfg.fromAddress, subject: email.subject, text: email.body });
+    const { renderEmail } = await import("@/lib/email/layout");
+    const html = renderEmail(briefEmailDoc(data));
+    const res = await sendEmail({ to: cfg.fromAddress, subject: email.subject, text: email.body, html });
     await sb.from("outbox").insert({
       channel: "EMAIL", recipient_name: cfg.fromName || "Owner", recipient_contact: cfg.fromAddress,
       subject: email.subject, body: email.body, message_type: "DIRECTOR BRIEF",

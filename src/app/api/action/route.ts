@@ -37,7 +37,7 @@ type ParsedIntent =
   | { type: "leave_status"; window: "today" | "week" }
   | { type: "unknown"; reason: string };
 
-const SYSTEM_PROMPT = `You are the command parser for a Chief of Staff task system. Convert the principal's natural-language command into a single JSON intent.
+const SYSTEM_PROMPT = `You are the command parser for the Oracle Consultancy task system. Convert the principal's natural-language command into a single JSON intent.
 
 Possible intents (output ONLY the JSON, no prose):
 - Mark a task as done: {"type":"complete","taskCode":"DAR-007"}

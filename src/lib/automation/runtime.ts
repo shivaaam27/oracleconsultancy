@@ -6,6 +6,7 @@ import { sb } from "@/db/supabase";
 import type { AutomationConfig, EmailCategory, RuleMode } from "./types";
 import type { TaskRow } from "@/lib/queries";
 import type { BriefData } from "@/lib/director-brief";
+import { renderEmail, type EmailDoc } from "@/lib/email/layout";
 
 /* --------------------------------- clock --------------------------------- */
 /** EAT (UTC+3) hour right now. */
@@ -59,16 +60,17 @@ export type RunContext = {
   /**
    * Auto-send an email to the owner (their own mailbox = the configured from-
    * address). Falls back to an Outbox draft if email isn't connected, so nothing
-   * is lost. Records a Sent/Draft row for visibility.
+   * is lost. Records a Sent/Draft row for visibility. Pass `doc` for the branded
+   * HTML template (the `text` is kept as the plain-text fallback).
    */
   sendToOwner(
     subject: string,
     text: string,
     source: string,
-    attachments?: EmailAttachmentLite[],
+    opts?: { doc?: EmailDoc; attachments?: EmailAttachmentLite[] },
   ): Promise<{ sent: number; prepared: number }>;
   /** Auto-send to a specific person's email. Test mode (in sendEmail) redirects it. */
-  sendToPerson(toEmail: string | null, subject: string, text: string): Promise<{ sent: number; skipped: number }>;
+  sendToPerson(toEmail: string | null, subject: string, text: string, opts?: { doc?: EmailDoc }): Promise<{ sent: number; skipped: number }>;
 };
 
 type EmailAttachmentLite = { filename: string; content: string; contentType?: string; encoding?: "utf8" | "base64" };
@@ -91,13 +93,14 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
       const { getBrief } = await import("@/lib/director-brief");
       return getBrief(now, "month", null);
     }),
-    async sendToOwner(subject, text, source, attachments) {
+    async sendToOwner(subject, text, source, opts) {
       const { getEmailConfig } = await import("@/lib/settings");
       const cfg2 = await getEmailConfig();
       const to = cfg2?.fromAddress ?? null;
+      const html = opts?.doc ? renderEmail(opts.doc) : undefined;
       if (cfg2 && to) {
         const { sendEmail } = await import("@/lib/email/send");
-        const res = await sendEmail({ to, subject, text, attachments });
+        const res = await sendEmail({ to, subject, text, html, attachments: opts?.attachments });
         if (res.ok) {
           await sb.from("outbox").insert({
             channel: "EMAIL", recipient_name: cfg2.fromName || "Owner", recipient_contact: to,
@@ -115,10 +118,11 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
       });
       return { sent: 0, prepared: 1 };
     },
-    async sendToPerson(toEmail, subject, text) {
+    async sendToPerson(toEmail, subject, text, opts) {
       if (!toEmail) return { sent: 0, skipped: 1 };
       const { sendEmail } = await import("@/lib/email/send");
-      const res = await sendEmail({ to: toEmail, subject, text });
+      const html = opts?.doc ? renderEmail(opts.doc) : undefined;
+      const res = await sendEmail({ to: toEmail, subject, text, html });
       return res.ok ? { sent: 1, skipped: 0 } : { sent: 0, skipped: 1 };
     },
   };

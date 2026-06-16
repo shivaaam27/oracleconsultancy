@@ -16,6 +16,8 @@ import { listBriefNotes, type BriefNote } from "./brief-notes";
 import { type CcFlag } from "./command-centre";
 import { sb } from "@/db/supabase";
 import { BRAND_NAME } from "./brand";
+import { appBaseUrl } from "@/lib/app-url";
+import type { EmailDoc, EmailTone } from "@/lib/email/layout";
 
 const isClosed = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
 const isOverdue = (r: TaskRow) => r.flag === "overdue" || r.flag === "escalate-now";
@@ -530,5 +532,49 @@ export function briefEmail(b: BriefData): { subject: string; body: string } {
   return {
     subject: `${BRAND_NAME} — Director Brief${b.selectedCompanyName ? ` · ${b.selectedCompanyName}` : ""} (${b.monthLabel})`,
     body: briefShareText(b).replace(/\*/g, ""),
+  };
+}
+
+/** Structured document for the branded HTML email template. */
+export function briefEmailDoc(b: BriefData): EmailDoc {
+  const priorityTone = (p: string): EmailTone =>
+    p === "Critical" ? "danger" : p === "High" ? "warn" : p === "Medium" ? "accent" : "muted";
+  const blocks: EmailDoc["blocks"] = [
+    {
+      kind: "stats",
+      tiles: [
+        { value: b.deliveredCount, label: "delivered" },
+        { value: b.openCount, label: "open" },
+        { value: b.overdueCount, label: "overdue", danger: b.overdueCount > 0 },
+        { value: b.companyCount, label: "companies" },
+      ],
+    },
+  ];
+  if (b.companies.length) {
+    blocks.push({
+      kind: "section",
+      label: "By company",
+      rows: b.companies.map((c) => ({ left: c.name, right: `${c.done} done · ${c.open} open · ${c.overdue} overdue` })),
+    });
+  }
+  if (b.watch.length) {
+    blocks.push({
+      kind: "items",
+      label: "Needs attention",
+      items: b.watch.slice(0, 6).map((w) => ({
+        pill: { label: w.priority, tone: priorityTone(w.priority) },
+        title: w.actionItem,
+        meta: `${w.companyName} · ${w.overdue ? "overdue" : w.deadline ? `due ${fmtDay(w.deadline)}` : "no deadline"}`,
+      })),
+    });
+  }
+  return {
+    preheader: `${b.deliveredCount} delivered · ${b.openCount} open · ${b.overdueCount} overdue this ${b.monthLabel}.`,
+    title: "Director brief",
+    subtitle: `${b.selectedCompanyName ? `${b.selectedCompanyName} · ` : "Portfolio · "}${b.monthLabel} · as at ${b.asAt}`,
+    blocks,
+    cta: { label: "Open the full brief", url: `${appBaseUrl()}/brief` },
+    footerNote: "You're receiving this because the weekly Director Brief automation is on. Manage in Settings → Email automation.",
+    office: "admin",
   };
 }

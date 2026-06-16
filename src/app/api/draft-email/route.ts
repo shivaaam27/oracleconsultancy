@@ -6,7 +6,7 @@ import { getGroqKey } from "@/lib/settings";
 
 export const maxDuration = 60;
 
-const SYSTEM_PROMPT = `You are the Chief of Staff writing a professional follow-up message on behalf of the principal. You will be given a task with its action item, status, deadline, latest update, assignees, and company.
+const SYSTEM_PROMPT = `You are ORI, writing a professional follow-up message on behalf of the principal. You will be given a task with its action item, status, deadline, latest update, assignees, and company.
 
 You must output exactly this JSON shape and NOTHING else:
 {

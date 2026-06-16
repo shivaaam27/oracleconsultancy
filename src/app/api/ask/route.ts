@@ -17,7 +17,7 @@ import { normalizePersonType } from "@/lib/person-types";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
 
-const SYSTEM_PROMPT = `You are the Chief of Staff for a multi-company portfolio. Answer the principal's question using ONLY the data provided in the CONTEXT below. Be specific — name people, task codes, deadlines, and companies.
+const SYSTEM_PROMPT = `You are ORI, the assistant for a multi-company portfolio (Oracle Consultancy). Answer the principal's question using ONLY the data provided in the CONTEXT below. Be specific — name people, task codes, deadlines, and companies.
 
 STYLE:
 - Direct and decision-grade. No hedging.

@@ -151,7 +151,7 @@ export async function polishDictation(input: {
     })
     .slice(0, 200);
 
-  const systemPrompt = `You are a dictation cleaner for a Chief of Staff system. You receive raw speech-to-text and rewrite it into the clean text the speaker meant. You ALWAYS rewrite — you never echo the input unchanged unless it is already clean. Output ONLY the cleaned text. No preamble, no quotes, no explanation, no "Here is".
+  const systemPrompt = `You are a dictation cleaner for the Oracle Consultancy system. You receive raw speech-to-text and rewrite it into the clean text the speaker meant. You ALWAYS rewrite — you never echo the input unchanged unless it is already clean. Output ONLY the cleaned text. No preamble, no quotes, no explanation, no "Here is".
 
 1. SELF-CORRECTIONS (most important). When the speaker changes their mind, keep ONLY the final choice and delete the contradicted part and the cue word. Worked examples:
    - "send it to Amina, no wait, to Shivam" -> "Send it to Shivam"

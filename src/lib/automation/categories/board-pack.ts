@@ -33,7 +33,21 @@ export const boardPackCategory: CategoryDef = {
       ``,
       `View online: ${appBaseUrl()}/brief/board`,
     ].join("\n");
-    const r = await ctx.sendToOwner("Board pack — monthly", text, "automation-boardpack", attachments);
+    const r = await ctx.sendToOwner("Board pack — monthly", text, "automation-boardpack", {
+      attachments,
+      doc: {
+        preheader: "The monthly board pack is ready — for the director & CFO.",
+        title: "Board pack",
+        subtitle: "Monthly · confidential",
+        blocks: [{
+          kind: "text",
+          text: `${attachments ? "The board pack PDF is attached (open it online if your client strips it)." : "The board pack is ready — open it online (PDF not attached)."}\n\nIt covers compliance, finance, the risk register, governance (cap table / UBO / signatories), immigration and the safety-net appendix. Most sensitive artifact — for the director & CFO only.`,
+        }],
+        cta: { label: "View the board pack", url: `${appBaseUrl()}/brief/board` },
+        footerNote: "You're receiving this because the monthly board-pack automation is on. Manage in Settings → Email automation.",
+        office: "admin",
+      },
+    });
     return { prepared: r.prepared, sent: r.sent, skipped: 0 };
   },
 };

@@ -5,6 +5,7 @@
 // from these three.
 
 import type { CategoryDef } from "./runtime";
+import { taskRemindersCategory } from "./categories/task-reminders";
 import { overdueCategory } from "./categories/overdue";
 import { renewalsCategory } from "./categories/renewals";
 import { directorBriefCategory } from "./categories/director-brief";
@@ -13,6 +14,7 @@ import { lifecycleCategory } from "./categories/lifecycle";
 import { boardPackCategory } from "./categories/board-pack";
 
 export const REGISTRY: CategoryDef[] = [
+  taskRemindersCategory, // before overdue → cooldown stops double-chasing the same day
   overdueCategory,
   renewalsCategory,
   directorBriefCategory,

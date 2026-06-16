@@ -1,6 +1,8 @@
 import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "../queries";
 import { isOpen } from "../derive";
+import { appBaseUrl } from "../app-url";
+import type { EmailDoc, EmailTone } from "../email/layout";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 
@@ -89,6 +91,58 @@ export function buildSmsMessage(t: TaskRow): string {
   // SMS stays ultra-short: no code, no description/update — one scannable line.
   const flag = isOverdue(t) ? "⚠️ " : "";
   return `${flag}${t.companyName}: ${t.actionItem} · ${taskMeta(t)}`;
+}
+
+const priorityTone = (p: string): EmailTone =>
+  p === "Critical" ? "danger" : p === "High" ? "warn" : p === "Medium" ? "accent" : "muted";
+
+/**
+ * Beautiful HTML email document for a person's task reminder — their open items
+ * grouped by company, overdue ones flagged, each with a priority pill and due
+ * date. Used by the staff task-reminder automation.
+ */
+export function buildTaskReminderDoc(name: string, tasks: TaskRow[]): EmailDoc {
+  const first = name.split(" ")[0];
+  const overdueCount = tasks.filter(isOverdue).length;
+
+  // Group by company, first-seen order; soonest deadline first within a company.
+  const groups = new Map<string, TaskRow[]>();
+  for (const t of tasks) {
+    const list = groups.get(t.companyName);
+    if (list) list.push(t); else groups.set(t.companyName, [t]);
+  }
+  for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
+
+  const blocks: EmailDoc["blocks"] = [
+    { kind: "stats", tiles: [
+      { value: tasks.length, label: tasks.length === 1 ? "open item" : "open items" },
+      { value: overdueCount, label: "overdue", danger: overdueCount > 0 },
+    ]},
+  ];
+  for (const [company, list] of groups) {
+    blocks.push({
+      kind: "items",
+      label: company,
+      items: list.map((t) => {
+        const od = isOverdue(t);
+        return {
+          pill: od ? { label: "Overdue", tone: "danger" as EmailTone } : { label: t.priority, tone: priorityTone(t.priority) },
+          title: t.actionItem,
+          meta: [`due ${fmtDate(t.deadline)}`, od ? t.priority : null].filter(Boolean).join(" · "),
+        };
+      }),
+    });
+  }
+
+  return {
+    preheader: `You have ${tasks.length} open task${tasks.length === 1 ? "" : "s"}${overdueCount ? ` — ${overdueCount} overdue` : ""}.`,
+    title: "Your tasks",
+    subtitle: `Hi ${first} — a quick reminder of where things stand`,
+    blocks,
+    cta: { label: "Open the tracker", url: `${appBaseUrl()}/?tab=tasks` },
+    footerNote: "Please update the tracker when you can. Thank you.",
+    office: "admin",
+  };
 }
 
 function buildAllMessages(name: string, list: TaskRow[]): Record<Channel, string> {

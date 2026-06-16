@@ -71,7 +71,7 @@ export async function buildDigest(opts?: { companyId?: number | null; companyNam
   const recentlyClosed = rows.filter((r) => (r.status === "Completed" || r.status === "Closed") && wasRecentlyClosed(r.closedDate));
 
   const headerSub = scopeName
-    ? `${scopeName.toUpperCase()} · Chief of Staff briefing`
+    ? `${scopeName.toUpperCase()} · ${BRAND_NAME} briefing`
     : `${BRAND_NAME} · operations command centre`;
   const lines: string[] = [
     `📊 Oracle Consultancy WEEKLY DIGEST — ${today.toUpperCase()}`,

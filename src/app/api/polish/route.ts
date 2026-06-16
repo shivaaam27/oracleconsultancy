@@ -12,7 +12,7 @@ function buildSystemPrompt(companies: string[], people: string[], recent: string
     ? `\n\nYOUR RECENT TASK STYLE (mimic the tone and structure):\n${recent.slice(0, 12).map(r => `- ${r}`).join("\n")}`
     : "";
 
-  return `You are the Chief of Staff for a multi-company business portfolio. You rewrite messy action-item notes into crisp, executive-style tasks for a task registry.
+  return `You are ORI, the assistant for a multi-company business portfolio. You rewrite messy action-item notes into crisp, executive-style tasks for a task registry.
 
 KNOWN COMPANIES: ${companyList}
 KNOWN PEOPLE: ${peopleList}${recentBlock}
