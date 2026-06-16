@@ -7,6 +7,7 @@ import { getPortalPerson } from "@/lib/portal-auth";
 import { listRequestsForPortal, requestRecipientsFor } from "@/lib/requests";
 import { RequestComposer } from "@/components/request-composer";
 import { RequestList } from "@/components/request-list";
+import { portalRaiseRequest } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Requests — Oracle Consultancy" };
@@ -29,7 +30,7 @@ export default async function PortalRequestsPage() {
         </Hero>
       </Reveal>
       <Reveal delay={0.05}>
-        <RequestComposer recipients={people} />
+        <RequestComposer recipients={people} action={portalRaiseRequest} allowOwner />
       </Reveal>
       <Reveal delay={0.1}>
         <RequestList rows={rows} base="/portal/requests" meId={me.id} scope="portal" />

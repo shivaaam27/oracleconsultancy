@@ -4,7 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { Badge } from "./ui";
-import { isRequestOpen, requestStatusLabel, requestStatusTone, type RequestRow } from "@/lib/requests-shared";
+import {
+  isRequestOpen,
+  partiesLabel,
+  requestStatusLabel,
+  requestStatusTone,
+  type RequestRow,
+} from "@/lib/requests-shared";
 
 function ago(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -33,30 +39,25 @@ export function RequestList({
   const [openOnly, setOpenOnly] = useState(false);
   const [q, setQ] = useState("");
 
+  const isToMe = (r: RequestRow) =>
+    scope === "admin" ? r.recipients.some((p) => p.isOwner) : r.recipients.some((p) => p.id === meId);
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (scope === "portal" && meId != null) {
-        if (tab === "to_me" && r.addresseeId !== meId) return false;
-        if (tab === "raised" && r.requesterId !== meId) return false;
-      }
-      if (scope === "admin" && tab === "to_me" && !r.toOwner) return false;
+      if (tab === "to_me" && !isToMe(r)) return false;
+      if (tab === "raised" && r.requesterId !== meId) return false;
       if (openOnly && !isRequestOpen(r.status)) return false;
       if (query) {
-        const hay = `${r.code} ${r.title} ${r.requesterName} ${r.addresseeName ?? ""} ${r.category ?? ""}`.toLowerCase();
+        const hay = `${r.code} ${r.title} ${r.requesterName} ${r.recipients.map((p) => p.name).join(" ")} ${r.category ?? ""}`.toLowerCase();
         if (!hay.includes(query)) return false;
       }
       return true;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, q, tab, openOnly, scope, meId]);
 
-  const toMeOpen = useMemo(
-    () =>
-      rows.filter((r) =>
-        scope === "admin" ? r.toOwner && isRequestOpen(r.status) : r.addresseeId === meId && isRequestOpen(r.status)
-      ).length,
-    [rows, scope, meId]
-  );
+  const toMeOpen = useMemo(() => rows.filter((r) => isToMe(r) && isRequestOpen(r.status)).length, [rows, scope, meId]);
 
   const tabs: { id: Tab; label: string; badge?: number }[] =
     scope === "admin"
@@ -116,8 +117,8 @@ export function RequestList({
         ) : (
           <div className="divide-y divide-border/50">
             {filtered.map((r) => {
-              const unseen = scope === "admin" && r.toOwner && !r.seen && isRequestOpen(r.status);
-              const toLabel = r.toOwner ? (scope === "admin" ? "you" : "the owner") : r.addresseeName ?? "—";
+              const unseen = scope === "admin" && r.recipients.some((p) => p.isOwner) && !r.seen && isRequestOpen(r.status);
+              const fromLabel = r.requesterIsOwner ? "Oracle Consultancy" : r.requesterName;
               return (
                 <Link
                   key={r.id}
@@ -130,7 +131,7 @@ export function RequestList({
                       <span className="truncate text-sm font-medium">{r.title}</span>
                     </span>
                     <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">
-                      {r.code} · {r.category ?? "Request"} · {r.requesterName} → {toLabel}
+                      {r.code} · {r.category ?? "Request"} · {fromLabel} → {partiesLabel(r.recipients, scope === "admin")}
                       {r.companyName ? ` · ${r.companyName}` : ""}
                     </span>
                   </span>

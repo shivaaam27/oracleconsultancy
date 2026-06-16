@@ -1535,9 +1535,12 @@ export const requests = pgTable(
     id: serial("id").primaryKey(),
     // Sequential reference, e.g. "REQ-001". Computed at insert.
     code: text("code").notNull().unique(),
-    // Who raised it.
-    requesterId: integer("requester_id").notNull().references(() => people.id, { onDelete: "cascade" }),
-    // Who it is addressed to. A person, OR the owner (toOwner = true, addresseeId null).
+    // Who raised it. Null when the owner raised it (fromOwner = true) — the
+    // owner has no people row.
+    requesterId: integer("requester_id").references(() => people.id, { onDelete: "cascade" }),
+    fromOwner: boolean("from_owner").notNull().default(false),
+    // LEGACY single-addressee columns (pre multi-recipient). Recipients now live
+    // in request_recipients; these are kept only so the column drop isn't needed.
     addresseeId: integer("addressee_id").references(() => people.id, { onDelete: "set null" }),
     toOwner: boolean("to_owner").notNull().default(false),
     // The requester's company when raised — for the owner's company filter.
@@ -1585,4 +1588,23 @@ export const requestUpdates = pgTable(
     deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
   },
   (t) => [index("request_updates_request_idx").on(t.requestId)]
+);
+
+// A request can be addressed to one OR several people (and/or the owner). Any
+// recipient can act on it ("shared / any-of"). person_id null + is_owner true
+// means the owner is a recipient.
+export const requestRecipients = pgTable(
+  "request_recipients",
+  {
+    id: serial("id").primaryKey(),
+    requestId: integer("request_id").notNull().references(() => requests.id, { onDelete: "cascade" }),
+    personId: integer("person_id").references(() => people.id, { onDelete: "cascade" }),
+    isOwner: boolean("is_owner").notNull().default(false),
+    // "addressee" (can act) — reserved for a future "cc" role.
+    role: text("role").notNull().default("addressee"),
+  },
+  (t) => [
+    index("request_recipients_request_idx").on(t.requestId),
+    index("request_recipients_person_idx").on(t.personId),
+  ]
 );

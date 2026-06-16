@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { sb } from "@/db/supabase";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getRequestDetail, markRequestSeen } from "@/lib/requests";
 import { RequestConversation } from "@/components/request-conversation";
-import { adminReplyRequest, adminDecideRequest, adminAdvanceRequest } from "../actions";
+import {
+  adminReplyRequest,
+  adminDecideRequest,
+  adminAdvanceRequest,
+  adminCancelRequest,
+  adminConvertRequest,
+} from "../actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Request — Oracle Consultancy" };
@@ -15,11 +22,19 @@ export default async function AdminRequestDetailPage({ params }: { params: Promi
   const detail = await getRequestDetail(Number(id));
   if (!detail) redirect("/requests");
 
-  // The owner is the addressee for owner-directed requests — mark seen.
-  if (detail.toOwner && !detail.seenAt) {
+  if (detail.recipients.some((p) => p.isOwner) && !detail.seenAt) {
     await markRequestSeen(detail.id);
     detail.seenAt = new Date().toISOString();
   }
+
+  const [{ data: companies }, { data: people }] = await Promise.all([
+    sb.from("companies").select("id,name").eq("active", true).order("name"),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
+  ]);
+  const convertOptions = {
+    companies: (companies ?? []).map((c) => ({ id: c.id as number, name: c.name as string })),
+    people: (people ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
+  };
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
@@ -30,10 +45,14 @@ export default async function AdminRequestDetailPage({ params }: { params: Promi
       <Reveal delay={0}>
         <RequestConversation
           detail={detail}
-          caps={{ reply: true, decide: detail.toOwner, advance: true, cancel: false }}
+          viewerIsOwner
+          caps={{ reply: true, decide: true, advance: true, cancel: true, convert: !detail.convertedTaskCode }}
           onReply={adminReplyRequest}
           onDecide={adminDecideRequest}
           onAdvance={adminAdvanceRequest}
+          onCancel={adminCancelRequest}
+          onConvert={adminConvertRequest}
+          convertOptions={convertOptions}
         />
       </Reveal>
     </div>

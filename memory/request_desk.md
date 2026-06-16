@@ -70,4 +70,15 @@ needed a reload (`NOTIFY pgrst, 'reload schema'` + ~a minute) before supabase-js
 - **Phase 2**: "turn this request into a task" button (converted_task_id column already exists); type-trend reporting; manager/director team roll-up; reply attachments.
 - **Phase 3**: email/WhatsApp nudges + "still waiting" reminders (reuse Outbox + email-automation).
 
-## Pushed to master June 2026 (owner asked to push online).
+## Phase 2 + multi-recipient + owner-raise (June 2026, migration 0083)
+Owner decisions: recipients = **shared / any-of**; reporting = **Trends tab on the inbox**.
+- **Multi-recipient**: a request can go to one OR several people (and/or the owner). New `request_recipients` table (request_id, person_id|null, is_owner, role) is now the source of truth; legacy `requests.addressee_id`/`to_owner` columns are vestigial (kept to avoid a destructive drop). **Any recipient can act** — `isRecipient()` gates decide/advance; first to respond is recorded. `partiesLabel()` renders "A, B and you".
+- **Owner raises directly**: `requests.requester_id` now nullable + `requests.from_owner`. Owner composer on `/requests` (RequestComposer mode), addresses anyone (`allActivePeople()`), stamps `web-ui`. `adminRaiseRequest`.
+- **Reply attachments**: reply is now FormData (body + file) on both sides; `addRequestMessage` takes an attachment. Composer + reply box both have the file input.
+- **Convert to task (Phase 2)**: `convertRequestToTask()` → real task via insertTaskWithUniqueCodeSb, sets `requests.converted_task_id`, status→in_progress, "Converted to task CODE" event, notifies. "Create task from this" button + inline form (company/person/priority/deadline). Portal: manager/HR/director recipients (scoped); owner: anyone. `portalConvertRequest`/`adminConvertRequest`.
+- **Trends tab**: `requestTrends()` → totals, open, approval rate, avg response time, by type/company/status. `request-trends.tsx` + `request-admin.tsx` (Inbox|Trends tabs).
+- New components: `request-admin.tsx`, `request-trends.tsx`. RequestRow/RequestDetail now carry `recipients: RequestParty[]` + `requesterIsOwner` (replaced addressee fields).
+- **Migration 0083** applied directly (same watermark drift as 0081/0082 — migrator skips it; idempotent SQL applied to the shared cloud DB; PostgREST cache reloaded via NOTIFY).
+- **Verified live** end-to-end on the dev server (owner session): multi-recipient inbox label, owner "Awaiting you", detail, **convert→CC-010 (status→in_progress)**, **Trends tab**, **owner FormData reply**. tsc clean. Test data + temp scripts removed.
+
+## Pushed to master June 2026 (owner asked to push online) — Phase 1 (edf3eda) + Phase 2/multi-recipient.

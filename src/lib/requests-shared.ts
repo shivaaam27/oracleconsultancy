@@ -1,6 +1,6 @@
 /* Request Desk — pure, client-safe types and constants (no server imports),
  * so both server code and client components can share the status machine,
- * labels, tones and category suggestions. */
+ * labels, tones, recipient formatting and category suggestions. */
 
 import type { BadgeTone } from "./badge-tones";
 
@@ -77,16 +77,36 @@ export function isRequestOpen(status: string): boolean {
 /** Suggested type chips. Staff may also type their own value. */
 export const REQUEST_CATEGORIES = ["Equipment", "HR", "Admin", "Finance", "Leave/Time", "Feedback", "Other"];
 
+/** Display name from a created_by stamp ("portal-mgr:Fatuma" → "Fatuma";
+ *  "web-ui"/"admin" → the owner). Pure, so the client thread can use it. */
+export function requestAuthorName(createdBy: string | null): string {
+  if (!createdBy) return "Someone";
+  if (createdBy === "web-ui" || createdBy === "admin" || createdBy === "ai-command") return "Oracle Consultancy";
+  const idx = createdBy.indexOf(":");
+  return idx >= 0 ? createdBy.slice(idx + 1) : createdBy;
+}
+
+/** A person an allowed recipient picker can offer. */
 export type RequestRecipient = { id: number; name: string; relation: string };
+
+/** A party on a request (requester or recipient). person id, or the owner. */
+export type RequestParty = { id: number | null; name: string; isOwner: boolean };
+
+/** "Amani, HR and you" — formats a recipient list for the given viewer. */
+export function partiesLabel(parties: RequestParty[], viewerIsOwner: boolean): string {
+  const names = parties.map((p) => (p.isOwner ? (viewerIsOwner ? "you" : "the owner") : p.name));
+  if (names.length === 0) return "—";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 export type RequestRow = {
   id: number;
   code: string;
-  requesterId: number;
-  addresseeId: number | null;
+  requesterId: number | null;
   requesterName: string;
-  addresseeName: string | null;
-  toOwner: boolean;
+  requesterIsOwner: boolean;
+  recipients: RequestParty[];
   companyName: string | null;
   category: string | null;
   title: string;
@@ -109,11 +129,10 @@ export type RequestThreadEntry = {
 export type RequestDetail = {
   id: number;
   code: string;
-  requesterId: number;
+  requesterId: number | null;
   requesterName: string;
-  addresseeId: number | null;
-  addresseeName: string | null;
-  toOwner: boolean;
+  requesterIsOwner: boolean;
+  recipients: RequestParty[];
   companyName: string | null;
   category: string | null;
   title: string;
@@ -122,16 +141,22 @@ export type RequestDetail = {
   decisionReason: string | null;
   decidedAt: string | null;
   seenAt: string | null;
+  convertedTaskId: number | null;
+  convertedTaskCode: string | null;
   createdAt: string;
   updatedAt: string;
   thread: RequestThreadEntry[];
 };
 
-/** Display name from a created_by stamp ("portal-mgr:Fatuma" → "Fatuma";
- *  "web-ui"/"admin" → the owner). Pure, so the client thread can use it. */
-export function requestAuthorName(createdBy: string | null): string {
-  if (!createdBy) return "Someone";
-  if (createdBy === "web-ui" || createdBy === "admin" || createdBy === "ai-command") return "Oracle Consultancy";
-  const idx = createdBy.indexOf(":");
-  return idx >= 0 ? createdBy.slice(idx + 1) : createdBy;
-}
+export type RequestTrends = {
+  total: number;
+  open: number;
+  approved: number;
+  declined: number;
+  done: number;
+  approvalRate: number | null; // approved / (approved + declined)
+  avgResponseHours: number | null; // raised → first decision
+  byCategory: { label: string; count: number }[];
+  byCompany: { label: string; count: number }[];
+  byStatus: { label: string; count: number }[];
+};
