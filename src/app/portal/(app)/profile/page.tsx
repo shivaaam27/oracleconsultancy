@@ -68,7 +68,7 @@ export default async function PortalProfile() {
     <div className="flex flex-col gap-5">
       <Reveal delay={0}>
         <Hero title={me.name} subtitle="Your profile and viewing preferences.">
-          <Badge tone="info">{me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "HR / Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access"}</Badge>
+          <Badge tone="info">{me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access"}</Badge>
         </Hero>
       </Reveal>
 

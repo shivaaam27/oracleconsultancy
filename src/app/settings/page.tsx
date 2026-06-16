@@ -496,7 +496,7 @@ export default async function SettingsPage({
                       <Select name="portalRole" defaultValue={p.role} className="h-8 text-xs">
                         <option value="staff">Staff</option>
                         <option value="manager">Manager</option>
-                        <option value="hr">HR / Admin</option>
+                        <option value="hr">Admin</option>
                         <option value="director">Director</option>
                       </Select>
                       <Button type="submit" variant="secondary" size="sm">Save</Button>
@@ -529,7 +529,7 @@ export default async function SettingsPage({
                 <Select name="portalRole" defaultValue="staff" aria-label="Access level">
                   <option value="staff">Staff — own tasks only</option>
                   <option value="manager">Manager — own + direct reports&apos; + own company&apos;s tasks, can complete</option>
-                  <option value="hr">HR / Admin — every company&apos;s tasks, can create across all</option>
+                  <option value="hr">Admin — every company&apos;s tasks, can create across all</option>
                   <option value="director">Director — board view + create tasks/events across all companies</option>
                 </Select>
               </div>

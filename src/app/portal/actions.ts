@@ -325,6 +325,45 @@ export async function portalDirectorDraftMessage(input: {
   return { ok: true, link, contactMissing: !to };
 }
 
+/**
+ * Portal: send a person their branded task-reminder email (the same engine the
+ * admin Outbox uses) with an optional personal note. Director / Manager / Admin
+ * only. Signs off from the sender's office (Director's / Manager's / Admin's) with
+ * their name. Honours the owner's outreach pause. Logs to the admin sent log.
+ */
+export async function portalSendReminderEmail(
+  personId: number,
+  note?: string,
+): Promise<{ ok: boolean; reason?: "no-email" | "no-tasks" | "not-configured" | "not-found" | "error"; error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, reason: "error", error: "Please sign in again." };
+  const role = me.portalRole;
+  if (role !== "director" && role !== "manager" && role !== "hr") {
+    return { ok: false, reason: "error", error: "Only managers, Admin and directors can send reminders." };
+  }
+
+  // Owner kill switch (pauses all portal outreach).
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") {
+    return { ok: false, reason: "error", error: "Outreach is paused by the administrator." };
+  }
+
+  const office = role === "director" ? "director" : role === "manager" ? "manager" : "admin";
+  const tag = role === "director" ? "dir" : role === "manager" ? "mgr" : "admin";
+  const { sendTaskReminderEmail } = await import("@/lib/reminders");
+  const res = await sendTaskReminderEmail({
+    personId,
+    note,
+    sender: { office, name: me.name, sourceTag: `portal-${tag}:${me.name}` },
+  });
+  if (res.ok) {
+    await recordEvent("portal.reminder.email", "ok", { by: me.name, role, personId });
+    revalidatePath("/outbox");
+    revalidatePath("/portal/team");
+  }
+  return res;
+}
+
 /** Director: schedule a calendar event / meeting (any company). Reuses the
  *  calendar engine (attendees, .ics invites, reminders, recurrence). */
 export async function portalDirectorCreateEvent(

@@ -68,6 +68,9 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
           <DirectorTaskForm people={people} companies={companies} />
           <DirectorEventForm people={people} companies={companies} />
           <DirectorMessage people={people} reminders={[]} />
+          <Link href="/portal/team" className="inline-flex items-center gap-1.5 rounded-xl bg-bg-elev px-3 py-2 text-sm font-medium ring-1 ring-border transition-shadow hover:ring-accent/40">
+            <Users size={14} className="text-accent" /> Team reminders
+          </Link>
         </div>
       </Reveal>
 

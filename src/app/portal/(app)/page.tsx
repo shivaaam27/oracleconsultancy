@@ -279,6 +279,20 @@ export default async function PortalHome() {
         </Reveal>
       )}
 
+      {(me.portalRole === "manager" || me.portalRole === "hr") && (
+        <Reveal delay={0.08}>
+          <Link href="/portal/team" className="block group">
+            <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
+              <div>
+                <p className="text-sm font-medium">Team reminders</p>
+                <p className="text-xs text-fg-muted">See everyone&apos;s open tasks and send a branded email reminder.</p>
+              </div>
+              <Users size={18} className="shrink-0 text-accent" />
+            </Panel>
+          </Link>
+        </Reveal>
+      )}
+
       {teamMembers.length > 0 && (
         <Reveal delay={0.09} className="flex flex-col gap-2.5">
           <SectionLabel icon={<Users size={13} />}>My team</SectionLabel>
