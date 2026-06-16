@@ -18,8 +18,16 @@ export default async function PortalLayout({ children }: { children: React.React
   if (!me) redirect("/portal/login");
 
   // Urgent "takeover" announcements block the portal until acknowledged.
-  const attrs = await getPersonAudienceAttrs(me.id);
-  const takeovers = attrs ? await takeoverFeedForPerson(attrs) : [];
+  // This runs on every portal navigation and sits ABOVE the page error
+  // boundary, so a transient DB hiccup here would blank the whole portal. Guard
+  // it: a failed lookup just means "no takeovers right now", never a crash.
+  let takeovers: Awaited<ReturnType<typeof takeoverFeedForPerson>> = [];
+  try {
+    const attrs = await getPersonAudienceAttrs(me.id);
+    takeovers = attrs ? await takeoverFeedForPerson(attrs) : [];
+  } catch {
+    takeovers = [];
+  }
 
   return (
     <div className="flex flex-col gap-5 pb-28 md:pb-32 max-w-3xl mx-auto">
