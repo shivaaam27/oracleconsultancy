@@ -557,6 +557,17 @@ export function briefEmailDoc(b: BriefData): EmailDoc {
       rows: b.companies.map((c) => ({ left: c.name, right: `${c.done} done · ${c.open} open · ${c.overdue} overdue` })),
     });
   }
+  if (b.notes.length) {
+    blocks.push({
+      kind: "list",
+      label: "Admin & HR updates",
+      bullets: b.notes.slice(0, 6).map((n) => `${n.companyName ? `${n.companyName}: ` : ""}${n.body}`),
+    });
+  }
+  const delivered = b.delivered.flatMap((g) => g.items.map((t) => `${g.company}: ${t.actionItem}`));
+  if (delivered.length) {
+    blocks.push({ kind: "list", label: `Delivered in ${b.monthLabel}`, bullets: delivered.slice(0, 8) });
+  }
   if (b.watch.length) {
     blocks.push({
       kind: "items",
@@ -567,6 +578,45 @@ export function briefEmailDoc(b: BriefData): EmailDoc {
         meta: `${w.companyName} · ${w.overdue ? "overdue" : w.deadline ? `due ${fmtDay(w.deadline)}` : "no deadline"}`,
       })),
     });
+  }
+  if (b.directorActions.length) {
+    blocks.push({
+      kind: "list",
+      label: "Recommended director actions",
+      bullets: b.directorActions.slice(0, 5).map((a) => `${a.companyName}: ${a.headline} — ${a.detail}`),
+    });
+  }
+  if (b.compliance.length) {
+    blocks.push({
+      kind: "section",
+      label: "Compliance watch",
+      rows: b.compliance.slice(0, 6).map((c) => {
+        const detail = [c.missing && `${c.missing} missing`, c.expired && `${c.expired} expired`, c.expiring && `${c.expiring} expiring`]
+          .filter(Boolean).join(" · ");
+        return { left: c.companyName, right: `${c.score}%${detail ? ` · ${detail}` : ""}` };
+      }),
+    });
+  }
+  if (b.statutory.length) {
+    blocks.push({
+      kind: "section",
+      label: "Statutory deadlines",
+      rows: b.statutory.slice(0, 6).map((s) => {
+        const when = s.dueDate ? fmtDay(s.dueDate) : "—";
+        const flag = s.flag === "overdue" ? "overdue" : s.flag === "dueNow" ? "due now" : "soon";
+        return { left: s.label, right: `${when} · ${flag} · ${s.doneCount}/${s.applicableCount}` };
+      }),
+    });
+  }
+  const hr = b.hr;
+  if (hr.headcount) {
+    const peopleRows: { left: string; right?: string }[] = [
+      { left: "Active staff", right: `${hr.headcount}${hr.joiners ? ` · ${hr.joiners} joined` : ""}${hr.onLeaveToday ? ` · ${hr.onLeaveToday} on leave today` : ""}` },
+    ];
+    if (hr.pendingLeave.length) peopleRows.push({ left: "Leave to approve", right: `${hr.pendingLeave.length}` });
+    if (hr.belowFullCount) peopleRows.push({ left: "Below full compliance", right: `${hr.belowFullCount}` });
+    if (hr.leaveLiability.totalDays > 0) peopleRows.push({ left: "Leave liability", right: `TZS ${hr.leaveLiability.totalCost.toLocaleString("en-GB")}` });
+    blocks.push({ kind: "section", label: "People", rows: peopleRows });
   }
   return {
     preheader: `${b.deliveredCount} delivered · ${b.openCount} open · ${b.overdueCount} overdue this ${b.monthLabel}.`,

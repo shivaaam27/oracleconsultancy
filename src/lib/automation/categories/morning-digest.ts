@@ -49,6 +49,15 @@ async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; t
   if (sections.length === 0) return null;
   const dateLabel = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: TZ });
   const dateShort = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: TZ });
+  // A glance row at the top — the day's pressure in three numbers.
+  const glance: EmailDoc["blocks"] = [{
+    kind: "stats",
+    tiles: [
+      { value: events.length, label: events.length === 1 ? "event" : "events" },
+      { value: dueToday.length, label: "due today" },
+      { value: overdue.length, label: "overdue", danger: overdue.length > 0 },
+    ],
+  }];
   return {
     subject: `Your day — ${dateShort}`,
     text: `Good morning. Here's your day — ${dateLabel}.\n\n${sections.join("\n\n")}\n\nOpen Oracle Consultancy for the full picture.`,
@@ -57,7 +66,7 @@ async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; t
       dateLabel: dateShort,
       title: "Good morning",
       subtitle: `Here's your day — ${dateLabel}`,
-      blocks,
+      blocks: [...glance, ...blocks],
       cta: { label: "Open Oracle Consultancy", url: `${appBaseUrl()}/` },
       footerNote: "You're receiving this because the daily morning digest is on. Manage in Settings → Email automation.",
       office: "admin",
