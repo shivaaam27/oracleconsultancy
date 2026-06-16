@@ -50,8 +50,12 @@ Proactive morning briefing; tighter meeting→task→follow-up; optional multi-s
 - Phase 3a: DONE + pushed — `concept` exported; Ask COS now synonym-expands its
   search tokens, ranks tasks + meetings by relevance before slicing, sends compact
   JSON, and shows an honest "based on N tasks · M meetings" count.
-- **Phase 3b (semantic search / embeddings): BUILT (in-region pgvector) + pushed,
-  INERT until owner does a one-time setup.** Owner chose in-region (data stays in
+- **Phase 3b (semantic search / embeddings): BUILT (in-region pgvector) + pushed.
+  NOW FULLY LIVE (2026-06-16):** migrations applied, `embed` Edge Function deployed
+  to project `eskboulvmsoqsyuxppaa`, `npm run db:embed-backfill` indexed 404 items
+  (tasks/meetings/docs/people), and `v2.semanticSearch` setting flipped to `true`.
+  Verified via `npm run eval:search` → Recall@10 95%, MRR 0.955 (incl. Swahili
+  queries). Owner chose in-region (data stays in
   Supabase region). Mechanism (research-verified, see wf agent): Supabase Edge
   Function running built-in `gte-small` (384-dim) → pgvector. Ruled out in-process
   Transformers.js on Vercel (onnxruntime ~720MB > 250MB function limit). Shipped:
