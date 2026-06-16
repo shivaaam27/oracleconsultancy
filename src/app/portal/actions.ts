@@ -14,6 +14,7 @@ import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
 import { createEventAction } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
+import { broadcastPulse } from "@/lib/cos-pulse";
 import {
   clearSessionCookie,
   directReportIds,
@@ -602,6 +603,7 @@ export async function portalAddUpdate(formData: FormData) {
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);
   revalidatePath("/portal");
+  await broadcastPulse("portal-update");
 }
 
 /* ----------------------------------------------------------------------

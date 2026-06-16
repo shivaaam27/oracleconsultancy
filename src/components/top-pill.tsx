@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES } from "@/lib/nav";
+import { WORLDS } from "@/lib/worlds";
+import * as Lucide from "lucide-react";
+import { Settings as SettingsIcon } from "lucide-react";
 import { useCommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { DensityToggle } from "./density-toggle";
@@ -72,6 +75,17 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> =
     icon: r.icon,
   }));
 
+// The launcher now shows the 7 Worlds (each opens its World screen); Settings is a
+// utility tile. NAV_ROUTES still drives ⌘K + Settings pins + the active-state test,
+// so every page stays directly jump-able by name and nothing drifts.
+const resolveIcon = (name: string): LucideIcon =>
+  ((Lucide as Record<string, unknown>)[name] as LucideIcon) ?? Lucide.Circle;
+
+const WORLD_TILES: Array<{ href: string; label: string; icon: LucideIcon; color?: string }> = [
+  ...WORLDS.map((w) => ({ href: `/world/${w.slug}`, label: w.name, icon: resolveIcon(w.icon), color: w.color })),
+  { href: "/settings", label: "Settings", icon: SettingsIcon },
+];
+
 function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -127,7 +141,7 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
             </Dialog.Close>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            {DESTINATIONS.map((d) => {
+            {WORLD_TILES.map((d) => {
               const Icon = d.icon;
               return (
                 <button
@@ -136,7 +150,7 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
                   onClick={() => go(d.href)}
                   className="flex flex-col items-center justify-center gap-2 h-[4.75rem] rounded-2xl border border-border bg-bg-elev/60 hover:bg-accent-soft hover:border-accent/30 active:scale-[0.97] transition-all text-center"
                 >
-                  <Icon size={20} className="text-accent" />
+                  <Icon size={20} strokeWidth={1.75} className={d.color ? undefined : "text-accent"} style={d.color ? { color: d.color } : undefined} />
                   <span className="text-[11px] font-medium text-fg leading-tight px-1">{d.label}</span>
                 </button>
               );
@@ -421,6 +435,7 @@ export function TopPill() {
   // non-/hrms pages (People, Documents, Companies, Calendar, Letters, Outbox,
   // Inbox, Insights, Settings) show an active nav item too.
   const hrmsActive =
+    pathname.startsWith("/world") ||
     pathname.startsWith("/hrms") ||
     DESTINATIONS.some((d) => pathname === d.href || pathname.startsWith(d.href + "/"));
 

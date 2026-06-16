@@ -7,8 +7,9 @@ import { AdminLoginForm } from "./login-form";
 import { LoginForm as StaffLoginForm } from "@/app/portal/login/login-form";
 import { PasskeyLoginButton } from "./passkey-login-button";
 
-/** The sign-in card: a Staff Login / Command Centre tab switcher so staff and
- *  the owner sign in from one screen. Staff is the default. */
+/** The sign-in card: a Team Portal / Command Centre tab switcher so the team
+ *  (staff, managers, HR, directors) and the owner sign in from one screen.
+ *  Team Portal is the default. */
 export function AuthTabs({ firstRun }: { firstRun: boolean }) {
   const [tab, setTab] = useState<"staff" | "admin">("staff");
   const tabCls = (active: boolean) =>
@@ -25,7 +26,7 @@ export function AuthTabs({ firstRun }: { firstRun: boolean }) {
           style={{ transform: tab === "admin" ? "translateX(calc(100% + 0.25rem))" : "translateX(0)" }}
         />
         <button type="button" onClick={() => setTab("staff")} className={tabCls(tab === "staff")} aria-pressed={tab === "staff"}>
-          <UserRound size={15} /> Staff Login
+          <UserRound size={15} /> Team Portal
         </button>
         <button type="button" onClick={() => setTab("admin")} className={tabCls(tab === "admin")} aria-pressed={tab === "admin"}>
           <ShieldCheck size={15} /> Command Centre

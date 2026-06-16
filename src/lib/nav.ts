@@ -6,6 +6,7 @@ import {
   Inbox,
   FileText,
   CalendarClock,
+  Scale,
   Network,
   Package,
   Laptop,
@@ -39,7 +40,7 @@ export type NavRoute = {
 export const NAV_ROUTES: NavRoute[] = [
   { id: "requests",    href: "/requests",            label: "Requests",            icon: MessageSquareText },
   { id: "announcements", href: "/announcements",      label: "Announcements",       icon: Megaphone },
-  { id: "tax-legal",   href: "/hrms/command-centre", label: "Tax & Legal",        icon: CalendarClock },
+  { id: "tax-legal",   href: "/hrms/command-centre", label: "Tax & Legal",        icon: Scale },
   { id: "org",         href: "/hrms/org",            label: "Organogram",          icon: Network },
   { id: "oecr",        href: "/hrms/oecr",           label: "OECR",                icon: Package },
   { id: "assets",      href: "/hrms/assets",         label: "Assets, Tools & Vendors", icon: Laptop },

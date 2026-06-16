@@ -3,9 +3,10 @@ import { getPortalPerson } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
+import Link from "next/link";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
-import { Users } from "lucide-react";
+import { Users, ChevronRight } from "lucide-react";
 import { RemindButton } from "./remind-button";
 
 export const dynamic = "force-dynamic";
@@ -63,14 +64,15 @@ export default async function PortalTeamPage() {
         rows.map((r, i) => (
           <Reveal key={r.id} delay={Math.min(i * 0.02, 0.2)}>
             <Panel className="space-y-3 p-4">
-              <div className="flex items-start justify-between gap-3">
+              <Link href={`/portal/people/${r.id}`} className="group -m-1 flex items-start justify-between gap-3 rounded-xl p-1 transition-colors hover:bg-bg-subtle/40">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{r.name}</p>
+                  <p className="truncate text-sm font-medium group-hover:text-accent">{r.name}</p>
                   <p className="mt-0.5 text-[11px] text-fg-muted">
                     {r.open} open{r.overdue > 0 && <span className="text-danger"> · {r.overdue} overdue</span>}
                   </p>
                 </div>
-              </div>
+                <ChevronRight size={15} className="mt-0.5 shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
+              </Link>
 
               <ul className="space-y-1 text-xs text-fg-muted">
                 {r.tasks.slice(0, 5).map((t) => {

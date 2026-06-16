@@ -38,6 +38,7 @@ import { approveReminderAction, approveRenewalAction } from "@/app/automation/ac
 import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";
 import { InsightPopover, InsightBody } from "@/components/insight-popover";
 import { WeatherWidget } from "@/components/weather-chip";
+import { CommandControls, type CommandControlsState } from "@/components/command-controls";
 
 const toneClass = TONE;
 
@@ -503,6 +504,7 @@ export function HomeMissionControl({
   morningPlan = [],
   healthSeries = [],
   topTodos = [],
+  controls,
 }: {
   greeting: string;
   dateLabel: string;
@@ -518,6 +520,7 @@ export function HomeMissionControl({
   morningPlan?: MorningPlanItem[];
   healthSeries?: number[];
   topTodos?: HomeTodo[];
+  controls?: CommandControlsState;
 }) {
   // The Morning Run tray now owns the bulk automation actions, so drop those
   // command cards here to avoid showing both the tray rows and the old button.
@@ -598,9 +601,13 @@ export function HomeMissionControl({
         </div>
       </Hero>
 
-      {/* ========= DASHBOARD GRID — up to 3 columns on wide screens =========
-          items-start keeps each card its natural height (no empty stretch). */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      {/* ============================ CONTROL ============================
+          The command levers — hold or release the whole operation in one tap.
+          Sits between "See" (hero) and the working panels below. */}
+      {controls && <CommandControls state={controls} />}
+
+      {/* ===== Cockpit modules — one calm, centred column (the Command Wall) ===== */}
+      <div className="flex flex-col gap-4">
         {/* ===== COLUMN 1 — Portfolio health + Top to-dos, stacked tight ===== */}
         <div className="flex flex-col gap-4">
         {/* Portfolio health — arc gauge + ranked company league, one glance.
@@ -884,8 +891,8 @@ export function HomeMissionControl({
           )}
         </Panel>
 
-        {/* ===== FOCUS QUEUE — full width on lg, third column on xl ===== */}
-        <Panel className="overflow-hidden lg:col-span-2 xl:col-span-1">
+        {/* ===== FOCUS QUEUE ===== */}
+        <Panel className="overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-accent-soft/70 text-accent ring-1 ring-accent/20">

@@ -148,6 +148,30 @@ export async function directReportIds(managerId: number): Promise<number[]> {
   );
 }
 
+/** May this portal person open another person's (read-only, scoped) detail page?
+ *  Self: always. Director/HR: any active person (group-wide). Manager: their direct
+ *  reports only. Staff: only themselves. Never exposes pay or private IDs (the
+ *  portal person page deliberately omits those). */
+export async function personCanSeePerson(viewer: PortalPerson, targetId: number): Promise<boolean> {
+  if (viewer.id === targetId) return true;
+  if (isGroupWide(viewer.portalRole)) {
+    const { data } = await sb.from("people").select("active").eq("id", targetId).maybeSingle();
+    return Boolean(data) && data!.active === true;
+  }
+  if (viewer.portalRole === "manager") {
+    const reports = await directReportIds(viewer.id);
+    return reports.includes(targetId);
+  }
+  return false;
+}
+
+/** May this portal person open a company's (read-only, scoped) detail page?
+ *  Director/HR: any company. Manager/Staff: only their own company. */
+export async function personCanSeeCompany(viewer: PortalPerson, companyId: number): Promise<boolean> {
+  if (isGroupWide(viewer.portalRole)) return true;
+  return viewer.companyId === companyId;
+}
+
 /** Every task id this portal person may see. Staff: their own (assignee or
  *  owner). Manager: every (non-archived) task in their own company, plus their
  *  own and any direct report's tasks (reports may sit in other companies).

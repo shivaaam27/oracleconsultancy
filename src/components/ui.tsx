@@ -174,6 +174,31 @@ export function Button({
   );
 }
 
+/** iPhone-style toggle switch. Presentational by default (the parent control owns
+ *  the click + aria); pass `as="button"` semantics from the parent, or use it
+ *  inside a labelled <button role="switch" aria-checked>. `on` = enabled (green). */
+const switchDims = {
+  sm: { track: "w-[40px] h-[24px]", knob: "h-[18px] w-[18px]", on: "translate-x-[19px]", off: "translate-x-[3px]" },
+  md: { track: "w-[46px] h-[28px]", knob: "h-[22px] w-[22px]", on: "translate-x-[21px]", off: "translate-x-[3px]" },
+} as const;
+
+export function Switch({ on, busy = false, size = "md" }: { on: boolean; busy?: boolean; size?: keyof typeof switchDims }) {
+  const d = switchDims[size];
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative inline-flex shrink-0 items-center rounded-full ring-1 transition-colors duration-200",
+        d.track,
+        on ? "bg-success ring-success/40" : "bg-bg-subtle ring-border/70",
+        busy && "opacity-60",
+      )}
+    >
+      <span className={cn("absolute rounded-full bg-white shadow-sm transition-transform duration-200", d.knob, on ? d.on : d.off)} />
+    </span>
+  );
+}
+
 type LinkBtnProps = {
   variant?: keyof typeof buttonStyles;
   size?: keyof typeof buttonSizes;

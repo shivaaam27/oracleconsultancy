@@ -15,6 +15,7 @@ import { setUndoCookie } from "@/lib/undo-cookie";
 import { createTaskAttachment } from "@/lib/documents";
 import { parseMentionIds } from "@/lib/mentions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
+import { broadcastPulse } from "@/lib/cos-pulse";
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
@@ -540,6 +541,7 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
   revalidatePath("/registry");
   revalidatePath("/");
   updateTag("tasks");
+  await broadcastPulse("task-update");
 }
 
 /* ----------------------------------------------------------------------
@@ -655,6 +657,7 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/");
   updateTag("tasks");
+  await broadcastPulse("task-update");
 }
 
 export async function adminTogglePin(formData: FormData): Promise<void> {
