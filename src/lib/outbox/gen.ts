@@ -2,7 +2,7 @@ import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "../queries";
 import { isOpen } from "../derive";
 import { appBaseUrl } from "../app-url";
-import type { EmailDoc, EmailTone } from "../email/layout";
+import type { EmailDoc, EmailTone, EmailOffice } from "../email/layout";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 
@@ -101,7 +101,11 @@ const priorityTone = (p: string): EmailTone =>
  * grouped by company, overdue ones flagged, each with a priority pill and due
  * date. Used by the staff task-reminder automation.
  */
-export function buildTaskReminderDoc(name: string, tasks: TaskRow[]): EmailDoc {
+export function buildTaskReminderDoc(
+  name: string,
+  tasks: TaskRow[],
+  opts?: { office?: EmailOffice; signoffName?: string; note?: string },
+): EmailDoc {
   const first = name.split(" ")[0];
   const overdueCount = tasks.filter(isOverdue).length;
 
@@ -139,9 +143,11 @@ export function buildTaskReminderDoc(name: string, tasks: TaskRow[]): EmailDoc {
     title: "Your tasks",
     subtitle: `Hi ${first} — a quick reminder of where things stand`,
     blocks,
-    cta: { label: "Open the tracker", url: `${appBaseUrl()}/?tab=tasks` },
-    footerNote: "Please update the tracker when you can. Thank you.",
-    office: "admin",
+    cta: { label: "Open your tasks", url: `${appBaseUrl()}/portal` },
+    footerNote: "Please update your tasks in the staff portal when you can. Thank you.",
+    office: opts?.office ?? "admin",
+    signoffName: opts?.signoffName,
+    note: opts?.note,
   };
 }
 

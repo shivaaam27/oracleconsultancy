@@ -9,10 +9,11 @@ export type EmailTone = "default" | "danger" | "warn" | "accent" | "success" | "
 
 // Who the email is "from" — drives the footer sign-off ({Office} / Oracle
 // Consultancy Limited). Set per email by its source, NOT a person's job title.
-export type EmailOffice = "director" | "admin" | "compliance" | "hr";
+export type EmailOffice = "director" | "manager" | "admin" | "compliance" | "hr";
 
 export const OFFICE_LABELS: Record<EmailOffice, string> = {
   director: "Director's Office",
+  manager: "Manager's Office",
   admin: "Admin's Office",
   compliance: "Admin Compliance Office",
   hr: "Admin HR Office",
@@ -43,6 +44,10 @@ export type EmailDoc = {
   footerNote?: string;
   /** Which office the email signs off as. Defaults to "admin". */
   office?: EmailOffice;
+  /** Optional sender name shown above the office line (e.g. a manager sending). */
+  signoffName?: string;
+  /** Optional personal line shown as a highlighted note above the content. */
+  note?: string;
 };
 
 export type EmailBrand = {
@@ -81,13 +86,16 @@ function sectionLabel(label: string): string {
 
 function renderBlock(b: EmailBlock): string {
   if (b.kind === "stats") {
-    const cells = b.tiles.map((t) => {
+    const pct = Math.floor(100 / Math.max(1, b.tiles.length));
+    const cells = b.tiles.map((t, i) => {
       const fg = t.danger ? "#b91c1c" : C.ink;
       const lab = t.danger ? "#b91c1c" : C.muted;
       const bg = t.danger ? "#fef2f2" : C.tile;
-      return `<td width="25%" style="padding:4px"><div style="background:${bg};border-radius:10px;padding:12px 6px;text-align:center;font-family:${FONT}"><div style="font-size:22px;font-weight:600;color:${fg}">${esc(String(t.value))}</div><div style="font-size:11px;color:${lab};padding-top:2px">${esc(t.label)}</div></div></td>`;
+      // Even gaps without leaving an outer inset: pad between tiles only.
+      const pad = i === 0 ? "0 5px 0 0" : i === b.tiles.length - 1 ? "0 0 0 5px" : "0 5px";
+      return `<td width="${pct}%" valign="top" style="padding:${pad}"><div style="background:${bg};border-radius:12px;padding:14px 8px;text-align:center;font-family:${FONT}"><div style="font-size:24px;font-weight:600;color:${fg}">${esc(String(t.value))}</div><div style="font-size:11px;color:${lab};padding-top:3px">${esc(t.label)}</div></div></td>`;
     }).join("");
-    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0"><tr>${cells}</tr></table>`;
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px"><tr>${cells}</tr></table>`;
   }
   if (b.kind === "section") {
     const rows = b.rows.map((r, i) => {
@@ -97,12 +105,15 @@ function renderBlock(b: EmailBlock): string {
     return `${sectionLabel(b.label)}<table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>`;
   }
   if (b.kind === "items") {
+    // Fixed-width pill column so every title starts at the same left edge,
+    // regardless of pill label length ("High" vs "Critical" vs "Overdue").
+    const hasPills = b.items.some((it) => it.pill);
     const items = b.items.map((it) => {
-      const pill = it.pill
-        ? `<td valign="top" style="padding:2px 10px 0 0"><span style="font-size:11px;font-weight:600;color:${PILL[it.pill.tone].fg};background:${PILL[it.pill.tone].bg};padding:3px 9px;border-radius:6px;white-space:nowrap;font-family:${FONT}">${esc(it.pill.label)}</span></td>`
+      const pill = hasPills
+        ? `<td valign="top" width="88" style="width:88px;padding:1px 0 0 0">${it.pill ? `<span style="display:inline-block;font-size:11px;font-weight:600;color:${PILL[it.pill.tone].fg};background:${PILL[it.pill.tone].bg};padding:3px 9px;border-radius:6px;white-space:nowrap;font-family:${FONT}">${esc(it.pill.label)}</span>` : ""}</td>`
         : "";
       const meta = it.meta ? `<div style="font-size:12px;color:${C.faint};padding-top:2px;font-family:${FONT}">${esc(it.meta)}</div>` : "";
-      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px"><tr>${pill}<td valign="top"><div style="font-size:14px;color:${C.ink};font-family:${FONT}">${esc(it.title)}</div>${meta}</td></tr></table>`;
+      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:12px"><tr>${pill}<td valign="top"><div style="font-size:14px;color:${C.ink};line-height:1.4;font-family:${FONT}">${esc(it.title)}</div>${meta}</td></tr></table>`;
     }).join("");
     return `${sectionLabel(b.label)}${items}`;
   }
@@ -126,11 +137,25 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
     : "";
 
   const officeLabel = OFFICE_LABELS[doc.office ?? "admin"];
+  // Optional sender name sits above the office; when present the office drops to a
+  // muted sub-line (name is the bold lead), otherwise the office leads in bold.
+  const nameLine = doc.signoffName
+    ? `<div style="font-size:13px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(doc.signoffName)}</div>`
+    : "";
+  const officeLine = doc.signoffName
+    ? `<div style="font-size:12px;color:${C.muted};padding-top:1px;font-family:${FONT}">${esc(officeLabel)}</div>`
+    : `<div style="font-size:13px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(officeLabel)}</div>`;
   const signHtml =
-    `<div style="font-size:13px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(officeLabel)}</div>` +
+    nameLine + officeLine +
     `<div style="font-size:12px;color:${C.muted};padding-top:2px;font-family:${FONT}">${esc(COMPANY_LEGAL_NAME)}</div>`;
   const note = doc.footerNote
     ? `<div style="font-size:11px;color:#b6bdc6;padding-top:14px;line-height:1.5;font-family:${FONT}">${esc(doc.footerNote)}</div>`
+    : "";
+
+  // Optional personal note — a teal-soft callout above the content, attributed
+  // to the sender when a name is given.
+  const noteCallout = doc.note
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 2px"><tr><td style="background:#e1f5ee;border-radius:12px;padding:13px 15px"><div style="font-size:14px;color:#0f172a;line-height:1.55;font-family:${FONT}">${esc(doc.note).replace(/\n/g, "<br>")}</div>${doc.signoffName ? `<div style="font-size:12px;color:#0f6e56;padding-top:5px;font-family:${FONT}">&mdash; ${esc(doc.signoffName)}</div>` : ""}</td></tr></table>`
     : "";
 
   const preheader = doc.preheader
@@ -145,13 +170,13 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
     ? `<div style="font-size:14px;color:${C.muted};padding-top:3px;font-family:${FONT}">${esc(doc.subtitle)}</div>`
     : "";
 
-  return `${SIG_MARKER}${preheader}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.canvas};padding:24px 0;font-family:${FONT}"><tr><td align="center"><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:${C.white};border:1px solid ${C.border};border-radius:16px;overflow:hidden">
-<tr><td style="height:3px;background:${C.teal};font-size:0;line-height:0">&nbsp;</td></tr>
-<tr><td style="padding:26px 30px 0">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:11px;letter-spacing:1.5px;color:${C.muted};font-family:${FONT}">${esc(wordmark)}</td>${dateLabel}</tr></table>
-<div style="padding-top:18px"><div style="font-size:22px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(doc.title)}</div>${subtitle}</div>
+  return `${SIG_MARKER}${preheader}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.white};font-family:${FONT}"><tr><td align="center"><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:${C.white}">
+<tr><td style="height:4px;background:${C.teal};font-size:0;line-height:0">&nbsp;</td></tr>
+<tr><td style="padding:30px 32px 0">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:11px;letter-spacing:1.4px;color:${C.muted};font-family:${FONT}">${esc(wordmark)}</td>${dateLabel}</tr></table>
+<div style="padding-top:16px"><div style="font-size:22px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(doc.title)}</div>${subtitle}</div>
 </td></tr>
-<tr><td style="padding:14px 30px 0">${blocks}${cta}</td></tr>
-<tr><td style="padding:22px 30px 26px"><div style="border-top:1px solid ${C.hair};padding-top:18px">${signHtml}${note}</div></td></tr>
+<tr><td style="padding:12px 32px 0">${noteCallout}${blocks}${cta}</td></tr>
+<tr><td style="padding:26px 32px 32px"><div style="border-top:1px solid ${C.hair};padding-top:18px">${signHtml}${note}</div></td></tr>
 </table></td></tr></table>`;
 }

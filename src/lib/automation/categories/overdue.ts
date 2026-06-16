@@ -46,8 +46,8 @@ export const overdueCategory: CategoryDef = {
             title: "Your overdue tasks",
             subtitle: `Hi ${person.name.split(" ")[0]} — a quick reminder`,
             blocks: [{ kind: "list", bullets: tasks.map((t) => `${t.actionItem} (${t.code})`) }],
-            cta: { label: "Open the tracker", url: `${appBaseUrl()}/?tab=tasks` },
-            footerNote: "Please update the tracker when you can. Thank you.",
+            cta: { label: "Open your tasks", url: `${appBaseUrl()}/portal` },
+            footerNote: "Please update your tasks in the staff portal when you can. Thank you.",
             office: "admin",
           },
         });

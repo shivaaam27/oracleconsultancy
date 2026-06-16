@@ -92,6 +92,29 @@ export async function sendAllEmailDrafts(): Promise<{ sent: number; failed: numb
   return { sent, failed, notConfigured };
 }
 
+/**
+ * Send a person their branded task-reminder email (the new design), for real,
+ * from the admin Outbox card — with an optional personal note. Signs off from the
+ * Admin's Office. Logs a Sent row so it shows in the sent log + feeds the cooldown.
+ */
+export async function sendReminderEmail(
+  personId: number,
+  note?: string,
+): Promise<{ ok: boolean; reason?: "no-email" | "no-tasks" | "not-configured" | "not-found" | "error"; error?: string }> {
+  const { sendTaskReminderEmail } = await import("@/lib/reminders");
+  const res = await sendTaskReminderEmail({
+    personId,
+    note,
+    sender: { office: "admin", sourceTag: "reminder:admin" },
+  });
+  if (res.ok) {
+    revalidatePath("/outbox");
+    updateTag("outbox");
+    updateTag("people");
+  }
+  return res;
+}
+
 export async function recordSent(
   formData: FormData
 ): Promise<{ ok: boolean; reason?: "duplicate" | "error"; undoToken?: string }> {

@@ -6,7 +6,7 @@ import {
   ChevronDown, MessageCircle, Mail, Phone,
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { recordSent, snoozePerson, unsnoozePerson } from "./actions";
+import { recordSent, snoozePerson, unsnoozePerson, sendReminderEmail } from "./actions";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { cn } from "@/lib/cn";
@@ -116,6 +116,8 @@ export function OutboxCard({
   const [expanded, setExpanded] = useState(detail);
   const [showFull, setShowFull] = useState(false);
   const [clamped, setClamped] = useState(false);
+  const [note, setNote] = useState("");
+  const [showNote, setShowNote] = useState(false);
   const msgRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -194,6 +196,25 @@ export function OutboxCard({
     startTransition(async () => {
       const { ok, undoToken } = await doMarkSent();
       if (ok) { showUndoToast(`Marked done (${channelLabel(channel)}) for ${draft.recipientName}.`, undoToken); onResolved?.(); }
+    });
+  };
+
+  const onSendEmail = () => {
+    if (!draft.personId) { toast("This person isn't in the directory.", { tone: "warn" }); return; }
+    startTransition(async () => {
+      const res = await sendReminderEmail(draft.personId!, note.trim() || undefined);
+      if (res.ok) {
+        setSent(true);
+        toast(`Email sent to ${draft.recipientName}.`, { tone: "success" });
+        onResolved?.();
+        return;
+      }
+      const msg =
+        res.reason === "no-email" ? "No email address on file for this person."
+        : res.reason === "no-tasks" ? "No open tasks to remind about."
+        : res.reason === "not-configured" ? "Email sending isn't switched on — use Copy instead."
+        : res.error || "Couldn't send the email.";
+      toast(msg, { tone: res.reason === "not-configured" || res.reason === "no-email" ? "warn" : "danger" });
     });
   };
 
@@ -332,6 +353,26 @@ export function OutboxCard({
             )}
           </div>
 
+          {/* Optional personal note — shown at the top of the branded email */}
+          {draft.email && !editing && (
+            showNote ? (
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Add a personal line (optional) — appears at the top of the email"
+                className="w-full min-h-[56px] text-xs font-sans text-fg leading-relaxed bg-bg-elev border border-border rounded-lg p-2 focus:outline-none focus:border-accent"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowNote(true)}
+                className="inline-flex items-center gap-1 text-[11px] text-accent hover:underline"
+              >
+                <StickyNote size={11} /> Add a personal note
+              </button>
+            )
+          )}
+
           {/* Actions */}
           <div className="flex items-center justify-between gap-2">
             <button
@@ -357,7 +398,13 @@ export function OutboxCard({
                 className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted transition-colors disabled:opacity-50">
                 <Check size={14} />
               </button>
-              <Button type="button" size="sm" onClick={onCopyAndMark} disabled={pending || !anyContact}
+              {draft.email && (
+                <Button type="button" size="sm" onClick={onSendEmail} disabled={pending}
+                  title="Send the branded task reminder by email">
+                  <Mail size={13} /> {pending ? "…" : <span>Send email</span>}
+                </Button>
+              )}
+              <Button type="button" size="sm" variant={draft.email ? "secondary" : "primary"} onClick={onCopyAndMark} disabled={pending || !anyContact}
                 title={anyContact ? "Copy message and mark done" : "No contact details for this person"}>
                 <Send size={13} /> {pending ? "…" : <span>Copy &amp; done</span>}
               </Button>
