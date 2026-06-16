@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, Crown, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Crown, MessageSquare, Users } from "lucide-react";
 import { sb } from "@/db/supabase";
-import { Panel } from "@/components/surface-kit";
+import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { LiveSync } from "@/components/live-sync";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
+import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge } from "../../../actions";
-import { taskStatusTone as statusTone } from "@/lib/badge-tones";
+import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
+import type { TaskRow } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -183,6 +185,20 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const company = task.companies as unknown as { name: string } | null;
   const statusOptions = (isManagement ? MANAGER_STATUSES : STAFF_STATUSES).filter((s) => s !== task.status);
 
+  // A minimal TaskRow-shaped object to drive the shared Aurora markers (pinned /
+  // waiting). Presentational only — derived from data we already loaded.
+  const hasPinned = all.some((u) => u.pinned_at);
+  const preview = {
+    status: task.status as string,
+    pinned: hasPinned,
+    waiting: task.status === "Blocked" || task.status === "Waiting External",
+  } as unknown as TaskRow;
+  // The freshest update for the "latest activity" glance in Overview.
+  const latestUpdate = latest;
+  const latestAuthor = latestUpdate ? authorOf(latestUpdate.created_by, me.name).name : null;
+  const fmtWhen = (iso: string) =>
+    new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
   return (
     <div className="flex flex-col gap-4">
       <LiveSync taskId={task.id as number} seconds={5} />
@@ -196,11 +212,13 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-semibold tabular text-fg-muted">{task.code}</span>
           {company && <span className="text-xs text-fg-subtle">· {company.name}</span>}
+          <PinnedMarker task={preview} />
           <span className="grow" />
           <Badge tone={statusTone(task.status as string)}>{task.status}</Badge>
-          <Badge tone="default">{task.priority}</Badge>
+          <Badge tone={priorityTone(task.priority as string)}>{task.priority}</Badge>
         </div>
         <h1 className="mt-2 text-lg font-semibold leading-snug">{task.action_item}</h1>
+        <WaitingOnChip task={preview} on={team.find((p) => p.accountable)?.name} className="mt-2" />
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-fg-muted">
           {task.deadline && (
             <span>
@@ -221,11 +239,36 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             </span>
           )}
         </div>
-        {task.comments && <p className="mt-3 text-sm text-fg-muted whitespace-pre-wrap">{task.comments}</p>}
+        {task.comments && (
+          <p className="mt-3 text-sm text-fg-muted whitespace-pre-wrap">{task.comments}</p>
+        )}
+        {/* Latest-activity glance — mirrors the admin pop-up Overview rhythm.
+            Tap to drop to the full conversation below. */}
+        {latestUpdate && latestAuthor && (
+          <a
+            href="#conversation"
+            className="mt-3 flex items-start gap-2 rounded-2xl bg-bg-subtle/70 ring-1 ring-border/60 px-3 py-2.5 text-left transition-colors hover:ring-accent/40"
+          >
+            <MessageSquare size={14} className="mt-0.5 shrink-0 text-accent" />
+            <span className="min-w-0">
+              <span className="block text-[11px] text-fg-subtle">
+                {latestAuthor} · {fmtWhen(latestUpdate.created_at)}
+                {all.length > 1 ? ` · ${all.length} updates` : ""}
+              </span>
+              <span className="block truncate text-sm text-fg-muted">{latestUpdate.body}</span>
+            </span>
+          </a>
+        )}
       </Panel>
       </Reveal>
 
       <Reveal delay={0.05}>
+      <div id="conversation" className="scroll-mt-4">
+        <SectionLabel icon={<MessageSquare size={13} />}>Conversation &amp; history</SectionLabel>
+      </div>
+      </Reveal>
+
+      <Reveal delay={0.08}>
       <PortalConversation
         taskId={task.id as number}
         code={task.code as string}

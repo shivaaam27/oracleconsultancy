@@ -4,10 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, X, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, CalendarClock, X, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
-import { EmptyState, Button } from "@/components/ui";
+import { EmptyState, Button, IconButton, LinkButton } from "@/components/ui";
+import { TONE, type Tone } from "@/components/surface-kit";
+import { Reveal } from "@/components/reveal";
 import { hasTime } from "@/components/deadline";
+import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
@@ -17,10 +20,11 @@ import { inlineUpdateTask } from "@/app/task/actions";
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
- * Month calendar, time-aware. Tasks are bucketed by deadline day; a pill shows
- * the time when one is set. Tap a day to open its agenda sheet; drag a pill onto
- * another day to reschedule (keeping the time of day). No-deadline tasks sit in a
- * rail above the grid and can be dragged onto a day to give them one.
+ * Month calendar, time-aware (Aurora). Tasks are bucketed by deadline day; a pill
+ * shows the time when one is set. Today is highlighted. Two rails sit above the
+ * grid — Overdue and No-deadline — and their pills can be dragged onto a day to
+ * (re)schedule. Tap a day to open its agenda sheet; drag-to-reschedule keeps the
+ * time of day. Optimistic + undo throughout; reduced-motion safe.
  */
 export function CalendarView({
   rows, month, queryWithoutMonth,
@@ -39,13 +43,13 @@ export function CalendarView({
   const [dragCode, setDragCode] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
-  const [railOpen, setRailOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState<null | "overdue" | "none">(null);
   const railRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!railOpen) return;
-    const onDoc = (e: MouseEvent) => { if (railRef.current && !railRef.current.contains(e.target as Node)) setRailOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setRailOpen(false); };
+    const onDoc = (e: MouseEvent) => { if (railRef.current && !railRef.current.contains(e.target as Node)) setRailOpen(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setRailOpen(null); };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
@@ -67,20 +71,29 @@ export function CalendarView({
     cells.push({ date: d, inMonth: d.getMonth() === m.monthIdx });
   }
 
+  // Overdue = open task whose (optimistic) deadline is before today. These show in
+  // a rail rather than on a past day, so they stay actionable. No-deadline = no date.
   const byDay = new Map<string, TaskRow[]>();
+  const overdue: TaskRow[] = [];
   const noDeadline: TaskRow[] = [];
+  const isClosed = (r: TaskRow) => r.status === "Completed" || r.status === "Closed";
   for (const r of rows) {
     const dl = deadlineOf(r);
     if (!dl) { noDeadline.push(r); continue; }
+    if (!isClosed(r) && dl < today) { overdue.push(r); continue; }
     const k = ymd(dl);
     const list = byDay.get(k) || [];
     list.push(r);
     byDay.set(k, list);
   }
   const ORDER = ["Critical", "High", "Medium", "Low"];
-  for (const list of byDay.values()) {
-    list.sort((a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority) || a.code.localeCompare(b.code));
-  }
+  const byPriority = (a: TaskRow, b: TaskRow) =>
+    ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority) || a.code.localeCompare(b.code);
+  for (const list of byDay.values()) list.sort(byPriority);
+  overdue.sort((a, b) => {
+    const da = deadlineOf(a), db = deadlineOf(b);
+    return (da ? da.getTime() : 0) - (db ? db.getTime() : 0) || byPriority(a, b);
+  });
 
   const prev = monthString(m.year, m.monthIdx - 1);
   const next = monthString(m.year, m.monthIdx + 1);
@@ -98,6 +111,7 @@ export function CalendarView({
 
   const monthLabel = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dueThisMonth = rows.filter((r) => { const d = deadlineOf(r); return d && d >= first && d <= last; }).length;
 
   function openTask(code: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -131,21 +145,58 @@ export function CalendarView({
     router.refresh();
   }
 
+  function startDrag(e: React.DragEvent, code: string) {
+    setDragCode(code);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", code);
+  }
+
   function Pill({ r }: { r: TaskRow }) {
     const dl = deadlineOf(r);
     return (
       <button
         type="button"
         draggable
-        onDragStart={(e) => { setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
+        onDragStart={(e) => startDrag(e, r.code)}
         onDragEnd={() => { setDragCode(null); setOverKey(null); }}
         onClick={(e) => { e.stopPropagation(); openTask(r.code); }}
-        className={"block w-full truncate text-left text-[11px] leading-tight px-1.5 py-0.5 rounded border-l-2 hover:bg-bg-muted cursor-grab active:cursor-grabbing " + (dragCode === r.code ? "opacity-40" : "")}
+        className={cn(
+          "block w-full truncate text-left text-[11px] leading-tight px-1.5 py-0.5 rounded-md border-l-2",
+          "transition-colors hover:bg-bg-muted/70 cursor-grab active:cursor-grabbing",
+          dragCode === r.code && "opacity-40"
+        )}
         style={{ borderLeftColor: pillColor(r) }}
-        title={`${r.code} · ${r.actionItem}`}
+        title={pillTitle(r, dl)}
       >
         {dl && hasTime(dl) && <span className="font-mono text-fg-subtle mr-1">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
         {r.actionItem}
+      </button>
+    );
+  }
+
+  // A rail chip (Overdue / No-deadline popovers) — same drag-to-schedule behaviour.
+  function RailChip({ r, tone }: { r: TaskRow; tone: Tone }) {
+    const dl = deadlineOf(r);
+    return (
+      <button
+        type="button"
+        draggable
+        onDragStart={(e) => startDrag(e, r.code)}
+        onDragEnd={() => { setDragCode(null); setOverKey(null); setRailOpen(null); }}
+        onClick={() => { setRailOpen(null); openTask(r.code); }}
+        className={cn(
+          "inline-flex items-center gap-1.5 max-w-[300px] text-[11px] px-2 py-1 rounded-md border-l-2",
+          "bg-bg-subtle/80 hover:bg-bg-muted transition-colors cursor-grab active:cursor-grabbing",
+          dragCode === r.code && "opacity-40"
+        )}
+        style={{ borderLeftColor: TONE[tone].stroke }}
+        title={pillTitle(r, dl)}
+      >
+        <span className="font-mono text-fg-muted shrink-0">{r.code}</span>
+        <span className="truncate">{r.actionItem}</span>
+        {tone === "danger" && dl && (
+          <span className="shrink-0 tabular text-danger font-medium">{overdueDays(dl, today)}d</span>
+        )}
       </button>
     );
   }
@@ -154,67 +205,59 @@ export function CalendarView({
   const dayLabel = dayOpen ? new Date(dayOpen + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : "";
 
   return (
-    <div className="space-y-3">
+    <Reveal className="space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Link href={buildHref(prev)} className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted" aria-label="Previous month"><ChevronLeft size={14} /></Link>
-          <Link href={buildHref(next)} className="inline-flex items-center justify-center h-7 w-7 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted" aria-label="Next month"><ChevronRight size={14} /></Link>
-          <Link href={todayHref} className="text-xs px-2 py-1 rounded-md text-fg-muted hover:text-fg hover:bg-bg-muted">Today</Link>
-          <div className="ml-2 text-sm font-medium">{monthLabel}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <LinkButton href={buildHref(prev)} variant="ghost" size="sm" className="w-8 px-0" aria-label="Previous month"><ChevronLeft size={15} /></LinkButton>
+          <LinkButton href={buildHref(next)} variant="ghost" size="sm" className="w-8 px-0" aria-label="Next month"><ChevronRight size={15} /></LinkButton>
+          <LinkButton href={todayHref} variant="ghost" size="sm" className="ml-0.5">Today</LinkButton>
+          <div className="ml-2 text-sm font-semibold tracking-tight">{monthLabel}</div>
         </div>
-        <div className="text-xs text-fg-subtle">
-          {rows.filter((r) => { const d = deadlineOf(r); return d && d >= first && d <= last; }).length} due this month
+        <div className="text-xs text-fg-subtle tabular">
+          {dueThisMonth} due this month
         </div>
       </div>
 
-      {/* No-deadline: compact button → hover/click popover (still drag-to-schedule) */}
-      {noDeadline.length > 0 && (
-        <div ref={railRef} className="relative inline-block" onMouseEnter={() => setRailOpen(true)}>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => setRailOpen((o) => !o)}
-          >
-            <CalendarOff size={12} /> No deadline <span className="tabular text-fg-subtle">· {noDeadline.length}</span>
-            <ChevronDown size={12} className={"opacity-50 transition-transform " + (railOpen ? "rotate-180" : "")} />
-          </Button>
-          <AnimatePresence>
-            {railOpen && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.97, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: -2 }} transition={spring}
-                style={{ transformOrigin: "top left" }}
-                className="absolute z-[60] mt-1.5 left-0 w-[340px] max-h-[52vh] overflow-y-auto glass glass-menu rounded-xl p-2"
-              >
-                <div className="text-[11px] text-fg-subtle px-1 pb-1.5">Drag any onto a day to schedule.</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {noDeadline.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      draggable
-                      onDragStart={(e) => { setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
-                      onDragEnd={() => { setDragCode(null); setOverKey(null); setRailOpen(false); }}
-                      onClick={() => { setRailOpen(false); openTask(r.code); }}
-                      className="text-[11px] px-2 py-1 rounded-md bg-bg-subtle hover:bg-bg-muted truncate max-w-[300px] cursor-grab active:cursor-grabbing"
-                      title={r.actionItem}
-                    >
-                      <span className="font-mono text-fg-muted mr-1">{r.code}</span>{r.actionItem}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+      {/* Rails: Overdue + No-deadline. Compact buttons → glass popovers; drag-to-schedule. */}
+      {(overdue.length > 0 || noDeadline.length > 0) && (
+        <div ref={railRef} className="flex flex-wrap items-center gap-2">
+          {overdue.length > 0 && (
+            <RailButton
+              open={railOpen === "overdue"}
+              onToggle={() => setRailOpen((o) => (o === "overdue" ? null : "overdue"))}
+              onEnter={() => setRailOpen("overdue")}
+              tone="danger"
+              icon={<CalendarClock size={12} />}
+              label="Overdue"
+              count={overdue.length}
+              hint="Drag any onto a day to reschedule."
+            >
+              {overdue.map((r) => <RailChip key={r.id} r={r} tone="danger" />)}
+            </RailButton>
+          )}
+          {noDeadline.length > 0 && (
+            <RailButton
+              open={railOpen === "none"}
+              onToggle={() => setRailOpen((o) => (o === "none" ? null : "none"))}
+              onEnter={() => setRailOpen("none")}
+              tone="muted"
+              icon={<CalendarOff size={12} />}
+              label="No deadline"
+              count={noDeadline.length}
+              hint="Drag any onto a day to schedule."
+            >
+              {noDeadline.map((r) => <RailChip key={r.id} r={r} tone="muted" />)}
+            </RailButton>
+          )}
         </div>
       )}
 
       {/* Grid */}
-      <div className="elevated bg-bg-elev rounded-xl overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-border">
+      <div className="elevated bg-bg-elev rounded-2xl overflow-hidden ring-1 ring-border/70">
+        <div className="grid grid-cols-7 border-b border-border/70">
           {weekdayLabels.map((w) => (
-            <div key={w} className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-fg-subtle text-center">{w}</div>
+            <div key={w} className="px-2 py-1.5 text-[10px] uppercase tracking-[0.12em] text-fg-subtle text-center">{w}</div>
           ))}
         </div>
         <div className="grid grid-cols-7">
@@ -230,17 +273,26 @@ export function CalendarView({
                 onDragLeave={() => setOverKey((s) => (s === k ? null : s))}
                 onDrop={(e) => { e.preventDefault(); if (dragCode) reschedule(dragCode, cell.date); setDragCode(null); setOverKey(null); }}
                 onClick={() => { if (items.length) setDayOpen(k); }}
-                className={
-                  "min-h-[104px] border-b border-r border-border last:border-r-0 p-1.5 space-y-1 transition-colors " +
-                  (items.length ? "cursor-pointer " : "") +
-                  (isOver ? "bg-accent/10 ring-1 ring-accent/40 ring-inset " : cell.inMonth ? "bg-bg-elev" : "bg-bg-subtle/40")
-                }
+                className={cn(
+                  "min-h-[104px] border-b border-r border-border/60 last:border-r-0 p-1.5 space-y-1 transition-colors",
+                  items.length && "cursor-pointer",
+                  isOver
+                    ? "bg-accent/10 ring-1 ring-accent/40 ring-inset"
+                    : isToday
+                      ? "bg-accent-soft/30"
+                      : cell.inMonth ? "bg-bg-elev hover:bg-bg-muted/30" : "bg-bg-subtle/40"
+                )}
               >
-                <div className={"text-[10px] tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full " + (isToday ? "bg-accent text-accent-fg font-semibold" : cell.inMonth ? "text-fg-muted" : "text-fg-subtle")}>
+                <div className={cn(
+                  "text-[10px] tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full",
+                  isToday ? "bg-accent text-accent-fg font-semibold" : cell.inMonth ? "text-fg-muted" : "text-fg-subtle"
+                )}>
                   {cell.date.getDate()}
                 </div>
                 {items.slice(0, 3).map((r) => <Pill key={r.id} r={r} />)}
-                {items.length > 3 && <div className="text-[10px] text-fg-subtle px-1 hover:text-accent">+{items.length - 3} more</div>}
+                {items.length > 3 && (
+                  <div className="text-[10px] text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - 3} more</div>
+                )}
               </div>
             );
           })}
@@ -258,26 +310,31 @@ export function CalendarView({
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setDayOpen(null)} className="fixed inset-0 z-[85] bg-black/45 backdrop-blur-[3px]" />
             <motion.div
               initial={{ opacity: 0, scale: 0.94, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={spring}
-              className="fixed z-[86] inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[420px] mx-auto max-h-[80svh] overflow-hidden flex flex-col glass glass-menu rounded-2xl"
+              className="fixed z-[86] inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[420px] mx-auto max-h-[80svh] overflow-hidden flex flex-col glass glass-menu elevated rounded-3xl"
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-                <div className="text-sm font-semibold">{dayLabel}<span className="text-fg-subtle font-normal"> · {dayItems.length}</span></div>
-                <button type="button" onClick={() => setDayOpen(null)} className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-fg-muted hover:bg-bg-muted"><X size={15} /></button>
+                <div className="text-sm font-semibold tracking-tight">{dayLabel}<span className="text-fg-subtle font-normal"> · {dayItems.length}</span></div>
+                <IconButton size="sm" onClick={() => setDayOpen(null)} aria-label="Close"><X size={15} /></IconButton>
               </div>
-              <div className="overflow-y-auto divide-y divide-border/60">
+              <div className="overflow-y-auto divide-y divide-border/50">
                 {dayItems.map((r) => {
                   const dl = deadlineOf(r);
+                  const st = statusTone(r.status);
                   return (
-                    <button key={r.id} type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="w-full text-left px-4 py-3 hover:bg-bg-muted/60 transition-colors flex items-start gap-2.5">
+                    <button key={r.id} type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="w-full text-left px-4 py-3 hover:bg-bg-muted/50 transition-colors flex items-start gap-2.5">
                       <span className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: pillColor(r) }} />
                       <span className="min-w-0 flex-1">
                         <span className="text-sm leading-snug line-clamp-2">{r.actionItem}</span>
                         {r.comments && r.comments.trim() && (
                           <span className="block text-xs text-fg-muted truncate mt-0.5">{r.comments}</span>
                         )}
-                        <span className="block text-xs text-fg-muted mt-0.5">
-                          {dl && hasTime(dl) && <span className="font-mono mr-1.5">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
-                          {r.code} · {r.companyName} · {r.status}
+                        <span className="block text-xs text-fg-subtle mt-1 inline-flex items-center gap-1.5">
+                          {dl && hasTime(dl) && <span className="font-mono">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
+                          <span>{r.code} · {r.companyName}</span>
+                          <span className={cn("inline-flex items-center gap-1", TONE[st].text)}>
+                            <span className="inline-block w-1 h-1 rounded-full" style={{ backgroundColor: TONE[st].stroke }} />
+                            {r.status}
+                          </span>
                         </span>
                       </span>
                       <ExternalLink size={14} className="text-fg-subtle shrink-0 mt-0.5" />
@@ -289,12 +346,62 @@ export function CalendarView({
           </>
         )}
       </AnimatePresence>
+    </Reveal>
+  );
+}
+
+/** A compact rail trigger that opens a glass popover of draggable chips. */
+function RailButton({
+  open, onToggle, onEnter, tone, icon, label, count, hint, children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  onEnter: () => void;
+  tone: Tone;
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  hint: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative inline-block" onMouseEnter={onEnter}>
+      <Button type="button" variant="secondary" size="sm" onClick={onToggle}>
+        <span className={tone === "danger" ? "text-danger" : ""}>{icon}</span>
+        {label}
+        <span className="tabular text-fg-subtle">· {count}</span>
+        <ChevronDown size={12} className={cn("opacity-50 transition-transform", open && "rotate-180")} />
+      </Button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: -2 }} transition={spring}
+            style={{ transformOrigin: "top left" }}
+            className="absolute z-[60] mt-1.5 left-0 w-[340px] max-h-[52vh] overflow-y-auto glass glass-menu elevated rounded-2xl p-2"
+          >
+            <div className="text-[11px] text-fg-subtle px-1 pb-1.5">{hint}</div>
+            <div className="flex flex-wrap gap-1.5">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function overdueDays(dl: Date, today: Date): number {
+  const a = new Date(dl); a.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.round((today.getTime() - a.getTime()) / 86400000));
+}
+
+function pillTitle(r: TaskRow, dl: Date | null): string {
+  const when = dl
+    ? dl.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + (hasTime(dl) ? ` ${pad(dl.getHours())}:${pad(dl.getMinutes())}` : "")
+    : "No deadline";
+  return `${r.code} · ${r.actionItem}\n${when} · ${r.status}`;
 }
 
 function parseMonth(s: string | undefined): { year: number; monthIdx: number } | null {
@@ -310,6 +417,14 @@ function parseMonth(s: string | undefined): { year: number; monthIdx: number } |
 function monthString(year: number, monthIdx: number): string {
   const d = new Date(year, monthIdx, 1);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+}
+
+function statusTone(s: string): Tone {
+  if (s === "Completed" || s === "Closed") return "success";
+  if (s === "Blocked" || s === "Escalated") return "danger";
+  if (s === "Waiting External" || s === "Under Review") return "warn";
+  if (s === "In Progress") return "info";
+  return "muted";
 }
 
 function pillColor(r: TaskRow): string {

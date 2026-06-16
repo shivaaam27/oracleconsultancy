@@ -69,12 +69,15 @@ function queryWithoutView(sp: Sp): string {
 export async function TasksSection({ sp }: { sp: Sp }) {
   // Hub Tasks tab is always global — no scope filtering. The scope cookie
   // applies to /task (standalone) but the hub shows all companies by design.
-  const [all, savedViews, taskSources, adminViews] = await Promise.all([
+  const [all, savedViews, taskSources, adminViews, peopleRows] = await Promise.all([
     getAllTasks(),
     getSavedViews(),
     getTaskSources(),
     sb.from("task_views").select("task_id,last_viewed_at").eq("viewer", "admin"),
+    sb.from("people").select("name").eq("active", true).order("name"),
   ]);
+  // Active people names for the quick-create assignee combobox suggestions.
+  const peopleNames = [...new Set((peopleRows.data ?? []).map((p) => p.name as string).filter(Boolean))];
 
   // Unread = activity since the owner last opened the task (powered by the
   // Seen system). Marks tasks where someone posted and you haven't looked.
@@ -120,6 +123,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const companyList = [...new Map(all.map((r) => [r.companyId, r.companyName])).entries()]
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  // Pre-select the actively-filtered company in quick-create (else first company).
+  const quickDefaultCompanyId = sp.company
+    ? companyList.find((c) => c.name === sp.company)?.id
+    : undefined;
   const priorities = ["Critical", "High", "Medium", "Low"];
 
   const baseForKpis = (showClosed ? all : all.filter((r) => r.status !== "Closed")).filter(
@@ -207,7 +214,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   return (
     <div className="space-y-4">
-      <TaskActions />
       <ViewPublisher codes={rows.map((r) => r.code)} label={viewLabel} />
       {/* Compact, table-first header — matches /people & /documents. The
           headline signals live in the sub-line + the chip rail below (which
@@ -347,6 +353,15 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         hasFilters={hasFilters}
         basePath="/"
         extraQuery="tab=tasks"
+      />
+
+      {/* Quick-create host: registers the nav-pill `+` page action + renders the
+          inline "Add a task…" row (list views only) and the QuickTaskPopover. */}
+      <TaskActions
+        companies={companyList}
+        people={peopleNames}
+        defaultCompanyId={quickDefaultCompanyId}
+        showInline={view === "table" || view === "board"}
       />
 
       {total === 0 && view !== "calendar" && view !== "timeline" ? (

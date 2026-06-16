@@ -1,11 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CalendarDays, Search, Users } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
+import { Reveal } from "@/components/reveal";
+import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { useToast } from "@/components/toast";
+import { TaskMetaLine, WaitingOnChip, PinnedMarker } from "@/components/task-meta-line";
+import { TaskUpdateLine } from "@/components/task-update-line";
+import { portalAddUpdate } from "@/app/portal/actions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
+import type { TaskRow } from "@/lib/queries";
+import { cn } from "@/lib/cn";
+
+/* ------------------------------------------------------------------ *
+ * Portal Tasks table — the staff/manager/director twin of the admin
+ * Aurora task list. Rows carry the same rich preview as the admin redesign
+ * (description + latest-activity line + waiting/pinned markers) and offer
+ * ROLE-SCOPED in-row status moves. Read-only for everything else.
+ *
+ * The in-row status mover posts through the existing `portalAddUpdate`
+ * action (the only portal status-move path) — it never touches the admin
+ * `inlineUpdateTask`, so it can't widen a staff member's permissions. The
+ * server re-checks the allowed set regardless of what the UI offers.
+ * ------------------------------------------------------------------ */
 
 export type PortalTaskRow = {
   id: number;
@@ -19,27 +40,143 @@ export type PortalTaskRow = {
   teamSize: number;
   mine: boolean;
   raisedByMe: boolean;
+  /* --- Optional Aurora preview enrichment (graceful when absent) ---
+   * The host can populate these to light up the rich preview. When they're
+   * undefined the row still renders cleanly (waiting/markers derive from
+   * the data we always have). */
+  description?: string | null;
+  latestActivity?: TaskRow["latestActivity"];
+  updateCount?: number;
+  pinned?: boolean;
 };
+
+/** A portal viewer's role. Drives the in-row status set offered. */
+export type PortalViewerRole = "staff" | "manager" | "hr" | "director";
 
 const OPEN_EXCLUDED = ["Completed", "Closed"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const selectCls =
   "rounded-xl bg-bg-subtle ring-1 ring-border px-2.5 py-1.5 text-xs font-medium focus:outline-none focus:ring-accent/50";
 
+// Mirrors the server rules in src/app/portal/actions.ts — staff signal "done"
+// via Under Review; managers/HR/directors may complete outright. The server is
+// the hard gate; this only keeps the UI honest.
+const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
+const MANAGER_STATUSES = [...STAFF_STATUSES, "Completed"];
+
+const STATUS_DOT: Record<string, string> = {
+  "Not Started": "hsl(var(--fg-subtle))",
+  "In Progress": "hsl(var(--info))",
+  "Under Review": "hsl(var(--warn))",
+  "Waiting External": "hsl(var(--warn))",
+  Blocked: "hsl(var(--danger))",
+  Escalated: "hsl(var(--danger))",
+  Completed: "hsl(var(--success))",
+  Closed: "hsl(var(--success))",
+};
+
 type Scope = "all" | "mine" | "raised";
+
+/** Shape a lean PortalTaskRow into the TaskRow fields the shared Aurora preview
+ *  components read. `waiting` is derived from status so the chip works even when
+ *  the host hasn't sent the richer fields yet. */
+function asPreview(t: PortalTaskRow): TaskRow {
+  return {
+    comments: t.description ?? null,
+    latestActivity: t.latestActivity ?? null,
+    updateCount: t.updateCount ?? 0,
+    pinned: t.pinned ?? false,
+    waiting: t.status === "Blocked" || t.status === "Waiting External",
+    status: t.status,
+    lastActivityISO: new Date(0).toISOString(),
+  } as unknown as TaskRow;
+}
+
+/* ------------------------------------------------------------------ *
+ * Role-scoped in-row status mover. Glass FluidSelect; posts via the portal
+ * action with a small recorded note. Optimistic-feel (transition + refresh)
+ * with a toast. No undo token (the portal action doesn't issue one) — but a
+ * follow-up move is one tap away, and the change is fully audited.
+ * ------------------------------------------------------------------ */
+function PortalInlineStatus({
+  row,
+  allowed,
+}: {
+  row: PortalTaskRow;
+  allowed: string[];
+}) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [pending, start] = useTransition();
+
+  // The viewer's allowed moves, minus the current status, in canonical order.
+  const options: FluidOption[] = useMemo(
+    () =>
+      allowed
+        .filter((s) => s !== row.status)
+        .map((s) => ({ value: s, label: s, dot: STATUS_DOT[s] })),
+    [allowed, row.status],
+  );
+
+  // The current status is always shown as the trigger value — but it might not
+  // be in `allowed` (e.g. "Not Started"), so include it as a non-selectable head.
+  const display: FluidOption[] = useMemo(() => {
+    const head: FluidOption = { value: row.status, label: row.status, dot: STATUS_DOT[row.status] };
+    return [head, ...options];
+  }, [row.status, options]);
+
+  function move(next: string) {
+    if (next === row.status || !allowed.includes(next)) return;
+    start(async () => {
+      const fd = new FormData();
+      fd.set("taskId", String(row.id));
+      fd.set("code", row.code);
+      fd.set("body", `Moved to ${next}.`);
+      fd.set("newStatus", next);
+      try {
+        await portalAddUpdate(fd);
+        toast(`Moved to ${next}.`, { tone: "success" });
+        router.refresh();
+      } catch {
+        toast("Couldn't change the status. Try again.", { tone: "danger" });
+      }
+    });
+  }
+
+  return (
+    <span
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      className={pending ? "opacity-60 pointer-events-none" : undefined}
+    >
+      <FluidSelect
+        value={row.status}
+        options={display}
+        onSelect={move}
+        align="right"
+        buttonClassName="px-2.5 py-1 text-xs"
+      />
+    </span>
+  );
+}
 
 export function PortalTasksTable({
   rows,
   canRaise,
+  viewerRole = "staff",
 }: {
   rows: PortalTaskRow[];
   canRaise: boolean;
+  /** The signed-in person's role — gates the in-row status set. Defaults to the
+   *  most restrictive (staff); the server enforces the real limit regardless. */
+  viewerRole?: PortalViewerRole;
 }) {
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("all");
   const [status, setStatus] = useState("open");
   const [company, setCompany] = useState("");
   const [priority, setPriority] = useState("");
+
+  const allowedStatuses = viewerRole === "staff" ? STAFF_STATUSES : MANAGER_STATUSES;
 
   const companies = useMemo(
     () => Array.from(new Set(rows.map((r) => r.companyName).filter(Boolean) as string[])).sort(),
@@ -134,21 +271,48 @@ export function PortalTasksTable({
         <Panel className="p-6 text-center text-sm text-fg-muted">No tasks match these filters.</Panel>
       ) : (
         <div className="flex flex-col gap-2">
-          {filtered.map((t) => {
-            const od = t.deadline && new Date(t.deadline) < now && !OPEN_EXCLUDED.includes(t.status);
+          {filtered.map((t, i) => {
+            const closed = OPEN_EXCLUDED.includes(t.status);
+            const od = t.deadline && new Date(t.deadline) < now && !closed;
+            const preview = asPreview(t);
+            // Only offer an in-row move when there's somewhere this viewer may go.
+            const canMove = !closed && allowedStatuses.some((s) => s !== t.status);
             return (
-              <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
-                <Panel className="p-3.5 transition-shadow group-hover:ring-accent/40">
+              <Reveal key={t.id} delay={Math.min(i, 8) * 0.02}>
+                <Panel className={cn("p-3.5 transition-shadow hover:ring-accent/40", closed && "opacity-70")}>
+                  {/* Line 1: code · company · markers — status (editable for some) + priority */}
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
-                    {t.companyName && <span className="text-xs text-fg-subtle">· {t.companyName}</span>}
+                    <Link href={`/portal/task/${t.code}`} className="inline-flex items-center gap-1.5 min-w-0 group">
+                      <span className="text-xs font-semibold tabular text-fg-muted group-hover:text-fg transition-colors">{t.code}</span>
+                      {t.companyName && <span className="text-xs text-fg-subtle truncate">· {t.companyName}</span>}
+                    </Link>
+                    <PinnedMarker task={preview} />
                     {t.raisedByMe && <Badge tone="default">Raised by me</Badge>}
                     <span className="grow" />
-                    <Badge tone={statusTone(t.status)}>{t.status}</Badge>
+                    {canMove ? (
+                      <PortalInlineStatus row={t} allowed={allowedStatuses} />
+                    ) : (
+                      <Badge tone={statusTone(t.status)}>{t.status}</Badge>
+                    )}
                     <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
                   </div>
-                  <p className="mt-1.5 text-sm font-medium leading-snug">{t.actionItem}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+
+                  {/* Line 2: the task title — taps through to the detail page */}
+                  <Link href={`/portal/task/${t.code}`} className="block group">
+                    <p className="mt-1.5 text-sm font-medium leading-snug group-hover:text-accent transition-colors">{t.actionItem}</p>
+                  </Link>
+
+                  {/* Line 3: the "About" description (when present) */}
+                  <TaskMetaLine task={preview} className="mt-1.5" />
+
+                  {/* Line 4: latest-activity line → taps to the conversation */}
+                  <Link href={`/portal/task/${t.code}#conversation`} className="mt-1.5 block w-fit max-w-full">
+                    <TaskUpdateLine task={preview} />
+                  </Link>
+
+                  {/* Line 5: owner / team / deadline / waiting */}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
+                    <WaitingOnChip task={preview} on={t.ownerName} />
                     {t.ownerName && <span>Owner: {t.ownerName}</span>}
                     {t.teamSize > 1 && (
                       <span>
@@ -165,7 +329,7 @@ export function PortalTasksTable({
                     )}
                   </div>
                 </Panel>
-              </Link>
+              </Reveal>
             );
           })}
         </div>

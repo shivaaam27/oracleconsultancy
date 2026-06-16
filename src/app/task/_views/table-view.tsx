@@ -1,24 +1,28 @@
 "use client";
 
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ExternalLink, CheckCircle2, AlertOctagon, Clock } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
-import { flagLabel } from "@/lib/derive";
-import { TableShell, Th, Td, Badge } from "@/components/ui";
-import { InlineEdit } from "@/components/inline-edit";
-import { Deadline } from "@/components/deadline";
+import { Badge } from "@/components/ui";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { AssigneeList } from "@/components/assignee-list";
+import { DeadlineEditor } from "@/components/deadline-editor";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { TaskContext } from "@/components/task-context";
 import { SnoozeSheet } from "@/components/snooze-sheet";
 import { PeekQuickUpdate } from "@/components/peek-quick-update";
 import { TaskCard } from "@/components/task-card";
+import { Reveal } from "@/components/reveal";
+import { TaskUpdateLine } from "@/components/task-update-line";
+import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
+import { TaskRowActions } from "@/components/task-row-actions";
+import { TaskInlineStatus, TaskInlinePriority } from "@/components/task-inline-edit";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
+import { cn } from "@/lib/cn";
 
 function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
   if (p === "Critical") return "danger";
@@ -35,28 +39,46 @@ function statusTone(s: string): "default" | "success" | "warn" | "danger" | "inf
   return "default";
 }
 
-function flagBadgeTone(f: string): "default" | "success" | "warn" | "danger" | "info" {
-  switch (f) {
-    case "closed": return "default";
-    case "escalated":
-    case "escalate-now":
-    case "overdue":
-    case "stalled": return "danger";
-    case "due-soon":
-    case "no-deadline":
-    case "aging": return "warn";
-    case "on-track": return "success";
-    default: return "default";
-  }
+/** Small priority dot colour — the row's leading severity glyph. */
+function priorityDot(p: string): string {
+  if (p === "Critical") return "bg-danger";
+  if (p === "High") return "bg-warn";
+  if (p === "Medium") return "bg-info";
+  return "bg-fg-subtle";
 }
 
-/** Wrap interactive cell content so clicks don't bubble to the row (which opens the drawer). */
+/** Human "Due in 3d / Overdue 9d / Due today" line from daysToDeadline. */
+function dueLabel(d: number | "done" | null): { text: string; tone: string } | null {
+  if (d === "done") return { text: "Done", tone: "text-success" };
+  if (d === null || typeof d !== "number") return null;
+  if (d < 0) return { text: `Overdue ${Math.abs(d)}d`, tone: "text-danger font-medium" };
+  if (d === 0) return { text: "Due today", tone: "text-warn font-medium" };
+  if (d <= 7) return { text: `Due in ${d}d`, tone: "text-warn" };
+  return { text: `Due in ${d}d`, tone: "text-fg-muted" };
+}
+
+/** Wrap interactive cell content so clicks don't bubble to the row (opens drawer). */
 function Stop({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <span className={className} onClick={(e) => e.stopPropagation()}>
       {children}
     </span>
   );
+}
+
+/** React to the global density toggle (data-density on <html>) so Compact rows
+ *  collapse lines 2–3 and reveal them on hover. Mirrors DensityToggle. */
+function useDensity(): "comfortable" | "compact" {
+  const [d, setD] = useState<"comfortable" | "compact">("comfortable");
+  useEffect(() => {
+    const read = () =>
+      setD(document.documentElement.getAttribute("data-density") === "compact" ? "compact" : "comfortable");
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-density"] });
+    return () => obs.disconnect();
+  }, []);
+  return d;
 }
 
 type GroupBy = "company" | "status" | "person" | null;
@@ -83,6 +105,8 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const density = useDensity();
+  const compact = density === "compact";
 
   const [peek, setPeek] = useState<TaskRow | null>(null);
   const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
@@ -90,9 +114,11 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
 
-  function openTask(code: string) {
+  function openTask(code: string, tab?: "conversation") {
     const params = new URLSearchParams(searchParams.toString());
     params.set("task", code);
+    if (tab) params.set("tab", tab);
+    else params.delete("tab");
     params.delete("person");
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
@@ -166,105 +192,131 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
         ))}
       </div>
 
-      {/* Desktop: the full table */}
-      <TableShell className="hidden sm:block">
-        <table className="w-full min-w-[760px]">
-          <thead>
-            <tr>
-              <Th> </Th>
-              <Th>ID</Th>
-              {!hideCompany && <Th>Company</Th>}
-              <Th>Action Item</Th>
-              <Th>Accountable</Th>
-              <Th>Deadline</Th>
-              <Th>Status</Th>
-              <Th>Priority</Th>
-              <Th align="right">DTD</Th>
-              <Th>Flag</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
+      {/* Desktop: soft Aurora rich-row list (no hard table box). */}
+      <div className="hidden sm:block elevated rounded-2xl bg-bg-elev/40 ring-1 ring-border/50 overflow-hidden">
+        <ul className="divide-y divide-border/50">
+          {rows.map((r, i) => {
+            const done = r.status === "Completed" || r.status === "Closed";
+            const due = dueLabel(r.daysToDeadline);
+            const startsGroup = headerAt.has(r.id);
+            return (
               <Fragment key={r.id}>
-              {headerAt.has(r.id) && (
-                <tr className="bg-bg-subtle/50">
-                  <td colSpan={hideCompany ? 9 : 10} className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+                {startsGroup && (
+                  <li className="bg-bg-subtle/50 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
                     {headerAt.get(r.id)}
-                  </td>
-                </tr>
-              )}
-              <tr
-                onPointerDown={(e) => onRowPointerDown(r, e)}
-                onPointerMove={onRowPointerMove}
-                onPointerUp={clearPress}
-                onPointerLeave={clearPress}
-                onPointerCancel={clearPress}
-                onContextMenu={(e) => e.preventDefault()}
-                onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
-                className="hover:bg-bg-subtle transition-colors group cursor-pointer select-none"
-              >
-                <Td className="w-6 pr-0">
-                  <Stop><SelectCheckbox code={r.code} /></Stop>
-                </Td>
-                <Td className="whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5">
-                    {r.unread && <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent" />}
-                    <span className="inline-flex items-center font-mono text-[11px] font-medium tracking-wide tabular px-1.5 py-0.5 rounded-md bg-bg-subtle/70 text-fg-muted ring-1 ring-border/50 transition-colors group-hover:text-accent group-hover:ring-accent/30">{r.code}</span>
-                  </span>
-                </Td>
-                {!hideCompany && (
-                  <Td className="whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: r.companyAccent || "transparent" }} />
-                      {r.companyName}
-                    </span>
-                  </Td>
+                  </li>
                 )}
-                <Td className="max-w-md">
-                  <span className="block group-hover:text-accent">{r.actionItem}</span>
-                  {r.comments && r.comments.trim() && (
-                    <span className="block text-xs text-fg-muted truncate mt-0.5">{r.comments}</span>
-                  )}
-                </Td>
-                <Td className="whitespace-nowrap text-fg-muted">
-                  <Stop><AssigneeList names={r.assignees} ids={r.assigneeIds} /></Stop>
-                </Td>
-                <Td className="whitespace-nowrap">
-                  <Stop>
-                    <InlineEdit field="deadline" taskCode={r.code} value={r.deadline ? r.deadline.toISOString() : null}>
-                      <Deadline date={r.deadline} />
-                    </InlineEdit>
-                  </Stop>
-                </Td>
-                <Td className="whitespace-nowrap">
-                  <Stop>
-                    <InlineEdit field="status" taskCode={r.code} value={r.status}>
-                      <Badge tone={statusTone(r.status)}>{r.status}</Badge>
-                    </InlineEdit>
-                  </Stop>
-                </Td>
-                <Td className="whitespace-nowrap">
-                  <Stop>
-                    <InlineEdit field="priority" taskCode={r.code} value={r.priority}>
-                      <Badge tone={priorityTone(r.priority)}>{r.priority}</Badge>
-                    </InlineEdit>
-                  </Stop>
-                </Td>
-                <Td
-                  align="right"
-                  className={typeof r.daysToDeadline === "number" && r.daysToDeadline < 0 ? "text-danger font-medium" : "text-fg-muted"}
-                >
-                  {r.daysToDeadline === "done" ? "✓" : r.daysToDeadline ?? ""}
-                </Td>
-                <Td>
-                  <Badge tone={flagBadgeTone(r.flag)}>{flagLabel[r.flag]}</Badge>
-                </Td>
-              </tr>
+                <li>
+                  <Reveal delay={Math.min(i, 12) * 0.012}>
+                    <div
+                      onPointerDown={(e) => onRowPointerDown(r, e)}
+                      onPointerMove={onRowPointerMove}
+                      onPointerUp={clearPress}
+                      onPointerLeave={clearPress}
+                      onPointerCancel={clearPress}
+                      onContextMenu={(e) => e.preventDefault()}
+                      onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
+                      className={cn(
+                        "group relative cursor-pointer select-none px-3 sm:px-4 py-2.5 transition-colors",
+                        "hover:bg-bg-subtle/70 focus-within:bg-bg-subtle/50",
+                        done && "opacity-60",
+                      )}
+                    >
+                      {/* Line 1 — the glanceable row */}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Stop className="shrink-0"><SelectCheckbox code={r.code} /></Stop>
+
+                        {/* priority dot */}
+                        <span
+                          title={`${r.priority} priority`}
+                          className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))}
+                        />
+
+                        {/* new-activity dot */}
+                        {r.unread && (
+                          <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
+                        )}
+
+                        {/* code chip */}
+                        <span className="shrink-0 inline-flex items-center font-mono text-[11px] font-medium tracking-wide tabular px-1.5 py-0.5 rounded-md bg-bg-subtle/70 text-fg-muted ring-1 ring-border/50 transition-colors group-hover:text-accent group-hover:ring-accent/30">
+                          {r.code}
+                        </span>
+
+                        {/* company dot (when shown) */}
+                        {!hideCompany && (
+                          <span className="hidden md:inline-flex items-center gap-1.5 shrink-0 text-[11px] text-fg-muted max-w-[9rem] truncate">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.companyAccent || "transparent" }} />
+                            <span className="truncate">{r.companyName}</span>
+                          </span>
+                        )}
+
+                        {/* title */}
+                        <span className="min-w-0 flex-1 flex items-center gap-1.5">
+                          <PinnedMarker task={r} className="shrink-0" />
+                          <span className="truncate text-sm group-hover:text-accent transition-colors">{r.actionItem}</span>
+                        </span>
+
+                        {/* waiting-on chip (Blocked / Waiting External) */}
+                        <WaitingOnChip task={r} on={r.owner} className="hidden lg:inline-flex shrink-0" />
+
+                        {/* status (inline glass) */}
+                        <Stop className="hidden md:inline-flex shrink-0">
+                          <TaskInlineStatus task={r} align="right" buttonClassName="text-[11px]" />
+                        </Stop>
+
+                        {/* priority (inline glass) — hidden on smaller desktop to save width */}
+                        <Stop className="hidden xl:inline-flex shrink-0">
+                          <TaskInlinePriority task={r} align="right" buttonClassName="text-[11px]" />
+                        </Stop>
+
+                        {/* deadline */}
+                        <Stop className="shrink-0">
+                          <DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} />
+                        </Stop>
+
+                        {/* due-in / overdue */}
+                        {due && (
+                          <span className={cn("hidden lg:inline text-[11px] tabular shrink-0", due.tone)}>{due.text}</span>
+                        )}
+
+                        {/* assignee avatars */}
+                        {r.assignees.length > 0 && (
+                          <Stop className="hidden md:inline-flex shrink-0 max-w-[10rem] truncate text-[11px] text-fg-muted">
+                            <AssigneeList names={r.assignees} ids={r.assigneeIds} />
+                          </Stop>
+                        )}
+
+                        {/* row actions — revealed on hover (always present on focus for a11y) */}
+                        <Stop className="shrink-0 ml-auto md:ml-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                          <TaskRowActions task={r} onDone={() => router.refresh()} />
+                        </Stop>
+                      </div>
+
+                      {/* Lines 2 + 3 — description + latest update.
+                          Comfortable: always shown. Compact: revealed on hover. */}
+                      <div
+                        className={cn(
+                          "mt-1.5 pl-[2.6rem] space-y-0.5",
+                          compact && "hidden group-hover:block",
+                        )}
+                      >
+                        <TaskMetaLine task={r} />
+                        <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
+                      </div>
+
+                      {/* Mobile-narrow desktop fallback: status pill always visible below md */}
+                      <div className="md:hidden mt-1.5 pl-[2.6rem] flex items-center gap-1.5">
+                        <Badge tone={statusTone(r.status)}>{r.status}</Badge>
+                        <Badge tone={priorityTone(r.priority)}>{r.priority}</Badge>
+                      </div>
+                    </div>
+                  </Reveal>
+                </li>
               </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </TableShell>
+            );
+          })}
+        </ul>
+      </div>
 
       <PeekPreview
         open={!!peek}

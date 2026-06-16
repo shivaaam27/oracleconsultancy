@@ -26,7 +26,10 @@ export type TaskRow = {
   category: string | null;
   risk: string | null;
   escalation: string | null;
+  /** Task description / "About" (the `tasks.comments` column). Reused by TaskMetaLine. */
   comments: string | null;
+  /** Denormalised body of the newest update (`tasks.latest_update`). String only —
+   *  unchanged for back-compat. For the rich Aurora row use `latestActivity`. */
   latestUpdate: string | null;
   lastUpdatedAt: Date | null;
   closedDate: Date | null;
@@ -35,6 +38,26 @@ export type TaskRow = {
   flag: ReturnType<typeof flag>;
   /** Set by the hub when the owner has unseen activity (Seen system). */
   unread?: boolean;
+
+  /* --- Aurora row enrichment (batched in getAllTasks; no N+1) --- */
+  /** The newest non-deleted task_updates row, author-resolved. Null = no updates yet.
+   *  `kind: "status"` when the update recorded a status change (renders "moved to X").
+   *  `id` is the task_updates row id (for pinning the latest update from a row menu). */
+  latestActivity: {
+    id: number;
+    body: string;
+    author: string;
+    atISO: string;
+    kind: "comment" | "status";
+  } | null;
+  /** Count of non-deleted task_updates for this task (the 💬 N chip). */
+  updateCount: number;
+  /** True when any non-deleted update on this task is pinned (📌 marker). */
+  pinned: boolean;
+  /** ISO of the latest signal of life: max(created, last_updated, newest update). */
+  lastActivityISO: string;
+  /** True when status is Blocked or Waiting External (drives the "Waiting on…" chip). */
+  waiting: boolean;
 };
 
 // Migrated to Supabase JS (HTTP / PostgREST) — no persistent socket, no
@@ -66,9 +89,49 @@ type SbCompany = { id: number; name: string; accent_color: string | null };
 type SbDept = { id: number; name: string };
 type SbPerson = { id: number; name: string };
 type SbAssignee = { task_id: number; person_id: number };
+type SbUpdate = {
+  id: number;
+  task_id: number;
+  body: string;
+  created_at: string;
+  created_by: string | null;
+  pinned_at: string | null;
+};
 
 function toDate(s: string | null): Date | null {
   return s ? new Date(s) : null;
+}
+
+/** Resolve a `created_by` stamp to a display author (owner perspective).
+ *  Mirrors resolveAuthor in src/lib/activity.ts — keep the two in step. */
+function resolveUpdateAuthor(by: string | null): string {
+  if (!by) return "System";
+  if (by === "ai-command") return "ORI";
+  if (by === "meeting-mode") return "Meeting";
+  if (by === "web-ui") return "You";
+  if (by.startsWith("portal-dir:")) return by.slice(11);
+  if (by.startsWith("portal-mgr:")) return by.slice(11);
+  if (by.startsWith("portal-hr:")) return by.slice(10);
+  if (by.startsWith("portal:")) return by.slice(7);
+  return "Management";
+}
+
+/** Heuristic: did this update record a status change? Status-change updates are
+ *  written with a "moved to X" / "Status → X" shape by the conversation actions,
+ *  and the audit trail carries the canonical Status row. We detect the common
+ *  phrasings so the row can render an arrow + "moved to X" instead of a quote. */
+const STATUS_NAMES = [
+  "Not Started", "In Progress", "Under Review", "Blocked",
+  "Waiting External", "Escalated", "Completed", "Closed",
+];
+function detectStatusChange(body: string): boolean {
+  const b = body.trim();
+  if (/\b(moved|changed|set|marked)\b.*\b(to|as)\b/i.test(b) && STATUS_NAMES.some((s) => b.includes(s))) {
+    return true;
+  }
+  // "Status → Completed" / "Status: Completed"
+  if (/^status\s*[:→-]/i.test(b) && STATUS_NAMES.some((s) => b.includes(s))) return true;
+  return false;
 }
 
 export type TaskSource = { meetingId: number; title: string; kind: string };
@@ -112,12 +175,15 @@ export const getRecentActivity = cache(async (limit = 160): Promise<RawActivity>
 });
 
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
-  const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, settings] = await Promise.all([
+  const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, updatesRes, settings] = await Promise.all([
     sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("departments").select("id,name"),
     sb.from("people").select("id,name"),
     sb.from("task_assignees").select("task_id,person_id"),
+    // One batched read of every live update, newest first, for the rich-row
+    // enrichment (latest update + count + pinned). No per-task query (no N+1).
+    sb.from("task_updates").select("id,task_id,body,created_at,created_by,pinned_at").is("deleted_at", null).order("created_at", { ascending: false }),
     getAppSettings(),
   ]);
   const thresholds = {
@@ -138,6 +204,18 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
   const depts = (deptsRes.data ?? []) as SbDept[];
   const people = (peopleRes.data ?? []) as SbPerson[];
   const assignees = (assigneesRes.data ?? []) as SbAssignee[];
+  const updates = (updatesRes.data ?? []) as SbUpdate[];
+
+  // Fold updates per task in a single pass. `updates` is newest-first, so the
+  // first row we see for a task is its latest; we still tally count + pinned.
+  const latestByTask = new Map<number, SbUpdate>();
+  const countByTask = new Map<number, number>();
+  const pinnedByTask = new Set<number>();
+  for (const u of updates) {
+    if (!latestByTask.has(u.task_id)) latestByTask.set(u.task_id, u);
+    countByTask.set(u.task_id, (countByTask.get(u.task_id) ?? 0) + 1);
+    if (u.pinned_at) pinnedByTask.add(u.task_id);
+  }
 
   const cName = new Map(companies.map((c) => [c.id, c.name]));
   const cAccent = new Map(companies.map((c) => [c.id, c.accent_color]));
@@ -159,6 +237,27 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
     const createdDate = toDate(t.created_date);
     const closedDate = toDate(t.closed_date);
     const derived = { status: t.status, priority: t.priority, createdDate, deadline, closedDate };
+
+    const latest = latestByTask.get(t.id) ?? null;
+    const latestActivity = latest
+      ? {
+          id: latest.id,
+          body: (latest.body ?? "").trim(),
+          author: resolveUpdateAuthor(latest.created_by),
+          atISO: latest.created_at,
+          kind: detectStatusChange(latest.body ?? "") ? ("status" as const) : ("comment" as const),
+        }
+      : null;
+    // Latest signal of life across the three timestamps we hold.
+    const lastActivityISO = [
+      latest?.created_at ?? null,
+      t.last_updated_at,
+      t.created_date,
+    ]
+      .filter((s): s is string => Boolean(s))
+      .sort()
+      .at(-1) ?? new Date(0).toISOString();
+
     return {
       id: t.id,
       code: t.code,
@@ -187,6 +286,11 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
       daysOpen: daysOpen(derived),
       daysToDeadline: daysToDeadline(derived),
       flag: flag(derived, thresholds),
+      latestActivity,
+      updateCount: countByTask.get(t.id) ?? 0,
+      pinned: pinnedByTask.has(t.id),
+      lastActivityISO,
+      waiting: t.status === "Blocked" || t.status === "Waiting External",
     };
   });
 });
