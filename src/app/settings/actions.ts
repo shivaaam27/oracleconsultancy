@@ -249,9 +249,9 @@ export async function sendDirectorBriefNow(): Promise<void> {
   const email = briefEmail(data);
   if (cfg?.fromAddress) {
     const { sendEmail } = await import("@/lib/email/send");
-    const { renderEmail } = await import("@/lib/email/layout");
+    const { renderEmail, senderName } = await import("@/lib/email/layout");
     const html = renderEmail(briefEmailDoc(data));
-    const res = await sendEmail({ to: cfg.fromAddress, subject: email.subject, text: email.body, html });
+    const res = await sendEmail({ to: cfg.fromAddress, subject: email.subject, text: email.body, html, fromName: senderName("admin") });
     await sb.from("outbox").insert({
       channel: "EMAIL", recipient_name: cfg.fromName || "Owner", recipient_contact: cfg.fromAddress,
       subject: email.subject, body: email.body, message_type: "DIRECTOR BRIEF",

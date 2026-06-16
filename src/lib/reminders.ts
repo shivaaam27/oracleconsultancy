@@ -8,7 +8,7 @@ import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { buildTaskReminderDoc, buildEmailMessage } from "@/lib/outbox/gen";
-import { renderEmail, type EmailOffice } from "@/lib/email/layout";
+import { renderEmail, senderName, type EmailOffice } from "@/lib/email/layout";
 import { sendEmail } from "@/lib/email/send";
 
 export type ReminderSender = {
@@ -16,6 +16,8 @@ export type ReminderSender = {
   office?: EmailOffice;
   /** Sender's name, shown above the office line (e.g. a manager). */
   name?: string | null;
+  /** Sender's own email — set as Reply-To so replies reach them (portal sends). */
+  replyTo?: string | null;
   /** For the sent-log source stamp, e.g. "admin" or "portal-mgr:Jane". */
   sourceTag?: string;
 };
@@ -55,8 +57,13 @@ export async function sendTaskReminderEmail(opts: {
     note,
   });
   const text = (note ? `${note}\n\n` : "") + buildEmailMessage(name, rows);
+  const subject = "Your Outstanding Tasks";
 
-  const res = await sendEmail({ to: email, subject: "Your tasks", text, html: renderEmail(doc) });
+  const res = await sendEmail({
+    to: email, subject, text, html: renderEmail(doc),
+    fromName: senderName(opts.sender?.office),
+    replyTo: opts.sender?.replyTo ?? undefined,
+  });
   if (!res.ok) {
     if (res.reason === "not-configured") return { ok: false, reason: "not-configured" };
     return { ok: false, reason: "error", error: res.error };
@@ -67,7 +74,7 @@ export async function sendTaskReminderEmail(opts: {
     channel: "EMAIL",
     recipient_name: name,
     recipient_contact: email,
-    subject: "Your tasks",
+    subject,
     body: text,
     message_type: "TASK REMINDER",
     status: "Sent",

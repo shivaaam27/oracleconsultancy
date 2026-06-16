@@ -6,7 +6,7 @@ import { sb } from "@/db/supabase";
 import type { AutomationConfig, EmailCategory, RuleMode } from "./types";
 import type { TaskRow } from "@/lib/queries";
 import type { BriefData } from "@/lib/director-brief";
-import { renderEmail, type EmailDoc } from "@/lib/email/layout";
+import { renderEmail, senderName, type EmailDoc } from "@/lib/email/layout";
 
 /* --------------------------------- clock --------------------------------- */
 /** EAT (UTC+3) hour right now. */
@@ -100,7 +100,7 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
       const html = opts?.doc ? renderEmail(opts.doc) : undefined;
       if (cfg2 && to) {
         const { sendEmail } = await import("@/lib/email/send");
-        const res = await sendEmail({ to, subject, text, html, attachments: opts?.attachments });
+        const res = await sendEmail({ to, subject, text, html, fromName: senderName(opts?.doc?.office), attachments: opts?.attachments });
         if (res.ok) {
           await sb.from("outbox").insert({
             channel: "EMAIL", recipient_name: cfg2.fromName || "Owner", recipient_contact: to,
@@ -122,7 +122,7 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
       if (!toEmail) return { sent: 0, skipped: 1 };
       const { sendEmail } = await import("@/lib/email/send");
       const html = opts?.doc ? renderEmail(opts.doc) : undefined;
-      const res = await sendEmail({ to: toEmail, subject, text, html });
+      const res = await sendEmail({ to: toEmail, subject, text, html, fromName: senderName(opts?.doc?.office) });
       return res.ok ? { sent: 1, skipped: 0 } : { sent: 0, skipped: 1 };
     },
   };

@@ -2,7 +2,7 @@
 // the real email sender, and log a Sent row to the Outbox.
 
 import { sb } from "@/db/supabase";
-import { renderEmail, type EmailDoc, type EmailOffice } from "@/lib/email/layout";
+import { renderEmail, senderName, type EmailDoc, type EmailOffice } from "@/lib/email/layout";
 import { sendEmail } from "@/lib/email/send";
 import { appBaseUrl } from "@/lib/app-url";
 
@@ -56,7 +56,7 @@ export async function sendDocumentRequestEmail(opts: {
     `Hi ${first},\n\nPlease send us the following documents:\n${items.map((r) => `• ${r.label}`).join("\n")}\n\n` +
     `Upload them in the staff portal (${appBaseUrl()}/portal) or simply reply to this email with the files attached.\n\nThank you.`;
 
-  const res = await sendEmail({ to: email, subject: "Documents needed", text, html: renderEmail(doc) });
+  const res = await sendEmail({ to: email, subject: "Documents needed", text, html: renderEmail(doc), fromName: senderName(opts.sender?.office) });
   if (!res.ok) return res.reason === "not-configured" ? { ok: false, reason: "not-configured" } : { ok: false, reason: "error", error: res.error };
 
   const now = new Date().toISOString();
@@ -128,7 +128,7 @@ export async function sendDocumentRenewalNotice(opts: {
     `${expired ? "Renewal overdue" : "Renewal due"}: ${title}${companyName ? ` (${companyName})` : ""} — ${expired ? "expired" : "expires"} ${expiryLabel}.\n\n` +
     `Please arrange the renewal. Once renewed, upload it in the portal (${appBaseUrl()}/portal) or reply to this email with the file attached.\n\nThank you.`;
 
-  const res = await sendEmail({ to: toEmail, subject: `Renewal ${expired ? "overdue" : "due"}: ${title}`, text, html: renderEmail(doc) });
+  const res = await sendEmail({ to: toEmail, subject: `Renewal ${expired ? "overdue" : "due"}: ${title}`, text, html: renderEmail(doc), fromName: senderName(opts.sender?.office) });
   if (!res.ok) return res.reason === "not-configured" ? { ok: false, reason: "not-configured" } : { ok: false, reason: "error", error: res.error };
 
   const now = new Date().toISOString();

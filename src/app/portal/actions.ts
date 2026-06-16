@@ -354,7 +354,10 @@ export async function portalSendReminderEmail(
   const res = await sendTaskReminderEmail({
     personId,
     note,
-    sender: { office, name: me.name, sourceTag: `portal-${tag}:${me.name}` },
+    // Reply-To = the sender's own email so a staff reply reaches them, not admin.
+    // (The from ADDRESS stays admin@oracle.co.tz until the domain is verified for
+    // true send-as; the display name already shows their office.)
+    sender: { office, name: me.name, replyTo: me.email, sourceTag: `portal-${tag}:${me.name}` },
   });
   if (res.ok) {
     await recordEvent("portal.reminder.email", "ok", { by: me.name, role, personId });

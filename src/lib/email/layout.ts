@@ -21,6 +21,19 @@ export const OFFICE_LABELS: Record<EmailOffice, string> = {
 
 const COMPANY_LEGAL_NAME = "Oracle Consultancy Limited";
 
+/**
+ * The inbox "from" display name for who sent it. Director/Manager portal sends
+ * carry their office; everything else (admin + all automations + compliance/HR)
+ * sends as the Admin's Office. ("OC" = Oracle Consultancy.)
+ */
+export function senderName(office?: EmailOffice): string {
+  return office === "director"
+    ? "OC Director's Office"
+    : office === "manager"
+      ? "OC Manager's Office"
+      : "OC Admin's Office";
+}
+
 export type EmailStat = { value: string | number; label: string; danger?: boolean };
 export type EmailRow = { left: string; right?: string };
 export type EmailItem = { pill?: { label: string; tone: EmailTone }; title: string; meta?: string };

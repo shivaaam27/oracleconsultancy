@@ -49,13 +49,13 @@ export const taskRemindersCategory: CategoryDef = {
       if (mode === "auto") {
         if (!person.email) { skipped++; continue; }
         if (budget <= 0) { skipped++; continue; }
-        const r = await ctx.sendToPerson(person.email, "Your tasks", text, { doc });
+        const r = await ctx.sendToPerson(person.email, "Your Outstanding Tasks", text, { doc });
         sent += r.sent; skipped += r.skipped; budget -= r.sent;
         if (r.sent > 0) {
           const iso = new Date().toISOString();
           await sb.from("outbox").insert({
             channel: "EMAIL", recipient_name: person.name, recipient_contact: person.email,
-            subject: "Your tasks", body: text, message_type: "AUTOMATION", status: "Sent",
+            subject: "Your Outstanding Tasks", body: text, message_type: "AUTOMATION", status: "Sent",
             source: SOURCE, person_id: pid, created_at: iso, sent_at: iso,
           });
         }
@@ -63,7 +63,7 @@ export const taskRemindersCategory: CategoryDef = {
         // PREPARE: leave an Outbox draft to review and send by hand.
         await sb.from("outbox").insert({
           channel: "EMAIL", recipient_name: person.name, recipient_contact: person.email,
-          subject: "Your tasks", body: text, message_type: "TASK REMINDER", status: "Draft",
+          subject: "Your Outstanding Tasks", body: text, message_type: "TASK REMINDER", status: "Draft",
           source: SOURCE, person_id: pid, created_at: new Date().toISOString(),
         });
         prepared++;

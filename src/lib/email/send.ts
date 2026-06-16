@@ -28,6 +28,13 @@ export type SendEmailInput = {
   html?: string;
   text?: string;
   replyTo?: string;
+  /**
+   * Override the sender DISPLAY name (e.g. "OC Director's Office"). The sending
+   * ADDRESS stays the configured one (admin@oracle.co.tz) — we can only change the
+   * address itself once the domain is verified for send-as. Pair with replyTo so
+   * replies reach the real sender.
+   */
+  fromName?: string;
   attachments?: EmailAttachment[];
   /**
    * A calendar invitation to embed *inline* (not as a plain attachment) so Gmail/
@@ -154,7 +161,7 @@ async function sendViaSmtp(
       auth: { user: cfg.user, pass: cfg.pass },
     });
     const info = await transport.sendMail({
-      from: cfg.from,
+      from: input.fromName ? `${input.fromName} <${cfg.fromAddress}>` : cfg.from,
       to,
       subject: input.subject,
       text: input.text,
@@ -189,7 +196,7 @@ async function sendViaResend(
   input: SendEmailInput
 ): Promise<SendEmailResult> {
   const body: Record<string, unknown> = {
-    from: cfg.from,
+    from: input.fromName ? `${input.fromName} <${cfg.fromAddress}>` : cfg.from,
     to,
     subject: input.subject,
   };
