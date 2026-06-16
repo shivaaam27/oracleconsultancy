@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui";
-import { useToast } from "@/components/toast";
 
 /**
- * Downloads the server-generated Director Brief PDF. Fetches the file so we can
- * show a "preparing" spinner (the PDF takes a second or two to render) and
- * surface a friendly message if it fails — then triggers a real file download,
- * which behaves reliably on mobile and the installed app (unlike window.print).
+ * Opens the server-generated Director Brief PDF. We navigate to the PDF URL
+ * (the browser renders it natively) rather than fetching it into a blob and
+ * triggering a synthetic <a download> click — that JS download trick is silently
+ * blocked on iOS Safari and inside the installed app, which is why the brief
+ * "couldn't download or load on mobile". A plain new-tab navigation works
+ * everywhere: desktop opens/saves it, phones open it in the PDF viewer (where
+ * save/share is available). Same file, same behaviour on web and mobile.
  */
 export function BriefPdfButton({
   href,
@@ -22,34 +23,14 @@ export function BriefPdfButton({
   variant?: "primary" | "secondary" | "ghost";
   size?: "xs" | "sm" | "md" | "lg";
 }) {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-
-  async function download() {
-    setLoading(true);
-    try {
-      const res = await fetch(href, { cache: "no-store" });
-      if (!res.ok) throw new Error(String(res.status));
-      const blob = await res.blob();
-      const cd = res.headers.get("Content-Disposition") ?? "";
-      const name = /filename="?([^"]+)"?/.exec(cd)?.[1] ?? "Director-Brief.pdf";
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast("Couldn't generate the PDF just now — please try again", { tone: "warn" });
-    } finally {
-      setLoading(false);
-    }
+  function open() {
+    // Synchronous (in the click) so it isn't treated as a blocked pop-up.
+    const w = window.open(href, "_blank", "noopener");
+    if (!w) window.location.href = href; // pop-up blocked → same tab
   }
 
   return (
-    <Button type="button" size={size} variant={variant} loading={loading} onClick={download}>
+    <Button type="button" size={size} variant={variant} onClick={open}>
       <Download size={14} /> {label}
     </Button>
   );

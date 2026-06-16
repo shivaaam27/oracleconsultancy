@@ -17,7 +17,9 @@ export async function GET(req: NextRequest) {
   return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${briefPdfFilename(b)}"`,
+      // `inline` so it opens in the browser/phone PDF viewer (save + share from
+      // there). `attachment` only downloads reliably on desktop.
+      "Content-Disposition": `inline; filename="${briefPdfFilename(b)}"`,
       "Cache-Control": "no-store",
     },
   });
