@@ -11,6 +11,8 @@ import { DirectorEventForm } from "@/components/director-event-form";
 import { DirectorMessage } from "@/components/director-message";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getBrief } from "@/lib/director-brief";
+import { BriefPrintReport } from "@/components/brief-print-report";
+import { PrintButton } from "@/components/print-button";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { Megaphone } from "lucide-react";
@@ -51,17 +53,17 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
     <div className="flex flex-col gap-5">
       {/* Action toolbar renders immediately — the director can assign tasks,
           schedule events and message people without waiting for the brief. */}
-      <Reveal delay={0}>
+      <Reveal delay={0} className="print-hidden">
         <Hero title="Group board" subtitle="All companies · live operator view" />
       </Reveal>
 
       {created && (
-        <Reveal delay={0.02}>
+        <Reveal delay={0.02} className="print-hidden">
           <Panel className="p-3 text-sm text-success ring-1 ring-success/25 bg-success-soft/40">Task {created} assigned.</Panel>
         </Reveal>
       )}
 
-      <Reveal delay={0.04} className="flex flex-col gap-2.5">
+      <Reveal delay={0.04} className="flex flex-col gap-2.5 print-hidden">
         <SectionLabel icon={<ListTodo size={13} />}>Take action</SectionLabel>
         <div className="flex flex-wrap items-start gap-2">
           <DirectorTaskForm people={people} companies={companies} />
@@ -70,7 +72,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
         </div>
       </Reveal>
 
-      <Reveal delay={0.05} className="flex flex-col gap-2.5">
+      <Reveal delay={0.05} className="flex flex-col gap-2.5 print-hidden">
         <SectionLabel
           icon={<Megaphone size={13} />}
           action={<Link href="/portal/announcements" className="text-[11px] text-accent hover:underline">Post / manage</Link>}
@@ -132,10 +134,16 @@ async function BriefSections() {
   ];
 
   return (
-    <div className="flex flex-col gap-5">
+    <>
+    <div className="flex flex-col gap-5 print-hidden">
       <Reveal delay={0}>
         <Panel className="p-4">
-          <p className="mb-3 text-xs text-fg-muted">{brief.companyCount} companies · as at {brief.asAt}</p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-fg-muted">{brief.companyCount} companies · as at {brief.asAt}</p>
+            {/* Directors can save the full brief (the print-only detailed report
+                below) as a PDF via the browser print dialog. */}
+            <PrintButton label="Download PDF" />
+          </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {metrics.map((m) => (
               <div key={m.label} className={`rounded-2xl p-3 ring-1 ${TONE[m.tone].bg} ${TONE[m.tone].ring}`}>
@@ -223,5 +231,11 @@ async function BriefSections() {
         </Reveal>
       )}
     </div>
+
+    {/* Full printable Director Brief — hidden on screen, emitted only when the
+        director uses "Download PDF" (browser print → save as PDF). Identical
+        layout to the admin /brief PDF. */}
+    <BriefPrintReport b={brief} />
+    </>
   );
 }

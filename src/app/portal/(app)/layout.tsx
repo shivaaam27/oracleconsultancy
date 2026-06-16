@@ -23,7 +23,7 @@ export default async function PortalLayout({ children }: { children: React.React
 
   return (
     <div className="flex flex-col gap-5 pb-28 md:pb-32 max-w-3xl mx-auto">
-      <header className="flex items-center justify-between gap-3">
+      <header className="flex items-center justify-between gap-3 print-hidden">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
             Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "HR / Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}

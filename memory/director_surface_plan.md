@@ -163,8 +163,13 @@ email auto-send to directors (digest is 7e, optional).
     wrapper over the proven `createEventAction`: attendees, `.ics` invites, reminders,
     recurrence, meet link). `director-event-form.tsx` on the board ("New event / meeting":
     title, all-day/start/end, company, location/meet link, attendee chips, 1-day reminder, notes).
+  - [x] **Download the Director Brief as PDF** — "Download PDF" button on the board (`PrintButton`
+    → `window.print()`). The full detailed brief is emitted via the shared
+    `components/brief-print-report.tsx` (extracted print-only layout: cover + exec summary + stat
+    cards + detailed report-body, identical to the admin `/brief` PDF). On the board it's wrapped so
+    all live chrome is `print-hidden`; the shared portal `<header>` is now `print-hidden` too.
   - [ ] Role-based nav pill (hide staff Home/Activity/Profile for directors) — minor; deferred.
-  - **E1 complete** for the core operator powers (board + assign tasks + schedule events).
+  - **E1 complete** for the core operator powers (board + assign tasks + schedule events + brief PDF).
 - **E2 — Messages as drafts + governance.** ✅ DONE.
   - [x] `portalDirectorDraftMessage({personId, channel?, body, taskCode?})` — creates an **Outbox
     draft** (owner-visible, `source: portal-dir:<Name>`) + returns a **one-tap deep-link**
@@ -180,18 +185,29 @@ email auto-send to directors (digest is 7e, optional).
   emails on triggers (overdue task, doc expiry, probation, pending leave) + scheduled board/
   team digests, via a **rules + scheduler** layer on the existing cron. Hybrid: auto low-risk /
   draft the rest. Reuses `email.ts` + Outbox.
-- **E4 — WhatsApp automation.** 🔶 integration scaffolding DONE; needs owner provider + templates.
-  - [x] `src/lib/whatsapp.ts` — Meta WhatsApp Cloud API `sendWhatsApp({to, text?, template?})`,
-    configured from env (`WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` [+ API_VERSION /
-    DEFAULT_TEMPLATE / DEFAULT_LANG]); degrades to not-configured (callers fall back to wa.me).
-    `whatsAppConfigured()` for status. **Proactive sends MUST use approved templates; free text
-    only inside a 24h session.**
-  - [x] Settings → Messaging shows WhatsApp Connected/Not-set-up status.
-  - [ ] **Owner setup (blocks real send):** Meta Business + WhatsApp Business Account, a sending
-    number + its phone-number-id, business verification, a permanent System-User token, and
-    approved message TEMPLATES (e.g. a "task_reminder" utility template). Set the env vars in Vercel.
-  - [ ] **E4b (after creds+templates):** wire the Outbox/director-message + automation to call
-    `sendWhatsApp` with the right template; template-variable mapping; delivery status.
+- **E4 — WhatsApp automation. ✅ NOW ON TWILIO (sandbox proven, 2026-06-16).** Switched off Meta's
+  direct Cloud API to **Twilio** (Twilio still rides on Meta/WhatsApp but does the paperwork). Owner
+  picked Twilio explicitly ("not Meta's route").
+  - [x] `src/lib/whatsapp.ts` — **rewritten for Twilio** `sendWhatsApp({to, text?, template?})`,
+    same interface so all callers unchanged. Env: **`TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` +
+    `TWILIO_WHATSAPP_FROM`** (E.164; [+ `TWILIO_DEFAULT_CONTENT_SID` / `TWILIO_DEFAULT_LANG`]).
+    POSTs form-encoded to `api.twilio.com/.../Messages.json` (Basic auth). Free text → `Body`;
+    template → `ContentSid` (the `template.name` arg = Twilio Content SID `HX...`) + numbered
+    `ContentVariables`. Degrades to not-configured (callers fall back to wa.me). `whatsAppConfigured()`.
+    **Proactive sends outside the 24h window MUST use an approved template; free text only in
+    sandbox / inside an open 24h session** (Meta's rule, enforced via Twilio).
+  - [x] **SANDBOX TESTED END-TO-END (2026-06-16):** creds in `.env.local`, `From=+14155238886`
+    (shared sandbox), test to `+255686450999` returned status `read`. ✅
+  - [x] Settings → Messaging = `WhatsAppStatus` component (`settings/whatsapp-test.tsx`) with a
+    self-serve **Send test** box; action `sendTestWhatsApp` in `settings/actions.ts` (mirrors
+    `sendTestEmail`). Shows on/off via Twilio.
+  - [ ] **Owner GO-LIVE (blocks production proactive send):** Twilio business verification +
+    register a WhatsApp sender (own number, e.g. `+15722294220` once approved) + approved
+    **Content templates** (`HX...`). Then set the 3 Twilio env vars in **Vercel** (swap sandbox
+    `From` for the real number; optionally `TWILIO_DEFAULT_CONTENT_SID`).
+  - [ ] **E4b (after live creds+templates):** wire Outbox/director-message + automation to call
+    `sendWhatsApp` with the right Content SID; variable mapping; delivery status.
+  - Guide for the owner: **`TWILIO_WHATSAPP.md`** (repo root) — Stage 1 sandbox / Stage 2 live.
 - **E5 — Director-defined "if-this-then-that" rules** on top of the engine.
 
 ## Governance (non-negotiable for an operator)
