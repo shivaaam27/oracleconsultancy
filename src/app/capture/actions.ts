@@ -32,6 +32,12 @@ export async function createCaptureTask(input: {
   comments?: string | null;
   /** When created from a note/meeting, link it back via meeting_tasks. */
   sourceMeetingId?: number | null;
+  /**
+   * Audit-log discriminator. Defaults to "capture" (the Capture Wizard). Other
+   * web-UI callers (e.g. the Tasks quick-create popover) pass "web-ui" so they
+   * stay distinguishable per the CLAUDE.md createdBy/source convention.
+   */
+  createdBy?: string;
 }): Promise<{ ok: boolean; code?: string; error?: string }> {
   const actionItem = input.actionItem.trim();
   if (!input.companyId || !actionItem) {
@@ -77,9 +83,9 @@ export async function createCaptureTask(input: {
       field: "Task",
       old_value: null,
       new_value: actionItem,
-      change_reason: "Created via capture",
+      change_reason: input.createdBy === "web-ui" ? "Created" : "Created via capture",
       created_at: now.toISOString(),
-      created_by: "capture",
+      created_by: input.createdBy ?? "capture",
     });
 
     if (input.sourceMeetingId) {

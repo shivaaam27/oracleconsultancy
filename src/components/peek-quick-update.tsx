@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Send, Loader2 } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { addTaskUpdate } from "@/app/task/actions";
+import { IconButton } from "./ui";
 import { useToast } from "./toast";
 
 /**
@@ -41,18 +42,19 @@ export function PeekQuickUpdate({
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); }}
           placeholder="Jot a quick update…"
-          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm bg-bg-muted/50 ring-1 ring-border/50 placeholder:text-fg-muted resize-none focus:outline-none focus:ring-accent/40 transition-shadow"
+          className="flex-1 min-w-0 rounded-xl px-3 py-2 text-sm bg-bg-subtle ring-1 ring-border/50 placeholder:text-fg-muted resize-none focus:outline-none focus:ring-accent/40 transition-shadow"
         />
-        <button
+        <IconButton
           type="button"
+          variant="primary"
+          size="lg"
           onClick={submit}
           disabled={!body.trim() || isPending}
           aria-label="Post update"
           title="Post update (⌘↵)"
-          className="h-10 w-10 shrink-0 inline-flex items-center justify-center rounded-full bg-accent text-accent-fg disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
         >
           {isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-        </button>
+        </IconButton>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { ExternalLink, CheckCircle2, AlertOctagon, Clock } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { Badge } from "@/components/ui";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
-import { AssigneeList } from "@/components/assignee-list";
+import { AssigneeAvatars } from "@/components/assignee-avatars";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { TaskContext } from "@/components/task-context";
 import { SnoozeSheet } from "@/components/snooze-sheet";
@@ -17,6 +17,8 @@ import { TaskUpdateLine } from "@/components/task-update-line";
 import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskRowActions } from "@/components/task-row-actions";
 import { TaskInlineStatus } from "@/components/task-inline-edit";
+import { DeadlineEditor } from "@/components/deadline-editor";
+import { Panel } from "@/components/surface-kit";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -46,15 +48,9 @@ function priorityDot(p: string): string {
   return "bg-fg-subtle";
 }
 
-/** Human "Due in 3d / Overdue 9d / Due today" line from daysToDeadline. */
-function dueLabel(d: number | "done" | null): { text: string; tone: string } | null {
-  if (d === "done") return { text: "Done", tone: "text-success" };
-  if (d === null || typeof d !== "number") return null;
-  if (d < 0) return { text: `Overdue ${Math.abs(d)}d`, tone: "text-danger font-medium" };
-  if (d === 0) return { text: "Due today", tone: "text-warn font-medium" };
-  if (d <= 7) return { text: `Due in ${d}d`, tone: "text-warn" };
-  return { text: `Due in ${d}d`, tone: "text-fg-muted" };
-}
+/** Shared column template so the header strip and every row line up exactly:
+ *  [task ………… 1fr] · status · deadline · who(md+). */
+const COLS = "grid grid-cols-[minmax(0,1fr)_140px_108px] md:grid-cols-[minmax(0,1fr)_150px_116px_76px]";
 
 /** Wrap interactive cell content so clicks don't bubble to the row (opens drawer). */
 function Stop({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -116,9 +112,13 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
   function openTask(code: string, tab?: "conversation") {
     const params = new URLSearchParams(searchParams.toString());
     params.set("task", code);
-    if (tab) params.set("tab", tab);
-    else params.delete("tab");
+    // Drawer's own tab param — must NOT be "tab" (that selects the hub/HRMS/
+    // workbook section; reusing it would knock the page off the Tasks list).
+    if (tab) params.set("dtab", tab);
+    else params.delete("dtab");
     params.delete("person");
+    // Triage list — the drawer's Prev/Next arrows walk this in render order.
+    params.set("tl", rows.map((r) => r.code).join(","));
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
@@ -181,6 +181,7 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
             row={r}
             hideCompany={hideCompany || groupBy === "company"}
             onOpen={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
+            onOpenConversation={() => openTask(r.code, "conversation")}
             onPointerDown={(e) => onRowPointerDown(r, e)}
             onPointerMove={onRowPointerMove}
             onPointerUp={clearPress}
@@ -191,12 +192,20 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
         ))}
       </div>
 
-      {/* Desktop: soft Aurora rich-row list (no hard table box). */}
-      <div className="hidden sm:block elevated rounded-2xl bg-bg-elev/40 ring-1 ring-border/50 overflow-hidden">
+      {/* Desktop: soft Aurora rich-row list framed in the kit Panel. Line 1 is a
+          column grid so Status / Deadline / Who line up down the whole list; the
+          column-header strip names them. Priority is the leading dot; the meta
+          lines share one indent so every row reads the same. */}
+      <Panel className="hidden sm:block overflow-hidden">
+        <div className={cn(COLS, "items-center gap-x-3 px-4 py-2 border-b border-border/50 text-[10px] font-medium uppercase tracking-[0.09em] text-fg-subtle")}>
+          <span>Task</span>
+          <span>Status</span>
+          <span>Deadline</span>
+          <span className="hidden md:block text-right">Who</span>
+        </div>
         <ul className="divide-y divide-border/50">
           {rows.map((r, i) => {
             const done = r.status === "Completed" || r.status === "Closed";
-            const due = dueLabel(r.daysToDeadline);
             const startsGroup = headerAt.has(r.id);
             return (
               <Fragment key={r.id}>
@@ -216,59 +225,49 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
                       onContextMenu={(e) => e.preventDefault()}
                       onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
                       className={cn(
-                        "group relative cursor-pointer select-none px-3 sm:px-4 py-2.5 transition-colors",
+                        "group relative cursor-pointer select-none px-4 py-2.5 transition-colors",
                         "hover:bg-bg-subtle/70 focus-within:bg-bg-subtle/50",
                         done && "opacity-60",
                       )}
                     >
-                      {/* Line 1 — the title is the hero; right cluster stays compact */}
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Stop className="shrink-0"><SelectCheckbox code={r.code} /></Stop>
-
-                        {/* priority dot (conveys priority — no separate pill on the row) */}
-                        <span
-                          title={`${r.priority} priority`}
-                          className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))}
-                        />
-
-                        {/* new-activity dot */}
-                        {r.unread && (
-                          <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
-                        )}
-
-                        {/* code chip */}
-                        <span className="shrink-0 inline-flex items-center font-mono text-[11px] font-medium tracking-wide tabular px-1.5 py-0.5 rounded-md bg-bg-subtle/70 text-fg-muted ring-1 ring-border/50 transition-colors group-hover:text-accent group-hover:ring-accent/30">
-                          {r.code}
-                        </span>
-
-                        {/* title — the row's hero, takes all remaining width */}
-                        <span className="min-w-0 flex-1 flex items-center gap-1.5">
+                      {/* Line 1 — aligned columns: [task] · status · deadline · who */}
+                      <div className={cn(COLS, "items-center gap-x-3")}>
+                        {/* col 1 — checkbox · priority dot · unread · code · title */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Stop className="shrink-0"><SelectCheckbox code={r.code} /></Stop>
+                          <span
+                            title={`${r.priority} priority`}
+                            className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))}
+                          />
+                          {r.unread && (
+                            <span title="New activity since you last looked" className="h-2 w-2 shrink-0 rounded-full bg-accent animate-pulse" />
+                          )}
+                          <span className="shrink-0 inline-flex items-center font-mono text-[11px] font-medium tracking-wide tabular px-1.5 py-0.5 rounded-md bg-bg-subtle/70 text-fg-muted ring-1 ring-border/50 transition-colors group-hover:text-accent group-hover:ring-accent/30">
+                            {r.code}
+                          </span>
                           <PinnedMarker task={r} className="shrink-0" />
                           <span className="truncate text-[15px] font-medium leading-snug group-hover:text-accent transition-colors">{r.actionItem}</span>
-                        </span>
+                        </div>
 
-                        {/* right cluster — compact + fixed so it never crushes the title */}
-                        <Stop className="hidden sm:inline-flex shrink-0">
-                          <TaskInlineStatus task={r} align="right" buttonClassName="text-[11px]" />
-                        </Stop>
-                        {due && (
-                          <span className={cn("hidden sm:inline shrink-0 whitespace-nowrap text-right text-[11px] tabular", due.tone)}>{due.text}</span>
-                        )}
-                        {r.assignees.length > 0 && (
-                          <Stop className="hidden lg:inline-flex shrink-0 max-w-[7rem] truncate text-[11px] text-fg-muted">
-                            <AssigneeList names={r.assignees} ids={r.assigneeIds} />
-                          </Stop>
-                        )}
-                        <Stop className="shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                          <TaskRowActions task={r} onDone={() => router.refresh()} />
-                        </Stop>
+                        {/* col 2 — status (editable glass pill) */}
+                        <Stop className="min-w-0"><TaskInlineStatus task={r} buttonClassName="text-[11px]" /></Stop>
+
+                        {/* col 3 — deadline (editable) */}
+                        <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} /></Stop>
+
+                        {/* col 4 — who (avatars), right-aligned */}
+                        <div className="hidden md:flex justify-end">
+                          {r.assignees.length > 0
+                            ? <Stop><AssigneeAvatars names={r.assignees} ids={r.assigneeIds} max={3} /></Stop>
+                            : <span className="text-[11px] text-fg-subtle italic">—</span>}
+                        </div>
                       </div>
 
-                      {/* Lines 2 + 3 — company · description, then latest update.
-                          Comfortable: always shown. Compact: revealed on hover. */}
+                      {/* Lines 2 + 3 — company · description, then latest update;
+                          one shared indent so every row reads consistently. */}
                       <div
                         className={cn(
-                          "mt-1 pl-[2.15rem] space-y-0.5",
+                          "mt-1 pl-[2.4rem] space-y-0.5",
                           compact && "hidden group-hover:block",
                         )}
                       >
@@ -285,11 +284,11 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
                         <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
                       </div>
 
-                      {/* below-sm fallback: status + priority badges */}
-                      <div className="sm:hidden mt-1.5 pl-[2.15rem] flex items-center gap-1.5">
-                        <Badge tone={statusTone(r.status)}>{r.status}</Badge>
-                        <Badge tone={priorityTone(r.priority)}>{r.priority}</Badge>
-                      </div>
+                      {/* hover actions — overlaid right so they never disturb the
+                          column alignment */}
+                      <Stop className="absolute right-3 top-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity rounded-full bg-bg-elev/95 backdrop-blur-sm pl-2 shadow-sm ring-1 ring-border/50">
+                        <TaskRowActions task={r} onDone={() => router.refresh()} />
+                      </Stop>
                     </div>
                   </Reveal>
                 </li>
@@ -297,7 +296,7 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
             );
           })}
         </ul>
-      </div>
+      </Panel>
 
       <PeekPreview
         open={!!peek}

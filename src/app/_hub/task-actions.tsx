@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 import { useContextActions } from "@/components/context-actions";
 import { QuickTaskPopover, type QuickTaskCompany } from "@/components/quick-task-popover";
+import { InlineAddTask } from "@/components/inline-add-task";
 
 /**
  * Task Management quick-create host.
@@ -31,6 +32,8 @@ export function TaskActions({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // The page `+`: on list views it focuses the always-present inline add row
+  // (one-step create); on calendar/timeline (no inline row) it opens the popover.
   useContextActions(
     "tasks",
     [
@@ -38,39 +41,44 @@ export function TaskActions({
         id: "new-task",
         label: "New Task",
         icon: <Plus size={16} />,
-        onClick: () => setOpen(true),
+        onClick: () => {
+          if (showInline) {
+            const el = document.getElementById("inline-add-action") as HTMLInputElement | null;
+            el?.scrollIntoView({ behavior: "smooth", block: "center" });
+            el?.focus();
+          } else {
+            setOpen(true);
+          }
+        },
         primary: true,
         tone: "accent",
       },
     ],
-    [pathname]
+    [pathname, showInline]
   );
 
   return (
     <>
-      {/* Inline "Add a task…" — second entry point to the same popover, so the
-          list always has a calm, glanceable way to start a task. */}
+      {/* Inline, one-step add — type the action, pick Company · Assignee ·
+          Deadline as circles, Save. No popup. */}
       {showInline && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="group flex w-full items-center gap-2.5 rounded-2xl border border-dashed border-border/70 bg-bg-subtle/40 px-3.5 py-2.5 text-left text-sm text-fg-muted transition-colors hover:border-accent/40 hover:bg-bg-muted/50 hover:text-fg focus:outline-none focus:ring-2 focus:ring-accent/50"
-        >
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent/10 text-accent transition-colors group-hover:bg-accent/15">
-            <Plus size={15} />
-          </span>
-          <span>Add a task…</span>
-          <span className="ml-auto hidden text-[11px] text-fg-subtle sm:inline">Action · Company · Assignee · Deadline</span>
-        </button>
+        <InlineAddTask
+          companies={companies}
+          people={people}
+          defaultCompanyId={defaultCompanyId}
+        />
       )}
 
-      <QuickTaskPopover
-        open={open}
-        onClose={() => setOpen(false)}
-        companies={companies}
-        people={people}
-        defaultCompanyId={defaultCompanyId}
-      />
+      {/* Popover fallback for views without the inline row (calendar/timeline). */}
+      {!showInline && (
+        <QuickTaskPopover
+          open={open}
+          onClose={() => setOpen(false)}
+          companies={companies}
+          people={people}
+          defaultCompanyId={defaultCompanyId}
+        />
+      )}
     </>
   );
 }

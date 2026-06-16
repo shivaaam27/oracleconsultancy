@@ -4,11 +4,13 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, LayoutGroup, useReducedMotion } from "framer-motion";
 import {
-  ExternalLink, Clock, CheckCircle2, AlertOctagon, Plus, X, Loader2, Building2,
+  ExternalLink, Clock, CheckCircle2, AlertOctagon, Plus, X, Building2,
 } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { spring } from "@/lib/motion";
-import { Badge } from "@/components/ui";
+import { Badge, Button, IconButton, FieldLabel } from "@/components/ui";
+import { Panel } from "@/components/surface-kit";
+import { Reveal } from "@/components/reveal";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { Combobox } from "@/components/combobox";
 import { TaskInlineStatus, TaskInlinePriority } from "@/components/task-inline-edit";
@@ -176,6 +178,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
     <>
       <OrderRegistrar codes={orderedCodes} />
       <LayoutGroup>
+      <Panel className="p-2 sm:p-3">
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
         {columns.map((col) => (
           <div
@@ -199,15 +202,17 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
               <div className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-subtle text-fg-muted text-[10px] font-semibold tabular">{col.items.length}</div>
               {/* + per column → create straight into this status */}
               {col.status !== "Completed" && col.status !== "Closed" && (
-                <button
+                <IconButton
+                  variant="ghost"
+                  size="sm"
                   type="button"
                   onClick={() => setAddInStatus((s) => (s === col.status ? null : col.status))}
                   aria-label={`Add a task to ${col.status}`}
                   title={`Add a task to ${col.status}`}
-                  className="ml-auto inline-flex h-5 w-5 items-center justify-center rounded-md text-fg-subtle hover:text-accent hover:bg-bg-muted/70 transition-colors"
+                  className="ml-auto h-7 w-7 text-fg-subtle hover:text-accent"
                 >
                   <Plus size={14} />
-                </button>
+                </IconButton>
               )}
             </div>
 
@@ -226,10 +231,11 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
             )}
 
             <div className="space-y-1.5 min-h-[60px] px-0.5 pb-1">
-              {col.items.map((r) => {
+              {col.items.map((r, i) => {
                 const done = r.status === "Completed" || r.status === "Closed";
                 return (
-                <motion.div key={r.id} layout={!reduce} layoutId={reduce ? undefined : r.code} transition={spring}>
+                <Reveal key={r.id} delay={Math.min(i, 12) * 0.012}>
+                <motion.div layout={!reduce} layoutId={reduce ? undefined : r.code} transition={spring}>
                 <div
                   draggable
                   onDragStart={(e) => { clearPress(); setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
@@ -242,9 +248,9 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                   onContextMenu={(e) => e.preventDefault()}
                   onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
                   className={
-                    "group/card relative glass elevated rounded-xl p-2.5 pl-3 overflow-hidden " +
+                    "group/card relative elevated rounded-xl p-2.5 pl-3 overflow-hidden " +
                     "cursor-grab active:cursor-grabbing select-none transition-shadow hover:shadow-md " +
-                    "focus-within:ring-1 focus-within:ring-accent/30 " +
+                    "ring-1 ring-transparent hover:ring-border focus-within:ring-accent/30 " +
                     (dragCode === r.code ? "opacity-40 " : "") + (done ? "opacity-65 " : "")
                   }
                 >
@@ -304,6 +310,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
                   </div>
                 </div>
                 </motion.div>
+                </Reveal>
                 );
               })}
 
@@ -316,6 +323,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
           </div>
         ))}
       </div>
+      </Panel>
       </LayoutGroup>
 
       <PeekPreview
@@ -409,28 +417,33 @@ function ColumnQuickAdd({
     <div className="glass glass-menu elevated rounded-xl p-2 mb-2 mx-0.5 space-y-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">New in {status}</span>
-        <button
+        <IconButton
+          variant="ghost"
+          size="sm"
           type="button"
           onClick={onClose}
           aria-label="Cancel"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-md text-fg-subtle hover:text-fg hover:bg-bg-muted/70 transition-colors"
+          className="h-7 w-7 text-fg-subtle hover:text-fg"
         >
           <X size={13} />
-        </button>
+        </IconButton>
       </div>
-      <textarea
-        ref={inputRef}
-        autoFocus
-        rows={2}
-        value={action}
-        onChange={(e) => setAction(e.target.value)}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submit(); }
-          if (e.key === "Escape") onClose();
-        }}
-        placeholder="What needs doing?"
-        className="w-full rounded-lg px-2.5 py-1.5 text-[13px] bg-bg-muted/50 ring-1 ring-border/50 placeholder:text-fg-subtle resize-none focus:outline-none focus:ring-accent/40 transition-shadow"
-      />
+      <div>
+        <FieldLabel>What needs doing?</FieldLabel>
+        <textarea
+          ref={inputRef}
+          autoFocus
+          rows={2}
+          value={action}
+          onChange={(e) => setAction(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submit(); }
+            if (e.key === "Escape") onClose();
+          }}
+          placeholder="What needs doing?"
+          className="w-full rounded-lg px-2.5 py-1.5 text-[13px] bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
+        />
+      </div>
       <div className="flex items-center gap-1.5">
         <span className="inline-flex items-center gap-1 text-fg-subtle"><Building2 size={12} /></span>
         <FluidSelect
@@ -446,19 +459,20 @@ function ColumnQuickAdd({
         placeholder="Assignee (optional)"
         onInput={setAssignee}
         onCommit={setAssignee}
-        className="w-full rounded-lg px-2.5 py-1.5 text-[12px] bg-bg-muted/50 ring-1 ring-border/50 placeholder:text-fg-subtle focus:outline-none focus:ring-accent/40 transition-shadow"
+        className="w-full rounded-lg px-2.5 py-1.5 text-[12px] bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
       />
       <div className="flex items-center justify-end gap-2 pt-0.5">
         <span className="mr-auto text-[10px] text-fg-subtle">⌘↵ to add</span>
-        <button
+        <Button
+          size="sm"
           type="button"
           onClick={submit}
+          loading={pending}
           disabled={pending || !action.trim()}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1 text-[12px] font-medium text-accent-fg disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
         >
-          {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+          {!pending && <Plus size={13} />}
           Add
-        </button>
+        </Button>
       </div>
     </div>
   );

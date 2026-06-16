@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, CalendarClock, X, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
-import { EmptyState, Button, IconButton, LinkButton } from "@/components/ui";
+import { EmptyState, Button, IconButton, LinkButton, Badge } from "@/components/ui";
 import { TONE, type Tone } from "@/components/surface-kit";
+import { CockpitModule } from "@/components/cockpit-module";
+import { Segmented } from "@/components/macos";
 import { Reveal } from "@/components/reveal";
+import { DeadlineEditor } from "@/components/deadline-editor";
+import { PeekPreview, type PeekAction } from "@/components/peek-preview";
+import { TaskContext } from "@/components/task-context";
 import { hasTime } from "@/components/deadline";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
@@ -19,12 +23,26 @@ import { inlineUpdateTask } from "@/app/task/actions";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** Coarse-pointer (touch) detection, evaluated once on the client. Used to gate
+ *  the desktop-only "drag onto a day" affordance copy — drag-and-drop never fires
+ *  on touchscreens, so on touch we lean on the agenda-sheet / rail reschedule. */
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    setCoarse(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
+  return coarse;
+}
+
 /**
- * Month calendar, time-aware (Aurora). Tasks are bucketed by deadline day; a pill
- * shows the time when one is set. Today is highlighted. Two rails sit above the
- * grid — Overdue and No-deadline — and their pills can be dragged onto a day to
- * (re)schedule. Tap a day to open its agenda sheet; drag-to-reschedule keeps the
- * time of day. Optimistic + undo throughout; reduced-motion safe.
+ * Time-aware task calendar (Aurora). Tasks are bucketed by deadline day; a pill
+ * shows the time when one is set. Today is highlighted. A Week/Month toggle in the
+ * header switches between a 7-day strip and the full month (persisted in `cal=`).
+ * Two rails sit above the grid — Overdue and No-deadline. Reschedule three ways:
+ * drag a pill onto a day (pointer devices), tap a day → reschedule a row from the
+ * agenda sheet, or reschedule a rail chip in place — all via the kit DeadlineEditor.
+ * Long-press a pill for a peek. Optimistic + undo throughout; reduced-motion safe.
  */
 export function CalendarView({
   rows, month, queryWithoutMonth,
@@ -37,6 +55,16 @@ export function CalendarView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const coarse = useCoarsePointer();
+
+  // Week | Month, persisted in the `cal` search param (read on mount).
+  const [span, setSpan] = useState<"week" | "month">(searchParams.get("cal") === "week" ? "week" : "month");
+  function setSpanPersist(next: "week" | "month") {
+    setSpan(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "week") params.set("cal", "week"); else params.delete("cal");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   // Optimistic deadline overrides (code → Date|null) so a dropped pill moves now.
   const [moved, setMoved] = useState<Record<string, Date | null>>({});
@@ -44,7 +72,24 @@ export function CalendarView({
   const [overKey, setOverKey] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
   const [railOpen, setRailOpen] = useState<null | "overdue" | "none">(null);
+  const [peek, setPeek] = useState<TaskRow | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
+
+  // Long-press → peek (cleared if a drag or scroll starts). Mirrors board-view.
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
+  function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
+  function onPillPointerDown(r: TaskRow, e: React.PointerEvent) {
+    longPressed.current = false;
+    pressStart.current = { x: e.clientX, y: e.clientY };
+    clearPress();
+    pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeek(r); }, 400);
+  }
+  function onPillPointerMove(e: React.PointerEvent) {
+    if (!pressStart.current) return;
+    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
+  }
 
   useEffect(() => {
     if (!railOpen) return;
@@ -63,12 +108,25 @@ export function CalendarView({
   const first = new Date(m.year, m.monthIdx, 1);
   const last = new Date(m.year, m.monthIdx + 1, 0);
 
-  const startWeekday = (first.getDay() + 6) % 7; // 0 = Monday
+  // Cells: 42 (6-row month grid) or 7 (the week containing today, Monday-start).
   const cells: { date: Date; inMonth: boolean }[] = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(first);
-    d.setDate(1 - startWeekday + i);
-    cells.push({ date: d, inMonth: d.getMonth() === m.monthIdx });
+  if (span === "week") {
+    const ref = new Date(today);
+    const startWeekday = (ref.getDay() + 6) % 7; // 0 = Monday
+    const weekStart = new Date(ref);
+    weekStart.setDate(ref.getDate() - startWeekday);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      cells.push({ date: d, inMonth: true });
+    }
+  } else {
+    const startWeekday = (first.getDay() + 6) % 7; // 0 = Monday
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(first);
+      d.setDate(1 - startWeekday + i);
+      cells.push({ date: d, inMonth: d.getMonth() === m.monthIdx });
+    }
   }
 
   // Overdue = open task whose (optimistic) deadline is before today. These show in
@@ -101,15 +159,23 @@ export function CalendarView({
     const params = new URLSearchParams(queryWithoutMonth);
     params.set("view", "calendar");
     params.set("month", mm);
+    if (span === "week") params.set("cal", "week");
     return `/?${params.toString()}`;
   };
   const todayHref = (() => {
     const params = new URLSearchParams(queryWithoutMonth);
     params.set("view", "calendar");
+    if (span === "week") params.set("cal", "week");
     return `/?${params.toString()}`;
   })();
 
   const monthLabel = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const weekLabel = (() => {
+    const a = cells[0]?.date, b = cells[6]?.date;
+    if (!a || !b) return monthLabel;
+    const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return `${fmt(a)} – ${fmt(b)}`;
+  })();
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dueThisMonth = rows.filter((r) => { const d = deadlineOf(r); return d && d >= first && d <= last; }).length;
 
@@ -159,9 +225,14 @@ export function CalendarView({
         draggable
         onDragStart={(e) => startDrag(e, r.code)}
         onDragEnd={() => { setDragCode(null); setOverKey(null); }}
-        onClick={(e) => { e.stopPropagation(); openTask(r.code); }}
+        onPointerDown={(e) => onPillPointerDown(r, e)}
+        onPointerMove={onPillPointerMove}
+        onPointerUp={clearPress}
+        onPointerLeave={clearPress}
+        onPointerCancel={clearPress}
+        onClick={(e) => { e.stopPropagation(); if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
         className={cn(
-          "block w-full truncate text-left text-[11px] leading-tight px-1.5 py-0.5 rounded-md border-l-2",
+          "block w-full truncate text-left text-[11px] leading-tight px-1.5 py-0.5 rounded-md border-l-2 select-none",
           "transition-colors hover:bg-bg-muted/70 cursor-grab active:cursor-grabbing",
           dragCode === r.code && "opacity-40"
         )}
@@ -174,52 +245,72 @@ export function CalendarView({
     );
   }
 
-  // A rail chip (Overdue / No-deadline popovers) — same drag-to-schedule behaviour.
+  // A rail chip (Overdue / No-deadline popovers). Drag-to-schedule on pointer
+  // devices; a per-chip DeadlineEditor gives a touch-friendly reschedule too.
   function RailChip({ r, tone }: { r: TaskRow; tone: Tone }) {
     const dl = deadlineOf(r);
     return (
-      <button
-        type="button"
-        draggable
-        onDragStart={(e) => startDrag(e, r.code)}
-        onDragEnd={() => { setDragCode(null); setOverKey(null); setRailOpen(null); }}
-        onClick={() => { setRailOpen(null); openTask(r.code); }}
+      <span
         className={cn(
           "inline-flex items-center gap-1.5 max-w-[300px] text-[11px] px-2 py-1 rounded-md border-l-2",
-          "bg-bg-subtle/80 hover:bg-bg-muted transition-colors cursor-grab active:cursor-grabbing",
+          "bg-bg-subtle/80 transition-colors",
           dragCode === r.code && "opacity-40"
         )}
         style={{ borderLeftColor: TONE[tone].stroke }}
-        title={pillTitle(r, dl)}
       >
-        <span className="font-mono text-fg-muted shrink-0">{r.code}</span>
-        <span className="truncate">{r.actionItem}</span>
-        {tone === "danger" && dl && (
-          <span className="shrink-0 tabular text-danger font-medium">{overdueDays(dl, today)}d</span>
-        )}
-      </button>
+        <button
+          type="button"
+          draggable
+          onDragStart={(e) => startDrag(e, r.code)}
+          onDragEnd={() => { setDragCode(null); setOverKey(null); }}
+          onClick={() => { setRailOpen(null); openTask(r.code); }}
+          className="inline-flex items-center gap-1.5 min-w-0 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity"
+          title={pillTitle(r, dl)}
+        >
+          <span className="font-mono text-fg-muted shrink-0">{r.code}</span>
+          <span className="truncate">{r.actionItem}</span>
+          {tone === "danger" && dl && (
+            <span className="shrink-0 tabular text-danger font-medium">{overdueDays(dl, today)}d</span>
+          )}
+        </button>
+        <DeadlineEditor code={r.code} deadline={dl} daysToDeadline={r.daysToDeadline} className="shrink-0" />
+      </span>
     );
   }
 
   const dayItems = dayOpen ? (byDay.get(dayOpen) || []) : [];
   const dayLabel = dayOpen ? new Date(dayOpen + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : "";
 
-  return (
-    <Reveal className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
+  const peekActions = (r: TaskRow): PeekAction[] => {
+    const done = r.status === "Completed" || r.status === "Closed";
+    return [
+      { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
+      ...(!done ? [{ label: "Move to today", icon: <CalendarClock size={15} />, onClick: () => reschedule(r.code, today) }] : []),
+    ];
+  };
+
+  // The month-nav cluster — lives in the CockpitModule action slot.
+  const nav = (
+    <div className="flex items-center gap-1">
+      <Segmented
+        size="sm"
+        value={span}
+        onChange={(v) => setSpanPersist(v)}
+        options={[{ value: "week", label: "Week" }, { value: "month", label: "Month" }]}
+      />
+      {span === "month" && (
+        <>
           <LinkButton href={buildHref(prev)} variant="ghost" size="sm" className="w-8 px-0" aria-label="Previous month"><ChevronLeft size={15} /></LinkButton>
           <LinkButton href={buildHref(next)} variant="ghost" size="sm" className="w-8 px-0" aria-label="Next month"><ChevronRight size={15} /></LinkButton>
-          <LinkButton href={todayHref} variant="ghost" size="sm" className="ml-0.5">Today</LinkButton>
-          <div className="ml-2 text-sm font-semibold tracking-tight">{monthLabel}</div>
-        </div>
-        <div className="text-xs text-fg-subtle tabular">
-          {dueThisMonth} due this month
-        </div>
-      </div>
+        </>
+      )}
+      <LinkButton href={todayHref} variant="ghost" size="sm" className="ml-0.5">Today</LinkButton>
+    </div>
+  );
 
-      {/* Rails: Overdue + No-deadline. Compact buttons → glass popovers; drag-to-schedule. */}
+  return (
+    <Reveal className="space-y-3">
+      {/* Rails: Overdue + No-deadline. Compact buttons → glass popovers; reschedule a chip in place. */}
       {(overdue.length > 0 || noDeadline.length > 0) && (
         <div ref={railRef} className="flex flex-wrap items-center gap-2">
           {overdue.length > 0 && (
@@ -231,7 +322,7 @@ export function CalendarView({
               icon={<CalendarClock size={12} />}
               label="Overdue"
               count={overdue.length}
-              hint="Drag any onto a day to reschedule."
+              hint={coarse ? "Tap a chip's date to reschedule." : "Drag any onto a day, or tap its date, to reschedule."}
             >
               {overdue.map((r) => <RailChip key={r.id} r={r} tone="danger" />)}
             </RailButton>
@@ -245,7 +336,7 @@ export function CalendarView({
               icon={<CalendarOff size={12} />}
               label="No deadline"
               count={noDeadline.length}
-              hint="Drag any onto a day to schedule."
+              hint={coarse ? "Tap a chip's date to schedule." : "Drag any onto a day, or tap its date, to schedule."}
             >
               {noDeadline.map((r) => <RailChip key={r.id} r={r} tone="muted" />)}
             </RailButton>
@@ -253,51 +344,63 @@ export function CalendarView({
         </div>
       )}
 
-      {/* Grid */}
-      <div className="elevated bg-bg-elev rounded-2xl overflow-hidden ring-1 ring-border/70">
-        <div className="grid grid-cols-7 border-b border-border/70">
-          {weekdayLabels.map((w) => (
-            <div key={w} className="px-2 py-1.5 text-[10px] uppercase tracking-[0.12em] text-fg-subtle text-center">{w}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7">
-          {cells.map((cell, i) => {
-            const k = ymd(cell.date);
-            const items = byDay.get(k) || [];
-            const isToday = ymd(today) === k;
-            const isOver = overKey === k;
-            return (
-              <div
-                key={i}
-                onDragOver={(e) => { e.preventDefault(); setOverKey(k); }}
-                onDragLeave={() => setOverKey((s) => (s === k ? null : s))}
-                onDrop={(e) => { e.preventDefault(); if (dragCode) reschedule(dragCode, cell.date); setDragCode(null); setOverKey(null); }}
-                onClick={() => { if (items.length) setDayOpen(k); }}
-                className={cn(
-                  "min-h-[104px] border-b border-r border-border/60 last:border-r-0 p-1.5 space-y-1 transition-colors",
-                  items.length && "cursor-pointer",
-                  isOver
-                    ? "bg-accent/10 ring-1 ring-accent/40 ring-inset"
-                    : isToday
-                      ? "bg-accent-soft/30"
-                      : cell.inMonth ? "bg-bg-elev hover:bg-bg-muted/30" : "bg-bg-subtle/40"
-                )}
-              >
-                <div className={cn(
-                  "text-[10px] tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full",
-                  isToday ? "bg-accent text-accent-fg font-semibold" : cell.inMonth ? "text-fg-muted" : "text-fg-subtle"
-                )}>
-                  {cell.date.getDate()}
+      {/* Grid in a kit CockpitModule; month nav lives in its action slot. */}
+      <CockpitModule
+        title={
+          <span className="inline-flex items-center gap-2">
+            <span>{span === "week" ? weekLabel : monthLabel}</span>
+            <span className="text-xs font-normal text-fg-subtle tabular">· {dueThisMonth} due this month</span>
+          </span>
+        }
+        action={nav}
+        className="!p-2 sm:!p-3"
+      >
+        <div className="elevated rounded-2xl overflow-hidden ring-1 ring-border/50">
+          <div className="grid grid-cols-7 border-b border-border/70">
+            {weekdayLabels.map((w) => (
+              <div key={w} className="px-2 py-1.5 text-[10px] uppercase tracking-[0.12em] text-fg-subtle text-center">{w}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {cells.map((cell, i) => {
+              const k = ymd(cell.date);
+              const items = byDay.get(k) || [];
+              const isToday = ymd(today) === k;
+              const isOver = overKey === k;
+              return (
+                <div
+                  key={i}
+                  onDragOver={(e) => { e.preventDefault(); setOverKey(k); }}
+                  onDragLeave={() => setOverKey((s) => (s === k ? null : s))}
+                  onDrop={(e) => { e.preventDefault(); if (dragCode) reschedule(dragCode, cell.date); setDragCode(null); setOverKey(null); }}
+                  onClick={() => { if (items.length) setDayOpen(k); }}
+                  className={cn(
+                    span === "week" ? "min-h-[200px]" : "min-h-[104px]",
+                    "border-b border-r border-border/60 last:border-r-0 p-1.5 space-y-1 transition-colors",
+                    items.length && "cursor-pointer",
+                    isOver
+                      ? "bg-accent/10 ring-1 ring-accent/40 ring-inset"
+                      : isToday
+                        ? "bg-accent-soft/30"
+                        : cell.inMonth ? "bg-bg-elev hover:bg-bg-muted/30" : "bg-bg-subtle/40"
+                  )}
+                >
+                  <div className={cn(
+                    "text-[10px] tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full",
+                    isToday ? "bg-accent text-accent-fg font-semibold" : cell.inMonth ? "text-fg-muted" : "text-fg-subtle"
+                  )}>
+                    {cell.date.getDate()}
+                  </div>
+                  {items.slice(0, span === "week" ? 8 : 3).map((r) => <Pill key={r.id} r={r} />)}
+                  {items.length > (span === "week" ? 8 : 3) && (
+                    <div className="text-[10px] text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - (span === "week" ? 8 : 3)} more</div>
+                  )}
                 </div>
-                {items.slice(0, 3).map((r) => <Pill key={r.id} r={r} />)}
-                {items.length > 3 && (
-                  <div className="text-[10px] text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - 3} more</div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </CockpitModule>
 
       {rows.length === 0 && (
         <EmptyState icon={<CalendarOff size={28} />} title="No tasks in scope." hint="Adjust filters or pick a different view." />
@@ -321,9 +424,9 @@ export function CalendarView({
                   const dl = deadlineOf(r);
                   const st = statusTone(r.status);
                   return (
-                    <button key={r.id} type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="w-full text-left px-4 py-3 hover:bg-bg-muted/50 transition-colors flex items-start gap-2.5">
+                    <div key={r.id} className="px-4 py-3 hover:bg-bg-muted/50 transition-colors flex items-start gap-2.5">
                       <span className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: pillColor(r) }} />
-                      <span className="min-w-0 flex-1">
+                      <button type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="min-w-0 flex-1 text-left">
                         <span className="text-sm leading-snug line-clamp-2">{r.actionItem}</span>
                         {r.comments && r.comments.trim() && (
                           <span className="block text-xs text-fg-muted truncate mt-0.5">{r.comments}</span>
@@ -336,9 +439,10 @@ export function CalendarView({
                             {r.status}
                           </span>
                         </span>
-                      </span>
-                      <ExternalLink size={14} className="text-fg-subtle shrink-0 mt-0.5" />
-                    </button>
+                      </button>
+                      {/* Touch-friendly reschedule — works where drag does not. */}
+                      <DeadlineEditor code={r.code} deadline={dl} daysToDeadline={r.daysToDeadline} className="shrink-0 mt-0.5" />
+                    </div>
                   );
                 })}
               </div>
@@ -346,6 +450,26 @@ export function CalendarView({
           </>
         )}
       </AnimatePresence>
+
+      {/* Long-press peek on a pill (reuses the table/board pattern). */}
+      <PeekPreview
+        open={!!peek}
+        onClose={() => setPeek(null)}
+        onOpen={peek ? () => openTask(peek.code) : undefined}
+        title={peek?.actionItem}
+        subtitle={peek ? `${peek.code} · ${peek.companyName}` : undefined}
+        creator={peek?.latestActivity?.author ?? null}
+        whenISO={peek?.latestActivity?.atISO ?? null}
+        pills={peek ? (
+          <>
+            <Badge tone={badgeTone(statusTone(peek.status))}>{peek.status}</Badge>
+            <Badge tone="default">{peek.priority}</Badge>
+          </>
+        ) : undefined}
+        body={peek ? <TaskContext comments={peek.comments} latestUpdate={peek.latestUpdate} /> : undefined}
+        actions={peek ? peekActions(peek) : []}
+        actionsLayout="row"
+      />
     </Reveal>
   );
 }
@@ -380,7 +504,7 @@ function RailButton({
             className="absolute z-[60] mt-1.5 left-0 w-[340px] max-h-[52vh] overflow-y-auto glass glass-menu elevated rounded-2xl p-2"
           >
             <div className="text-[11px] text-fg-subtle px-1 pb-1.5">{hint}</div>
-            <div className="flex flex-wrap gap-1.5">{children}</div>
+            <div className="flex flex-col gap-1.5">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -425,6 +549,15 @@ function statusTone(s: string): Tone {
   if (s === "Waiting External" || s === "Under Review") return "warn";
   if (s === "In Progress") return "info";
   return "muted";
+}
+
+/** Map a surface-kit Tone to the Badge component's narrower tone set. */
+function badgeTone(t: Tone): "default" | "success" | "warn" | "danger" | "info" {
+  if (t === "success") return "success";
+  if (t === "warn") return "warn";
+  if (t === "danger") return "danger";
+  if (t === "info") return "info";
+  return "default";
 }
 
 function pillColor(r: TaskRow): string {

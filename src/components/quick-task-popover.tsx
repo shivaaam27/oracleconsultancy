@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, ArrowRight, Building2, User, CalendarDays, Plus, X } from "lucide-react";
+import { Loader2, ArrowRight, Building2, User, CalendarDays, Plus, X, Sparkles, CheckCircle2 } from "lucide-react";
 import { FluidSelect, type FluidOption } from "./fluid-select";
 import { Combobox } from "./combobox";
+import { VoiceButton } from "./voice-button";
 import { Button, FieldLabel } from "./ui";
 import { useToast } from "./toast";
 import { createCaptureTask } from "@/app/capture/actions";
+import { deleteTaskQuick } from "@/app/task/actions";
+import { polishActionItem } from "@/lib/smart-parse";
 import { spring } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -22,9 +25,14 @@ import { cn } from "@/lib/cn";
  * category, risk, meeting link, …) sits behind a quiet "Full form →" link to
  * the existing /task/new modal, which is left untouched.
  *
+ * The Action field supports voice dictation (shared VoiceButton) and one-tap
+ * AI polish (the same /api/polish route the full form's PolishedInput uses),
+ * so "speak/jot rough, save tidy" works here too.
+ *
  * Reuses the existing createCaptureTask server action (no new action), the
- * shared FluidSelect + Combobox, Button, and the toast/undo wiring. On success
- * it closes optimistically and shows a toast with Undo.
+ * shared FluidSelect + Combobox, Button, and the toast wiring. On success it
+ * closes optimistically and shows a toast whose action is a real Undo — it
+ * deletes the just-created task by its code via deleteTaskQuick (recoverable).
  *
  * Controlled: the host (the `+` action / inline "Add a task…") owns open state.
  * Pass `companies` (required) and optional `people` for assignee suggestions.
@@ -40,6 +48,7 @@ export function QuickTaskPopover({
   defaultCompanyId,
   onCreated,
   fullFormHref = "/task/new",
+  voiceLanguage = "en-GB",
 }: {
   open: boolean;
   onClose: () => void;
@@ -52,6 +61,8 @@ export function QuickTaskPopover({
   onCreated?: (code: string) => void;
   /** "Full form →" target (keep the intercepting modal intact). */
   fullFormHref?: string;
+  /** Speech locale for the Action dictation button (e.g. "sw-TZ"). */
+  voiceLanguage?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -64,6 +75,9 @@ export function QuickTaskPopover({
   const [action, setAction] = useState("");
   const [assignee, setAssignee] = useState("");
   const [deadline, setDeadline] = useState("");
+  // AI-polish state for the Action field (mirrors PolishedInput).
+  const [polishState, setPolishState] = useState<"idle" | "loading" | "done">("idle");
+  const polishAbortRef = useRef<AbortController | null>(null);
   // Portal target only exists in the browser — gate so SSR renders nothing.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -75,6 +89,7 @@ export function QuickTaskPopover({
     setAction("");
     setAssignee("");
     setDeadline("");
+    setPolishState("idle");
     const id = requestAnimationFrame(() => actionRef.current?.focus());
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -94,6 +109,34 @@ export function QuickTaskPopover({
 
   const companyOptions: FluidOption[] = companies.map((c) => ({ value: String(c.id), label: c.name }));
 
+  // One-tap AI polish for the Action field — instant rule-based pass, then the
+  // /api/polish route refines it (same behaviour as the full form's PolishedInput).
+  async function polish() {
+    const original = action.trim();
+    if (!original || polishState === "loading") return;
+    setAction(polishActionItem(original));
+    setPolishState("loading");
+    polishAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    polishAbortRef.current = ctrl;
+    try {
+      const res = await fetch("/api/polish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: original }),
+        signal: ctrl.signal,
+      });
+      const data = await res.json();
+      if (data?.result && String(data.result).trim()) setAction(String(data.result));
+      setPolishState("done");
+      setTimeout(() => setPolishState("idle"), 3000);
+    } catch {
+      // Network/abort — the rule-based pass already applied; just settle the chip.
+      setPolishState("done");
+      setTimeout(() => setPolishState("idle"), 3000);
+    }
+  }
+
   function submit() {
     const text = action.trim();
     if (!text) { actionRef.current?.focus(); return; }
@@ -106,6 +149,7 @@ export function QuickTaskPopover({
         status: "Not Started",
         deadline: deadline ? new Date(`${deadline}T17:00:00`).toISOString() : null,
         assignees: assignee.trim() || undefined,
+        createdBy: "web-ui",
       });
       if (!res.ok || !res.code) {
         toast(res.error || "Couldn't create the task.", { tone: "danger" });
@@ -117,8 +161,15 @@ export function QuickTaskPopover({
         tone: "success",
         duration: 8000,
         action: {
-          label: "Open",
-          onClick: () => router.push(`/?tab=tasks&task=${code}`),
+          // Real Undo — remove the just-created task (recoverable delete).
+          label: "Undo",
+          onClick: async () => {
+            const del = await deleteTaskQuick(code);
+            toast(del.ok ? `${code} undone.` : del.error || "Couldn't undo.", {
+              tone: del.ok ? "default" : "danger",
+            });
+            router.refresh();
+          },
         },
       });
       onCreated?.(code);
@@ -166,18 +217,47 @@ export function QuickTaskPopover({
               </div>
 
               <div className="px-4 pb-4 pt-2 flex flex-col gap-3">
-                {/* Action */}
+                {/* Action — speak/jot rough, then ✦ polish */}
                 <div>
-                  <FieldLabel>What needs doing?</FieldLabel>
+                  <div className="flex items-center justify-between mb-1.5 pr-0.5">
+                    <FieldLabel>What needs doing?</FieldLabel>
+                    <div className="flex items-center gap-0.5 -mt-1">
+                      <VoiceButton
+                        lang={voiceLanguage}
+                        title="Dictate the task"
+                        onResult={(text) => setAction((v) => (v.trim() ? `${v.trim()} ${text}` : text))}
+                        className="w-7 h-7"
+                      />
+                      <button
+                        type="button"
+                        onClick={polish}
+                        disabled={polishState === "loading" || !action.trim()}
+                        title={polishState === "loading" ? "Polishing…" : "Polish with AI ✦"}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-40"
+                      >
+                        {polishState === "loading"
+                          ? <Loader2 size={14} className="animate-spin text-accent" />
+                          : <Sparkles size={14} className={polishState === "done" ? "text-accent" : ""} />}
+                      </button>
+                    </div>
+                  </div>
                   <textarea
                     ref={actionRef}
                     rows={2}
                     value={action}
-                    onChange={(e) => setAction(e.target.value)}
+                    onChange={(e) => { setAction(e.target.value); setPolishState("idle"); }}
                     onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit(); }}
                     placeholder="e.g. Chase the packaging supplier for an ETA"
-                    className="w-full rounded-xl px-3 py-2 text-sm resize-none border border-border bg-bg-subtle/60 focus:outline-none focus:ring-2 focus:ring-accent/50 placeholder:text-fg-subtle"
+                    className={cn(
+                      "w-full rounded-xl px-3 py-2 text-sm resize-none placeholder:text-fg-subtle",
+                      polishState === "done" && "ring-1 ring-accent/40",
+                    )}
                   />
+                  {polishState === "done" && (
+                    <p className="mt-1 flex items-center gap-1 text-[11px] text-success">
+                      <CheckCircle2 size={11} /> Polished
+                    </p>
+                  )}
                 </div>
 
                 {/* Company + Assignee row */}
@@ -205,7 +285,7 @@ export function QuickTaskPopover({
                       placeholder="Optional"
                       onInput={setAssignee}
                       onCommit={setAssignee}
-                      className="w-full px-3 py-1.5 text-sm h-9 rounded-lg border border-border bg-bg-subtle/60 focus:outline-none focus:ring-2 focus:ring-accent/50"
+                      className="w-full px-3 py-1.5 text-sm h-9 rounded-lg"
                     />
                   </div>
                 </div>
@@ -220,7 +300,7 @@ export function QuickTaskPopover({
                     value={deadline}
                     min={new Date().toISOString().slice(0, 10)}
                     onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full px-3 py-1.5 text-sm h-9 rounded-lg border border-border bg-bg-subtle/60 focus:outline-none focus:ring-2 focus:ring-accent/50"
+                    className="w-full px-3 py-1.5 text-sm h-9 rounded-lg"
                   />
                 </div>
 

@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Archive, Check, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
+import { Archive, Check, RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { SearchInput } from "@/components/ui";
+import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 
 /* The consolidated task toolbar (T-redesign): one row inside the header card —
  * search, a Company dropdown (filters the list in place), a Filters popover for
@@ -49,12 +51,16 @@ export function TaskToolbar(props: Props) {
   }, [open]);
 
   const narrowing = [priority, status].filter(Boolean).length;
-  const selCls =
-    "h-9 rounded-xl bg-bg-subtle/70 ring-1 ring-border/60 px-3 text-sm text-fg outline-none focus:ring-accent/50 hover:ring-border transition-shadow";
+  const companyOptions: FluidOption[] = [
+    { value: "", label: "All companies" },
+    ...companies.map((c) => ({ value: c.name, label: c.name })),
+  ];
+  // Shared height/shape so search · company · filters · closed line up cleanly.
+  const ctrlCls = "h-9 rounded-xl";
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Search (table/board views) */}
+      {/* Search (table/board views) — kit SearchInput (matches /people, /documents) */}
       {(view === "table" || view === "board") && (
         <form
           className="relative flex-1 min-w-[180px]"
@@ -64,28 +70,23 @@ export function TaskToolbar(props: Props) {
             setParam("q", v.trim());
           }}
         >
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
-          <input
+          <SearchInput
             name="q"
             defaultValue={q}
             placeholder="Search task, code, or person…"
-            className="w-full h-9 rounded-xl bg-bg-subtle/70 ring-1 ring-border/60 pl-9 pr-3 text-sm outline-none focus:ring-accent/50"
+            aria-label="Search tasks"
           />
         </form>
       )}
 
-      {/* Company — filters the list in place */}
-      <select
-        aria-label="Filter by company"
+      {/* Company — Aurora glass dropdown that filters the list in place */}
+      <FluidSelect
         value={company || ""}
-        onChange={(e) => setParam("company", e.target.value)}
-        className={selCls}
-      >
-        <option value="">All companies</option>
-        {companies.map((c) => (
-          <option key={c.id} value={c.name}>{c.name}</option>
-        ))}
-      </select>
+        options={companyOptions}
+        onSelect={(v) => setParam("company", v)}
+        placeholder="All companies"
+        buttonClassName={cn(ctrlCls, "bg-bg-subtle/70 border-border/60")}
+      />
 
       {/* Filters popover — Priority + Status */}
       <div ref={popRef} className="relative">
@@ -93,7 +94,8 @@ export function TaskToolbar(props: Props) {
           type="button"
           onClick={() => setOpen((o) => !o)}
           className={cn(
-            "inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-sm transition-shadow ring-1",
+            "inline-flex items-center gap-1.5 px-3 text-sm transition-shadow ring-1",
+            ctrlCls,
             narrowing > 0 ? "bg-accent-soft/60 ring-accent/30 text-accent" : "bg-bg-subtle/70 ring-border/60 text-fg-muted hover:ring-border"
           )}
         >

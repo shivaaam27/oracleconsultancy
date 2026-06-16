@@ -111,3 +111,98 @@ Each: tsc + `next build` + preview (admin + portal twin) + reduced-motion + noth
 Status: PLAN ONLY (no code yet — owner asked "no code" this round). Mockup shown:
 `task_management_aurora_redesign`. Recommended build start = **T1 (richer rows + row action
 buttons + glass inline editors + peek on board)**.
+
+## EXECUTION LOG — repair sweep (2026-06-17)
+
+The redesign was committed in ONE big commit (`2be0b49`) + a follow-up (`217718b` "title is
+hero") **while the owner's laptop crashed mid-run**, so much landed half-wired. A multi-agent
+**audit** (7 surface auditors + synth, run `wf_3d494d5a-7ec`) found **38 findings** (7 high, 13
+med, 18 low); a **fix** sweep (8 disjoint-file agents, run `wf_a895f06b-ae5`) repaired them.
+tsc clean, admin Table/Board/Calendar verified in preview, **NOT pushed — awaiting owner review.**
+
+**Fixed (high):**
+- **Portal list rich rows** — host page (`portal/(app)/tasks/page.tsx`) now batches a `task_updates`
+  read and maps description/latestActivity/updateCount/pinned/lastActivityISO onto each row (was
+  starved → blank line 3 + bogus "quiet ~20000d"). Added `comments` to the tasks select.
+- **Portal role gate** — `viewerRole={me.portalRole}` now passed (managers/HR/directors get
+  Completed in-row; staff stay In Progress/Under Review/Blocked; server still the hard gate).
+- **Drawer deep-link tab** — drawer now seeds `activeTab` from the URL; openers set it.
+- **Drawer Prev/Next** — table + timeline `openTask` now write `tl=<ordered codes>` (arrows were dead).
+- **Calendar touch reschedule** — agenda-sheet rows + rail chips now carry a `DeadlineEditor`
+  (HTML5 drag was desktop-only → mobile had no way to move a deadline).
+- **Mobile TaskCard** — rebuilt to the rich-row spec (TaskInlineStatus + priority dot,
+  `TaskUpdateLine` as its own Conversation tap-target, trailing `TaskRowActions compact`).
+- **Quick-create voice+✦** — Action field now has `VoiceButton` + a polish button (ActionItemField
+  couldn't be reused — it's uncontrolled/no mic).
+
+**`tab` → `dtab` COLLISION FIX (found in verification, not the audit):** the drawer's active-tab
+param was `tab`, which is the **app-wide section selector** (`page.tsx` `sp.tab === "tasks"`, also
+HRMS/workbook/registry). Opening a task knocked the hub off the Tasks list and closing dumped you
+on Overview. Renamed the drawer param to **`dtab`** in `table-view.tsx`/`task-card.tsx`/
+`task-drawer.tsx`. Verified: open update-line → `?tab=tasks…&dtab=conversation&tl=…` (Conversation
+tab + ‹1/21› arrows), close → back to `?tab=tasks&view=table`. **Section `tab=` left untouched.**
+
+**Also fixed (med/low):** in-row priority (`TaskInlinePriority`) + deadline (`DeadlineEditor`) on the
+desktop row (dropped by `217718b`); board+calendar+table/timeline framed in `Panel`/`CockpitModule`;
+calendar Week|Month Segmented toggle (`?cal=week`) + long-press peek; board dropped glass-on-content,
+Reveal stagger, kit Button/IconButton, soft fields; board no longer starts in dayMode (full pipeline);
+drawer Copy-link + `WaitingOnChip` + `SectionCard` composer (keeps text on failed post) + FluidSelect
+Company/Risk/Escalation + Segmented history filters; portal FluidSelect filters + Segmented tabs +
+`SearchInput` + trailing `…` menu (role-safe) + WaitingOnChip fix; quick-create real Undo
+(`deleteTaskQuick`) + softened fields + `createdBy:"web-ui"` (added optional `createdBy` to
+`createCaptureTask`); peek send button → `IconButton`; inline add-row hover de-`bg-bg-muted`.
+
+**DEFERRED (owner sign-off — bigger refactors, NOT bugs):**
+- Shared **`TaskComposer`** extraction (drawer ↔ `portal-conversation.tsx`) — twin-drift risk.
+- Shared **`TaskRow`** component (admin ↔ portal) — currently parallel re-implementations + a TWIN
+  cross-link comment; risk they drift.
+- In-row **assignee reassign** popover — needs a new reassign server action (plan ranks lowest).
+- Portal in-row status **Undo** — `portalAddUpdate` returns void; undo token would thread a shared
+  write path. Mitigation: re-tap is one touch, every move audited.
+- Quick-create **DeadlineEditor** — needs a task code (pre-create form has none); kept a softened
+  native date well.
+
+**NOT visually verified:** the **portal task list** (needs a staff `cos_portal` login — this session
+is owner-only; `/portal/tasks` returns 200 + redirects to `/portal/login`). Logic mirrors the proven
+admin query + tsc clean. Owner should eyeball it after a staff login.
+
+## Header + row beautification (2026-06-17, owner feedback)
+
+Owner: "top part — use Aurora; layout has negative space, is buggy, mobile not beautiful."
+Done (tsc clean, verified desktop + mobile in preview; NOT pushed):
+- **Toolbar Aurora** (`task-toolbar.tsx`): company native `<select>` → **FluidSelect** glass dropdown;
+  hand-rolled search → kit **`SearchInput`**; shared `h-9 rounded-xl` so search·company·Filters·Closed line up.
+- **New `components/assignee-avatars.tsx`** — calm overlapping initials circles (links to person drawer +
+  hover preview, "+N" overflow). Replaces the comma-name text that truncated badly ("Shivam Alpeshkumar |…")
+  = the "buggy" look. Used by the desktop row AND the mobile card.
+- **Desktop row** (`table-view.tsx`): right side grouped into ONE tidy aligned cluster —
+  priority(`lg:`)·status·deadline·avatars(`md:`)·hover-actions — so the row reads as two clean zones and the
+  fuller cluster reduces the dead centre gap. Removed the dead `sm:hidden` badge block (never rendered inside
+  `hidden sm:block`). `AssigneeList` import dropped here.
+- **Mobile card** (`task-card.tsx`): `glass` → solid `elevated` + hairline ring (content cards aren't glass);
+  footer names → `AssigneeAvatars` (size 26). Title/description/status/priority-dot/update-line kept.
+- Note: a couple of transient "Users is not defined" console errors were **stale HMR chunks** mid-edit; the
+  files are clean and both views render. `AssigneeList`/`assignee-list.tsx` still used elsewhere (drawer etc.).
+
+## Aligned columns + inline add + simpler header (2026-06-17, round 2 — PUSHED)
+
+Owner feedback: controls not column-aligned, description/update inconsistent, add-task popup unwanted,
+header too busy. Plus mockups approved for the row grid + a redesigned task **pop-up** (drawer) — drawer
+redesign NOT built yet (mockup only, awaiting build).
+- **Desktop rows = column grid** (`COLS` const in `table-view.tsx`): `[task 1fr] · status · deadline · who(md+)`,
+  with a faint TASK/STATUS/DEADLINE/WHO header strip, so everything lines up down the list. Priority is now the
+  leading **dot** only (pill removed). Meta lines share one indent. Hover actions are an absolute overlay so they
+  never disturb alignment.
+- **One-step inline add** (`components/inline-add-task.tsx`, replaces the popup trigger in `task-actions.tsx`):
+  text box + **circle pickers** — company (initial), assignee (avatar stack + searchable people popover, shows the
+  same avatars as rows), deadline (calendar). Enter/Add creates via `createCaptureTask` (createdBy web-ui) with a
+  **swipe-away** framer motion (reduced-motion safe) + Undo toast. The nav-pill `+` focuses this row on list views,
+  opens `QuickTaskPopover` only on calendar/timeline.
+- **Header simplified** to 3 rows (`tasks-section.tsx`): title+views · toolbar · Focus/All + chips + Group on one
+  wrapping line. Dropped `ChipRail`. Toolbar (`task-toolbar.tsx`): company native select → FluidSelect, search → kit
+  SearchInput.
+- Fixed a leftover `loading={isPending}` on the peek `IconButton` (IconButton has no loading prop). A residual
+  dev-only "non-boolean attribute `loading`" console warning may remain from a spread somewhere — dev-only, React
+  strips the attr, zero production impact; chase later.
+- Mockups shown this round: `task_management_aurora_header_rows_inline_add`, `task_popup_aurora_redesign` (the
+  drawer redesign is the next build item, owner-approved direction).

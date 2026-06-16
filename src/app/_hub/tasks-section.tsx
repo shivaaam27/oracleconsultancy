@@ -14,7 +14,6 @@ import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
 import { CheckSquare, Sparkles, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X } from "lucide-react";
-import { ChipRail } from "@/components/widget-card";
 
 type Sp = {
   company?: string;
@@ -160,7 +159,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread);
 
-  const dayMode = !hasFilters && sp.all !== "1" && view !== "calendar" && view !== "timeline";
+  const dayMode = !hasFilters && sp.all !== "1" && view !== "calendar" && view !== "timeline" && view !== "board";
   if (dayMode) {
     rows = rows.filter(
       (r) =>
@@ -236,8 +235,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         action={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
       />
 
-      {/* Controls — toolbar · Focus/All · chip filters · group-by. Plain
-          stack (no glass card) so the table stays the focal point. */}
+      {/* Controls — just two calm rows: the toolbar, then Focus/All · attention
+          chips · group-by all on one wrapping line. Keeps the table the hero. */}
       <div className="space-y-3">
           {/* Toolbar — search · company · filters · show closed (consolidated). */}
           <TaskToolbar
@@ -253,10 +252,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             statuses={["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"]}
           />
 
-          {/* Focus / All toggle — segmented pill */}
-          {!hasFilters && (view === "table" || view === "board") && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="inline-flex items-center gap-1 p-1 rounded-full bg-bg-subtle/70 ring-1 ring-border/60 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Focus / All — segmented pill */}
+            {!hasFilters && (view === "table" || view === "board") && (
+              <div className="inline-flex shrink-0 items-center gap-1 p-1 rounded-full bg-bg-subtle/70 ring-1 ring-border/60 text-xs">
                 <Link
                   href="/?tab=tasks"
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${dayMode ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
@@ -270,81 +269,73 @@ export async function TasksSection({ sp }: { sp: Sp }) {
                   All tasks
                 </Link>
               </div>
-              {dayMode && (
-                <span className="hidden sm:inline text-[11px] text-fg-muted">Overdue, due-soon, escalated &amp; critical across all companies.</span>
-              )}
-            </div>
-          )}
+            )}
 
-          {/* Quick-filters — only the ones that actually have tasks, so the
-              rail stays short. Overdue & Escalated lead (the headline "needs
-              you" signals), then the secondary flags. Each chip is also a
-              filter, so it shows the count AND narrows the table. */}
-          <ChipRail className="sm:flex-wrap sm:[mask-image:none]">
-        {([
-          { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
-          { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
-          { label: "Unread",      count: kpi.unread,      key: "1",           filterKey: "unread" as const,  tone: "info" as const,   Icon: Sparkles },
-          { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
-          { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const, Icon: PauseCircle },
-          { label: "No Deadline", count: kpi.noDeadline,  key: "no-deadline", filterKey: "flag" as const,    tone: "warn" as const,   Icon: CalendarOff },
-          { label: "Critical",    count: kpi.critical,    key: "Critical",    filterKey: "priority" as const, tone: "danger" as const, Icon: Flame },
-          { label: "No Owner",    count: kpi.noOwner,     key: "1",           filterKey: "noOwner" as const,  tone: "info" as const,   Icon: UserMinus },
-        ]).filter((c) => c.count > 0 || sp[c.filterKey] === c.key).map(({ label, count, key, filterKey, tone, Icon }) => {
-          const active = sp[filterKey] === key;
-          const href = buildHref(sp, { [filterKey]: active ? undefined : key });
-          const tint = active
-            ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
-              : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
-              : "bg-info-soft/70 ring-2 ring-info/40 text-info"
-            : count === 0
-              ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
-              : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
-              : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
-              : "bg-info-soft/50 ring-1 ring-info/25 text-info hover:ring-2";
-          return (
-            <Link
-              key={label}
-              href={href}
-              title={active ? `${label}: ${count} — tap to clear` : `${label}: ${count}`}
-              aria-label={`${label}: ${count}`}
-              aria-pressed={active}
-              className={`group shrink-0 inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
-            >
-              <Icon size={14} className="shrink-0" />
-              <span className="font-medium whitespace-nowrap">{label}</span>
-              <span className="font-semibold tabular">{count}</span>
-              {active && <X size={12} className="shrink-0 opacity-70" />}
-            </Link>
-          );
-        })}
-          </ChipRail>
+            {/* Attention chips — only the ones that have tasks; each is also a filter. */}
+            {([
+              { label: "Overdue",     count: kpi.overdue,     key: "overdue",     filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
+              { label: "Escalated",   count: kpi.escalated,   key: "escalated",   filterKey: "flag" as const,    tone: "danger" as const, Icon: AlertOctagon },
+              { label: "Unread",      count: kpi.unread,      key: "1",           filterKey: "unread" as const,  tone: "info" as const,   Icon: Sparkles },
+              { label: "Due Soon",    count: kpi.dueSoon,     key: "due-soon",    filterKey: "flag" as const,    tone: "warn" as const,   Icon: Hourglass },
+              { label: "Stalled",     count: kpi.stalled,     key: "stalled",     filterKey: "flag" as const,    tone: "danger" as const, Icon: PauseCircle },
+              { label: "No Deadline", count: kpi.noDeadline,  key: "no-deadline", filterKey: "flag" as const,    tone: "warn" as const,   Icon: CalendarOff },
+              { label: "Critical",    count: kpi.critical,    key: "Critical",    filterKey: "priority" as const, tone: "danger" as const, Icon: Flame },
+              { label: "No Owner",    count: kpi.noOwner,     key: "1",           filterKey: "noOwner" as const,  tone: "info" as const,   Icon: UserMinus },
+            ]).filter((c) => c.count > 0 || sp[c.filterKey] === c.key).map(({ label, count, key, filterKey, tone, Icon }) => {
+              const active = sp[filterKey] === key;
+              const href = buildHref(sp, { [filterKey]: active ? undefined : key });
+              const tint = active
+                ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
+                  : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
+                  : "bg-info-soft/70 ring-2 ring-info/40 text-info"
+                : count === 0
+                  ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
+                  : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
+                  : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
+                  : "bg-info-soft/50 ring-1 ring-info/25 text-info hover:ring-2";
+              return (
+                <Link
+                  key={label}
+                  href={href}
+                  title={active ? `${label}: ${count} — tap to clear` : `${label}: ${count}`}
+                  aria-label={`${label}: ${count}`}
+                  aria-pressed={active}
+                  className={`group shrink-0 inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 text-xs rounded-full transition-all hover:shadow-sm ${tint}`}
+                >
+                  <Icon size={14} className="shrink-0" />
+                  <span className="font-medium whitespace-nowrap">{label}</span>
+                  <span className="font-semibold tabular">{count}</span>
+                  {active && <X size={12} className="shrink-0 opacity-70" />}
+                </Link>
+              );
+            })}
 
-          {/* Group-by — organise the table into labelled sections (table view) */}
-          {view === "table" && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-fg-subtle">Group</span>
-              <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-bg-subtle/70 ring-1 ring-border/60">
-                {([
-                  { key: null, label: "None" },
-                  { key: "company", label: "Company" },
-                  { key: "status", label: "Status" },
-                  { key: "person", label: "Person" },
-                ] as const).map((g) => {
-                  const on = (groupBy ?? null) === g.key;
-                  return (
-                    <Link
-                      key={g.label}
-                      href={buildHref(sp, { group: g.key ?? undefined })}
-                      className={`px-2.5 py-1 rounded-full transition-colors ${on ? "bg-accent text-accent-fg font-medium" : "text-fg-muted hover:text-fg"}`}
-                    >
-                      {g.label}
-                    </Link>
-                  );
-                })}
+            {/* Group-by — pushed to the right (table view only) */}
+            {view === "table" && (
+              <div className="ml-auto flex shrink-0 items-center gap-2 text-xs">
+                <span className="text-fg-subtle">Group</span>
+                <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-bg-subtle/70 ring-1 ring-border/60">
+                  {([
+                    { key: null, label: "None" },
+                    { key: "company", label: "Company" },
+                    { key: "status", label: "Status" },
+                    { key: "person", label: "Person" },
+                  ] as const).map((g) => {
+                    const on = (groupBy ?? null) === g.key;
+                    return (
+                      <Link
+                        key={g.label}
+                        href={buildHref(sp, { group: g.key ?? undefined })}
+                        className={`px-2.5 py-1 rounded-full transition-colors ${on ? "bg-accent text-accent-fg font-medium" : "text-fg-muted hover:text-fg"}`}
+                      >
+                        {g.label}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
       </div>
 
       <SavedViewsBar

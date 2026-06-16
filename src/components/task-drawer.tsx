@@ -10,7 +10,7 @@ import { TimelineEntry } from "./timeline-entry";
 import {
   ExternalLink, FileText, History, LayoutDashboard, MessageSquare, Pencil, Save,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
-  ChevronLeft, ChevronRight, Send,
+  ChevronLeft, ChevronRight, Send, Link as LinkIcon,
 } from "lucide-react";
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
@@ -20,6 +20,9 @@ import { PolishedInput } from "./polished-input";
 import { PersonPicker } from "./person-picker";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "./portal-conversation";
 import { TaskInlineStatus, TaskInlinePriority } from "./task-inline-edit";
+import { WaitingOnChip } from "./task-meta-line";
+import { Segmented } from "./macos";
+import { FluidSelect } from "./fluid-select";
 import { SimilarTasks } from "./similar-tasks";
 import { DraftEmailButton } from "./draft-email-button";
 import { useToast } from "./toast";
@@ -148,6 +151,11 @@ export function TaskDrawer() {
   const [activeTab, setActiveTab] = useState("overview");
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const [posting, setPosting] = useState(false);
+  // Controlled values for the Edit tab's FluidSelects (kit dropdowns don't emit a
+  // form field, so each is mirrored into a hidden input). Re-seeded when data loads.
+  const [editCompany, setEditCompany] = useState("");
+  const [editRisk, setEditRisk] = useState("");
+  const [editEscalation, setEditEscalation] = useState("No");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
@@ -169,11 +177,21 @@ export function TaskDrawer() {
     params.delete("task");
     params.delete("tr");
     params.delete("tl");
+    params.delete("dtab");
     const q = params.toString();
     router.push(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [pathname, router, searchParams]);
 
-  useEffect(() => { setActiveTab("overview"); setConfirmDel(false); setFilter("all"); }, [code]);
+  // Seed the active tab from the `dtab` URL param so openers can deep-link a tab
+  // (e.g. table-view openTask(code,"conversation") sets ?dtab=conversation). A
+  // drawer-specific name, NOT "tab" (which selects the page section). The ids
+  // here must match the DrawerTab ids below. Falls back to Overview.
+  useEffect(() => {
+    setActiveTab(searchParams.get("dtab") ?? "overview");
+    setConfirmDel(false);
+    setFilter("all");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
 
   async function quickAction(kind: "complete" | "escalate") {
     if (!data) return;
@@ -210,13 +228,25 @@ export function TaskDrawer() {
 
   // Inline Overview "add update" — reuses the SAME adminAddUpdate server action as
   // the Conversation tab (no new composer component, no edit to portal-conversation).
+  // NOTE (planned): a shared <TaskComposer> should back both this box and
+  // PortalConversation's composer — deferred (portal-conversation.tsx is out of
+  // scope here; extracting it now risks twin-drift). See T-DRAWER-COMPOSER.
   async function postUpdate(formData: FormData) {
+    const body = String(formData.get("body") ?? "").trim();
+    if (!body) return; // nothing to post — leave the box untouched
     setPosting(true);
-    await adminAddUpdate(formData);
-    if (composerRef.current) composerRef.current.value = "";
-    setPosting(false);
-    setRefreshKey((k) => k + 1);
-    router.refresh();
+    try {
+      await adminAddUpdate(formData);
+      // Only clear the textarea once the post resolved without throwing, so a
+      // failed post keeps the operator's typed text instead of silently wiping it.
+      if (composerRef.current) composerRef.current.value = "";
+      setRefreshKey((k) => k + 1);
+      router.refresh();
+    } catch {
+      toast("Couldn't post the update — your text is still here.", { tone: "warn", duration: 4000 });
+    } finally {
+      setPosting(false);
+    }
   }
 
   useEffect(() => {
@@ -230,7 +260,29 @@ export function TaskDrawer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, refreshKey, refreshNonce, isTaskPage]);
 
+  // Seed the Edit-tab controlled selects whenever the task data (re)loads.
+  useEffect(() => {
+    if (!data) return;
+    setEditCompany(String(data.task.companyId));
+    setEditRisk(data.task.risk || "");
+    setEditEscalation(data.task.escalation || "No");
+  }, [data]);
+
   const t = data?.task;
+
+  // Copy a stable deep-link to this task (current page + ?task=CODE) to the clipboard.
+  async function copyLink() {
+    const taskCode = t?.code ?? code;
+    if (!taskCode) return;
+    const url = `${location.origin}${pathname}?task=${encodeURIComponent(taskCode)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("Link copied", { tone: "success", duration: 3000 });
+    } catch {
+      toast("Couldn't copy the link", { tone: "warn", duration: 3000 });
+    }
+  }
+
   const urgent = !!t && (t.flag === "overdue" || t.escalation === "Yes" || (typeof t.daysToDeadline === "number" && t.daysToDeadline < 0));
   const done = !!t && (t.status === "Completed" || t.status === "Closed");
   const tone: "accent" | "success" | "warn" | "danger" = done ? "success" : urgent ? "danger" : "accent";
@@ -300,10 +352,11 @@ export function TaskDrawer() {
         </div>
       )}
 
-      {/* "Waiting on…" chip for Blocked / Waiting External */}
+      {/* "Waiting on…" chip for Blocked / Waiting External — kit chip so Overview
+          matches the row/board (generic fallback; no specific blocker known). */}
       {t.waiting && (
-        <div className="flex items-center gap-2 rounded-xl ring-1 ring-warn/25 bg-warn-soft/40 px-3 py-2 text-xs text-warn font-medium">
-          {t.status === "Blocked" ? "Blocked on a blocker" : "Waiting on an external party"}
+        <div>
+          <WaitingOnChip task={t} />
         </div>
       )}
 
@@ -364,25 +417,27 @@ export function TaskDrawer() {
 
       {/* Inline add-update box (reuses adminAddUpdate — same action as Conversation) */}
       {!done && (
-        <form action={postUpdate} className="rounded-2xl bg-bg-elev ring-1 ring-border p-3 space-y-2.5">
-          <input type="hidden" name="taskId" value={t.id} />
-          <input type="hidden" name="code" value={t.code} />
-          <input type="hidden" name="parentUpdateId" value="" />
-          <textarea
-            ref={composerRef}
-            name="body"
-            required
-            rows={2}
-            placeholder="Add a quick update…"
-            className="w-full resize-y rounded-xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none"
-          />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-fg-subtle">Need to @mention, attach or set status? Open Conversation.</span>
-            <Button type="submit" size="sm" className="rounded-full shrink-0" loading={posting} disabled={posting}>
-              {!posting && <Send size={13} />} Post
-            </Button>
-          </div>
-        </form>
+        <SectionCard>
+          <form action={postUpdate} className="p-3 space-y-2.5">
+            <input type="hidden" name="taskId" value={t.id} />
+            <input type="hidden" name="code" value={t.code} />
+            <input type="hidden" name="parentUpdateId" value="" />
+            <textarea
+              ref={composerRef}
+              name="body"
+              required
+              rows={2}
+              placeholder="Add a quick update…"
+              className="w-full resize-y rounded-xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-fg-subtle">Need to @mention, attach or set status? Open Conversation.</span>
+              <Button type="submit" size="sm" className="rounded-full shrink-0" loading={posting} disabled={posting}>
+                {!posting && <Send size={13} />} Post
+              </Button>
+            </div>
+          </form>
+        </SectionCard>
       )}
 
       {data!.sourceMeeting && (
@@ -400,7 +455,10 @@ export function TaskDrawer() {
 
       <SimilarTasks query={t.actionItem} excludeId={t.id} />
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={copyLink}>
+          <LinkIcon size={13} /> Copy link
+        </Button>
         <DraftEmailButton taskId={t.id} />
       </div>
     </>
@@ -435,18 +493,15 @@ export function TaskDrawer() {
   const historyContent = t ? (
     <SectionCard className="p-4">
       {counts.all > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {(Object.keys(FILTER_LABELS) as TimelineFilter[])
-            .filter((f) => f === "all" || counts[f] > 0)
-            .map((f) => {
-              const active = filter === f;
-              return (
-                <button key={f} type="button" onClick={() => setFilter(f)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-colors ${active ? "bg-accent text-accent-fg font-medium" : "bg-bg-subtle text-fg-muted hover:text-fg"}`}>
-                  {FILTER_LABELS[f]}<span className={active ? "text-accent-fg/80" : "text-fg-subtle"}>{counts[f]}</span>
-                </button>
-              );
-            })}
+        <div className="-mx-1 mb-3 overflow-x-auto px-1">
+          <Segmented<TimelineFilter>
+            size="sm"
+            value={filter}
+            onChange={setFilter}
+            options={(Object.keys(FILTER_LABELS) as TimelineFilter[])
+              .filter((f) => f === "all" || counts[f] > 0)
+              .map((f) => ({ value: f, label: `${FILTER_LABELS[f]} ${counts[f]}` }))}
+          />
         </div>
       )}
       {timeline.length > 0 ? (
@@ -470,9 +525,14 @@ export function TaskDrawer() {
           <PolishedInput name="actionItem" defaultValue={t.actionItem} required />
         </Field>
         <Field label="Company">
-          <Select name="companyId" defaultValue={t.companyId}>
-            {data.companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
+          <input type="hidden" name="companyId" value={editCompany} />
+          <FluidSelect
+            value={editCompany}
+            onSelect={setEditCompany}
+            options={data.companies.map((c) => ({ value: String(c.id), label: c.name }))}
+            className="w-full"
+            buttonClassName="w-full justify-between"
+          />
           <p className="text-[10.5px] text-fg-subtle leading-snug">Changing this issues a new code; the old one keeps redirecting.</p>
         </Field>
       </EditCard>
@@ -481,8 +541,27 @@ export function TaskDrawer() {
         <div className="grid grid-cols-2 gap-x-2.5 gap-y-2.5">
           <Field label="Status"><Select name="status" defaultValue={t.status}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
           <Field label="Priority"><Select name="priority" defaultValue={t.priority}>{PRIORITIES.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-          <Field label="Risk"><Select name="risk" defaultValue={t.risk || ""}><option value="">—</option>{RISKS.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-          <Field label="Escalation"><Select name="escalation" defaultValue={t.escalation || "No"}><option>No</option><option>Yes</option></Select></Field>
+          <Field label="Risk">
+            <input type="hidden" name="risk" value={editRisk} />
+            <FluidSelect
+              value={editRisk}
+              onSelect={setEditRisk}
+              placeholder="—"
+              options={[{ value: "", label: "—" }, ...RISKS.map((s) => ({ value: s, label: s }))]}
+              className="w-full"
+              buttonClassName="w-full justify-between"
+            />
+          </Field>
+          <Field label="Escalation">
+            <input type="hidden" name="escalation" value={editEscalation} />
+            <FluidSelect
+              value={editEscalation}
+              onSelect={setEditEscalation}
+              options={[{ value: "No", label: "No" }, { value: "Yes", label: "Yes" }]}
+              className="w-full"
+              buttonClassName="w-full justify-between"
+            />
+          </Field>
           <Field label="Department"><Input name="department" defaultValue={t.department || ""} placeholder="—" /></Field>
           <Field label="Category"><Input name="category" defaultValue={t.category || ""} placeholder="—" /></Field>
           <Field label="Meeting date"><Input name="meetingDate" type="date" defaultValue={dateInput(t.meetingDate)} /></Field>

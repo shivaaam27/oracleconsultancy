@@ -6,6 +6,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { NotebookPen, StickyNote, CalendarOff, Activity, CalendarRange } from "lucide-react";
 import type { TaskRow, TaskSource, RawActivity } from "@/lib/queries";
 import { Badge, EmptyState } from "@/components/ui";
+import { Panel } from "@/components/surface-kit";
 import { Deadline } from "@/components/deadline";
 import { FluidSelect } from "@/components/fluid-select";
 import { TimelineEntry, type TimelineTask } from "@/components/timeline-entry";
@@ -70,10 +71,36 @@ export function TimelineView({
   const [groupBy, setGroupBy] = useState<GroupBy>("origin");
   const [companyFilter, setCompanyFilter] = useState("");
 
+  // Triage order for the drawer's Prev/Next arrows — the linear sequence in
+  // which task cards render in Schedule mode (month-grouped, newest first, then
+  // undated). Mirrors the Schedule layout below.
+  const triageCodes = useMemo(() => {
+    const dateOf = (r: TaskRow): Date | null =>
+      groupBy === "deadline" ? r.deadline
+      : groupBy === "activity" ? (r.lastUpdatedAt ?? r.createdDate)
+      : (r.meetingDate ?? r.createdDate);
+    const dated = rows.map((r) => ({ r, d: dateOf(r) }));
+    const byMonth = new Map<string, { sortD: number; items: { r: TaskRow; d: Date }[] }>();
+    for (const x of dated) {
+      if (!x.d) continue;
+      const k = monthKey(x.d);
+      if (!byMonth.has(k)) byMonth.set(k, { sortD: new Date(x.d.getFullYear(), x.d.getMonth(), 1).getTime(), items: [] });
+      byMonth.get(k)!.items.push({ r: x.r, d: x.d });
+    }
+    const ordered: string[] = [];
+    for (const m of [...byMonth.values()].sort((a, b) => b.sortD - a.sortD)) {
+      for (const { r } of m.items.sort((a, b) => b.d.getTime() - a.d.getTime())) ordered.push(r.code);
+    }
+    for (const x of dated) if (!x.d) ordered.push(x.r.code);
+    return ordered.join(",");
+  }, [rows, groupBy]);
+
   function openTask(code: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("task", code);
     params.delete("person");
+    // Triage list — the drawer's Prev/Next arrows walk this in render order.
+    params.set("tl", triageCodes);
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
@@ -266,10 +293,11 @@ export function TimelineView({
       {rows.length === 0 ? (
         <EmptyState icon={<CalendarOff size={28} />} title="No tasks in scope." hint="Adjust filters or pick a different view." />
       ) : (
-        <>
+        // Light Panel frame so the Schedule surface matches Home / Worlds.
+        <Panel className="p-3 sm:p-4 space-y-4">
           {months.map((m) => (
             <section key={m.label}>
-              <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-bg/80 backdrop-blur-sm">
+              <div className="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-bg-elev/85 backdrop-blur-sm">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{m.label} <span className="text-fg-subtle font-normal">· {m.items.length}</span></h3>
               </div>
               <div className="relative">
@@ -288,7 +316,7 @@ export function TimelineView({
               </div>
             </section>
           )}
-        </>
+        </Panel>
       )}
     </div>
   );
