@@ -16,6 +16,7 @@ import {
   ClipboardList,
   FileWarning,
   Megaphone,
+  MessageSquareText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -36,6 +37,7 @@ export type NavRoute = {
  * listed as a destination.
  */
 export const NAV_ROUTES: NavRoute[] = [
+  { id: "requests",    href: "/requests",            label: "Requests",            icon: MessageSquareText },
   { id: "announcements", href: "/announcements",      label: "Announcements",       icon: Megaphone },
   { id: "tax-legal",   href: "/hrms/command-centre", label: "Tax & Legal",        icon: CalendarClock },
   { id: "org",         href: "/hrms/org",            label: "Organogram",          icon: Network },

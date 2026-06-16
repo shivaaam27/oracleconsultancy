@@ -9,13 +9,14 @@ import { sendToRecipient } from "./push";
  * the bell in each pill.
  * ------------------------------------------------------------------ */
 
-export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "leave" | "announcement";
+export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "leave" | "announcement" | "request";
 
 export type Notification = {
   id: number;
   kind: NotifKind;
   taskCode: string | null;
   threadId: number | null;
+  requestId: number | null;
   title: string;
   body: string | null;
   actor: string | null;
@@ -72,6 +73,8 @@ export async function createNotification(input: {
   // leave these null and deep-link to the surface below.
   taskId?: number | null;
   taskCode?: string | null;
+  // Request deep-link target (kind "request").
+  requestId?: number | null;
   title: string;
   body?: string | null;
   actor?: string | null;
@@ -82,6 +85,7 @@ export async function createNotification(input: {
       kind: input.kind,
       task_id: input.taskId ?? null,
       task_code: input.taskCode ?? null,
+      request_id: input.requestId ?? null,
       title: input.title,
       body: (input.body ?? "").slice(0, 200) || null,
       actor: input.actor ?? null,
@@ -90,18 +94,23 @@ export async function createNotification(input: {
     // Push to the recipient's phone(s) too (T4b). Best-effort, no-op if push
     // isn't configured or they have no devices registered. Task-less notifs
     // open the relevant surface (the owner's leave page / the staff portal).
+    const isAdmin = input.recipient === "admin";
     const url = input.taskCode
-      ? input.recipient === "admin"
+      ? isAdmin
         ? `/task/${input.taskCode}`
         : `/portal/task/${input.taskCode}`
-      : input.recipient === "admin"
-        ? `/hrms/leave`
-        : `/portal/profile`;
+      : input.requestId
+        ? isAdmin
+          ? `/requests/${input.requestId}`
+          : `/portal/requests/${input.requestId}`
+        : isAdmin
+          ? `/hrms/leave`
+          : `/portal/profile`;
     await sendToRecipient(input.recipient, {
       title: input.title,
       body: input.body ?? "",
       url,
-      tag: input.taskCode ? `task-${input.taskCode}` : `notif-${input.kind}`,
+      tag: input.taskCode ? `task-${input.taskCode}` : input.requestId ? `request-${input.requestId}` : `notif-${input.kind}`,
     });
   } catch {
     /* swallow — best effort */
@@ -124,7 +133,7 @@ export async function notifyMany(
 export async function listNotifications(recipient: string, limit = 30): Promise<Notification[]> {
   const { data } = await sb
     .from("notifications")
-    .select("id,kind,task_code,thread_id,title,body,actor,created_at,read_at")
+    .select("id,kind,task_code,thread_id,request_id,title,body,actor,created_at,read_at")
     .eq("recipient", recipient)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -133,6 +142,7 @@ export async function listNotifications(recipient: string, limit = 30): Promise<
     kind: n.kind as NotifKind,
     taskCode: (n.task_code as string | null) ?? null,
     threadId: (n.thread_id as number | null) ?? null,
+    requestId: (n.request_id as number | null) ?? null,
     title: n.title as string,
     body: (n.body as string | null) ?? null,
     actor: (n.actor as string | null) ?? null,

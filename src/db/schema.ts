@@ -608,11 +608,13 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   recipient: text("recipient").notNull(),
-  kind: text("kind").notNull(), // mention | reply | pinned | assigned | chat | chat_mention
+  kind: text("kind").notNull(), // mention | reply | pinned | assigned | chat | chat_mention | leave | announcement | request
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
   taskCode: text("task_code"),
   // Chat deep-link target (kind chat / chat_mention). Null for task notifs.
   threadId: integer("thread_id"),
+  // Request deep-link target (kind request). Null for non-request notifs.
+  requestId: integer("request_id"),
   title: text("title").notNull(),
   body: text("body"),
   actor: text("actor"),
@@ -1517,3 +1519,70 @@ export const announcementComments = pgTable("announcement_comments", {
   isAnswer: boolean("is_answer").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
 }, (t) => [index("announcement_comments_announcement_idx").on(t.announcementId)]);
+
+/* ------------------------------------------------------------------ *
+ * Request Desk (staff service requests). A member of staff (or a
+ * manager/HR/director) raises a structured request addressed to ONE
+ * named person (their manager, a director, HR) or to the owner. Unlike
+ * chat it has a status the owner can track, and unlike a task it never
+ * clutters the task register — when a request becomes real assignable
+ * work it can be converted to a task (Phase 2, requests.converted_task_id).
+ * The owner sees every request across all companies. See memory.
+ * ------------------------------------------------------------------ */
+export const requests = pgTable(
+  "requests",
+  {
+    id: serial("id").primaryKey(),
+    // Sequential reference, e.g. "REQ-001". Computed at insert.
+    code: text("code").notNull().unique(),
+    // Who raised it.
+    requesterId: integer("requester_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    // Who it is addressed to. A person, OR the owner (toOwner = true, addresseeId null).
+    addresseeId: integer("addressee_id").references(() => people.id, { onDelete: "set null" }),
+    toOwner: boolean("to_owner").notNull().default(false),
+    // The requester's company when raised — for the owner's company filter.
+    companyId: integer("company_id").references(() => companies.id),
+    // Free-text type with suggested chips (Equipment/HR/Admin/Finance/Feedback/…).
+    category: text("category"),
+    title: text("title").notNull(),
+    body: text("body"),
+    // open | needs_info | approved | declined | in_progress | done | noted | cancelled
+    status: text("status").notNull().default("open"),
+    // Decision audit (set when the addressee/owner approves, declines or notes).
+    decisionReason: text("decision_reason"),
+    decidedBy: text("decided_by"),
+    decidedAt: timestamp("decided_at", { mode: "date", withTimezone: true }),
+    // When the addressee/owner first opened it — powers the "Seen" indicator.
+    seenAt: timestamp("seen_at", { mode: "date", withTimezone: true }),
+    // Phase-2 bridge: the task this request became, if converted.
+    convertedTaskId: integer("converted_task_id").references(() => tasks.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index("requests_requester_idx").on(t.requesterId),
+    index("requests_addressee_idx").on(t.addresseeId),
+    index("requests_status_idx").on(t.status),
+    index("requests_company_idx").on(t.companyId),
+  ]
+);
+
+// The on-record conversation for a request. kind null = a message; kind
+// "event" = a status/decision marker rendered as a thin centred line.
+export const requestUpdates = pgTable(
+  "request_updates",
+  {
+    id: serial("id").primaryKey(),
+    requestId: integer("request_id").notNull().references(() => requests.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+    // "portal:<Name>" / "portal-mgr:<Name>" / "portal-dir:<Name>" / "web-ui" (owner).
+    createdBy: text("created_by"),
+    kind: text("kind"),
+    // A photo/file attached to this message, stored as a Document (category
+    // "Attachment"), served via /api/portal/request-attachment with auth.
+    attachmentDocumentId: integer("attachment_document_id").references(() => documents.id, { onDelete: "set null" }),
+    deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
+  },
+  (t) => [index("request_updates_request_idx").on(t.requestId)]
+);

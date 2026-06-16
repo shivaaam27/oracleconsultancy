@@ -568,6 +568,20 @@
       "when": 1781600400000,
       "tag": "0080_todos_reminders_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1781593123809,
+      "tag": "0081_foamy_penance",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1781594423711,
+      "tag": "0082_majestic_deadpool",
+      "breakpoints": true
     }
   ]
 }

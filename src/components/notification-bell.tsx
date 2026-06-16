@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { AtSign, Bell, CornerUpLeft, MessageCircle, Pin, UserPlus } from "lucide-react";
+import { AtSign, Bell, CornerUpLeft, MessageCircle, MessageSquareText, Pin, UserPlus } from "lucide-react";
 
 type Notif = {
   id: number;
-  kind: "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention";
+  kind: "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "request";
   taskCode: string | null;
   threadId: number | null;
+  requestId: number | null;
   title: string;
   body: string | null;
   actor: string | null;
@@ -23,6 +24,7 @@ const ICON = {
   assigned: UserPlus,
   chat: MessageCircle,
   chat_mention: AtSign,
+  request: MessageSquareText,
 };
 
 function ago(iso: string): string {
@@ -125,6 +127,9 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
                       if ((n.kind === "chat" || n.kind === "chat_mention") && n.threadId) {
                         const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
                         router.push(`${chatBase}/${n.threadId}`);
+                      } else if (n.kind === "request" && n.requestId) {
+                        const base = to.startsWith("/portal") ? "/portal/requests" : "/requests";
+                        router.push(`${base}/${n.requestId}`);
                       } else if (n.taskCode) {
                         // On the admin side, open the task in place via the
                         // `?task=CODE` drawer rather than the `/task/[code]`

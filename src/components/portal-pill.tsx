@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { ClipboardList, Home, LayoutDashboard, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
+import { ClipboardList, Home, LayoutDashboard, ListTodo, MessageCircle, MessageSquareText, Plus, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "./notification-bell";
@@ -52,6 +52,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   const onTasks = pathname.startsWith("/portal/tasks");
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");
   const onActivity = pathname.startsWith("/portal/activity");
+  const onRequests = pathname.startsWith("/portal/requests");
   const onChat = pathname.startsWith("/portal/chat");
   const onProfile = pathname.startsWith("/portal/profile");
 
@@ -86,6 +87,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
               so a Home tab is redundant for them — show it for everyone else. */}
           {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} reduce={reduce} />}
           {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} reduce={reduce} />}
+          <PillTab href="/portal/requests" icon={MessageSquareText} label="Requests" active={onRequests} reduce={reduce} />
           <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} reduce={reduce} />
           <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} reduce={reduce} />

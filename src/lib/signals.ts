@@ -31,6 +31,7 @@ import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 import { getPortfolioTrends } from "@/lib/trends";
 import { listObligations, outstandingDeadlines } from "@/lib/recurring";
+import { ownerPendingRequestCount } from "@/lib/requests";
 import type { Todo } from "@/app/todos/actions";
 import type {
   CommandAction,
@@ -197,6 +198,9 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
 
   const overdueDraftSuggestion = automationSuggestions.find((s) => s.id === "overdue-reminder-drafts");
 
+  // Staff service requests addressed to the owner that still need a decision.
+  const pendingRequests = await ownerPendingRequestCount();
+
   const command: CommandAction[] = [
     overdueDraftSuggestion && {
       id: "automation-overdue-drafts",
@@ -225,6 +229,15 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
       actionLabel: "Review critical",
       tone: "danger",
       count: critical.length,
+    },
+    pendingRequests > 0 && {
+      id: "requests",
+      title: `${pendingRequests} request${pendingRequests === 1 ? "" : "s"} awaiting you`,
+      detail: "Staff have asked you for something — review and approve or decline.",
+      href: "/requests",
+      actionLabel: "Open Requests",
+      tone: "accent",
+      count: pendingRequests,
     },
     drafts.length > 0 && {
       id: "drafts",
