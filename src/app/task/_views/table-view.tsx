@@ -7,7 +7,6 @@ import type { TaskRow } from "@/lib/queries";
 import { Badge } from "@/components/ui";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
 import { AssigneeList } from "@/components/assignee-list";
-import { DeadlineEditor } from "@/components/deadline-editor";
 import { PeekPreview, type PeekAction } from "@/components/peek-preview";
 import { TaskContext } from "@/components/task-context";
 import { SnoozeSheet } from "@/components/snooze-sheet";
@@ -17,7 +16,7 @@ import { Reveal } from "@/components/reveal";
 import { TaskUpdateLine } from "@/components/task-update-line";
 import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskRowActions } from "@/components/task-row-actions";
-import { TaskInlineStatus, TaskInlinePriority } from "@/components/task-inline-edit";
+import { TaskInlineStatus } from "@/components/task-inline-edit";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
@@ -222,11 +221,11 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
                         done && "opacity-60",
                       )}
                     >
-                      {/* Line 1 — the glanceable row */}
+                      {/* Line 1 — the title is the hero; right cluster stays compact */}
                       <div className="flex items-center gap-2.5 min-w-0">
                         <Stop className="shrink-0"><SelectCheckbox code={r.code} /></Stop>
 
-                        {/* priority dot */}
+                        {/* priority dot (conveys priority — no separate pill on the row) */}
                         <span
                           title={`${r.priority} priority`}
                           className={cn("h-2 w-2 shrink-0 rounded-full", priorityDot(r.priority))}
@@ -242,70 +241,52 @@ export function TableView({ rows, hideCompany = false, groupBy = null }: { rows:
                           {r.code}
                         </span>
 
-                        {/* company dot (when shown) */}
-                        {!hideCompany && (
-                          <span className="hidden md:inline-flex items-center gap-1.5 shrink-0 text-[11px] text-fg-muted max-w-[9rem] truncate">
-                            <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.companyAccent || "transparent" }} />
-                            <span className="truncate">{r.companyName}</span>
-                          </span>
-                        )}
-
-                        {/* title */}
+                        {/* title — the row's hero, takes all remaining width */}
                         <span className="min-w-0 flex-1 flex items-center gap-1.5">
                           <PinnedMarker task={r} className="shrink-0" />
-                          <span className="truncate text-sm group-hover:text-accent transition-colors">{r.actionItem}</span>
+                          <span className="truncate text-[15px] font-medium leading-snug group-hover:text-accent transition-colors">{r.actionItem}</span>
                         </span>
 
-                        {/* waiting-on chip (Blocked / Waiting External) */}
-                        <WaitingOnChip task={r} on={r.owner} className="hidden lg:inline-flex shrink-0" />
-
-                        {/* status (inline glass) */}
-                        <Stop className="hidden md:inline-flex shrink-0">
+                        {/* right cluster — compact + fixed so it never crushes the title */}
+                        <Stop className="hidden sm:inline-flex shrink-0">
                           <TaskInlineStatus task={r} align="right" buttonClassName="text-[11px]" />
                         </Stop>
-
-                        {/* priority (inline glass) — hidden on smaller desktop to save width */}
-                        <Stop className="hidden xl:inline-flex shrink-0">
-                          <TaskInlinePriority task={r} align="right" buttonClassName="text-[11px]" />
-                        </Stop>
-
-                        {/* deadline */}
-                        <Stop className="shrink-0">
-                          <DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} />
-                        </Stop>
-
-                        {/* due-in / overdue */}
                         {due && (
-                          <span className={cn("hidden lg:inline text-[11px] tabular shrink-0", due.tone)}>{due.text}</span>
+                          <span className={cn("hidden sm:inline shrink-0 whitespace-nowrap text-right text-[11px] tabular", due.tone)}>{due.text}</span>
                         )}
-
-                        {/* assignee avatars */}
                         {r.assignees.length > 0 && (
-                          <Stop className="hidden md:inline-flex shrink-0 max-w-[10rem] truncate text-[11px] text-fg-muted">
+                          <Stop className="hidden lg:inline-flex shrink-0 max-w-[7rem] truncate text-[11px] text-fg-muted">
                             <AssigneeList names={r.assignees} ids={r.assigneeIds} />
                           </Stop>
                         )}
-
-                        {/* row actions — revealed on hover (always present on focus for a11y) */}
-                        <Stop className="shrink-0 ml-auto md:ml-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        <Stop className="shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                           <TaskRowActions task={r} onDone={() => router.refresh()} />
                         </Stop>
                       </div>
 
-                      {/* Lines 2 + 3 — description + latest update.
+                      {/* Lines 2 + 3 — company · description, then latest update.
                           Comfortable: always shown. Compact: revealed on hover. */}
                       <div
                         className={cn(
-                          "mt-1.5 pl-[2.6rem] space-y-0.5",
+                          "mt-1 pl-[2.15rem] space-y-0.5",
                           compact && "hidden group-hover:block",
                         )}
                       >
-                        <TaskMetaLine task={r} />
+                        <div className="flex items-center gap-2 min-w-0">
+                          {!hideCompany && (
+                            <span className="inline-flex items-center gap-1.5 shrink-0 text-[11px] text-fg-muted">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.companyAccent || "transparent" }} />
+                              <span className="truncate max-w-[9rem]">{r.companyName}</span>
+                            </span>
+                          )}
+                          <WaitingOnChip task={r} on={r.owner} className="shrink-0" />
+                          <span className="min-w-0 flex-1"><TaskMetaLine task={r} /></span>
+                        </div>
                         <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code, "conversation")} />
                       </div>
 
-                      {/* Mobile-narrow desktop fallback: status pill always visible below md */}
-                      <div className="md:hidden mt-1.5 pl-[2.6rem] flex items-center gap-1.5">
+                      {/* below-sm fallback: status + priority badges */}
+                      <div className="sm:hidden mt-1.5 pl-[2.15rem] flex items-center gap-1.5">
                         <Badge tone={statusTone(r.status)}>{r.status}</Badge>
                         <Badge tone={priorityTone(r.priority)}>{r.priority}</Badge>
                       </div>
