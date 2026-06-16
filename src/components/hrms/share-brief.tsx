@@ -1,22 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Mail, Copy, Check, Printer } from "lucide-react";
+import { MessageCircle, Mail, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui";
+import { BriefPdfButton } from "@/components/brief-pdf-button";
 import { useToast } from "@/components/toast";
 
 /**
- * One-tap share for the Director Brief — WhatsApp, Email, or Copy. The text is
- * built server-side and passed in, so this stays presentational.
+ * One-tap share for the Director Brief — Download PDF, WhatsApp, Email, or Copy.
+ * The text is built server-side and passed in; the PDF is a real server-rendered
+ * file fetched from `pdfHref` (replaces the old browser print-to-PDF).
  */
 export function ShareBrief({
   text,
   emailSubject,
   emailBody,
+  pdfHref,
 }: {
   text: string;
   emailSubject: string;
   emailBody: string;
+  pdfHref: string;
 }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -40,9 +44,9 @@ export function ShareBrief({
 
   return (
     <div className="flex items-center gap-2 flex-wrap print-hidden">
+      <BriefPdfButton href={pdfHref} label="Download PDF" variant="secondary" size="sm" />
       <Button size="sm" onClick={whatsapp}><MessageCircle size={14} /> WhatsApp</Button>
       <Button size="sm" variant="secondary" onClick={email}><Mail size={14} /> Email</Button>
-      <Button size="sm" variant="secondary" onClick={() => window.print()}><Printer size={14} /> PDF</Button>
       <Button size="sm" variant="secondary" onClick={copy}>
         {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy"}
       </Button>
