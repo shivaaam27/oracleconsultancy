@@ -1857,6 +1857,22 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
 }
 
 /**
+ * Send the responsible party (the document's person, else the company's email) a
+ * branded renewal notice for real — for the "you decide per document" flow.
+ */
+export async function sendDocumentRenewalNoticeAction(
+  id: number,
+): Promise<{ ok: boolean; reason?: string; error?: string }> {
+  const { sendDocumentRenewalNotice } = await import("@/lib/doc-requests");
+  const res = await sendDocumentRenewalNotice({ documentId: id, sender: { office: "compliance", sourceTag: "renewal-notice:admin" } });
+  if (res.ok) {
+    revalidatePath("/documents");
+    revalidatePath("/outbox");
+  }
+  return res;
+}
+
+/**
  * Draft an Outbox "renewal / chase" message for an expiring or expired document.
  * No real dispatch — it persists a Draft the operator can review and send via the
  * channel deep-links (mirrors the rest of Outbox). De-duped per document per day.

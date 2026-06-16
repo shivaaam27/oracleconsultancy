@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle, Clock, FileWarning, ListTodo, RefreshCw, Plus, ChevronDown,
-  Building2, User as UserIcon, ExternalLink, Loader2, MessageSquarePlus, CalendarClock,
+  Building2, User as UserIcon, ExternalLink, Loader2, MessageSquarePlus, CalendarClock, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CountPill } from "./ui";
@@ -14,7 +14,7 @@ import {
   deriveDocStatus, daysToExpiry, expiryLabel, type DocumentRow,
 } from "@/lib/documents-shared";
 import type { ComplianceScore } from "@/lib/compliance";
-import { renewDocumentAction, draftDocumentRenewalAction } from "@/app/documents/actions";
+import { renewDocumentAction, draftDocumentRenewalAction, sendDocumentRenewalNoticeAction } from "@/app/documents/actions";
 
 type Kind = "expired" | "expiring" | "missing";
 type Filter = "all" | Kind;
@@ -87,6 +87,7 @@ export function NeedsAttentionPanel({
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [draftBusyId, setDraftBusyId] = useState<number | null>(null);
+  const [noticeBusyId, setNoticeBusyId] = useState<number | null>(null);
   const [, startAction] = useTransition();
   const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState(false);
@@ -173,6 +174,20 @@ export function NeedsAttentionPanel({
         res.ok ? (res.created ? "Renewal message drafted in Outbox" : "A renewal draft already exists in Outbox") : res.error,
         { tone: res.ok ? "success" : "warn", duration: 4500 }
       );
+    });
+  }
+
+  function doSendNotice(docId: number) {
+    setNoticeBusyId(docId);
+    startAction(async () => {
+      const res = await sendDocumentRenewalNoticeAction(docId);
+      setNoticeBusyId(null);
+      const msg = res.ok
+        ? "Renewal notice emailed"
+        : res.reason === "no-recipient" ? "No email on file for the person/company"
+        : res.reason === "not-configured" ? "Email sending isn't switched on"
+        : res.error || "Couldn't send the notice";
+      toast(msg, { tone: res.ok ? "success" : "warn", duration: 4500 });
     });
   }
 
@@ -307,6 +322,12 @@ export function NeedsAttentionPanel({
                     title="Draft a renewal reminder in Outbox"
                     className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50">
                     {draftBusyId === item.docId ? <Loader2 size={13} className="animate-spin" /> : <MessageSquarePlus size={13} />} Chase
+                  </button>
+                  {/* Send notice: email the responsible party a branded renewal notice for real */}
+                  <button type="button" disabled={noticeBusyId === item.docId} onClick={() => doSendNotice(item.docId!)}
+                    title="Email the person/company a branded renewal notice"
+                    className="inline-flex items-center gap-1 rounded-lg bg-bg-elev px-2.5 py-1.5 text-xs font-medium text-fg ring-1 ring-border transition-colors hover:bg-bg-muted disabled:opacity-50">
+                    {noticeBusyId === item.docId ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />} Send notice
                   </button>
                   {item.canRenew && (
                     <button type="button" disabled={busyId === item.docId} onClick={() => doRenew(item.docId!)}

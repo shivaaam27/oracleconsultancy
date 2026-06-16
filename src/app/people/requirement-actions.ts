@@ -35,6 +35,22 @@ async function wrap(fn: () => Promise<void>): Promise<Res> {
 export async function reqMarkRequested(id: number) {
   return wrap(() => markRequirementRequested(id));
 }
+
+/**
+ * Email a person all their still-missing required documents (the branded request,
+ * offering portal upload or reply-with-files) and flip those items to "requested".
+ */
+export async function requestDocumentsByEmail(
+  personId: number,
+): Promise<{ ok: boolean; reason?: string; error?: string; count?: number }> {
+  const { sendDocumentRequestEmail } = await import("@/lib/doc-requests");
+  const res = await sendDocumentRequestEmail({ personId, sender: { office: "admin", sourceTag: "doc-request:admin" } });
+  if (res.ok) {
+    revalidatePath("/people");
+    revalidatePath("/documents");
+  }
+  return res;
+}
 export async function reqLinkDocument(id: number, documentId: number) {
   return wrap(() => linkRequirementDocument(id, documentId));
 }

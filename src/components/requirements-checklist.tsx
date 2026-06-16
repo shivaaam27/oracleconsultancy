@@ -33,6 +33,7 @@ import {
   reqRemove,
   reqSetReviewDate,
   reqSync,
+  requestDocumentsByEmail,
 } from "@/app/people/requirement-actions";
 
 type ReqFields = { label: string; category: string | null; mandatory: boolean };
@@ -170,6 +171,7 @@ export function RequirementsChecklist({
   const [showInPlace, setShowInPlace] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [requesting, setRequesting] = useState(false);
   const [, startTransition] = useTransition();
 
   const load = useCallback(() => {
@@ -213,6 +215,22 @@ export function RequirementsChecklist({
   function doAdd(v: ReqFields) { run(-1, () => reqAdd(personId, v), "Requirement added.", () => setAdding(false)); }
   function doEdit(id: number, v: ReqFields) { run(id, () => reqEdit(id, v), "Requirement updated.", () => setEditingId(null)); }
   function doRemove(id: number) { run(id, () => reqRemove(id), "Requirement removed.", () => setOpenItem(null)); }
+  function doRequest() {
+    setRequesting(true);
+    startTransition(async () => {
+      const res = await requestDocumentsByEmail(personId);
+      setRequesting(false);
+      const msg = res.ok
+        ? `Request emailed — ${res.count} document${res.count === 1 ? "" : "s"} marked requested`
+        : res.reason === "no-items" ? "No missing documents to request"
+        : res.reason === "no-email" ? "No email address on file for this person"
+        : res.reason === "not-configured" ? "Email sending isn't switched on"
+        : res.error || "Couldn't send the request";
+      toast(msg, { tone: res.ok ? "success" : "warn", duration: 4500 });
+      if (res.ok) load();
+    });
+  }
+
   function doSync() {
     setSyncing(true);
     startTransition(async () => {
@@ -274,6 +292,13 @@ export function RequirementsChecklist({
         <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5 w-full">
           Needs action
           {needsAction.length > 0 && <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{needsAction.length}</span>}
+          {data.missingMandatory > 0 && (
+            <button type="button" disabled={requesting} onClick={doRequest}
+              title="Email this person their missing documents (and mark them requested)"
+              className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+              {requesting ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Request by email
+            </button>
+          )}
         </div>
         {needsAction.length === 0 ? (
           <EmptyState icon={<CheckCircle2 size={20} />} tone="success" title="All caught up" hint="Every required document is in place." />
