@@ -1,17 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObject } from "react";
 import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence, useReducedMotion } from "framer-motion";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  Home, CheckSquare, NotebookPen, Briefcase, Search, X,
-  Plus, ClipboardList, MessageCircle, type LucideIcon,
+  Home, LayoutGrid, Search, X,
+  Plus, MessageCircle, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { NAV_ROUTES } from "@/lib/nav";
-import { WORLDS } from "@/lib/worlds";
+import { NAV_ROUTES, ROUTE_BY_ID, type NavRoute } from "@/lib/nav";
+import { WORLDS, worldForPath } from "@/lib/worlds";
+import { usePins } from "@/lib/use-pins";
 import * as Lucide from "lucide-react";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useCommandPalette } from "./command-palette";
@@ -86,9 +87,36 @@ const WORLD_TILES: Array<{ href: string; label: string; icon: LucideIcon; color?
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) {
+/** A compact chip row (Pinned / Recent) above the Worlds grid. */
+function QuickRow({ label, routes, onGo }: { label: string; routes: NavRoute[]; onGo: (href: string) => void }) {
+  return (
+    <div>
+      <div className="px-1 pb-1 text-[10px] font-medium uppercase tracking-wider text-fg-muted">{label}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {routes.map((r) => {
+          const Icon = r.icon;
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => onGo(r.href)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elev/60 px-2.5 py-1.5 text-[11px] font-medium text-fg transition-all hover:border-accent/30 hover:bg-accent-soft active:scale-[0.97]"
+            >
+              <Icon size={13} className="text-accent" />
+              {r.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HrmsLauncher({ active, reduce, worldColor }: { active: boolean; reduce: boolean; worldColor?: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [recents, setRecents] = useState<string[]>([]);
+  const { pins } = usePins();
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function go(href: string) { setOpen(false); router.push(href); }
@@ -100,13 +128,31 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
   }
 
+  // Load recents when the sheet opens, so your last places are one tap.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch("/api/prefs/nav-recents", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { recents: [] }))
+      .then((d) => { if (!cancelled && Array.isArray(d.recents)) setRecents(d.recents as string[]); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [open]);
+
+  const pinRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(Boolean) as NavRoute[];
+  const pinnedIds = new Set(pins);
+  const recentRoutes = recents
+    .map((id) => ROUTE_BY_ID[id])
+    .filter((r) => r && !pinnedIds.has(r.id))
+    .slice(0, 5) as NavRoute[];
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
         <button
           type="button"
-          aria-label="Menu"
-          title="Menu"
+          aria-label="Worlds"
+          title="Worlds"
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           className={cn(
@@ -121,7 +167,12 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
               <motion.span layoutId="navpill" className="absolute inset-0 rounded-full bg-accent-soft" transition={{ type: "spring", stiffness: 500, damping: 36 }} />
             )
           )}
-          <Briefcase size={18} strokeWidth={active ? 2.4 : 2} className="relative" />
+          <LayoutGrid
+            size={18}
+            strokeWidth={active ? 2.4 : 2}
+            className="relative"
+            style={active && worldColor ? { color: worldColor } : undefined}
+          />
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -133,13 +184,19 @@ function HrmsLauncher({ active, reduce }: { active: boolean; reduce: boolean }) 
           data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
           data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
           <div className="flex items-center justify-between mb-3 px-1">
-            <Dialog.Title className="text-sm font-semibold">Go to</Dialog.Title>
+            <Dialog.Title className="text-sm font-semibold">Worlds</Dialog.Title>
             <Dialog.Close asChild>
               <button type="button" aria-label="Close" className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
                 <X size={15} />
               </button>
             </Dialog.Close>
           </div>
+          {(pinRoutes.length > 0 || recentRoutes.length > 0) && (
+            <div className="mb-3 space-y-2.5">
+              {pinRoutes.length > 0 && <QuickRow label="Pinned" routes={pinRoutes} onGo={go} />}
+              {recentRoutes.length > 0 && <QuickRow label="Recent" routes={recentRoutes} onGo={go} />}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2">
             {WORLD_TILES.map((d) => {
               const Icon = d.icon;
@@ -254,7 +311,7 @@ function NavActionButton() {
 /* work untouched.                                                         */
 /* --------------------------------------------------------------------- */
 
-const LENS_SLOTS = ["Home", "Director Brief", "Task Management", "Workbook", "Chat", "Search"] as const;
+const LENS_SLOTS = ["Home", "Chat", "Search"] as const;
 
 function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
   const x = useMotionValue(0);
@@ -403,9 +460,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
 
 export function TopPill() {
   const pathname = usePathname() || "/";
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const tab = searchParams.get("tab");
   const { open: openPalette } = useCommandPalette();
   const pillRef = useRef<HTMLDivElement>(null);
 
@@ -418,19 +473,15 @@ export function TopPill() {
 
   function selectSlot(label: string) {
     if (label === "Home") router.push("/");
-    else if (label === "Director Brief") router.push("/brief");
-    else if (label === "Task Management") router.push("/?tab=tasks");
-    else if (label === "Workbook") router.push("/workbook");
     else if (label === "Chat") router.push("/chat");
     else if (label === "Search") openPalette();
   }
 
   const onHub = pathname === "/";
-  const homeActive = onHub && tab !== "tasks";
-  const tasksActive = onHub && tab === "tasks";
-  const briefActive = pathname.startsWith("/brief");
-  const workbookActive = pathname.startsWith("/workbook");
+  const homeActive = onHub;
   const chatActive = pathname.startsWith("/chat");
+  // Tint the Worlds button with the current world's accent when you're inside one.
+  const currentWorld = worldForPath(pathname);
   // The Menu icon lights for any launcher destination, not just /hrms/* — so its
   // non-/hrms pages (People, Documents, Companies, Calendar, Letters, Outbox,
   // Inbox, Insights, Settings) show an active nav item too.
@@ -440,7 +491,8 @@ export function TopPill() {
     DESTINATIONS.some((d) => pathname === d.href || pathname.startsWith(d.href + "/"));
 
   return (
-    // On mobile, chat is a full-screen app of its own — the pill steps aside.
+    <>
+    {/* On mobile, chat is a full-screen app of its own — the pill steps aside. */}
     <div className={cn(
       "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none",
       chatActive ? "hidden md:flex" : "flex"
@@ -455,11 +507,8 @@ export function TopPill() {
       >
         <NavLens containerRef={pillRef} onSelect={selectSlot} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} />
-        <NavTab href="/brief" icon={ClipboardList} label="Director Brief" active={briefActive} reduce={reduce} />
-        <NavTab href="/?tab=tasks" icon={CheckSquare} label="Task Management" active={tasksActive} reduce={reduce} />
-        <NavTab href="/workbook" icon={NotebookPen} label="Workbook" active={workbookActive} reduce={reduce} />
+        <HrmsLauncher active={hrmsActive} reduce={reduce} worldColor={currentWorld?.color} />
         <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} reduce={reduce} />
-        <HrmsLauncher active={hrmsActive} reduce={reduce} />
 
         <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
 
@@ -483,5 +532,17 @@ export function TopPill() {
         </div>
       </motion.div>
     </div>
+    {/* When chat hides the pill on mobile, keep a way home. */}
+    {chatActive && (
+      <Link
+        href="/"
+        aria-label="Home"
+        title="Home"
+        className="md:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full glass elevated shadow-pill text-fg-muted transition-transform active:scale-95"
+      >
+        <Home size={20} />
+      </Link>
+    )}
+    </>
   );
 }

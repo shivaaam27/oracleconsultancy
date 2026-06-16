@@ -110,3 +110,24 @@ export const WORLDS: World[] = [
 export function getWorld(slug: string): World | undefined {
   return WORLDS.find((w) => w.slug === slug);
 }
+
+/** Which world a pathname belongs to — for the context-aware nav pill. Matches the
+ *  /world/<slug> route first, then the most specific page href inside any world.
+ *  (Some pages live in two worlds; the longest-match tiebreak just picks one.) */
+export function worldForPath(pathname: string): World | undefined {
+  const m = pathname.match(/^\/world\/([^/?]+)/);
+  if (m) return getWorld(m[1]);
+  let best: World | undefined;
+  let bestLen = 0;
+  for (const w of WORLDS) {
+    for (const p of w.pages) {
+      const base = p.href.split("?")[0];
+      if (base === "/") continue;
+      if ((pathname === base || pathname.startsWith(base + "/")) && base.length > bestLen) {
+        best = w;
+        bestLen = base.length;
+      }
+    }
+  }
+  return best;
+}

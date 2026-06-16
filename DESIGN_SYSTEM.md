@@ -1,4 +1,10 @@
-# COS Design System — Liquid Glass (web, Apple-inspired)
+# Aurora — the COS Design System (liquid glass, web, Apple-inspired)
+
+**The design language is called "Aurora."** When the owner says *"make X Aurora"* /
+*"this popup should be Aurora"* / *"redesign the documents page in Aurora,"* it means:
+build it from the Aurora kit below so it looks and behaves like the rest of the system.
+**Every new page, dialog, pop-up, search surface, panel or feature defaults to Aurora —
+without being asked.** (Mirrored as a standing rule in `CLAUDE.md`.)
 
 A living reference for the COS visual + interaction system. It is **Apple-inspired,
 not a clone**: we follow Apple's *rules* (architecture + accessibility) and rebuild
@@ -7,6 +13,42 @@ True iOS 26 `glassEffect` APIs don't exist on the web, so this is a faithful
 approximation that works cross-browser **including iPhone Safari**.
 
 Keep this file updated whenever the system changes — it's how we keep improving.
+
+---
+
+## 0. Aurora at a glance
+
+**In one breath:** liquid-glass surfaces · one cool-blue accent · **centred, never
+edge-to-edge** · **no hard boxes** (soft panels + hairlines + whitespace) · iPhone-style
+toggles · concentric radius ladder · calm, reduced-motion-safe motion · quietly **alive**
+(heartbeat, count-ups, world-accent tints) · glanceable; every number is a door; observe + act.
+
+### The Aurora kit — reuse, never reinvent
+- **Layout:** `CommandWall` (centred max-width column; reserved side rails) wraps a
+  screen; `Hero` (aurora-washed header); `Panel` / **`CockpitModule`** for every section
+  (soft, no hard border); `Reveal` for staggered entrance.
+- **Controls:** `Button` (Apple-like press/rim), the shared **`Switch`** (iPhone toggle,
+  `ui.tsx`), `FluidSelect` / `Combobox`, `SearchField`.
+- **Status + data:** the `TONE` map (6 tones: danger/warn/success/accent/info/muted),
+  `Badge` / `Pill` / `TrendChip` / `Stat`, `InsightPopover` for hover detail. Status shows
+  as small dots / text, **never loud coloured blocks**.
+- **Overlays:** `EntityDrawer` (hero + tab-morph + sticky actions) for any drawer/inspector;
+  glass dialogs (Radix + `.glass .glass-menu elevated rounded-3xl`, `popIn`, centred).
+- **Per-domain colour:** the 7 world accents (`lib/worlds.ts`) tint world surfaces + the pill.
+- **Alive (use sparingly, always meaningful):** `CockpitLive` heartbeat, count-ups, live
+  activity feed, world-accent tints. Never looping/busy.
+
+### Applying Aurora to a new …
+- **Page** → wrap in `CommandWall`; lead with a `Hero`; sections as `CockpitModule`s in a
+  single calm column; `Reveal`-stagger; British-English copy; `force-dynamic` if live.
+- **Pop-up / dialog** → Radix Dialog with `.glass glass-menu elevated rounded-3xl`, centred,
+  `popIn`; quiet title + close; content as soft rows, not nested boxes.
+- **Search** → `SearchField` / the ⌘K palette language; results as soft rows with TONE dots.
+- **Toggle / control** → the shared `Switch`; status as dots/text.
+- **Never** → hard-bordered box-soup, loud colour fills, edge-to-edge width, a bespoke
+  one-off when a kit piece exists, or motion that ignores reduced-motion.
+
+The rest of this file is the detailed reference behind the kit.
 
 ---
 

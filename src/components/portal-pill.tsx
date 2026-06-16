@@ -67,7 +67,8 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   const reduce = !!prefersReduced || manualReduced;
 
   return (
-    // On mobile, chat is a full-screen app of its own — the pill steps aside.
+    <>
+    {/* On mobile, chat is a full-screen app of its own — the pill steps aside. */}
     <div className={cn(
       "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none",
       onChat ? "hidden md:flex" : "flex"
@@ -111,5 +112,17 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
         </div>
       </motion.div>
     </div>
+    {/* When chat hides the pill on mobile, keep a way back. */}
+    {onChat && (
+      <Link
+        href={isDirector ? "/portal/board" : "/portal"}
+        aria-label="Home"
+        title="Home"
+        className="md:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full glass elevated shadow-pill text-fg-muted transition-transform active:scale-95"
+      >
+        <Home size={20} />
+      </Link>
+    )}
+    </>
   );
 }

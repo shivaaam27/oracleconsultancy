@@ -140,4 +140,15 @@ Home `cockpit-worlds.tsx` + nav-pill `top-pill.tsx` launcher now show the 7 worl
 + verified by me (tsc clean; /world/people real data; 404 ok). Improvement follow-ups logged in the
 2026-plan doc (detail-page breadcrumbs, recents surfacing, /requests in nav, calendar icon dupe).
 
+**Nav pill reshaped (2026-06-16, local, NOT pushed — awaiting review):** `top-pill.tsx`
+slimmed to **Home · Worlds · Chat · + · Search · Bell · Theme** (removed Brief/Tasks/
+Workbook primary tabs — reached via Worlds now); the Briefcase launcher is now the
+**Worlds** tab (LayoutGrid icon) and its sheet shows **Pinned + Recent** rows (usePins +
+GET /api/prefs/nav-recents) above the 7 worlds; the Worlds icon **tints to the current
+world's accent** (`worldForPath` in worlds.ts). **Mobile chat Home chip** added to both
+`top-pill.tsx` and `portal-pill.tsx` (floating bottom-right → / or /portal[/board] when
+chat hides the pill). Unified bell = already done (NotificationBell aggregates task/chat/
+request). tsc + full next build green; verified in preview. Earlier improvements (Tax &
+Legal icon de-dupe, portal person/company detail pages) were pushed in commit 427ceec.
+
 Next: P4 fill the side rails (clock/weather/ticker/pins) + P8 ambient/ops theme; P6 command-bar verbs.

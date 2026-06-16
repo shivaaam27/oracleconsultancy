@@ -141,6 +141,21 @@ Navigation (V2): one bottom-floating pill on all breakpoints. Tabs: **Home · Di
 
 Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`, `/system-map`, the `/hrms` hub page, standalone `/letterheads`, and the standalone `/hrms/departments` (departments now a Companies-hub tab). The desktop sidebar and the dedicated Companies nav tab were removed.
 
+## Design language — "Aurora" (DEFAULT for everything)
+
+The visual + interaction system is named **Aurora**. **Every new page, dialog, pop-up,
+search surface, panel, drawer or feature uses Aurora by default — do not invent a new
+look.** When the owner says "make X Aurora" / "this popup should be Aurora," apply the
+kit. Aurora = liquid-glass surfaces · one cool-blue accent · **centred, never edge-to-edge**
+(`CommandWall`) · **no hard boxes** (soft `Panel`/`CockpitModule` + hairlines + whitespace) ·
+iPhone-style `Switch` toggles · concentric radius · calm reduced-motion-safe motion (`Reveal`,
+`lib/motion.ts`) · quietly alive (heartbeat/count-ups/world-accent tints) · status as small
+dots/text not blocks · glanceable, every-number-a-door, observe + act. Reuse the kit
+(`CommandWall`, `Hero`, `CockpitModule`, `Switch`, `TONE`, `Badge`/`Pill`, `EntityDrawer`,
+`InsightPopover`, `FluidSelect`/`Combobox`, glass tiers) — never a one-off when a kit piece
+exists. **Full reference + "how to apply Aurora to a new page/popup/search/feature":
+`DESIGN_SYSTEM.md` — keep it updated.**
+
 ## Reusable UI (June 2026)
 
 - **`components/combobox.tsx`** — typeable, app-anchored dropdown that also accepts new values; **replaced all native `<datalist>`** (their popup mis-rendered). Used for person Department/Work site/Residence/Role, bulk Set-department, asset Category, note Folder.
