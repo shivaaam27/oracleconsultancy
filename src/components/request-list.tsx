@@ -7,6 +7,7 @@ import { Badge } from "./ui";
 import {
   isRequestOpen,
   partiesLabel,
+  requestAging,
   requestStatusLabel,
   requestStatusTone,
   type RequestRow,
@@ -137,6 +138,10 @@ export function RequestList({
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     <Badge tone={requestStatusTone(r.status)}>{requestStatusLabel(r.status)}</Badge>
+                    {(() => {
+                      const age = requestAging(r.createdAt, r.status, Date.now());
+                      return age ? <Badge tone={age.tone}>{age.days}d open</Badge> : null;
+                    })()}
                     <span className="text-[10px] text-fg-subtle">{ago(r.updatedAt)}</span>
                   </span>
                 </Link>

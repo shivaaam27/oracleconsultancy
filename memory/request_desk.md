@@ -81,4 +81,12 @@ Owner decisions: recipients = **shared / any-of**; reporting = **Trends tab on t
 - **Migration 0083** applied directly (same watermark drift as 0081/0082 — migrator skips it; idempotent SQL applied to the shared cloud DB; PostgREST cache reloaded via NOTIFY).
 - **Verified live** end-to-end on the dev server (owner session): multi-recipient inbox label, owner "Awaiting you", detail, **convert→CC-010 (status→in_progress)**, **Trends tab**, **owner FormData reply**. tsc clean. Test data + temp scripts removed.
 
-## Pushed to master June 2026 (owner asked to push online) — Phase 1 (edf3eda) + Phase 2/multi-recipient.
+## Light polish (June 2026)
+- **Ageing flags**: `requestAging(createdAt,status,nowMs)` in requests-shared → a coloured "Nd open" badge on open requests (quiet <3d, warn ≥3d, danger ≥7d). Shown in request-list rows + request-conversation header. Pure display, no schema.
+- **Manageable request types**: type chips are now owner-editable, stored in settings key `v2.requestCategories` (falls back to REQUEST_CATEGORIES). `getRequestCategories()`/`saveRequestCategories()` in lib/requests; `adminSetRequestCategories` action (isAdminSession-gated); `RequestTypesEditor` + "Manage types" toggle on the admin Requests inbox (request-admin.tsx). Composer takes a `categories` prop; both portal + admin pages fetch and pass the managed list. Free-typing still allowed.
+- **Deliberately NOT built**: CSV export (owner excluded it).
+
+## ⚠️ Deploy note (June 2026): auto-deploy was broken
+GitHub→Vercel auto-deploy stopped firing (~14h before the 16 Jun session) AND every build was failing Hobby-plan validation because `vercel.json` had a `*/15 * * * *` reminders cron (Hobby = daily crons only). Fixed: reminders cron → `0 7 * * *` daily (commit 889ce2f). For true 15-min reminders use an external pinger on `/api/cron/reminders` or upgrade to Pro. **GitHub auto-deploy is still not firing** — deploys were done via `vercel deploy --prod` CLI (token + `.vercel/project.json`: projectId prj_jkYjtAnKHIsQr0n2PrKqsEiwKukl, orgId team_8vukVLA1Z5jEB88kHvUvlkgU, scope flowhrms, live URL cos-system-one.vercel.app). Owner should reconnect/repair the Vercel↔GitHub webhook so pushes auto-deploy again.
+
+## Pushed to master June 2026 (owner asked to push online) — Phase 1 (edf3eda) + Phase 2/multi-recipient + polish.

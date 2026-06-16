@@ -8,6 +8,7 @@ import { useToast } from "./toast";
 import {
   isRequestOpen,
   partiesLabel,
+  requestAging,
   requestAuthorName,
   requestStatusLabel,
   requestStatusTone,
@@ -109,7 +110,13 @@ export function RequestConversation({
       <div className="rounded-2xl bg-bg-elev ring-1 ring-border p-4">
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold leading-snug">{detail.title}</h2>
-          <Badge tone={requestStatusTone(detail.status)}>{requestStatusLabel(detail.status)}</Badge>
+          <span className="flex shrink-0 flex-col items-end gap-1">
+            <Badge tone={requestStatusTone(detail.status)}>{requestStatusLabel(detail.status)}</Badge>
+            {(() => {
+              const age = requestAging(detail.createdAt, detail.status, Date.now());
+              return age ? <Badge tone={age.tone}>{age.days}d open</Badge> : null;
+            })()}
+          </span>
         </div>
         <p className="mt-1 text-xs text-fg-subtle">
           {detail.code} · {detail.category ?? "Request"} · {fromLabel} → {partiesLabel(detail.recipients, viewerIsOwner)}

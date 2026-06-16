@@ -4,7 +4,7 @@ import { Hero } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getPortalPerson } from "@/lib/portal-auth";
-import { listRequestsForPortal, requestRecipientsFor } from "@/lib/requests";
+import { listRequestsForPortal, requestRecipientsFor, getRequestCategories } from "@/lib/requests";
 import { RequestComposer } from "@/components/request-composer";
 import { RequestList } from "@/components/request-list";
 import { portalRaiseRequest } from "./actions";
@@ -16,7 +16,11 @@ export default async function PortalRequestsPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
-  const [rows, { people }] = await Promise.all([listRequestsForPortal(me.id), requestRecipientsFor(me.id)]);
+  const [rows, { people }, categories] = await Promise.all([
+    listRequestsForPortal(me.id),
+    requestRecipientsFor(me.id),
+    getRequestCategories(),
+  ]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -30,7 +34,7 @@ export default async function PortalRequestsPage() {
         </Hero>
       </Reveal>
       <Reveal delay={0.05}>
-        <RequestComposer recipients={people} action={portalRaiseRequest} allowOwner />
+        <RequestComposer recipients={people} action={portalRaiseRequest} allowOwner categories={categories} />
       </Reveal>
       <Reveal delay={0.1}>
         <RequestList rows={rows} base="/portal/requests" meId={me.id} scope="portal" />

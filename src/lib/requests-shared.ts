@@ -74,8 +74,20 @@ export function isRequestOpen(status: string): boolean {
   return status !== "done" && status !== "declined" && status !== "cancelled" && status !== "noted";
 }
 
-/** Suggested type chips. Staff may also type their own value. */
+/** Suggested type chips. Staff may also type their own value. The owner can
+ *  override this list (stored in settings); this is the fallback default. */
 export const REQUEST_CATEGORIES = ["Equipment", "HR", "Admin", "Finance", "Leave/Time", "Feedback", "Other"];
+
+/** How long an OPEN request has been waiting, with a tone once it's stale.
+ *  Quiet while fresh (<3 days), amber at 3+ days, red at 7+ days. Returns null
+ *  for closed/done requests or fresh ones. `nowMs` is passed by the client so
+ *  the calc is deterministic. */
+export function requestAging(createdAt: string, status: string, nowMs: number): { days: number; tone: BadgeTone } | null {
+  if (!isRequestOpen(status)) return null;
+  const days = Math.floor((nowMs - new Date(createdAt).getTime()) / 86_400_000);
+  if (days < 3) return null;
+  return { days, tone: days >= 7 ? "danger" : "warn" };
+}
 
 /** Display name from a created_by stamp ("portal-mgr:Fatuma" → "Fatuma";
  *  "web-ui"/"admin" → the owner). Pure, so the client thread can use it. */

@@ -3,8 +3,34 @@ import { sb } from "@/db/supabase";
 import { createNotification, notifyMany, personRecipient } from "./notifications";
 import { insertTaskWithUniqueCodeSb } from "./db-helpers";
 import type { RequestRow, RequestDetail, RequestRecipient, RequestParty, RequestTrends } from "./requests-shared";
+import { REQUEST_CATEGORIES } from "./requests-shared";
 
 export type { RequestRow, RequestDetail, RequestRecipient } from "./requests-shared";
+
+const CATEGORIES_KEY = "v2.requestCategories";
+
+/** The owner-managed list of request types (falls back to the default). */
+export async function getRequestCategories(): Promise<string[]> {
+  const { data } = await sb.from("settings").select("value").eq("key", CATEGORIES_KEY).maybeSingle();
+  const raw = (data?.value as string | null) ?? null;
+  if (raw) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) return arr.map((s) => String(s));
+    } catch {
+      /* fall through to default */
+    }
+  }
+  return REQUEST_CATEGORIES;
+}
+
+/** Persist the owner-managed request types (admin-gated in the action). */
+export async function saveRequestCategories(list: string[]): Promise<void> {
+  const clean = Array.from(new Set(list.map((s) => s.trim()).filter(Boolean))).slice(0, 30);
+  await sb
+    .from("settings")
+    .upsert({ key: CATEGORIES_KEY, value: JSON.stringify(clean.length ? clean : REQUEST_CATEGORIES) }, { onConflict: "key" });
+}
 
 /* ------------------------------------------------------------------ *
  * Request Desk — server data layer + mutations. A request can be

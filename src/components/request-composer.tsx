@@ -16,11 +16,13 @@ export function RequestComposer({
   action,
   allowOwner = false,
   label = "Raise a request",
+  categories = REQUEST_CATEGORIES,
 }: {
   recipients: RequestRecipient[];
   action: RaiseAction;
   allowOwner?: boolean;
   label?: string;
+  categories?: string[];
 }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -134,7 +136,7 @@ export function RequestComposer({
       <div>
         <span className="text-[11px] font-medium uppercase tracking-wider text-fg-muted">Type</span>
         <div className="mt-1 flex flex-wrap gap-1.5">
-          {REQUEST_CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <button
               key={c}
               type="button"

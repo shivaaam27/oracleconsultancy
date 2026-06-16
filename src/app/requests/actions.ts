@@ -11,6 +11,7 @@ import {
   convertRequestToTask,
   decideRequest,
   raiseRequest,
+  saveRequestCategories,
   type RaiseRecipient,
 } from "@/lib/requests";
 
@@ -112,6 +113,14 @@ export async function adminCancelRequest(requestId: number): Promise<{ ok: true 
   await cancelRequest(requestId, "web-ui");
   revalidatePath(`/requests/${requestId}`);
   revalidatePath("/requests");
+  return { ok: true };
+}
+
+export async function adminSetRequestCategories(list: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!(await isAdminSession())) return { ok: false, error: "Not signed in." };
+  await saveRequestCategories(list);
+  revalidatePath("/requests");
+  revalidatePath("/portal/requests");
   return { ok: true };
 }
 
