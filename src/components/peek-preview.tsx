@@ -191,13 +191,13 @@ export function PeekPreview({
                       type="button"
                       onClick={() => { onClose(); a.onClick(); }}
                       className={cn(
-                        "flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-[11px] font-medium active:scale-95 transition-all",
-                        a.tone === "danger" ? "text-danger hover:bg-danger-soft/50"
-                          : a.tone === "accent" ? "text-accent hover:bg-accent-soft/50"
-                          : "text-fg hover:bg-bg-muted/60"
+                        "flex-1 flex flex-col items-center justify-center gap-1.5 py-3 rounded-xl text-[11px] font-medium active:scale-95 transition-all",
+                        a.tone === "danger" ? "text-danger hover:bg-danger-soft/60"
+                          : a.tone === "accent" ? "text-accent bg-accent-soft/50 hover:bg-accent-soft/80"
+                          : "text-fg-muted hover:bg-bg-muted/60 hover:text-fg"
                       )}
                     >
-                      {a.icon}
+                      <span className="text-[17px] leading-none">{a.icon}</span>
                       {a.label}
                     </button>
                   ))}

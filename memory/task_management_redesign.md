@@ -206,3 +206,17 @@ redesign NOT built yet (mockup only, awaiting build).
   strips the attr, zero production impact; chase later.
 - Mockups shown this round: `task_management_aurora_header_rows_inline_add`, `task_popup_aurora_redesign` (the
   drawer redesign is the next build item, owner-approved direction).
+
+## Drawer redesign + mobile header + peek polish (2026-06-17, round 3)
+
+- **Task pop-up (drawer) Overview redesigned** to the approved mockup (`task-drawer.tsx`): boxy SectionCard fact
+  grid with "—" → a calm **hairline `FactRow` list** (Accountable shows `AssigneeAvatars` + names; Deadline
+  editor; Category/Department show a muted **"Set …"** SetLink that jumps to the Edit tab instead of "—").
+  Latest-update card → light hairline block. Composer SectionCard → a soft bordered well. Removed unused
+  `MetaCell` + `AssigneeList` import.
+- **Mobile header simplified** (`tasks-section.tsx`): the Focus/All + attention chips row is now a single
+  **horizontal-scroll** strip on mobile (`-mx-4 … overflow-x-auto`, scrollbar hidden) instead of wrapping to 3
+  rows; **Group control hidden on mobile** (`hidden sm:flex`). Desktop unchanged (flex-wrap).
+- **Peek quick-glance polished** (`peek-preview.tsx`): the row-layout actions get larger icons (17px) and the
+  primary **Open** action a persistent accent-soft fill so it reads as the default; danger/neutral hovers tidied.
+- tsc clean; verified drawer (desktop), mobile header, and peek in preview. NOT pushed unless owner asks.

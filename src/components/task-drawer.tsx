@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
-import { AssigneeList } from "./assignee-list";
+import { AssigneeAvatars } from "./assignee-avatars";
 import { Badge, Input, Select, Textarea, Button, IconButton } from "./ui";
 import { PolishedInput } from "./polished-input";
 import { PersonPicker } from "./person-picker";
@@ -119,12 +119,22 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 
 /** A small labelled cell used in the Overview key-fields grid. */
-function MetaCell({ label, children }: { label: string; children: React.ReactNode }) {
+/** One calm hairline fact row — label left, value right (Overview). */
+function FactRow({ label, children, last }: { label: string; children: React.ReactNode; last?: boolean }) {
   return (
-    <div className="flex flex-col gap-1 min-w-0">
-      <span className="text-[10px] uppercase tracking-wider text-fg-subtle">{label}</span>
-      {children}
+    <div className={cn("flex items-center justify-between gap-3 py-2.5 border-t border-border/50 text-sm", last && "border-b")}>
+      <span className="text-fg-tertiary shrink-0">{label}</span>
+      <span className="min-w-0 text-right">{children}</span>
     </div>
+  );
+}
+
+/** Muted "Set …" placeholder that jumps to the Edit tab. */
+function SetLink({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="text-[13px] text-fg-subtle hover:text-accent transition-colors">
+      {children}
+    </button>
   );
 }
 
@@ -360,33 +370,38 @@ export function TaskDrawer() {
         </div>
       )}
 
-      <SectionCard className="p-4 space-y-3.5">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
-          <MetaCell label="Deadline">
-            <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} />
-          </MetaCell>
-          <MetaCell label="Accountable">
-            {t.assignees.length ? <AssigneeList names={t.assignees} ids={t.assigneeIds} className="font-medium text-fg text-[13px] truncate" /> : <span className="font-medium text-fg text-[13px]">—</span>}
-          </MetaCell>
-          <MetaCell label="Department">
-            <span className="font-medium text-fg text-[13px] truncate">{t.department || "—"}</span>
-          </MetaCell>
-          <MetaCell label="Category">
-            <span className="font-medium text-fg text-[13px] truncate">{t.category || "—"}</span>
-          </MetaCell>
+      {/* Facts — a calm hairline list (no hard box); empties invite a tap. */}
+      <div className="px-0.5">
+        <FactRow label="Accountable">
+          {t.assignees.length ? (
+            <span className="inline-flex items-center gap-2 min-w-0 align-middle">
+              <AssigneeAvatars names={t.assignees} ids={t.assigneeIds} max={4} size={22} />
+              <span className="truncate max-w-[12rem] text-[13px] text-fg-muted">{t.assignees.join(", ")}</span>
+            </span>
+          ) : <SetLink onClick={() => setActiveTab("edit")}>Assign someone</SetLink>}
+        </FactRow>
+        <FactRow label="Deadline">
+          <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} />
+        </FactRow>
+        <FactRow label="Category">
+          {t.category ? <span className="text-[13px] font-medium text-fg">{t.category}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set category</SetLink>}
+        </FactRow>
+        <FactRow label="Department" last>
+          {t.department ? <span className="text-[13px] font-medium text-fg">{t.department}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set department</SetLink>}
+        </FactRow>
+      </div>
+
+      {/* About — the full description */}
+      {t.comments && t.comments.trim() && (
+        <div className="px-0.5">
+          <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">About</div>
+          <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap break-words"><CodeLinkedText text={t.comments} /></p>
         </div>
+      )}
 
-        {t.comments && t.comments.trim() && (
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-fg-subtle mb-1">About</div>
-            <p className="text-sm leading-relaxed text-fg whitespace-pre-wrap break-words"><CodeLinkedText text={t.comments} /></p>
-          </div>
-        )}
-      </SectionCard>
-
-      {/* Latest-update card → jump to the full conversation */}
+      {/* Latest update — a calm hairline block → jump to the full conversation */}
       {t.latestActivity && (
-        <SectionCard className="p-3.5 space-y-2">
+        <div className="px-0.5 pt-3 border-t border-border/50 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Latest update</span>
             <button type="button" onClick={() => setActiveTab("conversation")}
@@ -412,32 +427,30 @@ export function TaskDrawer() {
               )}
             </div>
           </div>
-        </SectionCard>
+        </div>
       )}
 
       {/* Inline add-update box (reuses adminAddUpdate — same action as Conversation) */}
       {!done && (
-        <SectionCard>
-          <form action={postUpdate} className="p-3 space-y-2.5">
-            <input type="hidden" name="taskId" value={t.id} />
-            <input type="hidden" name="code" value={t.code} />
-            <input type="hidden" name="parentUpdateId" value="" />
-            <textarea
-              ref={composerRef}
-              name="body"
-              required
-              rows={2}
-              placeholder="Add a quick update…"
-              className="w-full resize-y rounded-xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none"
-            />
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-fg-subtle">Need to @mention, attach or set status? Open Conversation.</span>
-              <Button type="submit" size="sm" className="rounded-full shrink-0" loading={posting} disabled={posting}>
-                {!posting && <Send size={13} />} Post
-              </Button>
-            </div>
-          </form>
-        </SectionCard>
+        <form action={postUpdate} className="rounded-2xl border border-border/60 bg-bg-elev p-3 space-y-2.5 transition-colors focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/15">
+          <input type="hidden" name="taskId" value={t.id} />
+          <input type="hidden" name="code" value={t.code} />
+          <input type="hidden" name="parentUpdateId" value="" />
+          <textarea
+            ref={composerRef}
+            name="body"
+            required
+            rows={2}
+            placeholder="Add a quick update…"
+            className="w-full resize-y bg-transparent text-sm placeholder:text-fg-subtle focus:outline-none"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-fg-subtle">@mention, attach or set status? Open Conversation.</span>
+            <Button type="submit" size="sm" className="rounded-full shrink-0" loading={posting} disabled={posting}>
+              {!posting && <Send size={13} />} Post
+            </Button>
+          </div>
+        </form>
       )}
 
       {data!.sourceMeeting && (

@@ -252,7 +252,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
             statuses={["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"]}
           />
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {/* Focus / All — segmented pill */}
             {!hasFilters && (view === "table" || view === "board") && (
               <div className="inline-flex shrink-0 items-center gap-1 p-1 rounded-full bg-bg-subtle/70 ring-1 ring-border/60 text-xs">
@@ -310,9 +310,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
               );
             })}
 
-            {/* Group-by — pushed to the right (table view only) */}
+            {/* Group-by — pushed to the right (table view only; desktop) */}
             {view === "table" && (
-              <div className="ml-auto flex shrink-0 items-center gap-2 text-xs">
+              <div className="ml-auto hidden shrink-0 items-center gap-2 text-xs sm:flex">
                 <span className="text-fg-subtle">Group</span>
                 <div className="inline-flex items-center gap-0.5 p-0.5 rounded-full bg-bg-subtle/70 ring-1 ring-border/60">
                   {([
