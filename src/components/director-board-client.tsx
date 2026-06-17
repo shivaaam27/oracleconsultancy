@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Bolt, CalendarPlus, MessageSquarePlus, ArrowUp, Sparkles, Wand2, CornerDownLeft,
-  ChevronRight, Check, Loader2, Send, ExternalLink, ArrowRight, Orbit as OrbitIcon,
-  Flame, Plane, Target, CalendarClock,
+  ChevronRight, Check, Loader2, Send, ExternalLink, ArrowRight,
+  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck,
 } from "lucide-react";
-import { Panel } from "@/components/surface-kit";
+import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { DirectorEventForm } from "@/components/director-event-form";
 import { DirectorMessage } from "@/components/director-message";
@@ -17,14 +17,17 @@ import { useToast } from "@/components/toast";
 
 /* ------------------------------------------------------------------ *
  * Director board — the command-centre client surface. Land, see, act.
- * Real data in (no mocks): the orbit score, KPIs, the AI suggestion and
- * the attention stack are all derived server-side from getBrief and
- * passed in. Mutations re-verify the role + task scope server-side.
+ * Real data in (no mocks): the health ring, KPIs, company-health rows,
+ * the AI suggestion and the attention stack are all derived server-side
+ * from getBrief and passed in. Mutations re-verify role + task scope
+ * server-side. Fluid on mobile (single calm scroll) and on the web
+ * (a centred two-column command-wall).
  * ------------------------------------------------------------------ */
 
 export type BoardPerson = { id: number; name: string; companyId: number | null };
 export type BoardCompany = { id: number; name: string };
 export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null };
+export type CompanyHealth = { id: number; name: string; risk: string; score: number | null; detail: string };
 export type WatchItem = {
   taskId: number;
   code: string;
@@ -42,6 +45,7 @@ export type WatchItem = {
 
 type Props = {
   firstName: string;
+  initials: string;
   liveStamp: string;
   needsYou: number;
   dueToday: number;
@@ -53,6 +57,7 @@ type Props = {
   onLeaveToday: number;
   people: BoardPerson[];
   companies: BoardCompany[];
+  companyHealth: CompanyHealth[];
   watch: WatchItem[];
   upcomingEvents: BoardEvent[];
   suggestion: { code: string; actionItem: string; companyName: string } | null;
@@ -62,6 +67,16 @@ const STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Wait
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const PRIORITY_DOT: Record<string, string> = { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" };
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }));
+
+function riskTone(r: string): Tone {
+  if (/on track|healthy|good/i.test(r)) return "success";
+  if (/risk|high/i.test(r)) return "danger";
+  return "warn";
+}
+function riskShort(r: string): string {
+  const t = riskTone(r);
+  return t === "success" ? "On track" : t === "danger" ? "Risk" : "Watch";
+}
 
 function prefersReduced(): boolean {
   if (typeof document === "undefined") return false;
@@ -99,15 +114,28 @@ export function DirectorBoardClient(p: Props) {
 
   return (
     <div className="flex flex-col gap-5">
-      <BriefLine first={p.firstName} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} />
-      <CommandBar people={p.people} companies={p.companies} suggestion={p.suggestion} capRef={capRef} upcomingEvents={p.upcomingEvents} />
-      <OrbitVitals score={p.groupScore} onTrack={p.onTrack} watch={p.watchCount} risk={p.riskCount} run={mounted} />
-      <KpiTiles overdue={p.overdueCount} onLeave={p.onLeaveToday} run={mounted} onFocus={focusComposer} />
-      <AttentionStack watch={p.watch} people={p.people} />
+      <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} />
+      <CommandBar people={p.people} companies={p.companies} suggestion={p.suggestion} capRef={capRef} />
+
+      {/* Centred command-wall: one calm scroll on mobile, two columns on the web. */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr] lg:items-start">
+        <div className="flex flex-col gap-5">
+          <VitalsPanel
+            score={p.groupScore} onTrack={p.onTrack} watch={p.watchCount} risk={p.riskCount}
+            needsYou={p.needsYou} dueToday={p.dueToday} onLeave={p.onLeaveToday} run={mounted}
+          />
+          <CompanyHealthList items={p.companyHealth} />
+        </div>
+        <div className="flex flex-col gap-5">
+          <AttentionStack watch={p.watch} people={p.people} />
+          <WeekAhead events={p.upcomingEvents} />
+        </div>
+      </div>
+
       <button
         type="button"
         onClick={focusComposer}
-        className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-lg shadow-accent/20 transition-transform active:scale-95 sm:hidden"
+        className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-lg shadow-accent/20 transition-transform active:scale-95 lg:hidden"
       >
         <Bolt size={15} /> Quick capture
       </button>
@@ -115,26 +143,43 @@ export function DirectorBoardClient(p: Props) {
   );
 }
 
-function BriefLine({ first, liveStamp, needsYou, dueToday }: { first: string; liveStamp: string; needsYou: number; dueToday: number }) {
+/* ---- aurora-washed greeting hero ---- */
+function BoardHero({ first, initials, liveStamp, needsYou, dueToday }: { first: string; initials: string; liveStamp: string; needsYou: number; dueToday: number }) {
+  const [greeting, setGreeting] = useState("Welcome back");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
+  }, []);
+
   return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">Command centre</p>
-        <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">Morning, {first}</h1>
+    <section className="relative w-full overflow-hidden rounded-3xl glass elevated p-5 sm:p-6">
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="aurora-a absolute -right-20 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--accent) / 0.30), transparent 70%)" }} />
+        <div className="aurora-b absolute -bottom-28 -left-20 h-64 w-64 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--success) / 0.16), transparent 72%)" }} />
       </div>
-      <div className="flex items-center gap-2.5 rounded-2xl bg-bg-elev px-3.5 py-2.5 text-sm text-fg-muted ring-1 ring-border">
-        <span className="relative inline-flex h-2 w-2 shrink-0 items-center justify-center">
-          <span className="absolute inset-0 rounded-full bg-success opacity-40 motion-safe:animate-ping" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-        </span>
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-subtle">
+            Director board
+            <span className="relative inline-flex h-1.5 w-1.5 items-center justify-center">
+              <span className="absolute inset-0 rounded-full bg-success opacity-50 motion-safe:animate-ping" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+            </span>
+            <span className="normal-case tracking-normal text-success/90">live</span>
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{greeting}, {first}</h1>
+          <p className="mt-1.5 text-sm text-fg-muted">{liveStamp} · across 7 companies</p>
+        </div>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent ring-1 ring-accent/25">{initials}</span>
+      </div>
+      <div className="relative mt-4 flex items-center gap-2 rounded-2xl bg-bg-elev/55 px-3.5 py-2.5 text-sm text-fg-muted ring-1 ring-border">
+        <Target size={14} className="shrink-0 text-accent" />
         <p>
-          Across <b className="font-medium text-fg">7 companies</b> ·{" "}
-          <b className="font-medium text-fg">{needsYou}</b> need{needsYou === 1 ? "s" : ""} you ·{" "}
-          <b className="font-medium text-fg">{dueToday}</b> due today
+          <b className="font-semibold text-fg">{needsYou}</b> need{needsYou === 1 ? "s" : ""} you ·{" "}
+          <b className="font-semibold text-fg">{dueToday}</b> due today
         </p>
-        <span className="ml-auto hidden shrink-0 text-[11px] text-fg-subtle sm:block">{liveStamp}</span>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -147,21 +192,20 @@ const MODES = [
 type Mode = (typeof MODES)[number]["key"];
 
 function CommandBar({
-  people, companies, suggestion, capRef, upcomingEvents,
+  people, companies, suggestion, capRef,
 }: {
   people: BoardPerson[]; companies: BoardCompany[];
   suggestion: Props["suggestion"]; capRef: React.RefObject<HTMLInputElement | null>;
-  upcomingEvents: BoardEvent[];
 }) {
   const [mode, setMode] = useState<Mode>("Task");
   const idx = MODES.findIndex((m) => m.key === mode);
 
   return (
-    <div className="rounded-3xl bg-bg-elev p-2.5 ring-1 ring-border">
+    <div className="rounded-3xl bg-bg-elev p-2.5 ring-1 ring-border elevated">
       <div className="relative grid grid-cols-3 gap-0 rounded-2xl bg-bg-subtle p-1">
         <span
           aria-hidden
-          className="absolute inset-y-1 left-1 rounded-xl bg-bg-elev shadow-sm ring-1 ring-border transition-transform duration-300"
+          className="absolute inset-y-1 left-1 rounded-xl bg-bg-elev shadow-sm ring-1 ring-border transition-transform duration-300 ease-[var(--ease-spring)]"
           style={{ width: "calc((100% - 0.5rem) / 3)", transform: `translateX(${idx * 100}%)` }}
         />
         {MODES.map((m) => {
@@ -182,7 +226,12 @@ function CommandBar({
 
       <div className="mt-2.5">
         {mode === "Task" && <TaskComposer people={people} companies={companies} suggestion={suggestion} capRef={capRef} />}
-        {mode === "Event" && <EventPane people={people} companies={companies} upcomingEvents={upcomingEvents} />}
+        {mode === "Event" && (
+          <div className="flex flex-col gap-2 px-1 py-1">
+            <p className="px-1 text-xs text-fg-subtle">Schedule a meeting or event across any company — attendees get an invite.</p>
+            <DirectorEventForm people={people} companies={companies} />
+          </div>
+        )}
         {mode === "Message" && (
           <div className="flex flex-col gap-2 px-1 py-1">
             <DirectorMessage people={people} reminders={[]} />
@@ -216,12 +265,11 @@ function TaskComposer({
 
   return (
     <form action={action} className="flex flex-col gap-2.5">
-      {/* hidden values posted with the form */}
       <input type="hidden" name="companyId" value={companyId} />
       <input type="hidden" name="accountableId" value={ownerId} />
       <input type="hidden" name="priority" value={priority} />
 
-      <div className="flex items-center gap-2 rounded-2xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
+      <div className="flex items-center gap-2 rounded-2xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border transition-shadow focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
         <Sparkles size={16} className="shrink-0 text-accent" />
         <input
           ref={capRef}
@@ -235,7 +283,7 @@ function TaskComposer({
           type="submit"
           disabled={pending}
           aria-label="Assign task"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95 disabled:opacity-50"
         >
           {pending ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={18} />}
         </button>
@@ -273,27 +321,148 @@ function TaskComposer({
   );
 }
 
-/* ---- Event mode: upcoming events + the create form ---- */
-function EventPane({ people, companies, upcomingEvents }: { people: BoardPerson[]; companies: BoardCompany[]; upcomingEvents: BoardEvent[] }) {
+/* ---- portfolio vitals: health ring + risk pills + KPI tiles ---- */
+function Ring({ score, run }: { score: number; run: boolean }) {
+  const shown = useCountUp(score, run);
+  const C = 2 * Math.PI * 54;
+  const tone = score >= 80 ? "hsl(var(--success))" : score >= 55 ? "hsl(var(--warn))" : "hsl(var(--danger))";
+  const offset = C - (C * score) / 100;
   return (
-    <div className="flex flex-col gap-2.5 px-1 py-1">
-      {upcomingEvents.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          <p className="px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">Coming up</p>
-          {upcomingEvents.slice(0, 4).map((e) => (
-            <div key={e.id} className="flex items-center gap-3 rounded-xl bg-bg-subtle/40 px-3 py-2 ring-1 ring-border">
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft/70 text-accent"><CalendarClock size={15} /></span>
+    <div className="relative h-[104px] w-[104px] shrink-0">
+      <svg viewBox="0 0 132 132" className="h-full w-full -rotate-90">
+        <circle cx="66" cy="66" r="54" fill="none" stroke="hsl(var(--border))" strokeWidth="9" />
+        <circle
+          cx="66" cy="66" r="54" fill="none" stroke={tone} strokeWidth="9" strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={offset}
+          style={{ transition: prefersReduced() ? "none" : "stroke-dashoffset 1.2s cubic-bezier(.3,.8,.3,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[27px] font-semibold leading-none tracking-tight tabular">{shown}</span>
+        <span className="mt-0.5 text-[9px] uppercase tracking-[0.08em] text-fg-subtle">health</span>
+      </div>
+    </div>
+  );
+}
+
+function VitalsPanel({
+  score, onTrack, watch, risk, needsYou, dueToday, onLeave, run,
+}: {
+  score: number; onTrack: number; watch: number; risk: number;
+  needsYou: number; dueToday: number; onLeave: number; run: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <SectionLabel icon={<ShieldCheck size={13} />}>
+        Portfolio health
+      </SectionLabel>
+      <Panel className="flex flex-col gap-4 p-4 sm:p-5">
+        <div className="flex items-center gap-4 sm:gap-6">
+          <Ring score={score} run={run} />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-fg-muted">Group compliance &amp; risk</p>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <RiskPill tone="success" label={`${onTrack} on track`} />
+              <RiskPill tone="warn" label={`${watch} watch`} />
+              <RiskPill tone="danger" label={`${risk} at risk`} />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2.5">
+          <KpiTile href="/portal/tasks" tone="danger" icon={<Target size={16} />} value={needsYou} label="Need you" run={run} />
+          <KpiTile href="/portal/tasks" tone="warn" icon={<Flame size={16} />} value={dueToday} label="Due today" run={run} />
+          <KpiTile href="/portal/team" tone="accent" icon={<Plane size={16} />} value={onLeave} label="On leave" run={run} />
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function RiskPill({ tone, label }: { tone: Tone; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${TONE[tone].bg} ${TONE[tone].text} ring-1 ${TONE[tone].ring}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${TONE[tone].bar}`} />
+      {label}
+    </span>
+  );
+}
+
+function KpiTile({ href, tone, icon, value, label, run }: { href: string; tone: Tone; icon: React.ReactNode; value: number; label: string; run: boolean }) {
+  const n = useCountUp(value, run);
+  return (
+    <Link
+      href={href}
+      className={`flex flex-col gap-1.5 rounded-2xl p-3 ring-1 transition-all active:scale-[0.97] ${TONE[tone].bg} ${TONE[tone].ring} hover:ring-2`}
+    >
+      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-xl bg-bg-elev/60 ${TONE[tone].text}`}>{icon}</span>
+      <span className={`text-2xl font-semibold leading-none tabular ${TONE[tone].text}`}>{n}</span>
+      <span className="text-[11px] text-fg-muted">{label}</span>
+    </Link>
+  );
+}
+
+/* ---- per-company health rows ---- */
+function CompanyHealthList({ items }: { items: CompanyHealth[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="flex flex-col gap-2.5">
+      <SectionLabel
+        icon={<Building2 size={13} />}
+        action={<Link href="/portal/tasks" className="inline-flex items-center gap-0.5 text-[11px] normal-case tracking-normal text-accent hover:underline">See all <ChevronRight size={12} /></Link>}
+      >
+        Company health
+      </SectionLabel>
+      <div className="flex flex-col gap-2">
+        {items.map((c) => <CompanyRow key={c.id} c={c} />)}
+      </div>
+    </div>
+  );
+}
+
+function CompanyRow({ c }: { c: CompanyHealth }) {
+  const tone = riskTone(c.risk);
+  const scoreTint = c.score == null ? "text-fg" : c.score >= 80 ? "text-success" : c.score >= 55 ? "text-warn" : "text-danger";
+  return (
+    <Link
+      href={`/portal/companies/${c.id}`}
+      className="group flex items-center gap-3 rounded-2xl bg-bg-elev p-3 ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
+    >
+      <span className={`h-9 w-1 shrink-0 rounded-full ${TONE[tone].bar}`} />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{c.name}</p>
+        <p className="truncate text-[11px] text-fg-subtle">{c.detail}</p>
+      </div>
+      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${TONE[tone].bg} ${TONE[tone].text}`}>{riskShort(c.risk)}</span>
+      {c.score != null && <span className={`w-10 shrink-0 text-right text-[15px] font-semibold tabular ${scoreTint}`}>{c.score}%</span>}
+      <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
+    </Link>
+  );
+}
+
+/* ---- week ahead ---- */
+function WeekAhead({ events }: { events: BoardEvent[] }) {
+  if (!events.length) return null;
+  return (
+    <div className="flex flex-col gap-2.5">
+      <SectionLabel icon={<CalendarClock size={13} />}>Week ahead</SectionLabel>
+      <Panel className="divide-y divide-border/60 overflow-hidden">
+        {events.slice(0, 5).map((e) => {
+          const d = new Date(e.startAt);
+          const valid = !Number.isNaN(d.getTime());
+          return (
+            <div key={e.id} className="flex items-center gap-3 p-3">
+              <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-accent-soft/60 text-accent">
+                <span className="text-[9px] font-medium uppercase leading-none">{valid ? d.toLocaleDateString("en-GB", { month: "short" }) : "—"}</span>
+                <span className="text-base font-semibold leading-none tabular">{valid ? d.getDate() : ""}</span>
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{e.title}</p>
-                <p className="text-[11px] text-fg-subtle">{fmtEvent(e)}{e.companyName ? ` · ${e.companyName}` : ""}</p>
+                <p className="truncate text-[11px] text-fg-subtle">{fmtEvent(e)}{e.companyName ? ` · ${e.companyName}` : ""}</p>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        <p className="px-1 py-1 text-xs text-fg-subtle">No upcoming events. Schedule one below.</p>
-      )}
-      <DirectorEventForm people={people} companies={companies} />
+          );
+        })}
+      </Panel>
     </div>
   );
 }
@@ -301,80 +470,8 @@ function fmtEvent(e: BoardEvent): string {
   const d = new Date(e.startAt);
   if (Number.isNaN(d.getTime())) return "";
   return e.allDay
-    ? d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
-    : d.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-}
-
-/* ---- portfolio health orbit ---- */
-function OrbitVitals({ score, onTrack, watch, risk, run }: { score: number; onTrack: number; watch: number; risk: number; run: boolean }) {
-  const shown = useCountUp(score, run);
-  const C = 2 * Math.PI * 54;
-  const tone = score >= 80 ? "hsl(var(--success))" : score >= 55 ? "hsl(var(--warn))" : "hsl(var(--danger))";
-  const offset = C - (C * score) / 100;
-
-  return (
-    <div className="flex flex-col gap-2.5">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
-        <OrbitIcon size={13} /> Portfolio health
-        <span className="ml-auto text-[11px] normal-case tracking-normal text-fg-subtle">{score}% group score</span>
-      </div>
-      <Panel className="flex items-center gap-4 p-4">
-        <div className="relative h-[118px] w-[118px] shrink-0">
-          <svg viewBox="0 0 132 132" className="h-full w-full -rotate-90">
-            <circle cx="66" cy="66" r="54" fill="none" stroke="hsl(var(--border))" strokeWidth="9" />
-            <circle
-              cx="66" cy="66" r="54" fill="none" stroke={tone} strokeWidth="9" strokeLinecap="round"
-              strokeDasharray={C} strokeDashoffset={offset}
-              style={{ transition: prefersReduced() ? "none" : "stroke-dashoffset 1.2s cubic-bezier(.3,.8,.3,1)" }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[30px] font-semibold leading-none tracking-tight tabular">{shown}</span>
-            <span className="mt-1 text-[10px] text-fg-subtle">group score</span>
-          </div>
-        </div>
-        <div className="flex flex-1 flex-col gap-2.5">
-          <Legend dot="bg-success" label={`${onTrack} on track`} />
-          <Legend dot="bg-warn" label={`${watch} to watch`} />
-          <Legend dot="bg-danger" label={`${risk} at risk`} />
-          <Link href="/portal/tasks" className="mt-0.5 inline-flex w-fit items-center gap-1.5 rounded-lg bg-bg-subtle px-3 py-1.5 text-[11px] text-accent ring-1 ring-border transition-colors hover:bg-bg-muted">
-            View all tasks <ArrowRight size={12} />
-          </Link>
-        </div>
-      </Panel>
-    </div>
-  );
-}
-function Legend({ dot, label }: { dot: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-sm text-fg-muted">
-      <span className={`h-2.5 w-2.5 rounded-full ${dot}`} /> {label}
-    </div>
-  );
-}
-
-/* ---- live KPI tiles ---- */
-function KpiTiles({ overdue, onLeave, run, onFocus }: { overdue: number; onLeave: number; run: boolean; onFocus: () => void }) {
-  const od = useCountUp(overdue, run);
-  const ol = useCountUp(onLeave, run);
-  return (
-    <div className="grid grid-cols-2 gap-2.5">
-      <Link href="/portal/tasks" className="flex items-center gap-3 rounded-2xl bg-bg-elev p-3 text-left ring-1 ring-border transition-shadow hover:ring-danger/40">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-danger-soft/60 text-danger"><Flame size={18} /></span>
-        <span>
-          <span className="block text-xl font-semibold leading-none tabular text-danger">{od}</span>
-          <span className="mt-1 block text-[11px] text-fg-muted">Overdue tasks</span>
-        </span>
-      </Link>
-      <div className="flex items-center gap-3 rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-soft/70 text-accent"><Plane size={18} /></span>
-        <span>
-          <span className="block text-xl font-semibold leading-none tabular">{ol}</span>
-          <span className="mt-1 block text-[11px] text-fg-muted">On leave today</span>
-        </span>
-      </div>
-    </div>
-  );
+    ? "All day"
+    : d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 /* ---- the attention stack: swipe to remind, tap to edit inline ---- */
@@ -391,7 +488,7 @@ function AttentionStack({ watch, people }: { watch: WatchItem[]; people: BoardPe
   }
   return (
     <div className="flex flex-col gap-2.5">
-      <Label hint="swipe a card to remind · tap to edit" />
+      <Label hint="swipe to remind · tap to edit" />
       <div className="flex flex-col gap-2.5">
         {watch.map((w) => <AttentionCard key={w.taskId} w={w} people={people} />)}
       </div>
@@ -400,10 +497,12 @@ function AttentionStack({ watch, people }: { watch: WatchItem[]; people: BoardPe
 }
 function Label({ hint }: { hint?: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
-      <Target size={13} /> Needs you
-      {hint && <span className="ml-auto text-[10px] normal-case tracking-normal text-fg-subtle">{hint}</span>}
-    </div>
+    <SectionLabel
+      icon={<Target size={13} />}
+      action={hint ? <span className="text-[10px] normal-case tracking-normal text-fg-subtle">{hint}</span> : undefined}
+    >
+      Needs you
+    </SectionLabel>
   );
 }
 
@@ -510,10 +609,10 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
               </label>
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <button type="button" onClick={save} disabled={busy} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-50">
+              <button type="button" onClick={save} disabled={busy} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={15} />} Save changes
               </button>
-              <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-success-soft/60 px-3 py-2.5 text-sm font-medium text-success ring-1 ring-success/25">
+              <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-success-soft/60 px-3 py-2.5 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95">
                 <Send size={14} /> Remind
               </button>
             </div>

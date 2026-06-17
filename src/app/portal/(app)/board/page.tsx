@@ -9,7 +9,7 @@ import { getPortalPerson } from "@/lib/portal-auth";
 import { getBrief } from "@/lib/director-brief";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
-import { DirectorBoardClient, type WatchItem } from "@/components/director-board-client";
+import { DirectorBoardClient, type WatchItem, type CompanyHealth } from "@/components/director-board-client";
 
 export const dynamic = "force-dynamic";
 
@@ -142,10 +142,36 @@ async function Board({ personName }: { personName: string }) {
 
   const liveStamp = now.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
+  // Per-company health = risk band (from tasks) merged with compliance score +
+  // a one-line "why" (overdue tasks / expired / expiring / missing docs). Sorted
+  // worst-first so the row that needs the board sits at the top.
+  const compById = new Map(brief.compliance.map((c) => [c.companyId, c] as const));
+  const rank = (r: string) => (riskTone(r) === "danger" ? 0 : riskTone(r) === "warn" ? 1 : 2);
+  const companyHealth: CompanyHealth[] = brief.companies
+    .map((c) => {
+      const comp = compById.get(c.id);
+      const bits: string[] = [];
+      if (c.overdue) bits.push(`${c.overdue} overdue`);
+      if (comp?.expired) bits.push(`${comp.expired} doc${comp.expired > 1 ? "s" : ""} expired`);
+      else if (comp?.expiring) bits.push(`${comp.expiring} expiring`);
+      if (comp?.missing) bits.push(`${comp.missing} missing`);
+      return {
+        id: c.id,
+        name: c.name,
+        risk: c.risk,
+        score: comp?.score ?? null,
+        detail: bits.slice(0, 2).join(" · ") || "All clear",
+      };
+    })
+    .sort((a, b) => rank(a.risk) - rank(b.risk) || (a.score ?? 100) - (b.score ?? 100));
+
+  const initials = personName.split(" ").map((s) => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+
   return (
     <Reveal delay={0}>
       <DirectorBoardClient
         firstName={personName.split(" ")[0]}
+        initials={initials}
         liveStamp={liveStamp}
         needsYou={brief.directorActions.length || watch.length}
         dueToday={dueToday}
@@ -157,6 +183,7 @@ async function Board({ personName }: { personName: string }) {
         onLeaveToday={brief.hr.onLeaveToday}
         people={people}
         companies={companies}
+        companyHealth={companyHealth}
         watch={watch}
         upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName }))}
         suggestion={suggestion}
