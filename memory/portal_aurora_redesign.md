@@ -186,6 +186,46 @@ Profile/task-detail `4e5e32b` · Tasks+Requests `1cfda2f` · pill-+ hide `10f0c5
 adaptive pill `19cb8ab` · smart bar `f799837` · gestures `e181fab` · per-task
 `f9be24d` (+ doc commits). Branch: `master` (Vercel deploy).
 
+## Uniform typing fields — "no grey box" + blinking-caret invite
+Owner ask: *"remove that grey box and make it all uniform, add a line flicker '|'
+that blinks showing someone has to type here, then the placeholder follows. Do this
+everywhere in all portals, anywhere typing is required."*
+
+- **`@keyframes caret-blink` + `.caret-blink`** in `globals.css` (reduced-motion
+  rule auto-neutralises it). A 1px accent bar.
+- **`.bare-field`** in `globals.css` — a plain class (beats the unlayered
+  `input,select,textarea { background: hsl(var(--fg)/.045) }` well + the
+  `:focus` chrome) that makes a field fully transparent at rest/hover/focus, so its
+  **bordered ROW owns the ring + fill**. ⚠️ **Must NOT start with `caret-`** — `cn()`
+  uses `tailwind-merge`, which folds any `caret-*` class into the `caret-color` group
+  and silently drops the earlier one (it ate the first-draft name `caret-field` next
+  to `caret-accent`; renamed to `bare-field`). The well loses to `bg-transparent`
+  classes too, but only via `!important`/a class — Tailwind v4 layers utilities below
+  unlayered element rules, so `bg-transparent` alone is a no-op on bare `<input>`s.
+- **`CaretInput` / `CaretTextarea`** (`components/ui.tsx`) — transparent compose
+  fields that show a blinking caret + placeholder **overlay** while empty (native
+  placeholder set to `" "` so `:placeholder-shown` hides the real caret via
+  `placeholder-shown:caret-transparent`; once you type, the overlay hides and the
+  real caret returns). The **padding/border live on the wrapping ROW**, not the
+  input, so the overlay (at the row's content-left) lines up with typed text.
+  `CaretTextarea`'s overlay **inherits `className`** so its top-left placeholder
+  matches a padded textarea.
+- **Applied to** (compose/search rows → blinking caret): task-detail pane, staff
+  task card, smart-capture bar, manager tasks-command (search + add-update +
+  quick-add), the task-detail conversation composer (`CaretTextarea`),
+  complete-task-sheet note (`CaretTextarea`), request search, to-do quick-add. **Form
+  fields → `bare-field` (transparent, native caret):** director task/event/message
+  forms (`inputCls`), request composer (`fieldCls`), to-do datetime. Shared
+  app-wide `SearchInput` left as-is (admin-shared; icon offset complicates the
+  overlay) — change there if the owner wants it portal-wide.
+
+## "Raise a request" card on staff Home
+A compact request card sits **beside "Your to-dos"** in the Home secondary grid
+(`lg:grid-cols-2` → right column on web, stacks on mobile): `SectionLabel` + "View
+all" → `/portal/requests`, blurb, and the existing **`RequestComposer`** (opens the
+iPhone bottom-sheet). Home fetches `requestRecipientsFor(me.id)` + `getRequestCategories()`
+and reuses `portalRaiseRequest`. Full history/filters stay on the Requests tab.
+
 ## Gotchas (this session)
 - Restarting the dev server + `rm -rf .next` **while a process was still bound to
   :3000** corrupted `.next` → ENOENT on manifests, a stale "Bolt is not defined"

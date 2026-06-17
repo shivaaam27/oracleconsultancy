@@ -79,7 +79,7 @@ export function RequestComposer({
   }
 
   const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
-  const fieldCls = "w-full rounded-xl bg-bg-subtle/60 ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40";
+  const fieldCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
 
   return (
     <>

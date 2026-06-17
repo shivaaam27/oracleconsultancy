@@ -12,7 +12,7 @@ import { portalDirectorCreateEvent } from "@/app/portal/actions";
 type Person = { id: number; name: string };
 type Company = { id: number; name: string };
 
-const inputCls = "w-full rounded-xl bg-bg-subtle/70 ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40";
+const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
 const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
 const FORM_ID = "director-event-form";
 

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pin, PinOff, Send, X } from "lucide-react";
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
+import { CaretTextarea } from "./ui";
 import { VoiceButton } from "./voice-button";
 
 /* Shared conversation view for a task — used by BOTH the staff portal and the
@@ -313,7 +314,7 @@ export function PortalConversation(props: Props) {
               onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
             />
             <div className="relative">
-              <textarea
+              <CaretTextarea
                 ref={taRef}
                 name="body"
                 required={!fileName}
@@ -321,7 +322,7 @@ export function PortalConversation(props: Props) {
                 onChange={onComposerChange}
                 onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
                 placeholder={replyTo ? `Reply to ${replyTo.author}…` : "Write an update… use @ to mention a teammate."}
-                className="w-full resize-y rounded-xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none"
+                className="resize-y rounded-xl px-3.5 py-2.5 text-sm"
               />
               {mentionMatches.length > 0 && (
                 <div className="absolute left-2 top-full z-10 mt-1 w-56 overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-pill">

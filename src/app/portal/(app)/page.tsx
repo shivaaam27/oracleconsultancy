@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, CheckCircle2, ListTodo, Users, Plane, Clock } from "lucide-react";
+import { CalendarDays, CheckCircle2, ListTodo, Users, Plane, Clock, MessageSquareText } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -20,6 +20,9 @@ import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 import { TodoCard } from "@/components/todo-card";
 import { listSelfTodos } from "@/lib/todo-reminders";
 import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo } from "@/app/portal/actions";
+import { RequestComposer } from "@/components/request-composer";
+import { requestRecipientsFor, getRequestCategories } from "@/lib/requests";
+import { portalRaiseRequest } from "./requests/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +77,11 @@ export default async function PortalHome() {
   const today = await personAttendanceToday(me.id);
   const week = await personAttendanceWeek(me.id);
   const myTodos = await listSelfTodos(me.id);
+  // Recipients/categories for the compact "Raise a request" card beside the to-dos.
+  const [{ people: requestPeople }, requestCategories] = await Promise.all([
+    requestRecipientsFor(me.id),
+    getRequestCategories(),
+  ]);
 
   // Announcements that target this person (pinned + newest, with their read state).
   const audienceAttrs = await getPersonAudienceAttrs(me.id);
@@ -298,6 +306,21 @@ export default async function PortalHome() {
             deleteAction={portalDeleteTodo}
             title="Your to-dos"
           />
+        </Reveal>
+
+        {/* Compact request card — fills the web column beside the to-dos; the
+            full history + filters live on the Requests tab. */}
+        <Reveal delay={0.075} className="flex flex-col gap-2.5">
+          <SectionLabel
+            icon={<MessageSquareText size={13} />}
+            action={<Link href="/portal/requests" className="text-[11px] text-accent hover:underline">View all</Link>}
+          >
+            Raise a request
+          </SectionLabel>
+          <Panel className="flex flex-col gap-3 p-4">
+            <p className="text-xs text-fg-muted">Need equipment, HR help or admin support? Send a request without leaving home — track replies on the Requests tab.</p>
+            <RequestComposer recipients={requestPeople} action={portalRaiseRequest} allowOwner categories={requestCategories} />
+          </Panel>
         </Reveal>
 
         {announcements.length > 0 && (

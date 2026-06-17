@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, Paperclip } from "lucide-react";
 import { BottomSheet } from "./bottom-sheet";
+import { CaretTextarea } from "./ui";
 import { useToast } from "./toast";
 import { portalCompleteTask } from "@/app/portal/actions";
 
@@ -65,13 +66,14 @@ export function CompleteTaskSheet({
         <p className="text-xs text-fg-muted">Finishing this task records what was done — a quick note keeps everyone in the loop.</p>
         <div>
           <label className="mb-1.5 block text-[11px] font-medium text-fg-muted">What was done?</label>
-          <textarea
+          <CaretTextarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={4}
             autoFocus
             placeholder="Explain what you completed…"
-            className="w-full rounded-xl bg-bg-subtle/70 ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+            wrapperClassName="rounded-xl ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40"
+            className="px-3.5 py-3 text-sm"
           />
         </div>
         <div>

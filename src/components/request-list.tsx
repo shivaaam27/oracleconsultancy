@@ -7,7 +7,7 @@ import {
   MonitorSmartphone, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Badge, Switch } from "./ui";
+import { Badge, Switch, CaretInput } from "./ui";
 import {
   isRequestOpen,
   partiesLabel,
@@ -123,11 +123,11 @@ export function RequestList({
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
           <Search size={15} className="shrink-0 text-fg-subtle" />
-          <input
+          <CaretInput
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search requests…"
-            className="min-w-0 flex-1 bg-transparent py-2.5 text-sm placeholder:text-fg-muted focus:outline-none"
+            className="py-2.5 text-sm"
           />
         </div>
         <button

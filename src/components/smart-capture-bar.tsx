@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Sparkles, ArrowUp, Bolt, CalendarPlus, MessageSquarePlus, Wand2, CornerDownLeft, type LucideIcon } from "lucide-react";
+import { CaretInput } from "./ui";
 import { DirectorTaskForm } from "./director-task-form";
 import { DirectorEventForm } from "./director-event-form";
 import { DirectorMessage } from "./director-message";
@@ -75,14 +76,14 @@ export function SmartCaptureBar({
     <div className="rounded-3xl bg-bg-elev p-2.5 ring-1 ring-border elevated">
       <form
         onSubmit={submit}
-        className="flex items-center gap-2 rounded-2xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border transition-shadow focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40"
+        className="flex items-center gap-2 rounded-2xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40"
       >
         <Sparkles size={16} className="shrink-0 text-accent" />
-        <input
+        <CaretInput
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={active.placeholder}
-          className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none"
+          className="py-2 text-sm"
         />
         <button
           type="submit"

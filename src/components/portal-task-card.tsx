@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronRight, MessageSquarePlus, Send, Loader2, Users, ExternalLink, CheckCircle2 } from "lucide-react";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { CaretInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { CompleteTaskSheet } from "@/components/complete-task-sheet";
 import { portalAddUpdate } from "@/app/portal/actions";
@@ -167,14 +168,14 @@ export function PortalTaskCard({ task: t, viewerRole }: { task: PortalCardTask; 
               Status
               <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName="rounded-xl bg-bg-subtle/60 ring-1 ring-border" />
             </label>
-            <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
+            <div className="flex items-center gap-2 rounded-xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
               <MessageSquarePlus size={15} className="shrink-0 text-accent" />
-              <input
+              <CaretInput
                 value={updateBody}
                 onChange={(e) => setUpdateBody(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postUpdate(); } }}
                 placeholder="Add an update…"
-                className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none"
+                className="py-2 text-sm"
               />
               <button type="button" onClick={postUpdate} disabled={busy || !updateBody.trim()} aria-label="Post update" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { BottomSheet } from "@/components/bottom-sheet";
-import { SwitchRow } from "@/components/ui";
+import { SwitchRow, CaretInput } from "@/components/ui";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
@@ -150,11 +150,11 @@ export function PortalTasksCommand({
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2.5 rounded-2xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
         <Search size={16} className="shrink-0 text-fg-subtle" />
-        <input
+        <CaretInput
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search tasks, people, companies…"
-          className="min-w-0 flex-1 bg-transparent py-3 text-sm placeholder:text-fg-muted focus:outline-none"
+          className="py-3 text-sm"
         />
       </div>
 
@@ -329,14 +329,14 @@ function TaskRow({
         </div>
 
         {/* Post an update without opening the task. */}
-        <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
+        <div className="flex items-center gap-2 rounded-xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
           <MessageSquarePlus size={15} className="shrink-0 text-accent" />
-          <input
+          <CaretInput
             value={updateBody}
             onChange={(e) => setUpdateBody(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postUpdate(); } }}
             placeholder="Add an update…"
-            className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none"
+            className="py-2 text-sm"
           />
           <button type="button" onClick={postUpdate} disabled={busy || !updateBody.trim()} aria-label="Post update" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40">
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
@@ -573,9 +573,9 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
           <input type="hidden" name="priority" value={priority} />
           <div>
             <label className={fieldLabel}>What needs doing?</label>
-            <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/60 px-3.5 py-1 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
+            <div className="flex items-center gap-2 rounded-xl px-3.5 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
               <Sparkles size={16} className="shrink-0 text-accent" />
-              <input name="actionItem" required placeholder="e.g. Renew the business licence" className="min-w-0 flex-1 bg-transparent py-2.5 text-sm placeholder:text-fg-muted focus:outline-none" />
+              <CaretInput name="actionItem" required placeholder="e.g. Renew the business licence" className="py-2.5 text-sm" />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">

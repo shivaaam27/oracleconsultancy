@@ -654,6 +654,68 @@ export function Input(p: ComponentProps<"input">) {
   );
 }
 
+/** A transparent compose input with a blinking-caret affordance: while empty it
+ *  shows a blinking caret bar followed by the placeholder, inviting a click;
+ *  once you type, the real caret + text take over. Use for "Add an update…",
+ *  message/capture/search rows etc. — pass value/onChange/onKeyDown as usual.
+ *  The native caret is hidden while empty (so there's never a double caret) and
+ *  restored once there's text. Reduced-motion users get a solid (non-blinking)
+ *  bar via the global media rule. */
+export function CaretInput({
+  placeholder = "",
+  className,
+  wrapperClassName,
+  ...props
+}: { wrapperClassName?: string } & ComponentProps<"input">) {
+  // Transparent compose field; the bordered row owns the ring (see .bare-field).
+  return (
+    <span className={cn("relative block min-w-0 flex-1", wrapperClassName)}>
+      <input
+        {...props}
+        placeholder=" "
+        className={cn(
+          "bare-field peer w-full focus:outline-none caret-accent placeholder-shown:caret-transparent",
+          className,
+        )}
+      />
+      <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 hidden items-center text-sm peer-placeholder-shown:flex">
+        <span className="caret-blink mr-1 inline-block h-[1.15em] w-px rounded-full bg-accent" />
+        <span className="truncate text-fg-muted">{placeholder}</span>
+      </span>
+    </span>
+  );
+}
+
+/** Textarea twin of {@link CaretInput} — a transparent multi-line compose box
+ *  that shows a blinking caret + placeholder at the top-left while empty. Put
+ *  the padding/text-size in `className`; the overlay inherits the same classes
+ *  so the placeholder lines up exactly with where typing will start. */
+export function CaretTextarea({
+  placeholder = "",
+  className,
+  wrapperClassName,
+  ...props
+}: { wrapperClassName?: string } & ComponentProps<"textarea">) {
+  return (
+    <span className={cn("relative block w-full min-w-0", wrapperClassName)}>
+      <textarea
+        {...props}
+        placeholder=" "
+        className={cn(
+          "bare-field peer w-full focus:outline-none caret-accent placeholder-shown:caret-transparent",
+          className,
+        )}
+      />
+      <span aria-hidden className={cn("pointer-events-none absolute inset-0 hidden flex-col peer-placeholder-shown:flex", className)}>
+        <span className="flex items-center">
+          <span className="caret-blink mr-1 inline-block h-[1.15em] w-px rounded-full bg-accent" />
+          <span className="truncate text-fg-muted">{placeholder}</span>
+        </span>
+      </span>
+    </span>
+  );
+}
+
 export function Select({ className, ...p }: ComponentProps<"select">) {
   return (
     <div className="relative">

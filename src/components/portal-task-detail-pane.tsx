@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Users, MessageSquarePlus, Send, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
 import { FluidSelect, type FluidOption } from "./fluid-select";
-import { Badge } from "./ui";
+import { Badge, CaretInput } from "./ui";
 import { CompleteTaskSheet } from "./complete-task-sheet";
 import { useToast } from "./toast";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
@@ -123,14 +123,14 @@ export function PortalTaskDetailPane({ task, viewerRole, bare = false }: { task:
             Status
             <FluidSelect value={task.status} options={statusOptions} onSelect={changeStatus} buttonClassName="rounded-xl bg-bg-subtle/60 ring-1 ring-border" />
           </label>
-          <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
+          <div className="flex items-center gap-2 rounded-xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
             <MessageSquarePlus size={15} className="shrink-0 text-accent" />
-            <input
+            <CaretInput
               value={updateBody}
               onChange={(e) => setUpdateBody(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postUpdate(); } }}
               placeholder="Add an update…"
-              className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none"
+              className="py-2 text-sm"
             />
             <button type="button" onClick={postUpdate} disabled={busy || !updateBody.trim()} aria-label="Post update" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40">
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

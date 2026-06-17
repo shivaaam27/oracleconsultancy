@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { TodoCardItem } from "@/lib/todo-reminders";
 import { useToast } from "@/components/toast";
+import { CaretInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { ListChecks, Plus, Check, Trash2, Loader2, Bell, Star, CalendarDays } from "lucide-react";
 
@@ -121,19 +122,21 @@ export function TodoCard({
 
       {/* Quick add — title + optional time. Set a time and it pings you. */}
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-          placeholder="Add a to-do…"
-          className="flex-1 min-w-[10rem] text-sm rounded-lg border border-border bg-bg-subtle/60 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/50"
-        />
+        <div className="flex flex-1 min-w-[10rem] items-center rounded-lg px-3 py-1.5 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
+          <CaretInput
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+            placeholder="Add a to-do…"
+            className="text-sm"
+          />
+        </div>
         <input
           type="datetime-local"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
           title="Optional — set a time to get a reminder ping"
-          className="text-xs rounded-lg border border-border bg-bg-subtle/60 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/50"
+          className="bare-field text-xs rounded-lg ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
         />
         <button
           type="button"
