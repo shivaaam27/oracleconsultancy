@@ -98,41 +98,46 @@ export default async function PortalActivity() {
         />
       </Reveal>
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-4">
         {groups.length === 0 && (
           <Panel className="p-6 text-center text-sm text-fg-muted">No activity yet.</Panel>
         )}
         {groups.map((g, gi) => (
-          <Reveal key={g.label} delay={Math.min(0.04 + gi * 0.04, 0.2)} className="flex flex-col gap-2">
+          <Reveal key={g.label} delay={Math.min(0.04 + gi * 0.04, 0.2)} className="flex flex-col gap-2.5">
             <SectionLabel icon={<MessageSquare size={13} />}>{g.label}</SectionLabel>
-            {g.items.map((r) => {
-              const a = authorOf(r.created_by, me.name);
-              return (
-                <Link key={r.id} href={`/portal/task/${r.code}`} className="block group">
-                  <Panel
-                    className={`p-3.5 transition-shadow group-hover:ring-accent/40 ${
-                      a.management ? "ring-accent/20" : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className={`font-semibold ${a.management ? "text-accent" : a.me ? "text-fg" : "text-fg-muted"}`}>
-                        {a.name}
-                      </span>
-                      <span className="text-fg-subtle">·</span>
-                      <span className="inline-flex items-center gap-1 text-fg-muted">
-                        <ListTodo size={11} /> {r.code}
-                      </span>
-                      <span className="grow" />
-                      <span className="text-fg-subtle">
-                        {new Date(r.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm leading-snug line-clamp-2">{r.body}</p>
-                    {r.action_item && <p className="mt-0.5 truncate text-xs text-fg-subtle">{r.action_item}</p>}
-                  </Panel>
-                </Link>
-              );
-            })}
+            {/* Timeline: a hairline rail with a tone dot per update — management
+                = accent, you = info, staff/system = muted. */}
+            <ol className="relative ml-1.5 flex flex-col gap-3 border-l border-border/70 pl-5">
+              {g.items.map((r) => {
+                const a = authorOf(r.created_by, me.name);
+                const dot = a.management ? "bg-accent" : a.me ? "bg-info" : "bg-fg-subtle";
+                return (
+                  <li key={r.id} className="relative">
+                    <span className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-bg ${dot}`} />
+                    <Link
+                      href={`/portal/task/${r.code}`}
+                      className="group block rounded-2xl bg-bg-elev p-3.5 ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className={`font-semibold ${a.management ? "text-accent" : a.me ? "text-fg" : "text-fg-muted"}`}>
+                          {a.name}
+                        </span>
+                        <span className="text-fg-subtle">·</span>
+                        <span className="inline-flex items-center gap-1 text-fg-muted">
+                          <ListTodo size={11} /> {r.code}
+                        </span>
+                        <span className="grow" />
+                        <span className="text-fg-subtle">
+                          {new Date(r.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm leading-snug line-clamp-2">{r.body}</p>
+                      {r.action_item && <p className="mt-0.5 truncate text-xs text-fg-subtle">{r.action_item}</p>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
           </Reveal>
         ))}
       </section>
