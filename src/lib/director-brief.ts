@@ -78,7 +78,7 @@ export type BriefCompany = {
   done: number; open: number; inProgress: number; overdue: number;
   tasks: ReportTask[]; // open tasks (incl. in progress), for the detailed PDF report
 };
-export type BriefDelivered = { company: string; items: { id: number; actionItem: string; status: string; closedDate: Date | null }[] };
+export type BriefDelivered = { company: string; items: { id: number; actionItem: string; status: string; closedDate: Date | null; latestUpdate: string | null }[] };
 export type BriefWatch = { id: number; code: string; actionItem: string; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
 export type BriefCompliance = {
   companyId: number;
@@ -336,7 +336,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   const groups = new Map<string, BriefDelivered["items"]>();
   for (const r of deliveredThisMonth) {
     const list = groups.get(r.companyName) ?? [];
-    list.push({ id: r.id, actionItem: r.actionItem, status: r.status, closedDate: r.closedDate });
+    list.push({ id: r.id, actionItem: r.actionItem, status: r.status, closedDate: r.closedDate, latestUpdate: r.latestUpdate });
     groups.set(r.companyName, list);
   }
   const delivered: BriefDelivered[] = [...groups.entries()].map(([company, items]) => ({ company, items }));
