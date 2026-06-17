@@ -494,17 +494,23 @@ export async function portalDirectorCreateTask(
 }
 
 /* ----------------------------------------------------------------------
- * Director (executive operator) — edit a task inline from the board: status,
- * priority, deadline, reassign the responsible person. Group-wide; every change
- * audit-logged + stamped portal-dir:<Name>. Never trusts the form — re-verifies
- * the session role and the task each call.
+ * Management (director / HR / manager) — edit a task inline: status, priority,
+ * deadline, reassign the responsible person. Role-aware + scoped server-side:
+ *   • director / HR  → group-wide; may edit any field.
+ *   • manager        → only tasks in their view; status moves only (their
+ *                       allowed set), and never on a Completed/Closed task.
+ * Every change is audit-logged + stamped by role. Never trusts the form.
  * ---------------------------------------------------------------------- */
 const ALL_STATUSES = [
   "Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed",
 ];
 const ALL_PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
-export async function portalDirectorEditTask(input: {
+function roleTag(role: string): string {
+  return role === "director" ? "dir" : role === "hr" ? "hr" : "mgr";
+}
+
+export async function portalEditTask(input: {
   taskId: number;
   status?: string;
   priority?: string;
@@ -513,7 +519,11 @@ export async function portalDirectorEditTask(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  const role = me.portalRole;
+  if (role === "staff") return { ok: false, error: "You don't have permission to edit tasks." };
+  if (!(await personCanSeeTask(me, input.taskId))) return { ok: false, error: "That task isn't in your view." };
+
+  const full = role === "director" || role === "hr"; // may edit priority/due/owner + any status
 
   const { data: t } = await sb
     .from("tasks")
@@ -522,40 +532,45 @@ export async function portalDirectorEditTask(input: {
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
 
-  const createdBy = `portal-dir:${me.name}`;
+  const createdBy = `portal-${roleTag(role)}:${me.name}`;
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { last_updated_at: now };
+  const current = t.status as string;
+  const allowedStatuses = full ? ALL_STATUSES : MANAGER_STATUSES;
+  const lockedDone = current === "Completed" || current === "Closed";
 
-  if (input.status && ALL_STATUSES.includes(input.status) && input.status !== t.status) {
-    patch.status = input.status;
-    if (input.status === "Completed" || input.status === "Closed") patch.closed_date = now;
-    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "status", t.status as string, input.status, "Edited by director", createdBy);
+  if (input.status && allowedStatuses.includes(input.status) && input.status !== current) {
+    // Managers can't reopen a Completed/Closed task; directors/HR can.
+    if (!(lockedDone && !full)) {
+      patch.status = input.status;
+      if (input.status === "Completed" || input.status === "Closed") patch.closed_date = now;
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "status", current, input.status, `Edited from portal (${role})`, createdBy);
+    }
   }
-  if (input.priority && ALL_PRIORITIES.includes(input.priority) && input.priority !== t.priority) {
+  if (full && input.priority && ALL_PRIORITIES.includes(input.priority) && input.priority !== t.priority) {
     patch.priority = input.priority;
-    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "priority", t.priority as string, input.priority, "Edited by director", createdBy);
+    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "priority", t.priority as string, input.priority, `Edited from portal (${role})`, createdBy);
   }
-  if (input.deadline !== undefined) {
+  if (full && input.deadline !== undefined) {
     const newIso = input.deadline ? new Date(input.deadline).toISOString() : null;
     const oldIso = t.deadline ? new Date(t.deadline as string).toISOString() : null;
     if (newIso !== oldIso) {
       patch.deadline = newIso;
-      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "deadline", oldIso, newIso, "Edited by director", createdBy);
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "deadline", oldIso, newIso, `Edited from portal (${role})`, createdBy);
     }
   }
   let reassigned: number | null = null;
-  if (input.accountableId && input.accountableId !== (t.owner_id as number | null)) {
+  if (full && input.accountableId && input.accountableId !== (t.owner_id as number | null)) {
     const { data: p } = await sb.from("people").select("id,name,active").eq("id", input.accountableId).maybeSingle();
     if (!p || !p.active) return { ok: false, error: "That person isn't available." };
     patch.owner_id = input.accountableId;
-    // Move the accountable assignee row to the new person.
     await sb.from("task_assignees").delete().eq("task_id", t.id as number).eq("role", "accountable");
     await sb.from("task_assignees").upsert(
       { task_id: t.id as number, person_id: input.accountableId, role: "accountable" },
       { onConflict: "task_id,person_id" }
     );
     reassigned = input.accountableId;
-    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "owner", String(t.owner_id ?? "—"), p.name as string, "Reassigned by director", createdBy);
+    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "owner", String(t.owner_id ?? "—"), p.name as string, `Reassigned from portal (${role})`, createdBy);
   }
 
   const { error } = await sb.from("tasks").update(patch).eq("id", t.id as number);
@@ -569,20 +584,27 @@ export async function portalDirectorEditTask(input: {
   }
 
   revalidatePath("/portal/board");
+  revalidatePath("/portal/tasks");
   revalidatePath(`/task/${t.code}`);
   return { ok: true };
 }
 
-/** Director: one-tap reminder for a task — resolves the responsible person and
- *  drafts a message (Outbox) + returns a deep-link, reusing the proven drafter. */
-export async function portalDirectorRemindTask(
+/** Management one-tap reminder: resolves the responsible person and drafts a
+ *  message (Outbox) + returns a deep-link. Director/HR group-wide; managers only
+ *  for tasks in their view. Honours the owner's outreach pause. */
+export async function portalRemindTask(
   taskId: number
 ): Promise<{ ok: true; link: string | null; contactMissing: boolean; name: string } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  const role = me.portalRole;
+  if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
-  const { data: t } = await sb.from("tasks").select("id,code,action_item,owner_id").eq("id", taskId).maybeSingle();
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Outreach is paused by the administrator." };
+
+  const { data: t } = await sb.from("tasks").select("id,code,action_item,owner_id,company_id").eq("id", taskId).maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
   let personId = (t.owner_id as number | null) ?? null;
   if (!personId) {
@@ -591,13 +613,115 @@ export async function portalDirectorRemindTask(
   }
   if (!personId) return { ok: false, error: "No one is responsible for this task yet." };
 
-  const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
-  const name = (p?.name as string | null) ?? "there";
+  const { data: person } = await sb
+    .from("people")
+    .select("id,name,email,phone,whatsapp,preferred_channel,company_id")
+    .eq("id", personId)
+    .maybeSingle();
+  if (!person) return { ok: false, error: "Recipient not found." };
+
+  const name = person.name as string;
   const first = name.split(" ")[0];
   const body = `Hi ${first}, a reminder on "${t.action_item}" (${t.code}) — please update when you can. Thank you.`;
-  const res = await portalDirectorDraftMessage({ personId, body, taskCode: t.code as string });
-  if (!res.ok) return res;
-  return { ...res, name };
+
+  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
+  const contact = {
+    email: (person.email as string | null) ?? null,
+    phone: (person.phone as string | null) ?? null,
+    whatsapp: (person.whatsapp as string | null) ?? null,
+    preferredChannel: (person.preferred_channel as string | null) ?? null,
+  };
+  const channel = pickChannel(contact);
+  const to = contactForChannel(contact, channel);
+  const subject = "Task reminder";
+  const link = linkFor(channel, to, subject, body);
+
+  let companyName: string | null = null;
+  if (person.company_id) {
+    const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
+    companyName = (c?.name as string | null) ?? null;
+  }
+
+  const { error } = await sb.from("outbox").insert({
+    channel, recipient_name: name, recipient_contact: to, company: companyName,
+    subject: channel === "EMAIL" ? subject : null, body,
+    message_type: "TASK REMINDER", status: "Draft",
+    source: `portal-${roleTag(role)}:${me.name}`, person_id: person.id, created_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: error.message };
+
+  await recordEvent("portal.reminder.draft", "ok", { by: me.name, role, to: name, channel, task: t.code });
+  revalidatePath("/outbox");
+  return { ok: true, link, contactMissing: !to, name };
+}
+
+/** Management: remind EVERYONE involved in a task (accountable + working
+ *  assignees, and owner). Drafts one Outbox message per person. Director/HR
+ *  group-wide; managers only for tasks in their view. Honours the kill switch. */
+export async function portalRemindTaskAll(
+  taskId: number
+): Promise<{ ok: true; count: number; names: string[]; skipped: number } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
+
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Outreach is paused by the administrator." };
+
+  const { data: t } = await sb.from("tasks").select("id,code,action_item,owner_id").eq("id", taskId).maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+
+  const { data: assignees } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId);
+  const ids = new Set<number>();
+  if (t.owner_id) ids.add(t.owner_id as number);
+  for (const a of assignees ?? []) if (a.person_id) ids.add(a.person_id as number);
+  ids.delete(me.id); // don't remind yourself
+  if (ids.size === 0) return { ok: false, error: "No one is assigned to this task yet." };
+
+  const { data: people } = await sb
+    .from("people")
+    .select("id,name,email,phone,whatsapp,preferred_channel,company_id,active")
+    .in("id", [...ids]);
+
+  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
+  const now = new Date().toISOString();
+  const tag = `portal-${roleTag(role)}:${me.name}`;
+  const names: string[] = [];
+  let skipped = 0;
+
+  for (const person of people ?? []) {
+    if (person.active === false) { skipped++; continue; }
+    const name = person.name as string;
+    const first = name.split(" ")[0];
+    const body = `Hi ${first}, a reminder on "${t.action_item}" (${t.code}) — please update when you can. Thank you.`;
+    const contact = {
+      email: (person.email as string | null) ?? null,
+      phone: (person.phone as string | null) ?? null,
+      whatsapp: (person.whatsapp as string | null) ?? null,
+      preferredChannel: (person.preferred_channel as string | null) ?? null,
+    };
+    const channel = pickChannel(contact);
+    const to = contactForChannel(contact, channel);
+    if (!to) { skipped++; continue; }
+    let companyName: string | null = null;
+    if (person.company_id) {
+      const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
+      companyName = (c?.name as string | null) ?? null;
+    }
+    const { error } = await sb.from("outbox").insert({
+      channel, recipient_name: name, recipient_contact: to, company: companyName,
+      subject: channel === "EMAIL" ? "Task reminder" : null, body,
+      message_type: "TASK REMINDER", status: "Draft", source: tag, person_id: person.id as number, created_at: now,
+    });
+    if (error) { skipped++; continue; }
+    names.push(first);
+  }
+
+  await recordEvent("portal.reminder.all", "ok", { by: me.name, role, task: t.code, count: names.length });
+  revalidatePath("/outbox");
+  return { ok: true, count: names.length, names, skipped };
 }
 
 export async function portalAddUpdate(formData: FormData) {

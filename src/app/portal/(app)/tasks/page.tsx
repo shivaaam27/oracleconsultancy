@@ -4,8 +4,108 @@ import { sb } from "@/db/supabase";
 import { Hero } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
+import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
+import { getAllTasks } from "@/lib/queries";
 import { PortalTasksTable, type PortalTaskRow } from "@/components/portal-tasks-table";
+import { PortalTasksCommand, type CommandTask } from "@/components/portal-tasks-command";
+
+const CLOSED = new Set(["Completed", "Closed"]);
+
+/** Short "2d ago" / "5h ago" relative time for the latest-update line. */
+function relTime(iso: string, now: Date): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const mins = Math.round((now.getTime() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  const wks = Math.round(days / 7);
+  if (wks < 5) return `${wks}w ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+/** Build the command-view task list (manager / HR / director) from the SAME
+ *  source the admin command centre uses (`getAllTasks`) — so owner, status,
+ *  priority, deadline, the overdue flag and the latest update are identical to
+ *  task management. Filtered to the viewer's visible tasks. */
+async function ManagementTasks({
+  me, ids,
+}: {
+  me: NonNullable<Awaited<ReturnType<typeof getPortalPerson>>>;
+  ids: number[];
+}) {
+  const groupWide = me.portalRole === "director" || me.portalRole === "hr";
+
+  const [allRows, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+    getAllTasks(),
+    sb.from("companies").select("id,name").order("name"),
+    sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+  ]);
+
+  const idSet = new Set(ids);
+  const rows = allRows.filter((r) => idSet.has(r.id));
+
+  const now = new Date();
+  const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayMs = 86400000;
+  const toInput = (d: Date | null) =>
+    d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) : null;
+
+  const cmd: CommandTask[] = rows.map((r) => {
+    const isDone = CLOSED.has(r.status);
+    const overdue = r.flag === "overdue" || r.flag === "escalate-now";
+    const dl = r.deadline;
+    const dlDay = dl ? new Date(dl.getFullYear(), dl.getMonth(), dl.getDate()) : null;
+    const diff = dlDay ? Math.round((dlDay.getTime() - t0.getTime()) / dayMs) : null;
+    const withinSoon = !isDone && !overdue && diff != null && diff >= 0 && diff <= 7;
+    const dueLabel = diff == null ? null : diff < 0 ? `${Math.abs(diff)}d overdue` : diff === 0 ? "due today" : `in ${diff}d`;
+    // Owner = the command-centre resolved owner (owner_id OR first assignee).
+    const ownerName = r.owner || r.assignees[0] || null;
+    const accountableId = r.ownerId ?? r.assigneeIds[0] ?? null;
+    const act = r.latestActivity;
+    const note = act ? (act.kind === "status" ? act.body : act.body) : (r.latestUpdate || null);
+    const mine = (r.ownerId === me.id) || r.assigneeIds.includes(me.id);
+    return {
+      taskId: r.id,
+      code: r.code,
+      actionItem: r.actionItem,
+      companyName: r.companyName,
+      companyAccent: r.companyAccent,
+      overdue,
+      priority: r.priority,
+      dueLabel,
+      deadlineInput: toInput(r.deadline),
+      accountableId,
+      accountableName: ownerName,
+      assignees: r.assignees,
+      assigneeIds: r.assigneeIds,
+      description: r.comments?.trim() || null,
+      status: r.status,
+      statusLabel: r.status,
+      note: note ? note.slice(0, 160) : null,
+      updateAuthor: act?.author ?? null,
+      updateAgo: act ? relTime(act.atISO, now) : null,
+      raisedByMe: mine,
+      isDone,
+      withinSoon,
+    };
+  });
+
+  // Scope the create pickers: group-wide for director/HR; a manager creates only
+  // in their own company, for themselves or their direct reports.
+  let companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  let people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }));
+  if (!groupWide) {
+    const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
+    people = people.filter((p) => reportSet.has(p.id));
+    if (me.companyId != null) companies = companies.filter((c) => c.id === me.companyId);
+  }
+
+  return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} canCreate />;
+}
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Tasks — Oracle Consultancy" };
@@ -37,6 +137,34 @@ export default async function PortalTasksPage() {
   if (!me) redirect("/portal/login");
 
   const ids = await visibleTaskIds(me);
+
+  const isManagement = me.portalRole === "manager" || me.portalRole === "hr" || me.portalRole === "director";
+  const scopeNote =
+    me.portalRole === "hr" || me.portalRole === "director"
+      ? "Every task across all companies."
+      : me.portalRole === "manager"
+        ? "Your company's tasks, plus your own and your team's."
+        : "Tasks assigned to you.";
+
+  // Management roles (manager / HR / director) get the command-centre view:
+  // search + live filters + inline quick-add + swipe/tap-to-edit rows.
+  if (isManagement) {
+    return (
+      <div className="flex flex-col gap-5">
+        <AutoRefresh seconds={30} />
+        <Reveal delay={0}>
+          <Hero title="Tasks" subtitle={scopeNote}>
+            <div className="flex items-center gap-2 text-sm text-fg-muted">
+              <ClipboardList size={15} /> {ids.length} task{ids.length === 1 ? "" : "s"} in view
+            </div>
+          </Hero>
+        </Reveal>
+        <Reveal delay={0.05}>
+          <ManagementTasks me={me} ids={ids} />
+        </Reveal>
+      </div>
+    );
+  }
 
   let rows: PortalTaskRow[] = [];
   if (ids.length > 0) {
@@ -130,14 +258,7 @@ export default async function PortalTasksPage() {
     });
   }
 
-  const canRaise = me.portalRole !== "staff";
-  const scopeNote =
-    me.portalRole === "hr" || me.portalRole === "director"
-      ? "Every task across all companies."
-      : me.portalRole === "manager"
-        ? "Your company's tasks, plus your own and your team's."
-        : "Tasks assigned to you.";
-
+  // Staff: the original conversational task table.
   return (
     <div className="flex flex-col gap-5">
       <AutoRefresh seconds={30} />
@@ -150,7 +271,7 @@ export default async function PortalTasksPage() {
         </Hero>
       </Reveal>
       <Reveal delay={0.05}>
-        <PortalTasksTable rows={rows} canRaise={canRaise} viewerRole={me.portalRole} />
+        <PortalTasksTable rows={rows} canRaise={false} viewerRole={me.portalRole} />
       </Reveal>
     </div>
   );

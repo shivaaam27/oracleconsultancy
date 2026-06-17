@@ -73,17 +73,28 @@ async function Board({ personName }: { personName: string }) {
   const watchRaw = brief.watch.slice(0, 12);
   const ownerByTask = new Map<number, { id: number | null; name: string | null }>();
   if (watchRaw.length) {
-    const { data: taskRows } = await sb.from("tasks").select("id,owner_id").in("id", watchRaw.map((w) => w.id));
-    const ownerIds = [...new Set((taskRows ?? []).map((t) => t.owner_id as number | null).filter(Boolean) as number[])];
+    const watchIds = watchRaw.map((w) => w.id);
+    const [{ data: taskRows }, { data: assigneeRows }] = await Promise.all([
+      sb.from("tasks").select("id,owner_id").in("id", watchIds),
+      // Fall back to the accountable assignee when owner_id is null (matches the
+      // command-centre's owner resolution — otherwise these read "Unassigned").
+      sb.from("task_assignees").select("task_id,person_id,role").in("task_id", watchIds),
+    ]);
+    const accountableByTask = new Map<number, number>();
+    for (const r of assigneeRows ?? []) {
+      if ((r.role as string | null) === "accountable") accountableByTask.set(r.task_id as number, r.person_id as number);
+    }
+    const resolved = new Map<number, number | null>();
+    for (const t of taskRows ?? []) {
+      resolved.set(t.id as number, (t.owner_id as number | null) ?? accountableByTask.get(t.id as number) ?? null);
+    }
+    const ownerIds = [...new Set([...resolved.values()].filter((x): x is number => x != null))];
     const nameById = new Map<number, string>();
     if (ownerIds.length) {
       const { data: ownerRows } = await sb.from("people").select("id,name").in("id", ownerIds);
       for (const r of ownerRows ?? []) nameById.set(r.id as number, r.name as string);
     }
-    for (const t of taskRows ?? []) {
-      const oid = (t.owner_id as number | null) ?? null;
-      ownerByTask.set(t.id as number, { id: oid, name: oid ? nameById.get(oid) ?? null : null });
-    }
+    for (const [id, oid] of resolved) ownerByTask.set(id, { id: oid, name: oid ? nameById.get(oid) ?? null : null });
   }
 
   const now = new Date();
@@ -147,6 +158,7 @@ async function Board({ personName }: { personName: string }) {
         people={people}
         companies={companies}
         watch={watch}
+        upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName }))}
         suggestion={suggestion}
       />
     </Reveal>

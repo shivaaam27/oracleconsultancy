@@ -72,7 +72,7 @@ export function riskLabel(score: number): RiskLabel {
 export type ReportTask = {
   id: number; actionItem: string; owner: string; priority: string; status: string;
   deadline: Date | null; overdue: boolean; latestUpdate: string | null;
-  lastUpdatedAt: Date | null; createdDate: Date | null;
+  lastUpdatedAt: Date | null; createdDate: Date | null; description: string | null;
 };
 export type BriefCompany = {
   id: number; name: string; accent: string | null; logoUrl: string | null; riskScore: number; risk: RiskLabel;
@@ -316,7 +316,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     list.push({
       id: r.id, actionItem: r.actionItem, owner: [...new Set([r.owner, ...r.assignees].filter(Boolean))].join(", ") || "—",
       priority: r.priority, status: r.status, deadline: r.deadline, overdue: isOverdue(r), latestUpdate: r.latestUpdate,
-      lastUpdatedAt: r.lastUpdatedAt, createdDate: r.createdDate,
+      lastUpdatedAt: r.lastUpdatedAt, createdDate: r.createdDate, description: r.comments,
     });
     openByCompany.set(r.companyId, list);
   }

@@ -5,26 +5,26 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Bolt, CalendarPlus, MessageSquarePlus, ArrowUp, Sparkles, Wand2, CornerDownLeft,
-  Building2, ChevronRight, Check, Loader2, Send, ExternalLink, ArrowRight, Orbit as OrbitIcon,
-  Flame, Plane, Target, ShieldCheck, X,
+  ChevronRight, Check, Loader2, Send, ExternalLink, ArrowRight, Orbit as OrbitIcon,
+  Flame, Plane, Target, CalendarClock,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
+import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { DirectorEventForm } from "@/components/director-event-form";
 import { DirectorMessage } from "@/components/director-message";
-import {
-  portalDirectorCreateTask, portalDirectorEditTask, portalDirectorRemindTask,
-} from "@/app/portal/actions";
+import { portalDirectorCreateTask, portalEditTask, portalRemindTask } from "@/app/portal/actions";
 import { useToast } from "@/components/toast";
 
 /* ------------------------------------------------------------------ *
  * Director board — the command-centre client surface. Land, see, act.
  * Real data in (no mocks): the orbit score, KPIs, the AI suggestion and
  * the attention stack are all derived server-side from getBrief and
- * passed in. Mutations re-verify the director role server-side.
+ * passed in. Mutations re-verify the role + task scope server-side.
  * ------------------------------------------------------------------ */
 
 export type BoardPerson = { id: number; name: string; companyId: number | null };
 export type BoardCompany = { id: number; name: string };
+export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null };
 export type WatchItem = {
   taskId: number;
   code: string;
@@ -33,9 +33,11 @@ export type WatchItem = {
   overdue: boolean;
   priority: string;
   dueLabel: string | null;
-  deadlineInput: string | null; // yyyy-mm-dd for the date input
+  deadlineInput: string | null;
   accountableId: number | null;
   accountableName: string | null;
+  statusLabel?: string;
+  note?: string | null;
 };
 
 type Props = {
@@ -52,11 +54,14 @@ type Props = {
   people: BoardPerson[];
   companies: BoardCompany[];
   watch: WatchItem[];
+  upcomingEvents: BoardEvent[];
   suggestion: { code: string; actionItem: string; companyName: string } | null;
 };
 
 const STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+const PRIORITY_DOT: Record<string, string> = { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" };
+const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }));
 
 function prefersReduced(): boolean {
   if (typeof document === "undefined") return false;
@@ -64,12 +69,10 @@ function prefersReduced(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** Eased count-up for a number; respects reduced motion (jumps to the value). */
 function useCountUp(target: number, run: boolean): number {
   const [n, setN] = useState(run ? target : 0);
   useEffect(() => {
-    if (!run) { setN(target); return; }
-    if (prefersReduced()) { setN(target); return; }
+    if (!run || prefersReduced()) { setN(target); return; }
     let raf = 0;
     const t0 = performance.now();
     const dur = 1100;
@@ -97,7 +100,7 @@ export function DirectorBoardClient(p: Props) {
   return (
     <div className="flex flex-col gap-5">
       <BriefLine first={p.firstName} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} />
-      <CommandBar people={p.people} companies={p.companies} suggestion={p.suggestion} capRef={capRef} />
+      <CommandBar people={p.people} companies={p.companies} suggestion={p.suggestion} capRef={capRef} upcomingEvents={p.upcomingEvents} />
       <OrbitVitals score={p.groupScore} onTrack={p.onTrack} watch={p.watchCount} risk={p.riskCount} run={mounted} />
       <KpiTiles overdue={p.overdueCount} onLeave={p.onLeaveToday} run={mounted} onFocus={focusComposer} />
       <AttentionStack watch={p.watch} people={p.people} />
@@ -112,7 +115,6 @@ export function DirectorBoardClient(p: Props) {
   );
 }
 
-/* ---- the plain-language morning brief ---- */
 function BriefLine({ first, liveStamp, needsYou, dueToday }: { first: string; liveStamp: string; needsYou: number; dueToday: number }) {
   return (
     <div className="flex flex-col gap-3">
@@ -144,13 +146,12 @@ const MODES = [
 ] as const;
 type Mode = (typeof MODES)[number]["key"];
 
-const inputCls = "w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40";
-
 function CommandBar({
-  people, companies, suggestion, capRef,
+  people, companies, suggestion, capRef, upcomingEvents,
 }: {
   people: BoardPerson[]; companies: BoardCompany[];
   suggestion: Props["suggestion"]; capRef: React.RefObject<HTMLInputElement | null>;
+  upcomingEvents: BoardEvent[];
 }) {
   const [mode, setMode] = useState<Mode>("Task");
   const idx = MODES.findIndex((m) => m.key === mode);
@@ -181,11 +182,7 @@ function CommandBar({
 
       <div className="mt-2.5">
         {mode === "Task" && <TaskComposer people={people} companies={companies} suggestion={suggestion} capRef={capRef} />}
-        {mode === "Event" && (
-          <div className="px-1 py-1">
-            <DirectorEventForm people={people} companies={companies} />
-          </div>
-        )}
+        {mode === "Event" && <EventPane people={people} companies={companies} upcomingEvents={upcomingEvents} />}
         {mode === "Message" && (
           <div className="flex flex-col gap-2 px-1 py-1">
             <DirectorMessage people={people} reminders={[]} />
@@ -196,6 +193,10 @@ function CommandBar({
   );
 }
 
+/* A clean field shell shared by the composer rows (no heavy grey fill). */
+const fieldShell = "rounded-xl bg-bg-elev ring-1 ring-border";
+const dateCls = "w-full rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2.5 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/40";
+
 function TaskComposer({
   people, companies, suggestion, capRef,
 }: {
@@ -204,14 +205,23 @@ function TaskComposer({
 }) {
   const [state, action, pending] = useActionState(portalDirectorCreateTask, null);
   const [companyId, setCompanyId] = useState("");
-  const [open, setOpen] = useState(false); // show the detail chips row
+  const [ownerId, setOwnerId] = useState("");
+  const [priority, setPriority] = useState("Medium");
+  const [open, setOpen] = useState(false);
 
   const scoped = companyId ? people.filter((pp) => String(pp.companyId) === companyId) : people;
   const peopleForPicker = scoped.length ? scoped : people;
+  const companyOptions: FluidOption[] = companies.map((c) => ({ value: String(c.id), label: c.name }));
+  const ownerOptions: FluidOption[] = peopleForPicker.map((pp) => ({ value: String(pp.id), label: pp.name }));
 
   return (
     <form action={action} className="flex flex-col gap-2.5">
-      <div className="flex items-center gap-2 rounded-2xl bg-bg-subtle px-3 py-1.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
+      {/* hidden values posted with the form */}
+      <input type="hidden" name="companyId" value={companyId} />
+      <input type="hidden" name="accountableId" value={ownerId} />
+      <input type="hidden" name="priority" value={priority} />
+
+      <div className="flex items-center gap-2 rounded-2xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
         <Sparkles size={16} className="shrink-0 text-accent" />
         <input
           ref={capRef}
@@ -219,7 +229,7 @@ function TaskComposer({
           required
           placeholder="Assign a task in seconds…"
           onFocus={() => setOpen(true)}
-          className="min-w-0 flex-1 bg-transparent py-1.5 text-sm placeholder:text-fg-muted focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none"
         />
         <button
           type="submit"
@@ -232,18 +242,10 @@ function TaskComposer({
       </div>
 
       <div className={`grid grid-cols-2 gap-2 ${open ? "" : "hidden"}`}>
-        <select name="companyId" required value={companyId} onChange={(e) => setCompanyId(e.target.value)} className={inputCls}>
-          <option value="" disabled>Company…</option>
-          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select name="accountableId" required defaultValue="" className={inputCls}>
-          <option value="" disabled>Responsible…</option>
-          {peopleForPicker.map((pp) => <option key={pp.id} value={pp.id}>{pp.name}</option>)}
-        </select>
-        <select name="priority" defaultValue="Medium" className={inputCls}>
-          {PRIORITIES.map((pr) => <option key={pr} value={pr}>{pr}</option>)}
-        </select>
-        <input name="deadline" type="date" className={inputCls} />
+        <FluidSelect value={companyId} options={companyOptions} placeholder="Company…" onSelect={(v) => { setCompanyId(v); setOwnerId(""); }} buttonClassName={fieldShell} />
+        <FluidSelect value={ownerId} options={ownerOptions} placeholder="Responsible…" onSelect={setOwnerId} buttonClassName={fieldShell} />
+        <FluidSelect value={priority} options={priorityOptions} placeholder="Priority" onSelect={setPriority} buttonClassName={fieldShell} />
+        <input name="deadline" type="date" className={dateCls} />
       </div>
 
       {state?.error && <p className="px-1 text-xs text-danger">{state.error}</p>}
@@ -258,7 +260,7 @@ function TaskComposer({
               setOpen(true);
             }
           }}
-          className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-bg-subtle/60 px-3 py-2 text-left text-xs text-fg-muted transition-colors hover:bg-bg-subtle"
+          className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-bg-subtle/40 px-3 py-2 text-left text-xs text-fg-muted transition-colors hover:bg-bg-subtle/70"
         >
           <Wand2 size={14} className="shrink-0 text-info" />
           <span className="min-w-0 flex-1 truncate">
@@ -271,12 +273,44 @@ function TaskComposer({
   );
 }
 
+/* ---- Event mode: upcoming events + the create form ---- */
+function EventPane({ people, companies, upcomingEvents }: { people: BoardPerson[]; companies: BoardCompany[]; upcomingEvents: BoardEvent[] }) {
+  return (
+    <div className="flex flex-col gap-2.5 px-1 py-1">
+      {upcomingEvents.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          <p className="px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">Coming up</p>
+          {upcomingEvents.slice(0, 4).map((e) => (
+            <div key={e.id} className="flex items-center gap-3 rounded-xl bg-bg-subtle/40 px-3 py-2 ring-1 ring-border">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-soft/70 text-accent"><CalendarClock size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{e.title}</p>
+                <p className="text-[11px] text-fg-subtle">{fmtEvent(e)}{e.companyName ? ` · ${e.companyName}` : ""}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="px-1 py-1 text-xs text-fg-subtle">No upcoming events. Schedule one below.</p>
+      )}
+      <DirectorEventForm people={people} companies={companies} />
+    </div>
+  );
+}
+function fmtEvent(e: BoardEvent): string {
+  const d = new Date(e.startAt);
+  if (Number.isNaN(d.getTime())) return "";
+  return e.allDay
+    ? d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+    : d.toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 /* ---- portfolio health orbit ---- */
 function OrbitVitals({ score, onTrack, watch, risk, run }: { score: number; onTrack: number; watch: number; risk: number; run: boolean }) {
   const shown = useCountUp(score, run);
-  const C = 2 * Math.PI * 54; // r=54
+  const C = 2 * Math.PI * 54;
   const tone = score >= 80 ? "hsl(var(--success))" : score >= 55 ? "hsl(var(--warn))" : "hsl(var(--danger))";
-  const offset = run && !prefersReduced() ? C - (C * score) / 100 : C - (C * score) / 100;
+  const offset = C - (C * score) / 100;
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -303,8 +337,8 @@ function OrbitVitals({ score, onTrack, watch, risk, run }: { score: number; onTr
           <Legend dot="bg-success" label={`${onTrack} on track`} />
           <Legend dot="bg-warn" label={`${watch} to watch`} />
           <Legend dot="bg-danger" label={`${risk} at risk`} />
-          <Link href="/portal/board" className="mt-0.5 inline-flex w-fit items-center gap-1.5 rounded-lg bg-bg-subtle px-3 py-1.5 text-[11px] text-accent ring-1 ring-border transition-colors hover:bg-bg-muted">
-            View all 7 <ArrowRight size={12} />
+          <Link href="/portal/tasks" className="mt-0.5 inline-flex w-fit items-center gap-1.5 rounded-lg bg-bg-subtle px-3 py-1.5 text-[11px] text-accent ring-1 ring-border transition-colors hover:bg-bg-muted">
+            View all tasks <ArrowRight size={12} />
           </Link>
         </div>
       </Panel>
@@ -325,13 +359,13 @@ function KpiTiles({ overdue, onLeave, run, onFocus }: { overdue: number; onLeave
   const ol = useCountUp(onLeave, run);
   return (
     <div className="grid grid-cols-2 gap-2.5">
-      <button type="button" onClick={onFocus} className="flex items-center gap-3 rounded-2xl bg-bg-elev p-3 text-left ring-1 ring-border transition-shadow hover:ring-danger/40">
+      <Link href="/portal/tasks" className="flex items-center gap-3 rounded-2xl bg-bg-elev p-3 text-left ring-1 ring-border transition-shadow hover:ring-danger/40">
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-danger-soft/60 text-danger"><Flame size={18} /></span>
         <span>
           <span className="block text-xl font-semibold leading-none tabular text-danger">{od}</span>
           <span className="mt-1 block text-[11px] text-fg-muted">Overdue tasks</span>
         </span>
-      </button>
+      </Link>
       <div className="flex items-center gap-3 rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent-soft/70 text-accent"><Plane size={18} /></span>
         <span>
@@ -373,7 +407,7 @@ function Label({ hint }: { hint?: string }) {
   );
 }
 
-function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
+export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
   const { toast } = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -381,7 +415,7 @@ function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
   const [busy, startTransition] = useTransition();
   const [link, setLink] = useState<string | null>(null);
 
-  const [status, setStatus] = useState(""); // "" = leave unchanged
+  const [status, setStatus] = useState("");
   const [priority, setPriority] = useState(w.priority);
   const [deadline, setDeadline] = useState(w.deadlineInput ?? "");
   const [owner, setOwner] = useState(w.accountableId ? String(w.accountableId) : "");
@@ -396,7 +430,7 @@ function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
 
   function remind() {
     startTransition(async () => {
-      const res = await portalDirectorRemindTask(w.taskId);
+      const res = await portalRemindTask(w.taskId);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
       setLink(res.link);
       toast(`Reminder for ${res.name.split(" ")[0]} saved to Outbox.`, { tone: "success" });
@@ -405,7 +439,7 @@ function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
 
   function save() {
     startTransition(async () => {
-      const res = await portalDirectorEditTask({
+      const res = await portalEditTask({
         taskId: w.taskId,
         status: status || undefined,
         priority: priority !== w.priority ? priority : undefined,
@@ -419,6 +453,9 @@ function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
     });
   }
 
+  const statusOptions: FluidOption[] = [{ value: "", label: "Unchanged" }, ...STATUSES.map((s) => ({ value: s, label: s }))];
+  const ownerOptions: FluidOption[] = [{ value: "", label: "Unchanged" }, ...people.map((pp) => ({ value: String(pp.id), label: pp.name }))];
+
   const pill = w.overdue
     ? { cls: "bg-danger-soft/60 text-danger", label: `Overdue${w.dueLabel ? ` · ${w.dueLabel}` : ""}` }
     : { cls: "bg-warn-soft/60 text-warn", label: w.dueLabel ?? w.priority };
@@ -426,7 +463,6 @@ function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
 
   return (
     <div className="relative overflow-hidden rounded-2xl">
-      {/* swipe-revealed action */}
       <button
         type="button"
         onClick={remind}
@@ -445,38 +481,32 @@ function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson[] }) {
         <button type="button" onClick={() => { setOpen((o) => !o); setSwiped(false); }} className="flex w-full items-stretch gap-3 text-left">
           <span className={`w-1 shrink-0 rounded-l-2xl ${stripe}`} />
           <span className="min-w-0 flex-1 py-3">
-            <span className="mb-1 flex items-center gap-2">
+            <span className="mb-1 flex flex-wrap items-center gap-1.5">
               <span className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${pill.cls}`}>{pill.label}</span>
+              {w.statusLabel && <span className="rounded-md bg-bg-subtle px-2 py-0.5 text-[10px] font-medium text-fg-muted">{w.statusLabel}</span>}
               <span className="text-[11px] text-fg-subtle">{w.companyName}</span>
             </span>
             <span className="block truncate text-sm font-medium">{w.actionItem}</span>
             <span className="mt-0.5 block text-[11px] text-fg-subtle">{w.accountableName ?? "Unassigned"} · {w.code}</span>
+            {w.note && <span className="mt-1 block truncate text-[11px] text-fg-muted">{w.note}</span>}
           </span>
           <ChevronRight size={17} className={`mr-3 shrink-0 self-center text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
         </button>
 
         {open && (
-          <div className="border-t border-border bg-bg-subtle/50 p-3">
+          <div className="border-t border-border bg-bg-subtle/40 p-3">
             <div className="grid grid-cols-2 gap-2.5">
               <label className="flex flex-col gap-1 text-[11px] text-fg-muted">Status
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
-                  <option value="">{w.priority ? "Unchanged" : "Set status"}</option>
-                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                <FluidSelect value={status} options={statusOptions} onSelect={setStatus} buttonClassName={fieldShell} />
               </label>
               <label className="flex flex-col gap-1 text-[11px] text-fg-muted">Priority
-                <select value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls}>
-                  {PRIORITIES.map((pr) => <option key={pr} value={pr}>{pr}</option>)}
-                </select>
+                <FluidSelect value={priority} options={priorityOptions} onSelect={setPriority} buttonClassName={fieldShell} />
               </label>
               <label className="flex flex-col gap-1 text-[11px] text-fg-muted">Due
-                <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputCls} />
+                <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={dateCls} />
               </label>
               <label className="flex flex-col gap-1 text-[11px] text-fg-muted">Owner
-                <select value={owner} onChange={(e) => setOwner(e.target.value)} className={inputCls}>
-                  <option value="">Unchanged</option>
-                  {people.map((pp) => <option key={pp.id} value={pp.id}>{pp.name}</option>)}
-                </select>
+                <FluidSelect value={owner} options={ownerOptions} onSelect={setOwner} buttonClassName={fieldShell} />
               </label>
             </div>
             <div className="mt-3 flex items-center gap-2">

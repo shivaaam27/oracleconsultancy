@@ -111,17 +111,19 @@ const s = StyleSheet.create({
   dotLg: { width: 9, height: 9, borderRadius: 4.5, marginRight: 9 },
   riskText: { fontSize: 8, fontFamily: FONT, fontWeight: 600 },
 
-  // ── per-task block (Aurora list, not a table row) ──
-  taskBlock: { paddingTop: 9, paddingBottom: 8 },
-  taskTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  taskLeft: { flexDirection: "row", alignItems: "flex-start", flexGrow: 1, flexShrink: 1, paddingRight: 10 },
-  taskDot: { width: 6, height: 6, borderRadius: 3, marginTop: 3.5, marginRight: 7, flexShrink: 0 },
-  taskTitle: { fontSize: 9.5, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, lineHeight: 1.3, flexShrink: 1 },
-  taskDeadline: { fontSize: 8, flexShrink: 0, textAlign: "right" },
-  taskMeta: { fontSize: 8, color: C.muted, marginLeft: 13, marginTop: 3, lineHeight: 1.45 },
-  taskUpdate: { marginLeft: 13, marginTop: 5, paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: C.rule },
-  taskUpdateText: { fontSize: 8, color: C.muted, lineHeight: 1.5 },
-  taskStamp: { fontSize: 7.5, marginLeft: 13, marginTop: 3 },
+  // ── modern open-work table (columns kept; description under the title) ──
+  owHead: { flexDirection: "row", borderBottomWidth: 0.6, borderBottomColor: C.ruleHead, paddingBottom: 5, marginTop: 4 },
+  owTh: { fontSize: 6.5, fontFamily: FONT, fontWeight: 600, color: C.faint, textTransform: "uppercase", letterSpacing: 0.4, paddingRight: 6 },
+  owRow: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: C.rule, paddingVertical: 7, alignItems: "flex-start" },
+  owCell: { paddingRight: 6 },
+  owTitle: { fontSize: 9, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, lineHeight: 1.25 },
+  owDesc: { fontSize: 7.5, color: C.muted, lineHeight: 1.35, marginTop: 1.5 },
+  owText: { fontSize: 8, color: C.ink, lineHeight: 1.35 },
+  owStatusRow: { flexDirection: "row", alignItems: "center" },
+  owDot: { width: 5, height: 5, borderRadius: 2.5, marginRight: 5, flexShrink: 0 },
+  owSub: { fontSize: 7, color: C.faint, marginTop: 2 },
+  owUpdate: { fontSize: 8, color: C.muted, lineHeight: 1.4 },
+  owStamp: { fontSize: 7, marginTop: 2 },
 
   // sub-heading inside a company block
   blockHead: { flexDirection: "row", alignItems: "baseline", marginTop: 10, marginBottom: 2 },
@@ -258,6 +260,19 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
     return fmtDay(d);
   };
 
+  // Clamp long prose so rows stay tidy (full text still lives in the app).
+  const clamp = (t: string | null, n: number) => {
+    if (!t) return "";
+    const s2 = t.replace(/\s+/g, " ").trim();
+    return s2.length > n ? s2.slice(0, n - 1).trimEnd() + "…" : s2;
+  };
+
+  // Open-work table column widths (description lives inside the Task column).
+  const OWW = {
+    task: { width: "30%" }, who: { width: "15%" }, pri: { width: "9%" },
+    dl: { width: "11%" }, st: { width: "13%" }, up: { width: "22%" },
+  } as const;
+
   // Consolidated delivered list (one section, last page): companies kept
   // contiguous and in the same order as the open-work blocks (so it reads
   // company-after-company, never jumbled). Company name shows once per group.
@@ -335,7 +350,7 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
           />
         </Section>
 
-        {/* ── Open work, per company — Aurora task blocks, flowing ── */}
+        {/* ── Open work, per company — modern table with task descriptions ── */}
         <Section title="Open work by company" note={`All open items, including those in progress, as at ${b.asAt}.`}>
           {openCompanies.length === 0 ? (
             <Text style={s.empty}>No open work across the portfolio.</Text>
@@ -352,50 +367,59 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
                   <RiskText risk={c.risk} />
                 </View>
               );
-              const renderTask = (t: BriefData["companies"][number]["tasks"][number], idx: number) => {
+              const headRow = (
+                <View style={s.owHead}>
+                  <Text style={[s.owTh, OWW.task]}>Task</Text>
+                  <Text style={[s.owTh, OWW.who]}>Accountable</Text>
+                  <Text style={[s.owTh, OWW.pri]}>Priority</Text>
+                  <Text style={[s.owTh, OWW.dl]}>Deadline</Text>
+                  <Text style={[s.owTh, OWW.st]}>Status</Text>
+                  <Text style={[s.owTh, OWW.up]}>Latest update</Text>
+                </View>
+              );
+              const renderRow = (t: BriefData["companies"][number]["tasks"][number]) => {
                 const stale = (daysSince(t.lastUpdatedAt) ?? Infinity) >= STALE_DAYS;
                 const age = daysSince(t.createdDate);
                 const when = relWhen(t.lastUpdatedAt);
                 const pTone = priorityTone(t.priority);
-                const sTone = statusTone(t.status);
                 return (
-                  <View key={t.id} style={[s.taskBlock, idx > 0 ? { borderTopWidth: 0.5, borderTopColor: C.rule } : {}]} wrap={false}>
-                    <View style={s.taskTopRow}>
-                      <View style={s.taskLeft}>
-                        <View style={[s.taskDot, { backgroundColor: statusDot(t.status) }]} />
-                        <Text style={s.taskTitle}>{t.actionItem}</Text>
-                      </View>
-                      <Text style={[s.taskDeadline, { color: t.overdue ? C.dangerText : t.deadline ? C.muted : C.faint }]}>
+                  <View key={t.id} style={s.owRow} wrap={false}>
+                    <View style={[s.owCell, OWW.task]}>
+                      <Text style={s.owTitle}>{t.actionItem}</Text>
+                      {t.description ? <Text style={s.owDesc}>{clamp(t.description, 120)}</Text> : null}
+                    </View>
+                    <Text style={[s.owText, s.owCell, OWW.who]}>{t.owner}</Text>
+                    <Text style={[s.owText, s.owCell, OWW.pri, { color: pTone === "ink" ? C.muted : TONE_TEXT[pTone] }]}>{t.priority}</Text>
+                    <View style={[s.owCell, OWW.dl]}>
+                      <Text style={[s.owText, { color: t.overdue ? C.dangerText : t.deadline ? C.ink : C.faint }]}>
                         {t.overdue ? "Overdue" : t.deadline ? fmtDay(t.deadline) : "No date"}
                       </Text>
+                      {age != null ? <Text style={s.owSub}>open {age}d</Text> : null}
                     </View>
-                    <Text style={s.taskMeta}>
-                      {t.owner}
-                      <Text style={{ color: C.faint }}>{"  ·  "}</Text>
-                      <Text style={{ color: pTone === "ink" ? C.muted : TONE_TEXT[pTone] }}>{t.priority} priority</Text>
-                      <Text style={{ color: C.faint }}>{"  ·  "}</Text>
-                      <Text style={{ color: sTone === "ink" ? C.muted : TONE_TEXT[sTone] }}>{t.status}</Text>
-                      {age != null ? <Text style={{ color: C.faint }}>{"  ·  "}open {age}d</Text> : null}
-                    </Text>
-                    {t.latestUpdate ? (
-                      <View style={s.taskUpdate}>
-                        <Text style={s.taskUpdateText}>{t.latestUpdate}</Text>
+                    <View style={[s.owCell, OWW.st]}>
+                      <View style={s.owStatusRow}>
+                        <View style={[s.owDot, { backgroundColor: statusDot(t.status) }]} />
+                        <Text style={s.owText}>{t.status}</Text>
                       </View>
-                    ) : null}
-                    <Text style={[s.taskStamp, { color: stale ? C.warnText : C.faint }]}>
-                      {when ? `Updated ${when}` : "No update yet"}{stale ? " · no recent update" : ""}
-                    </Text>
+                    </View>
+                    <View style={OWW.up}>
+                      <Text style={s.owUpdate}>{t.latestUpdate ? clamp(t.latestUpdate, 160) : "—"}</Text>
+                      <Text style={[s.owStamp, { color: stale ? C.warnText : C.faint }]}>
+                        {when ? `updated ${when}` : "no update yet"}{stale ? " · no recent update" : ""}
+                      </Text>
+                    </View>
                   </View>
                 );
               };
               return (
                 <View key={c.id} style={s.companyBlock}>
-                  {/* Lead group = company header + first task, unbreakable (no orphan headers) */}
+                  {/* Lead group = company header + column header + first row, unbreakable */}
                   <View wrap={false}>
                     {head}
-                    {renderTask(c.tasks[0], 0)}
+                    {headRow}
+                    {renderRow(c.tasks[0])}
                   </View>
-                  {c.tasks.slice(1).map((t, i) => renderTask(t, i + 1))}
+                  {c.tasks.slice(1).map((t) => renderRow(t))}
                 </View>
               );
             })
