@@ -503,7 +503,7 @@ export function PortalTasksTable({
       {filtered.length === 0 ? (
         <Panel className="p-6 text-center text-sm text-fg-muted">No tasks match these filters.</Panel>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="grid gap-2 lg:grid-cols-2 lg:items-start">
           {filtered.map((t, i) => {
             const closed = OPEN_EXCLUDED.includes(t.status);
             const od = t.deadline && new Date(t.deadline) < now && !closed;

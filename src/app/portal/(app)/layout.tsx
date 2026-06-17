@@ -29,13 +29,12 @@ export default async function PortalLayout({ children }: { children: React.React
     takeovers = [];
   }
 
-  // Directors operate across all 7 companies, so they get a roomier command-wall
-  // on the web (the board lays out two columns from lg up); staff/managers keep
-  // the focused single-column width.
+  // Everyone gets the room on a large screen (mobile/tablet keep the focused
+  // max-w-3xl). Directors stay widest for their two-column board.
   const wide = me.portalRole === "director";
 
   return (
-    <div className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl" : "max-w-3xl"}`}>
+    <div className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl" : "max-w-3xl lg:max-w-5xl"}`}>
       <header className="flex items-center justify-between gap-3 print-hidden">
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">

@@ -90,7 +90,7 @@ export default async function PortalProfile() {
   ];
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex w-full flex-col gap-5 lg:mx-auto lg:max-w-3xl">
       <Reveal delay={0}>
         <Hero
           title={

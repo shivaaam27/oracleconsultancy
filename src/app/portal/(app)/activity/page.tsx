@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ListTodo, MessageSquare } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
@@ -48,7 +49,8 @@ type Row = {
 };
 
 export default async function PortalActivity() {
-  const me = (await getPortalPerson())!;
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
   const ids = await visibleTaskIds(me);
 
   let rows: Row[] = [];
@@ -98,7 +100,7 @@ export default async function PortalActivity() {
         />
       </Reveal>
 
-      <section className="flex flex-col gap-4">
+      <section className="grid gap-4 lg:grid-cols-2 lg:items-start">
         {groups.length === 0 && (
           <Panel className="p-6 text-center text-sm text-fg-muted">No activity yet.</Panel>
         )}

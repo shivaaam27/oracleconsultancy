@@ -145,7 +145,7 @@ export function RequestList({
       {filtered.length === 0 ? (
         <p className="rounded-2xl bg-bg-elev px-4 py-8 text-center text-sm text-fg-muted ring-1 ring-border">No requests here yet.</p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="grid gap-2 lg:grid-cols-2 lg:items-start">
           {filtered.map((r) => {
             const unseen = scope === "admin" && r.recipients.some((p) => p.isOwner) && !r.seen && isRequestOpen(r.status);
             const fromLabel = r.requesterIsOwner ? "Oracle Consultancy" : r.requesterName;
