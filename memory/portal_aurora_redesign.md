@@ -107,13 +107,37 @@ part of this redesign**, so they still look old:
 task-detail "Add update" quick action + role-aware back-link, and all global
 look/motion. ✅
 
-**Staff did NOT get (still old style):**
-1. **Home task cards** — `src/app/portal/(app)/page.tsx` renders its own local
-   `taskCard()` (a plain `Panel` with badges), **not** the redesigned glass cards.
-   No priority rail / avatars / swipe / inline update.
-2. **Staff `/portal/tasks`** — for non-management it renders **`portal-tasks-table.tsx`**
-   ("the original conversational task table"), **not** `PortalTasksCommand`. So no
-   glass cards, swipe gestures, or inline update there either.
+**Staff follow-up — DONE (Phases A/B/C, commits 420b192 / 0b38961 / 9f6c5a5):**
+1. **Home task cards — REDESIGNED.** New `components/portal-task-card.tsx` replaces
+   the old local `taskCard()` for My-tasks + team-tasks: glass card w/ status rail,
+   tap-expand (role-scoped status mover + inline "Add an update…"), swipe-left =
+   Update, swipe-right = secure Complete. Owner decided "My tasks is enough — no
+   separate staff Tasks tab."
+2. **Profile — light iOS polish** (account rows got tinted icon tiles).
+3. **Staff `/portal/tasks`** (`portal-tasks-table.tsx`) — intentionally left; it's
+   not in staff's nav pill and owner said the Home list is enough.
+
+### Secure completion gate (NEW feature — Phase C, migration 0084)
+Completing a task is no longer a silent status flip:
+- **Schema:** `tasks.requires_attachment` (boolean, migration `0084_omniscient_red_wolf`;
+  `db:backup` taken first). The auto-generated migration also tried to DROP the
+  long-removed `people.wage_amount`/`wage_basis` (pre-existing drift) — **stripped
+  out**, kept only the additive column.
+- **Server:** `portalCompleteTask` is the ONLY path that sets a task `Completed`.
+  **Any role (incl. staff, who previously could NOT complete)** may finish a task,
+  but only with a non-empty explanation note + a file when `requires_attachment`.
+  `portalAddUpdate` no longer accepts `Completed`/`Closed` as a plain status move,
+  so the gate can't be bypassed. Audited.
+- **UI:** `components/complete-task-sheet.tsx` (note required + attachment-if-
+  required). Opened by: Home/staff card swipe-right; the per-task page "Complete"
+  button (`task-quick-actions.tsx`) — and the task-detail composer no longer offers
+  Completed/Closed. A "Require proof to complete" `SwitchRow` on the director +
+  quick-add task creators sets the flag (read in `portalDirectorCreateTask`/
+  `portalCreateTask` → `insertTaskWithUniqueCodeSb`).
+- **Scoped decision:** the management **Tasks-list quick-complete**
+  (`portal-tasks-command` → `portalEditTask`) stays **ungated** for trusted
+  operators; **Home + task-detail completion are gated for everyone.** Extending the
+  gate to the management list = a follow-up if wanted.
 
 **To bring staff to full parity (future work, not done — owner's call):** apply the
 glass-card + swipe + inline-update treatment to the staff Home list and/or
