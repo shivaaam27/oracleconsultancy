@@ -49,7 +49,7 @@ const STATUS_DOT: Record<string, string> = {
 };
 const OPEN_EXCLUDED = ["Completed", "Closed"];
 
-export function PortalTaskDetailPane({ task, viewerRole }: { task: PaneTask; viewerRole: string }) {
+export function PortalTaskDetailPane({ task, viewerRole, bare = false }: { task: PaneTask; viewerRole: string; bare?: boolean }) {
   const { toast } = useToast();
   const router = useRouter();
   const [updateBody, setUpdateBody] = useState("");
@@ -91,7 +91,7 @@ export function PortalTaskDetailPane({ task, viewerRole }: { task: PaneTask; vie
   }
 
   return (
-    <div className="rounded-2xl bg-bg-elev p-4 ring-1 ring-border">
+    <div className={bare ? "p-4" : "rounded-2xl bg-bg-elev p-4 ring-1 ring-border"}>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-mono text-[11px] font-medium text-fg-muted">{task.code}</span>
         {task.companyName && <span className="text-[11px] text-fg-subtle">· {task.companyName}</span>}

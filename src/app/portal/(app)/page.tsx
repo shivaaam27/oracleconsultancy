@@ -256,11 +256,10 @@ export default async function PortalHome() {
         </Panel>
       </Reveal>
 
-      {/* My tasks — master-detail on the web (list left, details right), the
-          swipeable card list on mobile. This is the staff tasks surface. */}
-      <Reveal delay={0.05} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
-        <PortalHomeTasks tasks={myOpen.map(toCardTask)} viewerRole={me.portalRole} emptyText="No open tasks assigned to you right now." />
+      {/* My tasks — filter row + master-detail (web) / card list (mobile). The
+          "Closed" filter shows past completed tasks (so no separate section). */}
+      <Reveal delay={0.05}>
+        <PortalHomeTasks title="My tasks" tasks={[...myOpen, ...done].map(toCardTask)} viewerRole={me.portalRole} />
       </Reveal>
 
       {/* Managers get the wider list inline; HR use the dedicated Tasks tab. */}
@@ -278,11 +277,12 @@ export default async function PortalHome() {
         </Reveal>
       ) : (
         teamOpen.length > 0 && (
-          <Reveal delay={0.1} className="flex flex-col gap-2.5">
-            <SectionLabel icon={<Users size={13} />}>
-              {me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
-            </SectionLabel>
-            <PortalHomeTasks tasks={teamOpen.map(toCardTask)} viewerRole={me.portalRole} emptyText="No team tasks right now." />
+          <Reveal delay={0.1}>
+            <PortalHomeTasks
+              title={me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
+              tasks={teamOpen.map(toCardTask)}
+              viewerRole={me.portalRole}
+            />
           </Reveal>
         )
       )}
@@ -383,22 +383,6 @@ export default async function PortalHome() {
         )}
       </div>
 
-      {done.length > 0 && (
-        <Reveal delay={0.12} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<CheckCircle2 size={13} />}>Recently completed</SectionLabel>
-          {done.slice(0, 5).map((t) => (
-            <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
-              <Panel className="p-3.5 opacity-80 transition-opacity group-hover:opacity-100">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
-                  <p className="min-w-0 grow truncate text-sm">{t.action_item}</p>
-                  <Badge tone="success">{t.status}</Badge>
-                </div>
-              </Panel>
-            </Link>
-          ))}
-        </Reveal>
-      )}
     </div>
   );
 }
