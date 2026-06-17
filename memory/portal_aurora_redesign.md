@@ -86,10 +86,26 @@ strictly `lg:`** so mobile/tablet are byte-for-byte unchanged + no DOM reorder:
   (`portal-tasks-table`) + Requests (`request-list`) cards → 2-col grid; Activity
   day-groups → 2 columns; Profile caps to `lg:max-w-3xl` (settings read narrow).
 - One go covered all portals because the pages are shared files.
-- Deferred (opt-in): the side-rail **command-wall** on Home reshuffles the mobile
-  DOM order, so it was left out to keep mobile identical; and **master-detail
-  Tasks** (list+detail in one screen, no page-hop) — both mocked, not built.
 - Drive-by: activity page now redirects when logged out (was a latent null deref).
+
+**Follow-up (commits e319e85 / f0a86a6) — matched the mockups + fixed a bug:**
+- **Bug:** the Home 2-col task grid left an empty gap + leaked the swipe trays
+  when a card expanded (grid `align-items:stretch` stretched the row-mate). Fixed.
+- **Home command-wall** (the mockup): tasks single-column in the main column,
+  to-dos + announcements + team signals in a right rail on lg
+  (`grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]`; `minmax(0,…)` so content can't
+  break the ratio). Mobile stacks main-then-rail (verified, reads fine). Shared
+  Home → staff + manager + HR.
+- **Staff Tasks master-detail** (mockup): on lg, `portal-tasks-table.tsx` is a
+  compact list (left) + `portal-task-detail-pane.tsx` (right: header, latest
+  update, role-scoped status mover, inline Add-update, secure Complete, Open-full
+  link). Mobile keeps the rich cards (lg:hidden). Owner chose the "light pane"
+  (summary + actions, no full conversation in-pane). Verified live as staff.
+- NOT applied: master-detail on the **management** Tasks (`portal-tasks-command`)
+  — it uses a proper wide table on desktop already; could get the same later.
+- GOTCHA repeated: the long-running Turbopack dev server degrades after many HMR
+  edits (routes 404, malformed `.next/dev/types/routes.d.ts`); a clean restart
+  (stop → free :3000 → start) fixes it. Not a code bug.
 
 ## Shared vs director-only (what each role sees)
 
