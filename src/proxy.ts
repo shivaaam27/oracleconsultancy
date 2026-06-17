@@ -94,5 +94,8 @@ export const config = {
   // api/portal is excluded too: those routes serve portal users and verify
   // the portal (or admin) cookie themselves. api/wa-card is public (Twilio fetches
   // the link-preview image unauthenticated) but carries its own HMAC signature gate.
-  matcher: ["/((?!portal|login|e/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
+  // r/ is the public per-person reminder link — WhatsApp's crawler reads its
+  // Open-Graph card and real visitors land on it; it carries the SAME HMAC gate as
+  // api/wa-card (verifyWaCardToken), so it must NOT be behind the admin cookie.
+  matcher: ["/((?!portal|login|e/|r/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
 };

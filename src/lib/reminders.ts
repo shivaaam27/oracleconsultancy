@@ -105,6 +105,8 @@ export async function sendTaskReminderEmail(opts: {
 export async function sendTaskReminderWhatsApp(opts: {
   personId: number;
   sourceTag?: string;
+  /** "from who" caption for the link card + summary image (e.g. "Jane · Manager"). */
+  from?: string;
 }): Promise<SendReminderResult> {
   const { data: person } = await sb
     .from("people")
@@ -122,8 +124,8 @@ export async function sendTaskReminderWhatsApp(opts: {
   if (rows.length === 0) return { ok: false, reason: "no-tasks" };
 
   const name = person.name as string;
-  const text = buildWhatsAppMessage(name, rows, waReminderLink(person.id as number));
-  const res = await sendWhatsApp({ to, text, mediaUrl: waCardImageUrl(person.id as number) });
+  const text = buildWhatsAppMessage(name, rows, waReminderLink(person.id as number, opts.from));
+  const res = await sendWhatsApp({ to, text, mediaUrl: waCardImageUrl(person.id as number, opts.from) });
   if (!res.ok) {
     if (res.reason === "not-configured") return { ok: false, reason: "not-configured" };
     return { ok: false, reason: "error", error: res.error };

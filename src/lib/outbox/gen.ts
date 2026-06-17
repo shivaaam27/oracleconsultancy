@@ -2,7 +2,7 @@ import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "../queries";
 import { isOpen } from "../derive";
 import { appBaseUrl } from "../app-url";
-import { waReminderLink } from "../wa-card";
+import { waReminderLink, waFromLabel } from "../wa-card";
 import type { EmailDoc, EmailTone, EmailOffice } from "../email/layout";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
@@ -127,43 +127,26 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: stri
 }
 
 /**
- * CLEAN plain-text reminder for MANUAL wa.me sends (the sender taps send). Unlike
- * buildWhatsAppMessage this uses NO WhatsApp markdown (`*`/`_` show up literally in
- * the compose box and look messy) and is CAPPED so the wa.me URL stays short enough
- * that WhatsApp Web reliably opens the chat. The portal link is last so WhatsApp
- * still builds a link-preview card. (The branded image only rides the Twilio path.)
+ * SHORT "envelope" reminder for MANUAL wa.me sends (the sender taps send). The
+ * per-task detail lives on the link-preview CARD (the `link` → /r/[p]/[t] →
+ * /api/wa-card carries the live counts + top overdue), so the message itself stays
+ * a few lines: greeting, a one-line status, a gentle nudge, and the signed link
+ * LAST (WhatsApp builds its preview card from it). Deliberately:
+ *   • NO WhatsApp markdown — `*`/`_` show up literally in the wa.me compose box
+ *     (before the sender taps send) and look messy.
+ *   • NO task list — keeping the body tiny means the wa.me URL never grows with the
+ *     number of tasks, so WhatsApp Web reliably opens the chat even for heavy people.
  */
-const MANUAL_TASK_CAP = 10;
 export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?: string): string {
   const first = name.split(" ")[0] || name;
+  const n = tasks.length;
   const overdueCount = tasks.filter(isOverdue).length;
-
-  const groups = new Map<string, TaskRow[]>();
-  for (const t of tasks) {
-    const list = groups.get(t.companyName);
-    if (list) list.push(t); else groups.set(t.companyName, [t]);
-  }
-  for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
-
-  const lines = [`Hi ${first}, a reminder of your open task${tasks.length === 1 ? "" : "s"}:`, ""];
-  let shown = 0;
-  for (const [company, list] of groups) {
-    if (shown >= MANUAL_TASK_CAP) break;
-    lines.push(company);
-    for (const t of list) {
-      if (shown >= MANUAL_TASK_CAP) break;
-      const od = isOverdue(t) ? " — overdue" : "";
-      const pri = t.priority === "Critical" || t.priority === "High" ? ` (${t.priority})` : "";
-      lines.push(`• ${t.actionItem} — due ${fmtDate(t.deadline)}${od}${pri}`);
-      shown++;
-    }
-    lines.push("");
-  }
-  const hidden = tasks.length - shown;
-  if (hidden > 0) lines.push(`…and ${hidden} more.`, "");
-  lines.push(`${tasks.length} open${overdueCount ? `, ${overdueCount} overdue` : ""}. Please update when you can. Thank you.`);
-  lines.push(link ?? `${appBaseUrl()}/portal`);
-  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const count = `${n} open task${n === 1 ? "" : "s"}${overdueCount ? `, ${overdueCount} overdue` : ""}`;
+  return [
+    `Hi ${first}, a quick reminder — you have ${count}.`,
+    "Tap below to see the full list and update them. Thank you.",
+    link ?? `${appBaseUrl()}/portal`,
+  ].join("\n");
 }
 
 export function buildEmailMessage(name: string, tasks: TaskRow[]): string {
@@ -234,10 +217,11 @@ export function buildTaskReminderDoc(
   };
 }
 
-function buildAllMessages(name: string, list: TaskRow[], personId: number | null): Record<Channel, string> {
+function buildAllMessages(name: string, list: TaskRow[], personId: number | null, from?: string): Record<Channel, string> {
   // Per-person signed link → WhatsApp renders the live Aurora preview card.
+  // `from` adds the "from who" caption (the Command Centre for admin Outbox sends).
   // Falls back to the plain /portal link for people not in the directory.
-  const link = personId != null ? waReminderLink(personId) : undefined;
+  const link = personId != null ? waReminderLink(personId, from) : undefined;
   return {
     WHATSAPP: buildWhatsAppManualMessage(name, list, link), // Outbox = copy/wa.me (manual) → clean plain text
     EMAIL: buildEmailMessage(name, list),
@@ -262,6 +246,12 @@ export async function generateDrafts(): Promise<OutboxDraft[]> {
     snoozedUntil: p.snoozed_until ? new Date(p.snoozed_until as string) : null,
   }));
   const pByName = new Map(people.map((p) => [p.name, p]));
+  // Admin Outbox reminders are "from" the Command Centre (or the owner's name if set
+  // in Settings → Owner sign-in). Read it directly to keep gen.ts free of the
+  // server-only admin-auth chain.
+  const { data: ownerRow } = await sb.from("settings").select("value").eq("key", "v2.ownerName").maybeSingle();
+  const ownerName = ((ownerRow?.value as string | null) ?? "").trim() || null;
+  const adminFrom = waFromLabel({ name: ownerName });
   const now = new Date();
   const snoozedNames = new Set(
     people.filter((p) => p.snoozedUntil && p.snoozedUntil >= now).map((p) => p.name)
@@ -304,7 +294,7 @@ export async function generateDrafts(): Promise<OutboxDraft[]> {
       preferredChannel: p?.preferredChannel ?? null,
       notes: p?.notes ?? null,
       tasks: list,
-      messages: buildAllMessages(name, list, p?.id ?? null),
+      messages: buildAllMessages(name, list, p?.id ?? null, adminFrom),
       contactByChannel,
       contactStatus: overall,
     });

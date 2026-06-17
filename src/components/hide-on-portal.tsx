@@ -2,12 +2,18 @@
 
 import { usePathname } from "next/navigation";
 
-/** Renders nothing on staff-portal routes and the sign-in screens. Keeps the
- *  admin chrome (nav pill, drawers, assistant, capture wizard) out of those
- *  pages — both for the standalone look and so visitors who are not signed
- *  in cannot reach admin data through it. */
+/** Renders nothing on staff-portal routes, the public reminder links, and the
+ *  sign-in screens. Keeps the admin chrome (nav pill, drawers, assistant,
+ *  capture wizard) out of those pages — both for the standalone look and so
+ *  visitors who are not signed in cannot reach admin data through it. */
 export function HideOnPortal({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "";
-  if (pathname.startsWith("/portal") || pathname.startsWith("/e/") || pathname === "/login") return null;
+  if (
+    pathname.startsWith("/portal") ||
+    pathname.startsWith("/e/") ||
+    pathname.startsWith("/r/") ||
+    pathname === "/login"
+  )
+    return null;
   return <>{children}</>;
 }

@@ -11,7 +11,7 @@ import { RemindButton } from "./remind-button";
 import { WhatsAppButton } from "./whatsapp-button";
 import { waLink } from "@/lib/outbox/links";
 import { buildWhatsAppManualMessage } from "@/lib/outbox/gen";
-import { waReminderLink } from "@/lib/wa-card";
+import { waReminderLink, waFromLabel } from "@/lib/wa-card";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,8 @@ export default async function PortalTeamPage() {
     byPerson.set(pid, l);
   }
 
+  // Reminders sent from here are "from" the signed-in director/manager.
+  const fromLabel = waFromLabel({ name: me.name, role: me.portalRole });
   const ids = [...byPerson.keys()];
   const { data: people } = ids.length
     ? await sb.from("people").select("id,name,email,whatsapp,phone").in("id", ids).eq("active", true)
@@ -46,7 +48,7 @@ export default async function PortalTeamPage() {
       // Clean plain-text message for the manual wa.me tap-send (markdown shows
       // literally in the compose box; long text breaks WhatsApp Web). The Twilio
       // auto-send path uses the richer markdown card + image separately.
-      const waText = buildWhatsAppManualMessage(p.name as string, ts, waReminderLink(p.id as number));
+      const waText = buildWhatsAppManualMessage(p.name as string, ts, waReminderLink(p.id as number, fromLabel));
       const waNumber = ((p.whatsapp as string | null) || (p.phone as string | null)) ?? null;
       return {
         id: p.id as number,

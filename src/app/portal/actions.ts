@@ -400,7 +400,12 @@ export async function portalSendReminderWhatsApp(
 
   const tag = role === "director" ? "dir" : role === "manager" ? "mgr" : "admin";
   const { sendTaskReminderWhatsApp } = await import("@/lib/reminders");
-  const res = await sendTaskReminderWhatsApp({ personId, sourceTag: `portal-${tag}:${me.name}` });
+  const { waFromLabel } = await import("@/lib/wa-card");
+  const res = await sendTaskReminderWhatsApp({
+    personId,
+    sourceTag: `portal-${tag}:${me.name}`,
+    from: waFromLabel({ name: me.name, role }),
+  });
   if (res.ok) {
     await recordEvent("portal.reminder.whatsapp", "ok", { by: me.name, role, personId });
     revalidatePath("/outbox");

@@ -44,23 +44,29 @@ describe("buildWhatsAppMessage", () => {
 });
 
 describe("buildWhatsAppManualMessage", () => {
-  it("is clean plain text — no WhatsApp markdown — and ends with the portal link", () => {
+  it("is a short, clean-text envelope — no markdown — ending with the portal link", () => {
     const msg = buildWhatsAppManualMessage("Jane Doe", [
       task({ actionItem: "Submit VAT return", companyName: "Dar Spices", priority: "High", daysToDeadline: -3 }),
       task({ actionItem: "Renew certificate", companyName: "Dar Spices", priority: "Medium" }),
     ]);
     expect(msg).not.toMatch(/[*_]/); // no markdown symbols that show literally in compose
-    expect(msg).toContain("Dar Spices");
-    expect(msg).toContain("— overdue");
+    expect(msg).toContain("Hi Jane,");
+    expect(msg).toContain("2 open tasks, 1 overdue");
     expect(msg.trim().split("\n").at(-1)).toMatch(/\/portal$/);
   });
 
-  it("caps the task list and reports the remainder", () => {
+  it("uses the signed reminder link when one is supplied", () => {
+    const msg = buildWhatsAppManualMessage("Jane", [task({})], "https://example.com/r/5/sig");
+    expect(msg.trim().split("\n").at(-1)).toBe("https://example.com/r/5/sig");
+  });
+
+  it("stays short regardless of how many tasks — the card carries the detail", () => {
     const many = Array.from({ length: 14 }, (_, i) =>
       task({ actionItem: `Task ${i + 1}`, companyName: "Co", daysToDeadline: 5 }),
     );
     const msg = buildWhatsAppManualMessage("Sam", many);
-    expect(msg).toContain("…and 4 more.");
-    expect(msg).toContain("14 open");
+    expect(msg.split("\n").length).toBeLessThanOrEqual(3); // envelope is at most 3 lines
+    expect(msg).toContain("14 open tasks");
+    expect(msg).not.toMatch(/Task \d/); // no per-task lines
   });
 });
