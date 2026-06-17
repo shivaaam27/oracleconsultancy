@@ -208,8 +208,8 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     <div className="flex flex-col gap-4">
       <LiveSync taskId={task.id as number} seconds={5} />
 
-      <Link href="/portal" className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
-        <ArrowLeft size={15} /> My tasks
+      <Link href={isManagement ? "/portal/tasks" : "/portal"} className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
+        <ArrowLeft size={15} /> {isManagement ? "All tasks" : "My tasks"}
       </Link>
 
       <Reveal delay={0}>

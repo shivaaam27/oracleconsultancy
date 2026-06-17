@@ -69,6 +69,12 @@ export default async function PortalProfile() {
   const accessLabel =
     me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access";
 
+  // Directors are operators, not staff being managed — their profile is a clean
+  // account screen (details + security). The staff self-service sections
+  // (documents / attendance / leave / onboarding / equipment) stay for everyone
+  // else.
+  const isDirector = me.portalRole === "director";
+
   // Glance rail — the three numbers that tell a staff member where they stand
   // before any scrolling. Each tile only appears when there's data behind it.
   const compScore = checklist ? checklist.score : null;
@@ -108,7 +114,7 @@ export default async function PortalProfile() {
         </Hero>
       </Reveal>
 
-      {glance.length > 1 && (
+      {!isDirector && glance.length > 1 && (
         <Reveal delay={0.03}>
           <div className={`grid gap-2 ${glance.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
             {glance.map((g) => (
@@ -136,7 +142,7 @@ export default async function PortalProfile() {
         </p>
       </Reveal>
 
-      {docItems.length > 0 && (
+      {!isDirector && docItems.length > 0 && (
         <Reveal delay={0.08} className="flex flex-col gap-2.5">
           <SectionLabel icon={<FileCheck2 size={13} />}>Your documents</SectionLabel>
           <PortalDocuments items={docItems} score={checklist?.score ?? 0} />
@@ -146,13 +152,15 @@ export default async function PortalProfile() {
         </Reveal>
       )}
 
-      <Reveal delay={0.085} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<Clock size={13} />}>Your attendance</SectionLabel>
-        <PortalAttendance days={attendance.days} todayEditable={attendance.todayEditable} lockReason={attendance.lockReason} />
-        <p className="px-1 text-[11px] text-fg-subtle">Check in each day. Your manager can adjust this if needed.</p>
-      </Reveal>
+      {!isDirector && (
+        <Reveal delay={0.085} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Clock size={13} />}>Your attendance</SectionLabel>
+          <PortalAttendance days={attendance.days} todayEditable={attendance.todayEditable} lockReason={attendance.lockReason} />
+          <p className="px-1 text-[11px] text-fg-subtle">Check in each day. Your manager can adjust this if needed.</p>
+        </Reveal>
+      )}
 
-      {leaveBalances.length > 0 && (
+      {!isDirector && leaveBalances.length > 0 && (
         <Reveal delay={0.09} className="flex flex-col gap-2.5">
           <SectionLabel icon={<CalendarDays size={13} />}>Your leave</SectionLabel>
           <PortalLeave balances={leaveBalances} requests={leaveRequests} />
@@ -160,7 +168,7 @@ export default async function PortalProfile() {
         </Reveal>
       )}
 
-      {journey && journey.total > 0 && (
+      {!isDirector && journey && journey.total > 0 && (
         <Reveal delay={0.11} className="flex flex-col gap-2.5">
           <SectionLabel icon={<RouteIcon size={13} />}>Your onboarding</SectionLabel>
           <Panel className="overflow-hidden p-0">
@@ -186,7 +194,7 @@ export default async function PortalProfile() {
         </Reveal>
       )}
 
-      {equipment.length > 0 && (
+      {!isDirector && equipment.length > 0 && (
         <Reveal delay={0.12} className="flex flex-col gap-2.5">
           <SectionLabel icon={<Package size={13} />}>Your equipment</SectionLabel>
           <Panel className="divide-y divide-border/50 p-0">
