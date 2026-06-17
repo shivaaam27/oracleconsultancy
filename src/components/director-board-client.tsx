@@ -1,18 +1,16 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Bolt, CalendarPlus, MessageSquarePlus, ArrowUp, Sparkles, Wand2, CornerDownLeft,
-  ChevronRight, Check, Loader2, Send, ExternalLink, ArrowRight,
+  ChevronRight, Check, Loader2, Send, ExternalLink,
   Flame, Plane, Target, CalendarClock, Building2, ShieldCheck,
 } from "lucide-react";
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
-import { DirectorEventForm } from "@/components/director-event-form";
-import { DirectorMessage } from "@/components/director-message";
-import { portalDirectorCreateTask, portalEditTask, portalRemindTask } from "@/app/portal/actions";
+import { SmartCaptureBar } from "@/components/smart-capture-bar";
+import { portalEditTask, portalRemindTask } from "@/app/portal/actions";
 import { useToast } from "@/components/toast";
 
 /* ------------------------------------------------------------------ *
@@ -105,17 +103,11 @@ function useCountUp(target: number, run: boolean): number {
 export function DirectorBoardClient(p: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const capRef = useRef<HTMLInputElement>(null);
-
-  function focusComposer() {
-    capRef.current?.focus();
-    capRef.current?.scrollIntoView({ behavior: prefersReduced() ? "auto" : "smooth", block: "center" });
-  }
 
   return (
     <div className="flex flex-col gap-5">
       <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} />
-      <CommandBar people={p.people} companies={p.companies} suggestion={p.suggestion} capRef={capRef} />
+      <SmartCaptureBar people={p.people} companies={p.companies} suggestion={p.suggestion} />
 
       {/* Centred command-wall: one calm scroll on mobile, two columns on the web. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr] lg:items-start">
@@ -131,14 +123,6 @@ export function DirectorBoardClient(p: Props) {
           <WeekAhead events={p.upcomingEvents} />
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={focusComposer}
-        className="mx-auto mt-1 inline-flex items-center gap-1.5 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-lg shadow-accent/20 transition-transform active:scale-95 lg:hidden"
-      >
-        <Bolt size={15} /> Quick capture
-      </button>
     </div>
   );
 }
@@ -183,143 +167,9 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday }: { first: 
   );
 }
 
-/* ---- the command bar: Task (inline) · Event · Message ---- */
-const MODES = [
-  { key: "Task", icon: Bolt, label: "Task" },
-  { key: "Event", icon: CalendarPlus, label: "Event" },
-  { key: "Message", icon: MessageSquarePlus, label: "Message" },
-] as const;
-type Mode = (typeof MODES)[number]["key"];
-
-function CommandBar({
-  people, companies, suggestion, capRef,
-}: {
-  people: BoardPerson[]; companies: BoardCompany[];
-  suggestion: Props["suggestion"]; capRef: React.RefObject<HTMLInputElement | null>;
-}) {
-  const [mode, setMode] = useState<Mode>("Task");
-  const idx = MODES.findIndex((m) => m.key === mode);
-
-  return (
-    <div className="rounded-3xl bg-bg-elev p-2.5 ring-1 ring-border elevated">
-      <div className="relative grid grid-cols-3 gap-0 rounded-2xl bg-bg-subtle p-1">
-        <span
-          aria-hidden
-          className="absolute inset-y-1 left-1 rounded-xl bg-bg-elev shadow-sm ring-1 ring-border transition-transform duration-300 ease-[var(--ease-spring)]"
-          style={{ width: "calc((100% - 0.5rem) / 3)", transform: `translateX(${idx * 100}%)` }}
-        />
-        {MODES.map((m) => {
-          const Icon = m.icon;
-          const active = m.key === mode;
-          return (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => setMode(m.key)}
-              className={`relative z-10 inline-flex items-center justify-center gap-1.5 rounded-xl py-2 text-[13px] transition-colors ${active ? "font-medium text-fg" : "text-fg-muted"}`}
-            >
-              <Icon size={15} /> {m.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-2.5">
-        {mode === "Task" && <TaskComposer people={people} companies={companies} suggestion={suggestion} capRef={capRef} />}
-        {mode === "Event" && (
-          <div className="flex flex-col gap-2 px-1 py-1">
-            <p className="px-1 text-xs text-fg-subtle">Schedule a meeting or event across any company — attendees get an invite.</p>
-            <DirectorEventForm people={people} companies={companies} />
-          </div>
-        )}
-        {mode === "Message" && (
-          <div className="flex flex-col gap-2 px-1 py-1">
-            <DirectorMessage people={people} reminders={[]} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* A clean field shell shared by the composer rows (no heavy grey fill). */
+/* A clean field shell shared by the inline editors (no heavy grey fill). */
 const fieldShell = "rounded-xl bg-bg-elev ring-1 ring-border";
 const dateCls = "w-full rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2.5 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/40";
-
-function TaskComposer({
-  people, companies, suggestion, capRef,
-}: {
-  people: BoardPerson[]; companies: BoardCompany[];
-  suggestion: Props["suggestion"]; capRef: React.RefObject<HTMLInputElement | null>;
-}) {
-  const [state, action, pending] = useActionState(portalDirectorCreateTask, null);
-  const [companyId, setCompanyId] = useState("");
-  const [ownerId, setOwnerId] = useState("");
-  const [priority, setPriority] = useState("Medium");
-  const [open, setOpen] = useState(false);
-
-  const scoped = companyId ? people.filter((pp) => String(pp.companyId) === companyId) : people;
-  const peopleForPicker = scoped.length ? scoped : people;
-  const companyOptions: FluidOption[] = companies.map((c) => ({ value: String(c.id), label: c.name }));
-  const ownerOptions: FluidOption[] = peopleForPicker.map((pp) => ({ value: String(pp.id), label: pp.name }));
-
-  return (
-    <form action={action} className="flex flex-col gap-2.5">
-      <input type="hidden" name="companyId" value={companyId} />
-      <input type="hidden" name="accountableId" value={ownerId} />
-      <input type="hidden" name="priority" value={priority} />
-
-      <div className="flex items-center gap-2 rounded-2xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border transition-shadow focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
-        <Sparkles size={16} className="shrink-0 text-accent" />
-        <input
-          ref={capRef}
-          name="actionItem"
-          required
-          placeholder="Assign a task in seconds…"
-          onFocus={() => setOpen(true)}
-          className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          aria-label="Assign task"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95 disabled:opacity-50"
-        >
-          {pending ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={18} />}
-        </button>
-      </div>
-
-      <div className={`grid grid-cols-2 gap-2 ${open ? "" : "hidden"}`}>
-        <FluidSelect value={companyId} options={companyOptions} placeholder="Company…" onSelect={(v) => { setCompanyId(v); setOwnerId(""); }} buttonClassName={fieldShell} />
-        <FluidSelect value={ownerId} options={ownerOptions} placeholder="Responsible…" onSelect={setOwnerId} buttonClassName={fieldShell} />
-        <FluidSelect value={priority} options={priorityOptions} placeholder="Priority" onSelect={setPriority} buttonClassName={fieldShell} />
-        <input name="deadline" type="date" className={dateCls} />
-      </div>
-
-      {state?.error && <p className="px-1 text-xs text-danger">{state.error}</p>}
-
-      {suggestion && (
-        <button
-          type="button"
-          onClick={() => {
-            if (capRef.current) {
-              capRef.current.value = suggestion.actionItem;
-              capRef.current.focus();
-              setOpen(true);
-            }
-          }}
-          className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-bg-subtle/40 px-3 py-2 text-left text-xs text-fg-muted transition-colors hover:bg-bg-subtle/70"
-        >
-          <Wand2 size={14} className="shrink-0 text-info" />
-          <span className="min-w-0 flex-1 truncate">
-            {suggestion.actionItem} <span className="text-fg-subtle">· {suggestion.companyName}</span>
-          </span>
-          <CornerDownLeft size={13} className="shrink-0 text-fg-subtle" />
-        </button>
-      )}
-    </form>
-  );
-}
 
 /* ---- portfolio vitals: health ring + risk pills + KPI tiles ---- */
 function Ring({ score, run }: { score: number; run: boolean }) {

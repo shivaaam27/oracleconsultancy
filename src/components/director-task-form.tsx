@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { ClipboardCheck, Plus, Loader2 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { portalDirectorCreateTask } from "@/app/portal/actions";
@@ -14,24 +14,45 @@ const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
 const FORM_ID = "director-task-form";
 
 /** Director-only: create & assign a task in any company, to any active person,
- *  as an iPhone bottom-sheet. */
-export function DirectorTaskForm({ people, companies }: { people: Person[]; companies: Company[] }) {
-  const [open, setOpen] = useState(false);
+ *  as an iPhone bottom-sheet. Can be driven externally (controlled `open` +
+ *  `seedTitle`) by the board's smart capture bar, or stand alone with its own
+ *  "New task" trigger. */
+export function DirectorTaskForm({
+  people, companies, open: controlledOpen, onOpenChange, seedTitle,
+}: {
+  people: Person[]; companies: Company[];
+  open?: boolean; onOpenChange?: (v: boolean) => void; seedTitle?: string;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
+
   const [companyId, setCompanyId] = useState<string>("");
   const [state, action, pending] = useActionState(portalDirectorCreateTask, null);
+
+  // Close once the create completes without an error.
+  const prevPending = useRef(false);
+  useEffect(() => {
+    if (prevPending.current && !pending && !state?.error) setOpen(false);
+    prevPending.current = pending;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, state]);
 
   const scoped = companyId ? people.filter((p) => String(p.companyId) === companyId) : people;
   const peopleForPicker = scoped.length ? scoped : people;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
-      >
-        <Plus size={15} /> New task
-      </button>
+      {!isControlled && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
+        >
+          <Plus size={15} /> New task
+        </button>
+      )}
 
       <BottomSheet
         open={open}
@@ -52,7 +73,7 @@ export function DirectorTaskForm({ people, companies }: { people: Person[]; comp
         <form id={FORM_ID} action={action} className="flex flex-col gap-3.5">
           <div>
             <label className={fieldLabel}>What needs to be done?</label>
-            <input name="actionItem" required placeholder="e.g. Renew the business licence" className={inputCls} />
+            <input name="actionItem" required defaultValue={seedTitle ?? ""} autoFocus={!!seedTitle} placeholder="e.g. Renew the business licence" className={inputCls} />
           </div>
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
             <div>

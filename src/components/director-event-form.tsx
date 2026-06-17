@@ -17,11 +17,20 @@ const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
 const FORM_ID = "director-event-form";
 
 /** Director-only: schedule a calendar event / meeting (any company), as an
- *  iPhone bottom-sheet. */
-export function DirectorEventForm({ people, companies }: { people: Person[]; companies: Company[] }) {
+ *  iPhone bottom-sheet. Can be driven externally (controlled `open` +
+ *  `seedTitle`) by the board's smart capture bar. */
+export function DirectorEventForm({
+  people, companies, open: controlledOpen, onOpenChange, seedTitle,
+}: {
+  people: Person[]; companies: Company[];
+  open?: boolean; onOpenChange?: (v: boolean) => void; seedTitle?: string;
+}) {
   const { toast } = useToast();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
   const [allDay, setAllDay] = useState(false);
   const [remind1d, setRemind1d] = useState(true);
   const [attendees, setAttendees] = useState<number[]>([]);
@@ -48,13 +57,15 @@ export function DirectorEventForm({ people, companies }: { people: Person[]; com
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev px-4 py-2 text-sm font-medium text-fg ring-1 ring-border transition-[background-color,transform] hover:bg-bg-muted active:scale-95"
-      >
-        <CalendarPlus size={15} /> New event / meeting
-      </button>
+      {!isControlled && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev px-4 py-2 text-sm font-medium text-fg ring-1 ring-border transition-[background-color,transform] hover:bg-bg-muted active:scale-95"
+        >
+          <CalendarPlus size={15} /> New event / meeting
+        </button>
+      )}
 
       <BottomSheet
         open={open}
@@ -75,7 +86,7 @@ export function DirectorEventForm({ people, companies }: { people: Person[]; com
         <form id={FORM_ID} onSubmit={(e) => { e.preventDefault(); submit(e.currentTarget); }} className="flex flex-col gap-3.5">
           <div>
             <label className={fieldLabel}>Title</label>
-            <input name="title" required placeholder="Board meeting — Q3" className={inputCls} />
+            <input name="title" required defaultValue={seedTitle ?? ""} autoFocus={!!seedTitle} placeholder="Board meeting — Q3" className={inputCls} />
           </div>
 
           <SwitchRow label="All day" on={allDay} onChange={setAllDay} />

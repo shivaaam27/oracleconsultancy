@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { MessageSquarePlus, Loader2, Send, ExternalLink, Bell, Check } from "lucide-react";
 import Link from "next/link";
 import { BottomSheet } from "@/components/bottom-sheet";
@@ -23,9 +23,17 @@ const CHANNELS = [
 /** Director: draft a reminder/message (Outbox) + one-tap deep-link to send, in
  *  an iPhone bottom-sheet. Defaults to a task's assignee when started from a
  *  quick-reminder chip; otherwise the director picks the recipient. */
-export function DirectorMessage({ people, reminders = [] }: { people: Person[]; reminders?: Reminder[] }) {
+export function DirectorMessage({
+  people, reminders = [], open: controlledOpen, onOpenChange, seedBody,
+}: {
+  people: Person[]; reminders?: Reminder[];
+  open?: boolean; onOpenChange?: (v: boolean) => void; seedBody?: string;
+}) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
   const [personId, setPersonId] = useState<string>("");
   const [channel, setChannel] = useState<string>("");
   const [body, setBody] = useState("");
@@ -46,6 +54,13 @@ export function DirectorMessage({ people, reminders = [] }: { people: Person[]; 
     setResult(null); setBody(""); setPersonId(""); setChannel("");
   }
 
+  // When the board's smart bar opens this in controlled mode, prime the textarea
+  // with the typed text.
+  useEffect(() => {
+    if (isControlled && open && seedBody !== undefined) { setBody(seedBody); setResult(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isControlled]);
+
   function submit() {
     const pid = Number(personId);
     if (!Number.isFinite(pid) || pid <= 0) { toast("Choose a recipient.", { tone: "warn" }); return; }
@@ -62,16 +77,18 @@ export function DirectorMessage({ people, reminders = [] }: { people: Person[]; 
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => openFor()}
-        className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev px-4 py-2 text-sm font-medium text-fg ring-1 ring-border transition-[background-color,transform] hover:bg-bg-muted active:scale-95"
-      >
-        <MessageSquarePlus size={15} /> Send a message
-      </button>
+      {!isControlled && (
+        <button
+          type="button"
+          onClick={() => openFor()}
+          className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev px-4 py-2 text-sm font-medium text-fg ring-1 ring-border transition-[background-color,transform] hover:bg-bg-muted active:scale-95"
+        >
+          <MessageSquarePlus size={15} /> Send a message
+        </button>
+      )}
 
       {/* Quick reminders to overdue-task assignees */}
-      {reminders.length > 0 && (
+      {!isControlled && reminders.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {reminders.slice(0, 6).map((r) => (
             <button
