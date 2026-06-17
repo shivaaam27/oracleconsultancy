@@ -102,8 +102,11 @@ export function PortalHomeTasks({
         <Panel className="p-6 text-center text-sm text-fg-muted">Nothing here in this view.</Panel>
       ) : (
         <>
-          {/* Phone: the swipeable card list, scrollable so it never runs long. */}
-          <div className="flex max-h-[26rem] flex-col gap-2.5 overflow-y-auto overscroll-contain pr-0.5 lg:hidden">
+          {/* Phone: the swipeable card list, scrollable so it never runs long.
+              A block + space-y container (NOT flex) so cards keep their natural
+              height — a flex column would shrink them and the cards' overflow-hidden
+              (for the swipe trays) then clips the titles. */}
+          <div className="max-h-[26rem] space-y-2.5 overflow-y-auto overscroll-contain pr-0.5 lg:hidden">
             {filtered.map((t) => <PortalTaskCard key={t.id} task={t} viewerRole={viewerRole} />)}
           </div>
 
