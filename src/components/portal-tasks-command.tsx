@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { BottomSheet } from "@/components/bottom-sheet";
+import { SwitchRow } from "@/components/ui";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
@@ -513,13 +514,14 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
   const [companyId, setCompanyId] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [priority, setPriority] = useState("Medium");
+  const [requiresProof, setRequiresProof] = useState(false);
 
   // Close the sheet once the create completes without an error.
   const prevPending = useRef(false);
   useEffect(() => {
     if (prevPending.current && !pending && !state?.error) {
       setOpen(false);
-      setCompanyId(""); setOwnerId(""); setPriority("Medium");
+      setCompanyId(""); setOwnerId(""); setPriority("Medium"); setRequiresProof(false);
     }
     prevPending.current = pending;
   }, [pending, state]);
@@ -594,6 +596,8 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
               <input name="deadline" type="date" className={dateCls} />
             </div>
           </div>
+          <input type="hidden" name="requiresAttachment" value={requiresProof ? "1" : ""} />
+          <SwitchRow label="Require proof to complete" hint="A file must be attached to finish this task" on={requiresProof} onChange={setRequiresProof} />
           {state?.error && <p className="text-xs text-danger">{state.error}</p>}
         </form>
       </BottomSheet>

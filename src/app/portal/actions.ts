@@ -168,6 +168,7 @@ export async function portalCreateTask(
   const accountableId = Number(formData.get("accountableId"));
   const workingIds = idList(formData, "workingIds");
   const instruction = String(formData.get("instruction") ?? "").trim();
+  const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
   if (!actionItem) return { error: "Give the task a title." };
   if (!Number.isFinite(companyId)) return { error: "Choose a company." };
 
@@ -207,6 +208,7 @@ export async function portalCreateTask(
     latestUpdate: instruction || null,
     archived: false,
     createdByPersonId: me.id,
+    requiresAttachment,
   });
 
   // Assignees: the accountable person + working people.
@@ -439,6 +441,7 @@ export async function portalDirectorCreateTask(
   const accountableId = Number(formData.get("accountableId"));
   const workingIds = idList(formData, "workingIds");
   const instruction = String(formData.get("instruction") ?? "").trim();
+  const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
   if (!actionItem) return { error: "Give the task a title." };
   if (!Number.isFinite(companyId)) return { error: "Choose a company." };
   if (!Number.isFinite(accountableId)) return { error: "Choose who is responsible." };
@@ -461,6 +464,7 @@ export async function portalDirectorCreateTask(
     deadline: deadline && !isNaN(deadline.getTime()) ? deadline : null,
     createdDate: now, lastUpdatedAt: now, latestUpdate: instruction || null, archived: false,
     createdByPersonId: me.id,
+    requiresAttachment,
   });
 
   const rows = [
@@ -841,10 +845,11 @@ export async function portalAddUpdate(formData: FormData) {
 
   const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
 
-  // Optional status change, limited to the role's allowed set, and never
-  // on a task that is already Completed/Closed. Managers and directors may
-  // complete; staff signal "done" via Under Review.
-  const allowed = isManagement ? MANAGER_STATUSES : STAFF_STATUSES;
+  // Optional status change, never on a task that is already Completed/Closed.
+  // Completing/closing is NOT allowed here for anyone — it must go through the
+  // gated portalCompleteTask (which requires an explanation + any required
+  // proof). A plain update can only move a task between the open statuses.
+  const allowed = STAFF_STATUSES;
   const currentStatus = t.status as string;
   const canChange =
     newStatus &&
@@ -874,6 +879,67 @@ export async function portalAddUpdate(formData: FormData) {
   revalidatePath(`/task/${code}`);
   revalidatePath("/portal");
   await broadcastPulse("portal-update");
+}
+
+/* ----------------------------------------------------------------------
+ * Secure completion gate. The ONLY path that sets a task Completed — every
+ * role (including staff, who otherwise can't complete) may finish a task here,
+ * but ONLY with a note explaining what was done, and a file when the task is
+ * marked `requires_attachment`. Enforced server-side; the UI can't widen it.
+ * ---------------------------------------------------------------------- */
+export async function portalCompleteTask(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+
+  const taskId = Number(formData.get("taskId"));
+  const code = String(formData.get("code") ?? "");
+  const body = String(formData.get("body") ?? "").trim();
+  const fileEntry = formData.get("attachment");
+  const file = fileEntry instanceof File && fileEntry.size > 0 ? fileEntry : null;
+
+  if (!Number.isFinite(taskId)) return { ok: false, error: "Task not found." };
+  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
+  if (!body) return { ok: false, error: "Add a note explaining what was done." };
+
+  const { data: t } = await sb
+    .from("tasks")
+    .select("id,status,company_id,code,requires_attachment")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+  const current = t.status as string;
+  if (current === "Completed" || current === "Closed") return { ok: false, error: "This task is already finished." };
+  if ((t.requires_attachment as boolean) && !file) return { ok: false, error: "This task needs a file attached to complete." };
+
+  const isManager = me.portalRole === "manager";
+  const isDirector = me.portalRole === "director";
+  const isHr = me.portalRole === "hr";
+  const createdBy = `${isDirector ? "portal-dir" : isHr ? "portal-hr" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
+  const now = new Date().toISOString();
+
+  let attachmentDocumentId: number | null = null;
+  if (file) {
+    attachmentDocumentId = await createTaskAttachment({ taskId, companyId: t.company_id as number | null, file, createdBy });
+  }
+
+  await sb.from("task_updates").insert({
+    task_id: taskId,
+    body,
+    created_at: now,
+    created_by: createdBy,
+    attachment_document_id: attachmentDocumentId,
+  });
+  await sb.from("tasks").update({ status: "Completed", closed_date: now, latest_update: body, last_updated_at: now }).eq("id", taskId);
+  await logChangeSb(taskId, t.code as string, t.company_id as number, "status", current, "Completed", "Completed from portal (with note)", createdBy);
+
+  revalidatePath(`/portal/task/${code}`);
+  revalidatePath(`/task/${code}`);
+  revalidatePath("/portal");
+  revalidatePath("/portal/tasks");
+  await broadcastPulse("portal-update");
+  return { ok: true };
 }
 
 /* ----------------------------------------------------------------------

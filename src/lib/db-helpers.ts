@@ -125,6 +125,7 @@ export type TaskInsertValues = {
   lastUpdatedAt?: Date;
   archived?: boolean;
   createdByPersonId?: number | null;
+  requiresAttachment?: boolean;
 };
 
 function toIso(d: Date | string | null | undefined): string | null {
@@ -178,6 +179,7 @@ export async function insertTaskWithUniqueCodeSb(
       last_updated_at: toIso(values.lastUpdatedAt),
       archived: values.archived ?? false,
       created_by_person_id: values.createdByPersonId ?? null,
+      requires_attachment: values.requiresAttachment ?? false,
     };
 
     const { data, error } = await sb

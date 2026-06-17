@@ -589,6 +589,13 @@
       "when": 1781595844079,
       "tag": "0083_talented_grey_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1781720120576,
+      "tag": "0084_omniscient_red_wolf",
+      "breakpoints": true
     }
   ]
 }

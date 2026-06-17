@@ -43,6 +43,7 @@ type Row = {
   company: { name: string } | null;
   teamSize: number;
   mine: boolean;
+  requiresAttachment: boolean;
 };
 
 /** Map a Home task Row into the iPhone task-card shape. */
@@ -57,6 +58,7 @@ function toCardTask(t: Row) {
     companyName: t.company?.name ?? null,
     teamSize: t.teamSize,
     latestUpdate: t.latest_update,
+    requiresAttachment: t.requiresAttachment,
   };
 }
 
@@ -86,7 +88,7 @@ export default async function PortalHome() {
     const [{ data }, { data: teams }] = await Promise.all([
       sb
         .from("tasks")
-        .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,archived,companies(name)")
+        .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,archived,requires_attachment,companies(name)")
         .in("id", ids)
         .eq("archived", false)
         .order("deadline", { ascending: true, nullsFirst: false }),
@@ -110,6 +112,7 @@ export default async function PortalHome() {
       company: (t.companies as unknown as { name: string } | null) ?? null,
       teamSize: teamCount.get(t.id as number) ?? 1,
       mine: onTask.has(t.id as number) || (t.owner_id as number | null) === me.id,
+      requiresAttachment: (t.requires_attachment as boolean) ?? false,
     }));
   }
 

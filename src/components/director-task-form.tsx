@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { ClipboardCheck, Plus, Loader2 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
+import { SwitchRow } from "@/components/ui";
 import { portalDirectorCreateTask } from "@/app/portal/actions";
 
 type Person = { id: number; name: string; companyId: number | null };
@@ -29,6 +30,7 @@ export function DirectorTaskForm({
   const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
 
   const [companyId, setCompanyId] = useState<string>("");
+  const [requiresProof, setRequiresProof] = useState(false);
   const [state, action, pending] = useActionState(portalDirectorCreateTask, null);
 
   // Close once the create completes without an error.
@@ -105,6 +107,8 @@ export function DirectorTaskForm({
             <label className={fieldLabel}>Instruction (optional)</label>
             <textarea name="instruction" rows={3} placeholder="Becomes the pinned brief on the task" className={inputCls} />
           </div>
+          <input type="hidden" name="requiresAttachment" value={requiresProof ? "1" : ""} />
+          <SwitchRow label="Require proof to complete" hint="A file must be attached to finish this task" on={requiresProof} onChange={setRequiresProof} />
           {state?.error && <p className="text-xs text-danger">{state.error}</p>}
         </form>
       </BottomSheet>

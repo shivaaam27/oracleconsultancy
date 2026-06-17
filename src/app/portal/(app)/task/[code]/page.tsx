@@ -19,7 +19,6 @@ import type { TaskRow } from "@/lib/queries";
 export const dynamic = "force-dynamic";
 
 const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
-const MANAGER_STATUSES = [...STAFF_STATUSES, "Completed"];
 
 /** Maps a created_by stamp to a display name + whether it is "management"
  *  (owner/admin or a portal manager) — management posts get the accent. */
@@ -60,7 +59,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   const { data: task } = await sb
     .from("tasks")
-    .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,companies(name)")
+    .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,requires_attachment,companies(name)")
     .eq("code", decodeURIComponent(code))
     .maybeSingle();
   if (!task) notFound();
@@ -189,7 +188,10 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const headerSt = statusTone(task.status as string);
   const washVar = headerSt === "default" ? "accent" : headerSt;
   const dotTone: keyof typeof TONE = headerSt === "default" ? "muted" : headerSt;
-  const statusOptions = (isManagement ? MANAGER_STATUSES : STAFF_STATUSES).filter((s) => s !== task.status);
+  // Completing/closing is not a plain status move anymore — it goes through the
+  // secure gate (the "Complete" action), which requires a note + any proof. So
+  // the composer only offers the open statuses, for every role.
+  const statusOptions = STAFF_STATUSES.filter((s) => s !== task.status);
 
   // A minimal TaskRow-shaped object to drive the shared Aurora markers (pinned /
   // waiting). Presentational only — derived from data we already loaded.
@@ -278,8 +280,11 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       <Reveal delay={0.04}>
         <TaskQuickActions
           taskId={task.id as number}
+          code={task.code as string}
           ownerName={team.find((p) => p.accountable)?.name ?? null}
           canRemind={isManagement}
+          canComplete={!closed}
+          requiresAttachment={(task.requires_attachment as boolean) ?? false}
         />
       </Reveal>
 

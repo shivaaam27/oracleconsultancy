@@ -565,6 +565,9 @@ export const tasks = pgTable("tasks", {
   // (manager/director/HR); null for owner/web-ui created tasks. Powers the
   // "raised by" column and the "Tasks I assigned" portal view.
   createdByPersonId: integer("created_by_person_id").references(() => people.id),
+  // When true, completing or closing this task requires an attachment (proof) —
+  // enforced server-side in the portal completion gate.
+  requiresAttachment: boolean("requires_attachment").notNull().default(false),
 }, (t) => [
   index("tasks_company_idx").on(t.companyId),
   index("tasks_owner_idx").on(t.ownerId),

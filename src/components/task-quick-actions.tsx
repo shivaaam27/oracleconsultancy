@@ -1,22 +1,27 @@
 "use client";
 
-import { useTransition } from "react";
-import { MessageSquarePlus, Bell, Loader2 } from "lucide-react";
+import { useState, useTransition } from "react";
+import { MessageSquarePlus, Bell, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "./toast";
+import { CompleteTaskSheet } from "./complete-task-sheet";
 import { portalRemindTask } from "@/app/portal/actions";
 
-/* The per-task page quick-action bar: jump straight to posting an update, and
- * (for management) draft a reminder to the owner without scrolling. Sits under
- * the task hero. */
+/* The per-task page quick-action bar: jump to posting an update, complete the
+ * task through the secure gate (note required + proof if the task needs it),
+ * and — for management — draft a reminder to the owner. */
 export function TaskQuickActions({
-  taskId, ownerName, canRemind,
+  taskId, code, ownerName, canRemind, canComplete, requiresAttachment = false,
 }: {
   taskId: number;
+  code: string;
   ownerName: string | null;
   canRemind: boolean;
+  canComplete: boolean;
+  requiresAttachment?: boolean;
 }) {
   const { toast } = useToast();
   const [busy, start] = useTransition();
+  const [completeOpen, setCompleteOpen] = useState(false);
 
   function remind() {
     start(async () => {
@@ -30,13 +35,22 @@ export function TaskQuickActions({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <a
         href="#conversation"
-        className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98]"
+        className="inline-flex min-w-[8rem] flex-1 items-center justify-center gap-1.5 rounded-2xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98]"
       >
         <MessageSquarePlus size={15} /> Add update
       </a>
+      {canComplete && (
+        <button
+          type="button"
+          onClick={() => setCompleteOpen(true)}
+          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-success-soft px-4 py-3 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
+        >
+          <CheckCircle2 size={15} /> Complete
+        </button>
+      )}
       {canRemind && (
         <button
           type="button"
@@ -48,6 +62,8 @@ export function TaskQuickActions({
           Remind{ownerName ? ` ${ownerName.split(" ")[0]}` : ""}
         </button>
       )}
+
+      <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={taskId} code={code} requiresAttachment={requiresAttachment} />
     </div>
   );
 }
