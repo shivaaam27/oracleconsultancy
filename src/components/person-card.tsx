@@ -4,6 +4,7 @@ import { Mail, MessageCircle, Phone, AlertCircle, MoonStar, UserX, Users, Shield
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
 import { StaffIdChip } from "./staff-id-chip";
+import { EntityCard } from "./entity-card";
 import type { PersonRow } from "@/lib/people-queries";
 
 function whatsappHref(num: string) {
@@ -108,28 +109,17 @@ export function PersonCard({
   const metaCompany = [p.companyName, p.associations.length ? `+${p.associations.length}` : null].filter(Boolean).join(" · ");
 
   return (
-    <div
-      onClick={onOpen}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+    <EntityCard
+      onActivate={onOpen}
+      accentColor={accentColor}
+      selected={selected}
+      dim={dim}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerLeave}
       onPointerCancel={onPointerCancel}
-      onContextMenu={(e) => e.preventDefault()}
-      className={cn(
-        "group relative flex items-center gap-3 pl-4 pr-3.5 py-3 rounded-2xl bg-bg-elev ring-1 ring-border overflow-hidden cursor-pointer select-none transition-all",
-        "hover:ring-accent/40 hover:bg-bg-subtle/30",
-        selected && "ring-2 ring-accent bg-accent-soft/25",
-        dim && "opacity-60"
-      )}
     >
-      {/* Company-tinted left rail */}
-      <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r"
-        style={{ background: accentColor || "var(--color-border-strong)" }} />
-
       {/* Select checkbox (select mode) */}
       {selectMode && (
         <span className={cn("h-5 w-5 rounded-md border flex items-center justify-center shrink-0",
@@ -203,6 +193,6 @@ export function PersonCard({
       <span className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium tabular shrink-0", workloadTint)}>
         {wl.open}{wl.overdue ? ` · ${wl.overdue}↓` : ""}
       </span>
-    </div>
+    </EntityCard>
   );
 }

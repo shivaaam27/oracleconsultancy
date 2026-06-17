@@ -26,8 +26,11 @@ import { CaptureWizardMount } from "@/components/capture-wizard-mount";
 import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { HideOnPortal } from "@/components/hide-on-portal";
 import { getAppSettings } from "@/lib/settings";
+import { appBaseUrl } from "@/lib/app-url";
 
 export const metadata: Metadata = {
+  // Absolute base so link-preview crawlers (WhatsApp/Twilio) resolve OG image URLs.
+  metadataBase: new URL(appBaseUrl()),
   title: "Oracle Consultancy Limited — Operations",
   description: "Chief-of-Staff command centre for Oracle Consultancy",
   manifest: "/manifest.json",
@@ -38,6 +41,14 @@ export const metadata: Metadata = {
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  // Branded card shown when a portal link is shared in WhatsApp/chat.
+  openGraph: {
+    type: "website",
+    siteName: "Oracle Consultancy",
+    title: "Oracle Consultancy · Staff portal",
+    description: "Your tasks, leave and updates — sign in to your staff portal.",
+    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "Oracle Consultancy" }],
   },
 };
 

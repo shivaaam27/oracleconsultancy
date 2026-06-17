@@ -45,8 +45,31 @@ toggles · concentric radius ladder · calm, reduced-motion-safe motion · quiet
   `popIn`; quiet title + close; content as soft rows, not nested boxes.
 - **Search** → `SearchField` / the ⌘K palette language; results as soft rows with TONE dots.
 - **Toggle / control** → the shared `Switch`; status as dots/text.
+- **List / directory page** → the canonical rhythm is **stat strip → search + filter chips
+  → rows → drawer**. Use the shared pieces, do not re-roll them:
+  - `StatStrip` (`ui.tsx`) — glanceable header metrics (2 cols mobile, one row from `sm`).
+    Built on `Stat` (tinted icon tile + tone-coloured number).
+  - `FilterChips` (`filter-chips.tsx`) — status filters that **collapse to icon + count on
+    mobile** (the active chip keeps its label) and show full labels from `sm` up. Every chip
+    needs a self-explanatory icon + `title`/`aria-label`.
+  - `EntityCard` (`entity-card.tsx`) — the floating glass list-row shell: brand-tinted left
+    rail, hover-to-accent ring, selectable state, full pointer/keyboard activation. Compose
+    row content as children (leading slot · `min-w-0 flex-1` body · trailing meta). People's
+    directory (`person-card.tsx`) is the reference implementation.
 - **Never** → hard-bordered box-soup, loud colour fills, edge-to-edge width, a bespoke
   one-off when a kit piece exists, or motion that ignores reduced-motion.
+
+### The consistency contract (what you can rely on across every page)
+Pages differ in their middles — that's fine. These never vary, and that's what makes the
+app feel like one system:
+1. **Frame** — centred max-width column + `PageHeader` (title · sub · action) + the single
+   nav pill. Same margins, same header, same place the `+` lives.
+2. **Tokens only, one accent** — colours/spacing/radius come from `globals.css`; never a
+   hardcoded hex (only exception: company brand rails). One cool-blue accent. Status as
+   dots/small text, never blocks.
+3. **Reuse the kit** — before building a row, chip, stat, drawer, toggle or dialog, check
+   for the kit piece above. A one-off is only justified when no piece fits — and then it
+   should become a new kit piece, not stay local.
 
 The rest of this file is the detailed reference behind the kit.
 

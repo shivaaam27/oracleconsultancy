@@ -332,38 +332,81 @@ export function CountPill({
 /* Stat                                                                   */
 /* --------------------------------------------------------------------- */
 
+type StatTone = "default" | "info" | "accent" | "warn" | "danger" | "success";
+
 export function Stat({
   label,
   value,
   tone = "default",
   icon,
+  hint,
 }: {
   label: string;
   value: ReactNode;
-  tone?: "default" | "warn" | "danger" | "success";
+  tone?: StatTone;
   icon?: ReactNode;
+  /** Optional small caption under the number. */
+  hint?: ReactNode;
 }) {
-  const accent = {
+  const accent: Record<StatTone, string> = {
     default: "",
+    info: "ring-1 ring-info/25 bg-gradient-to-br from-info-soft/40 to-transparent",
+    accent: "ring-1 ring-accent/25 bg-gradient-to-br from-accent-soft/40 to-transparent",
     warn: "ring-1 ring-warn/25 bg-gradient-to-br from-warn-soft/50 to-transparent",
     danger: "ring-1 ring-danger/25 bg-gradient-to-br from-danger-soft/50 to-transparent",
     success: "ring-1 ring-success/25 bg-gradient-to-br from-success-soft/50 to-transparent",
-  }[tone];
+  };
+  // Tinted icon tile + tone-coloured number, so the metric reads at a glance.
+  const tile: Record<StatTone, string> = {
+    default: "bg-bg-muted text-fg-muted",
+    info: "bg-info-soft text-info",
+    accent: "bg-accent-soft text-accent",
+    warn: "bg-warn-soft text-warn",
+    danger: "bg-danger-soft text-danger",
+    success: "bg-success-soft text-success",
+  };
+  const valueTint: Record<StatTone, string> = {
+    default: "", info: "text-info", accent: "text-accent", warn: "text-warn", danger: "text-danger", success: "text-success",
+  };
   return (
     <div
       className={cn(
         "relative bg-bg-elev border border-border rounded-2xl p-4 transition-all duration-200",
         "hover:shadow-md hover:-translate-y-0.5",
-        accent
+        accent[tone]
       )}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="text-[11px] uppercase tracking-[0.08em] text-fg-muted">{label}</div>
-        {icon && <div className="text-fg-subtle">{icon}</div>}
+        {icon && (
+          <span className={cn("h-7 w-7 rounded-xl grid place-items-center shrink-0 [&_svg]:h-3.5 [&_svg]:w-3.5", tile[tone])}>
+            {icon}
+          </span>
+        )}
       </div>
-      <div className="text-[28px] leading-tight font-semibold mt-2 tabular tracking-tight">
+      <div className={cn("text-[28px] leading-tight font-semibold mt-2 tabular tracking-tight", valueTint[tone])}>
         {value}
       </div>
+      {hint && <div className="text-[11px] text-fg-subtle mt-0.5">{hint}</div>}
+    </div>
+  );
+}
+
+/** A responsive strip of Stat cards — the canonical glanceable header for any
+ *  list/dashboard page. Two columns on mobile, one row from sm up. */
+export function StatStrip({
+  items,
+  className,
+}: {
+  items: Array<{ label: string; value: ReactNode; tone?: StatTone; icon?: ReactNode; hint?: ReactNode }>;
+  className?: string;
+}) {
+  const cols = { 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-4", 5: "sm:grid-cols-5" }[Math.min(5, Math.max(2, items.length))] ?? "sm:grid-cols-4";
+  return (
+    <div className={cn("grid grid-cols-2 gap-2", cols, className)}>
+      {items.map((s, i) => (
+        <Stat key={i} label={s.label} value={s.value} tone={s.tone} icon={s.icon} hint={s.hint} />
+      ))}
     </div>
   );
 }

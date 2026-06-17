@@ -2,12 +2,13 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Search, MessageCircle, Filter, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, CheckSquare, X, Pencil, ShieldCheck, ShieldOff, Users, PhoneOff, MoonStar, Flame, Hourglass, UserX } from "lucide-react";
+import { Search, MessageCircle, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, CheckSquare, X, Pencil, ShieldCheck, ShieldOff, Users, PhoneOff, MoonStar, Flame, Hourglass, UserX, Gauge, AlertTriangle } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { Combobox } from "./combobox";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
-import { Button, CountPill, Select } from "./ui";
+import { Button, Select, StatStrip } from "./ui";
+import { FilterChips } from "./filter-chips";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
@@ -307,19 +308,14 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
   return (
     <div className="space-y-4">
       {/* Glanceable stat strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {[
-          { label: "Active", value: String(stats.active), tone: "text-fg" },
-          { label: "Portal", value: String(stats.portal), tone: "text-info", icon: <ShieldCheck size={12} className="text-info" /> },
-          { label: "Avg compliance", value: stats.avg == null ? "—" : `${stats.avg}%`, tone: stats.avg != null && stats.avg < 70 ? "text-warn" : "text-success" },
-          { label: "Needs attention", value: String(stats.needsAttention), tone: stats.needsAttention > 0 ? "text-warn" : "text-fg-subtle" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2">
-            <div className="text-[11px] text-fg-subtle inline-flex items-center gap-1">{s.icon}{s.label}</div>
-            <div className={cn("text-[22px] font-semibold leading-tight tabular", s.tone)}>{s.value}</div>
-          </div>
-        ))}
-      </div>
+      <StatStrip
+        items={[
+          { label: "Active", value: stats.active, icon: <Users /> },
+          { label: "Portal", value: stats.portal, tone: "info", icon: <ShieldCheck /> },
+          { label: "Avg compliance", value: stats.avg == null ? "—" : `${stats.avg}%`, tone: stats.avg == null ? "default" : stats.avg < 70 ? "warn" : "success", icon: <Gauge /> },
+          { label: "Needs attention", value: stats.needsAttention, tone: stats.needsAttention > 0 ? "warn" : "default", icon: <AlertTriangle /> },
+        ]}
+      />
 
       {/* Search + filter chips */}
       <div className="flex flex-wrap items-center gap-2">
@@ -356,49 +352,22 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       </div>
 
       {/* Filter chips */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Filter size={11} className="text-fg-subtle" />
-        {[
-          { key: "all", label: "All", icon: Users, count: counts.all, tone: "default" as const },
-          { key: "noContact", label: "No contact info", icon: PhoneOff, count: counts.noContact, tone: "danger" as const },
-          { key: "snoozed", label: "Snoozed", icon: MoonStar, count: counts.snoozed, tone: "warn" as const },
-          { key: "overloaded", label: "Overloaded (5+)", icon: Flame, count: counts.overloaded, tone: "warn" as const },
-          { key: "probationEnding", label: "Probation ending", icon: Hourglass, count: counts.probationEnding, tone: "warn" as const },
-          { key: "portal", label: "Has portal", icon: ShieldCheck, count: counts.portal, tone: "default" as const },
-          { key: "noPortal", label: "No portal", icon: ShieldOff, count: counts.noPortal, tone: "default" as const },
-          { key: "inactive", label: "Inactive", icon: UserX, count: counts.inactive, tone: "default" as const },
-        ].map(({ key, label, icon: Icon, count, tone }) => {
-          const active = filter === key;
-          const tint = active
-            ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
-              : tone === "warn" ? "bg-warn-soft/70 ring-2 ring-warn/40 text-warn"
-              : "bg-accent-soft/70 ring-2 ring-accent/40 text-accent"
-            : count === 0 ? "bg-bg-subtle/40 ring-1 ring-border/60 text-fg-subtle"
-            : tone === "danger" ? "bg-danger-soft/50 ring-1 ring-danger/25 text-danger hover:ring-2"
-            : tone === "warn" ? "bg-warn-soft/50 ring-1 ring-warn/25 text-warn hover:ring-2"
-            : "bg-bg-subtle/60 ring-1 ring-border/60 text-fg-muted hover:ring-2 hover:ring-border";
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFilter(key as FilterKind)}
-              title={`${label} · ${count}`}
-              aria-label={`${label} (${count})`}
-              aria-pressed={active}
-              className={cn(
-                "inline-flex items-center gap-1.5 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm",
-                // Icon-only on mobile to save space; full label from sm up. The
-                // active filter always shows its label so you know what's applied.
-                active ? "pl-2 pr-3" : "px-2 sm:pl-2 sm:pr-3",
-                tint
-              )}
-            >
-              <Icon size={13} className="shrink-0" />
-              <CountPill count={count} tone="inherit" />
-              <span className={cn("font-medium", active ? "inline" : "hidden sm:inline")}>{label}</span>
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterChips
+          value={filter}
+          onChange={(k) => setFilter(k)}
+          className="flex-1"
+          items={[
+            { key: "all", label: "All", icon: Users, count: counts.all, tone: "default" },
+            { key: "noContact", label: "No contact info", icon: PhoneOff, count: counts.noContact, tone: "danger" },
+            { key: "snoozed", label: "Snoozed", icon: MoonStar, count: counts.snoozed, tone: "warn" },
+            { key: "overloaded", label: "Overloaded (5+)", icon: Flame, count: counts.overloaded, tone: "warn" },
+            { key: "probationEnding", label: "Probation ending", icon: Hourglass, count: counts.probationEnding, tone: "warn" },
+            { key: "portal", label: "Has portal", icon: ShieldCheck, count: counts.portal, tone: "default" },
+            { key: "noPortal", label: "No portal", icon: ShieldOff, count: counts.noPortal, tone: "default" },
+            { key: "inactive", label: "Inactive", icon: UserX, count: counts.inactive, tone: "default" },
+          ]}
+        />
         <div className="ml-auto flex items-center gap-3">
           {!selectMode ? (
             <>

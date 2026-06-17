@@ -79,8 +79,50 @@ function buildReminder(name: string, tasks: TaskRow[], bold: (s: string) => stri
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/** Status dot mirroring the email: red = overdue/critical, amber = medium/high, white = low. */
+function statusDot(t: TaskRow): string {
+  if (isOverdue(t) || t.priority === "Critical") return "🔴";
+  if (t.priority === "High" || t.priority === "Medium") return "🟠";
+  return "⚪";
+}
+
+/**
+ * Rich WhatsApp reminder "card" — mirrors the Aurora email's language so the two
+ * channels feel like one product: a header with the office, a stat line, tasks
+ * grouped by company with coloured status dots, a quiet sign-off, and the portal
+ * link LAST (so WhatsApp renders a link-preview card from it). WhatsApp markdown:
+ * *bold*, _italic_. Kept terse — no latest-update lines (those live in the email).
+ */
 export function buildWhatsAppMessage(name: string, tasks: TaskRow[]): string {
-  return buildReminder(name, tasks, (s) => `*${s}*`);
+  const first = name.split(" ")[0] || name;
+  const overdueCount = tasks.filter(isOverdue).length;
+
+  // Group by company, first-seen order; soonest deadline first within a company.
+  const groups = new Map<string, TaskRow[]>();
+  for (const t of tasks) {
+    const list = groups.get(t.companyName);
+    if (list) list.push(t); else groups.set(t.companyName, [t]);
+  }
+  for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
+
+  const lines = [
+    "🔔 *Your tasks · Oracle Consultancy*",
+    `Hi ${first}, a quick reminder of where things stand:`,
+    "",
+  ];
+  for (const [company, list] of groups) {
+    lines.push(`*${company}*`);
+    for (const t of list) {
+      const others = t.assignees.filter((a) => a && a !== name);
+      const shared = others.length ? ` _(with ${others.join(", ")})_` : "";
+      lines.push(`${statusDot(t)} ${t.actionItem} — _${taskMeta(t)}_${shared}`);
+    }
+    lines.push("");
+  }
+  lines.push(`📊 ${tasks.length} open${overdueCount ? ` · ${overdueCount} overdue` : ""}`);
+  lines.push("Please update your tasks when you can. Thank you.");
+  lines.push(`${appBaseUrl()}/portal`);
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 export function buildEmailMessage(name: string, tasks: TaskRow[]): string {
