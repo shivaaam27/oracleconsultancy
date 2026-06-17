@@ -16,14 +16,16 @@ export async function GET(req: NextRequest) {
   if (!me || me.portalRole !== "director") {
     return new NextResponse("Not authorised", { status: 403 });
   }
-  const b = await getBrief(new Date(), parseBriefPeriod(req.nextUrl.searchParams.get("period")), null);
+  const sp = req.nextUrl.searchParams;
+  const b = await getBrief(new Date(), parseBriefPeriod(sp.get("period")), null);
   const buf = await renderBriefPdf(b);
+  // `?download=1` forces a real file download (Save dialog); without it the PDF
+  // opens inline in the phone's PDF viewer (save + share from there).
+  const disposition = sp.get("download") === "1" ? "attachment" : "inline";
   return new NextResponse(new Uint8Array(buf), {
     headers: {
       "Content-Type": "application/pdf",
-      // `inline` so it opens in the phone's PDF viewer (save + share from there);
-      // `attachment` only downloads reliably on desktop.
-      "Content-Disposition": `inline; filename="${briefPdfFilename(b)}"`,
+      "Content-Disposition": `${disposition}; filename="${briefPdfFilename(b)}"`,
       "Cache-Control": "no-store",
     },
   });
