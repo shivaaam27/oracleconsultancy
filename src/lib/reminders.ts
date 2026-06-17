@@ -11,7 +11,7 @@ import { buildTaskReminderDoc, buildEmailMessage, buildWhatsAppMessage } from "@
 import { renderEmail, senderName, type EmailOffice } from "@/lib/email/layout";
 import { sendEmail } from "@/lib/email/send";
 import { sendWhatsApp } from "@/lib/whatsapp";
-import { waCardImageUrl } from "@/lib/wa-card";
+import { waCardImageUrl, waReminderLink } from "@/lib/wa-card";
 
 export type ReminderSender = {
   /** Office the email signs off as (admin / manager / director). Defaults to admin. */
@@ -122,7 +122,7 @@ export async function sendTaskReminderWhatsApp(opts: {
   if (rows.length === 0) return { ok: false, reason: "no-tasks" };
 
   const name = person.name as string;
-  const text = buildWhatsAppMessage(name, rows);
+  const text = buildWhatsAppMessage(name, rows, waReminderLink(person.id as number));
   const res = await sendWhatsApp({ to, text, mediaUrl: waCardImageUrl(person.id as number) });
   if (!res.ok) {
     if (res.reason === "not-configured") return { ok: false, reason: "not-configured" };

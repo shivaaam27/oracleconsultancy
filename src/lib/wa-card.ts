@@ -33,3 +33,15 @@ export function waCardImageUrl(personId: number): string {
   const sig = token(personId);
   return `${appBaseUrl()}/api/wa-card?p=${personId}&t=${encodeURIComponent(sig)}`;
 }
+
+/**
+ * Signed, human-friendly reminder link for one person. Crawlers (WhatsApp's link
+ * preview) read its Open-Graph tags — the Aurora summary image + that person's live
+ * open/overdue counts + top-3 overdue — while real visitors are redirected on to the
+ * staff portal. Put this LAST in a WhatsApp message so WhatsApp builds its preview
+ * card from it. See src/app/r/[p]/[t]/page.tsx.
+ */
+export function waReminderLink(personId: number): string {
+  const sig = token(personId);
+  return `${appBaseUrl()}/r/${personId}/${encodeURIComponent(sig)}`;
+}

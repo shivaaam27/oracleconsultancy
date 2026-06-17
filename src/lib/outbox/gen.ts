@@ -2,6 +2,7 @@ import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "../queries";
 import { isOpen } from "../derive";
 import { appBaseUrl } from "../app-url";
+import { waReminderLink } from "../wa-card";
 import type { EmailDoc, EmailTone, EmailOffice } from "../email/layout";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
@@ -93,7 +94,7 @@ function statusDot(t: TaskRow): string {
  * link LAST (so WhatsApp renders a link-preview card from it). WhatsApp markdown:
  * *bold*, _italic_. Kept terse — no latest-update lines (those live in the email).
  */
-export function buildWhatsAppMessage(name: string, tasks: TaskRow[]): string {
+export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: string): string {
   const first = name.split(" ")[0] || name;
   const overdueCount = tasks.filter(isOverdue).length;
 
@@ -121,7 +122,7 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[]): string {
   }
   lines.push(`📊 ${tasks.length} open${overdueCount ? ` · ${overdueCount} overdue` : ""}`);
   lines.push("Please update your tasks when you can. Thank you.");
-  lines.push(`${appBaseUrl()}/portal`);
+  lines.push(link ?? `${appBaseUrl()}/portal`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -133,7 +134,7 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[]): string {
  * still builds a link-preview card. (The branded image only rides the Twilio path.)
  */
 const MANUAL_TASK_CAP = 10;
-export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[]): string {
+export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?: string): string {
   const first = name.split(" ")[0] || name;
   const overdueCount = tasks.filter(isOverdue).length;
 
@@ -161,7 +162,7 @@ export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[]): stri
   const hidden = tasks.length - shown;
   if (hidden > 0) lines.push(`…and ${hidden} more.`, "");
   lines.push(`${tasks.length} open${overdueCount ? `, ${overdueCount} overdue` : ""}. Please update when you can. Thank you.`);
-  lines.push(`${appBaseUrl()}/portal`);
+  lines.push(link ?? `${appBaseUrl()}/portal`);
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -233,9 +234,12 @@ export function buildTaskReminderDoc(
   };
 }
 
-function buildAllMessages(name: string, list: TaskRow[]): Record<Channel, string> {
+function buildAllMessages(name: string, list: TaskRow[], personId: number | null): Record<Channel, string> {
+  // Per-person signed link → WhatsApp renders the live Aurora preview card.
+  // Falls back to the plain /portal link for people not in the directory.
+  const link = personId != null ? waReminderLink(personId) : undefined;
   return {
-    WHATSAPP: buildWhatsAppManualMessage(name, list), // Outbox = copy/wa.me (manual) → clean plain text
+    WHATSAPP: buildWhatsAppManualMessage(name, list, link), // Outbox = copy/wa.me (manual) → clean plain text
     EMAIL: buildEmailMessage(name, list),
     SMS: list.map((t) => buildSmsMessage(t)).join("\n"),
   };
@@ -300,7 +304,7 @@ export async function generateDrafts(): Promise<OutboxDraft[]> {
       preferredChannel: p?.preferredChannel ?? null,
       notes: p?.notes ?? null,
       tasks: list,
-      messages: buildAllMessages(name, list),
+      messages: buildAllMessages(name, list, p?.id ?? null),
       contactByChannel,
       contactStatus: overall,
     });

@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { recordSent, snoozePerson, unsnoozePerson, sendReminderEmail } from "./actions";
 import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
+import { waLink } from "@/lib/outbox/links";
 import { cn } from "@/lib/cn";
 
 type Urgency = "critical" | "warn" | "normal";
@@ -177,6 +178,18 @@ export function OutboxCard({
     });
   };
 
+  // wa.me tap-send: opens WhatsApp with the message pre-filled (newlines + the
+  // per-person preview link preserved), then marks the draft done.
+  const waHref = channel === "WHATSAPP" ? waLink(draft.whatsapp, message) : null;
+  const onSendWhatsApp = () => {
+    if (!waHref) { toast("No WhatsApp number for this person.", { tone: "warn" }); return; }
+    window.open(waHref, "_blank", "noopener");
+    startTransition(async () => {
+      const { ok, undoToken } = await doMarkSent();
+      if (ok) { showUndoToast(`Opened WhatsApp & marked done for ${draft.recipientName}.`, undoToken); onResolved?.(); }
+    });
+  };
+
   const onCopy = async () => {
     await navigator.clipboard.writeText(message);
     setCopied(true);
@@ -291,15 +304,27 @@ export function OutboxCard({
         ) : !expanded ? (
           <div className="flex items-center gap-1.5 shrink-0">
             {!anyContact && <AlertCircle size={13} className="text-warn" aria-label="No contact details" />}
-            <Button
-              type="button"
-              size="sm"
-              onClick={onCopyAndMark}
-              disabled={pending || !anyContact}
-              title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
-            >
-              <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & done"}</span>
-            </Button>
+            {waHref ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onSendWhatsApp}
+                disabled={pending}
+                title="Open WhatsApp with the message ready to send"
+              >
+                <MessageCircle size={13} /> <span className="hidden sm:inline">{pending ? "…" : "WhatsApp"}</span>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onCopyAndMark}
+                disabled={pending || !anyContact}
+                title={anyContact ? "Copy message and mark done" : "No contact details for this person"}
+              >
+                <Send size={13} /> <span className="hidden sm:inline">{pending ? "…" : "Copy & done"}</span>
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
@@ -399,15 +424,22 @@ export function OutboxCard({
                 <Check size={14} />
               </button>
               {draft.email && (
-                <Button type="button" size="sm" onClick={onSendEmail} disabled={pending}
+                <Button type="button" size="sm" variant="secondary" onClick={onSendEmail} disabled={pending}
                   title="Send the branded task reminder by email">
                   <Mail size={13} /> {pending ? "…" : <span>Send email</span>}
                 </Button>
               )}
-              <Button type="button" size="sm" variant={draft.email ? "secondary" : "primary"} onClick={onCopyAndMark} disabled={pending || !anyContact}
-                title={anyContact ? "Copy message and mark done" : "No contact details for this person"}>
-                <Send size={13} /> {pending ? "…" : <span>Copy &amp; done</span>}
-              </Button>
+              {waHref ? (
+                <Button type="button" size="sm" variant="primary" onClick={onSendWhatsApp} disabled={pending}
+                  title="Open WhatsApp with the message ready to send">
+                  <MessageCircle size={13} /> {pending ? "…" : <span>WhatsApp</span>}
+                </Button>
+              ) : (
+                <Button type="button" size="sm" variant={draft.email ? "secondary" : "primary"} onClick={onCopyAndMark} disabled={pending || !anyContact}
+                  title={anyContact ? "Copy message and mark done" : "No contact details for this person"}>
+                  <Send size={13} /> {pending ? "…" : <span>Copy &amp; done</span>}
+                </Button>
+              )}
             </div>
           </div>
         </div>
