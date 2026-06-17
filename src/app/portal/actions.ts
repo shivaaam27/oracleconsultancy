@@ -493,6 +493,113 @@ export async function portalDirectorCreateTask(
   redirect(`/portal/board?created=${task.code}`);
 }
 
+/* ----------------------------------------------------------------------
+ * Director (executive operator) — edit a task inline from the board: status,
+ * priority, deadline, reassign the responsible person. Group-wide; every change
+ * audit-logged + stamped portal-dir:<Name>. Never trusts the form — re-verifies
+ * the session role and the task each call.
+ * ---------------------------------------------------------------------- */
+const ALL_STATUSES = [
+  "Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed",
+];
+const ALL_PRIORITIES = ["Critical", "High", "Medium", "Low"];
+
+export async function portalDirectorEditTask(input: {
+  taskId: number;
+  status?: string;
+  priority?: string;
+  deadline?: string | null; // "yyyy-mm-dd" to set, "" to clear, undefined to leave
+  accountableId?: number;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+
+  const { data: t } = await sb
+    .from("tasks")
+    .select("id,code,company_id,status,priority,deadline,owner_id")
+    .eq("id", input.taskId)
+    .maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+
+  const createdBy = `portal-dir:${me.name}`;
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { last_updated_at: now };
+
+  if (input.status && ALL_STATUSES.includes(input.status) && input.status !== t.status) {
+    patch.status = input.status;
+    if (input.status === "Completed" || input.status === "Closed") patch.closed_date = now;
+    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "status", t.status as string, input.status, "Edited by director", createdBy);
+  }
+  if (input.priority && ALL_PRIORITIES.includes(input.priority) && input.priority !== t.priority) {
+    patch.priority = input.priority;
+    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "priority", t.priority as string, input.priority, "Edited by director", createdBy);
+  }
+  if (input.deadline !== undefined) {
+    const newIso = input.deadline ? new Date(input.deadline).toISOString() : null;
+    const oldIso = t.deadline ? new Date(t.deadline as string).toISOString() : null;
+    if (newIso !== oldIso) {
+      patch.deadline = newIso;
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "deadline", oldIso, newIso, "Edited by director", createdBy);
+    }
+  }
+  let reassigned: number | null = null;
+  if (input.accountableId && input.accountableId !== (t.owner_id as number | null)) {
+    const { data: p } = await sb.from("people").select("id,name,active").eq("id", input.accountableId).maybeSingle();
+    if (!p || !p.active) return { ok: false, error: "That person isn't available." };
+    patch.owner_id = input.accountableId;
+    // Move the accountable assignee row to the new person.
+    await sb.from("task_assignees").delete().eq("task_id", t.id as number).eq("role", "accountable");
+    await sb.from("task_assignees").upsert(
+      { task_id: t.id as number, person_id: input.accountableId, role: "accountable" },
+      { onConflict: "task_id,person_id" }
+    );
+    reassigned = input.accountableId;
+    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "owner", String(t.owner_id ?? "—"), p.name as string, "Reassigned by director", createdBy);
+  }
+
+  const { error } = await sb.from("tasks").update(patch).eq("id", t.id as number);
+  if (error) return { ok: false, error: error.message };
+
+  if (reassigned) {
+    await notifyMany([personRecipient(reassigned), "admin"], {
+      kind: "assigned", taskId: t.id as number, taskCode: t.code as string,
+      title: `${me.name} made you responsible`, body: "You're now responsible for this task.", actor: me.name,
+    });
+  }
+
+  revalidatePath("/portal/board");
+  revalidatePath(`/task/${t.code}`);
+  return { ok: true };
+}
+
+/** Director: one-tap reminder for a task — resolves the responsible person and
+ *  drafts a message (Outbox) + returns a deep-link, reusing the proven drafter. */
+export async function portalDirectorRemindTask(
+  taskId: number
+): Promise<{ ok: true; link: string | null; contactMissing: boolean; name: string } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+
+  const { data: t } = await sb.from("tasks").select("id,code,action_item,owner_id").eq("id", taskId).maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+  let personId = (t.owner_id as number | null) ?? null;
+  if (!personId) {
+    const { data: a } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId).eq("role", "accountable").maybeSingle();
+    personId = (a?.person_id as number | null) ?? null;
+  }
+  if (!personId) return { ok: false, error: "No one is responsible for this task yet." };
+
+  const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
+  const name = (p?.name as string | null) ?? "there";
+  const first = name.split(" ")[0];
+  const body = `Hi ${first}, a reminder on "${t.action_item}" (${t.code}) — please update when you can. Thank you.`;
+  const res = await portalDirectorDraftMessage({ personId, body, taskCode: t.code as string });
+  if (!res.ok) return res;
+  return { ...res, name };
+}
+
 export async function portalAddUpdate(formData: FormData) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");

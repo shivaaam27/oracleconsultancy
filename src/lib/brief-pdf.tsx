@@ -111,6 +111,18 @@ const s = StyleSheet.create({
   dotLg: { width: 9, height: 9, borderRadius: 4.5, marginRight: 9 },
   riskText: { fontSize: 8, fontFamily: FONT, fontWeight: 600 },
 
+  // ── per-task block (Aurora list, not a table row) ──
+  taskBlock: { paddingTop: 9, paddingBottom: 8 },
+  taskTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  taskLeft: { flexDirection: "row", alignItems: "flex-start", flexGrow: 1, flexShrink: 1, paddingRight: 10 },
+  taskDot: { width: 6, height: 6, borderRadius: 3, marginTop: 3.5, marginRight: 7, flexShrink: 0 },
+  taskTitle: { fontSize: 9.5, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, lineHeight: 1.3, flexShrink: 1 },
+  taskDeadline: { fontSize: 8, flexShrink: 0, textAlign: "right" },
+  taskMeta: { fontSize: 8, color: C.muted, marginLeft: 13, marginTop: 3, lineHeight: 1.45 },
+  taskUpdate: { marginLeft: 13, marginTop: 5, paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: C.rule },
+  taskUpdateText: { fontSize: 8, color: C.muted, lineHeight: 1.5 },
+  taskStamp: { fontSize: 7.5, marginLeft: 13, marginTop: 3 },
+
   // sub-heading inside a company block
   blockHead: { flexDirection: "row", alignItems: "baseline", marginTop: 10, marginBottom: 2 },
   blockTitle: { fontSize: 8, fontFamily: FONT, fontWeight: 600, color: C.muted, letterSpacing: 0.3, textTransform: "uppercase", flexGrow: 1 },
@@ -140,6 +152,17 @@ const statusTone = (st: string): Tone =>
     : st === "Blocked" || st === "Escalated" ? "danger"
       : "ink";
 const riskTone = (r: string): Tone => (r === "High risk" ? "danger" : r === "Watch" ? "warn" : "success");
+
+// Status colour for the small leading dot (richer than the text tones — dots
+// can carry colour cheaply without making the page busy).
+const statusDot = (st: string): string =>
+  st === "Completed" || st === "Closed" ? C.successText
+    : st === "Blocked" || st === "Escalated" ? C.dangerText
+      : st === "Under Review" || st === "Waiting External" ? C.warnText
+        : st === "In Progress" ? C.infoText
+          : C.faint;
+
+const STALE_DAYS = 14;
 
 // Status / priority / risk now render as COLOURED TEXT, not pill chips.
 type Cell = string | number | null | { tag: string; tone: Tone } | { strong: string };
@@ -194,7 +217,6 @@ function Section({ title, note, count, children }: { title: string; note?: strin
 }
 
 export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<Buffer> {
-  void asOf;
   const title = b.selectedCompanyName ?? BRAND_NAME;
   const inProgressTotal = b.companies.reduce((n, c) => n + c.inProgress, 0);
 
@@ -223,14 +245,25 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
   // Companies with open work get a per-company open-work block.
   const openCompanies = b.companies.filter((c) => c.tasks.length > 0);
 
+  // Recency / age helpers (smart layer): when was a task last touched, how long
+  // it has been open, and whether it has gone quiet.
+  const DAY = 86_400_000;
+  const daysSince = (d: Date | null) => (d ? Math.floor((asOf.getTime() - d.getTime()) / DAY) : null);
+  const relWhen = (d: Date | null) => {
+    const n = daysSince(d);
+    if (n == null) return null;
+    if (n <= 0) return "today";
+    if (n === 1) return "yesterday";
+    if (n < 30) return `${n}d ago`;
+    return fmtDay(d);
+  };
+
   // Consolidated delivered list (one section, last page): companies kept
   // contiguous and in the same order as the open-work blocks (so it reads
   // company-after-company, never jumbled). Company name shows once per group.
   const orderedNames = [
     ...b.companies.filter((c) => (deliveredByCompany.get(c.name)?.length ?? 0) > 0).map((c) => c.name),
   ];
-  const OW = ["28%", "15%", "11%", "11%", "13%", "22%"]; // open-work column widths
-  const OW_HEAD = ["Task", "Accountable", "Priority", "Deadline", "Status", "Latest update"];
 
   const Footer = () => (
     <View style={s.footer} fixed>
@@ -302,42 +335,67 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
           />
         </Section>
 
-        {/* ── Open work, per company, flowing — header glued to the first row ── */}
+        {/* ── Open work, per company — Aurora task blocks, flowing ── */}
         <Section title="Open work by company" note={`All open items, including those in progress, as at ${b.asAt}.`}>
           {openCompanies.length === 0 ? (
             <Text style={s.empty}>No open work across the portfolio.</Text>
           ) : (
             openCompanies.map((c) => {
               const logo = logoById.get(c.id);
-              const rows = c.tasks.map((t): Cell[] => [
-                { strong: t.actionItem },
-                t.owner,
-                { tag: t.priority, tone: priorityTone(t.priority) },
-                t.overdue ? { tag: "Overdue", tone: "danger" } : t.deadline ? fmtDay(t.deadline) : "—",
-                { tag: t.status, tone: statusTone(t.status) },
-                t.latestUpdate ?? "—",
-              ]);
               const head = (
-                <>
-                  <View style={s.companyBlockHead}>
-                    {logo ? <Image src={logo} style={s.companyLogoLg} /> : <View style={[s.dotLg, { backgroundColor: c.accent || C.accent }]} />}
-                    <View style={{ flexGrow: 1 }}>
-                      <Text style={s.companyTitle}>{c.name}</Text>
-                      <Text style={s.companyStats}>{c.open} open · {c.inProgress} in progress · {c.overdue} overdue</Text>
-                    </View>
-                    <RiskText risk={c.risk} />
+                <View style={s.companyBlockHead}>
+                  {logo ? <Image src={logo} style={s.companyLogoLg} /> : <View style={[s.dotLg, { backgroundColor: c.accent || C.accent }]} />}
+                  <View style={{ flexGrow: 1 }}>
+                    <Text style={s.companyTitle}>{c.name}</Text>
+                    <Text style={s.companyStats}>{c.open} open · {c.inProgress} in progress · {c.overdue} overdue</Text>
                   </View>
-                  <View style={s.table}><THead head={OW_HEAD} widths={OW} /></View>
-                </>
+                  <RiskText risk={c.risk} />
+                </View>
               );
+              const renderTask = (t: BriefData["companies"][number]["tasks"][number], idx: number) => {
+                const stale = (daysSince(t.lastUpdatedAt) ?? Infinity) >= STALE_DAYS;
+                const age = daysSince(t.createdDate);
+                const when = relWhen(t.lastUpdatedAt);
+                const pTone = priorityTone(t.priority);
+                const sTone = statusTone(t.status);
+                return (
+                  <View key={t.id} style={[s.taskBlock, idx > 0 ? { borderTopWidth: 0.5, borderTopColor: C.rule } : {}]} wrap={false}>
+                    <View style={s.taskTopRow}>
+                      <View style={s.taskLeft}>
+                        <View style={[s.taskDot, { backgroundColor: statusDot(t.status) }]} />
+                        <Text style={s.taskTitle}>{t.actionItem}</Text>
+                      </View>
+                      <Text style={[s.taskDeadline, { color: t.overdue ? C.dangerText : t.deadline ? C.muted : C.faint }]}>
+                        {t.overdue ? "Overdue" : t.deadline ? fmtDay(t.deadline) : "No date"}
+                      </Text>
+                    </View>
+                    <Text style={s.taskMeta}>
+                      {t.owner}
+                      <Text style={{ color: C.faint }}>{"  ·  "}</Text>
+                      <Text style={{ color: pTone === "ink" ? C.muted : TONE_TEXT[pTone] }}>{t.priority} priority</Text>
+                      <Text style={{ color: C.faint }}>{"  ·  "}</Text>
+                      <Text style={{ color: sTone === "ink" ? C.muted : TONE_TEXT[sTone] }}>{t.status}</Text>
+                      {age != null ? <Text style={{ color: C.faint }}>{"  ·  "}open {age}d</Text> : null}
+                    </Text>
+                    {t.latestUpdate ? (
+                      <View style={s.taskUpdate}>
+                        <Text style={s.taskUpdateText}>{t.latestUpdate}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={[s.taskStamp, { color: stale ? C.warnText : C.faint }]}>
+                      {when ? `Updated ${when}` : "No update yet"}{stale ? " · no recent update" : ""}
+                    </Text>
+                  </View>
+                );
+              };
               return (
                 <View key={c.id} style={s.companyBlock}>
-                  {/* Lead group = company header + column header + first row, unbreakable */}
+                  {/* Lead group = company header + first task, unbreakable (no orphan headers) */}
                   <View wrap={false}>
                     {head}
-                    <Row r={rows[0]} widths={OW} idx={0} />
+                    {renderTask(c.tasks[0], 0)}
                   </View>
-                  {rows.slice(1).map((r, i) => <Row key={i} r={r} widths={OW} idx={i + 1} />)}
+                  {c.tasks.slice(1).map((t, i) => renderTask(t, i + 1))}
                 </View>
               );
             })
