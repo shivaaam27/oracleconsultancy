@@ -89,11 +89,28 @@ const s = StyleSheet.create({
   summaryLabel: { fontSize: 6.8, color: C.accent, fontFamily: FONT, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 3 },
   summaryText: { fontSize: 8.5, color: "#3a3a3a", lineHeight: 1.55 },
 
-  // ── KPI rail (plain coloured text, no boxes) ──
-  kpiRow: { flexDirection: "row", marginTop: 15, flexWrap: "wrap" },
-  kpiItem: { flexDirection: "row", alignItems: "baseline", marginRight: 22 },
-  kpiN: { fontSize: 17, fontFamily: FONT, fontWeight: 600, letterSpacing: -0.5 },
-  kpiL: { fontSize: 7.5, color: C.muted, marginLeft: 5 },
+  // ── KPI tiles (command-centre metric cards) ──
+  kpiRow: { flexDirection: "row", marginTop: 16, marginHorizontal: -4 },
+  kpiCell: { width: "25%", paddingHorizontal: 4 },
+  kpiTile: { backgroundColor: C.zebra, borderRadius: 7, paddingVertical: 10, paddingHorizontal: 11 },
+  kpiN: { fontSize: 21, fontFamily: FONT, fontWeight: 600, letterSpacing: -0.6, lineHeight: 1 },
+  kpiL: { fontSize: 8.5, fontFamily: FONT, fontWeight: 500, color: C.inkStrong, marginTop: 6 },
+  kpiS: { fontSize: 7, color: C.faint, marginTop: 1.5 },
+
+  // ── company cards (portfolio at a glance) ──
+  cardGrid: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -4, marginTop: 2 },
+  cardCell: { width: "50%", paddingHorizontal: 4, marginBottom: 8 },
+  card: { borderWidth: 0.5, borderColor: C.cardBorder, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 11 },
+  cardHead: { flexDirection: "row", alignItems: "center", marginBottom: 7 },
+  cardDot: { width: 7, height: 7, borderRadius: 3.5, marginRight: 6, flexShrink: 0 },
+  cardName: { fontSize: 9.5, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, flexGrow: 1 },
+  cardRisk: { fontSize: 7.5, fontFamily: FONT, fontWeight: 600 },
+  cardStats: { flexDirection: "row", flexWrap: "wrap", marginBottom: 7 },
+  cardStat: { flexDirection: "row", alignItems: "baseline", marginRight: 12 },
+  cardStatN: { fontSize: 11, fontFamily: FONT, fontWeight: 600 },
+  cardStatL: { fontSize: 7, color: C.faint, marginLeft: 3 },
+  loadTrack: { height: 3.5, borderRadius: 2, backgroundColor: "#eef0f2" },
+  loadCap: { fontSize: 6.8, color: C.faint, marginTop: 3 },
 
   // ── section heading (light, editorial) ──
   section: { marginTop: 18 },
@@ -244,8 +261,19 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
   const deliveredByCompany = new Map<string, BriefData["delivered"][number]["items"]>();
   for (const g of b.delivered) deliveredByCompany.set(g.company, g.items);
 
+  // Worst-first ordering (most overdue, then most open) — used on the cover
+  // grid AND the per-company detail so the two read in the same order.
+  const worstFirst = (a: BriefData["companies"][number], z: BriefData["companies"][number]) =>
+    z.overdue - a.overdue || z.open - a.open;
+  const dCount = (name: string) => deliveredByCompany.get(name)?.length ?? 0;
+
+  // Cover cards: any company with open OR delivered work.
+  const coverCompanies = b.companies
+    .filter((c) => c.tasks.length > 0 || dCount(c.name) > 0)
+    .sort(worstFirst);
+
   // Companies with open work get a per-company open-work block.
-  const openCompanies = b.companies.filter((c) => c.tasks.length > 0);
+  const openCompanies = b.companies.filter((c) => c.tasks.length > 0).sort(worstFirst);
 
   // Recency / age helpers (smart layer): when was a task last touched, how long
   // it has been open, and whether it has gone quiet.
@@ -317,40 +345,57 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
           <Text style={s.summaryText}>{summary}</Text>
         </View>
 
-        {/* KPI rail — plain coloured text, no boxes */}
+        {/* KPI tiles — command-centre metric cards */}
         <View style={s.kpiRow} wrap={false}>
           {([
-            [b.deliveredCount, "Delivered", "success"],
-            [b.openCount, `Open · ${inProgressTotal} in progress`, b.openCount ? "info" : "neutral"],
-            [b.overdueCount, b.overdueCount ? "Overdue" : "Overdue · none", b.overdueCount ? "danger" : "success"],
-            [b.companyCount, b.atRiskCount ? `Companies · ${b.atRiskCount} at risk` : "Companies", "neutral"],
-          ] as [number, string, Tone][]).map(([n, l, tone]) => (
-            <View key={l} style={s.kpiItem}>
-              <Text style={[s.kpiN, { color: TONE_TEXT[tone] }]}>{n}</Text>
-              <Text style={s.kpiL}>{l}</Text>
+            [b.deliveredCount, "Delivered", "in June", "success"],
+            [b.openCount, "Open", `${inProgressTotal} in progress`, "info"],
+            [b.overdueCount, "Overdue", b.overdueCount ? "need attention" : "all on time", b.overdueCount ? "danger" : "success"],
+            [b.companyCount, "Companies", b.atRiskCount ? `${b.atRiskCount} at risk` : "all healthy", "ink"],
+          ] as [number, string, string, Tone][]).map(([n, l, sub, tone]) => (
+            <View key={l} style={s.kpiCell}>
+              <View style={s.kpiTile}>
+                <Text style={[s.kpiN, { color: TONE_TEXT[tone] }]}>{n}</Text>
+                <Text style={s.kpiL}>{l}</Text>
+                <Text style={s.kpiS}>{sub}</Text>
+              </View>
             </View>
           ))}
         </View>
 
-        {/* Portfolio at a glance */}
-        <Section title="Portfolio at a glance" note={`Open and delivered work by company for ${b.monthLabel}. Detail by company follows.`}>
-          <Table
-            head={["Company", "Open", "In progress", "Overdue", "Delivered", "Risk"]}
-            widths={["37%", "12%", "15%", "12%", "13%", "11%"]}
-            rows={b.companies
-              .filter((c) => c.tasks.length > 0 || (deliveredByCompany.get(c.name)?.length ?? 0) > 0)
-              .map((c): Cell[] => [
-                { strong: c.name },
-                c.open,
-                c.inProgress,
-                c.overdue ? { tag: String(c.overdue), tone: "danger" } : "0",
-                deliveredByCompany.get(c.name)?.length ?? 0,
-                { tag: c.risk, tone: riskTone(c.risk) },
-              ])}
-          />
+        {/* Portfolio at a glance — company cards with a load bar */}
+        <Section title="Portfolio at a glance" note={`Open and delivered work by company for ${b.monthLabel}. Per-company detail follows.`}>
+          <View style={s.cardGrid}>
+            {coverCompanies.map((c) => {
+              const delivered = dCount(c.name);
+              const pct = c.open > 0 ? Math.round((c.overdue / c.open) * 100) : 0;
+              return (
+                <View key={c.id} style={s.cardCell} wrap={false}>
+                  <View style={s.card}>
+                    <View style={s.cardHead}>
+                      <View style={[s.cardDot, { backgroundColor: c.accent || C.accent }]} />
+                      <Text style={s.cardName}>{c.name}</Text>
+                      <Text style={[s.cardRisk, { color: TONE_TEXT[riskTone(c.risk)] }]}>{c.risk}</Text>
+                    </View>
+                    <View style={s.cardStats}>
+                      <View style={s.cardStat}><Text style={[s.cardStatN, { color: C.inkStrong }]}>{c.open}</Text><Text style={s.cardStatL}>open</Text></View>
+                      <View style={s.cardStat}><Text style={[s.cardStatN, { color: C.inkStrong }]}>{c.inProgress}</Text><Text style={s.cardStatL}>in progress</Text></View>
+                      <View style={s.cardStat}><Text style={[s.cardStatN, { color: c.overdue ? C.dangerText : C.faint }]}>{c.overdue}</Text><Text style={s.cardStatL}>overdue</Text></View>
+                      <View style={s.cardStat}><Text style={[s.cardStatN, { color: delivered ? C.successText : C.faint }]}>{delivered}</Text><Text style={s.cardStatL}>delivered</Text></View>
+                    </View>
+                    <View style={s.loadTrack}>
+                      <View style={{ height: 3.5, borderRadius: 2, width: `${pct}%`, backgroundColor: c.overdue ? C.dangerText : C.successText }} />
+                    </View>
+                    <Text style={s.loadCap}>{c.overdue ? `${pct}% of open work overdue` : "on track"}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         </Section>
 
-        {/* ── Open work, per company — modern table with task descriptions ── */}
+        {/* ── Open work, per company — starts on its own page after the cover ── */}
+        <View break>
         <Section title="Open work by company" note={`All open items, including those in progress, as at ${b.asAt}.`}>
           {openCompanies.length === 0 ? (
             <Text style={s.empty}>No open work across the portfolio.</Text>
@@ -425,6 +470,7 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
             })
           )}
         </Section>
+        </View>
 
         {/* ── Delivered — one flat list on its own final page, companies contiguous ── */}
         {b.deliveredCount > 0 && (
