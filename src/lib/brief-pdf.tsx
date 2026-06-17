@@ -2,8 +2,9 @@ import { Document, Page, Text, View, Image, StyleSheet, Font, renderToBuffer } f
 import type { BriefData } from "@/lib/director-brief";
 import { BRAND_NAME } from "@/lib/brand";
 import { fetchLogoDataUri } from "@/lib/pdf-logos";
-import { INTER_REGULAR_B64 } from "@/assets/fonts/inter-regular.b64";
-import { INTER_BOLD_B64 } from "@/assets/fonts/inter-bold.b64";
+import { GEIST_REGULAR_B64 } from "@/assets/fonts/geist-regular.b64";
+import { GEIST_MEDIUM_B64 } from "@/assets/fonts/geist-medium.b64";
+import { GEIST_SEMIBOLD_B64 } from "@/assets/fonts/geist-semibold.b64";
 
 // Server-side PDF of the Director Brief — rendered with @react-pdf/renderer (no
 // headless browser, so it runs in a serverless route and downloads as a real
@@ -18,13 +19,14 @@ import { INTER_BOLD_B64 } from "@/assets/fonts/inter-bold.b64";
 let FONT = "Helvetica";
 try {
   Font.register({
-    family: "Inter",
+    family: "Geist",
     fonts: [
-      { src: `data:font/ttf;base64,${INTER_REGULAR_B64}`, fontWeight: 400 },
-      { src: `data:font/ttf;base64,${INTER_BOLD_B64}`, fontWeight: 700 },
+      { src: `data:font/ttf;base64,${GEIST_REGULAR_B64}`, fontWeight: 400 },
+      { src: `data:font/ttf;base64,${GEIST_MEDIUM_B64}`, fontWeight: 500 },
+      { src: `data:font/ttf;base64,${GEIST_SEMIBOLD_B64}`, fontWeight: 600 },
     ],
   });
-  FONT = "Inter";
+  FONT = "Geist";
 } catch {
   FONT = "Helvetica";
 }
@@ -70,76 +72,67 @@ const s = StyleSheet.create({
 
   // ── letterhead (white, editorial — no heavy band) ──
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  headerLeft: { flexDirection: "row", alignItems: "center", flexShrink: 1, paddingRight: 12 },
-  headerLogo: { width: 30, height: 30, borderRadius: 6, marginRight: 10, objectFit: "contain" },
-  eyebrow: { fontSize: 8, color: C.accent, fontFamily: FONT, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.6, marginBottom: 2 },
-  title: { fontSize: 19, fontFamily: FONT, fontWeight: 700, color: C.inkStrong, letterSpacing: -0.3 },
-  sub: { fontSize: 8.5, color: C.muted, marginTop: 3 },
+  headerLeft: { flexDirection: "row", alignItems: "flex-start", flexShrink: 1, paddingRight: 14 },
+  headerLogo: { width: 30, height: 30, borderRadius: 6, marginRight: 12, marginTop: 2, objectFit: "contain" },
+  eyebrow: { fontSize: 7.5, color: C.accent, fontFamily: FONT, fontWeight: 500, textTransform: "uppercase", letterSpacing: 1.4, marginBottom: 3 },
+  title: { fontSize: 18, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, letterSpacing: -0.4, lineHeight: 1.1 },
+  sub: { fontSize: 8.5, color: C.muted, marginTop: 4 },
   headerRight: { alignItems: "flex-end", flexShrink: 0 },
   metaLabel: { fontSize: 6.5, color: C.faint, textTransform: "uppercase", letterSpacing: 0.8 },
-  metaValue: { fontSize: 9, color: C.inkStrong, fontFamily: FONT, fontWeight: 700, marginBottom: 4, textAlign: "right" },
+  metaValue: { fontSize: 9, color: C.inkStrong, fontFamily: FONT, fontWeight: 500, marginBottom: 4, textAlign: "right" },
   metaConf: { fontSize: 6.5, color: C.faint, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 },
-  rule: { borderBottomWidth: 2, borderBottomColor: C.accent, marginTop: 10 },
+  rule: { borderBottomWidth: 1.5, borderBottomColor: C.accent, marginTop: 11 },
 
   // ── executive summary (accent rail on white) ──
-  summary: { borderLeftWidth: 2.5, borderLeftColor: C.accent, paddingLeft: 11, marginTop: 16 },
-  summaryLabel: { fontSize: 7, color: C.accent, fontFamily: FONT, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 },
-  summaryText: { fontSize: 9.5, color: "#333333", lineHeight: 1.55 },
+  summary: { borderLeftWidth: 2, borderLeftColor: C.accent, paddingLeft: 12, marginTop: 18 },
+  summaryLabel: { fontSize: 7, color: C.accent, fontFamily: FONT, fontWeight: 500, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 },
+  summaryText: { fontSize: 9.5, color: "#3a3a3a", lineHeight: 1.6 },
 
   // ── KPI rail (app-style cards) ──
-  statGrid: { flexDirection: "row", marginTop: 16, marginHorizontal: -4 },
+  statGrid: { flexDirection: "row", marginTop: 18, marginHorizontal: -4 },
   stat: { width: "25%", paddingHorizontal: 4 },
-  statBox: { borderWidth: 1, borderColor: C.cardBorder, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 10, minHeight: 56, justifyContent: "center" },
-  statN: { fontSize: 21, fontFamily: FONT, fontWeight: 700, letterSpacing: -0.5 },
-  statL: { fontSize: 7, color: C.muted, textTransform: "uppercase", letterSpacing: 0.6, marginTop: 4, fontFamily: FONT, fontWeight: 700 },
-  statCaption: { fontSize: 6.8, color: C.faint, marginTop: 2 },
+  statBox: { borderWidth: 1, borderColor: C.cardBorder, borderRadius: 8, paddingVertical: 11, paddingHorizontal: 11 },
+  statN: { fontSize: 22, fontFamily: FONT, fontWeight: 600, letterSpacing: -0.6, lineHeight: 1 },
+  statL: { fontSize: 6.8, color: C.muted, textTransform: "uppercase", letterSpacing: 0.7, marginTop: 7, fontFamily: FONT, fontWeight: 500 },
+  statCaption: { fontSize: 6.8, color: C.faint, marginTop: 3 },
 
   // ── section heading (light, editorial) ──
-  section: { marginTop: 19 },
-  sectionHead: { flexDirection: "row", alignItems: "baseline", borderBottomWidth: 1, borderBottomColor: C.ruleSection, paddingBottom: 4 },
-  h2: { fontSize: 12, fontFamily: FONT, fontWeight: 700, color: C.inkStrong, letterSpacing: -0.2, flexGrow: 1 },
-  h2count: { fontSize: 9, fontFamily: FONT, fontWeight: 700, color: C.accent },
-  h2note: { fontSize: 7.5, color: C.faint, marginTop: 5, marginBottom: 2, lineHeight: 1.4 },
+  section: { marginTop: 20 },
+  sectionHead: { flexDirection: "row", alignItems: "baseline", borderBottomWidth: 1, borderBottomColor: C.ruleSection, paddingBottom: 5 },
+  h2: { fontSize: 12, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, letterSpacing: -0.2, flexGrow: 1 },
+  h2count: { fontSize: 9, fontFamily: FONT, fontWeight: 500, color: C.accent },
+  h2note: { fontSize: 7.5, color: C.faint, marginTop: 6, marginBottom: 2, lineHeight: 1.45 },
 
   // ── per-company block (flows continuously, no forced page break) ──
-  companyBlock: { marginTop: 18 },
-  companyBlockHead: { flexDirection: "row", alignItems: "center", borderBottomWidth: 2, borderBottomColor: C.accent, paddingBottom: 8, marginBottom: 2 },
-  companyTitle: { fontSize: 14, fontFamily: FONT, fontWeight: 700, color: C.inkStrong, letterSpacing: -0.3 },
-  companyStats: { fontSize: 7.8, color: C.muted, marginTop: 2 },
-  companyLogoLg: { width: 28, height: 28, borderRadius: 6, marginRight: 10, objectFit: "contain" },
-  dotLg: { width: 11, height: 11, borderRadius: 5.5, marginRight: 10 },
+  companyBlock: { marginTop: 20 },
+  companyBlockHead: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1.5, borderBottomColor: C.accent, paddingBottom: 9, marginBottom: 2 },
+  companyTitle: { fontSize: 13.5, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, letterSpacing: -0.3 },
+  companyStats: { fontSize: 7.8, color: C.muted, marginTop: 3 },
+  companyLogoLg: { width: 26, height: 26, borderRadius: 6, marginRight: 11, objectFit: "contain" },
+  dotLg: { width: 10, height: 10, borderRadius: 5, marginRight: 11 },
 
   // sub-heading inside a company block
-  blockHead: { flexDirection: "row", alignItems: "baseline", marginTop: 12, marginBottom: 2 },
-  blockTitle: { fontSize: 10, fontFamily: FONT, fontWeight: 700, color: C.inkStrong, letterSpacing: -0.1, flexGrow: 1 },
-  blockCount: { fontSize: 8.5, fontFamily: FONT, fontWeight: 700, color: C.accent },
+  blockHead: { flexDirection: "row", alignItems: "baseline", marginTop: 13, marginBottom: 3 },
+  blockTitle: { fontSize: 9.5, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, letterSpacing: 0.1, textTransform: "uppercase", flexGrow: 1 },
+  blockCount: { fontSize: 8.5, fontFamily: FONT, fontWeight: 500, color: C.accent },
 
-  // ── tables (old report-table look) ──
-  table: { marginTop: 4 },
-  tr: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: C.rule, alignItems: "flex-start" },
-  thead: { borderBottomWidth: 1, borderBottomColor: C.ruleHead },
+  // ── tables ──
+  table: { marginTop: 5 },
+  tr: { flexDirection: "row", borderBottomWidth: 0.6, borderBottomColor: C.rule, alignItems: "flex-start" },
+  thead: { borderBottomWidth: 0.6, borderBottomColor: C.ruleHead },
   trAlt: { backgroundColor: C.zebra },
-  th: { fontSize: 7.5, fontFamily: FONT, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.3, paddingVertical: 4, paddingHorizontal: 5 },
-  td: { fontSize: 8.5, color: C.ink, paddingVertical: 4, paddingHorizontal: 5, lineHeight: 1.35 },
-  tdStrong: { fontFamily: FONT, fontWeight: 700, color: C.inkStrong },
-  chipCell: { paddingVertical: 3.5, paddingHorizontal: 5 },
+  th: { fontSize: 7, fontFamily: FONT, fontWeight: 500, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, paddingVertical: 5, paddingHorizontal: 5 },
+  td: { fontSize: 8.5, color: C.ink, paddingVertical: 5, paddingHorizontal: 5, lineHeight: 1.4 },
+  tdStrong: { fontFamily: FONT, fontWeight: 500, color: C.inkStrong },
+  chipCell: { paddingVertical: 4, paddingHorizontal: 5 },
 
   // ── chip ──
-  chip: { fontSize: 7, fontFamily: FONT, fontWeight: 700, letterSpacing: 0.2, textTransform: "uppercase", paddingVertical: 1.5, paddingHorizontal: 5, borderRadius: 7, alignSelf: "flex-start" },
-
-  // ── compliance card ──
-  complCard: { borderWidth: 1, borderColor: C.cardBorder, borderRadius: 8, borderLeftWidth: 4, flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 11, marginBottom: 6 },
-  complScoreBox: { width: 48, alignItems: "center" },
-  complScore: { fontSize: 17, fontFamily: FONT, fontWeight: 700 },
-  complMid: { flexGrow: 1, paddingHorizontal: 9 },
-  complName: { fontSize: 9.5, fontFamily: FONT, fontWeight: 700, color: C.inkStrong },
-  complIssues: { fontSize: 7.8, color: C.muted, marginTop: 1, lineHeight: 1.35 },
-  complChips: { flexDirection: "row" },
+  chip: { fontSize: 6.8, fontFamily: FONT, fontWeight: 500, letterSpacing: 0.2, textTransform: "uppercase", paddingVertical: 1.5, paddingHorizontal: 5, borderRadius: 4, alignSelf: "flex-start" },
 
   // ── misc ──
-  empty: { fontSize: 8.5, color: C.faint, backgroundColor: "#f6f7f9", borderRadius: 6, paddingVertical: 9, paddingHorizontal: 12, marginTop: 4 },
+  empty: { fontSize: 8.5, color: C.faint, backgroundColor: "#f8f9fb", borderRadius: 6, paddingVertical: 10, paddingHorizontal: 12, marginTop: 5 },
   footer: { position: "absolute", bottom: 22, left: PAGE_MARGIN, right: PAGE_MARGIN, flexDirection: "row", justifyContent: "space-between", alignItems: "center", fontSize: 7, color: C.ghost, borderTopWidth: 0.6, borderTopColor: "#eaeaea", paddingTop: 5 },
-  footerStrong: { color: C.muted, fontFamily: FONT, fontWeight: 700 },
+  footerStrong: { color: C.muted, fontFamily: FONT, fontWeight: 500 },
 });
 
 const priorityTone = (p: string): Tone => (p === "Critical" ? "danger" : p === "High" ? "warn" : p === "Medium" ? "info" : "neutral");
@@ -223,10 +216,13 @@ export async function renderBriefPdf(b: BriefData, asOf = new Date()): Promise<B
 
   const logoEntries = await Promise.all(b.companies.map(async (c) => [c.id, await fetchLogoDataUri(c.logoUrl)] as const));
   const logoById = new Map<number, string | null>(logoEntries);
+  // Header logo: a single-company brief shows that company's mark. A
+  // portfolio-wide brief is titled for the parent ("Oracle Consultancy"), so we
+  // use the parent company's own logo if present — NOT a random portfolio
+  // company's (which is wrong + confusing). No match → no logo (clean wordmark).
+  const parent = b.companies.find((c) => c.name.toLowerCase().includes("oracle consultancy"));
   const headerLogo =
-    (b.selectedCompanyId != null ? logoById.get(b.selectedCompanyId) : null) ??
-    b.companies.map((c) => logoById.get(c.id)).find((x) => x) ??
-    null;
+    (b.selectedCompanyId != null ? logoById.get(b.selectedCompanyId) : parent ? logoById.get(parent.id) : null) ?? null;
 
   // Delivered-this-period items, grouped by company name (the brief groups them
   // by name), so each company page can list what it shipped.
