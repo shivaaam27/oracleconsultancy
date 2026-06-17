@@ -2,9 +2,9 @@ import { Document, Page, Text, View, Image, StyleSheet, Font, renderToBuffer } f
 import type { BriefData } from "@/lib/director-brief";
 import { BRAND_NAME } from "@/lib/brand";
 import { fetchLogoDataUri } from "@/lib/pdf-logos";
-import { GEIST_REGULAR_B64 } from "@/assets/fonts/geist-regular.b64";
-import { GEIST_MEDIUM_B64 } from "@/assets/fonts/geist-medium.b64";
-import { GEIST_SEMIBOLD_B64 } from "@/assets/fonts/geist-semibold.b64";
+import { SOURCESANS_REGULAR_B64 } from "@/assets/fonts/sourcesans-regular.b64";
+import { SOURCESANS_MEDIUM_B64 } from "@/assets/fonts/sourcesans-medium.b64";
+import { SOURCESANS_SEMIBOLD_B64 } from "@/assets/fonts/sourcesans-semibold.b64";
 
 // Server-side PDF of the Director Brief — rendered with @react-pdf/renderer (no
 // headless browser, so it runs in a serverless route and downloads as a real
@@ -19,14 +19,14 @@ import { GEIST_SEMIBOLD_B64 } from "@/assets/fonts/geist-semibold.b64";
 let FONT = "Helvetica";
 try {
   Font.register({
-    family: "Geist",
+    family: "Source Sans 3",
     fonts: [
-      { src: `data:font/ttf;base64,${GEIST_REGULAR_B64}`, fontWeight: 400 },
-      { src: `data:font/ttf;base64,${GEIST_MEDIUM_B64}`, fontWeight: 500 },
-      { src: `data:font/ttf;base64,${GEIST_SEMIBOLD_B64}`, fontWeight: 600 },
+      { src: `data:font/ttf;base64,${SOURCESANS_REGULAR_B64}`, fontWeight: 400 },
+      { src: `data:font/ttf;base64,${SOURCESANS_MEDIUM_B64}`, fontWeight: 500 },
+      { src: `data:font/ttf;base64,${SOURCESANS_SEMIBOLD_B64}`, fontWeight: 600 },
     ],
   });
-  FONT = "Geist";
+  FONT = "Source Sans 3";
 } catch {
   FONT = "Helvetica";
 }
@@ -75,18 +75,18 @@ const s = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   headerLeft: { flexDirection: "row", alignItems: "flex-start", flexShrink: 1, paddingRight: 14 },
   headerLogo: { width: 26, height: 26, borderRadius: 5, marginRight: 10, marginTop: 2, objectFit: "contain" },
-  eyebrow: { fontSize: 7, color: C.accent, fontFamily: FONT, fontWeight: 500, textTransform: "uppercase", letterSpacing: 1.3, marginBottom: 3 },
-  title: { fontSize: 16, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, letterSpacing: -0.4, lineHeight: 1.1 },
+  eyebrow: { fontSize: 7, color: C.accent, fontFamily: FONT, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 3 },
+  title: { fontSize: 16.5, fontFamily: FONT, fontWeight: 600, color: C.inkStrong, letterSpacing: -0.2, lineHeight: 1.12 },
   sub: { fontSize: 8, color: C.muted, marginTop: 3 },
   headerRight: { alignItems: "flex-end", flexShrink: 0 },
-  metaLabel: { fontSize: 6.5, color: C.faint, textTransform: "uppercase", letterSpacing: 0.8 },
+  metaLabel: { fontSize: 6.5, color: C.faint, textTransform: "uppercase", letterSpacing: 0.4 },
   metaValue: { fontSize: 8.5, color: C.inkStrong, fontFamily: FONT, fontWeight: 500, marginBottom: 4, textAlign: "right" },
-  metaConf: { fontSize: 6.5, color: C.faint, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 },
+  metaConf: { fontSize: 6.5, color: C.faint, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 2 },
   rule: { borderBottomWidth: 1.2, borderBottomColor: C.accent, marginTop: 10 },
 
   // ── executive summary (accent rail on white) ──
   summary: { borderLeftWidth: 2, borderLeftColor: C.accent, paddingLeft: 11, marginTop: 15 },
-  summaryLabel: { fontSize: 6.8, color: C.accent, fontFamily: FONT, fontWeight: 500, textTransform: "uppercase", letterSpacing: 1, marginBottom: 3 },
+  summaryLabel: { fontSize: 6.8, color: C.accent, fontFamily: FONT, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 3 },
   summaryText: { fontSize: 8.5, color: "#3a3a3a", lineHeight: 1.55 },
 
   // ── KPI rail (plain coloured text, no boxes) ──
@@ -109,11 +109,11 @@ const s = StyleSheet.create({
   companyStats: { fontSize: 7.2, color: C.muted, marginTop: 2 },
   companyLogoLg: { width: 22, height: 22, borderRadius: 5, marginRight: 9, objectFit: "contain" },
   dotLg: { width: 9, height: 9, borderRadius: 4.5, marginRight: 9 },
-  riskText: { fontSize: 7.5, fontFamily: FONT, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 },
+  riskText: { fontSize: 8, fontFamily: FONT, fontWeight: 600 },
 
   // sub-heading inside a company block
   blockHead: { flexDirection: "row", alignItems: "baseline", marginTop: 10, marginBottom: 2 },
-  blockTitle: { fontSize: 8, fontFamily: FONT, fontWeight: 600, color: C.muted, letterSpacing: 0.4, textTransform: "uppercase", flexGrow: 1 },
+  blockTitle: { fontSize: 8, fontFamily: FONT, fontWeight: 600, color: C.muted, letterSpacing: 0.3, textTransform: "uppercase", flexGrow: 1 },
   blockCount: { fontSize: 8, fontFamily: FONT, fontWeight: 500, color: C.accent },
 
   // ── tables ──
@@ -121,10 +121,11 @@ const s = StyleSheet.create({
   tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: C.rule, alignItems: "flex-start" },
   thead: { borderBottomWidth: 0.6, borderBottomColor: C.ruleHead },
   trAlt: { backgroundColor: C.zebra },
-  th: { fontSize: 6.3, fontFamily: FONT, fontWeight: 500, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, paddingVertical: 4, paddingHorizontal: 4 },
-  td: { fontSize: 7.5, color: C.ink, paddingVertical: 3.5, paddingHorizontal: 4, lineHeight: 1.35 },
-  tdStrong: { fontFamily: FONT, fontWeight: 500, color: C.inkStrong },
-  tdTag: { fontSize: 7, fontFamily: FONT, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3, paddingVertical: 3.5, paddingHorizontal: 4 },
+  th: { fontSize: 6.5, fontFamily: FONT, fontWeight: 600, color: C.faint, textTransform: "uppercase", letterSpacing: 0.3, paddingVertical: 4, paddingHorizontal: 4 },
+  td: { fontSize: 8, color: C.ink, paddingVertical: 4, paddingHorizontal: 4, lineHeight: 1.4 },
+  tdStrong: { fontFamily: FONT, fontWeight: 600, color: C.inkStrong },
+  // status / priority: normal case, coloured only for exceptions (no caps, no tracking)
+  tdTag: { fontSize: 8, fontFamily: FONT, fontWeight: 500, paddingVertical: 4, paddingHorizontal: 4 },
 
   // ── misc ──
   empty: { fontSize: 8, color: C.faint, paddingVertical: 8, paddingHorizontal: 2, marginTop: 3 },
