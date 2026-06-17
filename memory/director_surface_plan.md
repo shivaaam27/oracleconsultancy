@@ -232,8 +232,14 @@ Mockups approved first, then built phase-by-phase (each tsc-clean + pushed):
   (channel = segmented pills; success → "Send now" deep-link in footer),
   `director-task-form` (unused but converted). All fields + server actions kept.
 - **Nav/shell**: director portal shell widens to `max-w-5xl` (layout.tsx, role-
-  gated); `portal-pill.tsx` shows full tab labels from `lg` (proper web nav bar),
-  icon-only + morphing active-label lens on mobile (parity-safe for all roles).
+  gated). `portal-pill.tsx` is now **adaptive** (owner picked option 4): condenses
+  to icon-only on scroll-down, expands the active label back on scroll-up / top /
+  ~1.1s idle; `lg` = full label bar always, tablet = all labels when expanded,
+  phone = active label only when expanded. Spring `layout`; reduced-motion
+  disables condense. Scroll source read robustly (window/html/body, capture-phase
+  listener). The pill's create `+` is **hidden on Tasks/Requests** (their contextual
+  FAB covers it). Parity-safe for all roles. Nav-pill design options explored as
+  mockups (refined-glass / liquid-lens / contextual-orb / adaptive) — adaptive shipped.
 - **Activity** feed → timeline (hairline rail + tone dots, glass cards).
 - **Profile** → directors get a **clean account screen** (details + account &
   security: passkeys/password/notifications/accessibility + sign out); the staff
