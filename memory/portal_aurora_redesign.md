@@ -77,6 +77,20 @@ Chat was deliberately left untouched (already has its WhatsApp-style design).
 
 ---
 
+## Web / desktop view (lg-only, all roles — commit 751f315)
+The portal is iPhone-first (single `max-w-3xl` column). On large screens that
+looked sparse + stretched. Fixed with **layout only, no component redesign,
+strictly `lg:`** so mobile/tablet are byte-for-byte unchanged + no DOM reorder:
+- Shell widens to `lg:max-w-5xl` for non-directors (directors already wide).
+- Home My-tasks + team-tasks → 2-col card grid from lg; staff Tasks
+  (`portal-tasks-table`) + Requests (`request-list`) cards → 2-col grid; Activity
+  day-groups → 2 columns; Profile caps to `lg:max-w-3xl` (settings read narrow).
+- One go covered all portals because the pages are shared files.
+- Deferred (opt-in): the side-rail **command-wall** on Home reshuffles the mobile
+  DOM order, so it was left out to keep mobile identical; and **master-detail
+  Tasks** (list+detail in one screen, no page-hop) — both mocked, not built.
+- Drive-by: activity page now redirects when logged out (was a latent null deref).
+
 ## Shared vs director-only (what each role sees)
 
 | Surface / file | Director | Manager / HR | Staff |
