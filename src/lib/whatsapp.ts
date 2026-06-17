@@ -64,6 +64,12 @@ export type SendWhatsAppInput = {
    * compatibility but Twilio templates carry their own language.
    */
   template?: { name: string; lang?: string; variables?: TemplateParam[] };
+  /**
+   * Optional public HTTPS image/PDF URL sent as the message header (the `text`
+   * becomes its caption). Only valid on the free-form `text` path (open 24h
+   * session / sandbox); approved templates carry their own header media.
+   */
+  mediaUrl?: string | null;
 };
 
 /** Normalise a number to E.164 "+<digits>" then prefix "whatsapp:". */
@@ -101,6 +107,8 @@ export async function sendWhatsApp(input: SendWhatsAppInput): Promise<SendWhatsA
     }
   } else if (input.text) {
     form.set("Body", input.text);
+    // Image/PDF header with the text as caption (free-form path only).
+    if (input.mediaUrl) form.set("MediaUrl", input.mediaUrl);
   } else {
     return { ok: false, reason: "error", error: "Nothing to send." };
   }

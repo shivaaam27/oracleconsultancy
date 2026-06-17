@@ -10,6 +10,7 @@ import { Users, ChevronRight } from "lucide-react";
 import { RemindButton } from "./remind-button";
 import { WhatsAppButton } from "./whatsapp-button";
 import { waLink } from "@/lib/outbox/links";
+import { buildWhatsAppMessage } from "@/lib/outbox/gen";
 
 export const dynamic = "force-dynamic";
 
@@ -41,10 +42,9 @@ export default async function PortalTeamPage() {
         return oa - ob;
       });
       const overdue = ts.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length;
-      const firstName = (p.name as string).split(" ")[0];
-      const lines = ts.slice(0, 8).map((t) => `• ${t.actionItem} (${t.code})`).join("\n");
-      const more = ts.length > 8 ? `\n…and ${ts.length - 8} more` : "";
-      const waText = `Hi ${firstName}, a reminder on your open task${ts.length === 1 ? "" : "s"}:\n${lines}${more}\n\nPlease update when you can. Thank you.`;
+      // Same rich formatted card the Twilio auto-send uses (dots, stat line, and the
+      // portal link last so a manual tap-send still gets WhatsApp's preview card).
+      const waText = buildWhatsAppMessage(p.name as string, ts);
       const waNumber = ((p.whatsapp as string | null) || (p.phone as string | null)) ?? null;
       return {
         id: p.id as number,
@@ -98,7 +98,7 @@ export default async function PortalTeamPage() {
 
               <div className="flex flex-wrap items-center gap-2">
                 <RemindButton personId={r.id} personName={r.name} hasEmail={r.hasEmail} />
-                <WhatsAppButton href={r.waHref} />
+                <WhatsAppButton personId={r.id} personName={r.name} waHref={r.waHref} />
               </div>
             </Panel>
           </Reveal>

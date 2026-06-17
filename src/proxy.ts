@@ -92,6 +92,7 @@ export const config = {
   // internals, and static files (anything with a dot: sw.js, manifest.json,
   // icons, fonts). The portal has its own lock in src/lib/portal-auth.ts.
   // api/portal is excluded too: those routes serve portal users and verify
-  // the portal (or admin) cookie themselves.
-  matcher: ["/((?!portal|login|e/|api/cron|api/calendar|api/portal|api/notifications|api/push|_next|.*\\..*).*)"],
+  // the portal (or admin) cookie themselves. api/wa-card is public (Twilio fetches
+  // the link-preview image unauthenticated) but carries its own HMAC signature gate.
+  matcher: ["/((?!portal|login|e/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|_next|.*\\..*).*)"],
 };

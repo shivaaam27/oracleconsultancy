@@ -7,9 +7,11 @@
 import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
-import { buildTaskReminderDoc, buildEmailMessage } from "@/lib/outbox/gen";
+import { buildTaskReminderDoc, buildEmailMessage, buildWhatsAppMessage } from "@/lib/outbox/gen";
 import { renderEmail, senderName, type EmailOffice } from "@/lib/email/layout";
 import { sendEmail } from "@/lib/email/send";
+import { sendWhatsApp } from "@/lib/whatsapp";
+import { waCardImageUrl } from "@/lib/wa-card";
 
 export type ReminderSender = {
   /** Office the email signs off as (admin / manager / director). Defaults to admin. */
@@ -83,6 +85,60 @@ export async function sendTaskReminderEmail(opts: {
     message_type: "TASK REMINDER",
     status: "Sent",
     source: opts.sender?.sourceTag ?? "reminder:admin",
+    person_id: person.id,
+    created_at: iso,
+    sent_at: iso,
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Send one person their rich WhatsApp task reminder via Twilio — the formatted
+ * card (buildWhatsAppMessage) as the caption, with their generated summary image
+ * as the header. Returns `not-configured` so the caller can fall back to a wa.me
+ * deep-link when Twilio env isn't set. Logs a Sent row like the email path.
+ *
+ * NOTE: free-form text+media only delivers inside an open 24h session window (or
+ * the sandbox). Once a production number is live, swap to an approved template.
+ */
+export async function sendTaskReminderWhatsApp(opts: {
+  personId: number;
+  sourceTag?: string;
+}): Promise<SendReminderResult> {
+  const { data: person } = await sb
+    .from("people")
+    .select("id,name,whatsapp,phone")
+    .eq("id", opts.personId)
+    .maybeSingle();
+  if (!person) return { ok: false, reason: "not-found", error: "Person not found." };
+
+  const to = ((person.whatsapp as string | null) ?? (person.phone as string | null) ?? "").trim();
+  if (!to) return { ok: false, reason: "no-email" }; // reuses the "no contact" reason
+
+  const rows = (await getAllTasks()).filter(
+    (t) => isOpen(t.status) && t.assigneeIds.includes(person.id as number),
+  );
+  if (rows.length === 0) return { ok: false, reason: "no-tasks" };
+
+  const name = person.name as string;
+  const text = buildWhatsAppMessage(name, rows);
+  const res = await sendWhatsApp({ to, text, mediaUrl: waCardImageUrl(person.id as number) });
+  if (!res.ok) {
+    if (res.reason === "not-configured") return { ok: false, reason: "not-configured" };
+    return { ok: false, reason: "error", error: res.error };
+  }
+
+  const iso = new Date().toISOString();
+  await sb.from("outbox").insert({
+    channel: "WHATSAPP",
+    recipient_name: name,
+    recipient_contact: to,
+    subject: "Task reminder",
+    body: text,
+    message_type: "TASK REMINDER",
+    status: "Sent",
+    source: opts.sourceTag ?? "reminder:admin",
     person_id: person.id,
     created_at: iso,
     sent_at: iso,

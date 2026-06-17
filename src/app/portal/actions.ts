@@ -375,6 +375,38 @@ export async function portalSendReminderEmail(
   return res;
 }
 
+/**
+ * Portal: send a person their rich WhatsApp task reminder via Twilio (formatted
+ * card + generated summary image). Director / Manager / Admin only; honours the
+ * outreach pause. Returns `not-configured` so the caller can fall back to the
+ * manual wa.me deep-link when Twilio isn't set up.
+ */
+export async function portalSendReminderWhatsApp(
+  personId: number,
+): Promise<{ ok: boolean; reason?: "no-email" | "no-tasks" | "not-configured" | "not-found" | "error"; error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, reason: "error", error: "Please sign in again." };
+  const role = me.portalRole;
+  if (role !== "director" && role !== "manager" && role !== "hr") {
+    return { ok: false, reason: "error", error: "Only managers, Admin and directors can send reminders." };
+  }
+
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") {
+    return { ok: false, reason: "error", error: "Outreach is paused by the administrator." };
+  }
+
+  const tag = role === "director" ? "dir" : role === "manager" ? "mgr" : "admin";
+  const { sendTaskReminderWhatsApp } = await import("@/lib/reminders");
+  const res = await sendTaskReminderWhatsApp({ personId, sourceTag: `portal-${tag}:${me.name}` });
+  if (res.ok) {
+    await recordEvent("portal.reminder.whatsapp", "ok", { by: me.name, role, personId });
+    revalidatePath("/outbox");
+    revalidatePath("/portal/team");
+  }
+  return res;
+}
+
 /** Director: schedule a calendar event / meeting (any company). Reuses the
  *  calendar engine (attendees, .ics invites, reminders, recurrence). */
 export async function portalDirectorCreateEvent(

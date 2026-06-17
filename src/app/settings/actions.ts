@@ -54,17 +54,35 @@ export async function sendTestEmail(
  * which works in the sandbox and inside an open 24h window.
  */
 export async function sendTestWhatsApp(
-  to: string
+  to: string,
+  withCard = false,
 ): Promise<{ ok: boolean; error?: string; reason?: "not-configured" | "no-recipients" }> {
   const addr = to.replace(/\s+/g, "");
   if (!TEST_PHONE_RE.test(addr))
     return { ok: false, reason: "no-recipients", error: "Enter a valid number in international form, e.g. +255686450999." };
 
+  // When testing the rich format, send a formatted card caption + the generated
+  // summary image as the header (personId 0 = a sample card with zero counts).
+  const { waCardImageUrl } = await import("@/lib/wa-card");
+  const text = withCard
+    ? [
+        "🔔 *Your tasks · Oracle Consultancy*",
+        "Hi there, a quick reminder of where things stand:",
+        "",
+        "*Dar Spices*",
+        "🔴 Submit Q2 VAT return — _due 12 Jun · High_",
+        "🟠 Renew fire certificate — _due 28 Jun · Medium_",
+        "",
+        "📊 2 open · 1 overdue",
+        "This is a test of the rich WhatsApp format.",
+      ].join("\n")
+    : "Test from your Oracle Consultancy command centre via WhatsApp. " +
+      "If you can read this, WhatsApp sending is working — drafts you approve in the Outbox can go out from here.";
+
   const result = await sendWhatsApp({
     to: addr,
-    text:
-      "Test from your Oracle Consultancy command centre via WhatsApp. " +
-      "If you can read this, WhatsApp sending is working — drafts you approve in the Outbox can go out from here.",
+    text,
+    mediaUrl: withCard ? waCardImageUrl(0) : undefined,
   });
 
   if (result.ok) return { ok: true };

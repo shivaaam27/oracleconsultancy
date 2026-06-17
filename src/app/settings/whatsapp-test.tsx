@@ -23,11 +23,12 @@ export function WhatsAppStatus({
   const [to, setTo] = useState(defaultTo);
   const [pending, startTransition] = useTransition();
   const [lastResult, setLastResult] = useState<"sent" | "failed" | null>(null);
+  const [withCard, setWithCard] = useState(true);
 
   function send() {
     setLastResult(null);
     startTransition(async () => {
-      const res = await sendTestWhatsApp(to);
+      const res = await sendTestWhatsApp(to, withCard);
       if (res.ok) {
         setLastResult("sent");
         toast(`Test WhatsApp sent to ${to}.`, { tone: "success", duration: 6000 });
@@ -77,6 +78,10 @@ export function WhatsAppStatus({
             {lastResult === "sent" && <span className="inline-flex items-center gap-1 text-xs text-success"><CheckCircle2 size={13} /> Sent</span>}
             {lastResult === "failed" && <span className="inline-flex items-center gap-1 text-xs text-danger"><XCircle size={13} /> Failed</span>}
           </div>
+          <label className="flex items-center gap-2 text-xs text-fg-muted">
+            <input type="checkbox" checked={withCard} onChange={(e) => setWithCard(e.target.checked)} className="accent-accent" />
+            Rich format — branded summary image + formatted card caption
+          </label>
         </>
       ) : (
         <p className="text-xs text-fg-muted">
