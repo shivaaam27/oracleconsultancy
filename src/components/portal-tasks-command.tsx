@@ -11,6 +11,7 @@ import {
 import { Panel } from "@/components/surface-kit";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { SwitchRow, CaretInput } from "@/components/ui";
+import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
@@ -235,9 +236,6 @@ function TaskRow({
   const [open, setOpen] = useState(false);
   const [busy, startTransition] = useTransition();
   const [updateBody, setUpdateBody] = useState("");
-  // Mobile swipe state: "left" reveals Update + Remind-all, "right" reveals Complete.
-  const [swiped, setSwiped] = useState<null | "left" | "right">(null);
-  const startX = useRef(0);
 
   const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
   const ownerOptions: FluidOption[] = people.map((p) => ({ value: String(p.id), label: p.name }));
@@ -287,17 +285,12 @@ function TaskRow({
     save({ status: "Completed" }, "Marked complete");
   }
 
-  // Touch swipe (mobile cards): left reveals actions, right peeks Complete.
-  function onTouchStart(e: React.TouchEvent) { startX.current = e.touches[0].clientX; }
-  function onTouchMove(e: React.TouchEvent) {
-    const dx = e.touches[0].clientX - startX.current;
-    if (dx < -30) setSwiped("left");
-    else if (dx > 30) setSwiped("right");
-    else setSwiped(null);
-  }
 
   const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
   const involved = t.assignees.length || (t.accountableName ? 1 : 0);
+  // Swipe-left reveals Update (+ Remind-all when shared); swipe-right reveals
+  // Complete. Axis-locked + finger-following so scrolling never trips it.
+  const swipe = useSwipeRow({ leftWidth: 86, rightWidth: involved > 1 ? 156 : 78 });
 
   // One row of compact icon "property chips" + a quiet actions row. Each chip
   // auto-saves on change (no Save button). Managers can only move status; the
@@ -406,32 +399,30 @@ function TaskRow({
   }
 
   // mobile card — swipe left for Update + Remind all, right to Complete; tap to expand.
-  const leftReveal = involved > 1 ? 156 : 78;
   return (
     <div className={cn("relative overflow-hidden rounded-2xl", t.isDone && "opacity-60")}>
       {/* Revealed on swipe-left */}
       <div className="absolute inset-y-0 right-0 flex">
-        <button type="button" onClick={() => { setSwiped(null); setOpen(true); }} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent">
+        <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent">
           <MessageSquarePlus size={17} /> Update
         </button>
         {involved > 1 && (
-          <button type="button" onClick={() => { setSwiped(null); remindAll(); }} disabled={busy} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
+          <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
             <Bell size={17} /> Remind all
           </button>
         )}
       </div>
       {/* Revealed on swipe-right */}
-      <button type="button" onClick={() => { setSwiped(null); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
+      <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
         <Check size={18} /> Complete
       </button>
 
       <div
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        className="relative rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
-        style={{ transform: swiped === "left" ? `translateX(-${leftReveal}px)` : swiped === "right" ? "translateX(86px)" : "translateX(0)" }}
+        {...swipe.bind}
+        className="relative touch-pan-y rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
+        style={{ transform: `translateX(${swipe.offset}px)`, transition: swipe.dragging ? "none" : undefined }}
       >
-        <button type="button" onClick={() => { if (swiped) { setSwiped(null); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
+        <button type="button" onClick={() => { if (swipe.swiped) { swipe.reset(); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
           <span className={`w-1 shrink-0 rounded-l-2xl ${t.overdue ? "bg-danger" : t.withinSoon ? "bg-warn" : statusDot(t.status)}`} />
           <span className="min-w-0 flex-1 py-3">
             <span className="mb-1 flex flex-wrap items-center gap-1.5">

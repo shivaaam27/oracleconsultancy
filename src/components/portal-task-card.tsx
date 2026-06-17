@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronRight, MessageSquarePlus, Send, Loader2, Users, ExternalLink, CheckCircle2 } from "lucide-react";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { useSwipeRow } from "@/lib/use-swipe-row";
 import { CaretInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { CompleteTaskSheet } from "@/components/complete-task-sheet";
@@ -61,11 +62,12 @@ export function PortalTaskCard({ task: t, viewerRole }: { task: PortalCardTask; 
   const { toast } = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [swiped, setSwiped] = useState<null | "left" | "right">(null);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [updateBody, setUpdateBody] = useState("");
   const [busy, start] = useTransition();
-  const startX = useRef(0);
+  // Swipe-left → Update (82px right tray); swipe-right → Complete (86px left tray).
+  // Axis-locked + finger-following so a vertical scroll never opens a tray.
+  const swipe = useSwipeRow({ leftWidth: 86, rightWidth: 82 });
 
   const now = new Date();
   const overdue = !!t.deadline && new Date(t.deadline) < now;
@@ -100,13 +102,6 @@ export function PortalTaskCard({ task: t, viewerRole }: { task: PortalCardTask; 
     });
   }
 
-  function onTouchStart(e: React.TouchEvent) { startX.current = e.touches[0].clientX; }
-  function onTouchMove(e: React.TouchEvent) {
-    const dx = e.touches[0].clientX - startX.current;
-    if (dx < -30) setSwiped("left");
-    else if (dx > 30) setSwiped("right");
-  }
-
   const dueTone = overdue ? "text-danger" : "text-fg-subtle";
 
   return (
@@ -114,7 +109,7 @@ export function PortalTaskCard({ task: t, viewerRole }: { task: PortalCardTask; 
       {/* Swipe-left → quick Update */}
       <button
         type="button"
-        onClick={() => { setSwiped(null); setOpen(true); }}
+        onClick={() => { swipe.reset(); setOpen(true); }}
         className="absolute inset-y-0 right-0 flex w-[82px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent"
       >
         <MessageSquarePlus size={17} /> Update
@@ -122,21 +117,20 @@ export function PortalTaskCard({ task: t, viewerRole }: { task: PortalCardTask; 
       {/* Swipe-right → secure Complete (opens the gated sheet) */}
       <button
         type="button"
-        onClick={() => { setSwiped(null); setCompleteOpen(true); }}
+        onClick={() => { swipe.reset(); setCompleteOpen(true); }}
         className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success"
       >
         <CheckCircle2 size={18} /> Complete
       </button>
 
       <div
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        className="relative rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
-        style={{ transform: swiped === "left" ? "translateX(-82px)" : swiped === "right" ? "translateX(86px)" : "translateX(0)" }}
+        {...swipe.bind}
+        className="relative touch-pan-y rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
+        style={{ transform: `translateX(${swipe.offset}px)`, transition: swipe.dragging ? "none" : undefined }}
       >
         <button
           type="button"
-          onClick={() => { if (swiped) { setSwiped(null); return; } setOpen((o) => !o); }}
+          onClick={() => { if (swipe.swiped) { swipe.reset(); return; } setOpen((o) => !o); }}
           className="flex w-full items-stretch gap-3 text-left"
         >
           <span className={`w-1 shrink-0 rounded-l-2xl ${overdue ? "bg-danger" : statusDotClass(t.status)}`} />

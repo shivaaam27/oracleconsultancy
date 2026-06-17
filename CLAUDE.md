@@ -163,6 +163,8 @@ exists. **Full reference + "how to apply Aurora to a new page/popup/search/featu
 - **`components/passkey-manager.tsx`** — add/list/remove passkeys (owner Settings + staff portal profile).
 - **`components/bottom-sheet.tsx`** — `BottomSheet` / `SheetButton`: the canonical iPhone action sheet (grabber + drag-to-dismiss spring, glass, safe-area, sticky footer CTA; **centred glass dialog from `sm` up**; reduced-motion safe; portals to `document.body`, Esc + background scroll-lock). Use for any portal action form/pop-up. Adopters: director task/message/event forms.
 - **`SwitchRow`** (in `components/ui.tsx`) — full-width tappable settings row with the iPhone `Switch` on the right ("toggle as a slider"); owns the click + `role="switch"`. Use for sheet options + settings lists.
+- **`CaretInput` / `CaretTextarea`** (in `components/ui.tsx`) — transparent compose fields with a blinking-caret + placeholder overlay while empty; the bordered ROW owns the ring. Use the `.bare-field` class (in `globals.css`) on any field that should drop the global inset well + focus chrome. **Name must NOT start with `caret-`** — `cn()`/tailwind-merge folds `caret-*` together and drops it.
+- **`lib/use-swipe-row.ts`** — `useSwipeRow({ leftWidth, rightWidth })` → `{ swiped, offset, dragging, bind, reset }`: the one swipe gesture for action rows. Axis-locked (a vertical scroll never engages), finger-following, settles past ~40% else snaps back. Put `{...bind}` + Tailwind `touch-pan-y` on the moving element. Adopters: board `AttentionCard`, `PortalTaskCard`, tasks-command `TaskRow`. **Reuse it — never hand-roll touch handlers.**
 
 ## Meeting Workspace
 

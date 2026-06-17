@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { SmartCaptureBar } from "@/components/smart-capture-bar";
 import { portalEditTask, portalRemindTask } from "@/app/portal/actions";
+import { useSwipeRow } from "@/lib/use-swipe-row";
 import { useToast } from "@/components/toast";
 
 /* ------------------------------------------------------------------ *
@@ -398,7 +399,6 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
   const { toast } = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [swiped, setSwiped] = useState(false);
   const [busy, startTransition] = useTransition();
   const [link, setLink] = useState<string | null>(null);
 
@@ -407,13 +407,9 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
   const [deadline, setDeadline] = useState(w.deadlineInput ?? "");
   const [owner, setOwner] = useState(w.accountableId ? String(w.accountableId) : "");
 
-  const startX = useRef(0);
-  function onTouchStart(e: React.TouchEvent) { startX.current = e.touches[0].clientX; }
-  function onTouchMove(e: React.TouchEvent) {
-    const dx = e.touches[0].clientX - startX.current;
-    if (dx < -30) setSwiped(true);
-    else if (dx > 30) setSwiped(false);
-  }
+  // Swipe-left reveals the Remind tray (86px on the right). Axis-locked so a
+  // vertical scroll never opens it.
+  const swipe = useSwipeRow({ rightWidth: 86 });
 
   function remind() {
     startTransition(async () => {
@@ -460,12 +456,11 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
       </button>
 
       <div
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        className="relative rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
-        style={{ transform: swiped ? "translateX(-86px)" : "translateX(0)" }}
+        {...swipe.bind}
+        className="relative touch-pan-y rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
+        style={{ transform: `translateX(${swipe.offset}px)`, transition: swipe.dragging ? "none" : undefined }}
       >
-        <button type="button" onClick={() => { setOpen((o) => !o); setSwiped(false); }} className="flex w-full items-stretch gap-3 text-left">
+        <button type="button" onClick={() => { if (swipe.swiped) { swipe.reset(); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
           <span className={`w-1 shrink-0 rounded-l-2xl ${stripe}`} />
           <span className="min-w-0 flex-1 py-3">
             <span className="mb-1 flex flex-wrap items-center gap-1.5">

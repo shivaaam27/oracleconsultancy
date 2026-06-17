@@ -246,6 +246,26 @@ Verified on mobile (390) + web (1024 two-col command-wall, no overflow), tsc cle
 Deliberately skipped (low value / intentional): the inline date field keeps its elevated
 shell (not `bare-field`); the "live" pill stays.
 
+## Swipe gestures — one robust shared hook (`useSwipeRow`)
+**Bug (reported):** on mobile, normal vertical scrolling tripped the card swipes and
+the cards jumped/were graphically inconsistent. All three portal swipe rows shared the
+same naïve handlers — they watched only `clientX` (no axis lock), fired on a 30px drift,
+snapped to a **fixed** offset, and had no `touchend` to settle.
+
+**Fix:** `src/lib/use-swipe-row.ts` — `useSwipeRow({ leftWidth, rightWidth })` returns
+`{ swiped, offset, dragging, bind, reset, setSwiped }`:
+- **Axis lock** — the first real move (>10px) decides the axis; if it's vertical the swipe
+  never engages (the page just scrolls). Pair with **`touch-pan-y`** on the moving element
+  so the browser owns vertical scroll and never fights a horizontal swipe.
+- **Finger-following** — the card tracks the finger 1:1 (clamped to the tray widths) with the
+  transition switched off while dragging (no rubber-banding); on release it settles open past
+  ~40% of a tray, else snaps back.
+Adopters (all now identical): board `AttentionCard` (Remind), staff Home `PortalTaskCard`
+(Update/Complete), tasks-command `TaskRow` (Update/Remind-all/Complete). Verified by scripted
+TouchEvents on mobile (390): vertical drag → `translateX(0)`; horizontal → follows then settles
+`-86px`; small drag → snaps back; full → opens; opposite swipe closes. tsc clean.
+Reuse `useSwipeRow` for any new swipeable row — don't hand-roll touch handlers.
+
 ## Gotchas (this session)
 - A long dev session can drop the dev server into an **all-routes-404** Turbopack state
   (even `/login`, `/api/notifications`). Fix = the clean rebuild: preview_stop → kill the
