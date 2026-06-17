@@ -210,6 +210,40 @@ email auto-send to directors (digest is 7e, optional).
   - Guide for the owner: **`TWILIO_WHATSAPP.md`** (repo root) — Stage 1 sandbox / Stage 2 live.
 - **E5 — Director-defined "if-this-then-that" rules** on top of the engine.
 
+## Aurora redesign — "hand-over ready" (Jun 2026, shipped to master)
+Owner asked to make the **whole director portal** beautiful + fluid on web AND
+mobile (iPhone liquid-glass, sliders-not-checkboxes, motion, minor details).
+Mockups approved first, then built phase-by-phase (each tsc-clean + pushed):
+- **New reusable kit** (use these, don't re-roll): `components/bottom-sheet.tsx`
+  — `BottomSheet`/`SheetButton`: iPhone sheet (grabber + drag-to-dismiss spring,
+  glass, safe-area, sticky footer CTA; **centred glass dialog on desktop**;
+  reduced-motion safe; portals to body, Esc + scroll-lock). `SwitchRow` in
+  `ui.tsx` — full-width tappable settings row with the iPhone `Switch` ("button
+  like a slider").
+- **Board** (`director-board-client.tsx` + `board/page.tsx`): aurora-washed
+  greeting hero (live dot + avatar + needs-you/due-today), portfolio **vitals
+  panel** (health ring + risk pills + Need-you/Due-today/On-leave KPI tiles,
+  count-ups), **per-company health rows** (NEW — merges `brief.companies` risk
+  with `brief.compliance` score + one-line "why", worst-first → links to
+  `/portal/companies/[id]`), **Week-ahead**. Responsive: one scroll on mobile,
+  centred **two-column command-wall** from lg. Kept the fast inline TaskComposer
+  + the CommandBar (Task/Event/Message).
+- **Action forms** → bottom-sheets: `director-event-form`, `director-message`
+  (channel = segmented pills; success → "Send now" deep-link in footer),
+  `director-task-form` (unused but converted). All fields + server actions kept.
+- **Nav/shell**: director portal shell widens to `max-w-5xl` (layout.tsx, role-
+  gated); `portal-pill.tsx` shows full tab labels from `lg` (proper web nav bar),
+  icon-only + morphing active-label lens on mobile (parity-safe for all roles).
+- **Activity** feed → timeline (hairline rail + tone dots, glass cards).
+- **Profile** → directors get a **clean account screen** (details + account &
+  security: passkeys/password/notifications/accessibility + sign out); the staff
+  self-service sections (documents/attendance/leave/onboarding/equipment) +
+  glance tiles are gated to non-directors. Task detail back-link is role-aware
+  ("All tasks" for management, "My tasks" for staff).
+- Chat deliberately untouched (already has its WhatsApp-style design).
+- NOT changed: the shared Tasks list + Requests composer/list (already Aurora;
+  left to preserve staff/manager parity) — a future pass could iPhone-polish them.
+
 ## Governance (non-negotiable for an operator)
 Scope enforced server-side; every task/message/automation stamped + audit-logged + owner-
 visible; owner override + global kill switch (reuse AI-master-switch pattern); director can

@@ -161,6 +161,8 @@ exists. **Full reference + "how to apply Aurora to a new page/popup/search/featu
 - **`components/settings-card.tsx` + `settings-nav.tsx`** — Settings redesign: compact icon-tile cards + sticky scroll-spy section nav (desktop sidebar / mobile chips). All Settings forms/fields unchanged.
 - **`components/reference-admin.tsx`** — generic add/rename/merge/delete list manager (Sites, Roles; Departments has its own `departments-admin.tsx`).
 - **`components/passkey-manager.tsx`** — add/list/remove passkeys (owner Settings + staff portal profile).
+- **`components/bottom-sheet.tsx`** — `BottomSheet` / `SheetButton`: the canonical iPhone action sheet (grabber + drag-to-dismiss spring, glass, safe-area, sticky footer CTA; **centred glass dialog from `sm` up**; reduced-motion safe; portals to `document.body`, Esc + background scroll-lock). Use for any portal action form/pop-up. Adopters: director task/message/event forms.
+- **`SwitchRow`** (in `components/ui.tsx`) — full-width tappable settings row with the iPhone `Switch` on the right ("toggle as a slider"); owns the click + `role="switch"`. Use for sheet options + settings lists.
 
 ## Meeting Workspace
 
