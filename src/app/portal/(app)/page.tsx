@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
 import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
+import { PortalTaskCard } from "@/components/portal-task-card";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
@@ -16,7 +17,6 @@ import { buildPersonRequirementScores } from "@/lib/requirements";
 import { getJourney } from "@/lib/onboarding";
 import { teamAttendanceToday, personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
 import { ATTENDANCE_TONE } from "@/lib/leave-shared";
-import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import { TodoCard } from "@/components/todo-card";
 import { listSelfTodos } from "@/lib/todo-reminders";
 import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo } from "@/app/portal/actions";
@@ -45,41 +45,19 @@ type Row = {
   mine: boolean;
 };
 
-function taskCard(t: Row, now: Date) {
-  const od = t.deadline && new Date(t.deadline) < now;
-  const st = statusTone(t.status);
-  const dotTone: keyof typeof TONE = st === "default" ? "muted" : st;
-  return (
-    <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
-      <Panel className="p-4 transition-shadow group-hover:ring-accent/40">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${TONE[dotTone].bar}`} aria-hidden />
-          <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
-          {t.company && <span className="text-xs text-fg-subtle">· {t.company.name}</span>}
-          <span className="grow" />
-          <Badge tone={statusTone(t.status)}>{t.status}</Badge>
-          <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
-        </div>
-        <p className="mt-1.5 text-sm font-medium leading-snug">{t.action_item}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-fg-muted">
-          {t.deadline && (
-            <span className={od ? "text-danger font-medium" : undefined}>
-              <CalendarDays size={12} className="mr-1 inline -mt-px" />
-              Due {new Date(t.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-              {od ? " · overdue" : ""}
-            </span>
-          )}
-          {t.teamSize > 1 && (
-            <span>
-              <Users size={12} className="mr-1 inline -mt-px" />
-              Team of {t.teamSize}
-            </span>
-          )}
-          {t.latest_update && <span className="truncate max-w-[24rem]">“{t.latest_update}”</span>}
-        </div>
-      </Panel>
-    </Link>
-  );
+/** Map a Home task Row into the iPhone task-card shape. */
+function toCardTask(t: Row) {
+  return {
+    id: t.id,
+    code: t.code,
+    actionItem: t.action_item,
+    status: t.status,
+    priority: t.priority,
+    deadline: t.deadline,
+    companyName: t.company?.name ?? null,
+    teamSize: t.teamSize,
+    latestUpdate: t.latest_update,
+  };
 }
 
 export default async function PortalHome() {
@@ -296,7 +274,7 @@ export default async function PortalHome() {
         {myOpen.length === 0 && (
           <Panel className="p-6 text-center text-sm text-fg-muted">No open tasks assigned to you right now.</Panel>
         )}
-        {myOpen.map((t) => taskCard(t, now))}
+        {myOpen.map((t) => <PortalTaskCard key={t.id} task={toCardTask(t)} viewerRole={me.portalRole} />)}
       </Reveal>
 
       <Reveal delay={0.07}>
@@ -395,7 +373,7 @@ export default async function PortalHome() {
             <SectionLabel icon={<Users size={13} />}>
               {me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
             </SectionLabel>
-            {teamOpen.map((t) => taskCard(t, now))}
+            {teamOpen.map((t) => <PortalTaskCard key={t.id} task={toCardTask(t)} viewerRole={me.portalRole} />)}
           </Reveal>
         )
       )}
