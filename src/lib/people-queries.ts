@@ -94,6 +94,9 @@ export type PersonRow = Person & {
   hasContact: boolean;
   /** A few of this person's most urgent open tasks, for the long-press peek. */
   topTasks: PersonTopTask[];
+  /** Staff-portal access at-a-glance (so the list can flag who's set up). */
+  portalEnabled: boolean;
+  portalRole: string | null;
 };
 
 const FLAG_RANK = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track"];
@@ -136,7 +139,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,work_site_id,residence_site_id"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,work_site_id,residence_site_id,portal_password_hash,portal_role"
       ),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("person_id,company_id,relationship"),
@@ -171,6 +174,15 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     list.push({ id: r.manager_id as number, name: nameById.get(r.manager_id as number) ?? null });
     secMgrByPerson.set(pid, list);
   }
+
+  // Portal access at-a-glance, keyed by id (the Person mapping below drops the
+  // raw auth columns, so capture them here for the PersonRow flags).
+  const portalById = new Map<number, { enabled: boolean; role: string | null }>(
+    (rawPeople ?? []).map((p) => [
+      p.id as number,
+      { enabled: Boolean(p.portal_password_hash as string | null), role: (p.portal_role as string | null) ?? null },
+    ])
+  );
 
   const staffIds = await getStaffIdMap();
   const people: Person[] = (rawPeople ?? []).map((p) => ({
@@ -219,6 +231,8 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     workload: computeWorkload(p, tasks),
     hasContact: Boolean(p.email || p.phone || p.whatsapp),
     topTasks: topTasksFor(p, tasks),
+    portalEnabled: portalById.get(p.id)?.enabled ?? false,
+    portalRole: portalById.get(p.id)?.role ?? null,
   }));
 }
 

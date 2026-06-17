@@ -27,6 +27,7 @@ import { PersonAssets } from "./person-assets";
 import { Badge, Button } from "./ui";
 import { useToast } from "./toast";
 import { togglePersonActive, snoozePerson } from "@/app/people/actions";
+import { PersonPortalAccess } from "./person-portal-access";
 import { getDocumentFileLinkAction } from "@/app/documents/actions";
 import { createPersonPackDraftAction } from "@/app/people/pack-actions";
 import { pickChannel } from "@/lib/outbox/links";
@@ -778,17 +779,7 @@ export function PersonDrawer() {
             className="inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle/70 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
             <FileText size={13} /> Data form (PDF) — for staff with no system access
           </a>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className="font-medium uppercase tracking-wider text-fg-subtle">Portal access</span>
-            {data.portal.enabled ? (
-              <span className="inline-flex items-center gap-1.5 text-fg-muted">
-                <Badge tone={data.portal.role === "manager" ? "info" : "success"}>{data.portal.role === "manager" ? "Manager" : "Enabled"}</Badge>
-                {data.portal.lastLoginAt ? `last in ${fmtDate(new Date(data.portal.lastLoginAt))}` : "never signed in"}
-              </span>
-            ) : (
-              <span className="text-fg-subtle">Not set up — enable in Settings</span>
-            )}
-          </div>
+          <PersonPortalAccess personId={person.id} portal={data.portal} onChanged={refresh} fmtDate={fmtDate} />
           <div>
             <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Snooze reminders</div>
             <div className="flex flex-wrap items-center gap-2">

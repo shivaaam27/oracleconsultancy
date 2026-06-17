@@ -2,17 +2,17 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Search, MessageCircle, Filter, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, Check, CheckSquare, X, Pencil } from "lucide-react";
+import { Search, MessageCircle, Filter, ListTodo, Clock, Copy, UserPlus, UserMinus, UserCheck, CheckSquare, X, Pencil, ShieldCheck, ShieldOff, Users, PhoneOff, MoonStar, Flame, Hourglass, UserX } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { Combobox } from "./combobox";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { FluidSelect } from "./fluid-select";
-import { Button, CountPill, RegisterList, Select } from "./ui";
+import { Button, CountPill, Select } from "./ui";
 import { triggerHaptic } from "@/lib/use-long-press";
 import { cn } from "@/lib/cn";
 import { displayNote } from "@/lib/notes-display";
 import { useToast } from "./toast";
-import { snoozePerson, togglePersonActive, setPeopleActive, bulkSetPeopleField, bulkAddSecondaryManager } from "@/app/people/actions";
+import { snoozePerson, togglePersonActive, setPeopleActive, bulkSetPeopleField, bulkAddSecondaryManager, bulkSetPortalRole } from "@/app/people/actions";
 import type { PersonRow } from "@/lib/people-queries";
 import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 
@@ -27,7 +27,7 @@ function quickReminderText(p: PersonRow): string {
 type SortKey = "name" | "company" | "workload";
 type SortDir = "asc" | "desc";
 
-type FilterKind = "all" | "noContact" | "snoozed" | "inactive" | "overloaded" | "probationEnding";
+type FilterKind = "all" | "noContact" | "snoozed" | "inactive" | "overloaded" | "probationEnding" | "portal" | "noPortal";
 
 function whatsappHref(num: string) {
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
@@ -42,7 +42,7 @@ function probationEndingSoon(p: PersonRow, now: Date): boolean {
 
 export function PeopleTable({ people, companies, complianceById, directoryHints }: {
   people: PersonRow[];
-  companies: Array<{ id: number; name: string }>;
+  companies: Array<{ id: number; name: string; accentColor?: string | null }>;
   complianceById?: Record<number, { score: number; status: "Good" | "Watch" | "Risk" }>;
   directoryHints?: Record<number, { onLeave: boolean; present: number; absent: number }>;
 }) {
@@ -124,6 +124,21 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       const res = await bulkAddSecondaryManager(ids, value);
       toast(res.ok ? (value == null ? `Cleared extra managers on ${ids.length}` : `Updated ${ids.length} ${ids.length === 1 ? "person" : "people"}`) : (res.error || "Couldn't update"), { tone: res.ok ? "success" : "warn" });
       if (res.ok) { setBulkEditing(false); router.refresh(); }
+    });
+  }
+  function applyBulkRole(role: "staff" | "manager" | "director") {
+    const ids = [...selected];
+    if (!ids.length) return;
+    startBulk(async () => {
+      const res = await bulkSetPortalRole(ids, role);
+      if (res.ok) {
+        const parts = [`${res.updated ?? 0} set to ${role}`];
+        if (res.skipped) parts.push(`${res.skipped} skipped (no portal access)`);
+        toast(parts.join(" · "), { tone: "success" });
+        setBulkEditing(false); router.refresh();
+      } else {
+        toast(res.error || "Couldn't update", { tone: "warn" });
+      }
     });
   }
   async function copyContact(p: PersonRow) {
@@ -210,6 +225,8 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
     if (filter === "inactive") rows = rows.filter((p) => !p.active);
     if (filter === "overloaded") rows = rows.filter((p) => p.workload.open >= 5);
     if (filter === "probationEnding") rows = rows.filter((p) => probationEndingSoon(p, now));
+    if (filter === "portal") rows = rows.filter((p) => p.portalEnabled);
+    if (filter === "noPortal") rows = rows.filter((p) => !p.portalEnabled);
 
     // Sort
     rows.sort((a, b) => {
@@ -230,6 +247,13 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [people]);
 
+  // Company accent colour, for each person's left rail.
+  const accentById = useMemo(() => {
+    const m: Record<number, string | null> = {};
+    for (const c of companies) m[c.id] = c.accentColor ?? null;
+    return m;
+  }, [companies]);
+
   // How many active people report (primary line) to each person — for the card.
   const reportsCountById = useMemo(() => {
     const m: Record<number, number> = {};
@@ -246,8 +270,27 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       inactive: people.filter((p) => !p.active).length,
       overloaded: people.filter((p) => p.active && p.workload.open >= 5).length,
       probationEnding: people.filter((p) => p.active && probationEndingSoon(p, now)).length,
+      portal: people.filter((p) => p.active && p.portalEnabled).length,
+      noPortal: people.filter((p) => p.active && !p.portalEnabled).length,
     };
   }, [people]);
+
+  // Portal breakdown of the current selection — shown live in the bulk bar so
+  // you can see who already has access before assigning a role (no surprises).
+  const selStats = useMemo(() => {
+    let withPortal = 0;
+    for (const p of people) if (selected.has(p.id) && p.portalEnabled) withPortal++;
+    return { withPortal, without: selected.size - withPortal };
+  }, [people, selected]);
+
+  // Glanceable header stats (active · portal · avg compliance · needs attention).
+  const stats = useMemo(() => {
+    const active = people.filter((p) => p.active);
+    const scores = active.map((p) => complianceById?.[p.id]).filter(Boolean) as Array<{ score: number; status: "Good" | "Watch" | "Risk" }>;
+    const avg = scores.length ? Math.round(scores.reduce((s, x) => s + x.score, 0) / scores.length) : null;
+    const needsAttention = scores.filter((x) => x.status !== "Good").length;
+    return { active: active.length, portal: counts.portal, avg, needsAttention };
+  }, [people, complianceById, counts.portal]);
 
   const allFilteredSelected = filtered.length > 0 && filtered.every((p) => selected.has(p.id));
   function toggleSelectAll() {
@@ -263,6 +306,21 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
 
   return (
     <div className="space-y-4">
+      {/* Glanceable stat strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {[
+          { label: "Active", value: String(stats.active), tone: "text-fg" },
+          { label: "Portal", value: String(stats.portal), tone: "text-info", icon: <ShieldCheck size={12} className="text-info" /> },
+          { label: "Avg compliance", value: stats.avg == null ? "—" : `${stats.avg}%`, tone: stats.avg != null && stats.avg < 70 ? "text-warn" : "text-success" },
+          { label: "Needs attention", value: String(stats.needsAttention), tone: stats.needsAttention > 0 ? "text-warn" : "text-fg-subtle" },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2">
+            <div className="text-[11px] text-fg-subtle inline-flex items-center gap-1">{s.icon}{s.label}</div>
+            <div className={cn("text-[22px] font-semibold leading-tight tabular", s.tone)}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Search + filter chips */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
@@ -301,13 +359,15 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
       <div className="flex flex-wrap items-center gap-1.5">
         <Filter size={11} className="text-fg-subtle" />
         {[
-          { key: "all", label: "All", count: counts.all, tone: "default" as const },
-          { key: "noContact", label: "No contact info", count: counts.noContact, tone: "danger" as const },
-          { key: "snoozed", label: "Snoozed", count: counts.snoozed, tone: "warn" as const },
-          { key: "overloaded", label: "Overloaded (5+)", count: counts.overloaded, tone: "warn" as const },
-          { key: "probationEnding", label: "Probation ending", count: counts.probationEnding, tone: "warn" as const },
-          { key: "inactive", label: "Inactive", count: counts.inactive, tone: "default" as const },
-        ].map(({ key, label, count, tone }) => {
+          { key: "all", label: "All", icon: Users, count: counts.all, tone: "default" as const },
+          { key: "noContact", label: "No contact info", icon: PhoneOff, count: counts.noContact, tone: "danger" as const },
+          { key: "snoozed", label: "Snoozed", icon: MoonStar, count: counts.snoozed, tone: "warn" as const },
+          { key: "overloaded", label: "Overloaded (5+)", icon: Flame, count: counts.overloaded, tone: "warn" as const },
+          { key: "probationEnding", label: "Probation ending", icon: Hourglass, count: counts.probationEnding, tone: "warn" as const },
+          { key: "portal", label: "Has portal", icon: ShieldCheck, count: counts.portal, tone: "default" as const },
+          { key: "noPortal", label: "No portal", icon: ShieldOff, count: counts.noPortal, tone: "default" as const },
+          { key: "inactive", label: "Inactive", icon: UserX, count: counts.inactive, tone: "default" as const },
+        ].map(({ key, label, icon: Icon, count, tone }) => {
           const active = filter === key;
           const tint = active
             ? tone === "danger" ? "bg-danger-soft/70 ring-2 ring-danger/40 text-danger"
@@ -322,10 +382,20 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
               key={key}
               type="button"
               onClick={() => setFilter(key as FilterKind)}
-              className={`inline-flex items-center gap-2 pl-2 pr-3 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm ${tint}`}
+              title={`${label} · ${count}`}
+              aria-label={`${label} (${count})`}
+              aria-pressed={active}
+              className={cn(
+                "inline-flex items-center gap-1.5 py-1.5 text-xs rounded-full transition-all backdrop-blur-md hover:shadow-sm",
+                // Icon-only on mobile to save space; full label from sm up. The
+                // active filter always shows its label so you know what's applied.
+                active ? "pl-2 pr-3" : "px-2 sm:pl-2 sm:pr-3",
+                tint
+              )}
             >
+              <Icon size={13} className="shrink-0" />
               <CountPill count={count} tone="inherit" />
-              <span className="font-medium">{label}</span>
+              <span className={cn("font-medium", active ? "inline" : "hidden sm:inline")}>{label}</span>
             </button>
           );
         })}
@@ -361,44 +431,33 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
         </div>
       </div>
 
-      {/* Compact list — one elevated container, divided rows */}
+      {/* Directory — spacious Aurora cards, one floating glass card per person */}
       {filtered.length > 0 && (
-        <RegisterList>
-          {filtered.map((p) =>
-            selectMode ? (
-              <div key={p.id} role="button" tabIndex={0}
-                onClick={() => toggleSelect(p.id)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSelect(p.id); } }}
-                className={cn("flex items-center gap-2 pl-3 cursor-pointer transition-colors", selected.has(p.id) ? "bg-accent-soft/40" : "hover:bg-bg-subtle/40")}>
-                <span className={cn("h-5 w-5 rounded-md border flex items-center justify-center shrink-0",
-                  selected.has(p.id) ? "bg-accent border-accent text-accent-fg" : "border-border-strong")}>
-                  {selected.has(p.id) && <Check size={13} strokeWidth={3} />}
-                </span>
-                <div className="flex-1 min-w-0 pointer-events-none">
-                  <PersonCard person={p} onOpen={() => {}} />
-                </div>
-              </div>
-            ) : (
-              <PersonCard
-                key={p.id}
-                person={p}
-                directReports={reportsCountById[p.id] ?? 0}
-                compliance={complianceById?.[p.id] ?? null}
-                hint={directoryHints?.[p.id] ?? null}
-                onOpen={() => {
-                  if (longPressed.current) { longPressed.current = false; return; }
-                  if (lastPointerType.current === "touch") return; // touch handled in onPointerUp
-                  openPerson(p.id);
-                }}
-                onPointerDown={(e) => onRowPointerDown(p, e)}
-                onPointerMove={onRowPointerMove}
-                onPointerUp={(e) => onRowPointerUp(p, e)}
-                onPointerLeave={clearPress}
-                onPointerCancel={clearPress}
-              />
-            )
-          )}
-        </RegisterList>
+        <div className="flex flex-col gap-2">
+          {filtered.map((p) => (
+            <PersonCard
+              key={p.id}
+              person={p}
+              accentColor={p.companyId != null ? accentById[p.companyId] ?? null : null}
+              directReports={reportsCountById[p.id] ?? 0}
+              compliance={complianceById?.[p.id] ?? null}
+              hint={directoryHints?.[p.id] ?? null}
+              selectMode={selectMode}
+              selected={selected.has(p.id)}
+              onOpen={() => {
+                if (selectMode) { toggleSelect(p.id); return; }
+                if (longPressed.current) { longPressed.current = false; return; }
+                if (lastPointerType.current === "touch") return; // touch handled in onPointerUp
+                openPerson(p.id);
+              }}
+              onPointerDown={selectMode ? undefined : (e) => onRowPointerDown(p, e)}
+              onPointerMove={selectMode ? undefined : onRowPointerMove}
+              onPointerUp={selectMode ? undefined : (e) => onRowPointerUp(p, e)}
+              onPointerLeave={selectMode ? undefined : clearPress}
+              onPointerCancel={selectMode ? undefined : clearPress}
+            />
+          ))}
+        </div>
       )}
 
       {/* Bulk action bar — floats above the nav pill while selecting */}
@@ -426,13 +485,23 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
                     <Combobox options={["— Clear —", ...mgrLabels]} placeholder="Set manager…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear —") { applyBulkField("manager", null); return; } const id = labelToId.get(t); if (id != null) applyBulkField("manager", id); }} />
                     <Combobox options={["— Clear extra —", ...mgrLabels]} placeholder="Also reports to…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (!t) return; if (t === "— Clear extra —") { applyBulkSecondary(null); return; } const id = labelToId.get(t); if (id != null) applyBulkSecondary(id); }} />
                     <Combobox options={[...new Set(people.map((p) => p.departmentName).filter(Boolean) as string[])].sort()} placeholder="Set department…" className={selCls} clearOnCommit onCommit={(v) => { const t = v.trim(); if (t) applyBulkField("department", t); }} />
+                    <Select defaultValue="" onChange={(e) => { const v = e.target.value; if (v) applyBulkRole(v as "staff" | "manager" | "director"); e.currentTarget.selectedIndex = 0; }} className="h-8 min-w-0 bg-bg-subtle text-[11px] text-fg ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40 col-span-2">
+                      <option value="" disabled>Set portal role… (already-enabled only)</option>
+                      <option value="staff">Staff</option>
+                      <option value="manager">Manager</option>
+                      <option value="director">Director</option>
+                    </Select>
                   </>
                 );
               })()}
             </div>
           )}
           <div className="glass elevated rounded-full shadow-pill flex items-center gap-1.5 pl-4 pr-1.5 py-1.5">
-            <span className="text-xs font-medium text-fg-muted">{selected.size} selected</span>
+            <span className="text-xs font-medium text-fg-muted">
+              {selected.size} selected
+              {selStats.withPortal > 0 && <span className="text-fg-subtle"> · {selStats.withPortal} with portal</span>}
+              {selStats.without > 0 && <span className="text-fg-subtle"> · {selStats.without} without</span>}
+            </span>
             <Button size="sm" variant={bulkEditing ? "primary" : "secondary"} onClick={() => setBulkEditing((v) => !v)}><Pencil size={14} /> Set fields</Button>
             <Button size="sm" variant="secondary" onClick={() => doBulk(true)}><UserCheck size={14} /> Restore</Button>
             <Button size="sm" variant="danger-soft" onClick={() => doBulk(false)}><UserMinus size={14} /> Deactivate</Button>

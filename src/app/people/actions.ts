@@ -14,6 +14,8 @@ import { getGroqKey } from "@/lib/settings";
 import { indexEmbedding } from "@/lib/embeddings";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
+import { hashPassword } from "@/lib/portal-auth";
+import { recordEvent } from "@/lib/system-events";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -917,6 +919,85 @@ export async function bulkAddSecondaryManager(ids: number[], managerId: number |
   await Promise.all(targets.map((pid) => logPersonFieldChanges(pid, [{ field: "Also reports to", oldValue: null, newValue: (mgr?.name as string | null) ?? null }])));
   invalidate();
   return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Staff-portal access — manage straight from the People page (drawer Manage
+ * tab + bulk bar), no trip to Settings. The quick toggle deliberately offers
+ * only Staff/Manager/Director; the every-company "Admin" (hr) role stays in
+ * Settings so it can't be granted with a casual tap. Mirrors the Settings
+ * actions (setPortalAccess/setPortalRole/revokePortalAccess) but returns an
+ * ActionResult and revalidates /people instead of redirecting to /settings.
+ * ---------------------------------------------------------------------- */
+type QuickRole = "staff" | "manager" | "director";
+const asQuickRole = (r: unknown): QuickRole => (r === "manager" ? "manager" : r === "director" ? "director" : "staff");
+
+/** Change a portal user's role without touching their password. Only works for
+ *  people who already have access — never grants access via a role change. */
+export async function setPortalRoleQuick(personId: number, role: string): Promise<ActionResult> {
+  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
+  const next = asQuickRole(role);
+  const { data: row } = await sb.from("people").select("portal_password_hash,portal_role").eq("id", personId).maybeSingle();
+  if (!row?.portal_password_hash) return { ok: false, error: "No portal access yet — enable it first." };
+  const prev = (row.portal_role as string | null) ?? "staff";
+  if (prev === next) return { ok: true };
+  const { error } = await sb.from("people").update({ portal_role: next }).eq("id", personId);
+  if (error) return { ok: false, error: error.message };
+  await recordEvent("portal.role.changed", "ok", { personId, from: prev, to: next });
+  invalidate();
+  return { ok: true };
+}
+
+/** Enable portal access (set password + role) for a person with none. */
+export async function enablePortalAccessQuick(personId: number, role: string, password: string): Promise<ActionResult> {
+  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
+  if (password.length < 8) return { ok: false, error: "Password must be at least 8 characters." };
+  const next = asQuickRole(role);
+  const { data: before } = await sb.from("people").select("portal_password_hash").eq("id", personId).maybeSingle();
+  const wasEnabled = Boolean(before?.portal_password_hash);
+  const { error } = await sb.from("people").update({
+    portal_password_hash: hashPassword(password),
+    portal_enabled_at: new Date().toISOString(),
+    portal_role: next,
+  }).eq("id", personId);
+  if (error) return { ok: false, error: error.message };
+  await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role: next });
+  invalidate();
+  return { ok: true };
+}
+
+/** Revoke portal sign-in. Keeps every record the person created; resets role to
+ *  "staff" so a later re-grant never silently restores higher powers. */
+export async function revokePortalAccessQuick(personId: number): Promise<ActionResult> {
+  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
+  const { error } = await sb.from("people")
+    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff" })
+    .eq("id", personId);
+  if (error) return { ok: false, error: error.message };
+  await recordEvent("portal.access.revoked", "ok", { personId });
+  invalidate();
+  return { ok: true };
+}
+
+/** Bulk-set the portal role for selected people. Only people who already have
+ *  access are changed; those without are reported back as skipped. */
+export async function bulkSetPortalRole(ids: number[], role: string): Promise<ActionResult & { updated?: number; skipped?: number }> {
+  const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
+  if (!clean.length) return { ok: false, error: "No people selected." };
+  const next = asQuickRole(role);
+  const { data: rows } = await sb.from("people").select("id,portal_password_hash,portal_role").in("id", clean);
+  const eligible = (rows ?? []).filter((r) => r.portal_password_hash);
+  const targets = eligible.filter((r) => ((r.portal_role as string | null) ?? "staff") !== next).map((r) => r.id as number);
+  const skipped = clean.length - eligible.length;
+  if (!targets.length) {
+    if (skipped === clean.length) return { ok: false, error: "None of the selected people have portal access yet." };
+    return { ok: true, updated: 0, skipped };
+  }
+  const { error } = await sb.from("people").update({ portal_role: next }).in("id", targets);
+  if (error) return { ok: false, error: error.message };
+  await Promise.all(targets.map((pid) => recordEvent("portal.role.changed", "ok", { personId: pid, to: next, bulk: true })));
+  invalidate();
+  return { ok: true, updated: targets.length, skipped };
 }
 
 /* ----------------------------------------------------------------------

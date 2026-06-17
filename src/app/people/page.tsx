@@ -18,7 +18,7 @@ export default async function PeoplePage({
   const [people, personScores, { data: companiesRaw }, { data: departmentsRaw }, { data: sitesRaw }, { data: rolesRaw }] = await Promise.all([
     getAllPeopleWithWorkload(),
     buildPersonRequirementScores(),
-    sb.from("companies").select("id,name").order("name"),
+    sb.from("companies").select("id,name,accent_color").order("name"),
     sb.from("departments").select("name").order("name"),
     sb.from("sites").select("name").eq("active", true).order("name"),
     sb.from("job_titles").select("name").eq("active", true).order("name"),
@@ -27,6 +27,7 @@ export default async function PeoplePage({
   const companies = (companiesRaw ?? []).map((c) => ({
     id: c.id as number,
     name: c.name as string,
+    accentColor: (c.accent_color as string | null) ?? null,
   }));
   const departments = (departmentsRaw ?? []).map((d) => d.name as string);
   const sites = (sitesRaw ?? []).map((s) => s.name as string);
