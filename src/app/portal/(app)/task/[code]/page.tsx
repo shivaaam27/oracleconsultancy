@@ -8,6 +8,7 @@ import { Reveal } from "@/components/reveal";
 import { LiveSync } from "@/components/live-sync";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
 import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
+import { TaskQuickActions } from "@/components/task-quick-actions";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
@@ -272,6 +273,14 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         )}
         </div>
       </section>
+      </Reveal>
+
+      <Reveal delay={0.04}>
+        <TaskQuickActions
+          taskId={task.id as number}
+          ownerName={team.find((p) => p.accountable)?.name ?? null}
+          canRemind={isManagement}
+        />
       </Reveal>
 
       <Reveal delay={0.05}>
