@@ -32,16 +32,19 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
           />
         )
       )}
+      {/* Mobile: only the active tab carries its label (the morphing lens).
+          Large screens: every tab shows its label, so the pill reads as a
+          proper nav bar on the web. */}
       <motion.span
         layout={!reduce}
         transition={{ type: "spring", stiffness: 500, damping: 36 }}
         className={cn(
           "relative inline-flex h-10 items-center justify-center gap-1.5 rounded-full transition-colors",
-          active ? "px-3.5 text-accent" : "w-10 text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+          active ? "px-3.5 text-accent" : "w-10 lg:w-auto lg:px-3.5 text-fg-muted hover:text-fg hover:bg-bg-muted/60"
         )}
       >
         <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
-        {active && <span className="relative whitespace-nowrap text-[13px] font-medium">{label}</span>}
+        <span className={cn("relative whitespace-nowrap text-[13px] font-medium", active ? "" : "hidden lg:inline")}>{label}</span>
       </motion.span>
     </Link>
   );
