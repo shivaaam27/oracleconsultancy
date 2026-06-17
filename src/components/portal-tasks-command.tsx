@@ -4,8 +4,8 @@ import { useActionState, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Search, Plus, Sparkles, ArrowUp, Loader2, ListTodo, ChevronRight,
-  Send, Users, ExternalLink, CalendarClock,
+  Search, Plus, Sparkles, ArrowUp, Loader2, ListTodo, ChevronRight, ChevronDown,
+  Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
@@ -53,6 +53,20 @@ const ALL_STATUSES = ["Not Started", "In Progress", "Under Review", "Waiting Ext
 const MANAGER_STATUSES = ["In Progress", "Under Review", "Blocked", "Completed"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const PRIORITY_DOT: Record<string, string> = { Critical: "bg-danger", High: "bg-warn", Medium: "bg-info", Low: "bg-fg-subtle" };
+const PRIORITY_HEX: Record<string, string> = { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" };
+const STATUS_COLOR: Record<string, string> = {
+  "Completed": "hsl(var(--success))", "Closed": "hsl(var(--success))",
+  "Blocked": "hsl(var(--danger))", "Escalated": "hsl(var(--danger))",
+  "Waiting External": "hsl(var(--warn))", "Under Review": "hsl(var(--warn))",
+  "In Progress": "hsl(var(--info))", "Not Started": "hsl(var(--fg-subtle))",
+};
+function statusIconTone(s: string): string {
+  if (s === "Completed" || s === "Closed") return "text-success";
+  if (s === "Blocked" || s === "Escalated") return "text-danger";
+  if (s === "Waiting External" || s === "Under Review") return "text-warn";
+  if (s === "In Progress") return "text-info";
+  return "text-fg-subtle";
+}
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
 const fieldShell = "rounded-xl bg-bg-elev ring-1 ring-border";
 const dateCls = "w-full rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2.5 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/40";
@@ -217,21 +231,22 @@ function TaskRow({
   const [open, setOpen] = useState(false);
   const [busy, startTransition] = useTransition();
 
-  const [priority, setPriority] = useState(t.priority);
-  const [deadline, setDeadline] = useState(t.deadlineInput ?? "");
-  const [owner, setOwner] = useState(t.accountableId ? String(t.accountableId) : "");
+  const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
+  const ownerOptions: FluidOption[] = people.map((p) => ({ value: String(p.id), label: p.name }));
 
-  const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: undefined }));
-
-  function changeStatus(next: string) {
-    if (next === t.status) return;
+  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number }, label: string) {
     startTransition(async () => {
-      const res = await portalEditTask({ taskId: t.taskId, status: next });
+      const res = await portalEditTask({ taskId: t.taskId, ...patch });
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      toast(`Status → ${next}`, { tone: "success" });
+      toast(label, { tone: "success" });
       router.refresh();
     });
   }
+  const changeStatus = (v: string) => { if (v !== t.status) save({ status: v }, `Status → ${v}`); };
+  const changePriority = (v: string) => { if (v !== t.priority) save({ priority: v }, `Priority → ${v}`); };
+  const changeOwner = (v: string) => { if (v && v !== String(t.accountableId ?? "")) save({ accountableId: Number(v) }, "Owner updated"); };
+  const changeDue = (v: string) => { if (v !== (t.deadlineInput ?? "")) save({ deadline: v || null }, "Due date updated"); };
+
   function remind() {
     startTransition(async () => {
       const res = await portalRemindTask(t.taskId);
@@ -246,58 +261,42 @@ function TaskRow({
       toast(`Reminders drafted for ${res.count} ${res.count === 1 ? "person" : "people"}${res.names.length ? ` (${res.names.join(", ")})` : ""}.`, { tone: "success" });
     });
   }
-  function saveDetails() {
-    startTransition(async () => {
-      const res = await portalEditTask({
-        taskId: t.taskId,
-        priority: priority !== t.priority ? priority : undefined,
-        deadline: deadline !== (t.deadlineInput ?? "") ? deadline : undefined,
-        accountableId: owner && owner !== String(t.accountableId ?? "") ? Number(owner) : undefined,
-      });
-      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      toast("Task updated.", { tone: "success" });
-      setOpen(false);
-      router.refresh();
-    });
-  }
 
   const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
   const involved = t.assignees.length || (t.accountableName ? 1 : 0);
 
-  // The editor sheet — controls + actions only. No repeated company / update;
-  // those already read on the row above. Calm Aurora field grid + hairline rule.
+  // One row of compact icon "property chips" + a quiet actions row. Each chip
+  // auto-saves on change (no Save button). Managers can only move status; the
+  // other chips render as read-only for them.
   function Editor({ withStatus }: { withStatus: boolean }) {
     return (
       <div className="space-y-3 border-t border-border/50 px-3.5 py-3.5">
-        {fullEdit ? (
-          <div className="grid grid-cols-2 gap-3">
-            {withStatus && (
-              <Field label="Status">
-                <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={fieldShell} />
-              </Field>
-            )}
-            <Field label="Priority">
-              <FluidSelect value={priority} options={priorityOptions} onSelect={setPriority} buttonClassName={fieldShell} />
-            </Field>
-            <Field label="Due">
-              <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={dateCls} />
-            </Field>
-            <Field label="Responsible" className="col-span-2">
-              <FluidSelect value={owner} options={[{ value: "", label: "Unchanged" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} onSelect={setOwner} buttonClassName={fieldShell} />
-            </Field>
-          </div>
-        ) : withStatus ? (
-          <Field label="Status">
-            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={fieldShell} />
-          </Field>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {withStatus && (
+            <PropChip icon={<CircleDot size={14} className={statusIconTone(t.status)} />} edit>
+              <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={chipBtn} />
+            </PropChip>
+          )}
+          {fullEdit ? (
+            <>
+              <PropChip icon={<Flag size={14} style={{ color: PRIORITY_HEX[t.priority] }} />} edit>
+                <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} buttonClassName={chipBtn} />
+              </PropChip>
+              <DueChip valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} />
+              <PropChip icon={<User size={14} className="text-fg-muted" />} edit>
+                <FluidSelect value={t.accountableId ? String(t.accountableId) : ""} options={ownerOptions} placeholder="Assign…" onSelect={changeOwner} buttonClassName={chipBtn} />
+              </PropChip>
+            </>
+          ) : (
+            <>
+              <StaticChip icon={<Flag size={14} style={{ color: PRIORITY_HEX[t.priority] }} />} text={t.priority} />
+              <StaticChip icon={<CalendarClock size={14} className={dueTone} />} text={t.dueLabel ?? "No date"} />
+              <StaticChip icon={<User size={14} className="text-fg-muted" />} text={t.accountableName ?? "Unassigned"} />
+            </>
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {fullEdit && (
-            <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
-              {busy ? <Loader2 size={14} className="animate-spin" /> : null} Save
-            </button>
-          )}
           <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-accent">
             <Send size={14} /> Remind owner
           </button>
@@ -306,6 +305,7 @@ function TaskRow({
               <Users size={14} /> Remind all · {involved}
             </button>
           )}
+          {busy && <Loader2 size={14} className="animate-spin text-fg-subtle" />}
           <Link href={`/portal/task/${t.code}`} className="ml-auto inline-flex items-center gap-1.5 px-2 py-2 text-sm text-accent hover:underline">
             Open <ExternalLink size={13} />
           </Link>
@@ -321,7 +321,6 @@ function TaskRow({
           onClick={() => setOpen((o) => !o)}
           className="group cursor-pointer px-4 py-3 transition-colors hover:bg-bg-subtle/50"
         >
-          {/* line 1 — columns line up with the header */}
           <div className="grid grid-cols-[minmax(0,1fr)_150px_116px_84px] items-center gap-x-3">
             <div className="flex min-w-0 items-center gap-2">
               <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[t.priority]}`} title={`${t.priority} priority`} />
@@ -337,7 +336,6 @@ function TaskRow({
             </span>
             <span className="flex justify-end"><Avatars names={t.accountableName && !t.assignees.length ? [t.accountableName] : t.assignees} /></span>
           </div>
-          {/* lines 2–3 — company · description, then latest update (always, once) */}
           <div className="mt-1 space-y-0.5 pl-[1.75rem]">
             <div className="flex items-center gap-1.5 text-[12px] text-fg-muted">
               <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
@@ -358,7 +356,7 @@ function TaskRow({
     );
   }
 
-  // mobile card — summary then a calm editor sheet (no repeated meta)
+  // mobile card — summary (with description under the title) then the chip editor
   return (
     <div className="overflow-hidden rounded-2xl bg-bg-elev ring-1 ring-border">
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-stretch gap-3 text-left">
@@ -370,6 +368,7 @@ function TaskRow({
             {t.dueLabel && <span className={`text-[11px] ${dueTone}`}>· {t.dueLabel}</span>}
           </span>
           <span className="block truncate text-sm font-medium">{t.actionItem}</span>
+          {t.description && <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-fg-muted">{t.description}</span>}
           <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">{t.companyName} · {t.accountableName ?? "Unassigned"}</span>
           {t.note && <span className="mt-1 block truncate text-[11px] text-fg-muted">{t.updateAuthor ? `${t.updateAuthor}: ` : ""}{t.note}</span>}
         </span>
@@ -380,13 +379,52 @@ function TaskRow({
   );
 }
 
-/** A calm labelled field — tiny label above the control, generous gap. */
-function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
+const chipShell = "inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle/60 px-2.5 py-1.5 text-[12.5px] ring-1 ring-border";
+const chipBtn = "gap-1.5 text-[12.5px]";
+
+/** A compact property chip: a meaning icon + an editable control (FluidSelect). */
+function PropChip({ icon, children, edit }: { icon: React.ReactNode; children: React.ReactNode; edit?: boolean }) {
   return (
-    <label className={cn("flex flex-col gap-1.5", className)}>
-      <span className="text-[11px] font-medium text-fg-subtle">{label}</span>
+    <span className={cn(chipShell, edit && "pr-1.5")}>
+      <span className="shrink-0">{icon}</span>
       {children}
-    </label>
+    </span>
+  );
+}
+/** A read-only property chip (managers, who can't edit these). */
+function StaticChip({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <span className={chipShell}>
+      <span className="shrink-0">{icon}</span>
+      <span className="text-fg">{text}</span>
+    </span>
+  );
+}
+/** Due-date chip: shows the formatted date, reveals a native picker on tap. */
+function DueChip({ valueIso, label, tone, onChange }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const text = valueIso ? new Date(valueIso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "No date";
+  if (editing) {
+    return (
+      <span className={chipShell}>
+        <CalendarClock size={14} className={tone} />
+        <input
+          type="date"
+          defaultValue={valueIso ?? ""}
+          autoFocus
+          onChange={(e) => { onChange(e.target.value); setEditing(false); }}
+          onBlur={() => setEditing(false)}
+          className="bg-transparent text-[12.5px] text-fg focus:outline-none"
+        />
+      </span>
+    );
+  }
+  return (
+    <button type="button" onClick={() => setEditing(true)} className={cn(chipShell, "hover:bg-bg-subtle")}>
+      <CalendarClock size={14} className={tone} />
+      <span className={label && (tone.includes("danger") || tone.includes("warn")) ? tone : "text-fg"}>{label ?? text}</span>
+      <ChevronDown size={13} className="text-fg-subtle" />
+    </button>
   );
 }
 
