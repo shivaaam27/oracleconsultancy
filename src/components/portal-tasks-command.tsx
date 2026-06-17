@@ -6,13 +6,14 @@ import Link from "next/link";
 import {
   Search, Plus, Sparkles, ArrowUp, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User, ClipboardCheck,
+  MessageSquarePlus, Bell, Check,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
-import { portalDirectorCreateTask, portalCreateTask, portalEditTask, portalRemindTask, portalRemindTaskAll } from "@/app/portal/actions";
+import { portalDirectorCreateTask, portalCreateTask, portalEditTask, portalRemindTask, portalRemindTaskAll, portalAddUpdate } from "@/app/portal/actions";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -230,6 +231,10 @@ function TaskRow({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, startTransition] = useTransition();
+  const [updateBody, setUpdateBody] = useState("");
+  // Mobile swipe state: "left" reveals Update + Remind-all, "right" reveals Complete.
+  const [swiped, setSwiped] = useState<null | "left" | "right">(null);
+  const startX = useRef(0);
 
   const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
   const ownerOptions: FluidOption[] = people.map((p) => ({ value: String(p.id), label: p.name }));
@@ -260,6 +265,32 @@ function TaskRow({
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
       toast(`Reminders drafted for ${res.count} ${res.count === 1 ? "person" : "people"}${res.names.length ? ` (${res.names.join(", ")})` : ""}.`, { tone: "success" });
     });
+  }
+  function postUpdate() {
+    const body = updateBody.trim();
+    if (!body) return;
+    startTransition(async () => {
+      const fd = new FormData();
+      fd.set("taskId", String(t.taskId));
+      fd.set("code", t.code);
+      fd.set("body", body);
+      await portalAddUpdate(fd);
+      setUpdateBody("");
+      toast("Update posted.", { tone: "success" });
+      router.refresh();
+    });
+  }
+  function complete() {
+    save({ status: "Completed" }, "Marked complete");
+  }
+
+  // Touch swipe (mobile cards): left reveals actions, right peeks Complete.
+  function onTouchStart(e: React.TouchEvent) { startX.current = e.touches[0].clientX; }
+  function onTouchMove(e: React.TouchEvent) {
+    const dx = e.touches[0].clientX - startX.current;
+    if (dx < -30) setSwiped("left");
+    else if (dx > 30) setSwiped("right");
+    else setSwiped(null);
   }
 
   const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
@@ -294,6 +325,21 @@ function TaskRow({
               <StaticChip icon={<User size={14} className="text-fg-muted" />} text={t.accountableName ?? "Unassigned"} />
             </>
           )}
+        </div>
+
+        {/* Post an update without opening the task. */}
+        <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
+          <MessageSquarePlus size={15} className="shrink-0 text-accent" />
+          <input
+            value={updateBody}
+            onChange={(e) => setUpdateBody(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postUpdate(); } }}
+            placeholder="Add an update…"
+            className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none"
+          />
+          <button type="button" onClick={postUpdate} disabled={busy || !updateBody.trim()} aria-label="Post update" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+          </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -356,31 +402,55 @@ function TaskRow({
     );
   }
 
-  // mobile card — summary (with description under the title) then the chip editor
+  // mobile card — swipe left for Update + Remind all, right to Complete; tap to expand.
+  const leftReveal = involved > 1 ? 156 : 78;
   return (
-    <div className={cn("overflow-hidden rounded-2xl bg-bg-elev ring-1 ring-border transition-transform active:scale-[0.99]", t.isDone && "opacity-60")}>
-      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-stretch gap-3 text-left">
-        <span className={`w-1 shrink-0 rounded-l-2xl ${t.overdue ? "bg-danger" : t.withinSoon ? "bg-warn" : statusDot(t.status)}`} />
-        <span className="min-w-0 flex-1 py-3">
-          <span className="mb-1 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted ring-1 ring-border/50">{t.code}</span>
-            <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
-            {t.dueLabel && <span className={`text-[11px] ${dueTone}`}>· {t.dueLabel}</span>}
-          </span>
-          <span className="block truncate text-sm font-medium">{t.actionItem}</span>
-          {t.description && <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-fg-muted">{t.description}</span>}
-          <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-fg-subtle">
-            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
-            {t.companyName} · {t.accountableName ?? "Unassigned"}
-          </span>
-          {t.note && <span className="mt-1 block truncate text-[11px] text-fg-muted">{t.updateAuthor ? `${t.updateAuthor}: ` : ""}{t.note}</span>}
-        </span>
-        <span className="mr-2.5 flex shrink-0 flex-col items-center justify-center gap-1.5">
-          <Avatars names={t.accountableName && !t.assignees.length ? [t.accountableName] : t.assignees} />
-          <ChevronRight size={16} className={`text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
-        </span>
+    <div className={cn("relative overflow-hidden rounded-2xl", t.isDone && "opacity-60")}>
+      {/* Revealed on swipe-left */}
+      <div className="absolute inset-y-0 right-0 flex">
+        <button type="button" onClick={() => { setSwiped(null); setOpen(true); }} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent">
+          <MessageSquarePlus size={17} /> Update
+        </button>
+        {involved > 1 && (
+          <button type="button" onClick={() => { setSwiped(null); remindAll(); }} disabled={busy} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
+            <Bell size={17} /> Remind all
+          </button>
+        )}
+      </div>
+      {/* Revealed on swipe-right */}
+      <button type="button" onClick={() => { setSwiped(null); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
+        <Check size={18} /> Complete
       </button>
-      {open && <Editor withStatus />}
+
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        className="relative rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
+        style={{ transform: swiped === "left" ? `translateX(-${leftReveal}px)` : swiped === "right" ? "translateX(86px)" : "translateX(0)" }}
+      >
+        <button type="button" onClick={() => { if (swiped) { setSwiped(null); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
+          <span className={`w-1 shrink-0 rounded-l-2xl ${t.overdue ? "bg-danger" : t.withinSoon ? "bg-warn" : statusDot(t.status)}`} />
+          <span className="min-w-0 flex-1 py-3">
+            <span className="mb-1 flex flex-wrap items-center gap-1.5">
+              <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted ring-1 ring-border/50">{t.code}</span>
+              <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
+              {t.dueLabel && <span className={`text-[11px] ${dueTone}`}>· {t.dueLabel}</span>}
+            </span>
+            <span className="block truncate text-sm font-medium">{t.actionItem}</span>
+            {t.description && <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-fg-muted">{t.description}</span>}
+            <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-fg-subtle">
+              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
+              {t.companyName} · {t.accountableName ?? "Unassigned"}
+            </span>
+            {t.note && <span className="mt-1 block truncate text-[11px] text-fg-muted">{t.updateAuthor ? `${t.updateAuthor}: ` : ""}{t.note}</span>}
+          </span>
+          <span className="mr-2.5 flex shrink-0 flex-col items-center justify-center gap-1.5">
+            <Avatars names={t.accountableName && !t.assignees.length ? [t.accountableName] : t.assignees} />
+            <ChevronRight size={16} className={`text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
+          </span>
+        </button>
+        {open && <Editor withStatus />}
+      </div>
     </div>
   );
 }
