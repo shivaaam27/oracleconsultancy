@@ -246,7 +246,24 @@ Mockups approved first, then built phase-by-phase (each tsc-clean + pushed):
   self-service sections (documents/attendance/leave/onboarding/equipment) +
   glance tiles are gated to non-directors. Task detail back-link is role-aware
   ("All tasks" for management, "My tasks" for staff).
+- **Smart capture bar** (`smart-capture-bar.tsx`, replaces the board's segmented
+  CommandBar): one input that reads intent (heuristic `detectMode`, no AI) — task
+  / event / message; mode chips auto-follow + override; Enter opens the matching
+  bottom-sheet PRE-FILLED. The three Director*Form sheets gained optional
+  controlled `open` + `seedTitle`/`seedBody`. AI suggestion = a one-tap ghost row.
+- **Task cards + gestures** (`portal-tasks-command.tsx`): stat-style filter chips,
+  mobile swipe-left = Update + Remind-all / swipe-right = Complete (attention-card
+  mechanics), expanded editor has an inline "Add an update…" (`portalAddUpdate`).
+- **Per-task page** (`task/[code]/page.tsx` + `task-quick-actions.tsx`): quick-
+  action bar under the hero — "Add update" jumps to composer, management-only
+  "Remind {owner}".
 - Chat deliberately untouched (already has its WhatsApp-style design).
+- GOTCHA (this session): restarting the dev server + `rm -rf .next` while a dev
+  process was still bound to :3000 corrupted `.next` (ENOENT on manifests, stale
+  "Bolt is not defined" chunk, whole /portal tree 404→500). Fix = stop server →
+  kill :3000 PID → `Remove-Item -Recurse -Force .next` → start fresh. Don't clear
+  .next with a server running (CLAUDE.md). The dev-only stale-chunk error was NOT
+  a code bug (tsc clean; routes 200 after clean rebuild).
 - **Tasks + Requests** (shared, all roles): `portal-tasks-command.tsx` — stat-
   style filter chips (bold count + tone), mobile cards gain avatars + accent dot
   + press, quick-add → **+ FAB → BottomSheet**. `request-list.tsx` — iOS
