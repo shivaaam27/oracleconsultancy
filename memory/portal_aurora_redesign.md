@@ -226,7 +226,31 @@ all" → `/portal/requests`, blurb, and the existing **`RequestComposer`** (open
 iPhone bottom-sheet). Home fetches `requestRecipientsFor(me.id)` + `getRequestCategories()`
 and reuses `portalRaiseRequest`. Full history/filters stay on the Requests tab.
 
+## Director board — section-by-section improvements (Jun 2026)
+After a code review of `/portal/board` (`director-board-client.tsx` + `board/page.tsx`):
+1. **Every-number-a-door KPIs.** The "Need you" / "Due today" tiles deep-link to a
+   pre-filtered Tasks view: `PortalTasksCommand` now takes `initialFilter`, the Tasks
+   page reads `?filter=overdue|soon|mine|done|all` (validated), and the board links
+   `?filter=overdue` (Need you) / `?filter=soon` (Due today). Verified: lands on the
+   Overdue chip active.
+2. **"Waiting on you" approvals card** (NEW `WaitingOnYou`, right column above Needs-you):
+   surfaces requests **addressed to the director, status `open`** (incoming, undecided;
+   raised-by-me excluded), each → `/portal/requests/[id]`. Hidden when empty. Data from
+   `listRequestsForPortal(me.id)` in `board/page.tsx`; `PendingRequest` type. (Empty in
+   the demo — 0 requests exist for Pulin — but compiles + renders; mirrors CompanyHealthList.)
+3. **Polish:** removed the mismatched "See all → /portal/tasks" on Company health (all 7
+   companies are already listed); the "swipe to remind" hint now shows only on touch
+   (`[@media(hover:none)]:inline`) — desktop reads just "tap to edit".
+
+Verified on mobile (390) + web (1024 two-col command-wall, no overflow), tsc clean.
+Deliberately skipped (low value / intentional): the inline date field keeps its elevated
+shell (not `bare-field`); the "live" pill stays.
+
 ## Gotchas (this session)
+- A long dev session can drop the dev server into an **all-routes-404** Turbopack state
+  (even `/login`, `/api/notifications`). Fix = the clean rebuild: preview_stop → kill the
+  :3000 PID → `Remove-Item -Recurse -Force .next` → preview_start. Code was tsc-clean
+  throughout; this is purely a dev-cache artefact.
 - Restarting the dev server + `rm -rf .next` **while a process was still bound to
   :3000** corrupted `.next` → ENOENT on manifests, a stale "Bolt is not defined"
   chunk, whole `/portal` tree 404→500. **Fix:** stop server → kill the :3000 PID →

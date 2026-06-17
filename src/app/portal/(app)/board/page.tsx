@@ -7,9 +7,10 @@ import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getBrief } from "@/lib/director-brief";
+import { listRequestsForPortal } from "@/lib/requests";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
-import { DirectorBoardClient, type WatchItem, type CompanyHealth } from "@/components/director-board-client";
+import { DirectorBoardClient, type WatchItem, type CompanyHealth, type PendingRequest } from "@/components/director-board-client";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
       )}
 
       <Suspense fallback={<BoardSkeleton name={me.name.split(" ")[0]} />}>
-        <Board personName={me.name} />
+        <Board personName={me.name} personId={me.id} />
       </Suspense>
 
       {announcements.length > 0 && (
@@ -54,8 +55,28 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   );
 }
 
-async function Board({ personName }: { personName: string }) {
+async function Board({ personName, personId }: { personName: string; personId: number }) {
   const brief = await boardBrief();
+
+  // Requests addressed to this director that aren't resolved yet — the operator's
+  // approvals inbox, surfaced on the board (raised-by-me requests are excluded).
+  const nowMs = Date.now();
+  let pendingRequests: PendingRequest[] = [];
+  try {
+    const reqRows = await listRequestsForPortal(personId);
+    pendingRequests = reqRows
+      // Addressed to me (not raised by me) and still awaiting a first decision.
+      .filter((r) => r.requesterId !== personId && r.status === "open")
+      .slice(0, 5)
+      .map((r) => ({
+        id: r.id,
+        code: r.code,
+        title: r.title,
+        from: r.requesterIsOwner ? "Owner" : r.requesterName,
+        category: r.category,
+        ageDays: Math.max(0, Math.floor((nowMs - new Date(r.createdAt).getTime()) / 86400000)),
+      }));
+  } catch { /* leave empty — re-populates next refresh */ }
 
   // Fast lookups for the composer pickers.
   let companies: Array<{ id: number; name: string }> = [];
@@ -185,6 +206,7 @@ async function Board({ personName }: { personName: string }) {
         companies={companies}
         companyHealth={companyHealth}
         watch={watch}
+        pendingRequests={pendingRequests}
         upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName }))}
         suggestion={suggestion}
       />

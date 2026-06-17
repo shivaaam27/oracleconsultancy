@@ -50,7 +50,7 @@ export type CommandTask = {
   withinSoon: boolean;
 };
 
-type Filter = "all" | "overdue" | "soon" | "mine" | "done";
+export type Filter = "all" | "overdue" | "soon" | "mine" | "done";
 
 const ALL_STATUSES = ["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"];
 const MANAGER_STATUSES = ["In Progress", "Under Review", "Blocked", "Completed"];
@@ -88,16 +88,18 @@ function initials(name: string): string {
 }
 
 export function PortalTasksCommand({
-  tasks, people, companies, role, canCreate,
+  tasks, people, companies, role, canCreate, initialFilter = "all",
 }: {
   tasks: CommandTask[];
   people: BoardPerson[];
   companies: BoardCompany[];
   role: string;
   canCreate: boolean;
+  /** Pre-select a filter (the board's KPI tiles deep-link here, e.g. ?filter=overdue). */
+  initialFilter?: Filter;
 }) {
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>(initialFilter);
 
   const counts = useMemo(() => ({
     all: tasks.length,

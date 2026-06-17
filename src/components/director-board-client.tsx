@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronRight, Check, Loader2, Send, ExternalLink,
-  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck,
+  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Inbox,
 } from "lucide-react";
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
@@ -26,6 +26,7 @@ export type BoardPerson = { id: number; name: string; companyId: number | null }
 export type BoardCompany = { id: number; name: string };
 export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null };
 export type CompanyHealth = { id: number; name: string; risk: string; score: number | null; detail: string };
+export type PendingRequest = { id: number; code: string; title: string; from: string; category: string | null; ageDays: number };
 export type WatchItem = {
   taskId: number;
   code: string;
@@ -57,6 +58,7 @@ type Props = {
   companies: BoardCompany[];
   companyHealth: CompanyHealth[];
   watch: WatchItem[];
+  pendingRequests: PendingRequest[];
   upcomingEvents: BoardEvent[];
   suggestion: { code: string; actionItem: string; companyName: string } | null;
 };
@@ -119,6 +121,7 @@ export function DirectorBoardClient(p: Props) {
           <CompanyHealthList items={p.companyHealth} />
         </div>
         <div className="flex flex-col gap-5">
+          <WaitingOnYou requests={p.pendingRequests} />
           <AttentionStack watch={p.watch} people={p.people} />
           <WeekAhead events={p.upcomingEvents} />
         </div>
@@ -219,8 +222,8 @@ function VitalsPanel({
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2.5">
-          <KpiTile href="/portal/tasks" tone="danger" icon={<Target size={16} />} value={needsYou} label="Need you" run={run} />
-          <KpiTile href="/portal/tasks" tone="warn" icon={<Flame size={16} />} value={dueToday} label="Due today" run={run} />
+          <KpiTile href="/portal/tasks?filter=overdue" tone="danger" icon={<Target size={16} />} value={needsYou} label="Need you" run={run} />
+          <KpiTile href="/portal/tasks?filter=soon" tone="warn" icon={<Flame size={16} />} value={dueToday} label="Due today" run={run} />
           <KpiTile href="/portal/team" tone="accent" icon={<Plane size={16} />} value={onLeave} label="On leave" run={run} />
         </div>
       </Panel>
@@ -256,10 +259,7 @@ function CompanyHealthList({ items }: { items: CompanyHealth[] }) {
   if (!items.length) return null;
   return (
     <div className="flex flex-col gap-2.5">
-      <SectionLabel
-        icon={<Building2 size={13} />}
-        action={<Link href="/portal/tasks" className="inline-flex items-center gap-0.5 text-[11px] normal-case tracking-normal text-accent hover:underline">See all <ChevronRight size={12} /></Link>}
-      >
+      <SectionLabel icon={<Building2 size={13} />}>
         Company health
       </SectionLabel>
       <div className="flex flex-col gap-2">
@@ -286,6 +286,39 @@ function CompanyRow({ c }: { c: CompanyHealth }) {
       {c.score != null && <span className={`w-10 shrink-0 text-right text-[15px] font-semibold tabular ${scoreTint}`}>{c.score}%</span>}
       <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
     </Link>
+  );
+}
+
+/* ---- approvals inbox: requests addressed to the director, awaiting action ---- */
+function WaitingOnYou({ requests }: { requests: PendingRequest[] }) {
+  if (!requests.length) return null;
+  return (
+    <div className="flex flex-col gap-2.5">
+      <SectionLabel
+        icon={<Inbox size={13} />}
+        action={<Link href="/portal/requests" className="inline-flex items-center gap-0.5 text-[11px] normal-case tracking-normal text-accent hover:underline">All requests <ChevronRight size={12} /></Link>}
+      >
+        Waiting on you
+      </SectionLabel>
+      <div className="flex flex-col gap-2">
+        {requests.map((r) => (
+          <Link
+            key={r.id}
+            href={`/portal/requests/${r.id}`}
+            className="group flex items-center gap-3 rounded-2xl bg-bg-elev p-3 ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
+          >
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/20"><Inbox size={15} /></span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{r.title}</p>
+              <p className="truncate text-[11px] text-fg-subtle">
+                {r.from}{r.category ? ` · ${r.category}` : ""} · {r.ageDays === 0 ? "today" : `${r.ageDays}d ago`}
+              </p>
+            </div>
+            <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -338,18 +371,23 @@ function AttentionStack({ watch, people }: { watch: WatchItem[]; people: BoardPe
   }
   return (
     <div className="flex flex-col gap-2.5">
-      <Label hint="swipe to remind · tap to edit" />
+      <Label hint />
       <div className="flex flex-col gap-2.5">
         {watch.map((w) => <AttentionCard key={w.taskId} w={w} people={people} />)}
       </div>
     </div>
   );
 }
-function Label({ hint }: { hint?: string }) {
+function Label({ hint }: { hint?: boolean }) {
   return (
     <SectionLabel
       icon={<Target size={13} />}
-      action={hint ? <span className="text-[10px] normal-case tracking-normal text-fg-subtle">{hint}</span> : undefined}
+      action={hint ? (
+        <span className="text-[10px] normal-case tracking-normal text-fg-subtle">
+          {/* "swipe" only makes sense on touch; the web reveals the editor on tap. */}
+          <span className="[@media(hover:none)]:inline hidden">swipe to remind · </span>tap to edit
+        </span>
+      ) : undefined}
     >
       Needs you
     </SectionLabel>

@@ -7,9 +7,10 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
 import { PortalTasksTable, type PortalTaskRow } from "@/components/portal-tasks-table";
-import { PortalTasksCommand, type CommandTask } from "@/components/portal-tasks-command";
+import { PortalTasksCommand, type CommandTask, type Filter } from "@/components/portal-tasks-command";
 
 const CLOSED = new Set(["Completed", "Closed"]);
+const FILTERS: Filter[] = ["all", "overdue", "soon", "mine", "done"];
 
 /** Short "2d ago" / "5h ago" relative time for the latest-update line. */
 function relTime(iso: string, now: Date): string {
@@ -32,10 +33,11 @@ function relTime(iso: string, now: Date): string {
  *  priority, deadline, the overdue flag and the latest update are identical to
  *  task management. Filtered to the viewer's visible tasks. */
 async function ManagementTasks({
-  me, ids,
+  me, ids, initialFilter,
 }: {
   me: NonNullable<Awaited<ReturnType<typeof getPortalPerson>>>;
   ids: number[];
+  initialFilter: Filter;
 }) {
   const groupWide = me.portalRole === "director" || me.portalRole === "hr";
 
@@ -104,7 +106,7 @@ async function ManagementTasks({
     if (me.companyId != null) companies = companies.filter((c) => c.id === me.companyId);
   }
 
-  return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} canCreate />;
+  return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} canCreate initialFilter={initialFilter} />;
 }
 
 export const dynamic = "force-dynamic";
@@ -132,9 +134,12 @@ function isStatusUpdate(body: string): boolean {
   return /^moved to /i.test(body.trim()) && STATUS_WORDS.some((s) => body.includes(s));
 }
 
-export default async function PortalTasksPage() {
+export default async function PortalTasksPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+
+  const { filter } = await searchParams;
+  const initialFilter: Filter = FILTERS.includes(filter as Filter) ? (filter as Filter) : "all";
 
   const ids = await visibleTaskIds(me);
 
@@ -160,7 +165,7 @@ export default async function PortalTasksPage() {
           </Hero>
         </Reveal>
         <Reveal delay={0.05}>
-          <ManagementTasks me={me} ids={ids} />
+          <ManagementTasks me={me} ids={ids} initialFilter={initialFilter} />
         </Reveal>
       </div>
     );
