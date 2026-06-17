@@ -319,7 +319,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
 
       {/* Search + filter chips */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
+        <div className="relative w-full sm:flex-1 sm:w-auto sm:min-w-[240px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
@@ -351,12 +351,13 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
         )}
       </div>
 
-      {/* Filter chips */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Filter chips — stack the controls below the chips on mobile so they don't
+          jam between wrapped chip rows; sit them inline (right-aligned) from sm up. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <FilterChips
           value={filter}
           onChange={(k) => setFilter(k)}
-          className="flex-1"
+          className="sm:flex-1"
           items={[
             { key: "all", label: "All", icon: Users, count: counts.all, tone: "default" },
             { key: "noContact", label: "No contact info", icon: PhoneOff, count: counts.noContact, tone: "danger" },
@@ -368,7 +369,7 @@ export function PeopleTable({ people, companies, complianceById, directoryHints 
             { key: "inactive", label: "Inactive", icon: UserX, count: counts.inactive, tone: "default" },
           ]}
         />
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex items-center gap-3 sm:ml-auto">
           {!selectMode ? (
             <>
               <label className="inline-flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer">
