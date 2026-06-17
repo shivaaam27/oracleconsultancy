@@ -2,6 +2,16 @@
 
 A standalone, locked-down view for staff members — see only your own tasks, post updates, nothing else. Built June 2026; first user: Shivam Alpeshkumar Parmar.
 
+> **June 2026 Aurora iPhone redesign:** the whole director portal was rebuilt
+> (board, action sheets, smart capture bar, adaptive nav pill, requests, activity
+> timeline, task cards + swipe gestures, per-task page). Full record + the
+> **shared-vs-director matrix** and **staff-parity status** (what flowed to staff
+> for free vs what still uses the old components) live in
+> [[portal-aurora-redesign]]. TL;DR for staff: they got the nav pill, Requests,
+> Activity, task-detail "Add update" and global look for free — but their **Home
+> task cards** (`(app)/page.tsx` `taskCard`) and **staff `/portal/tasks`**
+> (`portal-tasks-table.tsx`) were NOT redesigned and still look old.
+
 ## How it works
 
 - **Sign-in**: the owner sets a password per person in **Settings → Staff portal access** (also lists who has access, last sign-in, and a Revoke button that locks them out immediately). Hash stored on `people.portal_password_hash` (`scrypt:<salt>:<hash>`); `portal_enabled_at` / `portal_last_login_at` alongside (migration `0037`).
