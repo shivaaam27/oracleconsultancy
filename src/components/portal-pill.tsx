@@ -102,7 +102,10 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
           <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} reduce={reduce} />
         </div>
-        {canCreate && (
+        {/* Tasks + Requests carry their own contextual + FAB (quick add / raise
+            a request), so the pill's create button steps aside there to avoid a
+            duplicate +. */}
+        {canCreate && !onTasks && !onRequests && (
           <Link
             href="/portal/task/new"
             aria-label="New task"
