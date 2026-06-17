@@ -171,7 +171,7 @@ export default async function PortalTasksPage() {
     const [{ data: tasks }, { data: assignees }, { data: updates }] = await Promise.all([
       sb
         .from("tasks")
-        .select("id,code,action_item,status,priority,deadline,owner_id,created_by_person_id,comments,companies(name)")
+        .select("id,code,action_item,status,priority,deadline,owner_id,created_by_person_id,comments,requires_attachment,companies(name)")
         .in("id", ids)
         .eq("archived", false)
         .order("deadline", { ascending: true, nullsFirst: false }),
@@ -254,6 +254,7 @@ export default async function PortalTasksPage() {
         updateCount: countByTask.get(tid) ?? 0,
         pinned: pinnedByTask.has(tid),
         lastActivityISO,
+        requiresAttachment: (t.requires_attachment as boolean) ?? false,
       };
     });
   }

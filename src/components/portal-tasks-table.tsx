@@ -14,6 +14,7 @@ import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { TaskMetaLine, WaitingOnChip, PinnedMarker } from "@/components/task-meta-line";
 import { TaskUpdateLine } from "@/components/task-update-line";
+import { PortalTaskDetailPane } from "@/components/portal-task-detail-pane";
 import { portalAddUpdate } from "@/app/portal/actions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import { spring } from "@/lib/motion";
@@ -60,6 +61,8 @@ export type PortalTaskRow = {
   /** Newest signal of life (latest update, else a deadline anchor). Drives the
    *  "quiet for Nd" stale hint on line 4. Null/absent → no false stale hint. */
   lastActivityISO?: string | null;
+  /** When set, completing this task requires a file (the secure gate). */
+  requiresAttachment?: boolean;
 };
 
 /** A portal viewer's role. Drives the in-row status set offered. */
@@ -348,6 +351,8 @@ export function PortalTasksTable({
   // Quick-filter chips set the dropdowns underneath; `overdueOnly` is the one
   // axis the status dropdown can't express (overdue is derived from deadline).
   const [overdueOnly, setOverdueOnly] = useState(false);
+  // Desktop master-detail: which task is open in the right pane.
+  const [selId, setSelId] = useState<number | null>(null);
 
   const allowedStatuses = viewerRole === "staff" ? STAFF_STATUSES : MANAGER_STATUSES;
   // Managers / HR / directors may complete a task outright (the server is the
@@ -411,6 +416,9 @@ export function PortalTasksTable({
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, q, scope, status, company, priority, overdueOnly, nowMs]);
+
+  // The task open in the desktop detail pane — the chosen one, else the first.
+  const selected = filtered.find((r) => r.id === selId) ?? filtered[0] ?? null;
 
   // The quick chips: each sets the underlying dropdowns. `active` derives from
   // current state so the chip row and the dropdowns never disagree.
@@ -503,7 +511,45 @@ export function PortalTasksTable({
       {filtered.length === 0 ? (
         <Panel className="p-6 text-center text-sm text-fg-muted">No tasks match these filters.</Panel>
       ) : (
-        <div className="grid gap-2 lg:grid-cols-2 lg:items-start">
+      <>
+        {/* Desktop: master-detail — a compact list on the left, the selected
+            task's summary + quick actions on the right. */}
+        <div className="hidden gap-3 lg:grid lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.25fr)] lg:items-start">
+          <div className="flex flex-col gap-1.5">
+            {filtered.map((t) => {
+              const active = selected?.id === t.id;
+              const od = t.deadline && new Date(t.deadline) < now && !OPEN_EXCLUDED.includes(t.status);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelId(t.id)}
+                  className={cn(
+                    "flex items-start gap-2.5 rounded-xl px-3 py-2.5 text-left ring-1 transition-colors",
+                    active ? "bg-bg-elev ring-accent/40" : "ring-border hover:bg-bg-subtle/40",
+                    OPEN_EXCLUDED.includes(t.status) && "opacity-70",
+                  )}
+                >
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: STATUS_DOT[t.status] ?? "var(--border)" }} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-mono text-[10px] text-fg-subtle">{t.code}</span>
+                      {od && <span className="text-[10px] font-medium text-danger">overdue</span>}
+                    </span>
+                    <span className="block truncate text-sm font-medium">{t.actionItem}</span>
+                    <span className="block truncate text-[11px] text-fg-subtle">{t.status}{t.companyName ? ` · ${t.companyName}` : ""}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="sticky top-4">
+            {selected && <PortalTaskDetailPane row={selected} viewerRole={viewerRole} />}
+          </div>
+        </div>
+
+        {/* Mobile: the full rich cards (tap through to the task page). */}
+        <div className="flex flex-col gap-2 lg:hidden">
           {filtered.map((t, i) => {
             const closed = OPEN_EXCLUDED.includes(t.status);
             const od = t.deadline && new Date(t.deadline) < now && !closed;
@@ -571,6 +617,7 @@ export function PortalTasksTable({
             );
           })}
         </div>
+      </>
       )}
     </div>
   );
