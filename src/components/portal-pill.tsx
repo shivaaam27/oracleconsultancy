@@ -13,12 +13,55 @@ import { NotificationBell } from "./notification-bell";
  * as the admin pill (top-pill.tsx) but a deliberately tiny, fixed menu —
  * only safe destinations exist here, so staff can never reach admin pages. */
 
-/* Morphing tab: only the ACTIVE tab carries its label (inside a sliding
- * accent-soft glass lens); every other tab is icon-only. The lens slides
- * between tabs via a shared layoutId, and the active tab grows to fit its
- * label via a `layout` animation — so six destinations fit a phone without
- * the old crowded stack of tiny labels. Reduced-motion: no slide/grow. */
-function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; icon: LucideIcon; label: string; active: boolean; reduce: boolean }) {
+/* Adaptive labels: the pill breathes with the page. It condenses to icon-only
+ * tabs while you scroll down (a calm, out-of-the-way thumb bar), and expands —
+ * the active tab's label morphs back in (and every tab's label, where there's
+ * room: tablet/desktop) — when you reach the top, scroll up, or pause. On the
+ * web (lg+) it's always a full label bar. The active tab rides a sliding
+ * accent-soft glass lens (shared layoutId). Reduced-motion: no slide/grow, the
+ * labels just snap. */
+
+/** Track a CSS media query on the client (false during SSR + first paint). */
+function useMediaQuery(query: string): boolean {
+  const [match, setMatch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = () => setMatch(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return match;
+}
+
+/** Condense while scrolling down; expand at the top, on scroll-up, or when the
+ *  scroll pauses (~1.1s idle). Disabled (always expanded) when `enabled` is false. */
+function useCondenseOnScroll(enabled: boolean): boolean {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    if (!enabled) { setCompact(false); return; }
+    // Read the scroll position from whichever element is the page scroller
+    // (window / documentElement / body — varies by layout & browser), and use a
+    // capture-phase listener so we catch the page scroll wherever it originates.
+    const getY = () => window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    let lastY = getY();
+    let idle: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      const y = getY();
+      if (y < 24) setCompact(false);
+      else if (y > lastY + 6) setCompact(true);
+      else if (y < lastY - 6) setCompact(false);
+      lastY = y;
+      clearTimeout(idle);
+      idle = setTimeout(() => setCompact(false), 1100);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
+    return () => { window.removeEventListener("scroll", onScroll, { capture: true }); clearTimeout(idle); };
+  }, [enabled]);
+  return compact;
+}
+
+function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean }) {
   return (
     <Link href={href} aria-label={label} title={label} className="relative shrink-0 outline-none">
       {active && (
@@ -32,19 +75,17 @@ function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; ic
           />
         )
       )}
-      {/* Mobile: only the active tab carries its label (the morphing lens).
-          Large screens: every tab shows its label, so the pill reads as a
-          proper nav bar on the web. */}
       <motion.span
         layout={!reduce}
         transition={{ type: "spring", stiffness: 500, damping: 36 }}
         className={cn(
           "relative inline-flex h-10 items-center justify-center gap-1.5 rounded-full transition-colors",
-          active ? "px-3.5 text-accent" : "w-10 lg:w-auto lg:px-3.5 text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+          active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60",
+          showLabel ? "px-3.5" : "w-10"
         )}
       >
         <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
-        <span className={cn("relative whitespace-nowrap text-[13px] font-medium", active ? "" : "hidden lg:inline")}>{label}</span>
+        {showLabel && <span className="relative whitespace-nowrap text-[13px] font-medium">{label}</span>}
       </motion.span>
     </Link>
   );
@@ -75,6 +116,16 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   }, [pathname]);
   const reduce = !!prefersReduced || manualReduced;
 
+  // Adaptive density. lg = always a full label bar; below that, condense on
+  // scroll. Tablet (md) has room for every label when expanded; a phone keeps
+  // only the active label when expanded, all icons when condensed.
+  const lg = useMediaQuery("(min-width: 1024px)");
+  const md = useMediaQuery("(min-width: 768px)");
+  const compact = useCondenseOnScroll(!lg && !reduce);
+  const showAllLabels = lg || (md && !compact);
+  const showActiveLabel = lg || !compact;
+  const labelFor = (active: boolean) => (active ? showActiveLabel : showAllLabels);
+
   return (
     <>
     {/* On mobile, chat is a full-screen app of its own — the pill steps aside. */}
@@ -83,24 +134,24 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
       onChat ? "hidden md:flex" : "flex"
     )}>
       <motion.div
+        layout={!reduce}
         initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
         className="pointer-events-auto max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 px-1 sm:px-2 h-14"
       >
-        {/* Tabs scroll horizontally if they can't all fit (5 tabs for a
-            director on a ~320px phone); the controls below stay anchored so
-            the bell + theme are always reachable. */}
+        {/* Tabs scroll horizontally only if they truly can't fit; the controls
+            below stay anchored so the bell + theme are always reachable. */}
         <div className="no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto">
-          {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} reduce={reduce} />}
+          {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} />}
           {/* Directors are board-first (/portal redirects them to /portal/board),
               so a Home tab is redundant for them — show it for everyone else. */}
-          {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} reduce={reduce} />}
-          {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} reduce={reduce} />}
-          <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} reduce={reduce} />
-          <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} reduce={reduce} />
-          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} reduce={reduce} />
-          <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} reduce={reduce} />
+          {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} />}
+          {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} labelled={labelFor(onTasks)} reduce={reduce} />}
+          <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} />
+          <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} />
+          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} />
+          <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} />
         </div>
         {/* Tasks + Requests carry their own contextual + FAB (quick add / raise
             a request), so the pill's create button steps aside there to avoid a
