@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { Bell, FileCheck2, LogOut, Settings2, UserRound, CalendarDays, Route as RouteIcon, Package, CheckCircle2, Circle } from "lucide-react";
 import { DevicePushToggle } from "@/components/device-push-toggle";
 import { sb } from "@/db/supabase";
-import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
+import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
+import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { AccessibilityControls } from "@/components/portal-prefs";
@@ -64,13 +65,61 @@ export default async function PortalProfile() {
     ...(companyName ? [{ label: "Company", value: companyName }] : []),
   ];
 
+  const initials = me.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const accessLabel =
+    me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access";
+
+  // Glance rail — the three numbers that tell a staff member where they stand
+  // before any scrolling. Each tile only appears when there's data behind it.
+  const compScore = checklist ? checklist.score : null;
+  const annual =
+    leaveBalances.find((b) => /annual/i.test(b.typeName) && b.remaining != null) ??
+    leaveBalances.find((b) => b.remaining != null);
+  const leaveLeft = annual?.remaining ?? null;
+  const presentDays = attendance.days.filter((d) => d.status === "Present" || d.status === "Remote" || d.status === "Half-day").length;
+  const glance: Array<{ label: string; value: string; tone: keyof typeof TONE }> = [
+    ...(compScore != null ? [{ label: "Compliance", value: `${compScore}%`, tone: (compScore >= 80 ? "success" : compScore >= 50 ? "warn" : "danger") as keyof typeof TONE }] : []),
+    ...(leaveLeft != null ? [{ label: "Leave left", value: `${leaveLeft}d`, tone: "accent" as keyof typeof TONE }] : []),
+    { label: "Present wk", value: `${presentDays}/6`, tone: "muted" as keyof typeof TONE },
+  ];
+
   return (
     <div className="flex flex-col gap-5">
       <Reveal delay={0}>
-        <Hero title={me.name} subtitle="Your profile and viewing preferences.">
-          <Badge tone="info">{me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access"}</Badge>
+        <Hero
+          title={
+            <span className="flex items-center gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-soft/70 text-accent text-base font-semibold ring-1 ring-accent/20">
+                {initials}
+              </span>
+              <span className="min-w-0 truncate">{me.name}</span>
+            </span>
+          }
+          subtitle={[me.role, companyName].filter(Boolean).join(" · ") || "Your profile and viewing preferences."}
+        >
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Badge tone="info">{accessLabel}</Badge>
+            {staffId && (
+              <span className="inline-flex items-center rounded-full bg-bg-subtle/70 px-2 py-0.5 text-[11px] font-medium tabular text-fg-muted ring-1 ring-border/60">
+                {staffId}
+              </span>
+            )}
+          </div>
         </Hero>
       </Reveal>
+
+      {glance.length > 1 && (
+        <Reveal delay={0.03}>
+          <div className={`grid gap-2 ${glance.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+            {glance.map((g) => (
+              <div key={g.label} className={`rounded-2xl p-3 ring-1 ${TONE[g.tone].bg} ${TONE[g.tone].ring}`}>
+                <div className={`text-[11px] font-medium ${TONE[g.tone].text}`}>{g.label}</div>
+                <p className="mt-1 text-xl font-semibold tabular">{g.value}</p>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+      )}
 
       <Reveal delay={0.05} className="flex flex-col gap-2.5">
         <SectionLabel icon={<UserRound size={13} />}>Your details</SectionLabel>
@@ -155,36 +204,30 @@ export default async function PortalProfile() {
         </Reveal>
       )}
 
-      <Reveal delay={0.093} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<KeyRound size={13} />}>Password</SectionLabel>
-        <Panel className="p-4">
-          <PortalPassword />
+      <Reveal delay={0.13} className="flex flex-col gap-2.5">
+        <SectionLabel icon={<ShieldCheck size={13} />}>Account &amp; security</SectionLabel>
+        <Panel className="divide-y divide-border/60 p-0">
+          <div className="p-4">
+            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><ScanFace size={15} className="text-accent" /> Sign in faster</div>
+            <PasskeyManager initial={passkeys} begin={staffBeginPasskey} finish={staffFinishPasskey} remove={staffRemovePasskey} />
+            <p className="mt-2.5 text-[11px] text-fg-subtle">Add this device to sign in with Face ID or your fingerprint — no password needed. Your biometric stays on your device.</p>
+          </div>
+          <div className="p-4">
+            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><KeyRound size={15} className="text-fg-muted" /> Password</div>
+            <PortalPassword />
+            <p className="mt-2.5 text-[11px] text-fg-subtle">Change the password you use to sign in. Only you can do this.</p>
+          </div>
+          <div className="p-4">
+            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><Bell size={15} className="text-fg-muted" /> Notifications</div>
+            <DevicePushToggle />
+            <p className="mt-2.5 text-[11px] text-fg-subtle">Get a phone alert when you&apos;re mentioned, replied to, or assigned a task.</p>
+          </div>
+          <div className="p-4">
+            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><Settings2 size={15} className="text-fg-muted" /> Accessibility</div>
+            <AccessibilityControls />
+            <p className="mt-2.5 text-[11px] text-fg-subtle">These settings are saved on this device only.</p>
+          </div>
         </Panel>
-        <p className="px-1 text-[11px] text-fg-subtle">Change the password you use to sign in. Only you can do this.</p>
-      </Reveal>
-
-      <Reveal delay={0.095} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<ScanFace size={13} />}>Sign in faster</SectionLabel>
-        <Panel className="p-4">
-          <PasskeyManager initial={passkeys} begin={staffBeginPasskey} finish={staffFinishPasskey} remove={staffRemovePasskey} />
-        </Panel>
-        <p className="px-1 text-[11px] text-fg-subtle">Add this device to sign in with Face ID or your fingerprint next time — no password needed. Your biometric stays on your device.</p>
-      </Reveal>
-
-      <Reveal delay={0.1} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<Bell size={13} />}>Notifications</SectionLabel>
-        <Panel className="p-4">
-          <DevicePushToggle />
-        </Panel>
-        <p className="px-1 text-[11px] text-fg-subtle">Get a phone alert when you&apos;re mentioned, replied to, or assigned a task.</p>
-      </Reveal>
-
-      <Reveal delay={0.15} className="flex flex-col gap-2.5">
-        <SectionLabel icon={<Settings2 size={13} />}>Accessibility</SectionLabel>
-        <Panel className="p-4">
-          <AccessibilityControls />
-        </Panel>
-        <p className="px-1 text-[11px] text-fg-subtle">These settings are saved on this device only.</p>
       </Reveal>
 
       <form action={portalLogout}>

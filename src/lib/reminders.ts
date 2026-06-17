@@ -18,6 +18,9 @@ export type ReminderSender = {
   name?: string | null;
   /** Sender's own email — set as Reply-To so replies reach them (portal sends). */
   replyTo?: string | null;
+  /** Sender's own address to send AS (Resend + verified domain only; ignored on
+   *  Gmail SMTP). Usually the same as replyTo. */
+  fromAddress?: string | null;
   /** For the sent-log source stamp, e.g. "admin" or "portal-mgr:Jane". */
   sourceTag?: string;
 };
@@ -62,6 +65,7 @@ export async function sendTaskReminderEmail(opts: {
   const res = await sendEmail({
     to: email, subject, text, html: renderEmail(doc),
     fromName: senderName(opts.sender?.office),
+    fromAddress: opts.sender?.fromAddress ?? undefined,
     replyTo: opts.sender?.replyTo ?? undefined,
   });
   if (!res.ok) {

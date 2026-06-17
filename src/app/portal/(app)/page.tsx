@@ -14,7 +14,7 @@ import { AnnouncementFeed } from "@/components/announcement-feed";
 import { Megaphone } from "lucide-react";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { getJourney } from "@/lib/onboarding";
-import { teamAttendanceToday, personAttendanceToday } from "@/lib/attendance";
+import { teamAttendanceToday, personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
 import { ATTENDANCE_TONE } from "@/lib/leave-shared";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import { TodoCard } from "@/components/todo-card";
@@ -24,6 +24,13 @@ import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo } from "@/app/
 export const dynamic = "force-dynamic";
 
 const OPEN_EXCLUDED = ["Completed", "Closed"];
+
+/** Attendance status → a TONE key for the ambient strip dots (TONE has no
+ *  "default", so Holiday/anything neutral folds to muted). */
+function attDot(status: keyof typeof ATTENDANCE_TONE): keyof typeof TONE {
+  const t = ATTENDANCE_TONE[status];
+  return t === "default" ? "muted" : t;
+}
 
 type Row = {
   id: number;
@@ -40,10 +47,13 @@ type Row = {
 
 function taskCard(t: Row, now: Date) {
   const od = t.deadline && new Date(t.deadline) < now;
+  const st = statusTone(t.status);
+  const dotTone: keyof typeof TONE = st === "default" ? "muted" : st;
   return (
     <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
       <Panel className="p-4 transition-shadow group-hover:ring-accent/40">
         <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${TONE[dotTone].bar}`} aria-hidden />
           <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
           {t.company && <span className="text-xs text-fg-subtle">· {t.company.name}</span>}
           <span className="grow" />
@@ -82,6 +92,7 @@ export default async function PortalHome() {
   // other portal surfaces or run a query on every navigation. Directors never
   // reach this point (redirected above).
   const today = await personAttendanceToday(me.id);
+  const week = await personAttendanceWeek(me.id);
   const myTodos = await listSelfTodos(me.id);
 
   // Announcements that target this person (pinned + newest, with their read state).
@@ -189,6 +200,26 @@ export default async function PortalHome() {
     { label: "Completed", value: done.length, tone: "success", icon: <CheckCircle2 size={15} /> },
   ];
 
+  // Ambient attendance — a quietly-alive status line + this week's trail. Reuses
+  // the same status the once-a-day check-in pop-up sets; no new data.
+  const present = today.status === "Present" || today.status === "Remote";
+  const stripTone: keyof typeof TONE = today.status ? attDot(today.status) : "muted";
+  const stripLabel = today.status
+    ? today.status === "Present"
+      ? "Checked in"
+      : today.status === "Remote"
+        ? "Working remotely"
+        : `Marked ${today.status.toLowerCase()}`
+    : today.lockReason ?? "Not checked in yet";
+  const dateLabel = now.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const stripSub = present
+    ? "present today"
+    : today.status
+      ? today.status.toLowerCase()
+      : today.editable
+        ? "open Profile to check in"
+        : "not marked";
+
   return (
     <div className="flex flex-col gap-5">
       <AutoRefresh seconds={25} />
@@ -216,6 +247,32 @@ export default async function PortalHome() {
             ))}
           </div>
         </Hero>
+      </Reveal>
+
+      <Reveal delay={0.03}>
+        <Panel className="flex items-center gap-3 p-3.5">
+          <span className="relative inline-flex h-2.5 w-2.5 shrink-0 items-center justify-center">
+            {present && (
+              <span className={`absolute inset-0 rounded-full ${TONE[stripTone].bar} opacity-40 motion-safe:animate-ping`} />
+            )}
+            <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${TONE[stripTone].bar}`} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium leading-tight">{stripLabel}</p>
+            <p className="text-[11px] text-fg-subtle">{dateLabel} · {stripSub}</p>
+          </div>
+          <div className="flex items-center gap-1" aria-hidden>
+            {week.days.map((d) => {
+              const t = d.status ? attDot(d.status) : null;
+              return (
+                <span
+                  key={d.date}
+                  className={`h-1.5 w-1.5 rounded-full ${t ? TONE[t].bar : "bg-border"} ${d.isToday ? "ring-2 ring-accent/40 ring-offset-1 ring-offset-bg-elev" : ""}`}
+                />
+              );
+            })}
+          </div>
+        </Panel>
       </Reveal>
 
       {announcements.length > 0 && (

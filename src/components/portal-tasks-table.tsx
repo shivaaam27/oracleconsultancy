@@ -345,6 +345,9 @@ export function PortalTasksTable({
   const [status, setStatus] = useState("open");
   const [company, setCompany] = useState("");
   const [priority, setPriority] = useState("");
+  // Quick-filter chips set the dropdowns underneath; `overdueOnly` is the one
+  // axis the status dropdown can't express (overdue is derived from deadline).
+  const [overdueOnly, setOverdueOnly] = useState(false);
 
   const allowedStatuses = viewerRole === "staff" ? STAFF_STATUSES : MANAGER_STATUSES;
   // Managers / HR / directors may complete a task outright (the server is the
@@ -357,23 +360,72 @@ export function PortalTasksTable({
   );
 
   const now = new Date();
+  const nowMs = now.getTime();
+  const isOverdue = (r: PortalTaskRow) =>
+    !!r.deadline && new Date(r.deadline).getTime() < nowMs && !OPEN_EXCLUDED.includes(r.status);
+
+  // Counts for the quick-filter chips — always over the scoped (not chip-filtered)
+  // set so the numbers stay stable as you toggle chips.
+  const counts = useMemo(() => {
+    const inScope = rows.filter((r) => (scope === "mine" ? r.mine : scope === "raised" ? r.raisedByMe : true));
+    let open = 0, overdue = 0, blocked = 0, done = 0;
+    for (const r of inScope) {
+      if (OPEN_EXCLUDED.includes(r.status)) { done++; continue; }
+      open++;
+      if (r.status === "Blocked" || r.status === "Escalated") blocked++;
+      if (isOverdue(r)) overdue++;
+    }
+    return { open, overdue, blocked, done };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, scope, nowMs]);
+
+  // Attention rank for "needs you first" ordering: overdue, then blocked/
+  // escalated, then everything else; ties broken by soonest deadline.
+  const attentionRank = (r: PortalTaskRow) =>
+    isOverdue(r) ? 0 : r.status === "Blocked" || r.status === "Escalated" ? 1 : 2;
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (scope === "mine" && !r.mine) return false;
-      if (scope === "raised" && !r.raisedByMe) return false;
-      if (status === "open" && OPEN_EXCLUDED.includes(r.status)) return false;
-      if (status === "done" && !OPEN_EXCLUDED.includes(r.status)) return false;
-      if (status !== "open" && status !== "done" && status !== "all" && r.status !== status) return false;
-      if (company && r.companyName !== company) return false;
-      if (priority && r.priority !== priority) return false;
-      if (term) {
-        const hay = `${r.code} ${r.actionItem} ${r.ownerName ?? ""} ${r.companyName ?? ""}`.toLowerCase();
-        if (!hay.includes(term)) return false;
-      }
-      return true;
-    });
-  }, [rows, q, scope, status, company, priority]);
+    return rows
+      .filter((r) => {
+        if (scope === "mine" && !r.mine) return false;
+        if (scope === "raised" && !r.raisedByMe) return false;
+        if (overdueOnly && !isOverdue(r)) return false;
+        if (status === "open" && OPEN_EXCLUDED.includes(r.status)) return false;
+        if (status === "done" && !OPEN_EXCLUDED.includes(r.status)) return false;
+        if (status !== "open" && status !== "done" && status !== "all" && r.status !== status) return false;
+        if (company && r.companyName !== company) return false;
+        if (priority && r.priority !== priority) return false;
+        if (term) {
+          const hay = `${r.code} ${r.actionItem} ${r.ownerName ?? ""} ${r.companyName ?? ""}`.toLowerCase();
+          if (!hay.includes(term)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const ra = attentionRank(a), rb = attentionRank(b);
+        if (ra !== rb) return ra - rb;
+        const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+        const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+        return da - db;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, q, scope, status, company, priority, overdueOnly, nowMs]);
+
+  // The quick chips: each sets the underlying dropdowns. `active` derives from
+  // current state so the chip row and the dropdowns never disagree.
+  const chips: Array<{ key: string; label: string; count: number; tone: "accent" | "danger" | "warn" | "muted"; active: boolean; apply: () => void }> = [
+    { key: "open", label: "Open", count: counts.open, tone: "accent", active: status === "open" && !overdueOnly, apply: () => { setStatus("open"); setOverdueOnly(false); } },
+    { key: "overdue", label: "Overdue", count: counts.overdue, tone: "danger", active: overdueOnly, apply: () => { setStatus("open"); setOverdueOnly(true); } },
+    { key: "blocked", label: "Blocked", count: counts.blocked, tone: "warn", active: status === "Blocked" && !overdueOnly, apply: () => { setStatus("Blocked"); setOverdueOnly(false); } },
+    { key: "done", label: "Done", count: counts.done, tone: "muted", active: status === "done" && !overdueOnly, apply: () => { setStatus("done"); setOverdueOnly(false); } },
+  ];
+  const CHIP_TONE: Record<string, { on: string; off: string }> = {
+    accent: { on: "bg-accent text-white ring-accent", off: "text-accent ring-accent/30 hover:bg-accent-soft/40" },
+    danger: { on: "bg-danger text-white ring-danger", off: "text-danger ring-danger/30 hover:bg-danger-soft/40" },
+    warn: { on: "bg-warn text-white ring-warn", off: "text-warn ring-warn/30 hover:bg-warn-soft/40" },
+    muted: { on: "bg-fg-muted text-white ring-fg-muted", off: "text-fg-muted ring-border hover:bg-bg-muted" },
+  };
 
   const scopeTabs: SegmentOption<Scope>[] = [
     { value: "all", label: "All" },
@@ -405,6 +457,28 @@ export function PortalTasksTable({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* Quick-filter chips — one-tap presets with live counts. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {chips.map((c) => {
+          const t = CHIP_TONE[c.tone];
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={c.apply}
+              aria-pressed={c.active}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition-colors",
+                c.active ? t.on : `bg-bg-elev ${t.off}`,
+              )}
+            >
+              {c.label}
+              <span className={cn("tabular", c.active ? "opacity-90" : "opacity-70")}>{c.count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Scope tabs — Aurora segmented control */}
       <Segmented value={scope} onChange={setScope} options={scopeTabs} className="self-start" />
 

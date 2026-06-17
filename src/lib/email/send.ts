@@ -29,12 +29,18 @@ export type SendEmailInput = {
   text?: string;
   replyTo?: string;
   /**
-   * Override the sender DISPLAY name (e.g. "OC Director's Office"). The sending
-   * ADDRESS stays the configured one (admin@oracle.co.tz) — we can only change the
-   * address itself once the domain is verified for send-as. Pair with replyTo so
-   * replies reach the real sender.
+   * Override the sender DISPLAY name (e.g. "OC Director's Office", or a person's
+   * own name). Pair with replyTo so replies reach the real sender.
    */
   fromName?: string;
+  /**
+   * Override the sending ADDRESS (e.g. a director's own jane@oracle.co.tz so the
+   * mail genuinely comes "from" them). Only honoured on a provider that supports
+   * send-as for the address's domain — i.e. **Resend with a DNS-verified domain**.
+   * Ignored on Gmail SMTP (Google rewrites/rejects a From that isn't the
+   * authenticated mailbox), so the configured admin address is kept there.
+   */
+  fromAddress?: string;
   attachments?: EmailAttachment[];
   /**
    * A calendar invitation to embed *inline* (not as a plain attachment) so Gmail/
@@ -195,8 +201,12 @@ async function sendViaResend(
   to: string[],
   input: SendEmailInput
 ): Promise<SendEmailResult> {
+  // Resend can send-as any address on a DNS-verified domain, so honour a
+  // per-send fromAddress (e.g. the director's own oracle.co.tz mailbox).
+  const fromAddress = input.fromAddress?.trim() || cfg.fromAddress;
+  const fromName = input.fromName || cfg.fromName;
   const body: Record<string, unknown> = {
-    from: input.fromName ? `${input.fromName} <${cfg.fromAddress}>` : cfg.from,
+    from: fromName ? `${fromName} <${fromAddress}>` : fromAddress,
     to,
     subject: input.subject,
   };

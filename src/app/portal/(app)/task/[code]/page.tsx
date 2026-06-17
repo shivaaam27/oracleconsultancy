@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Crown, MessageSquare, Users } from "lucide-react";
 import { sb } from "@/db/supabase";
-import { Panel, SectionLabel } from "@/components/surface-kit";
+import { Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { LiveSync } from "@/components/live-sync";
@@ -183,6 +183,11 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   const closed = task.status === "Completed" || task.status === "Closed";
   const company = task.companies as unknown as { name: string } | null;
+  // The header's aurora wash + leading dot take the task's status colour, so the
+  // whole sheet reads "blocked" (red) / "in progress" (blue) at a glance.
+  const headerSt = statusTone(task.status as string);
+  const washVar = headerSt === "default" ? "accent" : headerSt;
+  const dotTone: keyof typeof TONE = headerSt === "default" ? "muted" : headerSt;
   const statusOptions = (isManagement ? MANAGER_STATUSES : STAFF_STATUSES).filter((s) => s !== task.status);
 
   // A minimal TaskRow-shaped object to drive the shared Aurora markers (pinned /
@@ -208,8 +213,14 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       </Link>
 
       <Reveal delay={0}>
-      <Panel glass className="p-4 sm:p-5">
+      <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full blur-3xl" style={{ background: `radial-gradient(circle, hsl(var(--${washVar}) / 0.18), transparent 70%)` }} />
+          <div className="absolute -bottom-24 -left-20 h-56 w-56 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, hsl(var(--info) / 0.12), transparent 72%)" }} />
+        </div>
+        <div className="relative">
         <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${TONE[dotTone].bar}`} aria-hidden />
           <span className="text-xs font-semibold tabular text-fg-muted">{task.code}</span>
           {company && <span className="text-xs text-fg-subtle">· {company.name}</span>}
           <PinnedMarker task={preview} />
@@ -259,7 +270,8 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             </span>
           </a>
         )}
-      </Panel>
+        </div>
+      </section>
       </Reveal>
 
       <Reveal delay={0.05}>

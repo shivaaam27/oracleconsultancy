@@ -13,30 +13,36 @@ import { NotificationBell } from "./notification-bell";
  * as the admin pill (top-pill.tsx) but a deliberately tiny, fixed menu —
  * only safe destinations exist here, so staff can never reach admin pages. */
 
+/* Morphing tab: only the ACTIVE tab carries its label (inside a sliding
+ * accent-soft glass lens); every other tab is icon-only. The lens slides
+ * between tabs via a shared layoutId, and the active tab grows to fit its
+ * label via a `layout` animation — so six destinations fit a phone without
+ * the old crowded stack of tiny labels. Reduced-motion: no slide/grow. */
 function PillTab({ href, icon: Icon, label, active, reduce }: { href: string; icon: LucideIcon; label: string; active: boolean; reduce: boolean }) {
   return (
-    <Link
-      href={href}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "relative inline-flex flex-col items-center justify-center h-11 w-11 sm:w-16 rounded-2xl shrink-0 transition-colors",
-        active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
-      )}
-    >
+    <Link href={href} aria-label={label} title={label} className="relative shrink-0 outline-none">
       {active && (
         reduce ? (
-          <span className="absolute inset-0 rounded-2xl bg-accent-soft" />
+          <span className="absolute inset-0 rounded-full bg-accent-soft" />
         ) : (
           <motion.span
             layoutId="portalpill"
-            className="absolute inset-0 rounded-2xl bg-accent-soft"
+            className="absolute inset-0 rounded-full bg-accent-soft"
             transition={{ type: "spring", stiffness: 500, damping: 36 }}
           />
         )
       )}
-      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative" />
-      <span className="relative mt-0.5 hidden text-[10px] font-medium sm:block">{label}</span>
+      <motion.span
+        layout={!reduce}
+        transition={{ type: "spring", stiffness: 500, damping: 36 }}
+        className={cn(
+          "relative inline-flex h-10 items-center justify-center gap-1.5 rounded-full transition-colors",
+          active ? "px-3.5 text-accent" : "w-10 text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+        )}
+      >
+        <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
+        {active && <span className="relative whitespace-nowrap text-[13px] font-medium">{label}</span>}
+      </motion.span>
     </Link>
   );
 }

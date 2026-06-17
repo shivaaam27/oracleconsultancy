@@ -356,9 +356,16 @@ export async function portalSendReminderEmail(
     personId,
     note,
     // Reply-To = the sender's own email so a staff reply reaches them, not admin.
-    // (The from ADDRESS stays admin@oracle.co.tz until the domain is verified for
-    // true send-as; the display name already shows their office.)
-    sender: { office, name: me.name, replyTo: me.email, sourceTag: `portal-${tag}:${me.name}` },
+    // fromAddress = the same address so the mail genuinely comes FROM them — this
+    // takes effect on Resend (DNS-verified oracle.co.tz) and is safely ignored on
+    // Gmail SMTP, where Google forces the authenticated admin address.
+    sender: {
+      office,
+      name: me.name,
+      replyTo: me.email,
+      fromAddress: me.email,
+      sourceTag: `portal-${tag}:${me.name}`,
+    },
   });
   if (res.ok) {
     await recordEvent("portal.reminder.email", "ok", { by: me.name, role, personId });

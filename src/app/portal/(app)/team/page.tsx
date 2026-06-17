@@ -8,6 +8,8 @@ import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { Users, ChevronRight } from "lucide-react";
 import { RemindButton } from "./remind-button";
+import { WhatsAppButton } from "./whatsapp-button";
+import { waLink } from "@/lib/outbox/links";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +30,8 @@ export default async function PortalTeamPage() {
 
   const ids = [...byPerson.keys()];
   const { data: people } = ids.length
-    ? await sb.from("people").select("id,name,email").in("id", ids).eq("active", true)
-    : { data: [] as { id: number; name: string; email: string | null }[] };
+    ? await sb.from("people").select("id,name,email,whatsapp,phone").in("id", ids).eq("active", true)
+    : { data: [] as { id: number; name: string; email: string | null; whatsapp: string | null; phone: string | null }[] };
 
   const rows = (people ?? [])
     .map((p) => {
@@ -39,10 +41,16 @@ export default async function PortalTeamPage() {
         return oa - ob;
       });
       const overdue = ts.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length;
+      const firstName = (p.name as string).split(" ")[0];
+      const lines = ts.slice(0, 8).map((t) => `• ${t.actionItem} (${t.code})`).join("\n");
+      const more = ts.length > 8 ? `\n…and ${ts.length - 8} more` : "";
+      const waText = `Hi ${firstName}, a reminder on your open task${ts.length === 1 ? "" : "s"}:\n${lines}${more}\n\nPlease update when you can. Thank you.`;
+      const waNumber = ((p.whatsapp as string | null) || (p.phone as string | null)) ?? null;
       return {
         id: p.id as number,
         name: p.name as string,
         hasEmail: !!((p.email as string | null) ?? "").trim(),
+        waHref: waLink(waNumber, waText),
         open: ts.length,
         overdue,
         tasks: ts,
@@ -88,7 +96,10 @@ export default async function PortalTeamPage() {
                 {r.tasks.length > 5 && <li className="pl-3.5 text-fg-subtle">+{r.tasks.length - 5} more</li>}
               </ul>
 
-              <RemindButton personId={r.id} personName={r.name} hasEmail={r.hasEmail} />
+              <div className="flex flex-wrap items-center gap-2">
+                <RemindButton personId={r.id} personName={r.name} hasEmail={r.hasEmail} />
+                <WhatsAppButton href={r.waHref} />
+              </div>
             </Panel>
           </Reveal>
         ))
