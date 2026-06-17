@@ -7,7 +7,7 @@ import { isOpen } from "./derive";
 import { listDocuments, type DocumentRow } from "./documents";
 import { buildCompanyRequirementScores } from "./company-requirements";
 import { buildPersonRequirementScores } from "./requirements";
-import { leaveMetrics, listLeaveRequests, portfolioLeaveLiability, portfolioSickLeaveCost } from "./leave";
+import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
 import { listObligations, outstandingDeadlines } from "./recurring";
@@ -112,10 +112,6 @@ export type BriefHr = {
   pendingLeave: Array<{ name: string; type: string; days: number; start: string; end: string }>;
   probationEnding: Array<{ name: string; companyName: string | null; endDate: Date }>;
   birthdays: Array<{ name: string; companyName: string | null; date: Date }>;
-  /** Cost of accrued, untaken annual leave across active staff (TZS). */
-  leaveLiability: { totalDays: number; totalCost: number; peopleCosted: number; peopleNoWage: number };
-  /** Cost of approved sick leave taken this cycle, with the ELR half-pay split. */
-  sickLeaveCost: { totalDays: number; fullPayDays: number; halfPayDays: number; totalCost: number; peopleCosted: number };
 };
 
 export type BriefStatutory = {
@@ -171,17 +167,15 @@ async function buildHrBrief(
   documents: DocumentRow[],
   companyNameById: Map<number, string>
 ): Promise<BriefHr> {
-  const [{ data: pplRows }, scores, leave, pendingReqs, leaveLiability, sickLeaveCost] = await Promise.all([
+  const [{ data: pplRows }, scores, leave, pendingReqs] = await Promise.all([
     sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date,date_of_birth").eq("active", true),
     buildPersonRequirementScores(),
-    // When the Brief is filtered to one company, the leave money + on-leave-today
-    // figures must scope to that company too (they used to stay portfolio-wide,
-    // so a single-company Brief showed one company's headcount but all 7
-    // companies' leave liability / sick cost / on-leave count).
+    // When the Brief is filtered to one company, the on-leave-today figure must
+    // scope to that company too (it used to stay portfolio-wide, so a
+    // single-company Brief showed one company's headcount but all 7 companies'
+    // on-leave count).
     leaveMetrics(selectedCompanyId),
     listLeaveRequests({ status: "Pending" }),
-    portfolioLeaveLiability(selectedCompanyId),
-    portfolioSickLeaveCost(selectedCompanyId),
   ]);
 
   let people = (pplRows ?? []).map((p) => ({
@@ -285,8 +279,6 @@ async function buildHrBrief(
     pendingLeave,
     probationEnding,
     birthdays,
-    leaveLiability,
-    sickLeaveCost,
   };
 }
 
@@ -521,8 +513,6 @@ export function briefShareText(b: BriefData): string {
     if (hr.expiringDocs.length) L.push(`• ${hr.expiringDocs.length} staff document${hr.expiringDocs.length === 1 ? "" : "s"} expiring/expired`);
     for (const p of hr.probationEnding.slice(0, 5)) L.push(`• Probation ending: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.endDate)}`);
     for (const p of hr.birthdays.slice(0, 5)) L.push(`• 🎂 Birthday: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.date)}`);
-    if (hr.leaveLiability.totalDays > 0) L.push(`• 💰 Leave liability: TZS ${hr.leaveLiability.totalCost.toLocaleString("en-GB")} (${hr.leaveLiability.totalDays} accrued days, ${hr.leaveLiability.peopleCosted} staff)`);
-    if (hr.sickLeaveCost.totalDays > 0) L.push(`• 🤒 Sick leave cost: TZS ${hr.sickLeaveCost.totalCost.toLocaleString("en-GB")} (${hr.sickLeaveCost.totalDays} days; ${hr.sickLeaveCost.halfPayDays} at half pay)`);
   }
   return L.join("\n");
 }
@@ -615,7 +605,6 @@ export function briefEmailDoc(b: BriefData): EmailDoc {
     ];
     if (hr.pendingLeave.length) peopleRows.push({ left: "Leave to approve", right: `${hr.pendingLeave.length}` });
     if (hr.belowFullCount) peopleRows.push({ left: "Below full compliance", right: `${hr.belowFullCount}` });
-    if (hr.leaveLiability.totalDays > 0) peopleRows.push({ left: "Leave liability", right: `TZS ${hr.leaveLiability.totalCost.toLocaleString("en-GB")}` });
     blocks.push({ kind: "section", label: "People", rows: peopleRows });
   }
   return {

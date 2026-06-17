@@ -74,14 +74,6 @@ export const CATEGORY_META: CategoryMeta[] = [
     source: "automation-lifecycle",
     schedule: "daily",
   },
-  {
-    key: "boardPack",
-    label: "Monthly board pack (to you)",
-    onDescription: "On the 1st of each month, emails you the board pack PDF to forward to the director & CFO.",
-    naturalMode: "auto",
-    source: "automation-boardpack",
-    schedule: "monthly",
-  },
 ];
 
 const META_BY_KEY: Record<EmailCategory, CategoryMeta> = Object.fromEntries(

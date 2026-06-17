@@ -44,8 +44,6 @@ type Defaults = Partial<{
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
   probationEndDate: string | null;
-  wageAmount: number | null;
-  wageBasis: string | null;
 }>;
 
 type Result =
@@ -653,20 +651,6 @@ export function PersonForm({
                 aria-invalid={!!fieldErrors.probationEndDate}
                 className={cn(inputCls, fieldErrors.probationEndDate && invalidFieldClass)} />
               <FieldError message={fieldErrors.probationEndDate} />
-            </div>
-            <div>
-              <FieldLabel>Wage (TZS)</FieldLabel>
-              <input name="wageAmount" type="text" inputMode="decimal" defaultValue={defaults?.wageAmount != null ? String(defaults.wageAmount) : ""}
-                placeholder="e.g. 800000" className={inputCls} />
-            </div>
-            <div>
-              <FieldLabel>Wage basis</FieldLabel>
-              <Select name="wageBasis" defaultValue={defaults?.wageBasis ?? ""}>
-                <option value="">—</option>
-                <option value="monthly">Per month</option>
-                <option value="daily">Per day</option>
-                <option value="hourly">Per hour</option>
-              </Select>
             </div>
           </div>
         </div>

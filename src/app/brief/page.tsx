@@ -1,4 +1,4 @@
-import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users, CalendarClock, Lock } from "lucide-react";
+import { CheckCircle2, ListTodo, AlertTriangle, Building2, CircleCheck, ShieldCheck, Target, Users, CalendarClock } from "lucide-react";
 import { Card, Stat, Badge } from "@/components/ui";
 import { Hero, TONE } from "@/components/surface-kit";
 import { CountUp } from "@/components/arc-gauge";
@@ -47,9 +47,6 @@ export default async function DirectorBriefPage({
                 emailBody={email.body}
                 pdfHref={`/brief/pdf?period=${b.period}${b.selectedCompanyId ? `&company=${b.selectedCompanyId}` : ""}`}
               />
-              <a href="/brief/board" className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev ring-1 ring-border px-3 py-1.5 text-xs font-medium hover:ring-accent/40 transition">
-                <Lock size={13} /> Board pack
-              </a>
             </div>
           }
         >
@@ -288,19 +285,6 @@ export default async function DirectorBriefPage({
             {b.hr.birthdays.length > 0 && (
               <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
                 🎂 Birthdays: {b.hr.birthdays.slice(0, 4).map((p) => `${p.name} (${fmtDay(p.date)})`).join(" · ")}
-              </div>
-            )}
-            {b.hr.leaveLiability.totalDays > 0 && (
-              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
-                💰 Leave liability: <b className="text-fg">TZS {b.hr.leaveLiability.totalCost.toLocaleString("en-GB")}</b>
-                {" "}· {b.hr.leaveLiability.totalDays} accrued day{b.hr.leaveLiability.totalDays === 1 ? "" : "s"} across {b.hr.leaveLiability.peopleCosted} staff
-                {b.hr.leaveLiability.peopleNoWage ? ` (${b.hr.leaveLiability.peopleNoWage} with no wage on record)` : ""}
-              </div>
-            )}
-            {b.hr.sickLeaveCost.totalDays > 0 && (
-              <div className="text-[11px] text-fg-muted border-t border-border/60 pt-2">
-                🤒 Sick leave cost: <b className="text-fg">TZS {b.hr.sickLeaveCost.totalCost.toLocaleString("en-GB")}</b>
-                {" "}· {b.hr.sickLeaveCost.totalDays} day{b.hr.sickLeaveCost.totalDays === 1 ? "" : "s"} taken{b.hr.sickLeaveCost.halfPayDays > 0 ? ` (${b.hr.sickLeaveCost.halfPayDays} at half pay)` : ""} across {b.hr.sickLeaveCost.peopleCosted} staff
               </div>
             )}
           </Card>

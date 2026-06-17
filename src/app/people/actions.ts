@@ -34,14 +34,6 @@ function n(formData: FormData, key: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-/** Parse a decimal field (e.g. a wage), stripping thousands separators. */
-function nf(formData: FormData, key: string): number | null {
-  const v = s(formData, key);
-  if (!v) return null;
-  const parsed = parseFloat(v.replace(/[, ]/g, ""));
-  return Number.isNaN(parsed) ? null : parsed;
-}
-
 function contactStatus(email: string | null, phone: string | null, whatsapp: string | null): string {
   if (email && (phone || whatsapp)) return "Complete";
   if (email || phone || whatsapp) return "Partial";
@@ -220,8 +212,6 @@ const TRACKED_FIELDS: Array<{ col: string; label: string; kind: TrackKind }> = [
   { col: "notes", label: "Notes", kind: "text" },
   { col: "person_type", label: "Person type", kind: "type" },
   { col: "related_person_id", label: "Related person", kind: "person" },
-  { col: "wage_amount", label: "Wage", kind: "text" },
-  { col: "wage_basis", label: "Wage basis", kind: "text" },
   { col: "work_site_id", label: "Work site", kind: "site" },
   { col: "residence_site_id", label: "Residence", kind: "site" },
 ];
@@ -474,8 +464,6 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
       probation_end_date: dateField(formData, "probationEndDate"),
       manager_id: n(formData, "managerId"),
       notes: s(formData, "notes"),
-      wage_amount: nf(formData, "wageAmount"),
-      wage_basis: s(formData, "wageBasis"),
       active: true,
       contact_status: contactStatus(email, phone, whatsapp),
       person_type: personType(formData),
@@ -541,7 +529,7 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   const { data: before } = await sb
     .from("people")
     .select(
-      "company_id,previous_staff_ids,name,email,phone,whatsapp,role,staff_category,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,manager_id,notes,person_type,related_person_id,wage_amount,wage_basis,work_site_id,residence_site_id"
+      "company_id,previous_staff_ids,name,email,phone,whatsapp,role,staff_category,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,manager_id,notes,person_type,related_person_id,work_site_id,residence_site_id"
     )
     .eq("id", id)
     .maybeSingle();
@@ -575,8 +563,6 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
     probation_end_date: dateField(formData, "probationEndDate"),
     manager_id: safeManagerId,
     notes: s(formData, "notes"),
-    wage_amount: nf(formData, "wageAmount"),
-    wage_basis: s(formData, "wageBasis"),
     contact_status: contactStatus(email, phone, whatsapp),
     person_type: personType(formData),
     related_person_id: safeRelatedId,

@@ -36,7 +36,6 @@ import { personTypeLabel, type PersonType } from "@/lib/person-types";
 import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person-audit-shared";
 import { PersonLeave } from "./person-leave";
 import { PersonProbation } from "./person-probation";
-import { PersonPay } from "./person-pay";
 import { FactsPanel } from "./facts-panel";
 import type { PersonLeaveBalance, LeaveRequestRow } from "@/lib/leave-shared";
 import type { PersonAttendanceSummary } from "@/lib/leave";
@@ -79,8 +78,6 @@ type DrawerPerson = {
   staffId: string | null;
   previousStaffIds: string | null;
   staffCategory: string | null;
-  wageAmount: number | null;
-  wageBasis: string | null;
   workSiteId: number | null;
   workSiteName: string | null;
   residenceSiteId: number | null;
@@ -661,7 +658,6 @@ export function PersonDrawer() {
             nationalId: person.nationalId, passportNo: person.passportNo, address: person.address,
             emergencyContactName: person.emergencyContactName, emergencyContactPhone: person.emergencyContactPhone,
             probationEndDate: person.probationEndDate ? person.probationEndDate.slice(0, 10) : null,
-            wageAmount: person.wageAmount, wageBasis: person.wageBasis,
             managerId: person.managerId, secondaryManagerIds: person.secondaryManagers.map((m) => m.id),
             notes: person.notes, personType: person.personType, relatedPersonId: person.relatedPersonId,
             workSite: person.workSiteName, residence: person.residenceName,
@@ -746,14 +742,6 @@ export function PersonDrawer() {
             </SectionCard>
           );
         })()}
-
-        {/* Compensation + final-pay estimate */}
-        <PersonPay
-          wageAmount={person.wageAmount}
-          wageBasis={person.wageBasis}
-          startDate={person.startDate}
-          annualLeaveRemaining={data.leave.balances.find((b) => /annual/i.test(b.typeName))?.remaining ?? null}
-        />
 
         {/* Tracked facts (source-linked fact ledger) */}
         <FactsPanel entityType="person" entityId={person.id} />

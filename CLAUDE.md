@@ -55,7 +55,7 @@ Core:
 
 - companies (now also letterhead/branding cols: `legal_name`/`address`/`phone`/`email`/`registration_no`/`tin`/`logo_path`/`signatory_name`/`signatory_title`/`letterhead_mode`/`header_image_path`/`footer_image_path`/`background_image_path`/`content_top_mm`/`content_bottom_mm`), departments, person_companies
 - **Reference data** (June 2026, managed on the **Companies hub** tabs): `sites` (shared locations — where staff live/work, NOT company branches; seeded from site_tools/asset locations), `job_titles` (managed role list; `people.role` stays free text, rename/merge re-points it), `departments`, `department_heads` (per-company head of a department), `reporting_lines` (secondary/"also reports to" managers; primary stays `people.manager_id`).
-- people (now also HR profile cols: `department_id`/`start_date`/`date_of_birth`/`nationality`/`national_id`/`passport_no`/`address`/`emergency_contact_name`/`emergency_contact_phone`/`probation_end_date`; `wage_amount`/`wage_basis`; **`work_site_id`/`residence_site_id`** → `sites`; portal auth cols inc. `portal_role`; `previous_staff_ids`; `staff_category`). **Staff IDs** (`<prefix>-<roleLetter><NN>`, e.g. `CZ-E04`/`OC-AH01`/`OC-D02`) are computed live in `src/lib/staff-id.ts` — not stored. See `memory/task_management_2.md`.
+- people (now also HR profile cols: `department_id`/`start_date`/`date_of_birth`/`nationality`/`national_id`/`passport_no`/`address`/`emergency_contact_name`/`emergency_contact_phone`/`probation_end_date`; **`work_site_id`/`residence_site_id`** → `sites`; portal auth cols inc. `portal_role`; `previous_staff_ids`; `staff_category`). **Staff IDs** (`<prefix>-<roleLetter><NN>`, e.g. `CZ-E04`/`OC-AH01`/`OC-D02`) are computed live in `src/lib/staff-id.ts` — not stored. See `memory/task_management_2.md`.
 - tasks, task_assignees, task_updates
 - **webauthn_credentials** — passkeys (Face ID/fingerprint sign-in); `person_id` null = owner, else staff; stores only the PUBLIC key. See `memory/auth_login.md`.
 
@@ -63,7 +63,7 @@ Meetings: meetings, meeting_tasks
 
 Fact ledger (transfer-pack): **facts** — append-only, source-linked facts (salary/shareholding/directors/bank/passport/contract); current = latest `effective_date`, older = history; never overwrite. `factStatus` verified/unverified/stale>180d/incomplete. See `memory/localsystemautomationtooracle.md`.
 
-Governance & Risk (board-level, transfer-pack; kept out of daily/weekly): **cap_table**, **beneficial_owners**, **key_persons**, **signatories**, **resolutions**, **risks** (L×I band), **decisions** (+ companies.`authorised_shares`/`issued_shares`). Surfaced on the company profile + `/brief/board` board pack.
+Governance & Risk (board-level, transfer-pack; kept out of daily/weekly): **cap_table**, **beneficial_owners**, **key_persons**, **signatories**, **resolutions**, **risks** (L×I band), **decisions** (+ companies.`authorised_shares`/`issued_shares`). Surfaced on the company profile (the standalone `/brief/board` board pack was removed June 2026).
 
 In-flight + commitments: **pipeline** (bureaucracy stages To Apply→Issued), **commitments** (leases/insurance/contracts; notice-by = end − notice_days). Both link a supporting `document_id`.
 
@@ -123,7 +123,6 @@ See `memory/database_schema.md`.
 - `/hrms/ocr` - OCR (Office Cleaning Registry) — daily cleaning checklist
 - `/hrms/pipeline` - **Applications in progress** (transfer-pack) — kanban of in-flight bureaucracy (permits/visas/licences): To Apply → Applied → Control No. Issued → Paid → Receipt Received → Issued; attach a supporting document. See `memory/localsystemautomationtooracle.md`.
 - `/hrms/registers` - **Commitments register** (transfer-pack) — leases/insurance/commercial contracts with **notice-by = end − notice_days** (flagged when notice is due soon); attach a supporting document.
-- `/brief/board` - **Board pack** (transfer-pack, confidential/director+CFO): exec summary, risk register, decisions, key-person concentration, UBO, per-company ownership+signatories, expiring immigration, safety-net appendix; print-to-PDF + monthly auto-PDF email.
 - `/people/form` - **Staff data-collection form** (transfer-pack) — printable bilingual EN/Swahili form for staff with no system access; `?person=<id>` pre-fills, `?missing=1` shows only blanks, QR to the record, signature/thumbprint + on-behalf field-agent line; outsider type hides employment/payroll. Fill by hand → photograph → upload → intake builds the profile.
 - `/companies` - **Companies hub = reference-data centre**: tabs **Companies · Departments · Sites · Roles** (`companies-hub-tabs.tsx`); each ref list has add/rename/**merge**/delete. `/companies/[id]` = company detail (Overview/Profile/Tasks/Timeline/Org).
 - `/people` - person record now has HR profile fields inc. **Work site + Residence** (shared `sites` list, combobox), a glanceable drawer (hero tiles + accordion sections), manager + N-direct-reports on cards, a **Direct reports** list + an **All Locations** directory filter. Bulk "also reports to" in the select bar.
@@ -205,7 +204,7 @@ Built on the principle **reuse, don't duplicate** (Documents→compliance, tasks
 - **Leave & Attendance** (`src/lib/leave.ts`, `src/lib/attendance.ts`): ELR-Act-accurate leave (Mon–Sat working days minus holidays; Annual 28/12mo, Sick 126/36mo = 63 full+63 half, Maternity 84, Paternity 3, Compassionate 4). Director Brief has an HR section. **Attendance now fully wired** (June 2026): admin register grid + staff self-check-in (trusted, manager can override; status-per-day, no clock in/out).
 - **People locations** (`src/lib/sites.ts`): a shared `sites` list (work site / residence per person) — places staff live or work, not company branches. Managed on the Companies hub Sites tab.
 - **Organogram** (`src/lib/org-flow.ts`): portfolio = ELK multi-parent layered flowchart; reporting surfaced across People (cards, drawer Direct-reports, bulk also-reports-to).
-- **ELR Act 2004** grounding: see `memory/v3_plan.md` for the calc rules (overtime 1.5×, night +5%, Sunday/holiday ×2, severance 7 days/yr, notice 28 days, wage table s.26). Wage field + pay/final-pay calculators are planned phases (4.4–4.7).
+- **ELR Act 2004** grounding: see `memory/v3_plan.md` for the calc rules (overtime 1.5×, night +5%, Sunday/holiday ×2, severance 7 days/yr, notice 28 days, wage table s.26). NOTE: wage fields, the pay/final-pay/severance calculator, and all money figures (leave liability, sick-leave cost) were removed June 2026 along with the board pack — leave day-tracking remains; the ELR rules are kept here for reference only.
 
 ## Smart Intake (V3)
 

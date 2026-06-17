@@ -8,7 +8,7 @@ import type { WorldSlug } from "@/lib/worlds";
 import { getAllTasks, computeGlobalKpis } from "@/lib/queries";
 import { gatherHomeSignals } from "@/lib/signals";
 import { getBrief } from "@/lib/director-brief";
-import { leaveMetrics, portfolioLeaveLiability, portfolioSickLeaveCost } from "@/lib/leave";
+import { leaveMetrics } from "@/lib/leave";
 import { listAssets, assetMetrics } from "@/lib/assets";
 import { listOutboxDrafts } from "@/lib/outbox/drafts";
 import { listObligations, outstandingDeadlines } from "@/lib/recurring";
@@ -320,28 +320,13 @@ async function assetsData(): Promise<WorldData> {
 async function moneyData(): Promise<WorldData> {
   const [brief, tasks] = await Promise.all([getBrief(new Date()), getAllTasks()]);
   const signals = await gatherHomeSignals(tasks);
-  const hr = brief.hr;
 
   const stats: WorldStat[] = [
-    {
-      label: "Leave liability",
-      value: hr.leaveLiability.totalCost,
-      suffix: " TZS",
-      tone: "muted",
-      href: "/brief",
-    },
-    {
-      label: "Sick-leave cost",
-      value: hr.sickLeaveCost.totalCost,
-      suffix: " TZS",
-      tone: "muted",
-      href: "/brief",
-    },
     {
       label: "At-risk companies",
       value: brief.atRiskCount,
       tone: brief.atRiskCount > 0 ? "danger" : "success",
-      href: "/brief/board",
+      href: "/brief",
     },
     {
       label: "Portfolio health",

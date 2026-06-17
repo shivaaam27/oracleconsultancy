@@ -82,13 +82,12 @@ export const WORLDS: World[] = [
   },
   {
     slug: "money",
-    name: "Money & board",
-    blurb: "Director brief, board pack and the financial picture.",
+    name: "Board",
+    blurb: "Director brief and the portfolio picture.",
     icon: "PieChart",
     color: "#D4537E",
     pages: [
       { label: "Director Brief",  href: "/brief",                icon: "ClipboardList" },
-      { label: "Board pack",      href: "/brief/board",          icon: "PieChart" },
       { label: "Insights",        href: "/insights",             icon: "BarChart3" },
     ],
   },

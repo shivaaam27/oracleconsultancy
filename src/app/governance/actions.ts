@@ -13,7 +13,7 @@ export async function loadCompanyGovernance(companyId: number): Promise<CompanyG
 }
 
 function revalidateGov(companyId?: number) {
-  revalidatePath("/brief/board");
+  revalidatePath("/brief");
   if (companyId) revalidatePath(`/companies/${companyId}`);
 }
 

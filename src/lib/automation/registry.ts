@@ -11,7 +11,6 @@ import { renewalsCategory } from "./categories/renewals";
 import { directorBriefCategory } from "./categories/director-brief";
 import { morningDigestCategory } from "./categories/morning-digest";
 import { lifecycleCategory } from "./categories/lifecycle";
-import { boardPackCategory } from "./categories/board-pack";
 
 export const REGISTRY: CategoryDef[] = [
   taskRemindersCategory, // before overdue → cooldown stops double-chasing the same day
@@ -20,5 +19,4 @@ export const REGISTRY: CategoryDef[] = [
   directorBriefCategory,
   morningDigestCategory,
   lifecycleCategory,
-  boardPackCategory,
 ];

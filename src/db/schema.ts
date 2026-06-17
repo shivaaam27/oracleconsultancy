@@ -111,10 +111,6 @@ export const people = pgTable("people", {
   emergencyContactPhone: text("emergency_contact_phone"),
   // End of probation period. Stored at UTC midnight (all-day).
   probationEndDate: timestamp("probation_end_date", { mode: "date", withTimezone: true }),
-  // Compensation (ELR pay / final-pay groundwork). Currency is TZS system-wide.
-  // wageBasis: "monthly" | "daily" | "hourly". Both null = no pay on record.
-  wageAmount: doublePrecision("wage_amount"),
-  wageBasis: text("wage_basis"),
   contactStatus: text("contact_status"),
   active: boolean("active").notNull().default(true),
   notes: text("notes"),
