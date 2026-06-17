@@ -544,7 +544,18 @@ export function PortalTasksTable({
             })}
           </div>
           <div className="sticky top-4">
-            {selected && <PortalTaskDetailPane row={selected} viewerRole={viewerRole} />}
+            {selected && (
+              <PortalTaskDetailPane
+                viewerRole={viewerRole}
+                task={{
+                  id: selected.id, code: selected.code, actionItem: selected.actionItem, status: selected.status,
+                  priority: selected.priority, deadline: selected.deadline, companyName: selected.companyName,
+                  ownerName: selected.ownerName, teamSize: selected.teamSize, description: selected.description ?? null,
+                  latestUpdate: selected.latestActivity?.body ?? null, latestUpdateAuthor: selected.latestActivity?.author ?? null,
+                  requiresAttachment: selected.requiresAttachment,
+                }}
+              />
+            )}
           </div>
         </div>
 

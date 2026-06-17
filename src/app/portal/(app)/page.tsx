@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
 import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
-import { PortalTaskCard } from "@/components/portal-task-card";
+import { PortalHomeTasks } from "@/components/portal-home-tasks";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
@@ -256,162 +256,149 @@ export default async function PortalHome() {
         </Panel>
       </Reveal>
 
-      {/* Command-wall: your work in the main column; to-dos, announcements and
-          (for managers) team signals in a side rail on large screens. On mobile
-          it stacks in this order. */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start">
-        {/* Main — your work (single column so cards expand cleanly) */}
-        <div className="flex flex-col gap-5">
-          <Reveal delay={0.05} className="flex flex-col gap-2.5">
-            <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
-            {myOpen.length === 0 && (
-              <Panel className="p-6 text-center text-sm text-fg-muted">No open tasks assigned to you right now.</Panel>
-            )}
-            <div className="flex flex-col gap-2.5">
-              {myOpen.map((t) => <PortalTaskCard key={t.id} task={toCardTask(t)} viewerRole={me.portalRole} />)}
-            </div>
+      {/* My tasks — master-detail on the web (list left, details right), the
+          swipeable card list on mobile. This is the staff tasks surface. */}
+      <Reveal delay={0.05} className="flex flex-col gap-2.5">
+        <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
+        <PortalHomeTasks tasks={myOpen.map(toCardTask)} viewerRole={me.portalRole} emptyText="No open tasks assigned to you right now." />
+      </Reveal>
+
+      {/* Managers get the wider list inline; HR use the dedicated Tasks tab. */}
+      {me.portalRole === "hr" ? (
+        <Reveal delay={0.1}>
+          <Link href="/portal/tasks" className="block group">
+            <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
+              <div>
+                <p className="text-sm font-medium">All company tasks</p>
+                <p className="text-xs text-fg-muted">{open.length} open across all companies — open the Tasks tab to filter.</p>
+              </div>
+              <ListTodo size={18} className="text-accent shrink-0" />
+            </Panel>
+          </Link>
+        </Reveal>
+      ) : (
+        teamOpen.length > 0 && (
+          <Reveal delay={0.1} className="flex flex-col gap-2.5">
+            <SectionLabel icon={<Users size={13} />}>
+              {me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
+            </SectionLabel>
+            <PortalHomeTasks tasks={teamOpen.map(toCardTask)} viewerRole={me.portalRole} emptyText="No team tasks right now." />
           </Reveal>
+        )
+      )}
 
-          {/* Managers get the wider list inline; HR have the whole portfolio, so
-              they use the dedicated, filterable Tasks tab instead. */}
-          {me.portalRole === "hr" ? (
-            <Reveal delay={0.1}>
-              <Link href="/portal/tasks" className="block group">
-                <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
-                  <div>
-                    <p className="text-sm font-medium">All company tasks</p>
-                    <p className="text-xs text-fg-muted">{open.length} open across all companies — open the Tasks tab to filter.</p>
-                  </div>
-                  <ListTodo size={18} className="text-accent shrink-0" />
-                </Panel>
-              </Link>
-            </Reveal>
-          ) : (
-            teamOpen.length > 0 && (
-              <Reveal delay={0.1} className="flex flex-col gap-2.5">
-                <SectionLabel icon={<Users size={13} />}>
-                  {me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
-                </SectionLabel>
-                <div className="flex flex-col gap-2.5">
-                  {teamOpen.map((t) => <PortalTaskCard key={t.id} task={toCardTask(t)} viewerRole={me.portalRole} />)}
+      {/* Secondary — to-dos, announcements + (managers) team signals; two
+          columns on the web so they use the width without crowding tasks. */}
+      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+        <Reveal delay={0.07}>
+          <TodoCard
+            items={myTodos}
+            createAction={portalCreateTodo}
+            toggleAction={portalToggleTodoDone}
+            deleteAction={portalDeleteTodo}
+            title="Your to-dos"
+          />
+        </Reveal>
+
+        {announcements.length > 0 && (
+          <Reveal delay={0.045} className="flex flex-col gap-2.5">
+            <SectionLabel
+              icon={<Megaphone size={13} />}
+              action={
+                announcements.length > 3 ? (
+                  <Link href="/portal/announcements" className="text-[11px] text-accent hover:underline">See all</Link>
+                ) : undefined
+              }
+            >
+              Announcements
+            </SectionLabel>
+            <AnnouncementFeed items={announcements.slice(0, 3)} />
+          </Reveal>
+        )}
+
+        {teamLeave.length > 0 && (
+          <Reveal delay={0.08} className="flex flex-col gap-2.5">
+            <SectionLabel icon={<Plane size={13} />}>Leave to approve ({teamLeave.length})</SectionLabel>
+            <PortalTeamLeave requests={teamLeave} />
+          </Reveal>
+        )}
+
+        {teamToday.length > 0 && (
+          <Reveal delay={0.085} className="flex flex-col gap-2.5">
+            <SectionLabel icon={<Clock size={13} />}>Team attendance today</SectionLabel>
+            <Panel className="overflow-hidden p-0">
+              <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border/60">
+                <span className="text-sm font-semibold">{teamPresent} in · {teamToday.length - teamMarked} not marked</span>
+                <span className="text-[11px] text-fg-subtle">{teamMarked}/{teamToday.length} recorded</span>
+              </div>
+              <ul className="divide-y divide-border/50">
+                {teamToday.map((m) => (
+                  <li key={m.id} className="flex items-center justify-between gap-2 px-4 py-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">{m.name}</span>
+                    {m.status ? <Badge tone={ATTENDANCE_TONE[m.status]}>{m.status}</Badge> : <span className="text-[11px] text-fg-subtle">Not marked</span>}
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          </Reveal>
+        )}
+
+        {(me.portalRole === "manager" || me.portalRole === "hr") && (
+          <Reveal delay={0.08}>
+            <Link href="/portal/team" className="block group">
+              <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
+                <div>
+                  <p className="text-sm font-medium">Team reminders</p>
+                  <p className="text-xs text-fg-muted">See everyone&apos;s open tasks and send a branded email reminder.</p>
                 </div>
-              </Reveal>
-            )
-          )}
+                <Users size={18} className="shrink-0 text-accent" />
+              </Panel>
+            </Link>
+          </Reveal>
+        )}
 
-          {done.length > 0 && (
-            <Reveal delay={0.12} className="flex flex-col gap-2.5">
-              <SectionLabel icon={<CheckCircle2 size={13} />}>Recently completed</SectionLabel>
-              {done.slice(0, 5).map((t) => (
-                <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
-                  <Panel className="p-3.5 opacity-80 transition-opacity group-hover:opacity-100">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
-                      <p className="min-w-0 grow truncate text-sm">{t.action_item}</p>
-                      <Badge tone="success">{t.status}</Badge>
+        {teamMembers.length > 0 && (
+          <Reveal delay={0.09} className="flex flex-col gap-2.5">
+            <SectionLabel icon={<Users size={13} />}>My team</SectionLabel>
+            <div className="flex flex-col gap-2">
+              {teamMembers.map((m) => (
+                <Link key={m.id} href={`/portal/chat?dm=${m.id}`} className="block group">
+                  <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-accent/40">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft/60 text-accent text-xs font-semibold ring-1 ring-accent/20">
+                      {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{m.name}</p>
+                      <p className="text-[11px] text-fg-muted truncate">{m.role ?? "—"}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {m.band && <Badge tone={m.band === "Good" ? "success" : m.band === "Watch" ? "warn" : "danger"}>{m.score}%</Badge>}
+                      {m.onboardPct != null && m.onboardPct < 100 && <span className="text-[10px] text-fg-subtle">Onboarding {m.onboardPct}%</span>}
                     </div>
                   </Panel>
                 </Link>
               ))}
-            </Reveal>
-          )}
-        </div>
-
-        {/* Rail — to-dos, announcements + (managers) team signals */}
-        <div className="flex flex-col gap-5">
-          <Reveal delay={0.07}>
-            <TodoCard
-              items={myTodos}
-              createAction={portalCreateTodo}
-              toggleAction={portalToggleTodoDone}
-              deleteAction={portalDeleteTodo}
-              title="Your to-dos"
-            />
+            </div>
           </Reveal>
-
-          {announcements.length > 0 && (
-            <Reveal delay={0.045} className="flex flex-col gap-2.5">
-              <SectionLabel
-                icon={<Megaphone size={13} />}
-                action={
-                  announcements.length > 3 ? (
-                    <Link href="/portal/announcements" className="text-[11px] text-accent hover:underline">See all</Link>
-                  ) : undefined
-                }
-              >
-                Announcements
-              </SectionLabel>
-              <AnnouncementFeed items={announcements.slice(0, 3)} />
-            </Reveal>
-          )}
-
-          {teamLeave.length > 0 && (
-            <Reveal delay={0.08} className="flex flex-col gap-2.5">
-              <SectionLabel icon={<Plane size={13} />}>Leave to approve ({teamLeave.length})</SectionLabel>
-              <PortalTeamLeave requests={teamLeave} />
-            </Reveal>
-          )}
-
-          {teamToday.length > 0 && (
-            <Reveal delay={0.085} className="flex flex-col gap-2.5">
-              <SectionLabel icon={<Clock size={13} />}>Team attendance today</SectionLabel>
-              <Panel className="overflow-hidden p-0">
-                <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border/60">
-                  <span className="text-sm font-semibold">{teamPresent} in · {teamToday.length - teamMarked} not marked</span>
-                  <span className="text-[11px] text-fg-subtle">{teamMarked}/{teamToday.length} recorded</span>
-                </div>
-                <ul className="divide-y divide-border/50">
-                  {teamToday.map((m) => (
-                    <li key={m.id} className="flex items-center justify-between gap-2 px-4 py-2">
-                      <span className="min-w-0 flex-1 truncate text-sm">{m.name}</span>
-                      {m.status ? <Badge tone={ATTENDANCE_TONE[m.status]}>{m.status}</Badge> : <span className="text-[11px] text-fg-subtle">Not marked</span>}
-                    </li>
-                  ))}
-                </ul>
-              </Panel>
-            </Reveal>
-          )}
-
-          {(me.portalRole === "manager" || me.portalRole === "hr") && (
-            <Reveal delay={0.08}>
-              <Link href="/portal/team" className="block group">
-                <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
-                  <div>
-                    <p className="text-sm font-medium">Team reminders</p>
-                    <p className="text-xs text-fg-muted">See everyone&apos;s open tasks and send a branded email reminder.</p>
-                  </div>
-                  <Users size={18} className="shrink-0 text-accent" />
-                </Panel>
-              </Link>
-            </Reveal>
-          )}
-
-          {teamMembers.length > 0 && (
-            <Reveal delay={0.09} className="flex flex-col gap-2.5">
-              <SectionLabel icon={<Users size={13} />}>My team</SectionLabel>
-              <div className="flex flex-col gap-2">
-                {teamMembers.map((m) => (
-                  <Link key={m.id} href={`/portal/chat?dm=${m.id}`} className="block group">
-                    <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-accent/40">
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft/60 text-accent text-xs font-semibold ring-1 ring-accent/20">
-                        {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{m.name}</p>
-                        <p className="text-[11px] text-fg-muted truncate">{m.role ?? "—"}</p>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        {m.band && <Badge tone={m.band === "Good" ? "success" : m.band === "Watch" ? "warn" : "danger"}>{m.score}%</Badge>}
-                        {m.onboardPct != null && m.onboardPct < 100 && <span className="text-[10px] text-fg-subtle">Onboarding {m.onboardPct}%</span>}
-                      </div>
-                    </Panel>
-                  </Link>
-                ))}
-              </div>
-            </Reveal>
-          )}
-        </div>
+        )}
       </div>
+
+      {done.length > 0 && (
+        <Reveal delay={0.12} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<CheckCircle2 size={13} />}>Recently completed</SectionLabel>
+          {done.slice(0, 5).map((t) => (
+            <Link key={t.id} href={`/portal/task/${t.code}`} className="block group">
+              <Panel className="p-3.5 opacity-80 transition-opacity group-hover:opacity-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold tabular text-fg-muted">{t.code}</span>
+                  <p className="min-w-0 grow truncate text-sm">{t.action_item}</p>
+                  <Badge tone="success">{t.status}</Badge>
+                </div>
+              </Panel>
+            </Link>
+          ))}
+        </Reveal>
+      )}
     </div>
   );
 }

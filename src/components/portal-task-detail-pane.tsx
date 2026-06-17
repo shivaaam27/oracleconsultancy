@@ -10,12 +10,30 @@ import { CompleteTaskSheet } from "./complete-task-sheet";
 import { useToast } from "./toast";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import { portalAddUpdate } from "@/app/portal/actions";
-import type { PortalTaskRow, PortalViewerRole } from "./portal-tasks-table";
 
-/* The Tasks-page master-detail pane: the selected task's summary + the quick
- * actions a portal user is allowed (role-scoped status move, inline update,
- * secure Complete) without opening the full task. Completion always goes
- * through the gated CompleteTaskSheet; the full conversation is one click away. */
+/* The master-detail pane: the selected task's summary + the quick actions a
+ * portal user is allowed (role-scoped status move, inline update, secure
+ * Complete) without opening the full task. Used on the staff Home and the
+ * staff Tasks page. Completion always goes through the gated CompleteTaskSheet;
+ * the full conversation is one click away. */
+
+/** Minimal task shape the pane needs — both the Home row and the Tasks-table
+ *  row map onto this. */
+export type PaneTask = {
+  id: number;
+  code: string;
+  actionItem: string;
+  status: string;
+  priority: string;
+  deadline: string | null;
+  companyName: string | null;
+  ownerName?: string | null;
+  teamSize?: number;
+  description?: string | null;
+  latestUpdate?: string | null;
+  latestUpdateAuthor?: string | null;
+  requiresAttachment?: boolean;
+};
 
 const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
 const MANAGER_STATUSES = [...STAFF_STATUSES, "Waiting External", "Escalated", "Not Started"];
@@ -31,28 +49,28 @@ const STATUS_DOT: Record<string, string> = {
 };
 const OPEN_EXCLUDED = ["Completed", "Closed"];
 
-export function PortalTaskDetailPane({ row, viewerRole }: { row: PortalTaskRow; viewerRole: PortalViewerRole }) {
+export function PortalTaskDetailPane({ task, viewerRole }: { task: PaneTask; viewerRole: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const [updateBody, setUpdateBody] = useState("");
   const [completeOpen, setCompleteOpen] = useState(false);
   const [busy, start] = useTransition();
 
-  const closed = OPEN_EXCLUDED.includes(row.status);
+  const closed = OPEN_EXCLUDED.includes(task.status);
   const allowed = viewerRole === "staff" ? STAFF_STATUSES : MANAGER_STATUSES;
-  const overdue = !!row.deadline && new Date(row.deadline) < new Date() && !closed;
+  const overdue = !!task.deadline && new Date(task.deadline) < new Date() && !closed;
 
   const statusOptions: FluidOption[] = [
-    { value: row.status, label: row.status, dot: STATUS_DOT[row.status] },
-    ...allowed.filter((s) => s !== row.status).map((s) => ({ value: s, label: s, dot: STATUS_DOT[s] })),
+    { value: task.status, label: task.status, dot: STATUS_DOT[task.status] },
+    ...allowed.filter((s) => s !== task.status).map((s) => ({ value: s, label: s, dot: STATUS_DOT[s] })),
   ];
 
   function changeStatus(next: string) {
-    if (next === row.status || !allowed.includes(next)) return;
+    if (next === task.status || !allowed.includes(next)) return;
     start(async () => {
       const fd = new FormData();
-      fd.set("taskId", String(row.id));
-      fd.set("code", row.code);
+      fd.set("taskId", String(task.id));
+      fd.set("code", task.code);
       fd.set("body", `Moved to ${next}.`);
       fd.set("newStatus", next);
       try { await portalAddUpdate(fd); toast(`Moved to ${next}.`, { tone: "success" }); router.refresh(); }
@@ -64,8 +82,8 @@ export function PortalTaskDetailPane({ row, viewerRole }: { row: PortalTaskRow; 
     if (!body) return;
     start(async () => {
       const fd = new FormData();
-      fd.set("taskId", String(row.id));
-      fd.set("code", row.code);
+      fd.set("taskId", String(task.id));
+      fd.set("code", task.code);
       fd.set("body", body);
       try { await portalAddUpdate(fd); setUpdateBody(""); toast("Update posted.", { tone: "success" }); router.refresh(); }
       catch { toast("Couldn't post the update.", { tone: "danger" }); }
@@ -75,35 +93,35 @@ export function PortalTaskDetailPane({ row, viewerRole }: { row: PortalTaskRow; 
   return (
     <div className="rounded-2xl bg-bg-elev p-4 ring-1 ring-border">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-mono text-[11px] font-medium text-fg-muted">{row.code}</span>
-        {row.companyName && <span className="text-[11px] text-fg-subtle">· {row.companyName}</span>}
+        <span className="font-mono text-[11px] font-medium text-fg-muted">{task.code}</span>
+        {task.companyName && <span className="text-[11px] text-fg-subtle">· {task.companyName}</span>}
         <span className="grow" />
-        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
-        <Badge tone={priorityTone(row.priority)}>{row.priority}</Badge>
+        <Badge tone={statusTone(task.status)}>{task.status}</Badge>
+        <Badge tone={priorityTone(task.priority)}>{task.priority}</Badge>
       </div>
-      <h2 className="mt-2 text-base font-semibold leading-snug">{row.actionItem}</h2>
+      <h2 className="mt-2 text-base font-semibold leading-snug">{task.actionItem}</h2>
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
-        {row.deadline && (
+        {task.deadline && (
           <span className={overdue ? "text-danger font-medium" : undefined}>
             <CalendarDays size={12} className="mr-1 inline -mt-px" />
-            Due {new Date(row.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{overdue ? " · overdue" : ""}
+            Due {new Date(task.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}{overdue ? " · overdue" : ""}
           </span>
         )}
-        {row.ownerName && <span>Owner: {row.ownerName}</span>}
-        {row.teamSize > 1 && <span><Users size={12} className="mr-1 inline -mt-px" />Team of {row.teamSize}</span>}
+        {task.ownerName && <span>Owner: {task.ownerName}</span>}
+        {task.teamSize && task.teamSize > 1 && <span><Users size={12} className="mr-1 inline -mt-px" />Team of {task.teamSize}</span>}
       </div>
-      {row.description && <p className="mt-2.5 whitespace-pre-wrap text-sm text-fg-muted">{row.description}</p>}
-      {row.latestActivity?.body && (
+      {task.description && <p className="mt-2.5 whitespace-pre-wrap text-sm text-fg-muted">{task.description}</p>}
+      {task.latestUpdate && (
         <p className="mt-2.5 rounded-xl bg-bg-subtle/60 px-3 py-2 text-xs text-fg-muted ring-1 ring-border/50">
-          <span className="font-medium text-fg">{row.latestActivity.author}: </span>{row.latestActivity.body}
+          {task.latestUpdateAuthor && <span className="font-medium text-fg">{task.latestUpdateAuthor}: </span>}{task.latestUpdate}
         </p>
       )}
 
-      {!closed && (
+      {!closed ? (
         <div className="mt-3.5 flex flex-col gap-3 border-t border-border/60 pt-3.5">
           <label className="flex flex-col gap-1 text-[11px] text-fg-muted">
             Status
-            <FluidSelect value={row.status} options={statusOptions} onSelect={changeStatus} buttonClassName="rounded-xl bg-bg-subtle/60 ring-1 ring-border" />
+            <FluidSelect value={task.status} options={statusOptions} onSelect={changeStatus} buttonClassName="rounded-xl bg-bg-subtle/60 ring-1 ring-border" />
           </label>
           <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
             <MessageSquarePlus size={15} className="shrink-0 text-accent" />
@@ -126,19 +144,18 @@ export function PortalTaskDetailPane({ row, viewerRole }: { row: PortalTaskRow; 
             >
               <CheckCircle2 size={15} /> Complete
             </button>
-            <Link href={`/portal/task/${row.code}`} className="ml-auto inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
+            <Link href={`/portal/task/${task.code}`} className="ml-auto inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
               Open full task <ExternalLink size={13} />
             </Link>
           </div>
         </div>
-      )}
-      {closed && (
-        <Link href={`/portal/task/${row.code}`} className="mt-3.5 inline-flex items-center gap-1.5 border-t border-border/60 pt-3.5 text-sm text-accent hover:underline">
+      ) : (
+        <Link href={`/portal/task/${task.code}`} className="mt-3.5 inline-flex items-center gap-1.5 border-t border-border/60 pt-3.5 text-sm text-accent hover:underline">
           Open full task <ExternalLink size={13} />
         </Link>
       )}
 
-      <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={row.id} code={row.code} requiresAttachment={row.requiresAttachment} />
+      <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={task.id} code={task.code} requiresAttachment={task.requiresAttachment} />
     </div>
   );
 }
