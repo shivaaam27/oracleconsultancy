@@ -277,7 +277,7 @@ export default async function PortalHome() {
         {myOpen.length === 0 && (
           <Panel className="p-6 text-center text-sm text-fg-muted">No open tasks assigned to you right now.</Panel>
         )}
-        <div className="grid gap-2.5 lg:grid-cols-2">
+        <div className="grid gap-2.5 lg:grid-cols-2 lg:items-start">
           {myOpen.map((t) => <PortalTaskCard key={t.id} task={toCardTask(t)} viewerRole={me.portalRole} />)}
         </div>
       </Reveal>
@@ -378,7 +378,7 @@ export default async function PortalHome() {
             <SectionLabel icon={<Users size={13} />}>
               {me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
             </SectionLabel>
-            <div className="grid gap-2.5 lg:grid-cols-2">
+            <div className="grid gap-2.5 lg:grid-cols-2 lg:items-start">
               {teamOpen.map((t) => <PortalTaskCard key={t.id} task={toCardTask(t)} viewerRole={me.portalRole} />)}
             </div>
           </Reveal>
