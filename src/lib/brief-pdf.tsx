@@ -60,8 +60,10 @@ const C = {
   neutralText: "#555555", neutralBg: "#eef0f2",
 } as const;
 
-type Tone = "success" | "warn" | "danger" | "info" | "neutral";
-const TONE_TEXT: Record<Tone, string> = { success: C.successText, warn: C.warnText, danger: C.dangerText, info: C.infoText, neutral: C.neutralText };
+// "ink" = no signal colour (normal black text). Colour is reserved for things a
+// director should catch: danger (red), success (green), warn (amber).
+type Tone = "success" | "warn" | "danger" | "info" | "neutral" | "ink";
+const TONE_TEXT: Record<Tone, string> = { success: C.successText, warn: C.warnText, danger: C.dangerText, info: C.infoText, neutral: C.neutralText, ink: C.ink };
 
 const s = StyleSheet.create({
   page: {
@@ -130,13 +132,12 @@ const s = StyleSheet.create({
   footerStrong: { color: C.muted, fontFamily: FONT, fontWeight: 500 },
 });
 
-const priorityTone = (p: string): Tone => (p === "Critical" ? "danger" : p === "High" ? "warn" : p === "Medium" ? "info" : "neutral");
+// Colour only exceptions; normal priorities/statuses stay ink black.
+const priorityTone = (p: string): Tone => (p === "Critical" ? "danger" : p === "High" ? "warn" : "ink");
 const statusTone = (st: string): Tone =>
   st === "Completed" || st === "Closed" ? "success"
     : st === "Blocked" || st === "Escalated" ? "danger"
-      : st === "Under Review" || st === "Waiting External" ? "warn"
-        : st === "In Progress" ? "info"
-          : "neutral";
+      : "ink";
 const riskTone = (r: string): Tone => (r === "High risk" ? "danger" : r === "Watch" ? "warn" : "success");
 
 // Status / priority / risk now render as COLOURED TEXT, not pill chips.
