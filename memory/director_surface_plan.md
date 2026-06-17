@@ -241,8 +241,14 @@ Mockups approved first, then built phase-by-phase (each tsc-clean + pushed):
   glance tiles are gated to non-directors. Task detail back-link is role-aware
   ("All tasks" for management, "My tasks" for staff).
 - Chat deliberately untouched (already has its WhatsApp-style design).
-- NOT changed: the shared Tasks list + Requests composer/list (already Aurora;
-  left to preserve staff/manager parity) — a future pass could iPhone-polish them.
+- **Tasks + Requests** (shared, all roles): `portal-tasks-command.tsx` — stat-
+  style filter chips (bold count + tone), mobile cards gain avatars + accent dot
+  + press, quick-add → **+ FAB → BottomSheet**. `request-list.tsx` — iOS
+  segmented tabs (sliding indicator), Open-only = iPhone `Switch`, **glass cards
+  with a category icon tile** (leave/document/equipment/HR/IT/finance/travel/
+  admin), unseen dot + status/aging chips. `request-composer.tsx` → BottomSheet;
+  portal passes `fab` (admin control centre keeps a full-width button). Owner
+  approved: + FAB flow + apply to everyone.
 
 ## Governance (non-negotiable for an operator)
 Scope enforced server-side; every task/message/automation stamped + audit-logged + owner-
