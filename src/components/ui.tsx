@@ -199,6 +199,38 @@ export function Switch({ on, busy = false, size = "md" }: { on: boolean; busy?: 
   );
 }
 
+/** A full-width tappable settings row with an iPhone Switch on the right —
+ *  the canonical "toggle as a slider" control. Owns the click + aria (role
+ *  switch). Use for sheet options and the profile settings list. */
+export function SwitchRow({
+  label, hint, on, onChange, busy = false, icon,
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  on: boolean;
+  onChange: (v: boolean) => void;
+  busy?: boolean;
+  icon?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={busy}
+      onClick={() => onChange(!on)}
+      className="flex w-full items-center gap-3 rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-left ring-1 ring-border transition-[background-color,transform] hover:bg-bg-subtle active:scale-[0.99] disabled:opacity-60"
+    >
+      {icon && <span className="shrink-0 text-fg-muted">{icon}</span>}
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-fg">{label}</span>
+        {hint && <span className="mt-0.5 block text-[11px] text-fg-muted">{hint}</span>}
+      </span>
+      <Switch on={on} busy={busy} />
+    </button>
+  );
+}
+
 type LinkBtnProps = {
   variant?: keyof typeof buttonStyles;
   size?: keyof typeof buttonSizes;
