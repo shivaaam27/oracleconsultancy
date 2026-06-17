@@ -125,6 +125,46 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[]): string {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/**
+ * CLEAN plain-text reminder for MANUAL wa.me sends (the sender taps send). Unlike
+ * buildWhatsAppMessage this uses NO WhatsApp markdown (`*`/`_` show up literally in
+ * the compose box and look messy) and is CAPPED so the wa.me URL stays short enough
+ * that WhatsApp Web reliably opens the chat. The portal link is last so WhatsApp
+ * still builds a link-preview card. (The branded image only rides the Twilio path.)
+ */
+const MANUAL_TASK_CAP = 10;
+export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[]): string {
+  const first = name.split(" ")[0] || name;
+  const overdueCount = tasks.filter(isOverdue).length;
+
+  const groups = new Map<string, TaskRow[]>();
+  for (const t of tasks) {
+    const list = groups.get(t.companyName);
+    if (list) list.push(t); else groups.set(t.companyName, [t]);
+  }
+  for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
+
+  const lines = [`Hi ${first}, a reminder of your open task${tasks.length === 1 ? "" : "s"}:`, ""];
+  let shown = 0;
+  for (const [company, list] of groups) {
+    if (shown >= MANUAL_TASK_CAP) break;
+    lines.push(company);
+    for (const t of list) {
+      if (shown >= MANUAL_TASK_CAP) break;
+      const od = isOverdue(t) ? " — overdue" : "";
+      const pri = t.priority === "Critical" || t.priority === "High" ? ` (${t.priority})` : "";
+      lines.push(`• ${t.actionItem} — due ${fmtDate(t.deadline)}${od}${pri}`);
+      shown++;
+    }
+    lines.push("");
+  }
+  const hidden = tasks.length - shown;
+  if (hidden > 0) lines.push(`…and ${hidden} more.`, "");
+  lines.push(`${tasks.length} open${overdueCount ? `, ${overdueCount} overdue` : ""}. Please update when you can. Thank you.`);
+  lines.push(`${appBaseUrl()}/portal`);
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function buildEmailMessage(name: string, tasks: TaskRow[]): string {
   return buildReminder(name, tasks, (s) => s); // email shows literal asterisks — keep plain
 }
@@ -195,7 +235,7 @@ export function buildTaskReminderDoc(
 
 function buildAllMessages(name: string, list: TaskRow[]): Record<Channel, string> {
   return {
-    WHATSAPP: buildWhatsAppMessage(name, list),
+    WHATSAPP: buildWhatsAppManualMessage(name, list), // Outbox = copy/wa.me (manual) → clean plain text
     EMAIL: buildEmailMessage(name, list),
     SMS: list.map((t) => buildSmsMessage(t)).join("\n"),
   };

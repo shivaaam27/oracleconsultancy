@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildWhatsAppMessage } from "./gen";
+import { buildWhatsAppMessage, buildWhatsAppManualMessage } from "./gen";
 import type { TaskRow } from "../queries";
 
 // Minimal TaskRow factory — only the fields buildWhatsAppMessage reads.
@@ -40,5 +40,27 @@ describe("buildWhatsAppMessage", () => {
     ]);
     expect(msg).toMatch(/🔴 Late one/);
     expect(msg).toMatch(/⚪ Low one/);
+  });
+});
+
+describe("buildWhatsAppManualMessage", () => {
+  it("is clean plain text — no WhatsApp markdown — and ends with the portal link", () => {
+    const msg = buildWhatsAppManualMessage("Jane Doe", [
+      task({ actionItem: "Submit VAT return", companyName: "Dar Spices", priority: "High", daysToDeadline: -3 }),
+      task({ actionItem: "Renew certificate", companyName: "Dar Spices", priority: "Medium" }),
+    ]);
+    expect(msg).not.toMatch(/[*_]/); // no markdown symbols that show literally in compose
+    expect(msg).toContain("Dar Spices");
+    expect(msg).toContain("— overdue");
+    expect(msg.trim().split("\n").at(-1)).toMatch(/\/portal$/);
+  });
+
+  it("caps the task list and reports the remainder", () => {
+    const many = Array.from({ length: 14 }, (_, i) =>
+      task({ actionItem: `Task ${i + 1}`, companyName: "Co", daysToDeadline: 5 }),
+    );
+    const msg = buildWhatsAppManualMessage("Sam", many);
+    expect(msg).toContain("…and 4 more.");
+    expect(msg).toContain("14 open");
   });
 });

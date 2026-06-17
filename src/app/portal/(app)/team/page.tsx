@@ -10,7 +10,7 @@ import { Users, ChevronRight } from "lucide-react";
 import { RemindButton } from "./remind-button";
 import { WhatsAppButton } from "./whatsapp-button";
 import { waLink } from "@/lib/outbox/links";
-import { buildWhatsAppMessage } from "@/lib/outbox/gen";
+import { buildWhatsAppManualMessage } from "@/lib/outbox/gen";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +42,10 @@ export default async function PortalTeamPage() {
         return oa - ob;
       });
       const overdue = ts.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length;
-      // Same rich formatted card the Twilio auto-send uses (dots, stat line, and the
-      // portal link last so a manual tap-send still gets WhatsApp's preview card).
-      const waText = buildWhatsAppMessage(p.name as string, ts);
+      // Clean plain-text message for the manual wa.me tap-send (markdown shows
+      // literally in the compose box; long text breaks WhatsApp Web). The Twilio
+      // auto-send path uses the richer markdown card + image separately.
+      const waText = buildWhatsAppManualMessage(p.name as string, ts);
       const waNumber = ((p.whatsapp as string | null) || (p.phone as string | null)) ?? null;
       return {
         id: p.id as number,

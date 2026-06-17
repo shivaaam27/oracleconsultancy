@@ -94,5 +94,5 @@ export const config = {
   // api/portal is excluded too: those routes serve portal users and verify
   // the portal (or admin) cookie themselves. api/wa-card is public (Twilio fetches
   // the link-preview image unauthenticated) but carries its own HMAC signature gate.
-  matcher: ["/((?!portal|login|e/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|_next|.*\\..*).*)"],
+  matcher: ["/((?!portal|login|e/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
 };
