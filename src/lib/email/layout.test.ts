@@ -2,12 +2,18 @@ import { describe, it, expect } from "vitest";
 import { renderEmail } from "./layout";
 
 describe("renderEmail", () => {
-  it("renders title, subtitle, wordmark and the signature marker", () => {
+  it("renders title, subtitle, masthead office + org and the signature marker", () => {
     const html = renderEmail({ title: "Director brief", subtitle: "Portfolio", blocks: [] });
     expect(html.startsWith("<!--cos-signature-->")).toBe(true); // stops double-signing
-    expect(html).toContain("ORACLE CONSULTANCY");
+    expect(html).toContain("Oracle Consultancy Ltd"); // masthead org name
     expect(html).toContain("Director brief");
     expect(html).toContain("Portfolio");
+  });
+
+  it("names the sending office in the masthead", () => {
+    const html = renderEmail({ title: "x", blocks: [], office: "director" });
+    // office appears in the masthead next to the org name AND in the footer
+    expect(html.split("Director's Office").length - 1).toBeGreaterThanOrEqual(2);
   });
 
   it("signs off with the office, not a job title, defaulting to admin", () => {
