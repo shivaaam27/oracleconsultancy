@@ -216,22 +216,34 @@ export default async function PortalProfile() {
         <SectionLabel icon={<ShieldCheck size={13} />}>Account &amp; security</SectionLabel>
         <Panel className="divide-y divide-border/60 p-0">
           <div className="p-4">
-            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><ScanFace size={15} className="text-accent" /> Sign in faster</div>
+            <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><ScanFace size={16} /></span>
+              Sign in faster
+            </div>
             <PasskeyManager initial={passkeys} begin={staffBeginPasskey} finish={staffFinishPasskey} remove={staffRemovePasskey} />
             <p className="mt-2.5 text-[11px] text-fg-subtle">Add this device to sign in with Face ID or your fingerprint — no password needed. Your biometric stays on your device.</p>
           </div>
           <div className="p-4">
-            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><KeyRound size={15} className="text-fg-muted" /> Password</div>
+            <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-bg-subtle text-fg-muted"><KeyRound size={16} /></span>
+              Password
+            </div>
             <PortalPassword />
             <p className="mt-2.5 text-[11px] text-fg-subtle">Change the password you use to sign in. Only you can do this.</p>
           </div>
           <div className="p-4">
-            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><Bell size={15} className="text-fg-muted" /> Notifications</div>
+            <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-bg-subtle text-fg-muted"><Bell size={16} /></span>
+              Notifications
+            </div>
             <DevicePushToggle />
             <p className="mt-2.5 text-[11px] text-fg-subtle">Get a phone alert when you&apos;re mentioned, replied to, or assigned a task.</p>
           </div>
           <div className="p-4">
-            <div className="mb-2.5 flex items-center gap-2 text-sm font-medium"><Settings2 size={15} className="text-fg-muted" /> Accessibility</div>
+            <div className="mb-2.5 flex items-center gap-2.5 text-sm font-medium">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-bg-subtle text-fg-muted"><Settings2 size={16} /></span>
+              Accessibility
+            </div>
             <AccessibilityControls />
             <p className="mt-2.5 text-[11px] text-fg-subtle">These settings are saved on this device only.</p>
           </div>
