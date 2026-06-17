@@ -1,13 +1,14 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Search, Plus, Sparkles, ArrowUp, Loader2, ListTodo, ChevronRight, ChevronDown,
-  Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User,
+  Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User, ClipboardCheck,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
+import { BottomSheet } from "@/components/bottom-sheet";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
@@ -158,17 +159,16 @@ export function PortalTasksCommand({
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => {
           const active = filter === f.key;
+          const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : "text-accent";
           return (
             <button
               key={f.key}
               type="button"
               onClick={() => setFilter(f.key)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] ring-1 transition-colors ${active ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${active ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
             >
-              {f.label}
-              {f.n != null && f.n > 0 && (
-                <span className={`rounded-md px-1.5 py-0.5 text-[10px] ${active ? "bg-white/20" : f.danger ? "bg-danger-soft/60 text-danger" : "bg-bg-subtle text-fg-subtle"}`}>{f.n}</span>
-              )}
+              {f.n != null && <span className={`text-[15px] font-semibold leading-none tabular ${active ? "" : tint}`}>{f.n}</span>}
+              <span className="text-[12.5px]">{f.label}</span>
             </button>
           );
         })}
@@ -358,7 +358,7 @@ function TaskRow({
 
   // mobile card — summary (with description under the title) then the chip editor
   return (
-    <div className="overflow-hidden rounded-2xl bg-bg-elev ring-1 ring-border">
+    <div className={cn("overflow-hidden rounded-2xl bg-bg-elev ring-1 ring-border transition-transform active:scale-[0.99]", t.isDone && "opacity-60")}>
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-stretch gap-3 text-left">
         <span className={`w-1 shrink-0 rounded-l-2xl ${t.overdue ? "bg-danger" : t.withinSoon ? "bg-warn" : statusDot(t.status)}`} />
         <span className="min-w-0 flex-1 py-3">
@@ -369,10 +369,16 @@ function TaskRow({
           </span>
           <span className="block truncate text-sm font-medium">{t.actionItem}</span>
           {t.description && <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-fg-muted">{t.description}</span>}
-          <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">{t.companyName} · {t.accountableName ?? "Unassigned"}</span>
+          <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-fg-subtle">
+            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
+            {t.companyName} · {t.accountableName ?? "Unassigned"}
+          </span>
           {t.note && <span className="mt-1 block truncate text-[11px] text-fg-muted">{t.updateAuthor ? `${t.updateAuthor}: ` : ""}{t.note}</span>}
         </span>
-        <span className="mr-3 flex shrink-0 items-center"><ChevronRight size={17} className={`text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} /></span>
+        <span className="mr-2.5 flex shrink-0 flex-col items-center justify-center gap-1.5">
+          <Avatars names={t.accountableName && !t.assignees.length ? [t.accountableName] : t.assignees} />
+          <ChevronRight size={16} className={`text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
+        </span>
       </button>
       {open && <Editor withStatus />}
     </div>
@@ -428,6 +434,8 @@ function DueChip({ valueIso, label, tone, onChange }: { valueIso: string | null;
   );
 }
 
+const QUICKADD_FORM = "portal-quickadd-form";
+
 function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companies: BoardCompany[]; role: string }) {
   const [open, setOpen] = useState(false);
   const createAction = role === "director" ? portalDirectorCreateTask : portalCreateTask;
@@ -436,43 +444,89 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
   const [ownerId, setOwnerId] = useState("");
   const [priority, setPriority] = useState("Medium");
 
+  // Close the sheet once the create completes without an error.
+  const prevPending = useRef(false);
+  useEffect(() => {
+    if (prevPending.current && !pending && !state?.error) {
+      setOpen(false);
+      setCompanyId(""); setOwnerId(""); setPriority("Medium");
+    }
+    prevPending.current = pending;
+  }, [pending, state]);
+
   const scoped = companyId ? people.filter((pp) => String(pp.companyId) === companyId) : people;
   const peopleForPicker = scoped.length ? scoped : people;
   const companyOptions: FluidOption[] = companies.map((c) => ({ value: String(c.id), label: c.name }));
   const ownerOptions: FluidOption[] = peopleForPicker.map((pp) => ({ value: String(pp.id), label: pp.name }));
+  const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
 
-  if (!open) {
-    return (
+  return (
+    <>
+      {/* Desktop trigger sits in the list flow; mobile gets a thumb-reach FAB. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-2 rounded-2xl border border-dashed border-border bg-bg-elev/60 px-4 py-3 text-sm text-fg-muted transition-colors hover:bg-bg-elev"
+        className="hidden w-full items-center gap-2 rounded-2xl border border-dashed border-border bg-bg-elev/60 px-4 py-3 text-sm text-fg-muted transition-colors hover:bg-bg-elev sm:flex"
       >
         <Plus size={16} className="text-accent" /> Quick add a task…
       </button>
-    );
-  }
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Quick add a task"
+        className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg shadow-accent/30 transition-transform active:scale-95 sm:hidden"
+      >
+        <Plus size={24} strokeWidth={2.4} />
+      </button>
 
-  return (
-    <form action={action} className="flex flex-col gap-2.5 rounded-2xl bg-bg-elev p-3 ring-1 ring-border">
-      <input type="hidden" name="companyId" value={companyId} />
-      <input type="hidden" name="accountableId" value={ownerId} />
-      <input type="hidden" name="priority" value={priority} />
-      <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 px-3 py-1 ring-1 ring-border focus-within:bg-bg-elev focus-within:ring-2 focus-within:ring-accent/40">
-        <Sparkles size={16} className="shrink-0 text-accent" />
-        <input name="actionItem" required placeholder="What needs doing?" autoFocus className="min-w-0 flex-1 bg-transparent py-2 text-sm placeholder:text-fg-muted focus:outline-none" />
-        <button type="submit" disabled={pending} aria-label="Add task" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg hover:opacity-90 disabled:opacity-50">
-          {pending ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={18} />}
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <FluidSelect value={companyId} options={companyOptions} placeholder="Company…" onSelect={(v) => { setCompanyId(v); setOwnerId(""); }} buttonClassName={fieldShell} />
-        <FluidSelect value={ownerId} options={ownerOptions} placeholder="Responsible…" onSelect={setOwnerId} buttonClassName={fieldShell} />
-        <FluidSelect value={priority} options={priorityOptions} placeholder="Priority" onSelect={setPriority} buttonClassName={fieldShell} />
-        <input name="deadline" type="date" className={dateCls} />
-      </div>
-      {state?.error && <p className="px-1 text-xs text-danger">{state.error}</p>}
-      <button type="button" onClick={() => setOpen(false)} className="self-start px-1 text-xs text-fg-muted hover:text-fg">Cancel</button>
-    </form>
+      <BottomSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Quick add a task"
+        icon={<ClipboardCheck size={17} />}
+        footer={
+          <button
+            type="submit"
+            form={QUICKADD_FORM}
+            disabled={pending}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+          >
+            {pending ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />} Add task
+          </button>
+        }
+      >
+        <form id={QUICKADD_FORM} action={action} className="flex flex-col gap-3.5">
+          <input type="hidden" name="companyId" value={companyId} />
+          <input type="hidden" name="accountableId" value={ownerId} />
+          <input type="hidden" name="priority" value={priority} />
+          <div>
+            <label className={fieldLabel}>What needs doing?</label>
+            <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/60 px-3.5 py-1 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
+              <Sparkles size={16} className="shrink-0 text-accent" />
+              <input name="actionItem" required placeholder="e.g. Renew the business licence" className="min-w-0 flex-1 bg-transparent py-2.5 text-sm placeholder:text-fg-muted focus:outline-none" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div>
+              <label className={fieldLabel}>Company</label>
+              <FluidSelect value={companyId} options={companyOptions} placeholder="Choose…" onSelect={(v) => { setCompanyId(v); setOwnerId(""); }} buttonClassName={`${fieldShell} w-full`} />
+            </div>
+            <div>
+              <label className={fieldLabel}>Responsible</label>
+              <FluidSelect value={ownerId} options={ownerOptions} placeholder="Choose…" onSelect={setOwnerId} buttonClassName={`${fieldShell} w-full`} />
+            </div>
+            <div>
+              <label className={fieldLabel}>Priority</label>
+              <FluidSelect value={priority} options={priorityOptions} placeholder="Priority" onSelect={setPriority} buttonClassName={`${fieldShell} w-full`} />
+            </div>
+            <div>
+              <label className={fieldLabel}>Deadline</label>
+              <input name="deadline" type="date" className={dateCls} />
+            </div>
+          </div>
+          {state?.error && <p className="text-xs text-danger">{state.error}</p>}
+        </form>
+      </BottomSheet>
+    </>
   );
 }
