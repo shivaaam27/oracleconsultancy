@@ -247,28 +247,57 @@ function Spotlight({ tour, onSeen }: { tour: Tour; onSeen: (key: string, version
 }
 
 /** Picks the first unseen tour whose route matches the current page and runs it.
- *  Mounts once (e.g. in the portal layout); it self-selects per route. */
+ *  Mounts once (e.g. in the portal layout); it self-selects per route. Also
+ *  honours a replay breadcrumb: the profile "Replay tour" control stashes a key
+ *  in sessionStorage and navigates here; we fetch that tour fresh and launch it
+ *  imperatively, independent of completions or the unseen-tours prop. */
 export function TourRunner({
   tours,
   onSeen,
+  fetchReplay,
 }: {
   tours: Tour[];
   onSeen: (key: string, version: number) => Promise<void> | void;
+  fetchReplay?: (key: string) => Promise<Tour | null>;
 }) {
   const pathname = usePathname();
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [override, setOverride] = useState<Tour | null>(null);
 
-  const active = tours.find(
-    (t) => t.route === pathname && !dismissed.has(`${t.key}@${t.version}`),
-  );
+  // Replay handshake: read the breadcrumb, fetch that tour, and launch it once
+  // we're on its host page.
+  useEffect(() => {
+    const key = sessionStorage.getItem("cos:replayTour");
+    if (!key || !fetchReplay) return;
+    let cancelled = false;
+    void fetchReplay(key).then((tour) => {
+      if (cancelled || !tour) return;
+      sessionStorage.removeItem("cos:replayTour");
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        for (const k of next) if (k.startsWith(`${tour.key}@`)) next.delete(k);
+        return next;
+      });
+      setOverride(tour);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, fetchReplay]);
 
   const handleSeen = useCallback(
     (key: string, version: number) => {
       setDismissed((prev) => new Set(prev).add(`${key}@${version}`));
+      setOverride((cur) => (cur && cur.key === key ? null : cur));
       void onSeen(key, version);
     },
     [onSeen],
   );
+
+  // A replay in flight for this page wins; otherwise the first unseen tour here.
+  const active =
+    (override && override.route === pathname ? override : null) ??
+    tours.find((t) => t.route === pathname && !dismissed.has(`${t.key}@${t.version}`));
 
   if (!active) return null;
   return <Spotlight key={`${active.key}@${active.version}`} tour={active} onSeen={handleSeen} />;

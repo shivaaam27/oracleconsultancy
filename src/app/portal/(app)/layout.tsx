@@ -10,7 +10,7 @@ import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcemen
 import { audienceForRole, unseenToursFor } from "@/lib/tours";
 import { TourRunner } from "@/components/tour-guide";
 import { portalLogout } from "../actions";
-import { portalMarkTourSeen } from "../tour-actions";
+import { portalMarkTourSeen, portalGetTour } from "../tour-actions";
 
 // Staff who install from the portal get a portal-scoped app: portal start_url
 // and portal shortcuts (My tasks / Messages / My profile) instead of the admin
@@ -79,7 +79,7 @@ export default async function PortalLayout({ children }: { children: React.React
       {children}
       <PortalPill canCreate={me.portalRole !== "staff"} role={me.portalRole} />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
-      {tours.length > 0 && <TourRunner tours={tours} onSeen={portalMarkTourSeen} />}
+      <TourRunner tours={tours} onSeen={portalMarkTourSeen} fetchReplay={portalGetTour} />
     </div>
   );
 }

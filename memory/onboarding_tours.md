@@ -23,6 +23,21 @@ director portals (and optionally owner/admin). Phases 2–4 still planned.
   `nav-home`/`nav-requests`/`nav-chat`/`nav-profile` (portal-pill) +
   `attendance-checkin` (portal home strip).
 
+### Replay control (built — staff profile, June 2026)
+- Profile "**Guides & tips**" section (shows when the person's audience has a
+  first-run tour or any spotlights): **Replay the welcome tour** + a **What's
+  new** list of past spotlights, each with a **Watch** button.
+  `src/components/tour-replay.tsx`.
+- Mechanism: the control leaves a `sessionStorage["cos:replayTour"]` breadcrumb
+  and navigates to the tour's host route; the always-mounted `TourRunner` reads
+  it, fetches the tour fresh via `portalGetTour` (audience-checked) and launches
+  it **imperatively** (an `override`, independent of completions / the
+  unseen-tours prop). `portalRestartTour` also clears the completion server-side.
+- **Don't** `router.push` + `router.refresh` together — refresh races the push
+  and the navigation never lands. Push only; the breadcrumb handles display.
+- Verified end-to-end (temp director tour+spotlight): Replay → board → multi-step
+  tour; Watch → board → spotlight. Temp data removed.
+
 ### Gotchas learned (keep for Phase 2+)
 - **No keyed `AnimatePresence mode="wait"` for step transitions** — under rapid
   re-measure the exit animation never completes and it sticks on the old step.

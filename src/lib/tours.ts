@@ -94,6 +94,45 @@ export async function spotlightsFor(audience: TourAudience): Promise<Tour[]> {
   }
 }
 
+/** The primary first-run walkthrough for an audience (the lowest-sorted `tour`),
+ *  or null if none is defined. Used by the profile "Replay tour" control. */
+export async function firstRunTourFor(audience: TourAudience): Promise<Tour | null> {
+  try {
+    const { data } = await sb
+      .from("tours")
+      .select("key,audience,kind,version,route,title,body,steps")
+      .eq("audience", audience)
+      .eq("kind", "tour")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    return data ? rowToTour(data) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch one tour/spotlight by key (for the replay action's route lookup). */
+export async function getTourByKey(key: string): Promise<Tour | null> {
+  try {
+    const { data } = await sb
+      .from("tours")
+      .select("key,audience,kind,version,route,title,body,steps")
+      .eq("key", key)
+      .maybeSingle();
+    return data ? rowToTour(data) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Forget a person's completion of a tour (all versions) so it runs again. */
+export async function clearTourCompletion(personId: number | null, tourKey: string): Promise<void> {
+  const q = sb.from("tour_completions").delete().eq("tour_key", tourKey);
+  await (personId == null ? q.is("person_id", null) : q.eq("person_id", personId));
+}
+
 /** Set of "<key>@<version>" this person has already dismissed. */
 async function completedKeys(personId: number | null): Promise<Set<string>> {
   const q = sb.from("tour_completions").select("tour_key,version");

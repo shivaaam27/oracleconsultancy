@@ -16,7 +16,11 @@ import { PortalPassword } from "@/components/portal-password";
 import { listCredentials } from "@/lib/webauthn";
 import { staffBeginPasskey, staffFinishPasskey, staffRemovePasskey } from "@/app/portal/passkey-actions";
 import { Clock, ScanFace, KeyRound } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { audienceForRole, firstRunTourFor, spotlightsFor } from "@/lib/tours";
+import { TourReplay } from "@/components/tour-replay";
+import { portalRestartTour } from "../../tour-actions";
 import { getPersonChecklist } from "@/lib/requirements";
 import { personLeaveBalances, listLeaveRequests } from "@/lib/leave";
 import { getJourney } from "@/lib/onboarding";
@@ -56,6 +60,15 @@ export default async function PortalProfile() {
     personAttendanceWeek(me.id),
   ]);
   const passkeys = await listCredentials({ kind: "person", id: me.id, name: me.name });
+
+  // Guides the person can replay (welcome walkthrough + past feature spotlights).
+  const audience = audienceForRole(me.portalRole);
+  const [welcomeTour, spotlights] = await Promise.all([firstRunTourFor(audience), spotlightsFor(audience)]);
+  const welcome = welcomeTour
+    ? { key: welcomeTour.key, title: welcomeTour.title, body: welcomeTour.body, route: welcomeTour.route }
+    : null;
+  const spotlightsLite = spotlights.map((s) => ({ key: s.key, title: s.title, body: s.body, route: s.route }));
+  const showGuides = !!welcome || spotlightsLite.length > 0;
 
   const details: Array<{ label: string; value: string }> = [
     { label: "Name", value: me.name },
@@ -209,6 +222,14 @@ export default async function PortalProfile() {
             ))}
           </Panel>
           <p className="px-1 text-[11px] text-fg-subtle">Company equipment currently assigned to you.</p>
+        </Reveal>
+      )}
+
+      {showGuides && (
+        <Reveal delay={0.125} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Sparkles size={13} />}>Guides &amp; tips</SectionLabel>
+          <TourReplay welcome={welcome} spotlights={spotlightsLite} restart={portalRestartTour} />
+          <p className="px-1 text-[11px] text-fg-subtle">Re-watch the welcome tour or catch up on what&apos;s new — any time.</p>
         </Reveal>
       )}
 
