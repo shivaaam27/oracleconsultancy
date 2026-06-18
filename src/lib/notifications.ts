@@ -111,6 +111,7 @@ export async function createNotification(input: {
       body: input.body ?? "",
       url,
       tag: input.taskCode ? `task-${input.taskCode}` : input.requestId ? `request-${input.requestId}` : `notif-${input.kind}`,
+      count: await unreadCount(input.recipient),
     });
   } catch {
     /* swallow — best effort */
@@ -166,4 +167,16 @@ export async function markAllRead(recipient: string): Promise<void> {
     .update({ read_at: new Date().toISOString() })
     .eq("recipient", recipient)
     .is("read_at", null);
+}
+
+/** Remove a single notification (scoped to its recipient so one user can
+ *  never clear another's). Notifications are ephemeral signals — the durable
+ *  record lives on the task/chat/request itself — so a hard delete is fine. */
+export async function deleteNotification(recipient: string, id: number): Promise<void> {
+  await sb.from("notifications").delete().eq("recipient", recipient).eq("id", id);
+}
+
+/** Clear every notification for a recipient ("Clear all"). */
+export async function deleteAllNotifications(recipient: string): Promise<void> {
+  await sb.from("notifications").delete().eq("recipient", recipient);
 }

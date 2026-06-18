@@ -1,5 +1,5 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v6";
+const CACHE_VERSION = "cos-v7";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const OFFLINE_URL = "/offline.html";
@@ -95,7 +95,25 @@ self.addEventListener("push", (event) => {
     tag: data.tag || "cos",
     data: { url: data.url || "/" },
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Badge the installed-app icon (Android / desktop PWA / iOS 16.4+ home screen)
+  // even while the app is closed. The page sets the exact count and clears it
+  // when opened; here we just light it up. `data.count` is used when supplied.
+  try {
+    if (self.navigator && self.navigator.setAppBadge) self.navigator.setAppBadge(data.count || 1);
+  } catch {
+    /* unsupported */
+  }
+
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      // Nudge any open tab so the in-app bell refreshes its count/list in
+      // real time, not on the next poll.
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) client.postMessage({ type: "cos-notification" });
+      }),
+    ])
+  );
 });
 
 // Focus an existing tab if open, otherwise open a new one at the target URL.

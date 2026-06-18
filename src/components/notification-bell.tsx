@@ -1,12 +1,36 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { AtSign, Bell, CornerUpLeft, MessageCircle, MessageSquareText, Pin, UserPlus } from "lucide-react";
+import {
+  AtSign,
+  Bell,
+  CalendarClock,
+  ChevronDown,
+  CornerUpLeft,
+  Megaphone,
+  MessageCircle,
+  MessageSquareText,
+  Pin,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
+import { useSwipeRow } from "@/lib/use-swipe-row";
+
+type NotifKind =
+  | "mention"
+  | "reply"
+  | "pinned"
+  | "assigned"
+  | "chat"
+  | "chat_mention"
+  | "leave"
+  | "announcement"
+  | "request";
 
 type Notif = {
   id: number;
-  kind: "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "request";
+  kind: NotifKind;
   taskCode: string | null;
   threadId: number | null;
   requestId: number | null;
@@ -17,15 +41,46 @@ type Notif = {
   readAt: string | null;
 };
 
-const ICON = {
+const ICON: Record<NotifKind, typeof Bell> = {
   mention: AtSign,
   reply: CornerUpLeft,
   pinned: Pin,
   assigned: UserPlus,
   chat: MessageCircle,
   chat_mention: AtSign,
+  leave: CalendarClock,
+  announcement: Megaphone,
   request: MessageSquareText,
 };
+
+/** Notifications are grouped into a few human categories (iPhone-style stacks).
+ *  Order here is the display order. */
+const CATEGORIES: { key: string; label: string; kinds: NotifKind[]; icon: typeof Bell }[] = [
+  { key: "messages", label: "Messages", kinds: ["chat", "chat_mention", "mention", "reply"], icon: MessageCircle },
+  { key: "tasks", label: "Tasks", kinds: ["assigned", "pinned"], icon: UserPlus },
+  { key: "requests", label: "Requests & leave", kinds: ["request", "leave"], icon: MessageSquareText },
+  { key: "announcements", label: "Announcements", kinds: ["announcement"], icon: Megaphone },
+];
+
+function categoryOf(kind: NotifKind): string {
+  return CATEGORIES.find((c) => c.kinds.includes(kind))?.key ?? "messages";
+}
+
+/** Reflect the unread count onto the installed-app (home-screen) icon badge.
+ *  Works on Android (Chrome), desktop PWAs, and iOS 16.4+ when installed to the
+ *  Home Screen; a silent no-op everywhere else. */
+function setAppBadge(n: number) {
+  try {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (n?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (n > 0) nav.setAppBadge?.(n);
+    else nav.clearAppBadge?.();
+  } catch {
+    /* unsupported */
+  }
+}
 
 function ago(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -35,16 +90,27 @@ function ago(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-/** The notifications bell — polls the count, opens a list, marks read on open.
- *  Used in both pills; `to` is the base path for task links ("/portal/task"
- *  for staff, "/task" for the owner). */
-export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
+/** The notifications bell — keeps the count in near real-time (poll + tab focus
+ *  + a service-worker ping when a push lands), opens a grouped list, and lets
+ *  you clear items (swipe on mobile, hover ✕ on desktop) or clear all. Used in
+ *  both pills; `to` is the base path for task links. */
+export function NotificationBell({
+  to,
+  align = "right",
+}: {
+  to: "/portal/task" | "/task";
+  /** Which edge the desktop dropdown anchors to (the bell now lives at the top
+   *  of the page: top-left in the portal header → "left", top-right floating on
+   *  the admin side → "right"). */
+  align?: "left" | "right";
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<Notif[]>([]);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const ref = useRef<HTMLDivElement>(null);
 
   async function refresh() {
@@ -54,17 +120,33 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
       const data = (await res.json()) as { count: number; items: Notif[] };
       setCount(data.count);
       setItems(data.items);
+      setAppBadge(data.count);
     } catch {
       /* offline blip */
     }
   }
 
+  // Near real-time: poll while visible, refresh on focus/visibility regain, and
+  // refresh immediately when the service worker reports an incoming push.
   useEffect(() => {
     refresh();
     const id = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
-    }, 20000);
-    return () => clearInterval(id);
+    }, 15000);
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+    const onFocus = () => refresh();
+    const onSwMessage = (e: MessageEvent) => {
+      if (e.data?.type === "cos-notification") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onFocus);
+    navigator.serviceWorker?.addEventListener("message", onSwMessage);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onFocus);
+      navigator.serviceWorker?.removeEventListener("message", onSwMessage);
+    };
   }, []);
 
   // Close on outside click.
@@ -73,8 +155,13 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    const onEsc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onEsc);
+    };
   }, [open]);
 
   async function toggle() {
@@ -82,6 +169,7 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
     setOpen(next);
     if (next && count > 0) {
       setCount(0);
+      setAppBadge(0);
       try {
         await fetch("/api/notifications?action=read", { method: "POST" });
       } catch {
@@ -89,6 +177,55 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
       }
     }
   }
+
+  function navigateTo(n: Notif) {
+    setOpen(false);
+    if ((n.kind === "chat" || n.kind === "chat_mention") && n.threadId) {
+      const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
+      router.push(`${chatBase}/${n.threadId}`);
+    } else if (n.kind === "request" && n.requestId) {
+      const base = to.startsWith("/portal") ? "/portal/requests" : "/requests";
+      router.push(`${base}/${n.requestId}`);
+    } else if (n.taskCode) {
+      // On the admin side, open the task in place via the `?task=CODE` drawer
+      // rather than the `/task/[code]` redirect stub. The portal keeps its page.
+      if (to === "/task" && pathname && !pathname.startsWith("/portal")) {
+        const params = new URLSearchParams(searchParams?.toString() ?? "");
+        params.set("task", n.taskCode);
+        params.delete("person");
+        router.push(`${pathname}?${params.toString()}`, { scroll: false });
+      } else {
+        router.push(`${to}/${n.taskCode}`);
+      }
+    }
+  }
+
+  async function dismiss(id: number) {
+    setItems((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await fetch(`/api/notifications?action=dismiss&id=${id}`, { method: "POST" });
+    } catch {
+      /* best effort */
+    }
+  }
+
+  async function clearAll() {
+    setItems([]);
+    setCount(0);
+    try {
+      await fetch("/api/notifications?action=clear", { method: "POST" });
+    } catch {
+      /* best effort */
+    }
+  }
+
+  // Group items into the categories that actually have content, preserving order.
+  const groups = useMemo(() => {
+    return CATEGORIES.map((c) => ({
+      ...c,
+      items: items.filter((n) => categoryOf(n.kind) === c.key),
+    })).filter((g) => g.items.length > 0);
+  }, [items]);
 
   return (
     <div ref={ref} className="relative">
@@ -108,63 +245,154 @@ export function NotificationBell({ to }: { to: "/portal/task" | "/task" }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 bottom-full mb-2 w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl glass elevated ring-1 ring-border shadow-pill overflow-hidden z-50">
-          <div className="px-3.5 py-2.5 border-b border-border text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">
-            Notifications
+        <>
+          {/* Mobile scrim — makes the panel feel like a proper sheet and gives a clear tap-to-close target. */}
+          <button
+            type="button"
+            aria-label="Close notifications"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-[55] bg-black/30 backdrop-blur-[1px] md:hidden"
+          />
+          <div
+            role="dialog"
+            aria-label="Notifications"
+            className={
+              // Mobile: a centred sheet dropping just under the top bar.
+              "fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+3.5rem)] " +
+              "w-[calc(100vw-1.5rem)] max-w-[21rem] " +
+              // Desktop: a tidy dropdown hanging below the bell, anchored to its edge.
+              "md:absolute md:translate-x-0 md:top-full md:bottom-auto md:mt-2 md:w-[21rem] md:max-w-[calc(100vw-1.5rem)] " +
+              (align === "left" ? "md:left-0 md:right-auto " : "md:right-0 md:left-auto ") +
+              // glass-menu = firmer (less see-through) fill than chrome glass.
+              "rounded-3xl glass-menu elevated ring-1 ring-border shadow-pill overflow-hidden z-[60]"
+            }
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">Notifications</span>
+              {items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-danger hover:bg-danger/10 transition-colors"
+                >
+                  <Trash2 size={12} /> Clear all
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain">
+              {groups.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                  <span className="h-10 w-10 rounded-full bg-bg-muted flex items-center justify-center text-fg-subtle">
+                    <Bell size={18} />
+                  </span>
+                  <p className="text-sm text-fg-muted">You&apos;re all caught up.</p>
+                </div>
+              ) : (
+                groups.map((g) => {
+                  const isCollapsed = collapsed[g.key];
+                  const unread = g.items.filter((n) => !n.readAt).length;
+                  return (
+                    <section key={g.key}>
+                      <button
+                        type="button"
+                        onClick={() => setCollapsed((c) => ({ ...c, [g.key]: !c[g.key] }))}
+                        className="sticky top-0 z-10 flex w-full items-center gap-2 bg-bg-subtle/80 backdrop-blur px-4 py-1.5 text-left border-b border-border/60"
+                      >
+                        <g.icon size={12} className="text-fg-subtle shrink-0" />
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-muted">
+                          {g.label}
+                        </span>
+                        {unread > 0 && (
+                          <span className="rounded-full bg-accent-soft text-accent text-[10px] font-semibold px-1.5 leading-[16px]">
+                            {unread}
+                          </span>
+                        )}
+                        <ChevronDown
+                          size={14}
+                          className={`ml-auto text-fg-subtle transition-transform ${isCollapsed ? "-rotate-90" : ""}`}
+                        />
+                      </button>
+                      {!isCollapsed &&
+                        g.items.map((n) => (
+                          <NotifRow key={n.id} n={n} onOpen={() => navigateTo(n)} onDismiss={() => dismiss(n.id)} />
+                        ))}
+                    </section>
+                  );
+                })
+              )}
+            </div>
           </div>
-          <div className="max-h-[60vh] overflow-y-auto">
-            {items.length === 0 ? (
-              <p className="px-3.5 py-6 text-center text-sm text-fg-muted">You&apos;re all caught up.</p>
-            ) : (
-              items.map((n) => {
-                const Icon = ICON[n.kind] ?? Bell;
-                return (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      if ((n.kind === "chat" || n.kind === "chat_mention") && n.threadId) {
-                        const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
-                        router.push(`${chatBase}/${n.threadId}`);
-                      } else if (n.kind === "request" && n.requestId) {
-                        const base = to.startsWith("/portal") ? "/portal/requests" : "/requests";
-                        router.push(`${base}/${n.requestId}`);
-                      } else if (n.taskCode) {
-                        // On the admin side, open the task in place via the
-                        // `?task=CODE` drawer rather than the `/task/[code]`
-                        // redirect stub. The portal keeps its dedicated page.
-                        if (to === "/task" && pathname && !pathname.startsWith("/portal")) {
-                          const params = new URLSearchParams(searchParams?.toString() ?? "");
-                          params.set("task", n.taskCode);
-                          params.delete("person");
-                          router.push(`${pathname}?${params.toString()}`, { scroll: false });
-                        } else {
-                          router.push(`${to}/${n.taskCode}`);
-                        }
-                      }
-                    }}
-                    className={`flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left hover:bg-bg-muted/60 transition-colors border-b border-border/50 ${
-                      n.readAt ? "" : "bg-accent-soft/30"
-                    }`}
-                  >
-                    <span className="mt-0.5 h-7 w-7 shrink-0 rounded-full bg-accent-soft text-accent flex items-center justify-center">
-                      <Icon size={13} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium leading-snug">{n.title}</span>
-                      {n.body && <span className="block text-xs text-fg-muted truncate">{n.body}</span>}
-                      <span className="block text-[11px] text-fg-subtle mt-0.5">
-                        {n.taskCode ? `${n.taskCode} · ` : ""}{ago(n.createdAt)}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
+        </>
       )}
+    </div>
+  );
+}
+
+/** One notification row. On mobile it swipes left to reveal a red Clear action
+ *  (iPhone-style); on desktop a ✕ appears on hover. */
+function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDismiss: () => void }) {
+  const CLEAR_W = 76;
+  const { offset, dragging, bind, reset } = useSwipeRow({ rightWidth: CLEAR_W });
+  const Icon = ICON[n.kind] ?? Bell;
+
+  return (
+    <div className="relative overflow-hidden border-b border-border/50 last:border-b-0">
+      {/* Revealed action behind the row */}
+      <button
+        type="button"
+        aria-label="Clear notification"
+        onClick={onDismiss}
+        className="absolute inset-y-0 right-0 flex items-center justify-center gap-1 bg-danger text-white text-xs font-medium"
+        style={{ width: CLEAR_W }}
+      >
+        <Trash2 size={14} />
+        Clear
+      </button>
+
+      <button
+        type="button"
+        {...bind}
+        onClick={() => {
+          if (offset !== 0) {
+            reset();
+            return;
+          }
+          onOpen();
+        }}
+        style={{ transform: `translateX(${offset}px)`, transition: dragging ? "none" : "transform .2s ease" }}
+        className={`relative flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left bg-[hsl(var(--bg-elev))] hover:bg-bg-muted/60 active:bg-bg-muted/80 transition-colors group ${
+          n.readAt ? "" : "bg-accent-soft/25"
+        }`}
+      >
+        {!n.readAt && (
+          <span className="absolute left-1.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+        )}
+        <span className="mt-0.5 h-7 w-7 shrink-0 rounded-full bg-accent-soft text-accent flex items-center justify-center">
+          <Icon size={13} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-medium leading-snug">{n.title}</span>
+          {n.body && <span className="block text-xs text-fg-muted truncate">{n.body}</span>}
+          <span className="block text-[11px] text-fg-subtle mt-0.5">
+            {n.taskCode ? `${n.taskCode} · ` : ""}
+            {ago(n.createdAt)}
+          </span>
+        </span>
+        {/* Desktop hover-to-dismiss */}
+        <span
+          role="button"
+          tabIndex={-1}
+          aria-label="Clear notification"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDismiss();
+          }}
+          className="hidden md:flex shrink-0 h-6 w-6 items-center justify-center rounded-full text-fg-subtle opacity-0 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger transition"
+        >
+          <Trash2 size={13} />
+        </span>
+      </button>
     </div>
   );
 }

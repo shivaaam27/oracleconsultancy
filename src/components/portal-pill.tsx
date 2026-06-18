@@ -7,7 +7,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ClipboardList, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
-import { NotificationBell } from "./notification-bell";
 
 /* The staff portal's own bottom-floating pill. Same liquid-glass language
  * as the admin pill (top-pill.tsx) but a deliberately tiny, fixed menu —
@@ -161,15 +160,12 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
             href="/portal/task/new"
             aria-label="New task"
             title="New task"
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-fg shrink-0 hover:opacity-90 transition-opacity mx-0.5"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-fg text-bg shrink-0 hover:opacity-90 transition-opacity mx-0.5"
           >
             <Plus size={19} strokeWidth={2.4} />
           </Link>
         )}
         <span className="mx-1 h-7 w-px bg-border shrink-0" />
-        <div className="px-0.5 shrink-0">
-          <NotificationBell to="/portal/task" />
-        </div>
         <div className="px-1 shrink-0">
           <ThemeToggle />
         </div>

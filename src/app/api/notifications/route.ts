@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminSession } from "@/lib/admin-auth";
 import { getPortalPerson } from "@/lib/portal-auth";
-import { listNotifications, unreadCount, markAllRead, personRecipient } from "@/lib/notifications";
+import {
+  listNotifications,
+  unreadCount,
+  markAllRead,
+  deleteNotification,
+  deleteAllNotifications,
+  personRecipient,
+} from "@/lib/notifications";
 
 /* The bell's data endpoint, for BOTH the admin owner and portal users.
  * Resolves the recipient from whichever session is present. Excluded from
@@ -24,6 +31,13 @@ export async function POST(req: NextRequest) {
   const recipient = await resolveRecipient();
   if (!recipient) return NextResponse.json({ ok: false }, { status: 401 });
   const action = req.nextUrl.searchParams.get("action");
-  if (action === "read") await markAllRead(recipient);
+  if (action === "read") {
+    await markAllRead(recipient);
+  } else if (action === "clear") {
+    await deleteAllNotifications(recipient);
+  } else if (action === "dismiss") {
+    const id = Number(req.nextUrl.searchParams.get("id"));
+    if (Number.isFinite(id)) await deleteNotification(recipient, id);
+  }
   return NextResponse.json({ ok: true });
 }

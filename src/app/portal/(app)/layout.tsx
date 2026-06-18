@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { PortalPill } from "@/components/portal-pill";
+import { NotificationBell } from "@/components/notification-bell";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
@@ -36,11 +37,16 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <div className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl" : "max-w-3xl lg:max-w-5xl"}`}>
       <header className="flex items-center justify-between gap-3 print-hidden">
-        <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
-            Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
-          </p>
-          <p className="truncate text-sm font-semibold">{me.name}</p>
+        {/* Bell sits top-LEFT, deliberately far from Sign out (top-right) so it
+            can't be mis-tapped. */}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <NotificationBell to="/portal/task" align="left" />
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
+              Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
+            </p>
+            <p className="truncate text-sm font-semibold">{me.name}</p>
+          </div>
         </div>
         <form action={portalLogout}>
           <button

@@ -255,7 +255,7 @@ function NavActionButton() {
   const show = mounted && actions.length > 0 && !suppressed;
   const primary = show ? (actions.find((a) => a.primary) ?? actions[0]) : null;
   const multi = show && actions.length > 1;
-  const btn = "shrink-0 inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full text-accent hover:bg-bg-muted/60 transition-colors";
+  const btn = "shrink-0 inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full text-fg hover:bg-bg-muted/60 transition-colors";
 
   return (
     <motion.div
@@ -523,15 +523,19 @@ export function TopPill() {
           <Search size={18} />
         </button>
 
-        <div className="shrink-0 flex items-center md:[&>div>button]:h-11 md:[&>div>button]:w-11">
-          <NotificationBell to="/task" />
-        </div>
         {/* Theme toggle on the bar (desktop only — the dense mobile bar keeps it in the menu). */}
         <div className="hidden md:flex shrink-0 items-center">
           <ThemeToggle />
         </div>
       </motion.div>
     </div>
+    {/* Notifications now live at the TOP of the page (off the nav pill). Fixed
+        top-right; nothing else sits there on the admin side. */}
+    {!chatActive && (
+      <div className="fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 md:right-5 z-40 glass elevated rounded-full p-1 shadow-pill">
+        <NotificationBell to="/task" align="right" />
+      </div>
+    )}
     {/* When chat hides the pill on mobile, keep a way home. */}
     {chatActive && (
       <Link

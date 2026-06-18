@@ -60,6 +60,8 @@ export type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  /** Unread total, used by the SW to badge the installed-app icon accurately. */
+  count?: number;
 };
 
 function endpointHost(endpoint: string): string {

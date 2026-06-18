@@ -108,7 +108,7 @@ export function DevicePushToggle() {
         <p className="inline-flex items-center gap-2 text-sm text-fg-muted"><Loader2 size={14} className="animate-spin" /> Checking…</p>
       )}
       {state === "unsupported" && (
-        <p className="text-sm text-fg-muted">This browser can&apos;t do push alerts. On iPhone, add the portal to your Home Screen first, then enable here.</p>
+        <p className="text-sm text-fg-muted">This browser can&apos;t do push alerts. On iPhone, add the portal to your Home Screen first, then enable here. On a Mac, use Safari 16+ or Chrome and make sure your macOS is up to date.</p>
       )}
       {state === "denied" && (
         <p className="text-sm text-warn">Notifications are blocked. Allow them for this site in your browser settings, then come back.</p>
