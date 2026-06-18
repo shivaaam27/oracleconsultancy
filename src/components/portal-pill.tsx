@@ -134,6 +134,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
     )}>
       <motion.div
         layout={!reduce}
+        data-nav-pill
         initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}

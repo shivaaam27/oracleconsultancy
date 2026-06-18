@@ -11,7 +11,7 @@ export default async function AdminLoginPage() {
   const firstRun = (await getAdminHash()) === null;
 
   return (
-    <AuthShell kicker="Oracle Consultancy">
+    <AuthShell kicker="Oracle Consultancy Limited">
       <AuthTabs firstRun={firstRun} />
     </AuthShell>
   );

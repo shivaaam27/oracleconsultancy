@@ -25,6 +25,7 @@ import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
 import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { HideOnPortal } from "@/components/hide-on-portal";
+import { AppSplash } from "@/components/app-splash";
 import { getAppSettings } from "@/lib/settings";
 import { appBaseUrl } from "@/lib/app-url";
 
@@ -78,6 +79,7 @@ export default async function RootLayout({ children, modal }: { children: React.
         <PortalPrefsScript />
       </head>
       <body>
+        <AppSplash />
         <ThemeProvider>
           <MotionConfig reducedMotion="user">
           <ToastProvider>

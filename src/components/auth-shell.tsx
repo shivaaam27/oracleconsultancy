@@ -41,7 +41,7 @@ export function AuthShell({
       </div>
 
       <div className="relative text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500">
-        <div className="relative mx-auto mb-4 h-20 w-20">
+        <div data-auth-logo className="relative mx-auto mb-4 h-20 w-20">
           {/* Soft accent halo — reads well in both light and dark. */}
           <div aria-hidden className="absolute -inset-3 rounded-[2rem] bg-accent/15 blur-2xl" />
           {/* Gradient frame around the white logo tile. */}

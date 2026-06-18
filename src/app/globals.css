@@ -527,6 +527,157 @@ input:disabled, select:disabled, textarea:disabled {
   transition-duration: 0.01ms !important;
 }
 
+/* ---------- Aurora Dock — app launch splash ----------
+   A theme-aware liquid-glass loader that paints on first document load
+   (before /login and the app), then resolves INTO the floating nav pill.
+   Pure CSS so it shows pre-hydration with no white flash; a small client
+   controller (app-splash.tsx) removes it once fonts are ready. The rest
+   state IS the visible hero, so reduced-motion users (who skip the keyframes)
+   still see a calm static hero before it's removed. */
+.aurora-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: hsl(var(--bg));
+  overflow: hidden;
+  /* The breathing aurora — one cool-blue radial, low in the field so the eye
+     is led toward where the pill will dock. */
+  --aurora: radial-gradient(110% 80% at 50% 44%, hsl(var(--accent) / 0.26), transparent 60%);
+}
+.aurora-splash::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--aurora);
+  animation: aurora-breathe 4.5s ease-in-out infinite;
+}
+.aurora-splash__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+/* The mark — the single object the eye tracks the whole way down: it is the
+   hero, then it becomes the pill's accent lens. */
+/* Matches the sign-in card's logo tile (auth-shell.tsx): an 80px white tile,
+   ~18px radius, the Oracle mark contained with padding — so when it lands on
+   the login screen it is visually identical and the morph reads as seamless. */
+.aurora-splash__mark {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px solid hsl(var(--fg) / 0.08);
+  box-shadow: 0 10px 50px -12px hsl(var(--accent) / 0.55), 0 2px 10px -4px hsl(var(--fg) / 0.25);
+  /* the FLIP transform that travels to the login logo uses transform — keep it
+     GPU-friendly and let the controller drive it inline */
+  will-change: transform;
+}
+.aurora-splash__mark img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  display: block;
+}
+/* The accent ring that sweeps once around the mark, doubling as the progress
+   gesture (no separate hairline). */
+.aurora-splash__ring {
+  position: absolute;
+  inset: -8px;
+  border-radius: 26px;
+  border: 1.5px solid transparent;
+  border-top-color: hsl(var(--accent));
+  border-right-color: hsl(var(--accent) / 0.35);
+  opacity: 0;
+}
+.aurora-splash__name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: hsl(var(--fg));
+}
+/* The real nav/portal pill CONSTRUCTS in place as the splash hands off — there
+   is no fake pill. While the app splash plays the real pill is hidden + blurred
+   and its icons are collapsed; at handoff it blurs-up into place and the icons
+   stagger in, so the moment the field finishes fading the pill is fully built.
+   It is one continuous, fluid motion (not a snap). Driven by the controller via
+   :root[data-splash]; the descending mark dissolves into it at the same spot. */
+:root[data-splash] [data-nav-pill] {
+  transition: opacity 0.55s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.55s ease;
+}
+:root[data-splash="app"] [data-nav-pill] {
+  opacity: 0 !important;
+  transform: translateY(18px) scale(0.88) !important;
+  filter: blur(7px) !important;
+}
+:root[data-splash] [data-nav-pill] > * {
+  transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+:root[data-splash="app"] [data-nav-pill] > * {
+  opacity: 0;
+  transform: scale(0.5);
+}
+/* Stagger the icons/controls in during the reveal phase — left to right. */
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(1) { transition-delay: 0.02s; }
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(2) { transition-delay: 0.06s; }
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(3) { transition-delay: 0.10s; }
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(4) { transition-delay: 0.14s; }
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(5) { transition-delay: 0.18s; }
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(6) { transition-delay: 0.22s; }
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(7) { transition-delay: 0.26s; }
+:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(8) { transition-delay: 0.30s; }
+
+/* Login landing only: the mark FLIPs onto the sign-in card's own logo (the
+   controller measures [data-auth-logo]) while the field fades, slowly revealing
+   the login box. The name fades as the field leaves. */
+.aurora-splash--login.aurora-splash--leaving .aurora-splash__name { animation: splash-text-out 0.5s ease forwards; }
+
+@keyframes splash-text-out { to { opacity: 0; transform: translateY(-4px); } }
+
+/* Fully inert once the handoff is complete — kept in the DOM (React owns the
+   node) but hidden, so we never manually removeChild and break the reconciler. */
+.aurora-splash--done { display: none !important; }
+
+/* ── The sequence (auto-plays on real motion; ~1.7s) ── */
+.aurora-splash--play .aurora-splash__mark { animation: splash-mark 1.7s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.aurora-splash--play .aurora-splash__ring { animation: splash-ring 0.9s ease-out 0.35s forwards; }
+.aurora-splash--play .aurora-splash__name { animation: splash-text 1.7s ease forwards; }
+.aurora-splash--play::before              { animation: aurora-breathe 4.5s ease-in-out infinite, splash-fade 1.7s ease forwards; }
+
+/* Leaving — added by the controller once ready; fades the whole field out. */
+.aurora-splash--leaving { animation: splash-out 0.85s ease forwards; pointer-events: none; }
+
+@keyframes aurora-breathe {
+  0%, 100% { opacity: 0.75; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.06); }
+}
+@keyframes splash-mark {
+  0%   { opacity: 0; transform: translateY(0) scale(0.86); filter: blur(8px); }
+  18%  { opacity: 1; transform: translateY(0) scale(1);    filter: blur(0); }
+  58%  { opacity: 1; transform: translateY(0) scale(1); }
+  /* descend toward the dock, shrinking into the lens */
+  100% { opacity: 0; transform: translateY(38vh) scale(0.26); filter: blur(0); }
+}
+@keyframes splash-ring {
+  0%   { opacity: 0; transform: rotate(-120deg); }
+  35%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(240deg); }
+}
+@keyframes splash-text {
+  0%, 12% { opacity: 0; transform: translateY(6px); }
+  28%     { opacity: 1; transform: translateY(0); }
+  55%     { opacity: 1; }
+  72%,100%{ opacity: 0; }
+}
+@keyframes splash-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0.35; } }
+@keyframes splash-out  { to { opacity: 0; } }
+
 
 
 

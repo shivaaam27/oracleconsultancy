@@ -499,6 +499,7 @@ export function TopPill() {
     )}>
       <motion.div
         ref={pillRef}
+        data-nav-pill
         initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
