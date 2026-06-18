@@ -1,0 +1,127 @@
+<!DOCTYPE html><html lang="en-GB"><head><meta charset="utf-8"><title>COS — What We've Built</title>
+<style>
+  :root{--ink:#10151c;--muted:#5b6675;--line:#dce3ec;--accent:#2f6df0;--accent-soft:#eaf1fe;--accent-deep:#1b3a82;--soft:#f6f9fd;--warn:#b4520a;--good:#1d7a4d;}
+  @page{size:A4;margin:16mm 15mm;}*{box-sizing:border-box;}html,body{margin:0;padding:0;}
+  body{font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--ink);font-size:10.2pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  h2{font-size:17pt;margin:0 0 4px;color:var(--accent-deep);}
+  h3{font-size:12.5pt;margin:16px 0 5px;padding-bottom:3px;border-bottom:2px solid var(--accent-soft);color:var(--accent-deep);}
+  p{margin:5px 0;}.muted{color:var(--muted);}strong{color:var(--ink);}
+  code{font-family:"Consolas",monospace;font-size:8.7pt;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0.5px 4px;color:#1b3a82;}
+  .pagebreak{page-break-before:always;}.lead{font-size:11pt;color:#34404f;}
+  .cover{height:250mm;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(150deg,#0b1f4d,#1b3a82 45%,#2f6df0);color:#fff;padding:0 16mm;margin:-2mm -2mm 0;}
+  .cover .kicker{letter-spacing:3px;text-transform:uppercase;font-size:10.5pt;opacity:.85;}
+  .cover h1{color:#fff;font-size:40pt;margin:10px 0 6px;line-height:1.08;}.cover .sub{font-size:14pt;opacity:.92;max-width:155mm;}
+  .cover .meta{margin-top:36px;font-size:10pt;opacity:.85;line-height:1.8;border-top:1px solid rgba(255,255,255,.25);padding-top:16px;}
+  table{width:100%;border-collapse:collapse;margin:8px 0;font-size:9.4pt;}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:var(--soft);color:var(--accent-deep);font-weight:600;border-bottom:2px solid var(--line);}
+  tr:nth-child(even) td{background:#fbfdff;}
+  .sectionhead{display:flex;align-items:baseline;gap:12px;}.sectionhead .num{font-size:28pt;font-weight:800;color:var(--accent-soft);}
+  .crumbs{font-size:8.8pt;color:var(--muted);}
+  .done{color:var(--good);font-weight:700;}.pend{color:var(--warn);font-weight:700;}.plan{color:var(--muted);font-weight:700;}
+  .note,.warn{border-radius:8px;padding:9px 13px;margin:11px 0;font-size:9.6pt;}
+  .note{background:var(--accent-soft);border:1px solid #cfe0fe;}.warn{background:#fdf2e7;border:1px solid #f3d8b8;}
+  .note b,.warn b{display:block;text-transform:uppercase;font-size:8.3pt;margin-bottom:2px;}.note b{color:var(--accent-deep);}.warn b{color:var(--warn);}
+  .foot{text-align:center;font-size:8.6pt;color:var(--muted);margin-top:20px;}
+  .legend span{margin-right:14px;font-size:9pt;}
+</style></head><body>
+
+<section class="cover">
+  <div class="kicker">Oracle Consultancy · Chief-of-Staff System</div>
+  <h1>What We've<br>Built</h1>
+  <div class="sub">A complete inventory of everything delivered — module by module — plus what's wired-but-pending and what's planned.</div>
+  <div class="meta">Delivery register · V3 · 18 June 2026 · Companion to the Operations Manual</div>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">▣</div><div><h2>What we've built</h2><div class="crumbs">A delivery inventory</div></div></div>
+<p class="lead">This is the running record of what the system can do today. It replaced an Excel workbook with a single command centre covering tasks, people, compliance, meetings, communications and intelligence across all seven companies.</p>
+<p class="legend"><span><span class="done">● Live</span> — built and in use</span><span><span class="pend">● Pending</span> — built, needs an owner action to switch on</span><span><span class="plan">● Planned</span> — designed, not built</span></p>
+
+<h3>Core — tasks, companies, home</h3>
+<table>
+<tr><th>Capability</th><th>Status</th></tr>
+<tr><td>Task capture &amp; tracking with company codes, statuses, priorities, categories, assignees</td><td class="done">Live</td></tr>
+<tr><td>Per-task timeline + full audit history; portfolio-wide activity feed</td><td class="done">Live</td></tr>
+<tr><td>Home command centre (Overview · Companies · Tasks), health ring, glanceable counts</td><td class="done">Live</td></tr>
+<tr><td>Companies hub = reference-data centre (Companies · Departments · Sites · Roles, with merge)</td><td class="done">Live</td></tr>
+<tr><td>Company profile with board-level governance (cap table, owners, signatories, resolutions, risks, decisions)</td><td class="done">Live</td></tr>
+</table>
+
+<h3>People &amp; HR records</h3>
+<table>
+<tr><td>Rich person records (HR profile, work site/residence, computed staff IDs, person types)</td><td class="done">Live</td></tr>
+<tr><td>Lifecycle automation (onboarding/offboarding checklists, asset auto-return, probation tools)</td><td class="done">Live</td></tr>
+<tr><td>Reporting lines + bulk "also reports to"; per-person History (audit)</td><td class="done">Live</td></tr>
+<tr><td>Cockpit drawer with Leave tab (balances, requests, attendance); printable EN/Swahili data form</td><td class="done">Live</td></tr>
+</table>
+
+<h3>Documents &amp; compliance</h3>
+<table>
+<tr><td>Documents library; per-person &amp; per-company compliance checklists scoring to 100%</td><td class="done">Live</td></tr>
+<tr><td>Auto-link docs to requirements; verify loop; review/expiry dates; lapse detection</td><td class="done">Live</td></tr>
+<tr><td>Bulk multi-file upload, recency-aware dedup, compilation detect/split, renewal lineage</td><td class="done">Live</td></tr>
+<tr><td>Compliance audit trail + history; portfolio compliance CSV export; "Chase" renewal drafts</td><td class="done">Live</td></tr>
+<tr><td>Smart intake (Inbox): paste/file bundles → file docs + enrich profile (blanks-only, reviewed)</td><td class="done">Live</td></tr>
+</table>
+
+<h3>HRMS suite</h3>
+<table>
+<tr><td>Tax &amp; Legal — recurring statutory/legal obligations with cadence + safety net</td><td class="done">Live</td></tr>
+<tr><td>Organogram — ELK portfolio flowchart (multi-parent), per-company trees, by-department</td><td class="done">Live</td></tr>
+<tr><td>Assets &amp; Vendors — assign/return, history, PDF register + handover receipts; vendor register</td><td class="done">Live</td></tr>
+<tr><td>Leave &amp; Attendance — ELR-accurate leave + writable attendance grid &amp; self-check-in</td><td class="done">Live</td></tr>
+<tr><td>Pipeline (applications in progress) + Commitments register (notice-by tracking)</td><td class="done">Live</td></tr>
+<tr><td>OECR stock control + OCR cleaning registry</td><td class="done">Live</td></tr>
+</table>
+
+<h3>Meetings, letters &amp; brief</h3>
+<table>
+<tr><td>Meeting Workspace — voice notes, clean, minutes, decisions/risks, action items → tasks</td><td class="done">Live</td></tr>
+<tr><td>Workbook (Meetings · Notes · To-do)</td><td class="done">Live</td></tr>
+<tr><td>Director Brief — shareable portfolio report + print-to-PDF</td><td class="done">Live</td></tr>
+<tr><td>Letters — branded PDF letters, Draft→Issue, per-company letterheads</td><td class="done">Live</td></tr>
+</table>
+
+<h3>Communications &amp; outreach</h3>
+<table>
+<tr><td>Chat — DMs + groups, real-time, read receipts, portal twin (primary nav tab)</td><td class="done">Live</td></tr>
+<tr><td>Outbox — reminder/renewal/director message drafts with WhatsApp/email/SMS deep-links</td><td class="done">Live</td></tr>
+<tr><td>Email sending (Gmail SMTP / Resend) — wired</td><td class="pend">Pending creds</td></tr>
+<tr><td>WhatsApp automation (Twilio) — sandbox proven</td><td class="pend">Pending go-live</td></tr>
+</table>
+
+<h3>Staff / Manager / Director portal</h3>
+<table>
+<tr><td>Staff portal — own tasks, documents, attendance self-check-in, leave, onboarding, equipment</td><td class="done">Live</td></tr>
+<tr><td>Manager view — team attendance, leave approvals, team roster, task creation</td><td class="done">Live</td></tr>
+<tr><td>Director operator surface — board brief, create tasks/events, draft messages</td><td class="done">Live</td></tr>
+<tr><td>Accessibility controls (text size, motion, density); error boundaries; hardening sweep</td><td class="done">Live</td></tr>
+</table>
+
+<h3>Intelligence</h3>
+<table>
+<tr><td>ORI assistant — grounded Q&amp;A over tasks/meetings/docs/people, cites sources</td><td class="done">Live</td></tr>
+<tr><td>Voice intelligence — "speak rough, save polished" in EN/SW/HI/GU; voice dictionary</td><td class="done">Live</td></tr>
+<tr><td>AI safety harness (retry/timeout, JSON guards, hallucination checks); AI master switch</td><td class="done">Live</td></tr>
+<tr><td>Semantic / hybrid search (pgvector + FTS, multilingual interim) — opt-in</td><td class="pend">Pending setup</td></tr>
+<tr><td>Durable multilingual search container (Swahili/Hindi/Gujarati)</td><td class="plan">Planned</td></tr>
+</table>
+
+<h3>Security &amp; foundation</h3>
+<table>
+<tr><td>One-password admin gate + per-person portal logins; owner identity 2nd factor</td><td class="done">Live</td></tr>
+<tr><td>Passkeys (Face ID / Touch ID / Windows Hello / fingerprint) for owner &amp; staff</td><td class="done">Live</td></tr>
+<tr><td>Portable DB backups + restore; Supabase cloud backups; Sentry error monitoring</td><td class="done">Live</td></tr>
+<tr><td>56 DB indexes, 42+ safety tests, Dependabot + pinned overrides (clean audit)</td><td class="done">Live</td></tr>
+<tr><td>Onboarding tours — guided first-run walkthroughs + feature spotlights (Phase 1)</td><td class="done">Live</td></tr>
+<tr><td>Announcements noticeboard (A1–A3)</td><td class="pend">Awaiting review</td></tr>
+</table>
+
+<div class="warn"><b>Owner actions to unlock pending items</b>(1) Add email + WhatsApp provider credentials in Vercel; (2) run the one-time semantic-search setup (<code>SEMANTIC_SEARCH.md</code>) + decide on the multilingual container (~£3–7/mo); (3) enable GitHub Dependabot security alerts; (4) review &amp; ship the Announcements noticeboard.</div>
+
+<div class="note"><b>Built on one principle</b>Reuse, don't duplicate — Documents power compliance, tasks/todos power checklists, OECR underpins assets, Outbox powers messages, Home/Brief surface signals. One design language (Aurora) across every screen.</div>
+
+<div class="foot">Oracle Consultancy — Chief-of-Staff System · What We've Built · V3 · 18 June 2026 · Full detail in <code>memory/</code>.</div>
+</section>
+</body></html>

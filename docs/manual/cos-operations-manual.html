@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Oracle Consultancy — Chief-of-Staff System: Operations Manual</title>
+<style>
+  :root{
+    --ink:#10151c; --muted:#5b6675; --line:#dce3ec;
+    --accent:#2f6df0; --accent-soft:#eaf1fe; --accent-deep:#1b3a82;
+    --bg:#ffffff; --soft:#f6f9fd; --warn:#b4520a; --good:#1d7a4d;
+  }
+  @page{ size:A4; margin:18mm 16mm 20mm 16mm; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:"Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color:var(--ink); font-size:10.6pt; line-height:1.5;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  h1,h2,h3,h4{ line-height:1.2; color:var(--ink); }
+  h2{ font-size:18pt; margin:0 0 4px; color:var(--accent-deep); }
+  h3{ font-size:13pt; margin:22px 0 6px; padding-bottom:4px; border-bottom:2px solid var(--accent-soft); color:var(--accent-deep);}
+  h4{ font-size:11pt; margin:16px 0 4px; color:var(--ink); }
+  p{ margin:6px 0; }
+  a{ color:var(--accent); text-decoration:none; }
+  code{ font-family:"Consolas","SF Mono",monospace; font-size:9.2pt; background:var(--soft);
+        border:1px solid var(--line); border-radius:4px; padding:0.5px 4px; color:#1b3a82; }
+  ul,ol{ margin:6px 0 6px 0; padding-left:20px; }
+  li{ margin:3px 0; }
+  strong{ color:var(--ink); }
+  .muted{ color:var(--muted); }
+
+  /* ---- cover ---- */
+  .cover{ height:262mm; display:flex; flex-direction:column; justify-content:center;
+          background:linear-gradient(150deg,#0b1f4d 0%, #1b3a82 45%, #2f6df0 100%);
+          color:#fff; padding:0 18mm; border-radius:0; margin:-2mm -2mm 0; }
+  .cover .kicker{ letter-spacing:3px; text-transform:uppercase; font-size:11pt; opacity:.85; }
+  .cover h1{ color:#fff; font-size:40pt; margin:10px 0 6px; line-height:1.08; }
+  .cover .sub{ font-size:15pt; opacity:.92; max-width:150mm; }
+  .cover .meta{ margin-top:40px; font-size:10.5pt; opacity:.85; line-height:1.8; border-top:1px solid rgba(255,255,255,.25); padding-top:18px; max-width:120mm;}
+  .cover .dot{ display:inline-block; width:8px; height:8px; border-radius:50%; background:#7fd0ff; margin-right:8px;}
+  .pagebreak{ page-break-before:always; }
+
+  /* ---- callouts ---- */
+  .note, .warn, .tip{ border-radius:8px; padding:10px 14px; margin:12px 0; font-size:10pt; }
+  .note{ background:var(--accent-soft); border:1px solid #cfe0fe; }
+  .warn{ background:#fdf2e7; border:1px solid #f3d8b8; }
+  .tip{ background:#eafaf1; border:1px solid #c7ebd5; }
+  .note b,.warn b,.tip b{ display:block; margin-bottom:2px; letter-spacing:.3px; text-transform:uppercase; font-size:8.5pt;}
+  .warn b{ color:var(--warn);} .tip b{ color:var(--good);} .note b{ color:var(--accent-deep);}
+
+  /* ---- tables ---- */
+  table{ width:100%; border-collapse:collapse; margin:10px 0; font-size:9.6pt; }
+  th,td{ text-align:left; padding:6px 9px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th{ background:var(--soft); color:var(--accent-deep); font-weight:600; border-bottom:2px solid var(--line); }
+  tr:nth-child(even) td{ background:#fbfdff; }
+
+  /* ---- module cards ---- */
+  .card{ border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:10px 0; background:#fff; }
+  .card .tag{ font-size:8pt; letter-spacing:1px; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pill{ display:inline-block; background:var(--accent-soft); color:var(--accent-deep); border-radius:20px;
+         padding:2px 10px; font-size:8.6pt; margin:2px 3px 2px 0; }
+  .crumbs{ font-size:9pt; color:var(--muted); }
+
+  /* ---- TOC ---- */
+  .toc{ columns:1; }
+  .toc ol{ list-style:none; padding:0; counter-reset:sec; }
+  .toc > ol > li{ counter-increment:sec; margin:7px 0; font-weight:600; font-size:11pt; border-bottom:1px dotted var(--line); padding-bottom:6px;}
+  .toc > ol > li::before{ content:counter(sec) ".  "; color:var(--accent); }
+  .toc ul{ list-style:none; padding-left:20px; margin:4px 0; font-weight:400; font-size:9.6pt; color:var(--muted);}
+  .toc ul li::before{ content:"– "; color:var(--accent); }
+
+  .sectionhead{ display:flex; align-items:baseline; gap:12px; margin-top:6px;}
+  .sectionhead .num{ font-size:30pt; font-weight:800; color:var(--accent-soft); line-height:1;}
+  footer{ position:fixed; bottom:-12mm; left:0; right:0; font-size:8pt; color:var(--muted); text-align:center;}
+  .lead{ font-size:11.5pt; color:#34404f; }
+  hr{ border:none; border-top:1px solid var(--line); margin:18px 0; }
+
+  /* ---- walkthrough figures ---- */
+  figure.shot{ margin:0 0 16px; page-break-inside:avoid; break-inside:avoid; }
+  figure.shot .frame{ border:1px solid var(--line); border-radius:10px; overflow:hidden;
+        background:var(--soft); box-shadow:0 1px 2px rgba(16,21,28,.04); }
+  figure.shot img{ display:block; width:100%; height:auto; }
+  figure.shot figcaption{ font-size:9.2pt; color:var(--muted); margin-top:6px; padding-left:2px; }
+  figure.shot figcaption b{ color:var(--accent-deep); }
+  .shotnum{ display:inline-block; background:var(--accent); color:#fff; font-weight:700;
+        border-radius:5px; padding:0 6px; font-size:8.4pt; margin-right:6px; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="cover">
+  <div class="kicker">Oracle Consultancy · Chief-of-Staff Command Centre</div>
+  <h1>Operations &amp;<br>Master Reference Manual</h1>
+  <div class="sub">The complete guide to the system that runs Oracle Consultancy's seven portfolio companies — what it does, how to use it, and how it is built.</div>
+  <div class="meta">
+    <div><span class="dot"></span>Single command centre for tasks, people, compliance, meetings and intelligence</div>
+    <div><span class="dot"></span>Version 3 (V3) · Document generated 18 June 2026</div>
+    <div><span class="dot"></span>Audience: the owner, staff, directors, and any future operator</div>
+    <div><span class="dot"></span>Plain-language operating manual + quick reference + technical appendix</div>
+  </div>
+</section>
+
+<!-- ============ TOC ============ -->
+<section class="pagebreak">
+<h2>Contents</h2>
+<p class="muted">A manual in three layers: <strong>Part A</strong> tells you what the system is and how to get around it; <strong>Part B</strong> is a module-by-module quick reference; <strong>Part C</strong> is the technical &amp; operations appendix for whoever maintains it.</p>
+<div class="toc">
+<ol>
+  <li>What this system is
+    <ul><li>The problem it replaces</li><li>The seven companies</li><li>Who uses it</li></ul></li>
+  <li>Getting in — logging on &amp; security
+    <ul><li>Owner vs staff vs director</li><li>Passwords, owner identity, passkeys</li></ul></li>
+  <li>Finding your way around
+    <ul><li>The navigation pill · the launcher · search</li></ul></li>
+  <li>Tasks &amp; the command centre</li>
+  <li>People &amp; HR records</li>
+  <li>Companies &amp; reference data</li>
+  <li>Documents &amp; compliance</li>
+  <li>The HRMS suite (Tax &amp; Legal, Assets, Leave, Pipeline, Registers, Organogram, Stock, Cleaning)</li>
+  <li>Meetings &amp; the workbook</li>
+  <li>Letters &amp; the Director Brief</li>
+  <li>Chat &amp; outreach (Outbox, reminders, email, WhatsApp)</li>
+  <li>The Staff Portal</li>
+  <li>Intelligence — AI (ORI), voice &amp; smart search</li>
+  <li>Settings, backups &amp; day-to-day operations</li>
+  <li>Technical appendix — stack, schema, configuration</li>
+  <li>Glossary &amp; quick-reference cheat-sheet</li>
+</ol>
+</div>
+</section>
+
+<!-- ============ PART A ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">01</div><div><h2>What this system is</h2><div class="crumbs">Part A — Orientation</div></div></div>
+
+<p class="lead">This is a single <strong>Chief-of-Staff command centre</strong> — one website that runs the day-to-day operations of Oracle Consultancy and its portfolio. It replaces a sprawling Excel workbook with a living system that captures work, tracks people and compliance, remembers meetings, and helps you make decisions.</p>
+
+<h3>The problem it replaces</h3>
+<p>Before this system, operations lived in spreadsheets: tasks, staff details, documents, leave, and notes were scattered and went stale. The command centre brings it all into one place with a memory — every task has a history, every person has a profile and compliance checklist, every meeting is saved, and the whole portfolio can be glanced at on a single brief.</p>
+<p>It provides:</p>
+<ul>
+  <li>Task capture and tracking, with a per-task timeline and a portfolio-wide activity feed;</li>
+  <li>Company and portfolio <strong>risk</strong> views;</li>
+  <li>Saved meeting notes, minutes and AI-assisted meeting intelligence;</li>
+  <li>A full <strong>HR &amp; admin operating system</strong> (people, documents, assets, leave, organogram);</li>
+  <li>Per-person reminder drafts and outreach;</li>
+  <li><strong>ORI</strong>, the built-in assistant (Oracle Intelligence), and voice dictation.</li>
+</ul>
+
+<h3>The seven portfolio companies</h3>
+<p>The parent brand is <strong>Oracle Consultancy</strong> (renamed from "Oracle Group" in V2). Note that "Oracle Consultancy" is also one of the seven operating companies.</p>
+<table>
+<tr><th>Code</th><th>Company</th><th>Sector</th></tr>
+<tr><td>CO01</td><td>Dar Spices</td><td>Spices / FMCG</td></tr>
+<tr><td>CO02</td><td>Cocozuri Chocolat</td><td>Chocolate / FMCG</td></tr>
+<tr><td>CO03</td><td>Terra Green</td><td>Green / agri</td></tr>
+<tr><td>CO04</td><td>Oracle Consultancy</td><td>Consultancy (also the parent brand)</td></tr>
+<tr><td>CO05</td><td>PES Ltd</td><td>Services</td></tr>
+<tr><td>CO06</td><td>MES Ltd</td><td>Services</td></tr>
+<tr><td>CO07</td><td>Pamoja Plus</td><td>Services</td></tr>
+</table>
+<div class="note"><b>Task codes</b>Each company has a two-letter prefix, so tasks read like <code>DS-001</code> (Dar Spices) or <code>OC-014</code> (Oracle Consultancy). Older <code>COxx-NNN</code> codes still redirect to the right task.</div>
+
+<h3>Who uses it</h3>
+<table>
+<tr><th>Role</th><th>What they see</th><th>How they sign in</th></tr>
+<tr><td><strong>Owner</strong> (you)</td><td>Everything — the full admin command centre across all seven companies.</td><td>Command Centre tab on <code>/login</code></td></tr>
+<tr><td><strong>Staff</strong></td><td>Their own tasks, documents, attendance, leave and profile, via the Staff Portal.</td><td>Staff Login on <code>/login</code> or <code>/portal/login</code></td></tr>
+<tr><td><strong>Manager</strong></td><td>The staff view plus their team's attendance and leave to approve.</td><td>As staff (role set in Settings)</td></tr>
+<tr><td><strong>Director</strong></td><td>An operator view: the board brief across all companies, plus create tasks, events and messages.</td><td>As staff; auto-routed to the board</td></tr>
+</table>
+</section>
+
+<!-- ============ 02 ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">02</div><div><h2>Getting in — logging on &amp; security</h2><div class="crumbs">Part A — Orientation</div></div></div>
+
+<p class="lead">The admin side sits behind one owner password; staff have their own personal portal logins. Sign-in is one tabbed screen.</p>
+
+<h3>The single login screen (<code>/login</code>)</h3>
+<p>One screen, two tabs:</p>
+<ul>
+  <li><strong>Staff Login</strong> (the default tab) — staff sign in with an identifier (name or email) and their personal password.</li>
+  <li><strong>Command Centre</strong> — the owner signs in with the owner password.</li>
+</ul>
+<p>If you set an <strong>owner identity</strong> (name/email in Settings), it becomes a required second factor on the Command Centre tab. Leave it blank and it stays password-only (no lockout risk).</p>
+
+<h3>Passkeys — Face ID, Touch ID, Windows Hello, fingerprint</h3>
+<p>Both the owner and staff can register a <strong>passkey</strong> so they sign in with their face or fingerprint instead of typing a password. The system stores only the public key — never your biometrics.</p>
+<ul>
+  <li><strong>Owner:</strong> register in Settings.</li>
+  <li><strong>Staff:</strong> register in the portal profile ("Sign in faster").</li>
+  <li>The login screen offers a passkey button and autofill.</li>
+</ul>
+
+<div class="note"><b>Two cookies, two worlds</b>The admin side uses the <code>cos_admin</code> session; the portal uses <code>cos_portal</code>. They are separate — signing out of one does not affect the other.</div>
+
+<h3>What's protected</h3>
+<p>An edge "gate" checks every admin page before it loads. Staff portal pages are gated separately and only ever show a person their own data. Directors can view across companies but still cannot reach the owner-only admin tools.</p>
+<div class="tip"><b>Good habit</b>Set an owner identity and register a passkey on your main device. It makes the Command Centre both faster to enter and harder for anyone else to enter.</div>
+</section>
+
+<!-- ============ 03 ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">03</div><div><h2>Finding your way around</h2><div class="crumbs">Part A — Orientation</div></div></div>
+
+<p class="lead">There is no menu bar. Everything is reached from one floating pill at the bottom of the screen — on phone, tablet and desktop alike.</p>
+
+<h3>The navigation pill</h3>
+<p>A single bottom-floating pill carries the main destinations and the page action. Its tabs:</p>
+<p>
+<span class="pill">Home</span>
+<span class="pill">Director Brief</span>
+<span class="pill">Task Management</span>
+<span class="pill">Workbook</span>
+<span class="pill">Chat</span>
+<span class="pill">HRMS</span>
+<span class="pill">+ (page action)</span>
+<span class="pill">Search</span>
+<span class="pill">Theme</span>
+</p>
+<p class="muted"><strong>Chat</strong> is a primary tab on both the admin and the staff-portal pill, so messaging is always one tap away.</p>
+
+<h3>The HRMS launcher</h3>
+<p>The <strong>HRMS</strong> icon opens one centred "Go to" launcher listing every secondary destination, so you never hunt for a page:</p>
+<p>
+<span class="pill">Tax &amp; Legal</span><span class="pill">Organogram</span><span class="pill">OECR (stock)</span>
+<span class="pill">Assets &amp; Vendors</span><span class="pill">Leave &amp; Attendance</span><span class="pill">OCR (cleaning)</span>
+<span class="pill">Companies</span><span class="pill">People</span><span class="pill">Documents</span>
+<span class="pill">Letters &amp; Letterheads</span><span class="pill">Outbox</span><span class="pill">Inbox</span>
+<span class="pill">Insights</span><span class="pill">Settings</span>
+</p>
+
+<h3>Search &amp; the “+” action</h3>
+<ul>
+  <li><strong>Search</strong> opens a fast command surface — type to jump to a task, person, company or page.</li>
+  <li><strong>“+”</strong> is the action for the page you're on (e.g. on Tasks it creates a task).</li>
+  <li><strong>Theme</strong> toggles light/dark.</li>
+</ul>
+<div class="note"><b>One look everywhere — “Aurora”</b>The whole system shares one design language called <strong>Aurora</strong>: calm liquid-glass panels, one cool-blue accent, centred layouts, iPhone-style toggles, gentle motion. Every page, pop-up and form looks and behaves the same way, so once you learn one screen you know them all.</div>
+
+<h3>Guided tours</h3>
+<p>The system has built-in <strong>onboarding tours</strong> — first-run guided walkthroughs and feature spotlights that introduce new buttons and panels once per person. Staff can replay them from their portal profile. New features self-guide automatically, so the system teaches itself as it grows.</p>
+</section>
+
+<!-- ============ PART B intro + 04 Tasks ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">04</div><div><h2>Tasks &amp; the command centre</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<p class="lead">The home command centre (<code>/</code>) has three views: <strong>Overview</strong>, <strong>Companies</strong> and <strong>Tasks</strong>. Tasks are the heartbeat of the system.</p>
+
+<div class="card">
+<div class="tag">Where</div>
+<p>Home <code>/</code> → Tasks tab · new task at <code>/task/new</code> · a task opens as a drawer (<code>/?tab=tasks&amp;task=CODE</code>).</p>
+</div>
+
+<h3>Creating &amp; tracking a task</h3>
+<ul>
+  <li>Press <strong>+</strong> (or "New task"). Give it a title, company, category, priority and assignees.</li>
+  <li>The task gets a code like <code>DS-001</code> automatically.</li>
+  <li>Open any task to see four tabs: <strong>Overview</strong>, <strong>Conversation</strong> (post updates), <strong>History</strong> (full audit trail), and <strong>Edit</strong>.</li>
+  <li>On a phone the task drawer opens full-screen; swipe actions are available on rows.</li>
+</ul>
+
+<h3>Statuses, priorities &amp; categories</h3>
+<table>
+<tr><th>Statuses</th><td>Not Started · In Progress · Under Review · Blocked · Waiting External · Escalated · Completed · Closed. <em>“Open” = anything except Completed/Closed.</em></td></tr>
+<tr><th>Priority / Risk</th><td>Critical · High · Medium · Low</td></tr>
+<tr><th>Categories</th><td>Finance · Operations · Marketing · HR · Legal · Technology · Sales · Admin · Meetings · Strategy · Other</td></tr>
+</table>
+
+<h3>Timeline &amp; activity feed</h3>
+<p>Every change is recorded. Each task has its own timeline; the Home <strong>Timeline view</strong> shows a portfolio-wide activity feed across all companies. Nothing is silently lost — deleting/closing is tracked.</p>
+
+<div class="tip"><b>Every number is a door</b>Throughout the system, counts and figures are clickable — tap a "3 overdue" figure to see exactly which three. Observe, then act.</div>
+</section>
+
+<!-- ============ 05 People ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">05</div><div><h2>People &amp; HR records</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<p class="lead">Every staff member, expat, outsider and candidate has a rich record: HR profile, documents &amp; compliance, leave, assets, onboarding journey, reporting lines and history.</p>
+
+<div class="card"><div class="tag">Where</div><p><code>/people</code> (directory) · open a person for the cockpit drawer · printable form at <code>/people/form</code>.</p></div>
+
+<h3>The person record</h3>
+<ul>
+  <li><strong>Profile:</strong> department, role, start date, date of birth, nationality, IDs, address, emergency contact, probation end, and <strong>work site + residence</strong> (shared locations list).</li>
+  <li><strong>Staff IDs</strong> are computed live (e.g. <code>CZ-E04</code>, <code>OC-D02</code>) from company prefix + role letter — not stored.</li>
+  <li><strong>Person types:</strong> local staff · expat · outsider · candidate. Each type drives its own document checklist.</li>
+  <li><strong>Drawer tabs:</strong> hero tiles (status at a glance) + Details, Leave, Manage, History.</li>
+</ul>
+
+<h3>Lifecycle automation</h3>
+<table>
+<tr><th>Event</th><th>What happens automatically</th></tr>
+<tr><td>New staff added</td><td>An <strong>onboarding</strong> checklist + a document-compliance checklist are created.</td></tr>
+<tr><td>Person archived</td><td>An <strong>offboarding</strong> checklist is created and assigned <strong>assets are auto-returned</strong>.</td></tr>
+<tr><td>Probation approaching</td><td>Confirm passed / extend / create a review task from the drawer.</td></tr>
+<tr><td>Field changed</td><td>Logged to the person's History (who/what/when).</td></tr>
+</table>
+
+<h3>Reporting lines &amp; the organogram</h3>
+<ul>
+  <li>Primary manager is on the person; "also reports to" lines are secondary.</li>
+  <li>Cards show manager + number of direct reports; the drawer lists direct reports.</li>
+  <li>The full picture is the <strong>Organogram</strong> (see §8) — a portfolio flowchart with multi-parent reporting.</li>
+  <li>You can set "also reports to" for several people at once via the bulk select bar in the directory.</li>
+</ul>
+
+<h3>Smart fill &amp; the paper form</h3>
+<p>You can drop text or files onto a person and the system fills <strong>blanks only</strong> (it never overwrites, and always asks you to review). For staff with no system access, print the bilingual <strong>EN/Swahili form</strong> at <code>/people/form</code> (a field agent fills it by hand, you photograph it, and intake builds the profile).</p>
+</section>
+
+<!-- ============ 06 Companies ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">06</div><div><h2>Companies &amp; reference data</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<p class="lead">The Companies hub is the reference-data centre — the master lists everything else hangs off.</p>
+
+<div class="card"><div class="tag">Where</div><p><code>/companies</code> hub (tabs) · <code>/companies/[id]</code> for one company.</p></div>
+
+<h3>The hub tabs</h3>
+<p>Four lists, each with add / rename / <strong>merge</strong> / delete:</p>
+<table>
+<tr><th>Companies</th><td>The seven companies + their branding/letterhead details (legal name, address, TIN, logo, signatory…).</td></tr>
+<tr><td><strong>Departments</strong></td><td>Departments and per-company department heads.</td></tr>
+<tr><td><strong>Sites</strong></td><td>Shared locations where staff live/work (not company branches).</td></tr>
+<tr><td><strong>Roles</strong></td><td>Managed job-title list. Renaming/merging re-points everyone using it.</td></tr>
+</table>
+
+<h3>The company profile</h3>
+<p><code>/companies/[id]</code> has Overview, Profile, Tasks, Timeline and Org. The company profile also carries the <strong>board-level governance</strong> data (cap table, beneficial owners, key persons, signatories, resolutions, risks, decisions) — kept out of the daily/weekly views but available for transfer packs.</p>
+<div class="note"><b>Merge, don't duplicate</b>If two departments or roles mean the same thing, use <em>merge</em> — it re-points every person and record to the surviving entry, so you never end up with split data.</div>
+</section>
+
+<!-- ============ 07 Documents ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">07</div><div><h2>Documents &amp; compliance</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<p class="lead">One place for every document, wired to a per-person and per-company compliance checklist that scores to 100%.</p>
+
+<div class="card"><div class="tag">Where</div><p><code>/documents</code> · smart intake at <code>/inbox</code>.</p></div>
+
+<h3>How compliance works</h3>
+<ul>
+  <li>Each <strong>person type</strong> (and company) has a <strong>requirement profile</strong> → a checklist of required documents.</li>
+  <li>When you upload a document, the system <strong>auto-links</strong> it to the matching requirement by category/title.</li>
+  <li>You <strong>verify</strong> each item and can set a "valid until" review date; items lapse automatically when expired or stale (&gt;180 days).</li>
+  <li>The score updates everywhere immediately — person drawer, staff portal, and the Director Brief.</li>
+</ul>
+
+<h3>Uploading &amp; tidying</h3>
+<table>
+<tr><th>Action</th><th>How</th></tr>
+<tr><td>Single doc</td><td>Add via the full document form (owner = a person <em>or</em> a company).</td></tr>
+<tr><td>Many at once</td><td>"Add several" — bulk multi-file upload, each reviewed in turn.</td></tr>
+<tr><td>Duplicates</td><td>Recency-aware detection: "Keep both" or "Replace + archive".</td></tr>
+<tr><td>Compilations</td><td>A multi-doc PDF is detected and can be split into linked parts.</td></tr>
+<tr><td>Renewals</td><td>Replacing a doc hands the checklist tick from the old to the new one.</td></tr>
+</table>
+
+<h3>Smart intake (Inbox)</h3>
+<p>Drop pasted text and/or files into <code>/inbox</code> as a bundle, then press <strong>Process</strong>: the review queue files the documents to the right owner and enriches the person profile (blanks only, always reviewed). Compliance recomputes automatically.</p>
+<div class="tip"><b>Chase gaps in one click</b>Needs-attention rows have a "Chase" button that drafts a renewal reminder to the person or company in the Outbox — de-duplicated so you don't nag twice.</div>
+</section>
+
+<!-- ============ 08 HRMS suite ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">08</div><div><h2>The HRMS suite</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+<p class="lead">A full HR &amp; admin operating system, built on the principle <strong>reuse, don't duplicate</strong>. Reached from the HRMS launcher.</p>
+
+<h3>Tax &amp; Legal <span class="muted">(<code>/hrms/command-centre</code>)</span></h3>
+<p>Recurring tax / statutory / legal obligations with cadence and a safety net so nothing slips.</p>
+
+<h3>Organogram <span class="muted">(<code>/hrms/org</code>)</span></h3>
+<p>The portfolio view is a layered flowchart: multi-parent reporting, role/seniority tiers, company shown as colour, shared-service roles in-flow (primary boss = solid line, extra bosses = dashed). Also per-company trees, a by-department view, and an "Everyone" web.</p>
+
+<h3>Assets &amp; Vendors <span class="muted">(<code>/hrms/assets</code>)</span></h3>
+<ul>
+  <li><strong>Assets:</strong> durable equipment assigned to a person, or shared to a company with a custodian. Auto-returned on offboarding. Per-asset history, PDF register export, handover receipts, retire/restore.</li>
+  <li><strong>Vendors:</strong> suppliers, contractors and landlords; their contracts live as documents.</li>
+</ul>
+
+<h3>Leave &amp; Attendance <span class="muted">(<code>/hrms/leave</code>)</span></h3>
+<p>Two tabs, grounded in the Tanzania <strong>Employment &amp; Labour Relations Act 2004</strong>:</p>
+<table>
+<tr><th>Leave</th><td>Types, requests, approvals and balances. Entitlements: Annual 28/12mo · Sick 126 days/36mo (63 full + 63 half) · Maternity 84 · Paternity 3 · Compassionate 4. Working days are Mon–Sat minus public holidays.</td></tr>
+<tr><td><strong>Attendance</strong></td><td>A month grid you brush-to-paint (Present/Absent/On leave/Holiday/Remote/Half-day/Sick), filter by company, "mark all Present today". On-leave/holiday days auto-fill. Staff self-check-in from the portal.</td></tr>
+</table>
+
+<h3>Applications in progress <span class="muted">(<code>/hrms/pipeline</code>)</span></h3>
+<p>A kanban of in-flight bureaucracy (permits/visas/licences): To Apply → Applied → Control No. Issued → Paid → Receipt Received → Issued. Attach a supporting document at any stage.</p>
+
+<h3>Commitments register <span class="muted">(<code>/hrms/registers</code>)</span></h3>
+<p>Leases, insurance and commercial contracts. The system computes <strong>notice-by = end date − notice days</strong> and flags when notice is due soon.</p>
+
+<h3>Stock &amp; cleaning</h3>
+<ul>
+  <li><strong>OECR</strong> (<code>/hrms/oecr</code>) — Office Equipment Control Registry: consumable stock control (items, purchases, issues).</li>
+  <li><strong>OCR</strong> (<code>/hrms/ocr</code>) — Office Cleaning Registry: a daily cleaning checklist.</li>
+</ul>
+</section>
+
+<!-- ============ 09 Meetings ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">09</div><div><h2>Meetings &amp; the workbook</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<p class="lead">The Meeting Workspace turns meetings into saved business memory; the Workbook holds meetings, notes and to-dos together.</p>
+
+<div class="card"><div class="tag">Where</div><p>Meeting Workspace <code>/meeting</code> · Workbook <code>/workbook</code>.</p></div>
+
+<h3>The Meeting Workspace can</h3>
+<div class="grid2">
+<ul>
+  <li>Save title, company, date, attendees, raw notes and minutes</li>
+  <li>Take <strong>voice dictation</strong> into notes</li>
+  <li><strong>Clean</strong> rough notes</li>
+  <li><strong>Generate minutes</strong></li>
+  <li><strong>Extract decisions</strong></li>
+</ul>
+<ul>
+  <li><strong>Extract risks</strong></li>
+  <li><strong>Draft a follow-up</strong></li>
+  <li><strong>Extract action items</strong> → bulk-create tasks</li>
+  <li>Link created tasks back to the meeting</li>
+  <li>Search/filter meeting history</li>
+</ul>
+</div>
+<div class="note"><b>It feeds the assistant</b>Saved minutes and raw notes become context ORI can draw on when you ask it questions — so the meeting record is also institutional memory.</div>
+
+<h3>Workbook</h3>
+<p><code>/workbook</code> brings <strong>Meetings · Notes · To-do</strong> into one place. To-dos can be tagged as onboarding/offboarding journey steps that show up on the relevant person.</p>
+</section>
+
+<!-- ============ 10 Letters & Brief ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">10</div><div><h2>Letters &amp; the Director Brief</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<h3>Director Brief <span class="muted">(<code>/brief</code>)</span></h3>
+<p class="lead">A glanceable portfolio report: headcount, compliance, risks, an HR section, completed/closed this month, statutory obligations and leave liability.</p>
+<ul>
+  <li>Share via <strong>WhatsApp / Email / Copy</strong>, or print to PDF (detailed per-company tables are print-only).</li>
+  <li>Directors get a "Download PDF" button on their portal board.</li>
+</ul>
+
+<h3>Letters <span class="muted">(<code>/letters</code>)</span></h3>
+<p class="lead">System-wide branded PDF letters with a Draft → Issue lifecycle.</p>
+<ul>
+  <li>Per-company <strong>letterhead</strong> set on the Letterheads tab: typed fields, a designed header+footer image, or a full-page A4 background.</li>
+  <li><strong>Draft → Issue</strong> freezes a letterhead snapshot and stamps a reference (<code>PREFIX/INV/YYYY/NNN</code>) — reprints are identical.</li>
+  <li>Full body editing; PDF via in-place print; optional Outbox draft; no auto-send.</li>
+  <li>First template is the <strong>Invitation</strong> letter (auto-pulls invitee name, nationality, passport, DOB, role).</li>
+</ul>
+<div class="note"><b>Adding a new letter type</b>It's a small code change: add an entry to <code>LETTER_TEMPLATES</code> and a <code>buildBody</code> function in <code>src/lib/letters.ts</code>.</div>
+</section>
+
+<!-- ============ 11 Chat & outreach ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">11</div><div><h2>Chat &amp; outreach</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<h3>Chat <span class="muted">(<code>/chat</code> · portal twin <code>/portal/chat</code>)</span></h3>
+<p class="lead">Free-standing messaging, separate from task updates: direct messages and ad-hoc groups, everyone-to-everyone.</p>
+<ul>
+  <li>WhatsApp-style messenger: full-screen on mobile, two-pane glass card on desktop.</li>
+  <li>Optimistic send, read receipts, typing indicator, inline image previews.</li>
+  <li>Real-time delivery (with a polling fallback). Notifications deep-link into the thread.</li>
+</ul>
+
+<h3>Outbox &amp; reminders <span class="muted">(<code>/outbox</code>)</span></h3>
+<p>Persisted message <strong>drafts</strong> — per-person reminders, renewal chases, director messages. Nothing sends automatically; each draft gives you a WhatsApp / email / SMS deep-link to send yourself.</p>
+
+<h3>Email &amp; WhatsApp automation</h3>
+<table>
+<tr><th>Channel</th><th>Status</th></tr>
+<tr><td>Email</td><td><strong>Built and wired</strong> (Gmail SMTP / Resend). Inert until provider credentials are set in the environment; directors can then be made to send "as themselves".</td></tr>
+<tr><td>WhatsApp</td><td><strong>Sandbox-proven on Twilio, not yet live.</strong> Today the system produces <code>wa.me</code> deep-links (you tap send). Automated sending needs Twilio business verification, an approved number and message templates, then three environment variables.</td></tr>
+</table>
+<div class="warn"><b>Owner action to go live</b>Both email and WhatsApp are wired but inert until you add the provider credentials in Vercel. See the project memory notes (<code>emailwork</code>, <code>director_surface_plan</code>) for the exact steps.</div>
+</section>
+
+<!-- ============ 12 Portal ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">12</div><div><h2>The Staff Portal</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<p class="lead">The portal is a first-class surface for staff — same Aurora look as the admin side, but it only ever shows a person their own data.</p>
+
+<div class="card"><div class="tag">Where</div><p><code>/portal</code> · sign in at <code>/portal/login</code> · profile at <code>/portal/profile</code>.</p></div>
+
+<h3>What staff can do</h3>
+<ul>
+  <li>See <strong>only their own tasks</strong>, post updates, and make limited status moves (never Completed/Closed).</li>
+  <li><strong>Your documents</strong> — see their compliance checklist and upload onto gaps.</li>
+  <li><strong>Your attendance</strong> — self check-in with a week strip; a check-in pop-up auto-opens once a day.</li>
+  <li><strong>Your leave</strong> — view balances and request leave.</li>
+  <li>Onboarding journey, assigned equipment, and passkey setup.</li>
+</ul>
+
+<h3>Portal roles</h3>
+<p>A person's portal role is set in Settings → Staff portal access. There are four:</p>
+<table>
+<tr><th>staff</th><td>Own tasks, documents, attendance, leave and profile only.</td></tr>
+<tr><td><strong>manager</strong></td><td>Staff view + Team attendance today, Leave to approve, a team roster (compliance/onboarding scores), and can create tasks for their company.</td></tr>
+<tr><td><strong>hr</strong></td><td>Group-wide task visibility and creation across all companies (no single-company limit).</td></tr>
+<tr><td><strong>director</strong></td><td>The board brief across all companies; create tasks group-wide, schedule events/meetings, and draft messages. Auto-routed to the board on sign-in.</td></tr>
+</table>
+
+<h3>Accessibility &amp; comfort</h3>
+<p>The portal profile carries accessibility controls — <strong>text size</strong>, <strong>reduced motion</strong> and <strong>density</strong> — so staff can tune the experience on their own device.</p>
+
+<div class="note"><b>Parity rule</b>The portal keeps pace with the admin side automatically: shared styles, motion and components flow to it. It deliberately drops anything that would expose other people's data (the command surface, ORI, admin drawers).</div>
+
+<div class="warn"><b>Data is never deleted</b>Revoking access, changing a role, or archiving a person keeps all their data. Access control and data are separate.</div>
+</section>
+
+<!-- ============ 13 Intelligence ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">13</div><div><h2>Intelligence — ORI, voice &amp; search</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<h3>ORI — the assistant <span class="muted">(Oracle Intelligence)</span></h3>
+<p class="lead">"Ask COS / ORI" answers questions over your real data — tasks, meetings, documents and people — and cites what it used (task codes, meeting title + date). It never invents data.</p>
+<ul>
+  <li>Recall is synonym-aware and relevance-ranked, with an honest "N tasks · M meetings" count.</li>
+  <li>There is an AI master switch; when AI is off, features degrade gracefully.</li>
+</ul>
+
+<h3>Voice intelligence</h3>
+<p>Voice is a shared layer, not just a microphone button. The pattern is <strong>"speak rough, save polished"</strong> — you dictate and the system tidies it up.</p>
+<ul>
+  <li>Used in meeting notes, quick capture and task updates.</li>
+  <li>Languages: English (en-GB), Swahili (sw-TZ), Hindi (hi-IN), Gujarati (gu-IN).</li>
+  <li>You can teach ORI names and phrases into a voice dictionary for better accuracy.</li>
+</ul>
+
+<h3>Smart / semantic search</h3>
+<p>Beyond keyword search, the system has a hybrid search that understands meaning (it indexes tasks, documents, meetings and people, blending full-text and vector search). It is <strong>opt-in — off by default</strong>; it needs a one-time setup (deploy the embedding function and run the backfill — see <code>SEMANTIC_SEARCH.md</code>) and is then toggled on in Settings. It is strongest in English; reliable multilingual support (Swahili/Hindi/Gujarati) is a pending cost decision (see appendix).</p>
+<div class="note"><b>An "operating brain", not magic</b>The intelligence is grounded: it works from your records and cites them. If something isn't in the system, ORI won't pretend it is.</div>
+</section>
+
+<!-- ============ 14 Settings & ops ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">14</div><div><h2>Settings, backups &amp; day-to-day operations</h2><div class="crumbs">Part B — Module quick reference</div></div></div>
+
+<h3>Settings <span class="muted">(<code>/settings</code>)</span></h3>
+<p>Organised into icon-tile cards with a section nav. Key things you control here:</p>
+<ul>
+  <li>Owner identity (the optional second factor) and owner passkeys.</li>
+  <li><strong>Staff portal access</strong> — set/reset a person's password, change their role, revoke access.</li>
+  <li>AI master switch and "high quality AI" toggle; voice language and dictionary.</li>
+  <li>Director outreach pause/resume (a governance kill-switch).</li>
+</ul>
+
+<h3>Backups &amp; safety</h3>
+<table>
+<tr><th>What</th><th>How</th></tr>
+<tr><td>Portable backup</td><td><code>npm run db:backup</code> writes a per-table JSON snapshot to <code>backups/</code>.</td></tr>
+<tr><td>Restore</td><td><code>npm run db:restore -- &lt;folder&gt;</code>.</td></tr>
+<tr><td>Primary safety net</td><td>Supabase cloud backups (see <code>BACKUP.md</code>).</td></tr>
+<tr><td>Error monitoring</td><td>Sentry (errors only) — active when the DSN is set.</td></tr>
+</table>
+<div class="warn"><b>Golden rule</b>Run <code>npm run db:backup</code> before any migration or bulk database change.</div>
+
+<h3>Routine operations</h3>
+<ul>
+  <li><strong>Daily:</strong> work tasks, check the Home overview and notifications, approve leave, action needs-attention rows.</li>
+  <li><strong>Weekly:</strong> review the Director Brief, chase compliance gaps, check the pipeline and commitments register for notice-due items.</li>
+  <li><strong>Monthly:</strong> review attendance, completed/closed work, and confirm backups are healthy.</li>
+</ul>
+</section>
+
+<!-- ============ 15 Technical appendix ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">15</div><div><h2>Technical appendix</h2><div class="crumbs">Part C — For whoever maintains the system</div></div></div>
+
+<h3>Technology stack</h3>
+<table>
+<tr><th>Layer</th><th>Technology</th></tr>
+<tr><td>Framework</td><td>Next.js 16 (App Router), React 19, TypeScript 5</td></tr>
+<tr><td>Database</td><td>Supabase Postgres via the pooler (port 6543); Drizzle ORM 0.45 + postgres.js</td></tr>
+<tr><td>Styling</td><td>Tailwind v4 tokens from <code>globals.css</code>; the "Aurora" design kit</td></tr>
+<tr><td>AI</td><td>Groq Cloud (<code>llama-3.1-8b-instant</code>); pgvector for semantic search</td></tr>
+<tr><td>UI libs</td><td>next-themes, framer-motion, lucide-react, cmdk, Radix primitives</td></tr>
+<tr><td>Hosting</td><td>Vercel (functions pinned to the EU region to match the database)</td></tr>
+</table>
+
+<h3>Critical configuration — do not break</h3>
+<ul>
+  <li><code>src/db/index.ts</code> must keep <code>prepare:false</code> and <code>max:1</code> (required for PgBouncer transaction mode).</li>
+  <li><code>DATABASE_URL</code> uses the Supabase pooler on port 6543.</li>
+  <li>The admin edge auth gate lives in <code>src/proxy.ts</code> (the Next-16 <code>proxy</code> convention, formerly <code>middleware.ts</code>). Its <code>secret()</code> derivation must stay identical to <code>src/lib/admin-auth.ts</code> and <code>src/lib/portal-auth.ts</code>.</li>
+  <li>All wall-clock columns are <code>timestamptz</code>; writes use <code>.toISOString()</code> (UTC), times render in the viewer's local zone (Dar es Salaam, UTC+3).</li>
+  <li>Never <code>rm -rf .next</code> while the dev server is running (it corrupts the build cache).</li>
+</ul>
+
+<h3>Schema areas (high level)</h3>
+<p>Core: companies, departments, people, tasks (+ assignees, updates). Reference: sites, job_titles, department_heads, reporting_lines. Meetings: meetings, meeting_tasks. Governance/transfer-pack: facts ledger, cap_table, beneficial_owners, key_persons, signatories, resolutions, risks, decisions, pipeline, commitments. HR: requirement_profiles/items, person_requirements, assets, vendors, leave_types, leave_requests, attendance, public_holidays. Documents: documents, inbox, document_links. Letters: letters. Stock/cleaning: stock_*, cleaning_*. Outreach: reminders, outbox. Chat: chat_threads/participants/messages/mentions. Auth: webauthn_credentials. System: audit_log, corrections, settings, notifications, system_events, daily_snapshots, undo_tokens. Full detail in <code>memory/database_schema.md</code>.</p>
+
+<h3>Developer workflow</h3>
+<table>
+<tr><td>Type-check</td><td><code>NODE_OPTIONS=--max-old-space-size=4096 npm exec tsc -- --noEmit</code></td></tr>
+<tr><td>Unit tests</td><td><code>npm test</code> (Vitest) — pay/leave/derive/requirement-match/staff-id logic</td></tr>
+<tr><td>Migrations</td><td>Edit <code>schema.ts</code> → generate/review → <code>npm run db:migrate</code> (back up first)</td></tr>
+</table>
+
+<h3>Where the knowledge lives</h3>
+<p>The project's living documentation is in <code>CLAUDE.md</code> (instructions) and the <code>memory/</code> folder (e.g. <code>v3_plan.md</code>, <code>portal.md</code>, <code>hrms.md</code>, <code>auth_login.md</code>, <code>organogram.md</code>, <code>letters.md</code>, <code>chat_system.md</code>, <code>database_schema.md</code>, and the audit logs). The design rules are in <code>DESIGN_SYSTEM.md</code>.</p>
+<div class="warn"><b>Pending owner decisions</b>(1) Email + WhatsApp go-live credentials in Vercel; (2) durable multilingual search container (~£3–7/mo); (3) enable GitHub Dependabot security alerts; (4) confirm Supabase backup/PITR plan.</div>
+</section>
+
+<!-- ============ 16 Glossary ============ -->
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">16</div><div><h2>Glossary &amp; cheat-sheet</h2><div class="crumbs">Part C — Quick reference</div></div></div>
+
+<h3>Glossary</h3>
+<table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td><strong>COS</strong></td><td>Chief-of-Staff — the system itself.</td></tr>
+<tr><td><strong>ORI</strong></td><td>Oracle Intelligence — the in-app AI assistant.</td></tr>
+<tr><td><strong>Aurora</strong></td><td>The design language used across every screen.</td></tr>
+<tr><td><strong>HRMS</strong></td><td>The HR &amp; admin suite (people, assets, leave, organogram, etc.).</td></tr>
+<tr><td><strong>OECR / OCR</strong></td><td>Office Equipment Control Registry (stock) / Office Cleaning Registry.</td></tr>
+<tr><td><strong>Open task</strong></td><td>Any task not Completed or Closed.</td></tr>
+<tr><td><strong>Transfer pack</strong></td><td>The board-level/governance data set kept for handover and compliance.</td></tr>
+<tr><td><strong>ELR Act</strong></td><td>Tanzania Employment &amp; Labour Relations Act 2004 — the basis for leave rules.</td></tr>
+<tr><td><strong>Person types</strong></td><td>local staff · expat · outsider · candidate — each with its own document checklist.</td></tr>
+<tr><td><strong>Notice-by</strong></td><td>For commitments: end date − notice days (when you must give notice).</td></tr>
+</table>
+
+<h3>Page cheat-sheet</h3>
+<table>
+<tr><th>Page</th><th>What it's for</th></tr>
+<tr><td><code>/</code></td><td>Command centre: Overview · Companies · Tasks</td></tr>
+<tr><td><code>/brief</code></td><td>Director Brief (portfolio report, shareable + PDF)</td></tr>
+<tr><td><code>/workbook</code></td><td>Meetings · Notes · To-do</td></tr>
+<tr><td><code>/meeting</code></td><td>Meeting Workspace (AI minutes, action items)</td></tr>
+<tr><td><code>/people</code> · <code>/companies</code></td><td>People directory · Companies &amp; reference data</td></tr>
+<tr><td><code>/documents</code> · <code>/inbox</code></td><td>Documents &amp; compliance · smart intake</td></tr>
+<tr><td><code>/hrms/leave</code></td><td>Leave &amp; Attendance</td></tr>
+<tr><td><code>/hrms/assets</code></td><td>Assets &amp; Vendors</td></tr>
+<tr><td><code>/hrms/org</code></td><td>Organogram</td></tr>
+<tr><td><code>/hrms/pipeline</code> · <code>/hrms/registers</code></td><td>Applications in progress · Commitments register</td></tr>
+<tr><td><code>/hrms/command-centre</code></td><td>Tax &amp; Legal (statutory obligations)</td></tr>
+<tr><td><code>/letters</code></td><td>Branded PDF letters + letterheads</td></tr>
+<tr><td><code>/chat</code> · <code>/outbox</code></td><td>Messaging · outreach drafts</td></tr>
+<tr><td><code>/portal</code></td><td>Staff portal (own tasks, attendance, leave, docs)</td></tr>
+<tr><td><code>/settings</code></td><td>Identity, portal access, AI, backups</td></tr>
+</table>
+
+<hr>
+<p class="muted" style="text-align:center; font-size:9pt; margin-top:24px;">Oracle Consultancy — Chief-of-Staff System · Operations &amp; Master Reference Manual · V3 · 18 June 2026.<br>This manual is a snapshot; the living source of truth is <code>CLAUDE.md</code> and the project <code>memory/</code> folder.</p>
+</section>
+
+</body>
+</html>

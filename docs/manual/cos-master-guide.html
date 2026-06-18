@@ -1,0 +1,218 @@
+<!DOCTYPE html><html lang="en-GB"><head><meta charset="utf-8"><title>COS — Company System Master Guide</title>
+<style>
+  :root{--ink:#10151c;--muted:#5b6675;--line:#dce3ec;--accent:#2f6df0;--accent-soft:#eaf1fe;--accent-deep:#1b3a82;--soft:#f6f9fd;--warn:#b4520a;--good:#1d7a4d;}
+  @page{size:A4;margin:17mm 16mm;}*{box-sizing:border-box;}html,body{margin:0;padding:0;}
+  body{font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--ink);font-size:10.4pt;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  h2{font-size:18pt;margin:0 0 4px;color:var(--accent-deep);}
+  h3{font-size:13pt;margin:20px 0 6px;padding-bottom:4px;border-bottom:2px solid var(--accent-soft);color:var(--accent-deep);}
+  h4{font-size:11pt;margin:14px 0 3px;}p{margin:6px 0;}.muted{color:var(--muted);}strong{color:var(--ink);}
+  code{font-family:"Consolas",monospace;font-size:9pt;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0.5px 4px;color:#1b3a82;}
+  ul,ol{margin:6px 0;padding-left:20px;}li{margin:3px 0;}
+  .pagebreak{page-break-before:always;}.lead{font-size:11.5pt;color:#34404f;}
+  .cover{height:255mm;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(150deg,#0b1f4d,#1b3a82 45%,#2f6df0);color:#fff;padding:0 18mm;margin:-2mm -2mm 0;}
+  .cover .kicker{letter-spacing:3px;text-transform:uppercase;font-size:11pt;opacity:.85;}
+  .cover h1{color:#fff;font-size:38pt;margin:10px 0 6px;line-height:1.08;}.cover .sub{font-size:15pt;opacity:.92;max-width:150mm;}
+  .cover .meta{margin-top:38px;font-size:10.5pt;opacity:.85;line-height:1.8;border-top:1px solid rgba(255,255,255,.25);padding-top:18px;}
+  .cover .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#7fd0ff;margin-right:8px;}
+  table{width:100%;border-collapse:collapse;margin:9px 0;font-size:9.6pt;}
+  th,td{text-align:left;padding:6px 9px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:var(--soft);color:var(--accent-deep);font-weight:600;border-bottom:2px solid var(--line);}
+  tr:nth-child(even) td{background:#fbfdff;}
+  .sectionhead{display:flex;align-items:baseline;gap:12px;}.sectionhead .num{font-size:30pt;font-weight:800;color:var(--accent-soft);}
+  .crumbs{font-size:9pt;color:var(--muted);}
+  .note,.warn,.tip{border-radius:8px;padding:10px 14px;margin:12px 0;font-size:10pt;}
+  .note{background:var(--accent-soft);border:1px solid #cfe0fe;}.warn{background:#fdf2e7;border:1px solid #f3d8b8;}.tip{background:#eafaf1;border:1px solid #c7ebd5;}
+  .note b,.warn b,.tip b{display:block;text-transform:uppercase;font-size:8.5pt;margin-bottom:2px;}.note b{color:var(--accent-deep);}.warn b{color:var(--warn);}.tip b{color:var(--good);}
+  .flow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;}
+  .flow .node{background:var(--accent-soft);border:1px solid #cfe0fe;border-radius:8px;padding:6px 11px;font-size:9pt;color:var(--accent-deep);font-weight:600;}
+  .flow .arr{color:var(--accent);font-weight:700;}
+  .foot{text-align:center;font-size:8.8pt;color:var(--muted);margin-top:22px;}
+  ol.toc{list-style:none;padding:0;counter-reset:s;}ol.toc>li{counter-increment:s;margin:6px 0;font-weight:600;border-bottom:1px dotted var(--line);padding-bottom:5px;}
+  ol.toc>li::before{content:counter(s) ".  ";color:var(--accent);}
+</style></head><body>
+
+<section class="cover">
+  <div class="kicker">Oracle Consultancy · Chief-of-Staff System</div>
+  <h1>Company System<br>Master Guide</h1>
+  <div class="sub">The big picture — how the whole system is conceived, structured and run. The architectural &amp; governance companion to the day-to-day Operations Manual.</div>
+  <div class="meta">
+    <div><span class="dot"></span>Philosophy · architecture · data model · roles · governance · roadmap</div>
+    <div><span class="dot"></span>V3 · 18 June 2026 · For the owner, directors and any future operator/maintainer</div>
+  </div>
+</section>
+
+<section class="pagebreak">
+<h2>Contents</h2>
+<ol class="toc">
+<li>The idea — what this system is for</li>
+<li>Design principles</li>
+<li>How it all fits together (architecture)</li>
+<li>The data model at a glance</li>
+<li>Roles &amp; the access model</li>
+<li>Core workflows end-to-end</li>
+<li>Operating rhythm &amp; governance</li>
+<li>Reliability, security &amp; maintenance</li>
+<li>Roadmap &amp; pending decisions</li>
+</ol>
+<p class="muted" style="margin-top:18px;">This guide stays at altitude — the step-by-step "how do I…" lives in the <strong>Operations Manual</strong>; the at-a-glance card is the <strong>Quick Reference</strong>; the feature inventory is <strong>What We've Built</strong>.</p>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">01</div><div><h2>The idea</h2><div class="crumbs">Why the system exists</div></div></div>
+<p class="lead">A single Chief-of-Staff command centre that runs the day-to-day operations of Oracle Consultancy and its seven portfolio companies — for one operator, replacing a sprawling Excel workbook with a living system that has a memory.</p>
+<p>The brief was not "digitise the spreadsheet" but "give the operator a brain": capture work and never lose its history, keep people and compliance current, remember every meeting, and surface the whole portfolio on one glanceable brief — so decisions are made from one source of truth.</p>
+<table>
+<tr><th>Code</th><th>Company</th><th>Code</th><th>Company</th></tr>
+<tr><td>CO01</td><td>Dar Spices</td><td>CO05</td><td>PES Ltd</td></tr>
+<tr><td>CO02</td><td>Cocozuri Chocolat</td><td>CO06</td><td>MES Ltd</td></tr>
+<tr><td>CO03</td><td>Terra Green</td><td>CO07</td><td>Pamoja Plus</td></tr>
+<tr><td>CO04</td><td>Oracle Consultancy <span class="muted">(also the parent brand)</span></td><td></td><td></td></tr>
+</table>
+
+<div class="sectionhead" style="margin-top:24px;"><div class="num">02</div><div><h2>Design principles</h2><div class="crumbs">The rules everything follows</div></div></div>
+<table>
+<tr><th>Principle</th><th>What it means in practice</th></tr>
+<tr><td><strong>Reuse, don't duplicate</strong></td><td>One capability underpins many features: Documents power compliance, tasks/todos power checklists, OECR underpins assets, Outbox powers messaging, Home/Brief surface signals. New features extend existing tables rather than inventing parallel ones.</td></tr>
+<tr><td><strong>One design language — "Aurora"</strong></td><td>Every page, dialog and form shares the same liquid-glass surfaces, single blue accent, centred layout, iPhone-style toggles and calm motion. Learn one screen, know them all.</td></tr>
+<tr><td><strong>Single source of truth</strong></td><td>Append-only history and audit trails; facts are never overwritten (the fact ledger keeps versions). Access can be revoked but data is never deleted.</td></tr>
+<tr><td><strong>Glanceable, every-number-a-door</strong></td><td>Counts and figures are clickable; the system shows where to look, then lets you act.</td></tr>
+<tr><td><strong>Portal parity</strong></td><td>The staff portal is first-class — it shares visuals and motion with admin, dropping only what would expose other people's data.</td></tr>
+<tr><td><strong>Grounded intelligence</strong></td><td>AI works from your records and cites them; it never invents data, and degrades gracefully when switched off.</td></tr>
+</table>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">03</div><div><h2>How it all fits together</h2><div class="crumbs">Architecture</div></div></div>
+<p class="lead">A single Next.js application, server-rendered, talking to one Postgres database, hosted close to that database, with a thin AI layer bolted on the side.</p>
+
+<h3>The stack</h3>
+<table>
+<tr><th>Layer</th><th>Technology</th></tr>
+<tr><td>App</td><td>Next.js 16 (App Router), React 19, TypeScript 5 — one codebase serves admin + portal</td></tr>
+<tr><td>Data</td><td>Supabase Postgres via the pooler (port 6543); Drizzle ORM + postgres.js; <code>supabase-js</code> for newer write paths</td></tr>
+<tr><td>Styling</td><td>Tailwind v4 tokens (<code>globals.css</code>) + the Aurora component kit</td></tr>
+<tr><td>AI</td><td>Groq Cloud (<code>llama-3.1-8b-instant</code>) for language; pgvector + an embedding Edge Function for semantic search</td></tr>
+<tr><td>Hosting</td><td>Vercel, functions pinned to the EU region to sit beside the database (kills transatlantic latency)</td></tr>
+</table>
+
+<h3>Request flow</h3>
+<div class="flow">
+<span class="node">Browser</span><span class="arr">→</span>
+<span class="node">Edge gate (proxy.ts)</span><span class="arr">→</span>
+<span class="node">Server component / action</span><span class="arr">→</span>
+<span class="node">Postgres</span>
+</div>
+<p>Every request passes the edge gate in <code>src/proxy.ts</code> (the Next-16 <code>proxy</code> convention), which checks the signed session cookie before any admin or portal page renders. Reads and writes happen in server components and server actions — there is no separate API tier to keep in sync.</p>
+
+<h3>The AI layer</h3>
+<p>AI is additive, not load-bearing. A safety harness (<code>src/lib/ai-json.ts</code>) wraps every Groq call with retries, timeouts and JSON guards; a master switch turns it all off cleanly. Semantic search indexes tasks, documents, meetings and people into pgvector and blends vector hits with full-text search.</p>
+
+<div class="warn"><b>Configuration that must not change</b><code>prepare:false</code> + <code>max:1</code> in <code>src/db/index.ts</code> (PgBouncer transaction mode); the pooler port 6543; the <code>secret()</code> derivation must stay identical across <code>proxy.ts</code>, <code>admin-auth.ts</code> and <code>portal-auth.ts</code>; all wall-clock columns are <code>timestamptz</code> written as UTC and shown in local (Dar es Salaam, UTC+3) time.</div>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">04</div><div><h2>The data model at a glance</h2><div class="crumbs">What the database holds</div></div></div>
+<p>Everything hangs off a small set of reference tables (companies, departments, sites, roles) and the people/tasks core. Full detail is in <code>memory/database_schema.md</code>.</p>
+<table>
+<tr><th>Area</th><th>Key tables</th></tr>
+<tr><td>Core</td><td>companies · departments · people · tasks (+ task_assignees, task_updates)</td></tr>
+<tr><td>Reference</td><td>sites · job_titles · department_heads · reporting_lines · person_companies</td></tr>
+<tr><td>Meetings</td><td>meetings · meeting_tasks</td></tr>
+<tr><td>Governance (transfer-pack)</td><td>facts (ledger) · cap_table · beneficial_owners · key_persons · signatories · resolutions · risks · decisions · pipeline · commitments</td></tr>
+<tr><td>HR compliance</td><td>requirement_profiles · requirement_items · person_requirements</td></tr>
+<tr><td>HR ops</td><td>assets · asset_assignments · vendors · leave_types · leave_requests · attendance · public_holidays · todos</td></tr>
+<tr><td>Documents</td><td>documents · document_links · inbox</td></tr>
+<tr><td>Letters / stock / cleaning</td><td>letters · stock_items/purchases/issues · cleaning_areas/days/checks</td></tr>
+<tr><td>Comms</td><td>chat_threads · chat_participants · chat_messages · chat_message_mentions · reminders · outbox · notifications</td></tr>
+<tr><td>Auth &amp; system</td><td>webauthn_credentials · settings · audit_log · corrections · system_events · daily_snapshots · undo_tokens</td></tr>
+</table>
+<div class="note"><b>Schema discipline</b>Schema changes go through Drizzle migrations (edit <code>schema.ts</code> → generate → review → <code>npm run db:migrate</code>), always after a backup. The live DB has some historical drift, so migrations use <code>IF NOT EXISTS</code> where needed.</div>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">05</div><div><h2>Roles &amp; the access model</h2><div class="crumbs">Who can do what</div></div></div>
+<p class="lead">Two separate worlds, two separate cookies: the owner's admin side (<code>cos_admin</code>) and the staff portal (<code>cos_portal</code>).</p>
+<table>
+<tr><th>Role</th><th>Scope</th><th>Can do</th></tr>
+<tr><td><strong>Owner</strong></td><td>Everything, all companies</td><td>The full admin command centre. One password (+ optional owner identity 2nd factor) or a passkey.</td></tr>
+<tr><td><strong>Staff</strong></td><td>Own data only</td><td>Own tasks, documents, attendance, leave, profile.</td></tr>
+<tr><td><strong>Manager</strong></td><td>Own + their team / company</td><td>Team attendance, leave approvals, team roster, create tasks for their company.</td></tr>
+<tr><td><strong>HR</strong></td><td>All companies (tasks)</td><td>Group-wide task visibility &amp; creation.</td></tr>
+<tr><td><strong>Director</strong></td><td>All companies (operator)</td><td>Board brief; create tasks/events; draft messages. Auto-routed to the board.</td></tr>
+</table>
+<div class="tip"><b>Data-ownership rule</b>Revoking access, changing a role or archiving a person never deletes their data — access control and records are independent. This keeps history and compliance intact.</div>
+<p><strong>Sign-in security:</strong> signed HttpOnly cookies verified at the edge; a session "generation" lets the owner invalidate all other devices by changing the password; passkeys (WebAuthn) store only public keys.</p>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">06</div><div><h2>Core workflows end-to-end</h2><div class="crumbs">How the pieces connect</div></div></div>
+
+<h4>A new staff member joins</h4>
+<div class="flow"><span class="node">Add person</span><span class="arr">→</span><span class="node">Auto onboarding checklist</span><span class="arr">→</span><span class="node">Auto compliance checklist</span><span class="arr">→</span><span class="node">Upload docs (auto-link)</span><span class="arr">→</span><span class="node">Score to 100%</span></div>
+
+<h4>A meeting becomes action</h4>
+<div class="flow"><span class="node">Notes / voice</span><span class="arr">→</span><span class="node">Generate minutes</span><span class="arr">→</span><span class="node">Extract action items</span><span class="arr">→</span><span class="node">Bulk-create tasks</span><span class="arr">→</span><span class="node">Linked to meeting</span></div>
+
+<h4>A document keeps compliance current</h4>
+<div class="flow"><span class="node">Upload / intake</span><span class="arr">→</span><span class="node">Auto-link to requirement</span><span class="arr">→</span><span class="node">Verify + review date</span><span class="arr">→</span><span class="node">Lapses when expired</span><span class="arr">→</span><span class="node">"Chase" draft</span></div>
+
+<h4>Someone leaves</h4>
+<div class="flow"><span class="node">Archive person</span><span class="arr">→</span><span class="node">Offboarding checklist</span><span class="arr">→</span><span class="node">Assets auto-returned</span><span class="arr">→</span><span class="node">Data retained</span></div>
+
+<h4>A letter goes out</h4>
+<div class="flow"><span class="node">Pick template</span><span class="arr">→</span><span class="node">Edit body</span><span class="arr">→</span><span class="node">Draft</span><span class="arr">→</span><span class="node">Issue (freeze letterhead + ref)</span><span class="arr">→</span><span class="node">PDF</span></div>
+
+<p class="muted" style="margin-top:14px;">Each workflow reuses shared building blocks, so a change to (say) the compliance engine improves the person drawer, the staff portal and the Director Brief at once.</p>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">07</div><div><h2>Operating rhythm &amp; governance</h2><div class="crumbs">Running it well</div></div></div>
+<table>
+<tr><th>Cadence</th><th>Focus</th></tr>
+<tr><td>Daily</td><td>Work tasks, clear notifications, approve leave, action needs-attention rows, glance at Home health.</td></tr>
+<tr><td>Weekly</td><td>Review the Director Brief; chase compliance gaps; check pipeline + commitments for notice-due items.</td></tr>
+<tr><td>Monthly</td><td>Review attendance and completed/closed work; confirm backups are healthy.</td></tr>
+<tr><td>Before any DB change</td><td><code>npm run db:backup</code>, then migrate.</td></tr>
+</table>
+<h3>Governance controls</h3>
+<ul>
+<li><strong>Director outreach pause/resume</strong> — a kill-switch in Settings for director messaging.</li>
+<li><strong>Audit everywhere</strong> — task history, person history, compliance events, system_events.</li>
+<li><strong>Transfer pack</strong> — board-level governance data (cap table, owners, resolutions, risks) kept current for handover.</li>
+</ul>
+
+<div class="sectionhead" style="margin-top:22px;"><div class="num">08</div><div><h2>Reliability, security &amp; maintenance</h2><div class="crumbs">Keeping it safe</div></div></div>
+<table>
+<tr><td>Backups</td><td>Portable JSON snapshots (<code>npm run db:backup</code>/<code>db:restore</code>) + Supabase cloud backups (primary).</td></tr>
+<tr><td>Monitoring</td><td>Sentry (errors only) when the DSN is set.</td></tr>
+<tr><td>Performance</td><td>56 DB indexes; EU-region functions; cached reference getters.</td></tr>
+<tr><td>Quality</td><td>42+ Vitest safety tests on money/leave/compliance/status maths; <code>tsc</code> type-check (4 GB heap).</td></tr>
+<tr><td>Dependencies</td><td>Dependabot + pinned <code>overrides</code> (clean <code>npm audit</code>).</td></tr>
+</table>
+<div class="warn"><b>Two hard "don'ts"</b>Never <code>rm -rf .next</code> while the dev server runs (corrupts the build cache). Never change the cookie <code>secret()</code> derivation in one place without the others — it locks sessions out.</div>
+</section>
+
+<section class="pagebreak">
+<div class="sectionhead"><div class="num">09</div><div><h2>Roadmap &amp; pending decisions</h2><div class="crumbs">What's next</div></div></div>
+<p class="lead">The system is feature-complete for daily operations. The open items are mostly <strong>owner decisions</strong> that unlock already-built capability, plus a few planned enhancements.</p>
+<h3>Owner actions that switch things on</h3>
+<table>
+<tr><th>Item</th><th>What's needed</th></tr>
+<tr><td>Email automation</td><td>Add Gmail/Resend credentials in Vercel (sending is already wired).</td></tr>
+<tr><td>WhatsApp automation</td><td>Twilio business verification + number + approved templates → set 3 env vars (sandbox already proven).</td></tr>
+<tr><td>Semantic search</td><td>Run the one-time setup (<code>SEMANTIC_SEARCH.md</code>) and flip the Settings toggle.</td></tr>
+<tr><td>Announcements noticeboard</td><td>Review the built A1–A3 feature and approve shipping.</td></tr>
+<tr><td>Dependabot alerts / Supabase PITR</td><td>Enable in the respective dashboards.</td></tr>
+</table>
+<h3>Planned (designed, not built)</h3>
+<ul>
+<li>Durable multilingual semantic search (Swahili/Hindi/Gujarati) via a small EU container — a cost decision (~£3–7/mo).</li>
+<li>Director send-as-self email; if-this-then-that outreach rules.</li>
+<li>Further premium "operating brain" phases (see <code>memory/premium_upgrade_plan.md</code>).</li>
+</ul>
+
+<div class="note"><b>Where the truth lives</b>This guide is a snapshot. The authoritative, continuously-updated record is <code>CLAUDE.md</code> and the <code>memory/</code> folder (plans, audits, per-area deep dives), with the design rules in <code>DESIGN_SYSTEM.md</code>.</div>
+
+<div class="foot">Oracle Consultancy — Chief-of-Staff System · Company System Master Guide · V3 · 18 June 2026.</div>
+</section>
+</body></html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html><html lang="en-GB"><head><meta charset="utf-8"><title>COS — Quick Reference</title>
+<style>
+  :root{--ink:#10151c;--muted:#5b6675;--line:#dce3ec;--accent:#2f6df0;--accent-soft:#eaf1fe;--accent-deep:#1b3a82;--bg:#fff;--soft:#f6f9fd;--warn:#b4520a;--good:#1d7a4d;}
+  @page{size:A4;margin:15mm 14mm;}*{box-sizing:border-box;}html,body{margin:0;padding:0;}
+  body{font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--ink);font-size:9.8pt;line-height:1.4;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  h2{font-size:16pt;margin:0 0 4px;color:var(--accent-deep);}
+  h3{font-size:11.5pt;margin:14px 0 5px;padding-bottom:3px;border-bottom:2px solid var(--accent-soft);color:var(--accent-deep);}
+  p{margin:4px 0;}code{font-family:"Consolas",monospace;font-size:8.4pt;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:0.5px 4px;color:#1b3a82;}
+  ul{margin:4px 0;padding-left:16px;}li{margin:2px 0;}.muted{color:var(--muted);}strong{color:var(--ink);}
+  .pagebreak{page-break-before:always;}
+  .cover{height:250mm;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(150deg,#0b1f4d,#1b3a82 45%,#2f6df0);color:#fff;padding:0 16mm;margin:-2mm -2mm 0;}
+  .cover .kicker{letter-spacing:3px;text-transform:uppercase;font-size:10.5pt;opacity:.85;}
+  .cover h1{color:#fff;font-size:40pt;margin:10px 0 6px;}.cover .sub{font-size:14pt;opacity:.92;max-width:150mm;}
+  .cover .meta{margin-top:36px;font-size:10pt;opacity:.85;line-height:1.8;border-top:1px solid rgba(255,255,255,.25);padding-top:16px;}
+  table{width:100%;border-collapse:collapse;margin:7px 0;font-size:8.9pt;}
+  th,td{text-align:left;padding:4px 7px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:var(--soft);color:var(--accent-deep);font-weight:600;border-bottom:2px solid var(--line);}
+  tr:nth-child(even) td{background:#fbfdff;}
+  .cols{column-count:2;column-gap:16px;}.cols h3{break-after:avoid;}.box{break-inside:avoid;}
+  .note{background:var(--accent-soft);border:1px solid #cfe0fe;border-radius:8px;padding:8px 12px;margin:9px 0;font-size:9pt;}
+  .note b{display:block;text-transform:uppercase;font-size:8pt;color:var(--accent-deep);margin-bottom:2px;}
+  .foot{text-align:center;font-size:8.4pt;color:var(--muted);margin-top:18px;}
+</style></head><body>
+
+<section class="cover">
+  <div class="kicker">Oracle Consultancy · Chief-of-Staff System</div>
+  <h1>Quick<br>Reference</h1>
+  <div class="sub">The one-page-at-a-glance card — routes, statuses, everyday how-tos and operator commands.</div>
+  <div class="meta">Companion to the Operations &amp; Master Reference Manual · V3 · 18 June 2026</div>
+</section>
+
+<section class="pagebreak">
+<h2>Quick Reference</h2>
+<p class="muted">Keep this handy. For the full explanation of anything here, see the Operations Manual.</p>
+
+<h3>Signing in</h3>
+<table>
+<tr><th>Who</th><th>Where</th><th>With</th></tr>
+<tr><td>Owner</td><td><code>/login</code> → Command Centre tab</td><td>Owner password (+ owner identity if set) or passkey</td></tr>
+<tr><td>Staff / Manager / HR / Director</td><td><code>/login</code> → Staff Login (or <code>/portal/login</code>)</td><td>Name/email + personal password, or passkey</td></tr>
+</table>
+
+<h3>Getting around</h3>
+<ul>
+<li><strong>Nav pill</strong> (bottom, all screens): Home · Director Brief · Task Management · Workbook · Chat · HRMS · <strong>+</strong> · Search · Theme.</li>
+<li><strong>HRMS icon</strong> opens the "Go to" launcher — every secondary page.</li>
+<li><strong>+</strong> = the action for the current page · <strong>Search</strong> = jump anywhere / Ask ORI.</li>
+</ul>
+
+<h3>Pages at a glance</h3>
+<table>
+<tr><th>Route</th><th>What</th><th>Route</th><th>What</th></tr>
+<tr><td><code>/</code></td><td>Command centre</td><td><code>/hrms/leave</code></td><td>Leave &amp; Attendance</td></tr>
+<tr><td><code>/brief</code></td><td>Director Brief</td><td><code>/hrms/assets</code></td><td>Assets &amp; Vendors</td></tr>
+<tr><td><code>/workbook</code></td><td>Meetings·Notes·To-do</td><td><code>/hrms/org</code></td><td>Organogram</td></tr>
+<tr><td><code>/meeting</code></td><td>Meeting Workspace</td><td><code>/hrms/pipeline</code></td><td>Applications in progress</td></tr>
+<tr><td><code>/people</code></td><td>Staff directory</td><td><code>/hrms/registers</code></td><td>Commitments register</td></tr>
+<tr><td><code>/companies</code></td><td>Companies &amp; ref data</td><td><code>/hrms/command-centre</code></td><td>Tax &amp; Legal</td></tr>
+<tr><td><code>/documents</code></td><td>Docs &amp; compliance</td><td><code>/hrms/oecr</code> · <code>/ocr</code></td><td>Stock · Cleaning</td></tr>
+<tr><td><code>/inbox</code></td><td>Smart intake</td><td><code>/letters</code></td><td>Branded PDF letters</td></tr>
+<tr><td><code>/chat</code></td><td>Messaging</td><td><code>/outbox</code></td><td>Outreach drafts</td></tr>
+<tr><td><code>/portal</code></td><td>Staff portal</td><td><code>/settings</code></td><td>Settings</td></tr>
+</table>
+
+<div class="cols">
+<div class="box"><h3>Task essentials</h3>
+<p><strong>Codes:</strong> <code>&lt;PREFIX&gt;-NNN</code> e.g. <code>DS-001</code>. <strong>Open</strong> = not Completed/Closed.</p>
+<p><strong>Statuses:</strong> Not Started · In Progress · Under Review · Blocked · Waiting External · Escalated · Completed · Closed.</p>
+<p><strong>Priority/Risk:</strong> Critical · High · Medium · Low.</p>
+<p><strong>Categories:</strong> Finance · Operations · Marketing · HR · Legal · Technology · Sales · Admin · Meetings · Strategy · Other.</p>
+</div>
+<div class="box"><h3>The seven companies</h3>
+<table>
+<tr><td>CO01</td><td>Dar Spices (DS)</td></tr>
+<tr><td>CO02</td><td>Cocozuri Chocolat (CZ)</td></tr>
+<tr><td>CO03</td><td>Terra Green</td></tr>
+<tr><td>CO04</td><td>Oracle Consultancy (OC)</td></tr>
+<tr><td>CO05</td><td>PES Ltd</td></tr>
+<tr><td>CO06</td><td>MES Ltd</td></tr>
+<tr><td>CO07</td><td>Pamoja Plus</td></tr>
+</table>
+</div>
+<div class="box"><h3>Leave entitlements (ELR Act)</h3>
+<table>
+<tr><td>Annual</td><td>28 days / 12 mo</td></tr>
+<tr><td>Sick</td><td>126 / 36 mo (63 full + 63 half)</td></tr>
+<tr><td>Maternity</td><td>84 days</td></tr>
+<tr><td>Paternity</td><td>3 days</td></tr>
+<tr><td>Compassionate</td><td>4 days</td></tr>
+</table>
+<p class="muted">Working days Mon–Sat minus public holidays.</p>
+</div>
+<div class="box"><h3>Person types</h3>
+<p>local staff · expat · outsider · candidate — each drives its own document checklist.</p>
+<h3>Portal roles</h3>
+<p>staff · manager · hr · director (set in Settings → Staff portal access).</p>
+</div>
+</div>
+
+<h3>Everyday how-tos</h3>
+<table>
+<tr><th>To…</th><th>Do this</th></tr>
+<tr><td>Create a task</td><td>Press <strong>+</strong> on Home/Tasks → title, company, priority, assignees.</td></tr>
+<tr><td>Add a person</td><td><code>/people</code> → add; an onboarding + compliance checklist is created automatically.</td></tr>
+<tr><td>Upload a document</td><td><code>/documents</code> → "Add several" for bulk; it auto-links to the compliance checklist.</td></tr>
+<tr><td>Capture a meeting</td><td><code>/meeting</code> → dictate/notes → Generate minutes → Extract action items → bulk-create tasks.</td></tr>
+<tr><td>Approve leave</td><td><code>/hrms/leave</code> (admin) or portal home (managers).</td></tr>
+<tr><td>Mark attendance</td><td><code>/hrms/leave</code> → Attendance → brush the grid, or "mark all Present today".</td></tr>
+<tr><td>Issue a letter</td><td><code>/letters</code> → pick template → edit → Draft → Issue (freezes letterhead + ref).</td></tr>
+<tr><td>Send the brief</td><td><code>/brief</code> → WhatsApp / Email / Copy, or print to PDF.</td></tr>
+<tr><td>Chase a compliance gap</td><td>Needs-attention row → "Chase" → drafts a reminder in the Outbox.</td></tr>
+<tr><td>Archive someone</td><td>Person drawer → archive; offboarding checklist + asset auto-return run.</td></tr>
+</table>
+
+<h3>Operator commands (terminal)</h3>
+<table>
+<tr><td>Back up the database</td><td><code>npm run db:backup</code> → <code>backups/</code></td></tr>
+<tr><td>Restore</td><td><code>npm run db:restore -- &lt;folder&gt;</code></td></tr>
+<tr><td>Apply migrations</td><td><code>npm run db:migrate</code> <span class="muted">(back up first)</span></td></tr>
+<tr><td>Type-check</td><td><code>NODE_OPTIONS=--max-old-space-size=4096 npm exec tsc -- --noEmit</code></td></tr>
+<tr><td>Run tests</td><td><code>npm test</code></td></tr>
+</table>
+
+<div class="note"><b>Golden rules</b>Run a backup before any migration. Never <code>rm -rf .next</code> while the dev server is running. Every number in the UI is clickable — observe, then act.</div>
+
+<div class="foot">Oracle Consultancy — Chief-of-Staff System · Quick Reference · V3 · 18 June 2026 · Source of truth: <code>CLAUDE.md</code> + <code>memory/</code>.</div>
+</section>
+</body></html>
