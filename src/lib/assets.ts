@@ -1,5 +1,8 @@
 import { sb } from "@/db/supabase";
 import type { AssetRow, AssetHistoryRow, AssetStatus } from "@/lib/assets-shared";
+import { type Tx } from "@/lib/tx";
+import { assets, assetAssignments } from "@/db/schema";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 /* ------------------------------------------------------------------ */
 /* Asset register — durable, individually-assigned company equipment.  */
@@ -27,7 +30,8 @@ type Row = {
   custodian_person_id: number | null;
   assigned_at: string | null;
   purchase_date: string | null;
-  purchase_cost: number | null;
+  // Money — numeric(14,2); postgres.js returns it as a decimal STRING.
+  purchase_cost: string | number | null;
   notes: string | null;
   company?: Embed;
   assignedCompany?: Embed;
@@ -38,6 +42,13 @@ type Row = {
 
 function one<T>(v: T | T[] | null | undefined): T | null {
   return Array.isArray(v) ? v[0] ?? null : v ?? null;
+}
+
+// Money (purchase_cost) is numeric(14,2). Write it as a fixed 2-dp decimal
+// STRING (or null) so postgres stores the exact value, never an IEEE-754 float
+// (ERPREADY-02). Reads parse the string back in `map`.
+function money(v: number | null | undefined): string | null {
+  return v == null ? null : (Number(v) || 0).toFixed(2);
 }
 
 // Assets have two FKs to companies (owning + assigned) and two to people
@@ -74,7 +85,8 @@ function map(r: Row): AssetRow {
     custodianName: one(r.custodian)?.name ?? null,
     assignedAt: r.assigned_at,
     purchaseDate: r.purchase_date,
-    purchaseCost: r.purchase_cost,
+    // numeric(14,2) arrives as a string; parse once at the edge (null stays null).
+    purchaseCost: r.purchase_cost == null ? null : Number(r.purchase_cost) || 0,
     notes: r.notes,
   };
 }
@@ -155,7 +167,10 @@ export function assetMetrics(rows: AssetRow[]): AssetMetrics {
     assigned: rows.filter((a) => a.status === "assigned").length,
     inStore: rows.filter((a) => a.status === "in_store").length,
     maintenance: rows.filter((a) => a.status === "maintenance").length,
-    totalValue: rows.reduce((sum, a) => sum + (a.purchaseCost ?? 0), 0),
+    // Sum exactly in integer minor units (numeric(14,2) → 2 dp) so a register of
+    // many assets reconciles to the penny, then convert back once (ERPREADY-02).
+    totalValue:
+      rows.reduce((sum, a) => sum + Math.round((a.purchaseCost ?? 0) * 100), 0) / 100,
   };
 }
 
@@ -216,7 +231,7 @@ export async function createAsset(input: AssetInput): Promise<number> {
       vendor_id: input.vendorId,
       location: input.location,
       purchase_date: input.purchaseDate,
-      purchase_cost: input.purchaseCost,
+      purchase_cost: money(input.purchaseCost),
       notes: input.notes,
       assigned_at: input.handoverDate ?? null,
       status: "in_store",
@@ -248,7 +263,7 @@ export async function createAssetsBulk(inputs: AssetInput[]): Promise<number> {
     vendor_id: input.vendorId,
     location: input.location,
     purchase_date: input.purchaseDate,
-    purchase_cost: input.purchaseCost,
+    purchase_cost: money(input.purchaseCost),
     notes: input.notes,
     assigned_at: input.handoverDate ?? null,
     status: "in_store",
@@ -275,7 +290,7 @@ export async function updateAsset(id: number, input: AssetInput): Promise<void> 
       vendor_id: input.vendorId,
       location: input.location,
       purchase_date: input.purchaseDate,
-      purchase_cost: input.purchaseCost,
+      purchase_cost: money(input.purchaseCost),
       notes: input.notes,
       ...(input.handoverDate !== undefined ? { assigned_at: input.handoverDate } : {}),
       updated_at: new Date().toISOString(),
@@ -380,6 +395,40 @@ export async function returnAssetsForPerson(personId: number): Promise<number> {
 }
 
 /**
+ * Transactional twin of {@link returnAssetsForPerson}: free every asset a person
+ * currently holds, inside the caller's Drizzle transaction (so it commits with an
+ * archive). Closes the open ledger row(s) and frees the asset in two set-based
+ * writes. Returns how many assets were freed. Uses the `tx` handle throughout.
+ */
+export async function returnAssetsForPersonTx(tx: Tx, personId: number): Promise<number> {
+  const held = await tx
+    .select({ id: assets.id })
+    .from(assets)
+    .where(and(eq(assets.assignedToPersonId, personId), eq(assets.archived, false)));
+  if (held.length === 0) return 0;
+  const ids = held.map((a) => a.id);
+  const now = new Date();
+  // Close the open assignment ledger row(s) for these assets.
+  await tx
+    .update(assetAssignments)
+    .set({ returnedAt: now, notes: "Returned on offboarding" })
+    .where(and(inArray(assetAssignments.assetId, ids), isNull(assetAssignments.returnedAt)));
+  // Free the assets back to the store.
+  await tx
+    .update(assets)
+    .set({
+      assignedToPersonId: null,
+      assignedToCompanyId: null,
+      custodianPersonId: null,
+      assignedAt: null,
+      status: "in_store",
+      updatedAt: now,
+    })
+    .where(inArray(assets.id, ids));
+  return held.length;
+}
+
+/**
  * Clear a leaver as custodian of shared/team kit on offboarding. Owner decision:
  * the asset STAYS assigned to its company — only the accountable person is
  * vacated (custodian_person_id → null) and the open custodian ledger row is
@@ -405,6 +454,39 @@ export async function clearCustodianForPerson(personId: number): Promise<number>
     .eq("custodian_person_id", personId)
     .eq("archived", false);
   if (error) throw new Error(error.message);
+  return held.length;
+}
+
+/**
+ * Transactional twin of {@link clearCustodianForPerson}: vacate a leaver as the
+ * custodian of shared/team kit inside the caller's Drizzle transaction. The asset
+ * STAYS assigned to its company (owner decision) — only the accountable person is
+ * cleared and the open custodian ledger row closed. Returns how many were updated.
+ */
+export async function clearCustodianForPersonTx(tx: Tx, personId: number): Promise<number> {
+  const held = await tx
+    .select({ id: assets.id })
+    .from(assets)
+    .where(and(eq(assets.custodianPersonId, personId), eq(assets.archived, false)));
+  if (held.length === 0) return 0;
+  const ids = held.map((a) => a.id);
+  const now = new Date();
+  // Close the open ledger row(s) recorded against this custodian for these assets.
+  await tx
+    .update(assetAssignments)
+    .set({ returnedAt: now })
+    .where(
+      and(
+        inArray(assetAssignments.assetId, ids),
+        eq(assetAssignments.personId, personId),
+        isNull(assetAssignments.returnedAt)
+      )
+    );
+  // Vacate the custodian but keep the company assignment + status.
+  await tx
+    .update(assets)
+    .set({ custodianPersonId: null, updatedAt: now })
+    .where(and(eq(assets.custodianPersonId, personId), eq(assets.archived, false)));
   return held.length;
 }
 

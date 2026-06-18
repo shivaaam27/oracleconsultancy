@@ -8,12 +8,14 @@ type ActionResult = { ok: true } | { ok: false; error: string };
 /* ----------------------------------------------------------------------
  * Helpers
  * ---------------------------------------------------------------------- */
-function invalidate(taskCode?: string | null, companyId?: number | null) {
-  revalidatePath("/audit");
+function invalidate(_taskCode?: string | null, companyId?: number | null) {
+  // `/audit` and `/task/[code]` are not renderable routes (the audit page was
+  // removed; /task/CODE only redirects), so revalidating those paths is a
+  // no-op. Refresh the home surface + company profile, and tag-bust instead.
   revalidatePath("/");
-  if (taskCode) revalidatePath(`/task/${taskCode}`);
   if (companyId != null) revalidatePath(`/companies/${companyId}`);
   updateTag("audit");
+  updateTag("tasks");
 }
 
 /* ----------------------------------------------------------------------
@@ -96,16 +98,20 @@ export async function recordCorrection(entryId: number, note: string): Promise<A
 export async function deleteAuditEntry(id: number): Promise<ActionResult> {
   const { data: row } = await sb
     .from("audit_log")
-    .select("id,task_code,company_id")
+    .select("id,task_code,company_id,deleted_at")
     .eq("id", id)
     .maybeSingle();
   if (!row) return { ok: true }; // already gone
+  if (row.deleted_at) return { ok: true }; // already hidden
 
-  // Permanent delete. Clear any corrections referencing this entry first (FK),
-  // then wipe the row — no soft-delete.
-  await sb.from("corrections").delete().eq("audit_log_id", id);
-  await sb.from("corrections").delete().eq("corrected_by_entry_id", id);
-  const { error } = await sb.from("audit_log").delete().eq("id", id);
+  // Soft-delete: an audit log is governance history and must never be wiped.
+  // Setting deleted_at hides the row from timelines/audit while keeping it
+  // recoverable via restoreAuditEntry. Corrections links are left intact so a
+  // restore brings the entry back fully formed.
+  const { error } = await sb
+    .from("audit_log")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) return { ok: false, error: error.message };
 
   invalidate(row.task_code as string | null, row.company_id as number | null);

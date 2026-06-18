@@ -19,7 +19,7 @@ export async function loadContext(force = false): Promise<AIContext> {
   const [{ data: cRows }, { data: pRows }, { data: rRows }] = await Promise.all([
     sb.from("companies").select("id,name,code"),
     sb.from("people").select("id,name"),
-    sb.from("tasks").select("action_item").order("created_date", { ascending: false }).limit(30),
+    sb.from("tasks").select("action_item").eq("archived", false).order("created_date", { ascending: false }).limit(30),
   ]);
 
   cache = {
@@ -136,6 +136,7 @@ export async function findSimilarTasks(
   let q = sb
     .from("tasks")
     .select("id,code,action_item,status,created_date,closed_date,latest_update,company_id")
+    .eq("archived", false) // never surface archived tasks as "similar" (ACTTASKS-01)
     .or(orParts)
     .limit(50);
   if (excludeId) q = q.neq("id", excludeId);

@@ -139,7 +139,7 @@ export function TimelineEntry({
     await Promise.all(ids.map((x) => (x.kind === "update" ? deleteTaskUpdate(x.id) : deleteAuditEntry(x.id))));
     setBusy(false);
     onChanged?.();
-    toast("Deleted permanently", { tone: "success", duration: 3000 });
+    toast("Removed from the timeline", { tone: "success", duration: 3000 });
   }
 
   // Corrections only make sense on a single plain audit entry (not updates,

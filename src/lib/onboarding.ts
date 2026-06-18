@@ -1,6 +1,9 @@
 import { sb } from "@/db/supabase";
 import { normalizePersonType, PERSON_TYPES, type PersonType } from "@/lib/person-types";
 import { type Journey, type JourneyKind, type JourneyStep } from "@/lib/onboarding-shared";
+import { type Tx } from "@/lib/tx";
+import { todos, people, journeyStepTemplates } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 
 /* ------------------------------------------------------------------ */
 /* Onboarding & Offboarding journeys.                                  */
@@ -169,6 +172,87 @@ export async function startJourney(
 
   const { error } = await sb.from("todos").insert(rows);
   if (error) throw new Error(error.message);
+  return { created: rows.length, alreadyExisted: false };
+}
+
+/** Active template steps for a (kind, type) using a Drizzle tx handle, with the
+ *  same DB-first / hard-coded-fallback behaviour as resolveTemplateSteps. */
+async function resolveTemplateStepsTx(
+  tx: Tx,
+  kind: JourneyKind,
+  type: PersonType
+): Promise<ResolvedStep[]> {
+  const rows = await tx
+    .select({ label: journeyStepTemplates.label, offsetDays: journeyStepTemplates.offsetDays })
+    .from(journeyStepTemplates)
+    .where(
+      and(
+        eq(journeyStepTemplates.kind, kind),
+        eq(journeyStepTemplates.appliesToType, type),
+        eq(journeyStepTemplates.active, true)
+      )
+    )
+    .orderBy(journeyStepTemplates.sortOrder, journeyStepTemplates.id);
+  if (rows.length > 0) {
+    return rows.map((r) => ({ label: r.label, offsetDays: r.offsetDays ?? 0 }));
+  }
+  // Fallback: defaults filtered to this type (covers a not-yet-seeded table).
+  return templateFor(kind)
+    .filter((s) => !s.types || s.types.includes(type))
+    .map((s) => ({ label: s.label, offsetDays: s.offsetDays }));
+}
+
+/**
+ * Transactional twin of {@link startJourney}: create a person's journey checklist
+ * inside the caller's Drizzle transaction so it commits atomically with whatever
+ * else the caller is writing (e.g. an archive flip). Idempotent in the same way —
+ * if any rows of this kind already exist for the person, does nothing. All reads
+ * and the insert use the supplied `tx` handle (never the supabase-js client).
+ */
+export async function startJourneyTx(
+  tx: Tx,
+  personId: number,
+  kind: JourneyKind
+): Promise<{ created: number; alreadyExisted: boolean }> {
+  const existing = await tx
+    .select({ id: todos.id })
+    .from(todos)
+    .where(and(eq(todos.personId, personId), eq(todos.kind, kind)))
+    .limit(1);
+  if (existing.length > 0) return { created: 0, alreadyExisted: true };
+
+  const [person] = await tx
+    .select({
+      personType: people.personType,
+      startDate: people.startDate,
+      companyId: people.companyId,
+    })
+    .from(people)
+    .where(eq(people.id, personId))
+    .limit(1);
+  if (!person) return { created: 0, alreadyExisted: false };
+
+  const type = normalizePersonType(person.personType);
+  const anchor =
+    kind === "onboarding" && person.startDate ? new Date(person.startDate) : new Date();
+  const companyId = person.companyId ?? null;
+  const now = new Date();
+
+  const steps = await resolveTemplateStepsTx(tx, kind, type);
+  const rows = steps.map((s, idx) => ({
+    title: s.label,
+    kind,
+    sortOrder: idx,
+    personId,
+    companyId,
+    dueAt: addDays(anchor, s.offsetDays),
+    important: false,
+    done: false,
+    createdAt: now,
+  }));
+  if (rows.length === 0) return { created: 0, alreadyExisted: false };
+
+  await tx.insert(todos).values(rows);
   return { created: rows.length, alreadyExisted: false };
 }
 

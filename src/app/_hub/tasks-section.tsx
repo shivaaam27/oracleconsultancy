@@ -1,4 +1,4 @@
-import { getAllTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
+import { getAllTasks, getArchivedTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
 import { sb } from "@/db/supabase";
 import { getSavedViews } from "@/lib/task-views";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
@@ -13,7 +13,7 @@ import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
 import Link from "next/link";
-import { CheckSquare, Sparkles, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X } from "lucide-react";
+import { CheckSquare, Sparkles, Hourglass, PauseCircle, AlertOctagon, CalendarOff, Flame, UserMinus, X, Archive } from "lucide-react";
 
 type Sp = {
   company?: string;
@@ -28,6 +28,7 @@ type Sp = {
   all?: string;
   unread?: string;
   group?: string;
+  archived?: string;
 };
 
 /** Builds a hub URL for the tasks tab, preserving all task filter params. */
@@ -47,6 +48,7 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.all) u.set("all", next.all);
   if (next.unread) u.set("unread", next.unread);
   if (next.group) u.set("group", next.group);
+  if (next.archived) u.set("archived", next.archived);
   return `/?${u.toString()}`;
 }
 
@@ -62,14 +64,19 @@ function queryWithoutView(sp: Sp): string {
   if (sp.closed) u.set("closed", sp.closed);
   if (sp.q) u.set("q", sp.q);
   if (sp.all) u.set("all", sp.all);
+  if (sp.archived) u.set("archived", sp.archived);
   return u.toString();
 }
 
 export async function TasksSection({ sp }: { sp: Sp }) {
+  // "Show archived" is an explicit opt-in: archived (soft-retired) tasks are
+  // excluded from every default list/KPI (ACTTASKS-01), so this view loads the
+  // archived set on its own from getArchivedTasks().
+  const showArchived = sp.archived === "1";
   // Hub Tasks tab is always global — no scope filtering. The scope cookie
   // applies to /task (standalone) but the hub shows all companies by design.
   const [all, savedViews, taskSources, adminViews, peopleRows] = await Promise.all([
-    getAllTasks(),
+    showArchived ? getArchivedTasks() : getAllTasks(),
     getSavedViews(),
     getTaskSources(),
     sb.from("task_views").select("task_id,last_viewed_at").eq("viewer", "admin"),
@@ -98,7 +105,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const taskMeta = view === "timeline"
     ? Object.fromEntries(all.map((r) => [r.id, { code: r.code, legacyCode: r.legacyCode, companyName: r.companyName, companyAccent: r.companyAccent, actionItem: r.actionItem }]))
     : {};
-  const showClosed = sp.closed === "1";
+  // In the archived view show every archived task regardless of status (many are
+  // Closed/Completed); otherwise hide Closed unless explicitly opted in.
+  const showClosed = sp.closed === "1" || showArchived;
   const statusOverridesClosed = sp.status === "Closed" || sp.status === "Completed";
 
   let rows = showClosed || statusOverridesClosed ? all : all.filter((r) => r.status !== "Closed");
@@ -159,7 +168,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   const hasFilters = Boolean(sp.company || sp.priority || sp.flag || sp.status || sp.noOwner || sp.closed || sp.q || sp.unread);
 
-  const dayMode = !hasFilters && sp.all !== "1" && view !== "calendar" && view !== "timeline" && view !== "board";
+  const dayMode = !hasFilters && !showArchived && sp.all !== "1" && view !== "calendar" && view !== "timeline" && view !== "board";
   if (dayMode) {
     rows = rows.filter(
       (r) =>
@@ -204,7 +213,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     return u.toString();
   })();
 
-  const viewLabel = dayMode
+  const viewLabel = showArchived
+    ? "archived tasks"
+    : dayMode
     ? "needing attention"
     : (() => {
         const bits = [sp.flag, sp.priority, sp.status, sp.company, sp.noOwner === "1" ? "no owner" : null].filter(Boolean);
@@ -270,6 +281,23 @@ export async function TasksSection({ sp }: { sp: Sp }) {
                 </Link>
               </div>
             )}
+
+            {/* Show archived — opt-in toggle (archived tasks are hidden from every
+                default list and KPI). A plain chip so it works in every view. */}
+            <Link
+              href={buildHref({}, { archived: showArchived ? undefined : "1" })}
+              title={showArchived ? "Showing archived tasks — tap to return to live" : "Show archived tasks"}
+              aria-pressed={showArchived}
+              className={`group shrink-0 inline-flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 text-xs rounded-full transition-all hover:shadow-sm ${
+                showArchived
+                  ? "bg-accent-soft/70 ring-2 ring-accent/40 text-accent"
+                  : "bg-bg-subtle/50 ring-1 ring-border/60 text-fg-muted hover:text-fg hover:ring-2"
+              }`}
+            >
+              <Archive size={14} className="shrink-0" />
+              <span className="font-medium whitespace-nowrap">Archived</span>
+              {showArchived && <X size={12} className="shrink-0 opacity-70" />}
+            </Link>
 
             {/* Attention chips — only the ones that have tasks; each is also a filter. */}
             {([
@@ -358,9 +386,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       {total === 0 && view !== "calendar" && view !== "timeline" ? (
         <Card className="p-8">
           <EmptyState
-            icon={<CheckSquare size={32} />}
-            title={hasFilters ? "No tasks match these filters." : "No open tasks."}
-            hint={hasFilters ? "Try resetting or pick a different view." : "Create one above."}
+            icon={showArchived ? <Archive size={32} /> : <CheckSquare size={32} />}
+            title={showArchived ? "No archived tasks." : hasFilters ? "No tasks match these filters." : "No open tasks."}
+            hint={showArchived ? "Archive a task to retire it without losing its history." : hasFilters ? "Try resetting or pick a different view." : "Create one above."}
           />
         </Card>
       ) : view === "calendar" ? (

@@ -58,6 +58,10 @@ export type TaskRow = {
   lastActivityISO: string;
   /** True when status is Blocked or Waiting External (drives the "Waiting on…" chip). */
   waiting: boolean;
+  /** Soft-retired (archived) task. Excluded from `getAllTasks` by default so it
+   *  never pollutes lists, KPIs or the Director Brief (ACTTASKS-01). Surfaced
+   *  only via the explicit "Show archived" opt-in (getArchivedTasks). */
+  archived: boolean;
 };
 
 // Migrated to Supabase JS (HTTP / PostgREST) — no persistent socket, no
@@ -174,9 +178,14 @@ export const getRecentActivity = cache(async (limit = 160): Promise<RawActivity>
   };
 });
 
-export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
+/** Build TaskRow[] from the live tables. `includeArchived` controls whether
+ *  soft-retired (archived) tasks are returned — false by default so archived
+ *  tasks never inflate lists, KPIs or the Director Brief (ACTTASKS-01). */
+async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
+  // Exclude archived rows at the source unless explicitly opted in.
+  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived");
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, updatesRes, settings] = await Promise.all([
-    sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived"),
+    includeArchived ? tasksQuery : tasksQuery.eq("archived", false),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("departments").select("id,name"),
     sb.from("people").select("id,name"),
@@ -291,8 +300,22 @@ export const getAllTasks = cache(async (): Promise<TaskRow[]> => {
       pinned: pinnedByTask.has(t.id),
       lastActivityISO,
       waiting: t.status === "Blocked" || t.status === "Waiting External",
+      archived: t.archived,
     };
   });
+}
+
+/** Every LIVE task (archived excluded), enriched for the Aurora rows. This is
+ *  the default source for the hub, all views, KPIs and the Director Brief —
+ *  archived tasks are filtered out at the base fetch (ACTTASKS-01). React
+ *  cache() dedupes within a single render. */
+export const getAllTasks = cache((): Promise<TaskRow[]> => buildAllTasks(false));
+
+/** Same shape as getAllTasks but INCLUDING archived tasks — for the explicit
+ *  "Show archived" opt-in only. Never feed this into KPI/brief aggregations. */
+export const getArchivedTasks = cache(async (): Promise<TaskRow[]> => {
+  const all = await buildAllTasks(true);
+  return all.filter((r) => r.archived);
 });
 
 export type CompanyKpi = {

@@ -1,4 +1,7 @@
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { sb } from "@/db/supabase";
+import { siteTools, siteToolMovements } from "@/db/schema";
+import { withTx, type Tx } from "@/lib/tx";
 import { isLowStock, type SiteToolRow, type SiteToolMovementRow, type ToolCondition } from "@/lib/site-tools-shared";
 
 /* ------------------------------------------------------------------ */
@@ -178,34 +181,43 @@ type MovementInsert = {
   reason?: string | null;
 };
 
-async function logMovement(m: MovementInsert): Promise<void> {
-  const { error } = await sb.from("site_tool_movements").insert({
-    tool_id: m.toolId,
-    tool_name: m.toolName,
+/**
+ * Insert a movement ledger row using the Drizzle `tx` handle, so it commits in
+ * the SAME transaction as the quantity change it records (ACTHRMS-01).
+ */
+async function logMovementTx(tx: Tx, m: MovementInsert, now: Date): Promise<void> {
+  await tx.insert(siteToolMovements).values({
+    toolId: m.toolId ?? null,
+    toolName: m.toolName,
     type: m.type,
     quantity: m.quantity ?? null,
-    from_location: m.fromLocation ?? null,
-    to_location: m.toLocation ?? null,
-    from_condition: m.fromCondition ?? null,
-    to_condition: m.toCondition ?? null,
+    fromLocation: m.fromLocation ?? null,
+    toLocation: m.toLocation ?? null,
+    fromCondition: m.fromCondition ?? null,
+    toCondition: m.toCondition ?? null,
     reason: m.reason ?? null,
-    created_at: new Date().toISOString(),
+    createdAt: now,
   });
-  if (error) throw new Error(error.message);
 }
 
 /** Change a whole row's condition and log it. */
 export async function setSiteToolCondition(id: number, condition: ToolCondition): Promise<void> {
-  const { data: cur, error: cErr } = await sb
-    .from("site_tools").select("name,condition").eq("id", id).single();
-  if (cErr) throw new Error(cErr.message);
-  if (cur.condition === condition) return;
-  const { error } = await sb
-    .from("site_tools").update({ condition, updated_at: new Date().toISOString() }).eq("id", id);
-  if (error) throw new Error(error.message);
-  await logMovement({
-    toolId: id, toolName: cur.name as string, type: "condition",
-    fromCondition: cur.condition as string, toCondition: condition,
+  const now = new Date();
+  await withTx(async (tx) => {
+    const [cur] = await tx
+      .select({ name: siteTools.name, condition: siteTools.condition })
+      .from(siteTools)
+      .where(eq(siteTools.id, id));
+    if (!cur) throw new Error("Tool not found.");
+    if (cur.condition === condition) return;
+    await tx
+      .update(siteTools)
+      .set({ condition, updatedAt: now })
+      .where(eq(siteTools.id, id));
+    await logMovementTx(tx, {
+      toolId: id, toolName: cur.name, type: "condition",
+      fromCondition: cur.condition, toCondition: condition,
+    }, now);
   });
 }
 
@@ -213,52 +225,112 @@ export async function setSiteToolCondition(id: number, condition: ToolCondition)
  * Move `qty` units of a tool to another site. Decrements the source row and
  * merges into a matching row at the destination (same name/spec/condition/
  * company), creating it if needed. Logged as one transfer movement.
+ *
+ * Atomic (ACTHRMS-01): the whole movement runs inside one transaction with a
+ * RELATIVE, guarded decrement (`quantity = quantity - move WHERE quantity >= move`)
+ * so concurrent movements compose and a partial failure rolls back — units can
+ * never be duplicated at both sites or driven negative.
  */
 export async function transferSiteTool(id: number, qty: number, toLocation: string): Promise<void> {
-  const now = new Date().toISOString();
-  const { data: src, error: sErr } = await sb
-    .from("site_tools")
-    .select("name,quantity,specification,condition,company_id,location")
-    .eq("id", id).single();
-  if (sErr) throw new Error(sErr.message);
-  const move = Math.min(Math.max(1, Math.floor(qty)), src.quantity as number);
-  if (move <= 0) return;
+  const want = Math.max(1, Math.floor(qty));
+  if (want <= 0) return;
+  const now = new Date();
+  await withTx(async (tx) => {
+    const [src] = await tx
+      .select({
+        name: siteTools.name,
+        quantity: siteTools.quantity,
+        specification: siteTools.specification,
+        condition: siteTools.condition,
+        companyId: siteTools.companyId,
+        location: siteTools.location,
+      })
+      .from(siteTools)
+      .where(eq(siteTools.id, id));
+    if (!src) throw new Error("Tool not found.");
+    const move = Math.min(want, src.quantity);
+    if (move <= 0) return;
 
-  // Find an existing destination row to merge into.
-  let q = sb.from("site_tools").select("id,quantity")
-    .eq("name", src.name).eq("condition", src.condition).eq("location", toLocation).eq("archived", false);
-  q = src.company_id == null ? q.is("company_id", null) : q.eq("company_id", src.company_id);
-  q = src.specification == null ? q.is("specification", null) : q.eq("specification", src.specification);
-  const { data: dest } = await q.limit(1).maybeSingle();
+    // Guarded relative decrement of the source. The WHERE re-checks the balance
+    // inside the transaction, so a concurrent movement cannot take it negative.
+    const decremented = await tx
+      .update(siteTools)
+      .set({ quantity: sql`${siteTools.quantity} - ${move}`, updatedAt: now })
+      .where(and(eq(siteTools.id, id), sql`${siteTools.quantity} >= ${move}`))
+      .returning({ id: siteTools.id });
+    if (decremented.length === 0) throw new Error("Not enough units in stock to transfer.");
 
-  if (dest) {
-    await sb.from("site_tools").update({ quantity: (dest.quantity as number) + move, updated_at: now }).eq("id", dest.id);
-  } else {
-    await sb.from("site_tools").insert({
-      company_id: src.company_id, name: src.name, quantity: move, specification: src.specification,
-      location: toLocation, condition: src.condition, created_at: now, updated_at: now,
-    });
-  }
-  const remaining = (src.quantity as number) - move;
-  await sb.from("site_tools").update({ quantity: remaining, updated_at: now }).eq("id", id);
-  await logMovement({
-    toolId: id, toolName: src.name as string, type: "transfer", quantity: move,
-    fromLocation: src.location as string | null, toLocation,
+    // Find an existing destination row to merge into.
+    const dest = await tx
+      .select({ id: siteTools.id })
+      .from(siteTools)
+      .where(
+        and(
+          eq(siteTools.name, src.name),
+          eq(siteTools.condition, src.condition),
+          eq(siteTools.location, toLocation),
+          eq(siteTools.archived, false),
+          src.companyId == null ? isNull(siteTools.companyId) : eq(siteTools.companyId, src.companyId),
+          src.specification == null ? isNull(siteTools.specification) : eq(siteTools.specification, src.specification),
+        ),
+      )
+      .limit(1);
+
+    if (dest[0]) {
+      await tx
+        .update(siteTools)
+        .set({ quantity: sql`${siteTools.quantity} + ${move}`, updatedAt: now })
+        .where(eq(siteTools.id, dest[0].id));
+    } else {
+      await tx.insert(siteTools).values({
+        companyId: src.companyId,
+        name: src.name,
+        quantity: move,
+        specification: src.specification,
+        location: toLocation,
+        condition: src.condition,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    await logMovementTx(tx, {
+      toolId: id, toolName: src.name, type: "transfer", quantity: move,
+      fromLocation: src.location, toLocation,
+    }, now);
   });
 }
 
 /** Write off `qty` units (lost/disposed) with a reason. Decrements the row. */
 export async function writeOffSiteTool(id: number, qty: number, reason: string | null): Promise<void> {
-  const { data: src, error } = await sb
-    .from("site_tools").select("name,quantity,location,condition").eq("id", id).single();
-  if (error) throw new Error(error.message);
-  const off = Math.min(Math.max(1, Math.floor(qty)), src.quantity as number);
-  if (off <= 0) return;
-  await sb.from("site_tools")
-    .update({ quantity: (src.quantity as number) - off, updated_at: new Date().toISOString() }).eq("id", id);
-  await logMovement({
-    toolId: id, toolName: src.name as string, type: "write_off", quantity: off,
-    fromLocation: src.location as string | null, fromCondition: src.condition as string | null, reason,
+  const want = Math.max(1, Math.floor(qty));
+  if (want <= 0) return;
+  const now = new Date();
+  await withTx(async (tx) => {
+    const [src] = await tx
+      .select({
+        name: siteTools.name,
+        quantity: siteTools.quantity,
+        location: siteTools.location,
+        condition: siteTools.condition,
+      })
+      .from(siteTools)
+      .where(eq(siteTools.id, id));
+    if (!src) throw new Error("Tool not found.");
+    const off = Math.min(want, src.quantity);
+    if (off <= 0) return;
+
+    // Guarded relative decrement — atomic with the ledger row below.
+    const written = await tx
+      .update(siteTools)
+      .set({ quantity: sql`${siteTools.quantity} - ${off}`, updatedAt: now })
+      .where(and(eq(siteTools.id, id), sql`${siteTools.quantity} >= ${off}`))
+      .returning({ id: siteTools.id });
+    if (written.length === 0) throw new Error("Not enough units in stock to write off.");
+
+    await logMovementTx(tx, {
+      toolId: id, toolName: src.name, type: "write_off", quantity: off,
+      fromLocation: src.location, fromCondition: src.condition, reason,
+    }, now);
   });
 }
 

@@ -195,7 +195,7 @@ async function buildContext(question: string, page?: PageCtx) {
 
   let relevantTasksRaw: EnrichedTask[] = [];
   if (orFilters.length) {
-    const { data } = await sb.from("tasks").select(TASK_COLS).or(orFilters.join(",")).limit(60);
+    const { data } = await sb.from("tasks").select(TASK_COLS).eq("archived", false).or(orFilters.join(",")).limit(60);
     relevantTasksRaw = enrich((data ?? []) as RawTaskRow[], cMap);
   }
 
@@ -205,6 +205,7 @@ async function buildContext(question: string, page?: PageCtx) {
     const { data } = await sb
       .from("tasks")
       .select(TASK_COLS)
+      .eq("archived", false)
       .gte("last_updated_at", since)
       .order("last_updated_at", { ascending: false })
       .limit(40);
@@ -223,7 +224,7 @@ async function buildContext(question: string, page?: PageCtx) {
   // aren't lost before ranking (best-effort; empty unless semantic search is on).
   const missingSemTaskIds = [...semanticTaskIds].filter((id) => !seen.has(id));
   if (missingSemTaskIds.length) {
-    const { data } = await sb.from("tasks").select(TASK_COLS).in("id", missingSemTaskIds);
+    const { data } = await sb.from("tasks").select(TASK_COLS).eq("archived", false).in("id", missingSemTaskIds);
     allTasks.push(...enrich((data ?? []) as RawTaskRow[], cMap));
   }
 
@@ -266,6 +267,7 @@ async function buildContext(question: string, page?: PageCtx) {
     const { data: dueRows } = await sb
       .from("tasks")
       .select(TASK_COLS)
+      .eq("archived", false)
       .not("deadline", "is", null)
       .lte("deadline", endToday.toISOString())
       .not("status", "in", '("Completed","Closed")')

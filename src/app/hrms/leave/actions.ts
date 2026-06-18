@@ -2,10 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { computeLeaveDays, personLeaveBalances } from "@/lib/leave";
+import { withTx } from "@/lib/tx";
+import { leaveRequests } from "@/db/schema";
+import { computeLeaveDays, leaveBalanceForBooking } from "@/lib/leave";
 import type { LeaveStatus } from "@/lib/leave-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
+
+/** Sentinel thrown to roll back the booking transaction when the request would
+ *  exceed the leave-type entitlement; the human message is set alongside it. */
+class OverBookedError extends Error {}
 
 function str(fd: FormData, key: string): string | null {
   const v = (fd.get(key) ?? "").toString().trim();
@@ -42,42 +48,56 @@ export async function createLeaveRequestAction(fd: FormData): Promise<Result> {
   if (!start || !end) return { ok: false, error: "Pick start and end dates." };
   if (end < start) return { ok: false, error: "End date can't be before the start date." };
 
-  const days = await computeLeaveDays(start, halfDay ? start : end, halfDay);
+  const endIso = halfDay ? start : end;
+  const days = await computeLeaveDays(start, endIso, halfDay);
   if (days <= 0) return { ok: false, error: "That range has no working days (Sundays/holidays only)." };
 
-  // Guard against over-booking: a capped leave type can't go beyond its yearly
-  // entitlement (counting already-approved + pending). Uncapped types are skipped.
-  const bal = (await personLeaveBalances(personId)).find((b) => b.typeId === leaveTypeId);
-  if (bal && bal.entitlement > 0) {
-    const left = bal.entitlement - bal.taken - bal.pending;
-    if (days > left) {
-      return {
-        ok: false,
-        error: `That's ${days} day(s), but only ${Math.max(0, left)} ${bal.typeName} day(s) remain this year (${bal.entitlement} a year − ${bal.taken} taken − ${bal.pending} pending). Adjust the dates or their entitlement.`,
-      };
-    }
-  }
+  const reason = str(fd, "reason");
+  const startDate = new Date(start);
 
-  const now = new Date().toISOString();
-  const { data, error } = await sb
-    .from("leave_requests")
-    .insert({
-      person_id: personId,
-      leave_type_id: leaveTypeId,
-      start_date: start,
-      end_date: halfDay ? start : end,
-      half_day: halfDay,
-      days,
-      reason: str(fd, "reason"),
-      status: "Pending",
-      created_at: now,
-      updated_at: now,
-    })
-    .select("id")
-    .single();
-  if (error) return { ok: false, error: error.message };
+  // Validate the over-booking guard and insert atomically (ACTHRMS-02): a capped
+  // leave type can't go beyond its entitlement, and the entitlement window is
+  // anchored to the leave-year the request actually STARTS in (ACTHRMS-03), not
+  // whatever calendar year it happens to be today. Reading the existing requests
+  // and writing the new one inside one transaction stops two concurrent requests
+  // from each seeing the same balance and both slipping past the cap.
+  let overBooked: string | null = null;
+  let newId: number | undefined;
+  try {
+    newId = await withTx(async (tx) => {
+      const bal = await leaveBalanceForBooking(tx, personId, leaveTypeId, startDate);
+      if (bal && bal.entitlement > 0) {
+        const left = bal.entitlement - bal.taken - bal.pending;
+        if (days > left) {
+          overBooked = `That's ${days} day(s), but only ${Math.max(0, left)} ${bal.typeName} day(s) remain in that leave year (${bal.entitlement} a year − ${bal.taken} taken − ${bal.pending} pending). Adjust the dates or their entitlement.`;
+          // Abort the transaction without booking; the message is returned below.
+          throw new OverBookedError();
+        }
+      }
+      const now = new Date();
+      const [row] = await tx
+        .insert(leaveRequests)
+        .values({
+          personId,
+          leaveTypeId,
+          startDate,
+          endDate: new Date(endIso),
+          halfDay,
+          days,
+          reason,
+          status: "Pending",
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning({ id: leaveRequests.id });
+      return row.id;
+    });
+  } catch (e) {
+    if (overBooked) return { ok: false, error: overBooked };
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn't save the leave request." };
+  }
   invalidate();
-  return { ok: true, id: data.id as number };
+  return { ok: true, id: newId };
 }
 
 export async function decideLeaveRequestAction(id: number, status: LeaveStatus, notes?: string | null): Promise<Result> {

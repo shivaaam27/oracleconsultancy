@@ -3,6 +3,7 @@ import { callGroqText } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
+import { wrapUntrusted } from "@/lib/prompt-safety";
 
 type TaskRow = {
   id: number;
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
     const result = await callGroqText({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Write the executive briefing for this company:\n\n${JSON.stringify(snapshot, null, 2)}` },
+        { role: "user", content: `Write the executive briefing for this company:\n\n${wrapUntrusted("company snapshot", snapshot)}` },
       ],
       apiKey,
       model: GROQ_FAST,

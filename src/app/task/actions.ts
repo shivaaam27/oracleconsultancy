@@ -8,10 +8,14 @@ import {
   getOrCreateDeptSb,
   deptNameSb,
   logChangeSb,
-  insertTaskWithUniqueCodeSb,
 } from "@/lib/db-helpers";
 import { mutate, type UndoSpec } from "@/lib/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
+import { withTx } from "@/lib/tx";
+import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
+import { tasks as tasksTable, taskAssignees, auditLog } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { indexEmbedding } from "@/lib/embeddings";
 import { createTaskAttachment } from "@/lib/documents";
 import { parseMentionIds } from "@/lib/mentions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
@@ -76,13 +80,46 @@ async function loadAssignees(taskId: number): Promise<number[]> {
   return (data ?? []).map((a) => a.person_id as number);
 }
 
+/** Snapshot the full conversation (every task_updates row) so a delete + Undo
+ *  restores the discussion, not just the task shell (ACTTASKS-02). */
+async function loadTaskUpdatesSnapshot(taskId: number) {
+  const { data, error } = await sb
+    .from("task_updates")
+    .select("body,created_at,created_by,original_body,edited_at,deleted_at,pinned_at,parent_update_id,attachment_document_id")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Snapshot the originating meeting/note links so provenance survives Undo. */
+async function loadMeetingLinksSnapshot(taskId: number) {
+  const { data, error } = await sb
+    .from("meeting_tasks")
+    .select("meeting_id,created_at")
+    .eq("task_id", taskId);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 /** Build the undo payload that the registered "task.delete" handler
- *  (src/lib/undo-handlers/tasks.ts) restores: the task row + its assignees. */
-function taskDeleteUndo(t: TaskRowRaw, assignees: number[]): UndoSpec {
+ *  (src/lib/undo-handlers/tasks.ts) restores: the task row, its assignees, the
+ *  full conversation (task_updates) and its meeting/note provenance links. The
+ *  conversation + links are snapshotted because deleting the task row cascades
+ *  them away (FK onDelete: cascade) — without the snapshot, Undo would silently
+ *  lose them (ACTTASKS-02). */
+function taskDeleteUndo(
+  t: TaskRowRaw,
+  assignees: number[],
+  updates: Awaited<ReturnType<typeof loadTaskUpdatesSnapshot>>,
+  meetingLinks: Awaited<ReturnType<typeof loadMeetingLinksSnapshot>>
+): UndoSpec {
   return {
     kind: "task.delete",
     taskId: t.id,
     payload: {
+      updates,
+      meetingLinks,
       task: {
         code: t.code,
         companyId: t.company_id,
@@ -168,10 +205,6 @@ export async function updateTask(code: string, formData: FormData) {
       const risk = riskField === undefined ? t.risk : riskField;
       const escalation = escalationField ?? t.escalation ?? "No";
       const category = categoryField === undefined ? t.category : categoryField;
-      const wasClosed = t.status === "Completed" || t.status === "Closed";
-      const isClosed = status === "Completed" || status === "Closed";
-      const closingNow = isClosed && !wasClosed;
-      const reopeningNow = !isClosed && wasClosed;
 
       const [oldDeptName, newDeptName] = await Promise.all([
         deptNameSb(t.department_id),
@@ -197,11 +230,7 @@ export async function updateTask(code: string, formData: FormData) {
         await logChangeSb(t.id, t.code, t.company_id, f, o, n, changeReason);
       }
 
-      const newClosedDate = closingNow
-        ? new Date().toISOString()
-        : reopeningNow
-          ? null
-          : t.closed_date;
+      const newClosedDate = computeClosedDateFrom(t.status, status, t.closed_date);
 
       const baseUpdate = {
         action_item: actionItem,
@@ -337,47 +366,100 @@ export async function createTask(formData: FormData) {
       if (cErr) throw new Error(cErr.message);
       if (!company) throw new Error("Company not found");
 
+      // Resolve the department + assignee people BEFORE the transaction: these
+      // are idempotent get-or-create lookups (their own rows are not part of the
+      // task's atomic write, and re-running them is harmless on retry).
       const departmentId = await getOrCreateDeptSb(departmentName);
-      const now = new Date();
-
-      // Prefer the two-letter prefix (DS-001); fall back to the legacy company code.
-      const prefix = (company.code_prefix as string | null) || (company.code as string);
-      const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
-        departmentId,
-        actionItem,
-        status,
-        priority,
-        risk,
-        escalation,
-        category,
-        deadline,
-        meetingDate,
-        comments,
-        latestUpdate,
-        createdDate: now,
-        lastUpdatedAt: now,
-        archived: false,
-      });
-
+      const assigneeIds: number[] = [];
       for (const n of splitNames(accountableRaw)) {
-        const pid = await getOrCreatePersonSb(n, companyId);
-        await sb
-          .from("task_assignees")
-          .upsert({ task_id: task.id, person_id: pid }, { ignoreDuplicates: true });
+        assigneeIds.push(await getOrCreatePersonSb(n, companyId));
       }
 
-      await sb.from("audit_log").insert({
-        task_id: task.id,
-        task_code: task.code,
-        company_id: companyId,
-        entry_type: "CREATE",
-        field: "Task",
-        old_value: null,
-        new_value: actionItem,
-        change_reason: null,
-        created_at: now.toISOString(),
-        created_by: "web-ui",
+      const now = new Date();
+      const nowIso = now.toISOString();
+      // Prefer the two-letter prefix (DS-001); fall back to the legacy company code.
+      const prefix = (company.code_prefix as string | null) || (company.code as string);
+      const closedDate = computeClosedDate(status, null, nowIso);
+
+      // Atomic create (ACTTASKS-04 / DBSPINE-02): the task row, its assignees and
+      // the CREATE audit entry either all commit or all roll back — no orphaned
+      // task and no missing audit on a mid-sequence failure. The unique-code
+      // allocation is retried in-transaction on a code collision.
+      const task = await withTx(async (tx) => {
+        let created: { id: number; code: string } | null = null;
+        for (let attempt = 0; attempt < 5 && !created; attempt++) {
+          const existing = await tx
+            .select({ code: tasksTable.code })
+            .from(tasksTable)
+            .where(eq(tasksTable.companyId, companyId));
+          let maxNum = 0;
+          for (const row of existing) {
+            const m = row.code.match(/(\d+)$/);
+            if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+          }
+          const newCode = `${prefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
+          try {
+            // Nested transaction = a SAVEPOINT, so a unique-code collision rolls
+            // back just this attempt (not the whole transaction, which postgres.js
+            // would otherwise abort) and the next attempt can proceed.
+            created = await tx.transaction(async (sp) => {
+              const [inserted] = await sp
+                .insert(tasksTable)
+                .values({
+                  code: newCode,
+                  companyId,
+                  departmentId,
+                  actionItem,
+                  status,
+                  priority,
+                  risk,
+                  escalation,
+                  category,
+                  deadline,
+                  meetingDate,
+                  comments,
+                  latestUpdate,
+                  createdDate: now,
+                  lastUpdatedAt: now,
+                  closedDate: closedDate ? new Date(closedDate) : null,
+                  archived: false,
+                })
+                .returning({ id: tasksTable.id, code: tasksTable.code });
+              return inserted;
+            });
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            if (!/duplicate key|unique/i.test(msg)) throw e;
+            // Code collided — let the next attempt pick the next number.
+          }
+        }
+        if (!created) throw new Error("Could not allocate a unique task code.");
+
+        if (assigneeIds.length) {
+          await tx
+            .insert(taskAssignees)
+            .values(assigneeIds.map((personId) => ({ taskId: created!.id, personId })))
+            .onConflictDoNothing();
+        }
+
+        await tx.insert(auditLog).values({
+          taskId: created.id,
+          taskCode: created.code,
+          companyId,
+          entryType: "CREATE",
+          field: "Task",
+          oldValue: null,
+          newValue: actionItem,
+          changeReason: null,
+          createdAt: now,
+          createdBy: "web-ui",
+        });
+
+        return created;
       });
+
+      // Best-effort semantic index (no-op unless semantic search is enabled).
+      void indexEmbedding("task", task.id, actionItem);
 
       return {
         result: { code: task.code },
@@ -430,15 +512,20 @@ export async function deleteTask(code: string) {
     run: async () => {
       const t = await findTaskByCode(code);
       if (!t) return { result: null, undo: undefined };
-      const assignees = await loadAssignees(t.id);
+      const [assignees, updates, meetingLinks] = await Promise.all([
+        loadAssignees(t.id),
+        loadTaskUpdatesSnapshot(t.id),
+        loadMeetingLinksSnapshot(t.id),
+      ]);
 
       // Recoverable delete: remove the task row (updates/assignees/meeting-links
-      // cascade) but KEEP its audit history — the FK nulls task_id, so the rows
-      // survive by task_code and reconnect if the task is restored. A 10-minute
-      // Undo restores the task + assignees.
+      // cascade away) but KEEP its audit history — the FK nulls task_id, so the
+      // audit rows survive by task_code. The conversation + meeting links are
+      // snapshotted into the undo payload first so a 10-minute Undo restores the
+      // task, assignees, the full discussion thread and its provenance.
       await sb.from("tasks").delete().eq("id", t.id);
 
-      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees) };
+      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees, updates, meetingLinks) };
     },
   });
 
@@ -493,11 +580,8 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
       };
 
       if (newStatus) {
-        const wasClosed = t.status === "Completed" || t.status === "Closed";
-        const isClosed = newStatus === "Completed" || newStatus === "Closed";
         updatePayload.status = newStatus;
-        if (isClosed && !wasClosed) updatePayload.closed_date = new Date().toISOString();
-        else if (!isClosed && wasClosed) updatePayload.closed_date = null;
+        updatePayload.closed_date = computeClosedDateFrom(t.status, newStatus, t.closed_date as string | null);
 
         if (t.status !== newStatus) {
           await sb.from("audit_log").insert({
@@ -562,7 +646,7 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
   const { data: t } = await sb
     .from("tasks")
-    .select("id,status,company_id,code")
+    .select("id,status,company_id,code,closed_date")
     .eq("id", taskId)
     .maybeSingle();
   if (!t) return;
@@ -634,11 +718,8 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
   const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
   if (newStatus && newStatus !== t.status) {
-    const wasClosed = t.status === "Completed" || t.status === "Closed";
-    const isClosed = newStatus === "Completed" || newStatus === "Closed";
     patch.status = newStatus;
-    if (isClosed && !wasClosed) patch.closed_date = now;
-    else if (!isClosed && wasClosed) patch.closed_date = null;
+    patch.closed_date = computeClosedDateFrom(t.status as string, newStatus, (t.closed_date as string | null) ?? null, now);
     await sb.from("audit_log").insert({
       task_id: taskId,
       task_code: taskCode,
@@ -685,8 +766,9 @@ export async function adminTogglePin(formData: FormData): Promise<void> {
  * Per-update operations: edit, soft-delete, pin/unpin
  * ----------------------------------------------------------------------
  * Updates live in task_updates; corrections leaves an audit trail and
- * preserves the original body the first time you edit a row. Soft-deletes
- * are hidden from timelines but kept in the table for governance.
+ * preserves the original body the first time you edit a row. Deletes are
+ * SOFT (set deleted_at) — hidden from timelines but kept in the table for
+ * governance, and recoverable via restoreTaskUpdate.
  *
  * The denormalised tasks.latest_update mirror is re-derived after each of
  * these ops so the task header stays in sync.
@@ -785,11 +867,15 @@ export async function deleteTaskUpdate(
   void reason;
   const u = await loadUpdate(updateId);
   if (!u) return { ok: true }; // already gone
+  if (u.deleted_at) return { ok: true }; // already removed
 
   const t = await findTaskMeta(u.task_id);
 
-  // Permanent delete — no tombstone, no soft-delete. The update is wiped.
-  await sb.from("task_updates").delete().eq("id", updateId);
+  // Soft delete — set deleted_at so the conversation history is preserved for the
+  // audit trail and the update can be brought back via restoreTaskUpdate. The
+  // timeline and the latest-update mirror both filter on deleted_at IS NULL, so it
+  // disappears from view immediately.
+  await sb.from("task_updates").update({ deleted_at: new Date().toISOString() }).eq("id", updateId);
 
   await recomputeLatestUpdateMirror(u.task_id);
   if (t) {
@@ -903,11 +989,8 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
 
       if (action.kind === "status") {
         if (t.status === action.value) { skipped++; continue; }
-        const wasClosed = t.status === "Completed" || t.status === "Closed";
-        const isClosed = action.value === "Completed" || action.value === "Closed";
         patch.status = action.value;
-        if (isClosed && !wasClosed) patch.closed_date = nowIso;
-        else if (!isClosed && wasClosed) patch.closed_date = null;
+        patch.closed_date = computeClosedDateFrom(t.status, action.value, t.closed_date, nowIso);
         field = "Status";
         oldVal = t.status;
         newVal = action.value;
@@ -939,7 +1022,7 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
       } else if (action.kind === "close") {
         if (t.status === "Closed") { skipped++; continue; }
         patch.status = "Closed";
-        patch.closed_date = nowIso;
+        patch.closed_date = computeClosedDateFrom(t.status, "Closed", t.closed_date, nowIso);
         field = "Status";
         oldVal = t.status;
         newVal = "Closed";
@@ -1000,11 +1083,8 @@ export async function inlineUpdateTask(
         oldVal = t.status;
         newVal = status;
         fieldLabel = "Status";
-        const wasClosed = t.status === "Completed" || t.status === "Closed";
-        const isClosed = status === "Completed" || status === "Closed";
         patch.status = status;
-        if (isClosed && !wasClosed) patch.closed_date = new Date().toISOString();
-        else if (!isClosed && wasClosed) patch.closed_date = null;
+        patch.closed_date = computeClosedDateFrom(t.status, status, t.closed_date);
       } else if (field === "priority") {
         oldVal = t.priority;
         newVal = value || t.priority;
@@ -1097,10 +1177,15 @@ export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undo
     run: async () => {
       const t = await findTaskByCode(code);
       if (!t) return { result: null, undo: undefined };
-      const assignees = await loadAssignees(t.id);
-      // Recoverable delete (see deleteTask): keep audit history, offer a 10-min Undo.
+      const [assignees, updates, meetingLinks] = await Promise.all([
+        loadAssignees(t.id),
+        loadTaskUpdatesSnapshot(t.id),
+        loadMeetingLinksSnapshot(t.id),
+      ]);
+      // Recoverable delete (see deleteTask): snapshot conversation + meeting links
+      // for a faithful Undo, keep audit history, offer a 10-min Undo.
       await sb.from("tasks").delete().eq("id", t.id);
-      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees) };
+      return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees, updates, meetingLinks) };
     },
   });
   if (!result.ok) return { ok: false, error: result.error };

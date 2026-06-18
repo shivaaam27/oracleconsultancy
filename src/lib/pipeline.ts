@@ -5,6 +5,10 @@ import { normalizeStage, type PipelineItem, type PipelineStage } from "@/lib/pip
 
 export type { PipelineItem } from "@/lib/pipeline-shared";
 
+// Mirror the assets.ts/stock.ts pattern: a write either succeeds or reports the
+// DB error, so a failed write can never be mistaken for success (ACTHRMS-05).
+export type WriteResult = { ok: true } | { ok: false; error: string };
+
 const COLS = "id,subject,subject_type,company_id,person_id,type,stage,control_no,amount,last_update,deadline,next_action,owner,notes,document_id";
 
 function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): PipelineItem {
@@ -30,8 +34,10 @@ function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): Pipe
 }
 
 /** Link (or unlink) a supporting document to a pipeline case. */
-export async function linkPipelineDocument(id: number, documentId: number | null): Promise<void> {
-  await sb.from("pipeline").update({ document_id: documentId, updated_at: new Date().toISOString() }).eq("id", id);
+export async function linkPipelineDocument(id: number, documentId: number | null): Promise<WriteResult> {
+  const { error } = await sb.from("pipeline").update({ document_id: documentId, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 /** All open pipeline items (not archived), newest update first. */
@@ -61,7 +67,10 @@ export type PipelineInput = {
 
 const toIso = (v: Date | string | null | undefined) => (v == null || v === "" ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString());
 
-export async function createPipelineItem(input: PipelineInput, createdBy = "web-ui"): Promise<number | null> {
+export async function createPipelineItem(
+  input: PipelineInput,
+  createdBy = "web-ui",
+): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   const now = new Date().toISOString();
   const { data, error } = await sb.from("pipeline").insert({
     subject: input.subject,
@@ -81,17 +90,19 @@ export async function createPipelineItem(input: PipelineInput, createdBy = "web-
     updated_at: now,
     created_by: createdBy,
   }).select("id").single();
-  if (error || !data) return null;
-  return data.id as number;
+  if (error || !data) return { ok: false, error: error?.message ?? "Insert returned no row." };
+  return { ok: true, id: data.id as number };
 }
 
 /** Move an item to a new stage (stamps last_update). */
-export async function setPipelineStage(id: number, stage: PipelineStage): Promise<void> {
+export async function setPipelineStage(id: number, stage: PipelineStage): Promise<WriteResult> {
   const now = new Date().toISOString();
-  await sb.from("pipeline").update({ stage, last_update: now, updated_at: now }).eq("id", id);
+  const { error } = await sb.from("pipeline").update({ stage, last_update: now, updated_at: now }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
-export async function updatePipelineItem(id: number, patch: Partial<PipelineInput>): Promise<void> {
+export async function updatePipelineItem(id: number, patch: Partial<PipelineInput>): Promise<WriteResult> {
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString(), last_update: new Date().toISOString() };
   if (patch.subject !== undefined) payload.subject = patch.subject;
   if (patch.companyId !== undefined) payload.company_id = patch.companyId;
@@ -103,9 +114,13 @@ export async function updatePipelineItem(id: number, patch: Partial<PipelineInpu
   if (patch.nextAction !== undefined) payload.next_action = patch.nextAction;
   if (patch.owner !== undefined) payload.owner = patch.owner;
   if (patch.notes !== undefined) payload.notes = patch.notes;
-  await sb.from("pipeline").update(payload).eq("id", id);
+  const { error } = await sb.from("pipeline").update(payload).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
-export async function archivePipelineItem(id: number, archived = true): Promise<void> {
-  await sb.from("pipeline").update({ archived, updated_at: new Date().toISOString() }).eq("id", id);
+export async function archivePipelineItem(id: number, archived = true): Promise<WriteResult> {
+  const { error } = await sb.from("pipeline").update({ archived, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }

@@ -1,4 +1,7 @@
+import { eq, sql } from "drizzle-orm";
 import { sb } from "@/db/supabase";
+import { withTx, type Tx } from "@/lib/tx";
+import { letters as lettersTable, numberSeries } from "@/db/schema";
 import { signDocumentFile } from "@/lib/documents";
 import { BRAND_NAME } from "@/lib/brand";
 import type { Letterhead, LetterRow, LetterStatus } from "@/lib/letters-shared";
@@ -127,27 +130,42 @@ function buildTemplate(type: string, c: Ctx) {
 /* ------------------------------------------------------------------ */
 /* Ref numbers                                                         */
 /* ------------------------------------------------------------------ */
+// A reference is PREFIX/INV/YYYY/NNN and is stamped at ISSUE time only (a draft
+// carries no ref). The sequence is reserved atomically from the number_series
+// counter (ACTCOMMS-01 / ERPREADY-04) — replacing the old COUNT(*)+1 scan, which
+// duplicated refs whenever a draft was deleted and raced under concurrency. The
+// UNIQUE constraint on letters.ref is the backstop; issueLetter retries on the
+// rare collision.
 const TYPE_CODE: Record<string, string> = { invitation: "INV", blank: "LTR" };
 
-async function nextRef(companyId: number | null, type: string): Promise<string> {
-  const year = new Date().getUTCFullYear();
-  let prefix = "ORC";
-  if (companyId) {
-    const { data } = await sb.from("companies").select("code_prefix,code").eq("id", companyId).maybeSingle();
-    prefix = (data?.code_prefix as string | null) || (data?.code as string | null) || "ORC";
-  }
+async function companyPrefix(companyId: number | null): Promise<string> {
+  if (!companyId) return "ORC";
+  const { data } = await sb.from("companies").select("code_prefix,code").eq("id", companyId).maybeSingle();
+  return (data?.code_prefix as string | null) || (data?.code as string | null) || "ORC";
+}
+
+/**
+ * Reserve the next number for a (prefix, type, year) series inside the given
+ * transaction. The UPDATE … next_val + 1 … RETURNING row-lock serialises
+ * concurrent callers, so two issues never get the same number. Number each
+ * company's letters of a given type independently (so Cocozuri's first
+ * invitation is …/001, not …/002 just because Dar Spices issued one).
+ */
+async function reserveRefSeq(tx: Tx, prefix: string, type: string, year: number): Promise<number> {
+  const key = `letter:${prefix}:${type}:${year}`;
+  // Create the series row on first use (no-op if another caller already did).
+  await tx.insert(numberSeries).values({ seriesKey: key, nextVal: 0 }).onConflictDoNothing();
+  const [row] = await tx
+    .update(numberSeries)
+    .set({ nextVal: sql`${numberSeries.nextVal} + 1` })
+    .where(eq(numberSeries.seriesKey, key))
+    .returning({ nextVal: numberSeries.nextVal });
+  return row.nextVal;
+}
+
+function formatRef(prefix: string, type: string, year: number, seq: number): string {
   const code = TYPE_CODE[type] ?? "LTR";
-  // Number each company's letters of a given type independently (so Cocozuri's
-  // first invitation is …/001, not …/002 just because Dar Spices issued one).
-  let q = sb
-    .from("letters")
-    .select("id", { count: "exact", head: true })
-    .eq("type", type)
-    .gte("created_at", new Date(Date.UTC(year, 0, 1)).toISOString());
-  q = companyId ? q.eq("company_id", companyId) : q.is("company_id", null);
-  const { count } = await q;
-  const seq = String((count ?? 0) + 1).padStart(3, "0");
-  return `${prefix}/${code}/${year}/${seq}`;
+  return `${prefix}/${code}/${year}/${String(seq).padStart(3, "0")}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -171,13 +189,14 @@ export async function createLetter(type: string, companyId: number | null, perso
     if (data) company = { name: data.name as string, legalName: (data.legal_name as string | null) ?? null, address: (data.address as string | null) ?? null, registrationNo: (data.registration_no as string | null) ?? null, tin: (data.tin as string | null) ?? null };
   }
   const t = buildTemplate(type, { person, company });
-  const ref = await nextRef(companyId, type);
   const now = new Date().toISOString();
   const title = type === "invitation" && person ? `Invitation — ${person.name}` : t.subject || "Letter";
+  // No ref while Draft — it is reserved atomically at Issue (see issueLetter), so
+  // deleting a draft never burns or collides a reference number.
   const { data, error } = await sb
     .from("letters")
     .insert({
-      type, title, company_id: companyId, person_id: personId, ref,
+      type, title, company_id: companyId, person_id: personId, ref: null,
       letter_date: now, addressee: t.addressee, subject: t.subject, body: t.body,
       status: "Draft", created_at: now, updated_at: now,
     })
@@ -260,26 +279,62 @@ export async function updateLetterDraft(id: number, fields: { companyId?: number
 }
 
 export async function issueLetter(id: number): Promise<void> {
-  const { data } = await sb.from("letters").select("company_id,status").eq("id", id).maybeSingle();
+  const { data } = await sb.from("letters").select("company_id,type,status,ref").eq("id", id).maybeSingle();
   if (!data) throw new Error("Letter not found");
+  if (data.status === "Issued") return; // already frozen — never re-stamp.
+  const companyId = (data.company_id as number | null) ?? null;
+  const type = data.type as string;
+  const existingRef = ((data.ref as string | null) ?? "").trim();
+
+  // The letterhead snapshot is a read — capture it before the transaction.
   let snapshot: string | null = null;
-  if (data.company_id) {
-    const lh = await companyLetterhead(data.company_id as number);
+  if (companyId) {
+    const lh = await companyLetterhead(companyId);
     if (lh) snapshot = JSON.stringify(lh);
   }
-  const now = new Date().toISOString();
-  const { error } = await sb.from("letters").update({ status: "Issued", issued_at: now, letterhead_snapshot: snapshot, updated_at: now }).eq("id", id);
-  if (error) throw new Error(error.message);
+
+  const prefix = await companyPrefix(companyId);
+  const year = new Date().getUTCFullYear();
+
+  // Reserve the ref and flip to Issued in one transaction so the reference is
+  // allocated exactly once and atomically (ACTCOMMS-01 / ERPREADY-04). A
+  // collision against the UNIQUE letters.ref backstop (e.g. a manually-typed ref,
+  // or a legacy duplicate) re-reserves the next number; we retry a few times.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await withTx(async (tx) => {
+        const now = new Date();
+        // Respect a ref the operator typed by hand; otherwise allocate from the series.
+        const ref = existingRef || formatRef(prefix, type, year, await reserveRefSeq(tx, prefix, type, year));
+        const updated = await tx
+          .update(lettersTable)
+          .set({ status: "Issued", issuedAt: now, letterheadSnapshot: snapshot, ref, updatedAt: now })
+          .where(eq(lettersTable.id, id))
+          .returning({ id: lettersTable.id });
+        if (updated.length === 0) throw new Error("Letter not found");
+      });
+      return;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      // A hand-typed ref that clashes can never succeed by retrying — surface it.
+      if (existingRef && /duplicate key|unique/i.test(msg)) {
+        throw new Error("That reference is already in use — choose a different one.");
+      }
+      if (/duplicate key|unique/i.test(msg)) continue; // series collision — re-reserve
+      throw e;
+    }
+  }
+  throw new Error("Could not allocate a unique reference — please try again.");
 }
 
 export async function duplicateLetter(id: number): Promise<number> {
   const { data } = await sb.from("letters").select("type,title,company_id,person_id,addressee,subject,body").eq("id", id).maybeSingle();
   if (!data) throw new Error("Letter not found");
-  const ref = await nextRef((data.company_id as number | null) ?? null, data.type as string);
   const now = new Date().toISOString();
+  // The copy starts as a fresh Draft with no ref — it gets its own number at Issue.
   const { data: ins, error } = await sb.from("letters").insert({
     type: data.type, title: `${data.title} (copy)`, company_id: data.company_id, person_id: data.person_id,
-    ref, letter_date: now, addressee: data.addressee, subject: data.subject, body: data.body,
+    ref: null, letter_date: now, addressee: data.addressee, subject: data.subject, body: data.body,
     status: "Draft", created_at: now, updated_at: now,
   }).select("id").single();
   if (error) throw new Error(error.message);

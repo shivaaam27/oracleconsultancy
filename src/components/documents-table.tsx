@@ -12,7 +12,6 @@ import { Button, CountPill, RegisterList, RegisterRow, RegisterGroupHeader } fro
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
-import { BulkUploadDialog } from "./bulk-upload-dialog";
 import { SplitDocumentDialog } from "./split-document-dialog";
 import { BulkAutoUpload } from "./bulk-auto-upload";
 import { useToast } from "./toast";
@@ -51,7 +50,6 @@ export function DocumentsTable({
   const [showArchived, setShowArchived] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [bulkOpen, setBulkOpen] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
   const [splitDoc, setSplitDoc] = useState<DocumentRow | null>(null);
@@ -551,15 +549,6 @@ export function DocumentsTable({
 
       {/* Automatic bulk intake — drop all, AI files them, review only exceptions. */}
       <BulkAutoUpload open={autoOpen} onOpenChange={setAutoOpen} companies={companies} people={people} onDone={() => router.refresh()} />
-
-      {/* Legacy one-by-one bulk review (kept for the Inbox bundle flow). */}
-      <BulkUploadDialog
-        open={bulkOpen}
-        onOpenChange={setBulkOpen}
-        companies={companies}
-        people={people}
-        onDone={() => router.refresh()}
-      />
 
       <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) closeCreate(); }} title="Add a document">
         <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}

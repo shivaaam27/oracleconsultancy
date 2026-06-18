@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
+import { isAdminSession } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,8 +11,16 @@ export const runtime = "nodejs";
  * after bulk edits, manual SQL, or deleted updates.
  *
  * Pure HTTP because it's a one-shot admin button on /audit. POST only.
+ *
+ * Defence-in-depth (ACTPORTAL-03): the edge gate (src/proxy.ts) already covers
+ * /api/admin, but this is a bulk-write maintenance op, so it re-checks the admin
+ * session itself — it must never be reachable unauthenticated if a future
+ * matcher change ever exempts it.
  */
 export async function POST() {
+  if (!(await isAdminSession())) {
+    return NextResponse.json({ ok: false, error: "Not authorised." }, { status: 401 });
+  }
   // Pull every task id + its latest non-deleted update.
   const { data: tasks, error: tErr } = await sb.from("tasks").select("id");
   if (tErr) return NextResponse.json({ ok: false, error: tErr.message }, { status: 500 });

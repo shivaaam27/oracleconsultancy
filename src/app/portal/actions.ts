@@ -18,11 +18,14 @@ import { broadcastPulse } from "@/lib/cos-pulse";
 import {
   clearSessionCookie,
   directReportIds,
+  findPortalPersonByIdentifier,
   getPortalPerson,
+  personCanSeePerson,
   personCanSeeTask,
   setSessionCookie,
   verifyPassword,
 } from "@/lib/portal-auth";
+import { computeClosedDate } from "@/lib/task-status";
 import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
@@ -47,23 +50,10 @@ export async function portalLogin(
   const lock = loginLockState(key);
   if (lock.locked) return { error: lockMessage(lock.retryAfterSec) };
 
-  // Match by email first (exact), then by name (case-insensitive).
-  const { data: byEmail } = await sb
-    .from("people")
-    .select("id,portal_password_hash,active,portal_role")
-    .ilike("email", identifier)
-    .not("portal_password_hash", "is", null)
-    .maybeSingle();
-  let person = byEmail;
-  if (!person) {
-    const { data: byName } = await sb
-      .from("people")
-      .select("id,portal_password_hash,active,portal_role")
-      .ilike("name", identifier)
-      .not("portal_password_hash", "is", null)
-      .maybeSingle();
-    person = byName;
-  }
+  // Resolve via the shared helper, which escapes LIKE metacharacters so a name
+  // containing % or _ can't be used to authenticate against a partially-known
+  // person or to probe who has portal access (AUTHSEC-01).
+  const person = await findPortalPersonByIdentifier(identifier);
 
   if (
     !person ||
@@ -134,6 +124,12 @@ export async function portalChangePassword(
     .update({ portal_password_hash: hashPassword(next) })
     .eq("id", me.id);
   if (error) return { error: "Could not update your password. Try again." };
+
+  // The session token is bound to the password hash, so rotating it logs out
+  // every device (the AUTHSEC-02 control). Re-issue the cookie for THIS device
+  // off the new hash so the person who just changed their password stays signed
+  // in here — only the other devices are dropped.
+  await setSessionCookie(me.id);
 
   return { ok: true };
 }
@@ -353,6 +349,12 @@ export async function portalSendReminderEmail(
     return { ok: false, reason: "error", error: "Outreach is paused by the administrator." };
   }
 
+  // Team-scope guard (ACTPORTAL-02): managers may only remind themselves or a
+  // direct report; director/HR stay group-wide. Same scope as everywhere else.
+  if (!(await personCanSeePerson(me, personId))) {
+    return { ok: false, reason: "error", error: "That person isn't on your team." };
+  }
+
   const office = role === "director" ? "director" : role === "manager" ? "manager" : "admin";
   const tag = role === "director" ? "dir" : role === "manager" ? "mgr" : "admin";
   const { sendTaskReminderEmail } = await import("@/lib/reminders");
@@ -400,6 +402,12 @@ export async function portalSendReminderWhatsApp(
     return { ok: false, reason: "error", error: "Outreach is paused by the administrator." };
   }
 
+  // Team-scope guard (ACTPORTAL-02): managers may only remind themselves or a
+  // direct report; director/HR stay group-wide.
+  if (!(await personCanSeePerson(me, personId))) {
+    return { ok: false, reason: "error", error: "That person isn't on your team." };
+  }
+
   const tag = role === "director" ? "dir" : role === "manager" ? "mgr" : "admin";
   const { sendTaskReminderWhatsApp } = await import("@/lib/reminders");
   const { waFromLabel } = await import("@/lib/wa-card");
@@ -434,6 +442,11 @@ export async function portalSendTaskSummaryWhatsApp(
 
   const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
   if ((killRow?.value as string | null) === "1") return { ok: false, error: "Outreach is paused by the administrator." };
+
+  // Team-scope guard (ACTPORTAL-01): a manager may only summarise themselves or a
+  // direct report — never read another person's number/tasks across the group.
+  // Director/HR stay group-wide. Mirrors personCanSeePerson everywhere else.
+  if (!(await personCanSeePerson(me, personId))) return { ok: false, error: "That person isn't on your team." };
 
   const { data: person } = await sb.from("people").select("id,name,whatsapp,phone,company_id").eq("id", personId).maybeSingle();
   if (!person) return { ok: false, error: "Person not found." };
@@ -591,7 +604,7 @@ export async function portalEditTask(input: {
 
   const { data: t } = await sb
     .from("tasks")
-    .select("id,code,company_id,status,priority,deadline,owner_id")
+    .select("id,code,company_id,status,priority,deadline,owner_id,closed_date")
     .eq("id", input.taskId)
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
@@ -607,7 +620,9 @@ export async function portalEditTask(input: {
     // Managers can't reopen a Completed/Closed task; directors/HR can.
     if (!(lockedDone && !full)) {
       patch.status = input.status;
-      if (input.status === "Completed" || input.status === "Closed") patch.closed_date = now;
+      // Route closed_date through the one helper (DUP-05): stamps on close,
+      // clears on reopen, never moves an existing close time.
+      patch.closed_date = computeClosedDate(input.status, (t.closed_date as string | null) ?? null, now);
       await logChangeSb(t.id as number, t.code as string, t.company_id as number, "status", current, input.status, `Edited from portal (${role})`, createdBy);
     }
   }
@@ -919,7 +934,9 @@ export async function portalAddUpdate(formData: FormData) {
     currentStatus !== "Closed";
   if (canChange) {
     patch.status = newStatus;
-    if (newStatus === "Completed") patch.closed_date = now;
+    // Always an open status here (this path can't complete/close), so this clears
+    // any stale closed_date on reopen — via the one helper (DUP-05).
+    patch.closed_date = computeClosedDate(newStatus, null, now);
     await logChangeSb(
       taskId,
       t.code as string,
@@ -991,7 +1008,7 @@ export async function portalCompleteTask(
     created_by: createdBy,
     attachment_document_id: attachmentDocumentId,
   });
-  await sb.from("tasks").update({ status: "Completed", closed_date: now, latest_update: body, last_updated_at: now }).eq("id", taskId);
+  await sb.from("tasks").update({ status: "Completed", closed_date: computeClosedDate("Completed", null, now), latest_update: body, last_updated_at: now }).eq("id", taskId);
   await logChangeSb(taskId, t.code as string, t.company_id as number, "status", current, "Completed", "Completed from portal (with note)", createdBy);
 
   revalidatePath(`/portal/task/${code}`);

@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
-import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import type { PersonPackPurpose } from "@/lib/person-pack-shared";
 import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox/links";
 import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
@@ -343,29 +343,47 @@ type TaskRow = {
 };
 
 async function findTaskByCode(code: string): Promise<TaskRow | null> {
+  // Exact, case-insensitive match. Escape LIKE metacharacters so a crafted code
+  // (e.g. one containing % or _) can't match the wrong task or silently skip.
   const { data } = await sb
     .from("tasks")
     .select("id,code,company_id,status,priority,escalation")
-    .ilike("code", code)
+    .ilike("code", escapeLike(code.trim()))
     .maybeSingle();
   return (data as TaskRow | null) ?? null;
 }
 
 async function findCompanyByName(name: string): Promise<{ id: number; code: string } | null> {
+  const token = name.trim();
+  if (!token) return null;
+  const safe = escapeLike(token);
+  // Prefer an exact (escaped, case-insensitive) name match so an ambiguous or
+  // substring name can't silently bind to the wrong portfolio company; only
+  // fall back to an escaped fuzzy match when there's no exact hit.
+  const { data: exact } = await sb
+    .from("companies")
+    .select("id,code")
+    .ilike("name", safe)
+    .limit(1)
+    .maybeSingle();
+  if (exact) return { id: exact.id as number, code: exact.code as string };
+
   const { data } = await sb
     .from("companies")
     .select("id,code")
-    .ilike("name", `%${name}%`)
+    .ilike("name", `%${safe}%`)
     .limit(1)
     .maybeSingle();
   return data ? { id: data.id as number, code: data.code as string } : null;
 }
 
 async function findPersonByName(name: string): Promise<{ id: number; name: string } | null> {
+  const token = name.trim();
+  if (!token) return null;
   const { data } = await sb
     .from("people")
     .select("id,name")
-    .ilike("name", `%${name}%`)
+    .ilike("name", `%${escapeLike(token)}%`)
     .limit(1)
     .maybeSingle();
   return data ? { id: data.id as number, name: data.name as string } : null;
@@ -382,10 +400,12 @@ type PersonContact = {
 };
 
 async function findPersonContact(name: string): Promise<PersonContact | null> {
+  const token = name.trim();
+  if (!token) return null;
   const { data } = await sb
     .from("people")
     .select("id,name,company_id,whatsapp,email,phone,preferred_channel")
-    .ilike("name", `%${name}%`)
+    .ilike("name", `%${escapeLike(token)}%`)
     .eq("active", true)
     .limit(1)
     .maybeSingle();

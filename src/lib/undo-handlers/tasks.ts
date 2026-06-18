@@ -101,6 +101,20 @@ registerUndoHandler("task.delete", async (raw) => {
       archived: boolean;
     };
     assignees: number[];
+    // Snapshotted in task/actions.ts so Undo restores the discussion + provenance
+    // that the task delete cascaded away (ACTTASKS-02).
+    updates?: Array<{
+      body: string;
+      created_at: string | null;
+      created_by: string | null;
+      original_body: string | null;
+      edited_at: string | null;
+      deleted_at: string | null;
+      pinned_at: string | null;
+      parent_update_id: number | null;
+      attachment_document_id: number | null;
+    }>;
+    meetingLinks?: Array<{ meeting_id: number; created_at: string | null }>;
   };
   const { data: inserted } = await sb
     .from("tasks")
@@ -132,6 +146,30 @@ registerUndoHandler("task.delete", async (raw) => {
       await sb
         .from("task_assignees")
         .upsert({ task_id: newId, person_id: personId }, { ignoreDuplicates: true });
+    }
+    // Restore the conversation. parent_update_id is dropped to null because the
+    // snapshot doesn't carry the old row ids to remap replies to — every message
+    // is preserved (flattened), which is what the ACTTASKS-02 fix guarantees.
+    // attachment_document_id is kept (those documents weren't deleted).
+    for (const u of p.updates ?? []) {
+      await sb.from("task_updates").insert({
+        task_id: newId,
+        body: u.body,
+        created_at: u.created_at,
+        created_by: u.created_by,
+        original_body: u.original_body,
+        edited_at: u.edited_at,
+        deleted_at: u.deleted_at,
+        pinned_at: u.pinned_at,
+        parent_update_id: null,
+        attachment_document_id: u.attachment_document_id,
+      });
+    }
+    // Restore the originating meeting/note links (provenance).
+    for (const link of p.meetingLinks ?? []) {
+      await sb
+        .from("meeting_tasks")
+        .insert({ task_id: newId, meeting_id: link.meeting_id, created_at: link.created_at });
     }
     await writeUndoAudit(newId, p.task.code, p.task.companyId, "task.delete");
   }

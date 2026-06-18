@@ -15,13 +15,13 @@ export function SavedViewsBar({
   initialViews,
   currentQuery,
   hasFilters,
-  basePath = "/task",
+  basePath = "/",
   extraQuery = "",
 }: {
   initialViews: SavedView[];
   currentQuery: string;
   hasFilters: boolean;
-  /** Base URL for saved-view links. /task for standalone, / for hub. */
+  /** Base URL for saved-view links. Defaults to the hub (`/`). */
   basePath?: string;
   /** Extra params to prepend (e.g. "tab=tasks" for hub). */
   extraQuery?: string;

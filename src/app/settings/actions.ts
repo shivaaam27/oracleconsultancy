@@ -167,19 +167,33 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   if (password.length < 8) redirect("/settings?portal=short");
 
   // Was this a brand-new grant or a password reset? (for the audit note)
-  const { data: before } = await sb.from("people").select("portal_password_hash").eq("id", personId).maybeSingle();
+  const { data: before } = await sb
+    .from("people")
+    .select("portal_password_hash,portal_role")
+    .eq("id", personId)
+    .maybeSingle();
   const wasEnabled = Boolean(before?.portal_password_hash);
+  const prevRole = (before?.portal_role as string | null) ?? "staff";
+
+  // COMPIP-01: a password reset must not silently demote an existing user. The
+  // People-drawer "Reset password" control submits a default role of "staff",
+  // which previously stripped an admin (hr)/manager/director of their elevated
+  // access. So on a reset, only ever ELEVATE from the submitted form — never let
+  // a defaulted "staff" pull rank back. Deliberate demotion is done via the
+  // dedicated role change (setPortalRole) or revoke.
+  const RANK: Record<string, number> = { staff: 0, manager: 1, hr: 2, director: 2 };
+  const effectiveRole = wasEnabled && (RANK[role] ?? 0) < (RANK[prevRole] ?? 0) ? prevRole : role;
 
   const { error } = await sb
     .from("people")
     .update({
       portal_password_hash: hashPassword(password),
       portal_enabled_at: new Date().toISOString(),
-      portal_role: role,
+      portal_role: effectiveRole,
     })
     .eq("id", personId);
   if (error) throw new Error(error.message);
-  await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role });
+  await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role: effectiveRole });
   revalidatePath("/settings");
   redirect("/settings?portal=saved");
 }

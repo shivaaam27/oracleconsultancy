@@ -14,6 +14,7 @@ import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
+import { expandRecurrence } from "@/lib/ics";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
 import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, draftEventRemindersAction, draftEventFollowupAction } from "./actions";
 
@@ -100,7 +101,9 @@ function accentOf(ev: CalendarEventView): string {
 function occKey(e: CalendarEventView): string {
   return `${e.id}-${e.startAt}`;
 }
-/** Expand recurring events into concrete occurrences in a generous window. */
+/** Expand recurring events into concrete occurrences in a generous window.
+ *  Occurrence dates come from the shared `expandRecurrence` helper so the grid
+ *  and the exported .ics never disagree (ACTMEET-01/-02, COMPBIG-01/-02). */
 function expandRecurring(events: CalendarEventView[]): CalendarEventView[] {
   const out: CalendarEventView[] = [];
   const winStart = Date.now() - 60 * 864e5;
@@ -108,19 +111,19 @@ function expandRecurring(events: CalendarEventView[]): CalendarEventView[] {
   for (const e of events) {
     if (!e.recurrence || e.recurrence === "none") { out.push(e); continue; }
     const dur = e.endAt ? new Date(e.endAt).getTime() - new Date(e.startAt).getTime() : 0;
-    const until = e.recurrenceUntil ? new Date(e.recurrenceUntil).getTime() : winEnd;
-    const cap = Math.min(until, winEnd);
-    let cur = new Date(e.startAt);
-    let guard = 0;
-    while (cur.getTime() <= cap && guard < 500) {
-      if (cur.getTime() >= winStart) {
-        out.push({ ...e, startAt: cur.toISOString(), endAt: dur ? new Date(cur.getTime() + dur).toISOString() : e.endAt });
-      }
-      const n = new Date(cur);
-      if (e.recurrence === "daily") n.setDate(n.getDate() + 1);
-      else if (e.recurrence === "weekly") n.setDate(n.getDate() + 7);
-      else n.setMonth(n.getMonth() + 1);
-      cur = n; guard++;
+    const occurrences = expandRecurrence({
+      start: new Date(e.startAt),
+      recurrence: e.recurrence,
+      until: e.recurrenceUntil ? new Date(e.recurrenceUntil) : null,
+      windowStart: winStart,
+      windowEnd: winEnd,
+    });
+    for (const occ of occurrences) {
+      out.push({
+        ...e,
+        startAt: occ.toISOString(),
+        endAt: dur ? new Date(occ.getTime() + dur).toISOString() : e.endAt,
+      });
     }
   }
   return out;

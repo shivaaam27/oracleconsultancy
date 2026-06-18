@@ -10,6 +10,7 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui";
 import { CodeLinkedText } from "@/components/code-linked-text";
@@ -56,7 +57,7 @@ export async function TimelineTab({
   const codeById = new Map(companyTasks.map((t) => [t.id, t.code]));
   const titleByCode = new Map(companyTasks.map((t) => [t.code, t.actionItem]));
 
-  const [updRes, audRes] = await Promise.all([
+  const [updRes, audRes, delUpdRes, delAudRes] = await Promise.all([
     sb
       .from("task_updates")
       .select("id,task_id,body,created_at,created_by,edited_at,original_body")
@@ -71,6 +72,21 @@ export async function TimelineTab({
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(ITEM_LIMIT),
+    // Soft-deleted rows — surfaced (collapsed) in "Recently removed" so they can be restored.
+    sb
+      .from("task_updates")
+      .select("id,task_id,body,deleted_at")
+      .in("task_id", taskIds)
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false })
+      .limit(50),
+    sb
+      .from("audit_log")
+      .select("id,task_code,field,old_value,new_value,entry_type,deleted_at")
+      .in("task_code", taskCodes)
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false })
+      .limit(50),
   ]);
 
   const raw: TimelineItem[] = [];
@@ -156,7 +172,68 @@ export async function TimelineTab({
           ))}
         </div>
       )}
+
+      <RemovedSection
+        updates={(delUpdRes.data ?? []) as RemovedUpdate[]}
+        audits={(delAudRes.data ?? []) as RemovedAudit[]}
+        codeById={codeById}
+      />
     </div>
+  );
+}
+
+type RemovedUpdate = { id: number; task_id: number; body: string; deleted_at: string | null };
+type RemovedAudit = {
+  id: number; task_code: string | null; field: string | null;
+  old_value: string | null; new_value: string | null; entry_type: string | null; deleted_at: string | null;
+};
+
+/** Collapsed "Recently removed" drawer — soft-deleted updates + audit entries, each
+ *  restorable in place. Kept separate from the live timeline so a removed item never
+ *  pollutes the activity counts, but stays reachable (and recoverable). */
+function RemovedSection({
+  updates,
+  audits,
+  codeById,
+}: {
+  updates: RemovedUpdate[];
+  audits: RemovedAudit[];
+  codeById: Map<number, string>;
+}) {
+  const total = updates.length + audits.length;
+  if (total === 0) return null;
+
+  return (
+    <details className="group glass elevated rounded-2xl overflow-hidden">
+      <summary className="list-none cursor-pointer flex items-center gap-2 px-4 py-3 select-none">
+        <ChevronRight size={14} className="text-fg-subtle transition-transform group-open:rotate-90 shrink-0" />
+        <Trash2 size={13} className="text-fg-subtle shrink-0" />
+        <span className="text-sm font-medium">Recently removed</span>
+        <span className="text-[11px] text-fg-subtle tabular ml-auto">{total} hidden</span>
+      </summary>
+      <div className="px-4 pb-4 space-y-2 opacity-80">
+        {updates.map((u) => (
+          <div key={`u-${u.id}`} className="flex items-start justify-between gap-2 text-xs bg-bg-subtle/60 rounded-xl px-3 py-2">
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase tracking-wider text-fg-subtle">Update · {codeById.get(u.task_id) ?? "—"}</span>
+              <p className="text-fg-muted line-through truncate mt-0.5">{u.body}</p>
+            </div>
+            <UpdateMenu updateId={u.id} body={u.body} pinned={false} showPin={false} deleted />
+          </div>
+        ))}
+        {audits.map((a) => (
+          <div key={`a-${a.id}`} className="flex items-start justify-between gap-2 text-xs bg-bg-subtle/60 rounded-xl px-3 py-2">
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase tracking-wider text-fg-subtle">{a.field || a.entry_type} · {a.task_code ?? "—"}</span>
+              <p className="text-fg-muted line-through truncate mt-0.5">
+                {[a.old_value, a.new_value].filter(Boolean).join(" → ") || "Audit entry"}
+              </p>
+            </div>
+            <AuditMenu entryId={a.id} currentReason={null} deleted />
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 

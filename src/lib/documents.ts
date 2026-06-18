@@ -342,11 +342,19 @@ export async function signDocumentFile(storagePath: string, expiresInSeconds = 3
 }
 
 /** Live documents whose stored file has the exact same content hash — i.e. the
- *  identical file already on record (possibly under a different name/owner). */
-export async function findDocumentsByHash(fileHash: string, excludeId?: number): Promise<DocumentRow[]> {
+ *  identical file already on record (possibly under a different name/owner).
+ *  A compilation split stores ONE file shared by several legitimately distinct
+ *  documents (so they all carry the same hash); pass excludeCompilations to drop
+ *  those from the identical-file signal (ACTDOCS-01) when surfacing duplicates. */
+export async function findDocumentsByHash(
+  fileHash: string,
+  excludeId?: number,
+  options?: { excludeCompilations?: boolean }
+): Promise<DocumentRow[]> {
   if (!fileHash) return [];
   let q = sb.from("documents").select("*").eq("file_hash", fileHash).eq("archived", false);
   if (excludeId) q = q.neq("id", excludeId);
+  if (options?.excludeCompilations) q = q.is("compilation_id", null);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data as DocDbRow[]).map(mapRow);

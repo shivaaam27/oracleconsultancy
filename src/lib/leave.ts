@@ -1,5 +1,8 @@
 import { cache } from "react";
+import { and, eq } from "drizzle-orm";
 import { sb } from "@/db/supabase";
+import { leaveRequests } from "@/db/schema";
+import type { Tx } from "@/lib/tx";
 import type {
   LeaveType,
   LeaveRequestRow,
@@ -194,6 +197,42 @@ export async function personLeaveBalances(personId: number): Promise<PersonLeave
       remaining: t.defaultDays > 0 ? t.defaultDays - taken - pending : null,
     };
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Over-booking guard — entitlement left for ONE type, anchored to the  */
+/* leave-year the request actually falls in (NOT the current year).     */
+/* ------------------------------------------------------------------ */
+export type LeaveTypeBalance = { typeName: string; entitlement: number; taken: number; pending: number };
+
+/** Approved + pending days already booked for `leaveTypeId` in the leave-year
+ *  that CONTAINS `onDate` (the request's start date), plus that type's
+ *  entitlement. The window is anchored to the request's own leave-year, not
+ *  today's, so a year-boundary request is validated correctly (ACTHRMS-03).
+ *
+ *  Reads through the supplied Drizzle `tx` handle so the booking action can run
+ *  this check and the insert inside one transaction — the row read here and the
+ *  row written there are then serialised and can't race (ACTHRMS-02).
+ *
+ *  Returns null for an unknown/inactive type or an uncapped (entitlement 0)
+ *  one — there is nothing to guard against in those cases. */
+export async function leaveBalanceForBooking(
+  tx: Tx,
+  personId: number,
+  leaveTypeId: number,
+  onDate: Date,
+): Promise<LeaveTypeBalance | null> {
+  const type = (await listLeaveTypes()).find((t) => t.id === leaveTypeId);
+  if (!type || type.defaultDays <= 0) return null;
+  const cycleStart = leaveCycleStart(type.cycleMonths, onDate);
+  const rows = await tx
+    .select({ days: leaveRequests.days, status: leaveRequests.status, startDate: leaveRequests.startDate })
+    .from(leaveRequests)
+    .where(and(eq(leaveRequests.personId, personId), eq(leaveRequests.leaveTypeId, leaveTypeId)));
+  const mine = rows.filter((r) => r.startDate >= cycleStart);
+  const taken = mine.filter((r) => r.status === "Approved").reduce((s, r) => s + (r.days ?? 0), 0);
+  const pending = mine.filter((r) => r.status === "Pending").reduce((s, r) => s + (r.days ?? 0), 0);
+  return { typeName: type.name, entitlement: type.defaultDays, taken, pending };
 }
 
 /* ------------------------------------------------------------------ */

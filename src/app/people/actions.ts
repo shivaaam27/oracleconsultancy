@@ -8,14 +8,17 @@ import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
 import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/person-audit";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { ensurePersonRequirements } from "@/lib/requirements";
-import { startJourney, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
-import { returnAssetsForPerson, clearCustodianForPerson } from "@/lib/assets";
+import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
+import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/assets";
 import { getGroqKey } from "@/lib/settings";
 import { indexEmbedding } from "@/lib/embeddings";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
 import { hashPassword } from "@/lib/portal-auth";
 import { recordEvent } from "@/lib/system-events";
+import { withTx, type Tx } from "@/lib/tx";
+import { people, departmentHeads, reportingLines } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 type ActionResult = { ok: true; id?: number; active?: boolean } | { ok: false; error: string };
 
@@ -515,6 +518,19 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
   // Person cannot be their own manager
   const safeManagerId = managerId === id ? null : managerId;
 
+  // Reject a primary manager that would close a reporting LOOP — i.e. a manager
+  // whose own primary chain already reports (directly or indirectly) back to this
+  // person (ACTPEOPLE-01). Unlike the org chart, a chain-walker keyed off
+  // manager_id (approval routing, payroll sign-off) would spin on a cycle.
+  if (safeManagerId != null && (await primaryChainReaches(safeManagerId, id))) {
+    const { data: mgr } = await sb.from("people").select("name").eq("id", safeManagerId).maybeSingle();
+    const who = (mgr?.name as string | null) ?? "That manager";
+    return {
+      ok: false,
+      error: `${who} already reports to this person, so making them the manager would create a reporting loop. Change one of the reporting lines first.`,
+    };
+  }
+
   // A person cannot be related to themselves.
   const relatedPersonId = n(formData, "relatedPersonId");
   const safeRelatedId = relatedPersonId === id ? null : relatedPersonId;
@@ -707,19 +723,37 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   if (!current) return { ok: false, error: "Person not found." };
 
   const nextActive = !current.active;
-  const { error } = await sb.from("people").update({ active: nextActive }).eq("id", id);
-  if (error) return { ok: false, error: error.message };
+
+  // Archive/restore + the whole offboarding side-effect set must be all-or-
+  // nothing: flip the active flag, and on archive vacate the leaver's leadership
+  // roles AND orphan their direct reports (ACTPEOPLE-03), start the offboarding
+  // journey, return their assets and vacate their custodianships — all in one
+  // transaction, so a mid-sequence failure can never half-offboard someone
+  // (active flag flipped but assets still in their name, or vice-versa).
+  let orphanedReports: number[] = [];
+  try {
+    orphanedReports = await withTx(async (tx) => {
+      await tx.update(people).set({ active: nextActive }).where(eq(people.id, id));
+      if (!nextActive) {
+        const reports = await vacateLeadershipRolesTx(tx, id);
+        await startJourneyTx(tx, id, "offboarding");
+        await returnAssetsForPersonTx(tx, id);
+        await clearCustodianForPersonTx(tx, id);
+        return reports;
+      }
+      return [];
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not update this person." };
+  }
 
   await logPersonEvent(id, nextActive ? "restored" : "archived");
-
-  // Archiving someone kicks off an offboarding checklist (idempotent), returns
-  // any company assets they were holding back to the store, clears them as the
-  // custodian of shared/team kit, and vacates their leadership roles.
-  if (!nextActive) {
-    try { await startJourney(id, "offboarding"); } catch {}
-    try { await returnAssetsForPerson(id); } catch {}
-    try { await clearCustodianForPerson(id); } catch {}
-    try { await vacateLeadershipRoles(id); } catch {}
+  if (orphanedReports.length > 0) {
+    await logPersonEvent(id, "updated", {
+      field: "Direct reports",
+      oldValue: `${orphanedReports.length} report${orphanedReports.length === 1 ? "" : "s"}`,
+      newValue: "Manager cleared (archived)",
+    });
   }
 
   invalidate();
@@ -727,34 +761,64 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
 }
 
 /**
- * On archive, vacate the leaver's leadership roles so head counts + the org chart
- * stop pointing at them: clear any department-head seat they hold and drop their
- * secondary ("also reports to") manager edges. Best-effort.
+ * On archive, vacate the leaver's leadership roles and orphan their primary
+ * reports, inside the caller's transaction (so it commits with the active flag):
+ *   - clear any department-head seat they hold;
+ *   - drop their secondary ("also reports to") manager edges;
+ *   - null out manager_id on their direct reports so org roll-ups + manager-
+ *     scoped access never anchor on an archived person (ACTPEOPLE-03).
+ * Returns the ids of the reports that were re-pointed, so the caller can log it.
  */
-async function vacateLeadershipRoles(personId: number): Promise<void> {
-  await sb.from("department_heads").update({ head_person_id: null }).eq("head_person_id", personId);
-  await sb.from("reporting_lines").delete().eq("manager_id", personId);
+async function vacateLeadershipRolesTx(tx: Tx, personId: number): Promise<number[]> {
+  await tx.update(departmentHeads).set({ headPersonId: null }).where(eq(departmentHeads.headPersonId, personId));
+  await tx.delete(reportingLines).where(eq(reportingLines.managerId, personId));
+  const reports = await tx
+    .update(people)
+    .set({ managerId: null })
+    .where(eq(people.managerId, personId))
+    .returning({ id: people.id });
+  return reports.map((r) => r.id);
 }
 
 /** Bulk activate/deactivate (archive/restore). Soft — never deletes. */
 export async function setPeopleActive(ids: number[], active: boolean): Promise<ActionResult> {
   const clean = [...new Set(ids)].filter((n) => Number.isFinite(n));
   if (!clean.length) return { ok: false, error: "No people selected." };
-  const { error } = await sb.from("people").update({ active }).in("id", clean);
-  if (error) return { ok: false, error: error.message };
-  await Promise.all(clean.map((pid) => logPersonEvent(pid, active ? "restored" : "archived")));
 
-  // Bulk archive must run the SAME offboarding side-effects as the single-row
-  // path — otherwise mass-archiving leavers leaves their laptops assigned, no exit
-  // checklist, shared kit still in their name, and head/dotted-line roles unfilled.
-  if (!active) {
-    for (const pid of clean) {
-      try { await startJourney(pid, "offboarding"); } catch {}
-      try { await returnAssetsForPerson(pid); } catch {}
-      try { await clearCustodianForPerson(pid); } catch {}
-      try { await vacateLeadershipRoles(pid); } catch {}
-    }
+  // Flip every selected person's active flag, and on archive run the SAME full
+  // offboarding set as the single-row path — vacate leadership roles + orphan
+  // direct reports (ACTPEOPLE-03), start the offboarding journey, return assets,
+  // vacate custodianships — all in ONE transaction so the batch is all-or-nothing
+  // (no half-offboarded leaver with their laptop still assigned).
+  const orphanedByPerson = new Map<number, number[]>();
+  try {
+    await withTx(async (tx) => {
+      for (const pid of clean) {
+        await tx.update(people).set({ active }).where(eq(people.id, pid));
+        if (!active) {
+          orphanedByPerson.set(pid, await vacateLeadershipRolesTx(tx, pid));
+          await startJourneyTx(tx, pid, "offboarding");
+          await returnAssetsForPersonTx(tx, pid);
+          await clearCustodianForPersonTx(tx, pid);
+        }
+      }
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not update these people." };
   }
+
+  await Promise.all(clean.map((pid) => logPersonEvent(pid, active ? "restored" : "archived")));
+  await Promise.all(
+    [...orphanedByPerson].map(([pid, reports]) =>
+      reports.length === 0
+        ? Promise.resolve()
+        : logPersonEvent(pid, "updated", {
+            field: "Direct reports",
+            oldValue: `${reports.length} report${reports.length === 1 ? "" : "s"}`,
+            newValue: "Manager cleared (archived)",
+          })
+    )
+  );
 
   invalidate();
   return { ok: true };
@@ -863,9 +927,17 @@ export async function bulkSetPeopleField(
     const mid = value == null ? null : Number(value);
     patch.manager_id = mid;
     label = "Manager";
-    // A person can't be their own manager — never set that.
+    // A person can't be their own manager — never set that. Also skip anyone the
+    // new manager already reports to (directly or indirectly), as that would
+    // close a reporting loop (ACTPEOPLE-01); those people keep their manager.
     if (mid) {
-      targets = clean.filter((id) => id !== mid);
+      const allowed: number[] = [];
+      for (const id of clean) {
+        if (id === mid) continue;
+        if (await primaryChainReaches(mid, id)) continue; // would loop back to this person
+        allowed.push(id);
+      }
+      targets = allowed;
       const { data } = await sb.from("people").select("name").eq("id", mid).maybeSingle();
       display = (data?.name as string | null) ?? null;
     }

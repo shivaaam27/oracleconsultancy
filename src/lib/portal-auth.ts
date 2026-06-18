@@ -3,6 +3,7 @@ import { cache } from "react";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { sb } from "@/db/supabase";
+import { escapeLike } from "@/lib/db-helpers";
 
 /* ------------------------------------------------------------------ *
  * Staff-portal authentication.
@@ -47,29 +48,100 @@ function sign(payload: string): string {
   return createHmac("sha256", secret()).update(payload).digest("base64url");
 }
 
-export function makeSessionToken(personId: number): string {
+/* Session binding (AUTHSEC-02): every token carries a short fingerprint of the
+ * person's password hash. When a staff member changes their password (self-
+ * service or an admin reset) the stored hash rotates, so every token issued
+ * against the OLD hash stops verifying — i.e. "change my password" logs out
+ * the person's other devices, mirroring the admin session-generation control.
+ * We embed only a fingerprint, never the hash itself, so a stolen cookie still
+ * reveals nothing about the password. */
+function sessionFingerprint(passwordHash: string): string {
+  return createHmac("sha256", secret()).update("pw:" + passwordHash).digest("base64url").slice(0, 16);
+}
+
+export function makeSessionToken(personId: number, passwordHash: string): string {
   const exp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
-  const payload = `${personId}.${exp}`;
+  const fp = sessionFingerprint(passwordHash);
+  const payload = `${personId}.${exp}.${fp}`;
   return `${payload}.${sign(payload)}`;
 }
 
-export function parseSessionToken(token: string | undefined): number | null {
+/** Parsed portal token. `fp` is null for legacy (pre-binding) cookies, which
+ *  are still accepted on signature alone so a deploy doesn't force every staff
+ *  member to sign in again; new logins are always bound. */
+export function parseSessionToken(
+  token: string | undefined
+): { personId: number; fp: string | null } | null {
   if (!token) return null;
-  const [id, exp, sig] = token.split(".");
+  const segs = token.split(".");
+  // Bound token: <id>.<exp>.<fp>.<sig>; legacy token: <id>.<exp>.<sig>.
+  let id: string, exp: string, fp: string | null, sig: string;
+  if (segs.length === 4) {
+    [id, exp, fp, sig] = segs;
+  } else if (segs.length === 3) {
+    [id, exp, sig] = segs;
+    fp = null;
+  } else {
+    return null;
+  }
   if (!id || !exp || !sig) return null;
-  const payload = `${id}.${exp}`;
+  const payload = fp === null ? `${id}.${exp}` : `${id}.${exp}.${fp}`;
   const good = sign(payload);
   const a = Buffer.from(sig);
   const b = Buffer.from(good);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   if (Number(exp) < Date.now()) return null;
   const personId = Number(id);
-  return Number.isFinite(personId) ? personId : null;
+  return Number.isFinite(personId) ? { personId, fp } : null;
+}
+
+/** Row shape for a portal-login candidate. */
+export type PortalLoginCandidate = {
+  id: number;
+  portal_password_hash: string | null;
+  active: boolean | null;
+  portal_role: string | null;
+};
+
+/** Resolve a portal-login identifier to a candidate person row, by exact email
+ *  first then exact (case-insensitive) name. The identifier is escaped before
+ *  the ilike so LIKE metacharacters (% _ \) match literally and can never be
+ *  used to authenticate against a person the caller only partially knows, nor
+ *  to probe which staff have portal access (AUTHSEC-01). Only rows that have a
+ *  password set are considered. */
+export async function findPortalPersonByIdentifier(
+  identifier: string
+): Promise<PortalLoginCandidate | null> {
+  const id = identifier.trim();
+  if (!id) return null;
+  const cols = "id,portal_password_hash,active,portal_role";
+  const { data: byEmail } = await sb
+    .from("people")
+    .select(cols)
+    .ilike("email", escapeLike(id))
+    .not("portal_password_hash", "is", null)
+    .maybeSingle();
+  if (byEmail) return byEmail as PortalLoginCandidate;
+  const { data: byName } = await sb
+    .from("people")
+    .select(cols)
+    .ilike("name", escapeLike(id))
+    .not("portal_password_hash", "is", null)
+    .maybeSingle();
+  return (byName as PortalLoginCandidate | null) ?? null;
 }
 
 export async function setSessionCookie(personId: number) {
+  // Bind the new token to the person's current password hash. We read it here so
+  // the call sites (login + passkey) don't need to thread it through.
+  const { data } = await sb
+    .from("people")
+    .select("portal_password_hash")
+    .eq("id", personId)
+    .maybeSingle();
+  const hash = (data?.portal_password_hash as string | null) ?? "";
   const jar = await cookies();
-  jar.set(COOKIE_NAME, makeSessionToken(personId), {
+  jar.set(COOKIE_NAME, makeSessionToken(personId, hash), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -109,9 +181,10 @@ export type PortalPerson = {
  *  access in Settings takes effect immediately. */
 export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   const jar = await cookies();
-  const personId = parseSessionToken(jar.get(COOKIE_NAME)?.value);
+  const parsed = parseSessionToken(jar.get(COOKIE_NAME)?.value);
   // No / expired / tampered token = genuinely not signed in → caller sends to login.
-  if (!personId) return null;
+  if (!parsed) return null;
+  const { personId, fp } = parsed;
 
   // The token IS valid. Now look the person up — but a freshly-woken phone (PWA
   // relaunched from recents → cold serverless + cold PgBouncer connection +
@@ -131,6 +204,12 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
     if (!error) {
       // Genuine "no longer has access": person gone, archived, or access revoked.
       if (!data || !data.active || !data.portal_password_hash) return null;
+      // AUTHSEC-02: a bound token (fp present) must still match the live password
+      // hash — a password change rotates the hash and invalidates other devices.
+      // Legacy tokens (fp === null) predate binding and are grandfathered.
+      if (fp !== null && fp !== sessionFingerprint(data.portal_password_hash as string)) {
+        return null;
+      }
       return {
         id: data.id as number,
         name: data.name as string,
@@ -223,32 +302,45 @@ export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
     sb.from("tasks").select("id").in("owner_id", ids).eq("archived", false),
     companyTasks,
   ]);
+  // The assignee join can surface archived tasks (task_assignees has no archived
+  // flag), so drop any archived ids before returning — archived tasks must never
+  // appear in a staff member's visible set (ACTTASKS-01).
+  const assignedIds = Array.from(new Set((assigned ?? []).map((r) => r.task_id as number)));
+  const liveAssignedIds = assignedIds.length
+    ? new Set(
+        (
+          (await sb.from("tasks").select("id").in("id", assignedIds).eq("archived", false)).data ?? []
+        ).map((r) => r.id as number)
+      )
+    : new Set<number>();
   return Array.from(
     new Set([
-      ...(assigned ?? []).map((r) => r.task_id as number),
+      ...assignedIds.filter((id) => liveAssignedIds.has(id)),
       ...(owned ?? []).map((r) => r.id as number),
       ...(company ?? []).map((r) => r.id as number),
     ])
   );
 }
 
-/** May this portal person see/touch this task? Staff: on the task. Manager:
- *  any non-archived task in their own company, or one a direct report is on.
- *  Director: any non-archived task (they are group-wide operators — matches
- *  visibleTaskIds). */
+/** May this portal person see/touch this task? Staff: on the (non-archived)
+ *  task. Manager: any non-archived task in their own company, or one a direct
+ *  report is on. Director: any non-archived task (they are group-wide operators
+ *  — matches visibleTaskIds). Archived (soft-retired) tasks are never visible to
+ *  any portal role (ACTTASKS-01). */
 export async function personCanSeeTask(person: PortalPerson, taskId: number): Promise<boolean> {
   if (isGroupWide(person.portalRole)) {
     const { data } = await sb.from("tasks").select("archived").eq("id", taskId).maybeSingle();
     return Boolean(data) && data!.archived !== true;
   }
-  if (await personOnTask(person.id, taskId)) return true;
-  if (person.portalRole !== "manager") return false;
   const { data: task } = await sb
     .from("tasks")
     .select("owner_id,company_id,archived")
     .eq("id", taskId)
     .maybeSingle();
+  // Archived tasks are out of view for staff and managers alike.
   if (!task || task.archived === true) return false;
+  if (await personOnTask(person.id, taskId)) return true;
+  if (person.portalRole !== "manager") return false;
   // Any non-archived task in the manager's own company.
   if (person.companyId != null && (task.company_id as number | null) === person.companyId) return true;
   // Or a task a direct report owns / is assigned to (reports may be cross-company).

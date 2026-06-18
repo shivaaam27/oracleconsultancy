@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, jsonb, primaryKey, uniqueIndex, index, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, boolean, timestamp, doublePrecision, numeric, jsonb, primaryKey, uniqueIndex, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -98,7 +98,7 @@ export const people = pgTable("people", {
   role: text("role"),
   companyId: integer("company_id").references(() => companies.id),
   departmentId: integer("department_id").references(() => departments.id),
-  managerId: integer("manager_id"),
+  managerId: integer("manager_id").references((): AnyPgColumn => people.id, { onDelete: "set null" }),
   // Employment start date (org/master data). Stored at UTC midnight (all-day).
   startDate: timestamp("start_date", { mode: "date", withTimezone: true }),
   // HR profile details (all optional; filled manually or auto-filled from intake).
@@ -119,7 +119,7 @@ export const people = pgTable("people", {
   // "outsider" | "candidate". Legacy internal→local_staff, external→outsider.
   personType: text("person_type").notNull().default("local_staff"),
   // Soft self-reference: e.g. an immigration agent → the expat they are helping, or vice-versa.
-  relatedPersonId: integer("related_person_id"),
+  relatedPersonId: integer("related_person_id").references((): AnyPgColumn => people.id, { onDelete: "set null" }),
   // Staff portal sign-in (scrypt hash, set by the owner from Settings).
   // Null hash = no portal access. See src/lib/portal-auth.ts.
   portalPasswordHash: text("portal_password_hash"),
@@ -611,9 +611,9 @@ export const notifications = pgTable("notifications", {
   taskId: integer("task_id").references(() => tasks.id, { onDelete: "cascade" }),
   taskCode: text("task_code"),
   // Chat deep-link target (kind chat / chat_mention). Null for task notifs.
-  threadId: integer("thread_id"),
+  threadId: integer("thread_id").references((): AnyPgColumn => chatThreads.id, { onDelete: "cascade" }),
   // Request deep-link target (kind request). Null for non-request notifs.
-  requestId: integer("request_id"),
+  requestId: integer("request_id").references((): AnyPgColumn => requests.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   body: text("body"),
   actor: text("actor"),
@@ -672,10 +672,10 @@ export const taskUpdates = pgTable("task_updates", {
   pinnedAt: timestamp("pinned_at", { mode: "date", withTimezone: true }),
   /** Reply target: the update this one is answering (one level only — no
    *  nested threads). Null for top-level messages. (T2 conversation.) */
-  parentUpdateId: integer("parent_update_id"),
+  parentUpdateId: integer("parent_update_id").references((): AnyPgColumn => taskUpdates.id, { onDelete: "set null" }),
   /** Optional file attached to this message — stored as a real `documents`
    *  row (so it appears in the Documents centre and is linked to the task). */
-  attachmentDocumentId: integer("attachment_document_id"),
+  attachmentDocumentId: integer("attachment_document_id").references((): AnyPgColumn => documents.id, { onDelete: "set null" }),
 }, (t) => [index("task_updates_task_idx").on(t.taskId)]);
 
 /* ------------------------------------------------------------------ *
@@ -1109,7 +1109,9 @@ export const stockItems = pgTable("stock_items", {
   unit: text("unit"),
   openingStock: integer("opening_stock").notNull().default(0),
   reorderLevel: integer("reorder_level").notNull().default(0),
-  unitCost: doublePrecision("unit_cost").notNull().default(0),
+  // Money — exact decimal (postgres NUMERIC). postgres.js returns this as a
+  // STRING; do money maths in a decimal/minor-units form, never JS float.
+  unitCost: numeric("unit_cost", { precision: 14, scale: 2 }).notNull().default("0"),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
@@ -1122,7 +1124,8 @@ export const stockPurchases = pgTable("stock_purchases", {
   date: timestamp("date", { mode: "date", withTimezone: true }).notNull(),
   itemCode: text("item_code").notNull().references(() => stockItems.code, { onDelete: "cascade" }),
   qty: integer("qty").notNull(),
-  unitCost: doublePrecision("unit_cost").notNull().default(0),
+  // Money — exact decimal (postgres NUMERIC, returned as a STRING by postgres.js).
+  unitCost: numeric("unit_cost", { precision: 14, scale: 2 }).notNull().default("0"),
   supplier: text("supplier"),
   ref: text("ref"), // invoice / PO number
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
@@ -1176,7 +1179,8 @@ export const assets = pgTable("assets", {
   custodianPersonId: integer("custodian_person_id").references(() => people.id, { onDelete: "set null" }),
   assignedAt: timestamp("assigned_at", { mode: "date", withTimezone: true }),
   purchaseDate: timestamp("purchase_date", { mode: "date", withTimezone: true }),
-  purchaseCost: doublePrecision("purchase_cost"),
+  // Money — exact decimal (postgres NUMERIC, returned as a STRING by postgres.js).
+  purchaseCost: numeric("purchase_cost", { precision: 14, scale: 2 }),
   notes: text("notes"),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
@@ -1431,7 +1435,9 @@ export const letters = pgTable("letters", {
   title: text("title").notNull(),
   companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
   personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
-  ref: text("ref"),
+  // Stamped at Issue (PREFIX/INV/YYYY/NNN). UNIQUE so two issued letters can never
+  // share a reference; NULLs (drafts) are not constrained. Allocate via number_series.
+  ref: text("ref").unique(),
   letterDate: timestamp("letter_date", { mode: "date", withTimezone: true }),
   addressee: text("addressee"),
   subject: text("subject"),
@@ -1607,3 +1613,19 @@ export const requestRecipients = pgTable(
     index("request_recipients_person_idx").on(t.personId),
   ]
 );
+
+// Atomic reference/number allocation. Replaces the old COUNT(*)+1 / max-scan
+// numbering (which duplicated or gapped refs and races under concurrency). One
+// row per series, e.g. "letter:DS:INV:2026", "invoice:DS:2026", "request". The
+// next number is reserved by bumping next_val IN A TRANSACTION:
+//
+//   UPDATE number_series SET next_val = next_val + 1
+//   WHERE series_key = $1 RETURNING next_val;   -- (insert the row first if absent)
+//
+// The RETURNING value is the reserved number; the UPDATE's row lock serialises
+// concurrent allocations so two callers never get the same number. Pair with the
+// UNIQUE constraint on the consuming column (e.g. letters.ref) as a backstop.
+export const numberSeries = pgTable("number_series", {
+  seriesKey: text("series_key").primaryKey(),
+  nextVal: integer("next_val").notNull().default(0),
+});

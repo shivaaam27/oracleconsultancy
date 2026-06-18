@@ -1,7 +1,10 @@
 import "server-only";
+import { eq } from "drizzle-orm";
 import { sb } from "@/db/supabase";
+import { withTx } from "./tx";
+import { indexEmbedding } from "./embeddings";
+import { requests, requestUpdates, tasks, taskAssignees } from "@/db/schema";
 import { createNotification, notifyMany, personRecipient } from "./notifications";
-import { insertTaskWithUniqueCodeSb } from "./db-helpers";
 import type { RequestRow, RequestDetail, RequestRecipient, RequestParty, RequestTrends } from "./requests-shared";
 import { REQUEST_CATEGORIES } from "./requests-shared";
 
@@ -382,40 +385,93 @@ export async function convertRequestToTask(input: {
     .eq("id", input.companyId)
     .maybeSingle();
   if (!company) throw new Error("Company not found.");
+  const prefix = (company.code_prefix as string | null) || (company.code as string);
 
   const now = new Date();
-  const task = await insertTaskWithUniqueCodeSb(input.companyId, (company.code_prefix as string | null) || (company.code as string), {
-    actionItem: req.title as string,
-    ownerId: input.accountableId,
-    status: "Not Started",
-    priority: input.priority,
-    deadline: input.deadline && !isNaN(input.deadline.getTime()) ? input.deadline : null,
-    createdDate: now,
-    lastUpdatedAt: now,
-    latestUpdate: (req.body as string | null) || null,
-    archived: false,
-  });
-
-  const rows = [
-    { task_id: task.id, person_id: input.accountableId, role: "accountable" },
+  const deadline = input.deadline && !isNaN(input.deadline.getTime()) ? input.deadline : null;
+  const assigneeRows = [
+    { personId: input.accountableId, role: "accountable" },
     ...input.workingIds
       .filter((id) => id !== input.accountableId)
-      .map((id) => ({ task_id: task.id, person_id: id, role: "working" })),
+      .map((id) => ({ personId: id, role: "working" })),
   ];
-  await sb.from("task_assignees").upsert(rows, { onConflict: "task_id,person_id", ignoreDuplicates: true });
 
-  const nowIso = now.toISOString();
-  await sb
-    .from("requests")
-    .update({ converted_task_id: task.id, status: "in_progress", updated_at: nowIso })
-    .eq("id", input.requestId);
-  await sb.from("request_updates").insert({
-    request_id: input.requestId,
-    body: `Converted to task ${task.code}`,
-    created_at: nowIso,
-    created_by: input.by,
-    kind: "event",
-  });
+  // The whole conversion — task + assignees + request flip + audit event — must
+  // commit together or not at all, so a mid-sequence failure can never leave an
+  // orphaned task or a half-converted request (ACTCOMMS-05). The task-code
+  // allocation (read-max then insert) is a check-then-act, so we retry the WHOLE
+  // transaction on a code collision, relying on the tasks.code UNIQUE backstop.
+  let task: { id: number; code: string } | null = null;
+  for (let attempt = 0; attempt < 5 && !task; attempt++) {
+    try {
+      task = await withTx(async (tx) => {
+        // Re-check inside the transaction so a concurrent convert can't double-spend.
+        const current = await tx
+          .select({ convertedTaskId: requests.convertedTaskId })
+          .from(requests)
+          .where(eq(requests.id, input.requestId));
+        if ((current[0]?.convertedTaskId ?? null) != null) {
+          throw new Error("This request has already been turned into a task.");
+        }
+
+        const existing = await tx
+          .select({ code: tasks.code })
+          .from(tasks)
+          .where(eq(tasks.companyId, input.companyId));
+        let maxNum = 0;
+        for (const row of existing) {
+          const m = row.code.match(/(\d+)$/);
+          if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+        }
+        const code = `${prefix}-${String(maxNum + 1 + attempt).padStart(3, "0")}`;
+
+        const [inserted] = await tx
+          .insert(tasks)
+          .values({
+            code,
+            companyId: input.companyId,
+            actionItem: req.title as string,
+            ownerId: input.accountableId,
+            status: "Not Started",
+            priority: input.priority,
+            deadline,
+            createdDate: now,
+            lastUpdatedAt: now,
+            latestUpdate: (req.body as string | null) || null,
+            archived: false,
+          })
+          .returning({ id: tasks.id, code: tasks.code });
+
+        await tx
+          .insert(taskAssignees)
+          .values(assigneeRows.map((r) => ({ taskId: inserted.id, personId: r.personId, role: r.role })))
+          .onConflictDoNothing();
+
+        await tx
+          .update(requests)
+          .set({ convertedTaskId: inserted.id, status: "in_progress", updatedAt: now })
+          .where(eq(requests.id, input.requestId));
+
+        await tx.insert(requestUpdates).values({
+          requestId: input.requestId,
+          body: `Converted to task ${inserted.code}`,
+          createdAt: now,
+          createdBy: input.by,
+          kind: "event",
+        });
+
+        return { id: inserted.id, code: inserted.code };
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (/duplicate key|unique/i.test(msg)) continue; // code collision — retry
+      throw e;
+    }
+  }
+  if (!task) throw new Error("Could not allocate a unique task code — please try again.");
+
+  // Best-effort side-effects after the atomic commit (mirrors insertTaskWithUniqueCodeSb).
+  void indexEmbedding("task", task.id, req.title as string);
   await notifyDecision(
     input.requestId,
     { code: req.code as string, requester_id: req.requester_id as number | null, from_owner: req.from_owner as boolean },

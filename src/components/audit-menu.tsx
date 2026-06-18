@@ -134,7 +134,7 @@ export function AuditMenu({ entryId, currentReason, deleted = false }: Props) {
 
       {mode === "confirmDelete" && (
         <div className="mt-2 -mx-3 -mb-3 px-3 py-2 bg-danger/5 border-t border-danger/20 flex items-center justify-between gap-2 text-xs">
-          <span className="text-fg">Hide this audit entry? Recoverable from /audit.</span>
+          <span className="text-fg">Delete this audit entry? It is hidden, not erased — recoverable via Restore.</span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"

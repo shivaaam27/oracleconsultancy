@@ -166,11 +166,13 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
   }));
   const companyComplianceScores = await buildCompanyRequirementScores(companies);
   const personComplianceScores = await buildPersonRequirementScores();
-  const complianceRisks = worstComplianceScores([
-    ...companyComplianceScores,
-    ...personComplianceScores,
-  ], 6);
-  const complianceIssues = complianceRisks.reduce((sum, score) => sum + score.missing + score.expired + score.expiring, 0);
+  const allComplianceScores = [...companyComplianceScores, ...personComplianceScores];
+  // `complianceRisks` is the worst-6 truncation used only for the queue/list
+  // display below. The "Compliance issues" headline must count the FULL score
+  // set, otherwise it under-reports once more than 6 owners have gaps and
+  // disagrees with the Director Brief (which lists every non-Good owner).
+  const complianceRisks = worstComplianceScores(allComplianceScores, 6);
+  const complianceIssues = allComplianceScores.reduce((sum, score) => sum + score.missing + score.expired + score.expiring, 0);
   const personTypeById = new Map(people.map((person) => [person.id, person.personType]));
   const personPackNeeds = personComplianceScores
     .filter((score) => score.status !== "Good" && (score.required > 0 || score.monitoredDocuments > 0))

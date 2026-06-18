@@ -505,9 +505,11 @@ export async function findDuplicateDocumentsAction(input: {
     });
   };
   try {
-    // 1. Identical file.
+    // 1. Identical file. Exclude compilation members — they share one stored
+    // file across several legitimately distinct documents, so a hash match there
+    // is not a true duplicate (ACTDOCS-01).
     if (input.fileHash) {
-      const dups = await findDocumentsByHash(input.fileHash, input.excludeId ?? undefined);
+      const dups = await findDocumentsByHash(input.fileHash, input.excludeId ?? undefined, { excludeCompilations: true });
       for (const d of dups) add({ id: d.id, title: d.title, category: d.category, expiry_date: d.expiryDate ? d.expiryDate.toISOString() : null, reminder_lead_days: d.reminderLeadDays, file_name: d.fileName }, "identical-file");
     }
     // 2. Same reference number (a strong identity signal — TIN/cert/serial).
@@ -699,11 +701,12 @@ export async function findExistingDuplicatesAction(): Promise<DuplicateCluster[]
   try {
     const { data } = await supa
       .from("documents")
-      .select("id,title,category,company_id,person_id,reference_no,file_hash,storage_path,file_name,expiry_date,reminder_lead_days,review_status,updated_at")
+      .select("id,title,category,company_id,person_id,reference_no,file_hash,compilation_id,storage_path,file_name,expiry_date,reminder_lead_days,review_status,updated_at")
       .eq("archived", false);
     const rows = (data ?? []) as Array<{
       id: number; title: string; category: string | null; company_id: number | null; person_id: number | null;
-      reference_no: string | null; file_hash: string | null; storage_path: string | null; file_name: string | null;
+      reference_no: string | null; file_hash: string | null; compilation_id: string | null;
+      storage_path: string | null; file_name: string | null;
       expiry_date: string | null; reminder_lead_days: number | null; review_status: string | null; updated_at: string;
     }>;
     if (rows.length < 2) return [];
@@ -718,7 +721,12 @@ export async function findExistingDuplicatesAction(): Promise<DuplicateCluster[]
     const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const groups = new Map<string, { reason: DuplicateCluster["reason"]; rows: typeof rows }>();
     const keyFor = (r: (typeof rows)[number]): { key: string; reason: DuplicateCluster["reason"] } => {
-      if (r.file_hash) return { key: `h:${r.file_hash}`, reason: "identical-file" };
+      // A compilation split stores ONE file shared by several legitimately
+      // distinct documents (passport/CV/contract), so they all carry the same
+      // file_hash. Excluding compilation members from the identical-file signal
+      // stops the sweep offering to archive real, distinct records (ACTDOCS-01);
+      // they can still cluster on reference/title if one is a true duplicate.
+      if (r.file_hash && !r.compilation_id) return { key: `h:${r.file_hash}`, reason: "identical-file" };
       if (r.reference_no && r.reference_no.trim().length >= 4) return { key: `r:${r.reference_no.trim().toLowerCase()}`, reason: "same-reference" };
       const owner = r.person_id ? `p${r.person_id}` : r.company_id ? `c${r.company_id}` : "none";
       return { key: `t:${owner}:${r.category ?? ""}:${norm(r.title)}`, reason: "same-title" };

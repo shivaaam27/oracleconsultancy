@@ -13,15 +13,24 @@ export function fmtLocalDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// Escape LIKE/ILIKE metacharacters (% _ \) so a value used as an `.ilike`
+// pattern matches *literally* — i.e. a case-insensitive EXACT match (DBSPINE-04).
+// Without this, a name like "100%" or "a_b" matches the wrong row.
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+}
+
 export async function getOrCreatePersonSb(
   name: string,
   companyId: number | null
 ): Promise<number> {
   // Case-insensitive exact match so "Jitesh" / "jitesh" never duplicate.
+  // Escape LIKE metacharacters so a name containing % or _ matches literally
+  // (not as a wildcard) and can never resolve to the wrong person (DBSPINE-04).
   const { data: existing, error: e1 } = await sb
     .from("people")
     .select("id")
-    .ilike("name", name)
+    .ilike("name", escapeLike(name))
     .maybeSingle();
   if (e1) throw new Error(e1.message);
   if (existing) return existing.id as number;

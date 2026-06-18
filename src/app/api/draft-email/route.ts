@@ -3,6 +3,7 @@ import { callGroqJson } from "@/lib/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
+import { wrapUntrusted } from "@/lib/prompt-safety";
 
 export const maxDuration = 60;
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     const result = await callGroqJson({
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Draft a follow-up email for this task:\n\n${JSON.stringify(taskContext, null, 2)}` },
+        { role: "user", content: `Draft a follow-up email for this task:\n\n${wrapUntrusted("task data", taskContext)}` },
       ],
       apiKey,
       model: GROQ_FAST,

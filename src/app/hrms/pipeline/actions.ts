@@ -7,32 +7,36 @@ import { type PipelineStage } from "@/lib/pipeline-shared";
 export async function createPipelineItemAction(input: PipelineInput): Promise<{ ok: boolean; error?: string }> {
   if (!input.subject?.trim()) return { ok: false, error: "Add a subject." };
   if (!input.type?.trim()) return { ok: false, error: "Add a type (e.g. Work Permit)." };
-  const id = await createPipelineItem(input);
-  if (!id) return { ok: false, error: "Couldn't save. Try again." };
+  const res = await createPipelineItem(input);
+  if (!res.ok) return { ok: false, error: "Couldn't save the case. Please try again." };
   revalidatePath("/hrms/pipeline");
   return { ok: true };
 }
 
-export async function movePipelineStageAction(id: number, stage: PipelineStage): Promise<{ ok: boolean }> {
-  await setPipelineStage(id, stage);
+export async function movePipelineStageAction(id: number, stage: PipelineStage): Promise<{ ok: boolean; error?: string }> {
+  const res = await setPipelineStage(id, stage);
+  if (!res.ok) return { ok: false, error: "Couldn't move the case. Please try again." };
   revalidatePath("/hrms/pipeline");
   return { ok: true };
 }
 
-export async function updatePipelineItemAction(id: number, patch: Partial<PipelineInput>): Promise<{ ok: boolean }> {
-  await updatePipelineItem(id, patch);
+export async function updatePipelineItemAction(id: number, patch: Partial<PipelineInput>): Promise<{ ok: boolean; error?: string }> {
+  const res = await updatePipelineItem(id, patch);
+  if (!res.ok) return { ok: false, error: "Couldn't save your changes. Please try again." };
   revalidatePath("/hrms/pipeline");
   return { ok: true };
 }
 
-export async function archivePipelineItemAction(id: number): Promise<{ ok: boolean }> {
-  await archivePipelineItem(id, true);
+export async function archivePipelineItemAction(id: number): Promise<{ ok: boolean; error?: string }> {
+  const res = await archivePipelineItem(id, true);
+  if (!res.ok) return { ok: false, error: "Couldn't archive the case. Please try again." };
   revalidatePath("/hrms/pipeline");
   return { ok: true };
 }
 
-export async function linkPipelineDocumentAction(id: number, documentId: number | null): Promise<{ ok: boolean }> {
-  await linkPipelineDocument(id, documentId);
+export async function linkPipelineDocumentAction(id: number, documentId: number | null): Promise<{ ok: boolean; error?: string }> {
+  const res = await linkPipelineDocument(id, documentId);
+  if (!res.ok) return { ok: false, error: "Couldn't link the document. Please try again." };
   revalidatePath("/hrms/pipeline");
   return { ok: true };
 }

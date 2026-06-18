@@ -373,12 +373,14 @@ export async function buildCompanyRequirementScores(
     reqsByCompany.set(cid, list);
   }
 
-  // Auto-link un-actioned rows to saved documents BEFORE scoring — mirror the
-  // per-company getCompanyChecklist reconcile so the bulk scores (Documents
-  // centre / Home / Brief) reflect uploaded documents on first load, not 0%
-  // until someone opens the File tab. Best-effort and persisted (matches the
-  // person side's save-time reconcile).
-  const now = new Date().toISOString();
+  // PURE READ: auto-link un-actioned rows to saved documents IN MEMORY ONLY so
+  // the bulk scores (Documents centre / Home / Brief / cron) reflect uploaded
+  // documents immediately — but DO NOT persist here. These scores are read from
+  // render/GET/cron paths, so writing (link rows + audit inserts) would make a
+  // "read" mutate state and double-write under concurrent renders (ACTDOCS-02).
+  // The persisted auto-link lives at save time only: reconcileOwnerCompliance →
+  // getCompanyChecklist runs on every document create/update/archive, mirroring
+  // the person side. Here we only mirror the same matching so scoring agrees.
   for (const c of companies) {
     const rows = reqsByCompany.get(c.id);
     if (!rows || rows.length === 0) continue;
@@ -403,24 +405,10 @@ export async function buildCompanyRequirementScores(
       const docId = matches.get(r.id as number);
       if (docId == null) continue;
       linkedDocIds.add(docId);
-      // Reflect the new link in the in-memory rows so this run scores correctly.
+      // Reflect the match in the in-memory rows so this run scores correctly.
+      // No DB write — persistence happens at save time (see comment above).
       r.document_id = docId;
       r.status = "received";
-      try {
-        await sb
-          .from("company_requirements")
-          .update({ document_id: docId, status: "received", received_at: now, updated_at: now })
-          .eq("id", r.id as number);
-        await logCompanyRequirementEvent(r.id as number, "linked", {
-          documentId: docId,
-          detail: companyDocs.find((d) => d.id === docId)?.title ?? null,
-          ownerId: c.id,
-          label: r.label as string,
-          createdBy: "auto-link",
-        });
-      } catch {
-        /* never block scoring on a write failure */
-      }
     }
   }
 

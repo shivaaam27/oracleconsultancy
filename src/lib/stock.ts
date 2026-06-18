@@ -3,9 +3,11 @@
 // soft-delete via `archived`). Pure helpers/types live in stock-shared.ts
 // (client-safe) and are re-exported here for convenience.
 
+import { eq, sql } from "drizzle-orm";
 import { sb } from "@/db/supabase";
+import { stockItems, stockPurchases, stockIssues } from "@/db/schema";
+import { withTx } from "@/lib/tx";
 import {
-  currentStock,
   type StockItemRow,
   type PurchaseRow,
   type IssueRow,
@@ -20,6 +22,12 @@ function toIso(v: Date | string | null | undefined): string | null {
   return v instanceof Date ? v.toISOString() : v;
 }
 
+// Money (unit_cost) is numeric(14,2). Write it as a fixed 2-dp decimal STRING so
+// postgres stores the exact value and never an IEEE-754-rounded float (ERPREADY-02).
+function money(v: number | null | undefined): string {
+  return (Number(v) || 0).toFixed(2);
+}
+
 /* ---------------------------------------------------------------------- */
 /* Row mappers                                                            */
 /* ---------------------------------------------------------------------- */
@@ -32,7 +40,8 @@ type ItemDbRow = {
   unit: string | null;
   opening_stock: number;
   reorder_level: number;
-  unit_cost: number;
+  // Money — numeric(14,2); postgres.js returns it as a decimal STRING.
+  unit_cost: string | number;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -44,7 +53,8 @@ type PurchaseDbRow = {
   date: string;
   item_code: string;
   qty: number;
-  unit_cost: number;
+  // Money — numeric(14,2); postgres.js returns it as a decimal STRING.
+  unit_cost: string | number;
   supplier: string | null;
   ref: string | null;
   created_at: string;
@@ -72,7 +82,8 @@ function mapItem(r: ItemDbRow): StockItemRow {
     unit: r.unit,
     openingStock: r.opening_stock,
     reorderLevel: r.reorder_level,
-    unitCost: r.unit_cost,
+    // numeric(14,2) arrives as a string; parse once at the edge.
+    unitCost: Number(r.unit_cost) || 0,
     archived: r.archived,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
@@ -86,7 +97,8 @@ function mapPurchase(r: PurchaseDbRow): PurchaseRow {
     date: new Date(r.date),
     itemCode: r.item_code,
     qty: r.qty,
-    unitCost: r.unit_cost,
+    // numeric(14,2) arrives as a string; parse once at the edge.
+    unitCost: Number(r.unit_cost) || 0,
     supplier: r.supplier,
     ref: r.ref,
     createdAt: new Date(r.created_at),
@@ -180,7 +192,7 @@ export async function createStockItem(
       unit: input.unit ?? null,
       opening_stock: input.openingStock ?? 0,
       reorder_level: input.reorderLevel ?? 0,
-      unit_cost: input.unitCost ?? 0,
+      unit_cost: money(input.unitCost),
       archived: false,
       created_at: now,
       updated_at: now,
@@ -200,7 +212,7 @@ export async function updateStockItem(id: number, patch: Partial<StockItemInput>
   if (patch.unit !== undefined) payload.unit = patch.unit;
   if (patch.openingStock !== undefined) payload.opening_stock = patch.openingStock;
   if (patch.reorderLevel !== undefined) payload.reorder_level = patch.reorderLevel;
-  if (patch.unitCost !== undefined) payload.unit_cost = patch.unitCost;
+  if (patch.unitCost !== undefined) payload.unit_cost = money(patch.unitCost);
   const { error } = await sb.from("stock_items").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
 }
@@ -244,7 +256,7 @@ export async function recordPurchase(
       date: toIso(input.date) ?? now,
       item_code: input.itemCode,
       qty: input.qty,
-      unit_cost: input.unitCost ?? 0,
+      unit_cost: money(input.unitCost),
       supplier: input.supplier ?? null,
       ref: input.ref ?? null,
       created_at: now,
@@ -263,7 +275,7 @@ export async function updatePurchase(id: number, input: PurchaseInput): Promise<
       item_code: input.itemCode,
       qty: input.qty,
       date: toIso(input.date) ?? new Date().toISOString(),
-      unit_cost: input.unitCost ?? 0,
+      unit_cost: money(input.unitCost),
       supplier: input.supplier ?? null,
       ref: input.ref ?? null,
     })
@@ -301,37 +313,63 @@ export class InsufficientStockError extends Error {
  * Record a stock issue (OUT). By default it refuses to take stock negative,
  * matching the README's "block negative stock" rule. Pass `{ allowNegative: true }`
  * to override (e.g. a stock-take correction).
+ *
+ * Atomic (ERPREADY-03 / ACTHRMS-02): the balance check and the insert run in one
+ * transaction with the item row locked (`SELECT ... FOR UPDATE`), so two
+ * concurrent issues can no longer both pass the check and drive stock negative.
  */
 export async function recordIssue(
   input: IssueInput,
   createdBy: string = "web-ui",
   opts?: { allowNegative?: boolean }
 ): Promise<number> {
-  if (!opts?.allowNegative) {
-    const item = (await listStockItems({ includeArchived: true })).find((i) => i.code === input.itemCode);
-    if (item) {
-      const [purchases, issues] = await Promise.all([listPurchases(), listIssues()]);
-      const available = currentStock(item, purchases, issues);
-      if (input.qty > available) throw new InsufficientStockError(available, input.qty);
+  const nowDate = new Date();
+  const issueDate = (() => {
+    const iso = toIso(input.date);
+    return iso ? new Date(iso) : nowDate;
+  })();
+
+  return withTx(async (tx) => {
+    if (!opts?.allowNegative) {
+      // Lock the item row so concurrent issues serialise on the balance check.
+      const [item] = await tx
+        .select({ openingStock: stockItems.openingStock })
+        .from(stockItems)
+        .where(eq(stockItems.code, input.itemCode))
+        .for("update");
+      // Only guard a known item; an unknown code falls through to the insert,
+      // which the FK on item_code will reject anyway.
+      if (item) {
+        const [purchased] = await tx
+          .select({ total: sql<number>`coalesce(sum(${stockPurchases.qty}), 0)` })
+          .from(stockPurchases)
+          .where(eq(stockPurchases.itemCode, input.itemCode));
+        const [issued] = await tx
+          .select({ total: sql<number>`coalesce(sum(${stockIssues.qty}), 0)` })
+          .from(stockIssues)
+          .where(eq(stockIssues.itemCode, input.itemCode));
+        const available =
+          (Number(item.openingStock) || 0) +
+          Number(purchased?.total ?? 0) -
+          Number(issued?.total ?? 0);
+        if (input.qty > available) throw new InsufficientStockError(available, input.qty);
+      }
     }
-  }
-  const now = new Date().toISOString();
-  const { data, error } = await sb
-    .from("stock_issues")
-    .insert({
-      date: toIso(input.date) ?? now,
-      item_code: input.itemCode,
-      qty: input.qty,
-      issued_to: input.issuedTo ?? null,
-      company_id: input.companyId ?? null,
-      notes: input.notes ?? null,
-      created_at: now,
-      created_by: createdBy,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.id as number;
+    const [row] = await tx
+      .insert(stockIssues)
+      .values({
+        date: issueDate,
+        itemCode: input.itemCode,
+        qty: input.qty,
+        issuedTo: input.issuedTo ?? null,
+        companyId: input.companyId ?? null,
+        notes: input.notes ?? null,
+        createdAt: nowDate,
+        createdBy,
+      })
+      .returning({ id: stockIssues.id });
+    return row.id;
+  });
 }
 
 /** Edit an issue. No negative-stock guard here — edits are corrections. */

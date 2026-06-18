@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { MoreHorizontal, Pencil, Pin, PinOff, Trash2, X, Check } from "lucide-react";
-import { editTaskUpdate, deleteTaskUpdate, toggleUpdatePin } from "@/app/task/actions";
+import { MoreHorizontal, Pencil, Pin, PinOff, Trash2, X, Check, RotateCcw } from "lucide-react";
+import { editTaskUpdate, deleteTaskUpdate, restoreTaskUpdate, toggleUpdatePin } from "@/app/task/actions";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { Button } from "./ui";
@@ -14,22 +14,47 @@ type Props = {
   pinned: boolean;
   /** Disables pin action (e.g. on company-wide timelines where pin only matters per-task). */
   showPin?: boolean;
+  /** When true, this update is currently soft-deleted — show a Restore button instead of the menu. */
+  deleted?: boolean;
 };
 
 /**
  * Per-update overflow menu on a timeline item.
  * - Edit: opens inline editor, preserves original body on first save (server side).
  * - Pin / Unpin: toggles tasks_updates.pinned_at; pinned items hoist to top in liftPinnedUpdates.
- * - Delete: soft-delete (sets deleted_at). Confirmed inline.
+ * - Delete: soft-delete (sets deleted_at) — hidden from the timeline but kept for
+ *   the audit trail and recoverable via restoreTaskUpdate. Confirmed inline.
  *
  * Server actions invalidate /task/[code] and update the latest-update mirror.
  */
-export function UpdateMenu({ updateId, body, pinned, showPin = true }: Props) {
+export function UpdateMenu({ updateId, body, pinned, showPin = true, deleted = false }: Props) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"menu" | "edit" | "confirmDelete">("menu");
   const [draft, setDraft] = useState(body);
   const [pending, start] = useTransition();
   const { toast } = useToast();
+
+  const onRestore = () => {
+    start(async () => {
+      const res = await restoreTaskUpdate(updateId);
+      if (res.ok) toast("Update restored.", { tone: "success" });
+      else toast(res.error ?? "Couldn't restore.", { tone: "danger" });
+    });
+  };
+
+  // Soft-deleted updates only offer Restore (shown in the "Recently removed" surface).
+  if (deleted) {
+    return (
+      <button
+        type="button"
+        onClick={onRestore}
+        disabled={pending}
+        className="inline-flex items-center gap-1 text-[11px] text-fg-subtle hover:text-accent disabled:opacity-50"
+      >
+        <RotateCcw size={12} /> Restore
+      </button>
+    );
+  }
 
   const close = () => {
     setMode("menu");
@@ -147,7 +172,7 @@ export function UpdateMenu({ updateId, body, pinned, showPin = true }: Props) {
 
       {mode === "confirmDelete" && (
         <div className="mt-2 -mx-3 -mb-3 px-3 py-2 bg-danger/5 border-t border-danger/20 flex items-center justify-between gap-2 text-xs">
-          <span className="text-fg">Remove this update? Audit-logged for history.</span>
+          <span className="text-fg">Remove this update? It is hidden from the timeline but kept on the record, not erased.</span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"

@@ -3,6 +3,10 @@ import type { Commitment, CommitmentKind } from "@/lib/commitments-shared";
 
 export type { Commitment } from "@/lib/commitments-shared";
 
+// Mirror the assets.ts/stock.ts pattern: a write either succeeds or reports the
+// DB error, so a failed write can never be mistaken for success (ACTHRMS-05).
+export type WriteResult = { ok: true } | { ok: false; error: string };
+
 const COLS = "id,kind,company_id,title,counterparty,reference,start_date,end_date,notice_days,amount,status,note,document_id";
 
 function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): Commitment {
@@ -26,8 +30,10 @@ function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): Comm
 }
 
 /** Link (or unlink) a supporting document to a commitment. */
-export async function linkCommitmentDocument(id: number, documentId: number | null): Promise<void> {
-  await sb.from("commitments").update({ document_id: documentId, updated_at: new Date().toISOString() }).eq("id", id);
+export async function linkCommitmentDocument(id: number, documentId: number | null): Promise<WriteResult> {
+  const { error } = await sb.from("commitments").update({ document_id: documentId, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 /** All live commitments (not archived). */
@@ -56,7 +62,10 @@ export type CommitmentInput = {
 
 const toIso = (v: Date | string | null | undefined) => (v == null || v === "" ? null : v instanceof Date ? v.toISOString() : new Date(v).toISOString());
 
-export async function createCommitment(input: CommitmentInput, createdBy = "web-ui"): Promise<number | null> {
+export async function createCommitment(
+  input: CommitmentInput,
+  createdBy = "web-ui",
+): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   const now = new Date().toISOString();
   const { data, error } = await sb.from("commitments").insert({
     kind: input.kind,
@@ -74,11 +83,11 @@ export async function createCommitment(input: CommitmentInput, createdBy = "web-
     updated_at: now,
     created_by: createdBy,
   }).select("id").single();
-  if (error || !data) return null;
-  return data.id as number;
+  if (error || !data) return { ok: false, error: error?.message ?? "Insert returned no row." };
+  return { ok: true, id: data.id as number };
 }
 
-export async function updateCommitment(id: number, patch: Partial<CommitmentInput>): Promise<void> {
+export async function updateCommitment(id: number, patch: Partial<CommitmentInput>): Promise<WriteResult> {
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.kind !== undefined) payload.kind = patch.kind;
   if (patch.companyId !== undefined) payload.company_id = patch.companyId;
@@ -91,9 +100,13 @@ export async function updateCommitment(id: number, patch: Partial<CommitmentInpu
   if (patch.amount !== undefined) payload.amount = patch.amount;
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.note !== undefined) payload.note = patch.note;
-  await sb.from("commitments").update(payload).eq("id", id);
+  const { error } = await sb.from("commitments").update(payload).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
-export async function archiveCommitment(id: number, archived = true): Promise<void> {
-  await sb.from("commitments").update({ archived, updated_at: new Date().toISOString() }).eq("id", id);
+export async function archiveCommitment(id: number, archived = true): Promise<WriteResult> {
+  const { error } = await sb.from("commitments").update({ archived, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }

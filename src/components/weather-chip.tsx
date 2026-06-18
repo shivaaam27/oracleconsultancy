@@ -80,27 +80,3 @@ export function WeatherWidget({ city, lat, lon }: { city: string; lat: number; l
     </div>
   );
 }
-
-/** Compact live time + weather chip (kept for other pages' heros). */
-export function WeatherChip({ city, lat, lon }: { city: string; lat: number; lon: number }) {
-  const { weather, hh, mm } = useClockWeather(lat, lon);
-  const W = weather?.Icon;
-
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full bg-bg-elev/60 px-3 py-1.5 text-xs ring-1 ring-border/60 backdrop-blur-sm">
-      <span className="tabular font-semibold leading-none">
-        {hh}<span className="animate-pulse text-fg-muted">:</span>{mm}
-      </span>
-      {weather && W && (
-        <>
-          <span className="h-3 w-px bg-border/70" />
-          <span className="inline-flex items-center gap-1 text-accent">
-            <W size={14} strokeWidth={2} />
-            <span className="tabular font-semibold text-fg">{weather.temp}°</span>
-          </span>
-        </>
-      )}
-      <span className="hidden text-fg-muted sm:inline">· {city}</span>
-    </div>
-  );
-}
