@@ -3,8 +3,14 @@
 The first step of the ERP build: fix the audit blockers (`memory/audit_pre_erp_jun2026.md`)
 so the codebase is safe to build a finance ledger on. Done as a multi-agent workflow
 (run wf_ce916af7-c07: 2 foundation agents + 12 disjoint-file lanes + dead-code pass)
-then a manual integration gate. **All on branch `phase0-erp-hardening` — NOT pushed,
-live DB NOT migrated.** tsc clean, `npm run build` green, 48/48 vitest pass.
+then a manual integration gate. tsc clean, `npm run build` green, 48/48 vitest pass.
+
+**STATUS: SHIPPED (2026-06-18).** Merged to master + pushed (commits dad9a7d Phase 0,
+b955569 docs); Vercel auto-deploys. **Migration 0086 APPLIED to the live DB** (backup taken:
+`backups/2026-06-18T22-53-34Z`; pre-flight via `scripts/phase0-preflight.ts` found the data
+fully clean — 0 orphans/0 dup refs; verified numeric money cols + number_series + UNIQUE +
+6 FKs live). Show-deleted/Restore surface added (audit + task updates, "Recently removed" in
+the company Timeline tab).
 
 ## What was fixed (by theme)
 
