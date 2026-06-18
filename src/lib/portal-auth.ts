@@ -16,7 +16,9 @@ import { sb } from "@/db/supabase";
  * ------------------------------------------------------------------ */
 
 const COOKIE_NAME = "cos_portal";
-const SESSION_DAYS = 30;
+// 60 days, matching the admin session — long enough that staff aren't logged
+// out between normal visits.
+const SESSION_DAYS = 60;
 
 function secret(): string {
   // Dedicated secret if set; otherwise derive from the DB URL so it is

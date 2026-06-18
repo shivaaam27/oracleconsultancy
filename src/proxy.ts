@@ -21,6 +21,19 @@ function b64url(bytes: ArrayBuffer): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// Session length must match src/lib/admin-auth.ts (SESSION_DAYS = 60).
+const SESSION_DAYS = 60;
+// Re-stamp the cookie once it's past the halfway mark, so an actively-used
+// session slides forward and never hits the hard expiry.
+const REFRESH_AFTER_MS = (SESSION_DAYS / 2) * 24 * 60 * 60 * 1000;
+
+async function signAdmin(payload: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret()), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  return b64url(mac);
+}
+
 /* Current session generation, fetched from the settings table via the
  * Supabase REST API (edge runtime — no DB driver here) and cached for a
  * minute. Changing the owner password bumps the generation, so cookies on
@@ -79,8 +92,33 @@ async function isValidAdminToken(token: string | undefined): Promise<boolean> {
 }
 
 export async function proxy(req: NextRequest) {
-  const ok = await isValidAdminToken(req.cookies.get("cos_admin")?.value);
-  if (ok) return NextResponse.next();
+  const token = req.cookies.get("cos_admin")?.value;
+  const ok = await isValidAdminToken(token);
+  if (ok) {
+    const res = NextResponse.next();
+    // Sliding expiry: if this valid session is over halfway to expiry, re-issue
+    // it with a fresh window so a regular user is never logged out mid-use.
+    // Best-effort — any hiccup just leaves the existing cookie untouched.
+    try {
+      const [tag, gen, exp] = (token as string).split(".");
+      const remaining = Number(exp) - Date.now();
+      if (tag === "admin" && gen && remaining > 0 && remaining < REFRESH_AFTER_MS) {
+        const newExp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
+        const payload = `admin.${gen}.${newExp}`;
+        const fresh = `${payload}.${await signAdmin(payload)}`;
+        res.cookies.set("cos_admin", fresh, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          maxAge: SESSION_DAYS * 24 * 60 * 60,
+        });
+      }
+    } catch {
+      /* leave the cookie as-is */
+    }
+    return res;
+  }
   const url = req.nextUrl.clone();
   url.pathname = "/login";
   url.search = "";
