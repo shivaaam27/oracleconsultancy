@@ -110,29 +110,57 @@ export type PortalPerson = {
 export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   const jar = await cookies();
   const personId = parseSessionToken(jar.get(COOKIE_NAME)?.value);
+  // No / expired / tampered token = genuinely not signed in → caller sends to login.
   if (!personId) return null;
-  const { data, error } = await sb
-    .from("people")
-    .select("id,name,email,role,company_id,active,portal_password_hash,portal_role")
-    .eq("id", personId)
-    .maybeSingle();
-  if (error || !data) return null;
-  if (!data.active || !data.portal_password_hash) return null;
-  return {
-    id: data.id as number,
-    name: data.name as string,
-    email: (data.email as string | null) ?? null,
-    role: (data.role as string | null) ?? null,
-    companyId: (data.company_id as number | null) ?? null,
-    portalRole:
-      data.portal_role === "manager"
-        ? "manager"
-        : data.portal_role === "hr"
-          ? "hr"
-          : data.portal_role === "director"
-            ? "director"
-            : "staff",
-  };
+
+  // The token IS valid. Now look the person up — but a freshly-woken phone (PWA
+  // relaunched from recents → cold serverless + cold PgBouncer connection +
+  // network re-establishing) can fail the FIRST query. Treating that DB blip as
+  // "logged out" was bouncing staff to /login on every relaunch even though
+  // their 60-day session was perfectly fine. So: retry transient errors, and
+  // only after they persist do we give up. A DB *error* is never a logout — it's
+  // "try again"; only a missing/inactive person (no error) means sign out.
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await sb
+      .from("people")
+      .select("id,name,email,role,company_id,active,portal_password_hash,portal_role")
+      .eq("id", personId)
+      .maybeSingle();
+
+    if (!error) {
+      // Genuine "no longer has access": person gone, archived, or access revoked.
+      if (!data || !data.active || !data.portal_password_hash) return null;
+      return {
+        id: data.id as number,
+        name: data.name as string,
+        email: (data.email as string | null) ?? null,
+        role: (data.role as string | null) ?? null,
+        companyId: (data.company_id as number | null) ?? null,
+        portalRole:
+          data.portal_role === "manager"
+            ? "manager"
+            : data.portal_role === "hr"
+              ? "hr"
+              : data.portal_role === "director"
+                ? "director"
+                : "staff",
+      };
+    }
+
+    lastError = error;
+    // Small backoff before retrying (150ms, 300ms) — enough for a cold pooler
+    // connection to come up without making the page feel slow.
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+  }
+
+  // Valid session, but the database stayed unreachable across retries. Do NOT
+  // return null here — that would force a false logout. Throw so the portal
+  // error boundary shows a transient "couldn't load, try again" state with the
+  // session cookie intact, instead of dumping the user back to the login screen.
+  throw new Error(
+    `getPortalPerson: people lookup failed for valid session (person ${personId}): ${String(lastError)}`
+  );
 });
 
 /** Direct reports of a manager: primary line (people.manager_id) plus any
