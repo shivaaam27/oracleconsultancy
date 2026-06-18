@@ -155,6 +155,15 @@ dots/text not blocks · glanceable, every-number-a-door, observe + act. Reuse th
 exists. **Full reference + "how to apply Aurora to a new page/popup/search/feature":
 `DESIGN_SYSTEM.md` — keep it updated.**
 
+## Onboarding tours (PLANNED — see `memory/onboarding_tours.md`)
+
+Guided first-run walkthroughs + ongoing feature spotlights for the portals/admin
+(in-house Aurora component, `tours`/`tour_completions` tables; not built yet).
+**Forward rule:** when you add a user-facing button/panel, give it a stable
+`data-tour="<name>"` tag. If the feature is notable, add one `spotlight` row to
+the `tours` table (new `version`, today's `active_from`) so it self-guides once
+per person. Adding a guide = inserting a DB row, no engine change.
+
 ## Reusable UI (June 2026)
 
 - **`components/combobox.tsx`** — typeable, app-anchored dropdown that also accepts new values; **replaced all native `<datalist>`** (their popup mis-rendered). Used for person Department/Work site/Residence/Role, bulk Set-department, asset Category, note Folder.

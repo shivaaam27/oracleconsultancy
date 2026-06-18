@@ -7,7 +7,10 @@ import { PortalInstallPrompt } from "@/components/portal-install-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
+import { audienceForRole, unseenToursFor } from "@/lib/tours";
+import { TourRunner } from "@/components/tour-guide";
 import { portalLogout } from "../actions";
+import { portalMarkTourSeen } from "../tour-actions";
 
 // Staff who install from the portal get a portal-scoped app: portal start_url
 // and portal shortcuts (My tasks / Messages / My profile) instead of the admin
@@ -39,6 +42,10 @@ export default async function PortalLayout({ children }: { children: React.React
   } catch {
     takeovers = [];
   }
+
+  // Unseen guided tours for this person (first-run walkthrough / feature
+  // spotlights). Best-effort — never blocks the page.
+  const tours = await unseenToursFor(audienceForRole(me.portalRole), me.id);
 
   // Everyone gets the room on a large screen (mobile/tablet keep the focused
   // max-w-3xl). Directors stay widest for their two-column board.
@@ -72,6 +79,7 @@ export default async function PortalLayout({ children }: { children: React.React
       {children}
       <PortalPill canCreate={me.portalRole !== "staff"} role={me.portalRole} />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
+      {tours.length > 0 && <TourRunner tours={tours} onSeen={portalMarkTourSeen} />}
     </div>
   );
 }

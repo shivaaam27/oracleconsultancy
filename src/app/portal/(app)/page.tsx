@@ -239,6 +239,7 @@ export default async function PortalHome() {
       </Reveal>
 
       <Reveal delay={0.03}>
+        <div data-tour="attendance-checkin">
         <Panel className="flex items-center gap-3 p-3.5">
           <span className="relative inline-flex h-2.5 w-2.5 shrink-0 items-center justify-center">
             {present && (
@@ -262,6 +263,7 @@ export default async function PortalHome() {
             })}
           </div>
         </Panel>
+        </div>
       </Reveal>
 
       {/* My tasks — filter row + master-detail (web) / card list (mobile). The

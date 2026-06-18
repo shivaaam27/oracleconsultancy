@@ -60,9 +60,9 @@ function useCondenseOnScroll(enabled: boolean): boolean {
   return compact;
 }
 
-function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean }) {
+function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce, tourTag }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean; tourTag?: string }) {
   return (
-    <Link href={href} aria-label={label} title={label} className="relative shrink-0 outline-none">
+    <Link href={href} aria-label={label} title={label} data-tour={tourTag} className="relative shrink-0 outline-none">
       {active && (
         reduce ? (
           <span className="absolute inset-0 rounded-full bg-accent-soft" />
@@ -146,12 +146,12 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
           {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} />}
           {/* Directors are board-first (/portal redirects them to /portal/board),
               so a Home tab is redundant for them — show it for everyone else. */}
-          {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} />}
+          {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} tourTag="nav-home" />}
           {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} labelled={labelFor(onTasks)} reduce={reduce} />}
-          <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} />
+          <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} tourTag="nav-requests" />
           <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} />
-          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} />
-          <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} />
+          <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} tourTag="nav-chat" />
+          <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} tourTag="nav-profile" />
         </div>
         {/* Tasks + Requests carry their own contextual + FAB (quick add / raise
             a request), so the pill's create button steps aside there to avoid a
