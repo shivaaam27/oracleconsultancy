@@ -1,0 +1,64 @@
+{
+  "id": "/portal",
+  "name": "Oracle Consultancy — Staff",
+  "short_name": "Oracle Staff",
+  "description": "Your tasks, leave, attendance and updates",
+  "lang": "en-GB",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "start_url": "/portal",
+  "scope": "/portal",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My tasks",
+      "short_name": "Tasks",
+      "description": "Your assigned tasks",
+      "url": "/portal",
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+      ]
+    },
+    {
+      "name": "Messages",
+      "short_name": "Chat",
+      "description": "Open your messages",
+      "url": "/portal/chat",
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+      ]
+    },
+    {
+      "name": "My profile",
+      "short_name": "Profile",
+      "description": "Attendance, leave and documents",
+      "url": "/portal/profile",
+      "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+      ]
+    }
+  ]
+}

@@ -1,11 +1,21 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { PortalPill } from "@/components/portal-pill";
 import { NotificationBell } from "@/components/notification-bell";
+import { PortalInstallPrompt } from "@/components/portal-install-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
 import { portalLogout } from "../actions";
+
+// Staff who install from the portal get a portal-scoped app: portal start_url
+// and portal shortcuts (My tasks / Messages / My profile) instead of the admin
+// ones. Overrides the root manifest for /portal/(app) routes only.
+export const metadata: Metadata = {
+  manifest: "/portal.webmanifest",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Oracle Staff" },
+};
 
 /* Guarded shell for every staff-portal page. No admin chrome here — the
  * portal has its own minimal header + its own bottom pill (PortalPill);
@@ -58,6 +68,7 @@ export default async function PortalLayout({ children }: { children: React.React
           </button>
         </form>
       </header>
+      <PortalInstallPrompt />
       {children}
       <PortalPill canCreate={me.portalRole !== "staff"} role={me.portalRole} />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
