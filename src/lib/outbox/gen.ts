@@ -149,20 +149,12 @@ export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?
   ].join("\n");
 }
 
-/** Overdue time in whole days, e.g. "3 days overdue" / "1 day overdue". */
-function overdueLabel(t: TaskRow): string {
-  const d = Math.abs(Math.round(Number(t.daysToDeadline)));
-  return `${d} day${d === 1 ? "" : "s"} overdue`;
-}
-
 /**
- * DETAILED WhatsApp summary for ONE person — every open task they're on, grouped
- * by company, with the full context a director asked for: title, status, priority,
- * deadline, overdue time, who's responsible, the description and the latest update.
- * This is the rich "here's everything on your plate" message (distinct from the
- * short buildWhatsAppManualMessage nudge). Sent via wa.me (manual tap-send), so the
- * description/update are one-line-clamped to keep the link usable; the reminder link
- * goes LAST so WhatsApp still renders the live preview card.
+ * WhatsApp summary for ONE person — every open task they're on, grouped by company.
+ * Per task: title, a compact Status · Priority · Due line, who's responsible (first
+ * names) and the latest update. (Distinct from the short buildWhatsAppManualMessage
+ * nudge.) Sent via wa.me (manual tap-send), so the update is one-line-clamped to keep
+ * the link usable; the reminder link goes LAST so WhatsApp renders the preview card.
  */
 export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: string): string {
   const first = name.split(" ")[0] || name;
@@ -183,11 +175,11 @@ export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: 
     lines.push(`*${company}*`);
     for (const t of list) {
       lines.push(`*${t.actionItem}*`);
-      lines.push(`Status: ${t.status} · Priority: ${t.priority}`);
-      lines.push(`Due: ${fmtDate(t.deadline)}${isOverdue(t) ? ` · ⚠️ ${overdueLabel(t)}` : ""}`);
-      const who = t.assignees.filter(Boolean);
+      const meta = [`Status: ${t.status}`, `Priority: ${t.priority}`];
+      if (t.deadline) meta.push(`Due: ${fmtDate(t.deadline)}`);
+      lines.push(meta.join(" · "));
+      const who = t.assignees.filter(Boolean).map((a) => a.split(" ")[0]);
       if (who.length) lines.push(`Responsible: ${who.join(", ")}`);
-      if (t.comments && t.comments.trim()) lines.push(`About: ${oneLine(t.comments, 100)}`);
       if (t.latestUpdate && t.latestUpdate.trim()) lines.push(`Latest: ${oneLine(t.latestUpdate, 100)}`);
       lines.push("");
     }
