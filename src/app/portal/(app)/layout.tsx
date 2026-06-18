@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { PortalPill } from "@/components/portal-pill";
+import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
@@ -76,7 +77,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </form>
       </header>
       <PortalInstallPrompt />
-      {children}
+      <PageTransition>{children}</PageTransition>
       <PortalPill canCreate={me.portalRole !== "staff"} role={me.portalRole} />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
       <TourRunner tours={tours} onSeen={portalMarkTourSeen} fetchReplay={portalGetTour} />
