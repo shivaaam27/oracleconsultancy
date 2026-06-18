@@ -255,8 +255,10 @@ export async function portalCreateTask(
   });
 
   revalidatePath("/portal");
+  revalidatePath("/portal/tasks");
   revalidatePath("/");
-  redirect(`/portal/task/${task.code}`);
+  // Don't redirect — the quick-add form shows a "notify {assignee}?" step on success.
+  return null;
 }
 
 /* ----------------------------------------------------------------------
@@ -548,8 +550,11 @@ export async function portalDirectorCreateTask(
   });
 
   revalidatePath("/portal/board");
+  revalidatePath("/portal/tasks");
   revalidatePath("/");
-  redirect(`/portal/board?created=${task.code}`);
+  // Don't redirect — the form shows a "notify {assignee}?" step on success, so it
+  // must stay mounted. (Redirecting here unmounted it and broke that step.)
+  return null;
 }
 
 /* ----------------------------------------------------------------------
