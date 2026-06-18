@@ -27,6 +27,7 @@ import { getJourney } from "@/lib/onboarding";
 import { assetsForPerson } from "@/lib/assets";
 import { staffIdFor } from "@/lib/staff-id";
 import { portalLogout } from "../../actions";
+import { BriefPdfButton } from "@/components/brief-pdf-button";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,9 @@ export default async function PortalProfile() {
               <span className="inline-flex items-center rounded-full bg-bg-subtle/70 px-2 py-0.5 text-[11px] font-medium tabular text-fg-muted ring-1 ring-border/60">
                 {staffId}
               </span>
+            )}
+            {isDirector && (
+              <BriefPdfButton href="/api/portal/brief-pdf" label="Download PDF" size="xs" />
             )}
           </div>
         </Hero>
