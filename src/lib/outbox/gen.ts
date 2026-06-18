@@ -149,6 +149,54 @@ export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?
   ].join("\n");
 }
 
+/** Overdue time in whole days, e.g. "3 days overdue" / "1 day overdue". */
+function overdueLabel(t: TaskRow): string {
+  const d = Math.abs(Math.round(Number(t.daysToDeadline)));
+  return `${d} day${d === 1 ? "" : "s"} overdue`;
+}
+
+/**
+ * DETAILED WhatsApp summary for ONE person — every open task they're on, grouped
+ * by company, with the full context a director asked for: title, status, priority,
+ * deadline, overdue time, who's responsible, the description and the latest update.
+ * This is the rich "here's everything on your plate" message (distinct from the
+ * short buildWhatsAppManualMessage nudge). Sent via wa.me (manual tap-send), so the
+ * description/update are one-line-clamped to keep the link usable; the reminder link
+ * goes LAST so WhatsApp still renders the live preview card.
+ */
+export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: string): string {
+  const first = name.split(" ")[0] || name;
+  const overdueCount = tasks.filter(isOverdue).length;
+
+  const groups = new Map<string, TaskRow[]>();
+  for (const t of tasks) {
+    const list = groups.get(t.companyName);
+    if (list) list.push(t); else groups.set(t.companyName, [t]);
+  }
+  for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
+
+  const lines: string[] = [
+    `Hi ${first}, here's a summary of your ${tasks.length} open task${tasks.length === 1 ? "" : "s"}${overdueCount ? ` (${overdueCount} overdue)` : ""}:`,
+    "",
+  ];
+  for (const [company, list] of groups) {
+    lines.push(`*${company}*`);
+    for (const t of list) {
+      lines.push(`*${t.actionItem}*`);
+      lines.push(`Status: ${t.status} · Priority: ${t.priority}`);
+      lines.push(`Due: ${fmtDate(t.deadline)}${isOverdue(t) ? ` · ⚠️ ${overdueLabel(t)}` : ""}`);
+      const who = t.assignees.filter(Boolean);
+      if (who.length) lines.push(`Responsible: ${who.join(", ")}`);
+      if (t.comments && t.comments.trim()) lines.push(`About: ${oneLine(t.comments, 100)}`);
+      if (t.latestUpdate && t.latestUpdate.trim()) lines.push(`Latest: ${oneLine(t.latestUpdate, 100)}`);
+      lines.push("");
+    }
+  }
+  lines.push("Please update the tracker when you can. Thank you.");
+  if (link) lines.push(link);
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function buildEmailMessage(name: string, tasks: TaskRow[]): string {
   return buildReminder(name, tasks, (s) => s); // email shows literal asterisks — keep plain
 }

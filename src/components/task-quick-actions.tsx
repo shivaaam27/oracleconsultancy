@@ -4,17 +4,19 @@ import { useState, useTransition } from "react";
 import { MessageSquarePlus, Bell, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "./toast";
 import { CompleteTaskSheet } from "./complete-task-sheet";
+import { NotifyPerson } from "./notify-person";
 import { portalRemindTask } from "@/app/portal/actions";
 
 /* The per-task page quick-action bar: jump to posting an update, complete the
  * task through the secure gate (note required + proof if the task needs it),
  * and — for management — draft a reminder to the owner. */
 export function TaskQuickActions({
-  taskId, code, ownerName, canRemind, canComplete, requiresAttachment = false,
+  taskId, code, ownerName, ownerId = null, canRemind, canComplete, requiresAttachment = false,
 }: {
   taskId: number;
   code: string;
   ownerName: string | null;
+  ownerId?: number | null;
   canRemind: boolean;
   canComplete: boolean;
   requiresAttachment?: boolean;
@@ -64,6 +66,13 @@ export function TaskQuickActions({
       )}
 
       <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={taskId} code={code} requiresAttachment={requiresAttachment} />
+
+      {canRemind && ownerId != null && (
+        <div className="w-full border-t border-border/50 pt-3">
+          <p className="mb-2 text-[11px] text-fg-muted">Send {(ownerName ?? "them").split(" ")[0]} a summary of all their open tasks</p>
+          <NotifyPerson personId={ownerId} name={ownerName ?? "this person"} size="sm" />
+        </div>
+      )}
     </div>
   );
 }

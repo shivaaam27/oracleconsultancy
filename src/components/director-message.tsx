@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { MessageSquarePlus, Loader2, Send, ExternalLink, Bell, Check } from "lucide-react";
-import Link from "next/link";
+import { MessageSquarePlus, Loader2, Send, Bell } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
+import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { channelLabel } from "@/lib/outbox/links";
 import { useToast } from "./toast";
 import { portalDirectorDraftMessage } from "@/app/portal/actions";
 
@@ -12,6 +13,7 @@ type Reminder = { taskCode: string; title: string; personId: number; personName:
 
 const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
 const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+const selectBtn = "bare-field flex w-full items-center justify-between rounded-xl ring-1 ring-border px-3.5 py-3 text-sm";
 
 const CHANNELS = [
   { value: "", label: "Auto" },
@@ -20,9 +22,9 @@ const CHANNELS = [
   { value: "SMS", label: "SMS" },
 ] as const;
 
-/** Director: draft a reminder/message (Outbox) + one-tap deep-link to send, in
- *  an iPhone bottom-sheet. Defaults to a task's assignee when started from a
- *  quick-reminder chip; otherwise the director picks the recipient. */
+/** Director: message any person. Picks the recipient + channel, then "Send" opens
+ *  the message PRE-FILLED in WhatsApp / email / SMS for a one-tap manual send (the
+ *  same wa.me flow used elsewhere) and logs an owner-visible Outbox record. */
 export function DirectorMessage({
   people, reminders = [], open: controlledOpen, onOpenChange, seedBody,
 }: {
@@ -37,12 +39,12 @@ export function DirectorMessage({
   const [personId, setPersonId] = useState<string>("");
   const [channel, setChannel] = useState<string>("");
   const [body, setBody] = useState("");
-  const [result, setResult] = useState<{ link: string | null; contactMissing: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
 
+  const peopleOptions: FluidOption[] = people.map((p) => ({ value: String(p.id), label: p.name }));
+
   function openFor(r?: Reminder) {
-    setResult(null);
     if (r) {
       setPersonId(String(r.personId));
       setBody(`Hi ${r.personName.split(" ")[0]}, a reminder on "${r.title}" (${r.taskCode}) — please update when you can. Thank you.`);
@@ -51,13 +53,12 @@ export function DirectorMessage({
   }
 
   function reset() {
-    setResult(null); setBody(""); setPersonId(""); setChannel("");
+    setBody(""); setPersonId(""); setChannel("");
   }
 
-  // When the board's smart bar opens this in controlled mode, prime the textarea
-  // with the typed text.
+  // When the board's smart bar opens this in controlled mode, prime the textarea.
   useEffect(() => {
-    if (isControlled && open && seedBody !== undefined) { setBody(seedBody); setResult(null); }
+    if (isControlled && open && seedBody !== undefined) setBody(seedBody);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isControlled]);
 
@@ -65,13 +66,20 @@ export function DirectorMessage({
     const pid = Number(personId);
     if (!Number.isFinite(pid) || pid <= 0) { toast("Choose a recipient.", { tone: "warn" }); return; }
     if (!body.trim()) { toast("Write a message.", { tone: "warn" }); return; }
+    const name = (people.find((p) => p.id === pid)?.name ?? "the recipient").split(" ")[0];
     setBusy(true);
     startTransition(async () => {
       const res = await portalDirectorDraftMessage({ personId: pid, channel: (channel || undefined) as "WHATSAPP" | "EMAIL" | "SMS" | undefined, body });
       setBusy(false);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      setResult({ link: res.link, contactMissing: res.contactMissing });
-      toast("Saved to Outbox.", { tone: "success" });
+      if (res.link) {
+        // Open the pre-filled message for a one-tap manual send (WhatsApp/email/SMS).
+        window.open(res.link, "_blank", "noreferrer");
+        toast(`Opened ${channelLabel(res.channel)} for ${name}. Saved to Outbox.`, { tone: "success" });
+        setOpen(false); reset();
+      } else {
+        toast(`No ${channel ? channelLabel(channel as "WHATSAPP" | "EMAIL" | "SMS") + " contact" : "contact"} on file for ${name}. Saved to Outbox to send later.`, { tone: "warn" });
+      }
     });
   }
 
@@ -109,86 +117,44 @@ export function DirectorMessage({
         title="Send a message"
         icon={<MessageSquarePlus size={17} />}
         footer={
-          result ? (
-            <div className="flex items-center gap-2">
-              {result.link && (
-                <a
-                  href={result.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98]"
-                >
-                  <Send size={15} /> Send now
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={reset}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-bg-subtle px-4 py-3 text-sm font-medium text-fg ring-1 ring-border transition-transform active:scale-95"
-              >
-                New
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={submit}
-              disabled={busy}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
-            >
-              {busy ? <Loader2 size={16} className="animate-spin" /> : <MessageSquarePlus size={16} />} Draft message
-            </button>
-          )
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Send message
+          </button>
         }
       >
-        {result ? (
-          <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success">
-              <Check size={22} />
-            </span>
-            <div>
-              <p className="text-sm font-medium">Saved to Outbox</p>
-              <p className="mt-0.5 text-xs text-fg-muted">
-                {result.contactMissing ? "No contact saved for this person yet — add one to send." : "Tap “Send now” to open it in your messaging app."}
-              </p>
-            </div>
-            <Link href="/outbox" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
-              <ExternalLink size={13} /> Open Outbox
-            </Link>
+        <div className="flex flex-col gap-3.5">
+          <div>
+            <label className={fieldLabel}>Recipient</label>
+            <FluidSelect value={personId} options={peopleOptions} placeholder="Choose a person…" onSelect={setPersonId} buttonClassName={selectBtn} />
           </div>
-        ) : (
-          <div className="flex flex-col gap-3.5">
-            <div>
-              <label className={fieldLabel}>Recipient</label>
-              <select value={personId} onChange={(e) => setPersonId(e.target.value)} className={inputCls}>
-                <option value="" disabled>Choose a person…</option>
-                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={fieldLabel}>Channel</label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {CHANNELS.map((c) => {
-                  const active = channel === c.value;
-                  return (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onClick={() => setChannel(c.value)}
-                      className={`rounded-xl py-2.5 text-[12px] font-medium ring-1 transition-colors ${active ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle/60 text-fg-muted ring-border hover:text-fg"}`}
-                    >
-                      {c.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div>
-              <label className={fieldLabel}>Message</label>
-              <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Your message…" className={inputCls} />
+          <div>
+            <label className={fieldLabel}>Channel</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {CHANNELS.map((c) => {
+                const active = channel === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setChannel(c.value)}
+                    className={`rounded-xl py-2.5 text-[12px] font-medium ring-1 transition-colors ${active ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle/60 text-fg-muted ring-border hover:text-fg"}`}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
-        )}
+          <div>
+            <label className={fieldLabel}>Message</label>
+            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Your message…" className={inputCls} />
+          </div>
+        </div>
       </BottomSheet>
     </>
   );

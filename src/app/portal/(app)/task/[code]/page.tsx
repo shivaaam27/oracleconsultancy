@@ -282,6 +282,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           taskId={task.id as number}
           code={task.code as string}
           ownerName={team.find((p) => p.accountable)?.name ?? null}
+          ownerId={team.find((p) => p.accountable)?.id ?? null}
           canRemind={isManagement}
           canComplete={!closed}
           requiresAttachment={(task.requires_attachment as boolean) ?? false}

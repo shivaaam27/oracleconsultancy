@@ -61,7 +61,7 @@ type Props = {
   watch: WatchItem[];
   pendingRequests: PendingRequest[];
   upcomingEvents: BoardEvent[];
-  suggestion: { code: string; actionItem: string; companyName: string } | null;
+  suggestions: { code: string; actionItem: string; companyName: string }[];
 };
 
 const STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed"];
@@ -110,7 +110,7 @@ export function DirectorBoardClient(p: Props) {
   return (
     <div className="flex flex-col gap-5">
       <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} />
-      <SmartCaptureBar people={p.people} companies={p.companies} suggestion={p.suggestion} />
+      <SmartCaptureBar people={p.people} companies={p.companies} suggestions={p.suggestions} />
 
       {/* Centred command-wall: one calm scroll on mobile, two columns on the web. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr] lg:items-start">

@@ -11,6 +11,7 @@ import { listRequestsForPortal } from "@/lib/requests";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { DirectorBoardClient, type WatchItem, type CompanyHealth, type PendingRequest } from "@/components/director-board-client";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -155,9 +156,12 @@ async function Board({ personName, personId }: { personName: string; personId: n
   const risk = brief.companies.filter((c) => riskTone(c.risk) === "danger").length;
   const watchCount = brief.companies.length - onTrack - risk;
 
-  // The AI suggestion: the single most urgent overdue task (worst-first already).
-  const top = watchRaw.find((w) => w.overdue) ?? watchRaw[0] ?? null;
-  const suggestion = top ? { code: top.code, actionItem: top.actionItem, companyName: top.companyName } : null;
+  // Suggestions: the 3 most urgent tasks (overdue first, worst-first already) — the
+  // capture bar rotates through them. Refreshed live by <AutoRefresh> below.
+  const urgent = watchRaw.filter((w) => w.overdue);
+  const suggestions = (urgent.length ? urgent : watchRaw)
+    .slice(0, 3)
+    .map((w) => ({ code: w.code, actionItem: w.actionItem, companyName: w.companyName }));
 
   const dueToday = watchRaw.filter((w) => dueLabelFor(w.deadline, w.overdue) === "due today").length;
 
@@ -208,8 +212,9 @@ async function Board({ personName, personId }: { personName: string; personId: n
         watch={watch}
         pendingRequests={pendingRequests}
         upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName }))}
-        suggestion={suggestion}
+        suggestions={suggestions}
       />
+      <AutoRefresh seconds={60} />
     </Reveal>
   );
 }

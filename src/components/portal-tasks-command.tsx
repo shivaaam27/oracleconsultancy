@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Search, Plus, Sparkles, ArrowUp, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User, ClipboardCheck,
-  MessageSquarePlus, Bell, Check,
+  MessageSquarePlus, Bell, Check, CheckCircle2,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { BottomSheet } from "@/components/bottom-sheet";
@@ -15,6 +15,7 @@ import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
+import { NotifyPerson } from "@/components/notify-person";
 import { portalDirectorCreateTask, portalCreateTask, portalEditTask, portalRemindTask, portalRemindTaskAll, portalAddUpdate } from "@/app/portal/actions";
 import { cn } from "@/lib/cn";
 
@@ -147,6 +148,7 @@ export function PortalTasksCommand({
   ];
 
   const fullEdit = role === "director" || role === "hr";
+  const canManage = role !== "staff"; // director / manager / hr may remind + send summaries
   const statusChoices = fullEdit ? ALL_STATUSES : MANAGER_STATUSES;
 
   return (
@@ -198,12 +200,12 @@ export function PortalTasksCommand({
                 <span>Task</span><span>Status</span><span>Deadline</span><span className="text-right">Who</span>
               </div>
               <ul className="divide-y divide-border/50">
-                {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} statusChoices={statusChoices} fullEdit={fullEdit} desktop />)}
+                {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} statusChoices={statusChoices} fullEdit={fullEdit} canManage={canManage} desktop />)}
               </ul>
             </Panel>
             {/* mobile cards */}
             <div className="flex flex-col gap-2 sm:hidden">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} statusChoices={statusChoices} fullEdit={fullEdit} />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} statusChoices={statusChoices} fullEdit={fullEdit} canManage={canManage} />)}
             </div>
           </div>
         ))
@@ -227,9 +229,9 @@ function Avatars({ names }: { names: string[] }) {
 }
 
 function TaskRow({
-  t, people, statusChoices, fullEdit, desktop = false,
+  t, people, statusChoices, fullEdit, canManage, desktop = false,
 }: {
-  t: CommandTask; people: BoardPerson[]; statusChoices: string[]; fullEdit: boolean; desktop?: boolean;
+  t: CommandTask; people: BoardPerson[]; statusChoices: string[]; fullEdit: boolean; canManage: boolean; desktop?: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -339,19 +341,31 @@ function TaskRow({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-accent">
-            <Send size={14} /> Remind owner
-          </button>
-          {involved > 1 && (
-            <button type="button" onClick={remindAll} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-success">
-              <Users size={14} /> Remind all · {involved}
-            </button>
+          {canManage && (
+            <>
+              <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-accent">
+                <Send size={14} /> Remind owner
+              </button>
+              {involved > 1 && (
+                <button type="button" onClick={remindAll} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-success">
+                  <Users size={14} /> Remind all · {involved}
+                </button>
+              )}
+            </>
           )}
           {busy && <Loader2 size={14} className="animate-spin text-fg-subtle" />}
           <Link href={`/portal/task/${t.code}`} className="ml-auto inline-flex items-center gap-1.5 px-2 py-2 text-sm text-accent hover:underline">
             Open <ExternalLink size={13} />
           </Link>
         </div>
+
+        {/* Send the responsible person a summary of ALL their open tasks. */}
+        {canManage && t.accountableId && (
+          <div className="border-t border-border/50 pt-3">
+            <p className="mb-2 text-[11px] text-fg-muted">Send {(t.accountableName ?? "them").split(" ")[0]} a summary of all their open tasks</p>
+            <NotifyPerson personId={t.accountableId} name={t.accountableName ?? "this person"} size="sm" />
+          </div>
+        )}
       </div>
     );
   }
@@ -508,16 +522,24 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
   const [ownerId, setOwnerId] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [requiresProof, setRequiresProof] = useState(false);
+  const [assigned, setAssigned] = useState<{ id: number; name: string } | null>(null);
 
-  // Close the sheet once the create completes without an error.
+  // On a clean create, offer to notify the assignee instead of just closing.
   const prevPending = useRef(false);
   useEffect(() => {
     if (prevPending.current && !pending && !state?.error) {
-      setOpen(false);
-      setCompanyId(""); setOwnerId(""); setPriority("Medium"); setRequiresProof(false);
+      const p = people.find((x) => x.id === Number(ownerId));
+      if (p) setAssigned({ id: p.id, name: p.name });
+      else closeAndReset();
     }
     prevPending.current = pending;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, state]);
+
+  function closeAndReset() {
+    setOpen(false); setAssigned(null);
+    setCompanyId(""); setOwnerId(""); setPriority("Medium"); setRequiresProof(false);
+  }
 
   const scoped = companyId ? people.filter((pp) => String(pp.companyId) === companyId) : people;
   const peopleForPicker = scoped.length ? scoped : people;
@@ -546,20 +568,42 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
 
       <BottomSheet
         open={open}
-        onClose={() => setOpen(false)}
-        title="Quick add a task"
-        icon={<ClipboardCheck size={17} />}
+        onClose={closeAndReset}
+        title={assigned ? "Task added" : "Quick add a task"}
+        icon={assigned ? <CheckCircle2 size={17} /> : <ClipboardCheck size={17} />}
         footer={
-          <button
-            type="submit"
-            form={QUICKADD_FORM}
-            disabled={pending}
-            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
-          >
-            {pending ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />} Add task
-          </button>
+          assigned ? (
+            <button
+              type="button"
+              onClick={closeAndReset}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-bg-subtle py-3 text-sm font-medium text-fg ring-1 ring-border transition-transform active:scale-[0.98]"
+            >
+              Done
+            </button>
+          ) : (
+            <button
+              type="submit"
+              form={QUICKADD_FORM}
+              disabled={pending}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+            >
+              {pending ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />} Add task
+            </button>
+          )
         }
       >
+        {assigned ? (
+          <div className="flex flex-col items-center gap-3 py-5 text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success">
+              <CheckCircle2 size={22} />
+            </span>
+            <div>
+              <p className="text-sm font-medium">Assigned to {assigned.name}</p>
+              <p className="mt-0.5 text-xs text-fg-muted">Send {assigned.name.split(" ")[0]} a summary of all their open tasks?</p>
+            </div>
+            <NotifyPerson personId={assigned.id} name={assigned.name} className="justify-center" />
+          </div>
+        ) : (
         <form id={QUICKADD_FORM} action={action} className="flex flex-col gap-3.5">
           <input type="hidden" name="companyId" value={companyId} />
           <input type="hidden" name="accountableId" value={ownerId} />
@@ -593,6 +637,7 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
           <SwitchRow label="Require proof to complete" hint="A file must be attached to finish this task" on={requiresProof} onChange={setRequiresProof} />
           {state?.error && <p className="text-xs text-danger">{state.error}</p>}
         </form>
+        )}
       </BottomSheet>
     </>
   );

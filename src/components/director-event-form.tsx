@@ -6,6 +6,7 @@ import { CalendarPlus, CalendarCheck, Loader2 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { PeoplePicker } from "@/components/people-picker";
 import { SwitchRow } from "@/components/ui";
+import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "./toast";
 import { portalDirectorCreateEvent } from "@/app/portal/actions";
 
@@ -14,6 +15,7 @@ type Company = { id: number; name: string };
 
 const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
 const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+const selectBtn = "bare-field flex w-full items-center justify-between rounded-xl ring-1 ring-border px-3.5 py-3 text-sm";
 const FORM_ID = "director-event-form";
 
 /** Director-only: schedule a calendar event / meeting (any company), as an
@@ -34,6 +36,7 @@ export function DirectorEventForm({
   const [allDay, setAllDay] = useState(false);
   const [remind1d, setRemind1d] = useState(true);
   const [attendees, setAttendees] = useState<number[]>([]);
+  const [companyId, setCompanyId] = useState("");
   const [busy, setBusy] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -102,10 +105,8 @@ export function DirectorEventForm({
             </div>
             <div>
               <label className={fieldLabel}>Company (optional)</label>
-              <select name="companyId" defaultValue="" className={inputCls}>
-                <option value="">No company</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <input type="hidden" name="companyId" value={companyId} />
+              <FluidSelect value={companyId} options={companies.map((c) => ({ value: String(c.id), label: c.name }))} placeholder="No company" onSelect={setCompanyId} buttonClassName={selectBtn} />
             </div>
             <div>
               <label className={fieldLabel}>Location / meet link</label>

@@ -271,7 +271,7 @@ export async function portalDirectorDraftMessage(input: {
   subject?: string | null;
   body: string;
   taskCode?: string | null;
-}): Promise<{ ok: true; link: string | null; contactMissing: boolean } | { ok: false; error: string }> {
+}): Promise<{ ok: true; link: string | null; contactMissing: boolean; channel: "WHATSAPP" | "EMAIL" | "SMS" } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
@@ -325,7 +325,7 @@ export async function portalDirectorDraftMessage(input: {
 
   await recordEvent("portal.director.message", "ok", { by: me.name, to: person.name, channel, task: input.taskCode ?? null });
   revalidatePath("/outbox");
-  return { ok: true, link, contactMissing: !to };
+  return { ok: true, link, contactMissing: !to, channel };
 }
 
 /**
@@ -412,6 +412,56 @@ export async function portalSendReminderWhatsApp(
     revalidatePath("/portal/team");
   }
   return res;
+}
+
+/**
+ * Management: build a DETAILED WhatsApp summary of a person's open tasks (status,
+ * priority, deadline, overdue time, responsible, description, latest update) and
+ * return a wa.me deep-link the sender taps to send. Logs an Outbox draft so it's
+ * owner-visible. Director / Manager / Admin only; honours the outreach pause.
+ */
+export async function portalSendTaskSummaryWhatsApp(
+  personId: number,
+): Promise<{ ok: true; name: string; waHref: string | null; missing: boolean } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, error: "Please sign in again." };
+  const role = me.portalRole;
+  if (role !== "director" && role !== "manager" && role !== "hr") {
+    return { ok: false, error: "Only managers, Admin and directors can send reminders." };
+  }
+
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Outreach is paused by the administrator." };
+
+  const { data: person } = await sb.from("people").select("id,name,whatsapp,phone,company_id").eq("id", personId).maybeSingle();
+  if (!person) return { ok: false, error: "Person not found." };
+
+  const { getAllTasks } = await import("@/lib/queries");
+  const { isOpen } = await import("@/lib/derive");
+  const rows = (await getAllTasks()).filter((t) => isOpen(t.status) && t.assigneeIds.includes(personId));
+  if (rows.length === 0) return { ok: false, error: "No open tasks to summarise." };
+
+  const { buildTaskSummaryWhatsApp } = await import("@/lib/outbox/gen");
+  const { waReminderLink, waFromLabel } = await import("@/lib/wa-card");
+  const { waLink } = await import("@/lib/outbox/links");
+  const from = waFromLabel({ name: me.name, role });
+  const text = buildTaskSummaryWhatsApp(person.name as string, rows, waReminderLink(personId, from));
+  const number = (((person.whatsapp as string | null) || (person.phone as string | null)) ?? "").trim();
+  const waHref = waLink(number, text);
+
+  let companyName: string | null = null;
+  if (person.company_id) {
+    const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
+    companyName = (c?.name as string | null) ?? null;
+  }
+  await sb.from("outbox").insert({
+    channel: "WHATSAPP", recipient_name: person.name as string, recipient_contact: number || null, company: companyName,
+    body: text, message_type: "TASK SUMMARY", status: "Draft",
+    source: `portal-${roleTag(role)}:${me.name}`, person_id: person.id as number, created_at: new Date().toISOString(),
+  });
+  await recordEvent("portal.task.summary", "ok", { by: me.name, role, to: person.name, count: rows.length });
+  revalidatePath("/outbox");
+  return { ok: true, name: person.name as string, waHref, missing: !number };
 }
 
 /** Director: schedule a calendar event / meeting (any company). Reuses the

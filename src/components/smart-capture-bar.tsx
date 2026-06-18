@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles, ArrowUp, Bolt, CalendarPlus, MessageSquarePlus, Wand2, CornerDownLeft, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, ArrowUp, Bolt, CalendarPlus, MessageSquarePlus, Users, Wand2, CornerDownLeft, type LucideIcon } from "lucide-react";
 import { CaretInput } from "./ui";
 import { DirectorTaskForm } from "./director-task-form";
 import { DirectorEventForm } from "./director-event-form";
@@ -39,11 +40,11 @@ function detectMode(s: string): Mode {
 }
 
 export function SmartCaptureBar({
-  people, companies, suggestion,
+  people, companies, suggestions,
 }: {
   people: Person[];
   companies: Company[];
-  suggestion?: { code: string; actionItem: string; companyName: string } | null;
+  suggestions?: { code: string; actionItem: string; companyName: string }[];
 }) {
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("Task");
@@ -55,6 +56,17 @@ export function SmartCaptureBar({
   const suggested = detectMode(text);
   // Auto-follow the detected intent until the user explicitly taps a chip.
   useEffect(() => { if (!userPicked) setMode(suggested); }, [suggested, userPicked]);
+
+  // Rotate gently through the top urgent tasks while the bar is empty. The list
+  // itself refreshes live (the board's AutoRefresh), so this stays current.
+  const sugs = suggestions ?? [];
+  const [sugIdx, setSugIdx] = useState(0);
+  useEffect(() => {
+    if (sugs.length < 2 || trimmed) return;
+    const id = setInterval(() => setSugIdx((i) => (i + 1) % sugs.length), 5000);
+    return () => clearInterval(id);
+  }, [sugs.length, trimmed]);
+  const sug = sugs.length ? sugs[sugIdx % sugs.length] : null;
 
   function pick(m: Mode) { setUserPicked(true); setMode(m); }
 
@@ -95,7 +107,7 @@ export function SmartCaptureBar({
         </button>
       </form>
 
-      <div className="mt-2 flex items-center gap-1.5 px-0.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 px-0.5">
         {MODES.map((m) => {
           const isActive = m.key === mode;
           const isSuggested = !userPicked && suggested === m.key && trimmed.length > 0 && !isActive;
@@ -112,20 +124,35 @@ export function SmartCaptureBar({
             </button>
           );
         })}
-        <span className="ml-auto hidden pr-1 text-[10px] text-fg-subtle sm:inline">↵ opens a quick form</span>
+        {/* Team isn't a compose mode — it jumps to the people directory + reminders. */}
+        <Link
+          href="/portal/team"
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] text-fg-muted ring-1 ring-border transition-colors hover:text-fg"
+          title="Team directory & reminders"
+        >
+          <Users size={13} /> Team
+        </Link>
+        <span className="ml-auto hidden pr-1 text-[10px] text-fg-subtle lg:inline">↵ opens a quick form</span>
       </div>
 
-      {/* AI suggestion: tap to drop it into the bar as a ready-to-assign task. */}
-      {suggestion && !trimmed && (
+      {/* Suggestion: rotates the top urgent tasks; tap to drop it into the bar. */}
+      {sug && !trimmed && (
         <button
           type="button"
-          onClick={() => { setText(suggestion.actionItem); pick("Task"); }}
+          onClick={() => { setText(sug.actionItem); pick("Task"); }}
           className="mt-2 flex w-full items-center gap-2 rounded-xl border border-dashed border-border bg-bg-subtle/40 px-3 py-2 text-left text-xs text-fg-muted transition-colors hover:bg-bg-subtle/70"
         >
           <Wand2 size={14} className="shrink-0 text-info" />
           <span className="min-w-0 flex-1 truncate">
-            {suggestion.actionItem} <span className="text-fg-subtle">· {suggestion.companyName}</span>
+            {sug.actionItem} <span className="text-fg-subtle">· {sug.companyName}</span>
           </span>
+          {sugs.length > 1 && (
+            <span className="flex shrink-0 items-center gap-0.5">
+              {sugs.map((_, i) => (
+                <span key={i} className={`h-1 w-1 rounded-full ${i === sugIdx % sugs.length ? "bg-accent" : "bg-border-strong"}`} />
+              ))}
+            </span>
+          )}
           <CornerDownLeft size={13} className="shrink-0 text-fg-subtle" />
         </button>
       )}

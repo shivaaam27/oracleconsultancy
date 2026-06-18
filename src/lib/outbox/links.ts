@@ -6,14 +6,37 @@ import { BRAND_NAME } from "../brand";
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
 const BIZ_TZ = "Africa/Nairobi"; // EAT (UTC+3, no DST) — same offset as Dar es Salaam.
 
-/** Digits-only international number for wa.me / sms: links. */
+// Default country code for numbers stored in LOCAL format (e.g. "0686…").
+// Tanzania (+255) — the office's home country. Numbers already in international
+// form ("+255…", "+91…") are left as-is.
+const DEFAULT_CC = "255";
+
+/** Digits-only (for sms:, which dials local format fine). */
 function digits(n: string | null | undefined): string {
-  return (n ?? "").replace(/[^\d]/g, "");
+  return (n ?? "").replace(/\D/g, "");
 }
 
-/** wa.me link with the message pre-filled. */
+/**
+ * International MSISDN for wa.me — WhatsApp REQUIRES a country code and rejects a
+ * leading 0 / "+", so a locally-stored "0686450999" must become "255686450999"
+ * or the link fails to open ("phone number is invalid"). Leaves already-international
+ * numbers (+255…, +91…, 00…) untouched.
+ */
+function intlDigits(n: string | null | undefined): string {
+  const raw = (n ?? "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("+")) return raw.replace(/\D/g, "");        // already international
+  const d = raw.replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("00")) return d.slice(2);                     // 00 = international prefix
+  if (d.startsWith("0")) return DEFAULT_CC + d.slice(1);         // local → international
+  if (d.length <= 9) return DEFAULT_CC + d;                      // bare local subscriber number
+  return d;                                                       // assume it already carries a country code
+}
+
+/** wa.me link with the message pre-filled (number normalised to international). */
 export function waLink(number: string | null, text: string): string | null {
-  const d = digits(number);
+  const d = intlDigits(number);
   return d ? `https://wa.me/${d}?text=${encodeURIComponent(text)}` : null;
 }
 
