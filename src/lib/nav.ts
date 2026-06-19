@@ -18,6 +18,7 @@ import {
   FileWarning,
   Megaphone,
   MessageSquareText,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,6 +39,7 @@ export type NavRoute = {
  * listed as a destination.
  */
 export const NAV_ROUTES: NavRoute[] = [
+  { id: "approvals",   href: "/approvals",           label: "Approvals",           icon: ListChecks },
   { id: "requests",    href: "/requests",            label: "Requests",            icon: MessageSquareText },
   { id: "announcements", href: "/announcements",      label: "Announcements",       icon: Megaphone },
   { id: "tax-legal",   href: "/hrms/command-centre", label: "Tax & Legal",        icon: Scale },
