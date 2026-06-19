@@ -11,7 +11,7 @@ import { sb } from "@/db/supabase";
 import { getDocument } from "@/lib/documents";
 import { verifyRequirement, unverifyRequirement, getPersonChecklist } from "@/lib/requirements";
 import { verifyCompanyRequirement, unverifyCompanyRequirement } from "@/lib/company-requirements";
-import { setPipelineStage, pipelineForTask } from "@/lib/pipeline";
+import { setPipelineStage, pipelineForTask, createPipelineFromDocument } from "@/lib/pipeline";
 import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/pipeline-shared";
 import { toggleTodo } from "@/app/todos/actions";
 import { addTaskUpdate } from "@/app/task/actions";
@@ -19,8 +19,8 @@ import { recordEvent } from "@/lib/system-events";
 import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
 import type { DocumentRow } from "@/lib/documents-shared";
 
-export type AutomationKind = "compliance-verify" | "task-complete" | "pipeline-advance" | "onboarding-tick";
-export type AutomationTable = "person_requirements" | "company_requirements" | "tasks" | "pipeline" | "todos";
+export type AutomationKind = "compliance-verify" | "task-complete" | "pipeline-advance" | "onboarding-tick" | "pipeline-create";
+export type AutomationTable = "person_requirements" | "company_requirements" | "tasks" | "pipeline" | "todos" | "documents";
 
 type LogInput = {
   kind: AutomationKind;
@@ -170,6 +170,10 @@ export async function undoAutomationMove(row: MoveRow): Promise<void> {
       // Undo a time-spawned task by archiving it (recoverable, not deleted).
       await sb.from("tasks").update({ archived: true, last_updated_at: new Date().toISOString() }).eq("id", row.targetId);
       return;
+    case "pipeline-create":
+      // Undo an auto-started application by archiving the case (recoverable).
+      await sb.from("pipeline").update({ archived: true, updated_at: new Date().toISOString() }).eq("id", row.targetId);
+      return;
     case "compliance-verify":
       if (row.targetTable === "person_requirements") await unverifyRequirement(row.targetId);
       else await unverifyCompanyRequirement(row.targetId);
@@ -202,6 +206,7 @@ export async function reactToFiledDocument(documentId: number): Promise<void> {
       reactCompliance(doc, who),
       reactLinkedTasks(doc, who),
       reactPipeline(doc, who),
+      reactStartPipeline(doc, who),
       reactOnboarding(doc, who),
       cascadeComplianceComplete(doc, who),
     ]);
@@ -276,6 +281,43 @@ async function reactPipeline(doc: DocumentRow, who: string): Promise<void> {
       if (await alreadyLogged(doc.id, "pipeline-advance", "pipeline", targetId)) continue;
       const base = { kind: "pipeline-advance" as const, documentId: doc.id, targetTable: "pipeline" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Advance ${p.type} → ${target} for ${who}`, detail: `From ${p.stage} (matched ${certain ? "control no." : "type"})`, prevValue: p.stage as string, newValue: target };
       await commit(base, !!certain, `Advanced ${p.type} → ${target}`);
+    }
+  } catch { /* best-effort */ }
+}
+
+/** Start a NEW application when a bill/application/receipt/certificate arrives and
+ *  there's no existing case it fits — at the stage the document implies. If a case
+ *  already exists, reactPipeline advances it instead, so this no-ops. Governed by
+ *  the "Advance applications" (pipeline-advance) mode; auto creates, suggest waits. */
+async function reactStartPipeline(doc: DocumentRow, who: string): Promise<void> {
+  try {
+    if (!doc.companyId && !doc.personId) return;
+    const stage = inferPipelineStage(doc);
+    if (!stage) return; // not an in-flight bureaucracy document
+    // Does a matching case already exist? Then advancing handles it — don't create.
+    let q = sb.from("pipeline").select("id,type,control_no").eq("archived", false);
+    if (doc.companyId) q = q.eq("company_id", doc.companyId);
+    else q = q.eq("person_id", doc.personId as number);
+    const { data } = await q;
+    const refKey = doc.referenceNo ? norm(doc.referenceNo) : null;
+    const typeHay = norm(`${doc.title} ${doc.docType ?? ""} ${doc.category ?? ""}`);
+    const matches = (data ?? []).some((p) => {
+      if (refKey && p.control_no && norm(p.control_no as string) === refKey) return true;
+      return norm(p.type as string).split(" ").some((w) => w.length >= 4 && typeHay.includes(w));
+    });
+    if (matches) return;
+    // Don't start twice from the same document.
+    const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "pipeline-create").eq("document_id", doc.id).in("status", ["applied", "suggested"]).limit(1);
+    if (ex && ex.length) return;
+    const mode = await getAutomationMode("pipeline-advance");
+    if (mode === "off") return;
+    if (mode === "auto") {
+      const res = await createPipelineFromDocument(doc.id);
+      if (!res.ok) return;
+      await logEvent({ kind: "pipeline-create", status: "applied", documentId: doc.id, targetTable: "pipeline", targetId: res.id, personId: doc.personId, companyId: doc.companyId, summary: `Started ${res.type} at “${res.stage}” for ${who}`, detail: `New application from “${doc.title}”`, prevValue: null, newValue: res.stage });
+    } else {
+      // Suggest: remember the source document so Apply can create the case later.
+      await logEvent({ kind: "pipeline-create", status: "suggested", documentId: doc.id, targetTable: "documents", targetId: doc.id, personId: doc.personId, companyId: doc.companyId, summary: `Start a new application from “${doc.title}” for ${who}`, detail: `Would start at “${stage}”`, prevValue: null, newValue: stage });
     }
   } catch { /* best-effort */ }
 }

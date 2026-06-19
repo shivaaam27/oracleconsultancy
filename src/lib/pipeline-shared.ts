@@ -52,8 +52,11 @@ const normLower = (s: string | null | undefined) => (s ?? "").toLowerCase().repl
 export function inferPipelineStage(doc: { title?: string | null; docType?: string | null; notes?: string | null; category?: string | null }): PipelineStage | null {
   const hay = normLower(`${doc.title ?? ""} ${doc.docType ?? ""} ${doc.notes ?? ""}`);
   if (/\breceipt\b/.test(hay)) return "Receipt Received";
-  if (/\bcontrol\b|assessment|control no/.test(hay)) return "Control No. Issued";
   if (/\bpaid\b|payment|proof of payment/.test(hay)) return "Paid";
+  // A government bill/assessment carries a control number — awaiting payment.
+  if (/\bcontrol\b|assessment|control no|\bbill\b|invoice|demand note/.test(hay)) return "Control No. Issued";
+  // The application/form itself — the case has been lodged.
+  if (/\bapplication\b|\bapply\b|\bform\b/.test(hay)) return "Applied";
   // The actual issued permit/licence/visa itself.
   if (["Immigration", "Permit", "Licence", "Passport"].includes(doc.category ?? "")) return "Issued";
   return null;

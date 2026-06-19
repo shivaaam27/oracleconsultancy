@@ -14,6 +14,7 @@ const KIND_LABEL: Record<string, string> = {
   "pipeline-advance": "Pipeline",
   "onboarding-tick": "Onboarding",
   "task-create": "Renewal",
+  "pipeline-create": "New application",
 };
 
 const KIND_FILTERS: Array<[string, string]> = [

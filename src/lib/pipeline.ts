@@ -134,6 +134,37 @@ export async function setPipelineStage(id: number, stage: PipelineStage): Promis
   return { ok: true };
 }
 
+/** Start a pipeline case FROM a filed document — used when a bill/application/
+ *  receipt/certificate arrives with no existing case. The starting stage is read
+ *  from the document (a bill → Control No. Issued, a receipt → Receipt Received,
+ *  the certificate → Issued, etc). Returns the new case so it can be linked + undone. */
+export async function createPipelineFromDocument(documentId: number): Promise<{ ok: true; id: number; stage: PipelineStage; type: string } | { ok: false; error: string }> {
+  const { inferPipelineStage } = await import("@/lib/pipeline-shared");
+  const { data: d } = await sb
+    .from("documents")
+    .select("title,doc_type,category,notes,reference_no,company_id,person_id")
+    .eq("id", documentId)
+    .maybeSingle();
+  if (!d) return { ok: false, error: "Document not found." };
+  const stage = inferPipelineStage({ title: d.title as string, docType: d.doc_type as string, notes: d.notes as string, category: d.category as string });
+  if (!stage) return { ok: false, error: "This document doesn't map to an application stage." };
+  if (!d.company_id && !d.person_id) return { ok: false, error: "Document has no owner." };
+  const type = (d.doc_type as string | null) || (d.category as string | null) || "Application";
+  const now = new Date().toISOString();
+  const { data, error } = await sb.from("pipeline").insert({
+    subject: (d.title as string | null) || type,
+    company_id: (d.company_id as number | null) ?? null,
+    person_id: (d.person_id as number | null) ?? null,
+    type,
+    stage: normalizeStage(stage),
+    control_no: (d.reference_no as string | null) ?? null,
+    document_id: documentId,
+    last_update: now, created_at: now, updated_at: now, created_by: "automation",
+  }).select("id").single();
+  if (error || !data) return { ok: false, error: error?.message ?? "Could not create the application." };
+  return { ok: true, id: data.id as number, stage, type };
+}
+
 export async function updatePipelineItem(id: number, patch: Partial<PipelineInput>): Promise<WriteResult> {
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString(), last_update: new Date().toISOString() };
   if (patch.subject !== undefined) payload.subject = patch.subject;

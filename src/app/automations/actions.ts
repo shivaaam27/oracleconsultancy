@@ -93,9 +93,9 @@ function revalidateAll() {
 async function fetchRow(id: number, status: string): Promise<Row | null> {
   const { data } = await sb
     .from("automation_events")
-    .select("id,kind,status,target_table,target_id,summary,detail,prev_value,new_value,created_at")
+    .select("id,kind,status,target_table,target_id,summary,detail,prev_value,new_value,created_at,document_id")
     .eq("id", id).eq("status", status).maybeSingle();
-  return (data as Row | null) ?? null;
+  return (data as (Row & { document_id: number | null }) | null) ?? null;
 }
 
 /** Apply a pending suggestion — performs the move and marks it applied. */
@@ -108,6 +108,15 @@ export async function applyAutomationSuggestion(id: number): Promise<{ ok: boole
       // repoint the event at the new task so Undo can archive it.
       const created = await createTaskFromSuggestion(row);
       await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString(), target_table: "tasks", target_id: created.taskId, new_value: created.code }).eq("id", id);
+    } else if (row.kind === "pipeline-create") {
+      // The application case doesn't exist yet — create it from the source document,
+      // then repoint the event at the new case so Undo can archive it.
+      const docId = (row as Row & { document_id: number | null }).document_id;
+      if (!docId) return { ok: false, error: "Source document missing." };
+      const { createPipelineFromDocument } = await import("@/lib/pipeline");
+      const created = await createPipelineFromDocument(docId);
+      if (!created.ok) return { ok: false, error: created.error };
+      await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString(), target_table: "pipeline", target_id: created.id, new_value: created.stage }).eq("id", id);
     } else {
       await performAutomationMove(toMoveRow(row));
       await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString() }).eq("id", id);

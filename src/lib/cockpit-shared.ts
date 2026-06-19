@@ -28,6 +28,7 @@ const PROCESS_KIND_LABEL: Record<string, string> = {
   "pipeline-advance": "Pipeline",
   "onboarding-tick": "Onboarding",
   "task-create": "Renewal",
+  "pipeline-create": "New application",
 };
 
 export function cockpitKindLabel(item: CockpitItem): string {
