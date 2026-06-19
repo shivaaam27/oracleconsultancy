@@ -174,12 +174,12 @@ export async function setAutomationModeAction(kind: string, mode: AutomationMode
 
 /** Run the time-based automations on demand (the daily cron runs them too) —
  *  creates renewal/notice tasks for dates that have passed. Returns the counts. */
-export async function runTimeAutomationsNow(): Promise<{ ok: boolean; renewals: number; commitments: number }> {
+export async function runTimeAutomationsNow(): Promise<{ ok: boolean; renewals: number; commitments: number; probations: number }> {
   try {
     const res = await runTimeAutomations();
     revalidateAll();
     return { ok: true, ...res };
   } catch {
-    return { ok: false, renewals: 0, commitments: 0 };
+    return { ok: false, renewals: 0, commitments: 0, probations: 0 };
   }
 }

@@ -20,6 +20,7 @@ const RECORD_KIND_LABEL: Record<string, string> = {
   "person-field": "Profile",
   fact: "Fact",
   "new-shelf": "New shelf",
+  "new-structure": "New department",
 };
 const PROCESS_KIND_LABEL: Record<string, string> = {
   "compliance-verify": "Compliance",

@@ -77,7 +77,7 @@ export function AutomationFeed({
     setCheckMsg(null);
     startCheck(async () => {
       const r = await runTimeAutomationsNow();
-      const made = r.renewals + r.commitments;
+      const made = r.renewals + r.commitments + r.probations;
       setCheckMsg(r.ok ? (made ? `${made} renewal/notice item${made === 1 ? "" : "s"} from passing dates.` : "Nothing due — all caught up.") : "Couldn't run the checks.");
       router.refresh();
     });

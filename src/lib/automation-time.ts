@@ -118,6 +118,27 @@ async function suggestTaskCreate(opts: { source: "documents" | "commitments"; so
   });
 }
 
+type ProbationPerson = { id: number; name: string; company_id: number | null; manager_id: number | null; probation_end_date: string | null };
+
+/** Create the probation-review task for a person. Shared by Auto + Apply. */
+async function createProbationTask(p: ProbationPerson): Promise<{ taskId: number; code: string; title: string }> {
+  const now = new Date();
+  const companyId = p.company_id as number;
+  const prefix = await companyPrefix(companyId);
+  const title = `Probation review: ${p.name}`;
+  const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
+    actionItem: title, ownerId: (p.manager_id as number | null) ?? null, status: "Not Started",
+    priority: "High", category: "HR",
+    deadline: p.probation_end_date ? new Date(p.probation_end_date) : null,
+    createdDate: now, lastUpdatedAt: now, archived: false,
+  });
+  await sb.from("audit_log").insert({
+    task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task",
+    old_value: null, new_value: title, change_reason: "Created by automation — probation ending", created_at: now.toISOString(), created_by: "automation",
+  });
+  return { taskId: task.id, code: task.code, title };
+}
+
 /** Apply a renewal/notice SUGGESTION — create the task now from its remembered
  *  source. Returns the new task so the feed can repoint the event for Undo. */
 export async function createTaskFromSuggestion(row: { target_table: string; target_id: number }): Promise<{ taskId: number; code: string }> {
@@ -133,17 +154,24 @@ export async function createTaskFromSuggestion(row: { target_table: string; targ
     const urg = commitmentUrgency({ endDate: c.end_date, noticeDays: c.notice_days, status: c.status });
     return createCommitmentTask(c, urg === "overdue");
   }
+  if (row.target_table === "people") {
+    const { data } = await sb.from("people").select("id,name,company_id,manager_id,probation_end_date").eq("id", row.target_id).maybeSingle();
+    const p = data as ProbationPerson | null;
+    if (!p || !p.company_id) throw new Error("That person is no longer available.");
+    return createProbationTask(p);
+  }
   throw new Error("Unknown suggestion source.");
 }
 
 /** Run the time-based automations. Returns how many work items were created. */
-export async function runTimeAutomations(): Promise<{ renewals: number; commitments: number }> {
+export async function runTimeAutomations(): Promise<{ renewals: number; commitments: number; probations: number }> {
   let renewals = 0;
   let commitments = 0;
+  let probations = 0;
   // Respect the control-room mode: "off" disables spawning work entirely;
   // "suggest" records a one-click suggestion instead of creating the task.
   const mode = await getAutomationMode("task-create");
-  if (mode === "off") return { renewals, commitments };
+  if (mode === "off") return { renewals, commitments, probations };
   const suggesting = mode === "suggest";
   const baseline = await getOrInitBaseline(); // forward-only: skip the existing backlog
 
@@ -211,6 +239,43 @@ export async function runTimeAutomations(): Promise<{ renewals: number; commitme
     await recordEvent("automation.time", "error", { step: "commitments", message: e instanceof Error ? e.message : String(e) });
   }
 
-  await recordEvent("automation.time", "ok", { renewals, commitments });
-  return { renewals, commitments };
+  // 3. Probation reviews — a person whose probation ends within 14 days (or has
+  //    just passed, forward-only) and has no review task yet. Manager owns it.
+  try {
+    const horizon = new Date(); horizon.setHours(0, 0, 0, 0); horizon.setDate(horizon.getDate() + 14);
+    const { data: rows } = await sb
+      .from("people")
+      .select("id,name,company_id,manager_id,probation_end_date")
+      .eq("active", true)
+      .not("probation_end_date", "is", null)
+      .not("company_id", "is", null)
+      .lte("probation_end_date", horizon.toISOString());
+    for (const p of (rows ?? []) as ProbationPerson[]) {
+      if (!p.company_id || !p.probation_end_date) continue;
+      if (new Date(p.probation_end_date) < baseline) continue; // forward-only: skip old backlog
+      // Dedup across ALL statuses, keyed by the person id in detail.
+      const { data: existing } = await sb.from("automation_events").select("id").eq("kind", "task-create").ilike("detail", `probation:${p.id}|%`).limit(1);
+      if (existing && existing.length) continue;
+      if (suggesting) {
+        await sb.from("automation_events").insert({
+          kind: "task-create", status: "suggested", document_id: null, target_table: "people", target_id: p.id,
+          person_id: p.id, company_id: p.company_id, summary: `Create probation review — ${p.name}`,
+          detail: `probation:${p.id}| Probation ending — schedule the review`, prev_value: null, new_value: null,
+          created_at: new Date().toISOString(), acted_at: null, created_by: "automation",
+        });
+      } else {
+        const t = await createProbationTask(p);
+        await logTaskCreate({
+          documentId: null, companyId: p.company_id, personId: p.id, taskId: t.taskId, taskCode: t.code,
+          summary: `Created probation review ${t.code} — ${p.name}`, detail: `probation:${p.id}| Probation ending — auto-created the review task`,
+        });
+      }
+      probations++;
+    }
+  } catch (e) {
+    await recordEvent("automation.time", "error", { step: "probations", message: e instanceof Error ? e.message : String(e) });
+  }
+
+  await recordEvent("automation.time", "ok", { renewals, commitments, probations });
+  return { renewals, commitments, probations };
 }

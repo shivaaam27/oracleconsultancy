@@ -17,6 +17,7 @@ const KIND_LABEL: Record<string, string> = {
   "person-field": "Profile",
   fact: "Fact",
   "new-shelf": "New shelf",
+  "new-structure": "New department",
 };
 
 function Tag({ kind }: { kind: string }) {

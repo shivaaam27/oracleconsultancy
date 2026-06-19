@@ -13,7 +13,7 @@ import { distinctiveTokens, shelfForCategory } from "@/lib/documents-shared";
 import { listCustomShelves } from "@/lib/shelves";
 import type { ExtractedFields } from "@/app/documents/actions";
 
-export type SuggestionKind = "company-field" | "person-field" | "fact" | "new-shelf";
+export type SuggestionKind = "company-field" | "person-field" | "fact" | "new-shelf" | "new-structure";
 // pending = awaiting a tap; accepted = applied by a tap; applied = auto-applied on
 // a clean read (visible + undoable); dismissed/undone = closed out.
 export type SuggestionStatus = "pending" | "accepted" | "applied" | "dismissed" | "undone";
@@ -112,6 +112,12 @@ const PERSON_COL: Record<string, string> = {
 };
 
 const isBlank = (v: unknown) => v == null || (typeof v === "string" && v.trim() === "");
+
+/** Does a department with this name already exist? (read-only — never creates). */
+async function departmentExists(name: string): Promise<boolean> {
+  const { data } = await sb.from("departments").select("id").ilike("name", name.trim()).maybeSingle();
+  return !!data;
+}
 
 /** The owner's autonomy mode for the record-filling engine (auto/suggest/off),
  *  read directly from settings to avoid pulling the heavy reaction graph in. */
@@ -240,6 +246,23 @@ async function applyWrite(s: ApplyPayload, auto: boolean): Promise<boolean> {
     const r = await createCustomShelf({ name, keywords: v.keywords ?? [name.toLowerCase()] });
     return r.ok;
   }
+  if (s.kind === "new-structure") {
+    const v = (s.value ?? {}) as { kind?: string; name?: string; personId?: number };
+    if (v.kind === "department" && v.name) {
+      // Find-or-create the department (idempotent on name), then assign the person.
+      const { data: existing } = await sb.from("departments").select("id").ilike("name", v.name.trim()).maybeSingle();
+      let deptId = existing?.id as number | undefined;
+      if (!deptId) {
+        const { data: created } = await sb.from("departments").insert({ name: v.name.trim() }).select("id").single();
+        deptId = created?.id as number | undefined;
+      }
+      if (deptId && v.personId) {
+        await sb.from("people").update({ department_id: deptId }).eq("id", v.personId).is("department_id", null);
+        return true;
+      }
+    }
+    return false;
+  }
   return false;
 }
 
@@ -275,7 +298,9 @@ export async function enqueueDocumentSuggestions(opts: {
   async function emit(row: Record<string, unknown>, apply: ApplyPayload): Promise<void> {
     let status = "pending";
     let acted: string | null = null;
-    if (clean && apply.kind !== "new-shelf") {
+    // Structural changes (a brand-new shelf or department) are NEVER auto-applied,
+    // even on a clean read — the owner approves growing the system's structure.
+    if (clean && apply.kind !== "new-shelf" && apply.kind !== "new-structure") {
       const wrote = await applyWrite(apply, true);
       if (wrote) { status = "applied"; acted = new Date().toISOString(); }
     }
@@ -322,6 +347,18 @@ export async function enqueueDocumentSuggestions(opts: {
         if (!val) continue;
         if (col && person && !isBlank((person as Record<string, unknown>)[col])) continue;
         if (!col && !["department"].includes(key)) continue; // skip name-resolve keys we don't surface
+        // A department the document names but we don't have yet → propose creating
+        // it (structure grows by approval), instead of silently making a new one.
+        if (key === "department" && typeof val === "string" && !(await departmentExists(val))) {
+          if (await alreadyProposed(documentId, "new-structure", `department:${val}`, "person_id", personId)) continue;
+          await emit(
+            { kind: "new-structure", document_id: documentId, person_id: personId, company_id: null,
+              field: `department:${val}`, value: { kind: "department", name: val, personId }, display: val, source,
+              summary: `Create department “${val}” and assign ${who}`, detail: `Read from “${source}” — not on file yet` },
+            { kind: "new-structure", companyId: null, personId, field: `department:${val}`, value: { kind: "department", name: val, personId }, display: val, documentId, effectiveDate: null, source }
+          );
+          continue;
+        }
         if (await alreadyProposed(documentId, "person-field", key, "person_id", personId)) continue;
         const label = PERSON_LABELS[key] ?? key;
         await emit(
