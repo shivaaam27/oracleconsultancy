@@ -285,6 +285,18 @@ No migration.
   via existing ilike detail commitment:<id>.
 - tsc clean, 66 tests, /inbox history verified (filters render, "Nothing here yet").
 
-## State: was NOT pushed — NOW PUSHED (rounds 1-10 on master). Parked by owner: the chat/search side
+## Round 11 — Smart Add (merged intake entry points) (PUSHED, commit 1a411f6)
+Owner: merge "Add to inbox" + "Add all (auto)" → rename "Smart Add". No migration.
+- **`components/smart-add.tsx`** (new, self-contained button+dialog): optional subject/body
+  + "mostly for" owner + Choose files / Choose a folder (webkitdirectory) → picks staged in
+  a list → two actions: **Sort now** (immediate per-file `autoFileDocumentAction`, folder
+  routing via webkitRelativePath) or **Save to inbox** (`createInboxBundle`). Reuses the
+  BulkAutoUpload processing/results UI (ResultSection copied in).
+- Inbox header action = `<SmartAdd companies people>` (was AddInboxDialog). Removed "Add all
+  (auto)" button + state from `intake-shell.tsx`. **DELETED** now-unused
+  `components/add-inbox-dialog.tsx` + `components/bulk-auto-upload.tsx`.
+- tsc clean, 66 tests, /inbox Smart Add dialog verified (pickers + both actions render).
+
+## State: was NOT pushed — NOW PUSHED (rounds 1-11 on master). Parked by owner: the chat/search side
 ("works in Documents, not in chat") and the email source (inbox already has
 `source='email'` for later). "Sort others later" = more category folders beyond the 8.
