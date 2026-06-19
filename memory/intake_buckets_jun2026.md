@@ -221,6 +221,25 @@ scattered task-write paths):
   Auto/Suggest toggle; the /inbox feed + Run-checks + undo is the MVP). Plus deferred
   task→pipeline cascade (needs pipeline↔task linking first).
 
-## State: was NOT pushed — NOW PUSHED (rounds 1-7 on master). Parked by owner: the chat/search side
+## Round 8 — task→pipeline link + cascade ON (PUSHED, commit 0946bb6)
+Owner asked "what do you mean by tasks?" then "build it" (the deferred task→pipeline
+cascade). Wired the missing link first:
+- **`pipeline.task_id`** (migration **0089 APPLIED**, backup 2026-06-19T11-13-28Z) — the
+  task that DRIVES a case. `lib/pipeline.ts`: COLS join `tasks(code)`, `linkPipelineTask`,
+  `pipelineForTask(taskId)`; PipelineItem gained taskId/taskCode.
+- **Pipeline board** (`components/pipeline-board.tsx`): one-click **＋ Task** creates a
+  driving task (in the case's company, links task_id) or shows the code chip + unlink.
+  Actions `createPipelineTaskAction`/`unlinkPipelineTaskAction` in hrms/pipeline/actions.
+- **Cascade** `reactToTaskStatusChange(taskId, was, now)` in automation-reactions: on
+  open→closed, `pipelineForTask` → advance ONE stage forward (forward-only, skip if
+  already Issued), logged kind=pipeline-advance applied + undoable. Deduped per
+  (case, from-stage) so multiple write paths don't double-advance.
+- **Hooked** via guarded `fireTaskCascade` (dynamic import) into: updateTask,
+  addTaskUpdate, inlineUpdateTask (task/actions.ts) + portalCompleteTask
+  (portal/actions.ts). Deferred paths (bulkUpdateTasks/adminAddUpdate/portalUpdateTask)
+  not hooked — lower-traffic, add later if needed.
+- tsc clean, 66 tests, /hrms/pipeline 200 (the tasks(code) join needs the FK → applied).
+
+## State: was NOT pushed — NOW PUSHED (rounds 1-8 on master). Parked by owner: the chat/search side
 ("works in Documents, not in chat") and the email source (inbox already has
 `source='email'` for later). "Sort others later" = more category folders beyond the 8.
