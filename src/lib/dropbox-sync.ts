@@ -14,6 +14,22 @@ function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 100) || "file";
 }
 
+// A clean content-type from the file extension. Crucially avoids the
+// "text/plain;charset=UTF-8" default that the storage bucket rejects; anything
+// unknown falls back to application/octet-stream (which the bucket accepts).
+const MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
+  webp: "image/webp", heic: "image/heic", heif: "image/heif", tif: "image/tiff", tiff: "image/tiff", bmp: "image/bmp",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv", zip: "application/zip",
+};
+function guessMime(name: string): string {
+  const ext = (name.split(".").pop() || "").toLowerCase();
+  return MIME[ext] ?? "application/octet-stream";
+}
+
 /** Pull new files from the watched Dropbox folder into the inbox and auto-sort. */
 export async function syncDropbox(opts: { pullExisting?: boolean } = {}): Promise<{ ok: boolean; pulled: number; error?: string }> {
   try {
@@ -28,7 +44,7 @@ export async function syncDropbox(opts: { pullExisting?: boolean } = {}): Promis
         const dl = await downloadFile(f.path);
         if (!dl.bytes) { firstError ??= `download: ${dl.error ?? "unknown"}`; continue; }
         const storagePath = `inbox/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(f.name)}`;
-        const { error: upErr } = await sb.storage.from(DOCUMENTS_BUCKET).upload(storagePath, dl.bytes, { upsert: true });
+        const { error: upErr } = await sb.storage.from(DOCUMENTS_BUCKET).upload(storagePath, dl.bytes, { upsert: true, contentType: guessMime(f.name) });
         if (upErr) { firstError ??= `upload: ${upErr.message}`; continue; }
         await sb.from("inbox").insert({
           source: "dropbox",
