@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Inbox as InboxIcon, ShieldQuestion, Trash2, Sparkles, Loader2, FileText, Image as ImageIcon,
-  FolderInput, RotateCcw, X, CheckCircle2, UploadCloud,
+  FolderInput, RotateCcw, X, CheckCircle2,
 } from "lucide-react";
 import { InboxList } from "./inbox-list";
 import { signInboxAttachment, autoSortInboxAction, type InboxItem, type AutoSortSummary } from "./actions";
@@ -12,7 +12,6 @@ import {
   fileFromQuarantineAction, trashIntakeDocAction, restoreFromTrashAction,
   deleteIntakeForeverAction, emptyTrashAction, type IntakeBucketItem,
 } from "@/app/documents/actions";
-import { BulkAutoUpload } from "@/components/bulk-auto-upload";
 import { RescanDocumentsButton } from "@/components/rescan-documents-button";
 import { FindDuplicatesButton } from "@/components/find-duplicates-button";
 import { Button } from "@/components/ui";
@@ -46,7 +45,6 @@ export function IntakeShell({
   const [tab, setTab] = useState<Tab>("inbox");
   const [sorting, startSort] = useTransition();
   const [summary, setSummary] = useState<AutoSortSummary | null>(null);
-  const [autoOpen, setAutoOpen] = useState(false);
 
   function sortNow() {
     setSummary(null);
@@ -90,18 +88,9 @@ export function IntakeShell({
             );
           })}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAutoOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-accent/50 bg-accent-soft/50 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-soft transition-colors"
-          >
-            <UploadCloud size={14} /> Add all (auto)
-          </button>
-          <Button type="button" size="sm" onClick={sortNow} disabled={sorting}>
-            {sorting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Sort now
-          </Button>
-        </div>
+        <Button type="button" size="sm" onClick={sortNow} disabled={sorting} className="ml-auto">
+          {sorting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Sort now
+        </Button>
       </div>
 
       {/* Whole-library housekeeping — moved here so Inbox is the one-stop place. */}
@@ -135,14 +124,6 @@ export function IntakeShell({
       {tab === "inbox" && <InboxList items={inboxItems} companies={companies} people={people} />}
       {tab === "quarantine" && <QuarantineList items={quarantine} />}
       {tab === "trash" && <TrashList items={trash} />}
-
-      <BulkAutoUpload
-        open={autoOpen}
-        onOpenChange={setAutoOpen}
-        companies={companies}
-        people={people}
-        onDone={() => router.refresh()}
-      />
     </div>
   );
 }

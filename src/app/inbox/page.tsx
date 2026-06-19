@@ -3,7 +3,7 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listPendingInbox } from "./actions";
 import { getIntakeBucket } from "@/app/documents/actions";
 import { IntakeShell } from "./intake-shell";
-import { AddInboxDialog } from "@/components/add-inbox-dialog";
+import { SmartAdd } from "@/components/smart-add";
 import { NeedsReviewPanel, type ReviewDoc } from "@/components/needs-review-panel";
 import { ExtractionHealth } from "@/components/extraction-health";
 import { SafetyNetPanel } from "@/components/safety-net-panel";
@@ -51,7 +51,7 @@ export default async function InboxPage({
       <PageHeader
         title="Inbox"
         sub="Drop a bundle and it sorts itself — filed by company, held in Quarantine when unclear, duplicates to Trash."
-        action={<AddInboxDialog />}
+        action={<SmartAdd companies={companies} people={people} />}
       />
       <AutomationFeed applied={automation.applied} suggestions={automation.suggestions} />
 
