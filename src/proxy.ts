@@ -135,5 +135,8 @@ export const config = {
   // r/ is the public per-person reminder link — WhatsApp's crawler reads its
   // Open-Graph card and real visitors land on it; it carries the SAME HMAC gate as
   // api/wa-card (verifyWaCardToken), so it must NOT be behind the admin cookie.
-  matcher: ["/((?!portal|login|e/|r/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|_next|.*\\..*).*)"],
+  // api/dropbox/webhook is public (Dropbox's servers call it with no cookie) — it
+  // verifies its own X-Dropbox-Signature instead. The auth/callback Dropbox routes
+  // stay gated (the owner's browser hits them with the admin cookie).
+  matcher: ["/((?!portal|login|e/|r/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|api/dropbox/webhook|_next|.*\\..*).*)"],
 };

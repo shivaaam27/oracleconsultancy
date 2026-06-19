@@ -15,6 +15,8 @@ import { RevealPassword } from "@/components/reveal-password";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
 import { getAutomationRuleStatuses, getRecordsConfidence } from "@/app/automations/actions";
+import { DropboxSettings } from "@/components/dropbox-settings";
+import { getDropboxStatus } from "@/lib/dropbox";
 import { EmailStatus } from "./email-test";
 import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
@@ -23,7 +25,7 @@ import { getOwnerIdentity } from "@/lib/admin-auth";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +66,7 @@ export default async function SettingsPage({
   const emailTestMode = (tmRow?.value as string | null) === "1";
   const automationStatuses = await getAutomationRuleStatuses();
   const recordsConfidence = await getRecordsConfidence();
+  const dropboxStatus = await getDropboxStatus();
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -319,6 +322,11 @@ export default async function SettingsPage({
                 <Button type="button" className="gap-1.5"><CalendarCheck size={15} /> Connect Google Calendar</Button>
               </Link>
             )}
+          </SettingsCard>
+
+          {/* Dropbox inbox connector */}
+          <SettingsCard id="dropbox" icon={<FolderSync size={15} />} title="Dropbox inbox" desc="Drop a file in your watched Dropbox folder and it pulls into the inbox automatically for sorting. One-way and read-only." className="scroll-mt-24">
+            <DropboxSettings status={dropboxStatus} />
           </SettingsCard>
 
           {/* Email automation */}
