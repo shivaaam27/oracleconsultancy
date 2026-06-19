@@ -132,14 +132,20 @@ export default async function CompanyPage({
       .sort((a, b) => a.personName.localeCompare(b.personName));
   })();
 
-  // Profile-only: pending + auto-applied "Suggested additions" + custom shelves.
-  const [profileSuggestions, appliedSuggestions, customShelves] = tab === "profile"
+  // Profile-only: pending + auto-applied "Suggested additions" + custom shelves +
+  // the pipeline stage of any document (so the Documents list shows it at a glance).
+  const [profileSuggestions, appliedSuggestions, customShelves, pipelineRows] = tab === "profile"
     ? await Promise.all([
         listProfileSuggestions({ companyId, status: "pending" }),
         listProfileSuggestions({ companyId, status: "applied" }),
         listCustomShelves(),
+        sb.from("pipeline").select("document_id,stage").eq("company_id", companyId).eq("archived", false),
       ])
-    : [[], [], []];
+    : [[], [], [], { data: [] as Array<{ document_id: number | null; stage: string }> }];
+  const stageByDoc: Record<number, string> = {};
+  for (const r of (pipelineRows as { data: Array<{ document_id: number | null; stage: string }> }).data ?? []) {
+    if (r.document_id != null) stageByDoc[r.document_id] = r.stage;
+  }
 
   // Overview-only: assets at this company + its suppliers (heavier, so lazy).
   let overviewExtras: null | { assets: AssetRow[]; vendors: VendorRow[] } = null;
@@ -414,6 +420,7 @@ export default async function CompanyPage({
             companies={companiesList}
             people={peopleList}
             customShelves={customShelves}
+            stageByDoc={stageByDoc}
           />
         </div>
       )}

@@ -3,11 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { FilePlus, X, FolderOpen, Users, ExternalLink, Paperclip, Pencil, Trash2, Loader2, ChevronDown } from "lucide-react";
+import { FilePlus, X, FolderOpen, Users, ExternalLink, Pencil, Trash2, Loader2, ChevronDown, Search, Check, Wand2 } from "lucide-react";
 import { DocumentForm } from "@/components/document-form";
+import { DocPreview } from "@/components/doc-preview";
+import { RenameSweepDialog } from "@/components/rename-sweep-dialog";
 import { CompanyRequirementsChecklist } from "@/components/company-requirements-checklist";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
-import { getDocumentFileLinkAction, archiveDocumentAction } from "@/app/documents/actions";
+import { archiveDocumentAction, renameDocumentAction } from "@/app/documents/actions";
 import { deriveDocStatus, expiryLabel, pickShelf, allShelves, type CustomShelf, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 import { useToast } from "@/components/toast";
 
@@ -63,6 +65,7 @@ export function CompanyDocuments({
   companies,
   people,
   customShelves = [],
+  stageByDoc = {},
 }: {
   companyId: number;
   companyName: string;
@@ -71,6 +74,8 @@ export function CompanyDocuments({
   companies: Array<{ id: number; name: string }>;
   people: Array<{ id: number; name: string }>;
   customShelves?: CustomShelf[];
+  /** Pipeline stage per document id, so a doc shows where it is at a glance. */
+  stageByDoc?: Record<number, string>;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -79,10 +84,27 @@ export function CompanyDocuments({
   const [addTitle, setAddTitle] = useState<string>("");
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [opening, startOpen] = useTransition();
   const [, startDelete] = useTransition();
   const [reloadSignal, setReloadSignal] = useState(0);
+  const [query, setQuery] = useState("");
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, startRename] = useTransition();
+  const [sweepOpen, setSweepOpen] = useState(false);
   const formOpen = addOpen || !!editDoc;
+
+  function beginRename(doc: DocumentRow) { setRenamingId(doc.id); setRenameValue(doc.title); }
+  function saveRename(id: number) {
+    const t = renameValue.trim();
+    if (!t) { setRenamingId(null); return; }
+    startRename(async () => {
+      const res = await renameDocumentAction(id, t);
+      setRenamingId(null);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast("Renamed.", { tone: "success" });
+      router.refresh();
+    });
+  }
 
   function closeForm() {
     setAddOpen(false);
@@ -118,14 +140,6 @@ export function CompanyDocuments({
     return s !== 0 ? s : a.personName.localeCompare(b.personName);
   });
 
-  function openFile(id: number) {
-    startOpen(async () => {
-      const res = await getDocumentFileLinkAction(id);
-      if (res.ok) window.open(res.url, "_blank", "noopener,noreferrer");
-      else toast(res.error, { tone: "danger" });
-    });
-  }
-
   function startAdd(opts: { title?: string; category: string | null }) {
     setAddCategory(opts.category);
     setAddTitle(opts.title ?? "");
@@ -137,8 +151,12 @@ export function CompanyDocuments({
   // Group the company's documents into the owner's eight shelves (their on-disk
   // folders), so the page reads like their file explorer. Within a shelf,
   // attention-first then by title (same order as the old flat list).
+  const q = query.trim().toLowerCase();
+  const visibleDocs = q
+    ? sortedDocs.filter((d) => [d.title, d.category, d.issuer, d.referenceNo, stageByDoc[d.id]].filter(Boolean).join(" ").toLowerCase().includes(q))
+    : sortedDocs;
   const docsByShelf = new Map<string, DocumentRow[]>();
-  for (const doc of sortedDocs) {
+  for (const doc of visibleDocs) {
     const shelf = pickShelf(doc, customShelves).name;
     const list = docsByShelf.get(shelf) ?? [];
     list.push(doc);
@@ -149,60 +167,60 @@ export function CompanyDocuments({
   function renderDocRow(doc: DocumentRow) {
     const status = deriveDocStatus(doc);
     const exp = expiryLabel(doc);
+    const stage = stageByDoc[doc.id];
+    const renaming = renamingId === doc.id;
     return (
-      <li key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-bg-elev/40">
-        <span className="min-w-0 flex-1">
-          {doc.storagePath ? (
-            <button
-              type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
-              className="block w-full truncate text-left text-sm font-medium text-fg hover:text-accent hover:underline transition-colors disabled:opacity-50"
-            >
-              {doc.title}
-            </button>
-          ) : doc.fileUrl ? (
-            <a
-              href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
-              className="block w-full truncate text-sm font-medium text-fg hover:text-accent hover:underline transition-colors"
-            >
-              {doc.title}
-            </a>
-          ) : (
-            <span className="block truncate text-sm font-medium">{doc.title}</span>
+      <li key={doc.id} className="px-3.5 py-2.5 bg-bg-elev/40">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            {renaming ? (
+              <input
+                autoFocus value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveRename(doc.id); if (e.key === "Escape") setRenamingId(null); }}
+                onBlur={() => saveRename(doc.id)}
+                disabled={savingRename}
+                className="w-full rounded-md border border-accent/40 bg-bg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent-ring/50"
+              />
+            ) : doc.storagePath ? (
+              <DocPreview documentId={doc.id} fileName={doc.fileName ?? doc.title} label={doc.title} />
+            ) : doc.fileUrl ? (
+              <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-medium text-fg hover:text-accent hover:underline">{doc.title}</a>
+            ) : (
+              <span className="block truncate text-sm font-medium">{doc.title}</span>
+            )}
+            <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">
+              {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+          {stage && (
+            <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-info-soft/60 ring-1 ring-info/30 text-info" title="Application stage">
+              {stage}
+            </span>
           )}
-          <span className="block truncate text-[11px] text-fg-subtle">
-            {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
+          <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
+            {status}
           </span>
-        </span>
-        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
-          {status}
-        </span>
-        {doc.storagePath ? (
-          <button
-            type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
-            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors disabled:opacity-50"
-          >
-            <Paperclip size={14} />
+          {renaming ? (
+            <button type="button" onClick={() => saveRename(doc.id)} disabled={savingRename} title="Save name"
+              className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-success hover:bg-success-soft/60 transition-colors">
+              {savingRename ? <Loader2 size={13} className="animate-spin" /> : <Check size={14} />}
+            </button>
+          ) : (
+            <button type="button" onClick={() => beginRename(doc)} title="Rename"
+              className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors">
+              <Pencil size={13} />
+            </button>
+          )}
+          <button type="button" onClick={() => setEditDoc(doc)} title="Edit details"
+            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors text-[10px] font-semibold">
+            ⋯
           </button>
-        ) : doc.fileUrl ? (
-          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
-            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors">
-            <ExternalLink size={14} />
-          </a>
-        ) : (
-          <span className="shrink-0 h-7 w-7" aria-hidden />
-        )}
-        <button
-          type="button" onClick={() => setEditDoc(doc)} title="Edit document"
-          className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors"
-        >
-          <Pencil size={13} />
-        </button>
-        <button
-          type="button" onClick={() => deleteDoc(doc)} disabled={deletingId === doc.id} title="Delete document"
-          className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
-        >
-          {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-        </button>
+          <button type="button" onClick={() => deleteDoc(doc)} disabled={deletingId === doc.id} title="Delete document"
+            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50">
+            {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+          </button>
+        </div>
       </li>
     );
   }
@@ -238,8 +256,25 @@ export function CompanyDocuments({
             defaultOpen={false}
           />
 
-          {/* Shelves — the owner's eight folders. Every shelf shows so the page
-              mirrors their file explorer; empty ones offer a quick Add. */}
+          {/* Search + tidy names — find fast as volumes grow; collapse by default. */}
+          {documents.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+                <input
+                  value={query} onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search documents…"
+                  className="w-full rounded-lg border border-border bg-bg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-ring/40"
+                />
+              </div>
+              <button type="button" onClick={() => setSweepOpen(true)} title="Tidy document names to the standard format"
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-fg-muted hover:text-fg transition">
+                <Wand2 size={13} /> Tidy names
+              </button>
+            </div>
+          )}
+
+          {/* Shelves — the owner's eight folders, collapsed by default (click to open). */}
           {documents.length === 0 ? (
             <div className="px-2 py-8 text-center text-sm text-fg-muted space-y-3">
               <p>No documents filed for {companyName} yet.</p>
@@ -260,7 +295,7 @@ export function CompanyDocuments({
                   return s === "Expired" || s === "Expiring";
                 }).length;
                 return (
-                  <details key={shelf} open={shelfDocs.length > 0} className="group/shelf rounded-xl ring-1 ring-border/60 overflow-hidden bg-bg-elev/30">
+                  <details key={shelf} open={q.length > 0 && shelfDocs.length > 0} className="group/shelf rounded-xl ring-1 ring-border/60 overflow-hidden bg-bg-elev/30">
                     <summary className="list-none cursor-pointer flex items-center gap-2.5 px-3.5 py-2.5 select-none">
                       <span className="text-[10px] font-semibold tabular text-fg-subtle">{code}</span>
                       <span className="text-sm font-medium">{shelf}</span>
@@ -367,6 +402,8 @@ export function CompanyDocuments({
           <ExternalLink size={12} /> Open in Documents centre
         </a>
       </div>
+
+      <RenameSweepDialog open={sweepOpen} onClose={() => setSweepOpen(false)} onDone={() => router.refresh()} />
 
       {/* Add / edit document modal, layered over the page (no route change). */}
       <Dialog.Root open={formOpen} onOpenChange={(o) => { if (!o) closeForm(); }}>

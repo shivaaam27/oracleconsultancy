@@ -10,6 +10,7 @@ import {
   undoSuggestionAction,
 } from "@/app/suggestions/actions";
 import { useToast } from "@/components/toast";
+import { DocPreview } from "@/components/doc-preview";
 import type { ProfileSuggestion } from "@/lib/profile-suggestions";
 
 const KIND_LABEL: Record<string, string> = {
@@ -109,6 +110,7 @@ export function SuggestionTray({
                 <p className="text-sm font-medium leading-snug">{s.summary}</p>
               </div>
               {s.detail && <p className="text-[11px] text-fg-subtle pl-0.5">{s.detail}</p>}
+              {s.documentId && <DocPreview documentId={s.documentId} fileName="Source document" className="pt-0.5" />}
               <div className="flex items-center gap-2 pt-0.5">
                 <button
                   type="button"

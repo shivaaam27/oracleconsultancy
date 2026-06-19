@@ -130,6 +130,25 @@ export function shelfForCategory(category?: string | null): DocShelf {
   return "Operations & Branding";
 }
 
+/**
+ * The one document-naming convention, used by every file path so names are
+ * consistent: "Owner · Type · Ref-or-Year". Any part that's missing is dropped;
+ * an empty result falls back to "Document". The AI's free-text read still lives in
+ * the document's notes/extracted text for search — this is purely the title.
+ */
+export function buildDocTitle(p: { owner?: string | null; type?: string | null; ref?: string | null; date?: string | Date | null }): string {
+  const clean = (s?: string | null) => (s ?? "").toString().trim().replace(/\s+/g, " ");
+  const owner = clean(p.owner);
+  const type = clean(p.type);
+  let tail = clean(p.ref);
+  if (!tail && p.date) {
+    const y = (p.date instanceof Date ? p.date.toISOString() : String(p.date)).slice(0, 4);
+    if (/^\d{4}$/.test(y)) tail = y;
+  }
+  const parts = [owner, type, tail].filter(Boolean);
+  return (parts.length ? parts.join(" · ") : "Document").slice(0, 120);
+}
+
 // A custom shelf the owner has accepted (Part D) — extends the built-in eight.
 export type CustomShelf = { name: string; code: string; keywords: string[] };
 

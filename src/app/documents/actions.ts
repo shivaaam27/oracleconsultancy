@@ -34,7 +34,7 @@ import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
-import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, type IntakeState } from "@/lib/documents-shared";
+import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import { buildCompanyRequirementScores, getCompanyChecklist } from "@/lib/company-requirements";
@@ -391,7 +391,11 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
 
     // (3) Build + create the document, then route it into its bucket.
     const finalState: IntakeState = needsReview ? "quarantine" : "filed";
-    const title = finalState === "filed" ? composeFiledTitle(f, ownerName, fallbackTitle) : (f.title || fallbackTitle);
+    // One consistent name on EVERY auto path (Dropbox + manual auto-sort + quarantine):
+    // Owner · Type · Ref/Year. Falls back to the AI title/filename only if there's
+    // nothing to compose from. The original read stays searchable in extractedText/notes.
+    const composed = buildDocTitle({ owner: ownerName, type: f.docType || f.category, ref: f.referenceNo, date: f.issueDate });
+    const title = composed === "Document" ? (f.title || fallbackTitle) : composed;
     const input: DocumentInput = {
       title,
       category: f.category ?? null,
@@ -462,13 +466,6 @@ function mergePreferAI(ruled: ExtractedFields, ai: ExtractedFields): ExtractedFi
 /** A tidy display title for a filed document — keep a real read title; otherwise
  *  compose "<Owner> – <Category> – <Type>" so auto-filed scans aren't named after
  *  a messy filename. The original filename is always preserved on the row. */
-function composeFiledTitle(f: ExtractedFields, ownerName: string | null, fallbackTitle: string): string {
-  const base = (f.title ?? "").trim();
-  const looksLikeFilename = !base || base.toLowerCase() === fallbackTitle.toLowerCase() || /\b(img|image|scan|photo|document|doc|untitled|whatsapp)\b|^\d{6,}$/i.test(base);
-  if (!looksLikeFilename) return base.slice(0, 120);
-  const bits = [ownerName, f.category, f.docType].filter((x): x is string => !!x && x.trim().length > 0);
-  return (bits.length ? bits.join(" – ") : base || fallbackTitle).slice(0, 120);
-}
 
 /**
  * Find a FILED document that is the same logical document as an incoming file
@@ -632,6 +629,65 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not save the document." };
   }
+}
+
+/** Quick inline rename — just the title, no full edit form. */
+export async function renameDocumentAction(id: number, title: string): Promise<Result> {
+  const t = title.trim().slice(0, 120);
+  if (!t) return { ok: false, error: "Name can't be empty." };
+  const { error } = await supa.from("documents").update({ title: t, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidateDocs();
+  return { ok: true };
+}
+
+export type RenameProposal = { id: number; current: string; proposed: string };
+
+/** The one-time "tidy names" sweep: every filed doc whose title doesn't match the
+ *  convention, with its proposed name, for the owner to review before applying. */
+export async function proposeDocumentRenamesAction(): Promise<RenameProposal[]> {
+  const { data: docs } = await supa
+    .from("documents")
+    .select("id,title,doc_type,category,reference_no,issue_date,company_id,person_id")
+    .eq("archived", false).eq("intake_state", "filed").limit(3000);
+  if (!docs) return [];
+  const companyIds = [...new Set(docs.map((d) => d.company_id as number | null).filter((x): x is number => !!x))];
+  const personIds = [...new Set(docs.map((d) => d.person_id as number | null).filter((x): x is number => !!x))];
+  const [cos, ppl] = await Promise.all([
+    companyIds.length ? supa.from("companies").select("id,name").in("id", companyIds) : Promise.resolve({ data: [] as { id: number; name: string }[] }),
+    personIds.length ? supa.from("people").select("id,name").in("id", personIds) : Promise.resolve({ data: [] as { id: number; name: string }[] }),
+  ]);
+  const cName = new Map((cos.data ?? []).map((c) => [c.id as number, c.name as string]));
+  const pName = new Map((ppl.data ?? []).map((p) => [p.id as number, p.name as string]));
+  const out: RenameProposal[] = [];
+  for (const d of docs) {
+    const owner = d.person_id ? pName.get(d.person_id as number) : d.company_id ? cName.get(d.company_id as number) : null;
+    const proposed = buildDocTitle({ owner, type: (d.doc_type as string) || (d.category as string), ref: d.reference_no as string, date: d.issue_date as string });
+    if (proposed && proposed !== "Document" && proposed !== d.title) out.push({ id: d.id as number, current: d.title as string, proposed });
+  }
+  return out;
+}
+
+/** Apply selected renames, stashing the previous titles so the sweep can be undone. */
+export async function applyDocumentRenamesAction(items: { id: number; title: string }[]): Promise<{ ok: boolean; count: number }> {
+  const before: { id: number; title: string }[] = [];
+  for (const it of items) {
+    const { data } = await supa.from("documents").select("title").eq("id", it.id).maybeSingle();
+    if (data) before.push({ id: it.id, title: data.title as string });
+    await supa.from("documents").update({ title: it.title.slice(0, 120), updated_at: new Date().toISOString() }).eq("id", it.id);
+  }
+  await supa.from("settings").upsert({ key: "docRename.lastBatch", value: JSON.stringify(before) }, { onConflict: "key" });
+  revalidateDocs();
+  return { ok: true, count: items.length };
+}
+
+export async function undoLastRenameSweepAction(): Promise<{ ok: boolean; count: number }> {
+  const { data } = await supa.from("settings").select("value").eq("key", "docRename.lastBatch").maybeSingle();
+  const before = data?.value ? (JSON.parse(data.value as string) as { id: number; title: string }[]) : [];
+  for (const b of before) await supa.from("documents").update({ title: b.title }).eq("id", b.id);
+  await supa.from("settings").delete().eq("key", "docRename.lastBatch");
+  revalidateDocs();
+  return { ok: true, count: before.length };
 }
 
 export async function updateDocumentAction(id: number, fd: FormData): Promise<Result> {
