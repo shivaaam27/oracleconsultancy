@@ -72,6 +72,111 @@ export function categoryFromFolder(folderHint?: string | null): DocCategory | nu
   return null;
 }
 
+// ── Shelves ──────────────────────────────────────────────────────────────
+// The owner thinks in the eight folders kept on their computer, not the 15 flat
+// document categories. A "shelf" is the owner-facing drawer; several categories
+// map into one shelf. This is PRESENTATION only — routing/extraction still work
+// on `category`; we just group the company's filed documents the owner's way.
+export const DOC_SHELVES = [
+  "Legal & Registration",
+  "Licences & Permits",
+  "Tax",
+  "Banking & Finance",
+  "People & HR",
+  "Immigration",
+  "Contracts & Leases",
+  "Operations & Branding",
+] as const;
+export type DocShelf = (typeof DOC_SHELVES)[number];
+
+// Each shelf's matching short code (mirrors the on-disk 01_…–08_ folder names),
+// shown as a quiet prefix so the screen reads like the owner's file explorer.
+export const SHELF_CODE: Record<DocShelf, string> = {
+  "Legal & Registration": "01",
+  "Licences & Permits": "02",
+  Tax: "03",
+  "Banking & Finance": "04",
+  "People & HR": "05",
+  Immigration: "06",
+  "Contracts & Leases": "07",
+  "Operations & Branding": "08",
+};
+
+// Which shelf a document category belongs to. Categories not listed here (and any
+// future/unknown one) fall to "Operations & Branding" via shelfForCategory's
+// default — never lost, just shelved with the general business papers.
+const CATEGORY_SHELF: Partial<Record<DocCategory, DocShelf>> = {
+  Registration: "Legal & Registration",
+  Certificate: "Legal & Registration",
+  Legal: "Legal & Registration",
+  Licence: "Licences & Permits",
+  Permit: "Licences & Permits",
+  Tax: "Tax",
+  Banking: "Banking & Finance",
+  Insurance: "Banking & Finance",
+  Immigration: "Immigration",
+  Passport: "Immigration",
+  Contract: "Contracts & Leases",
+  Lease: "Contracts & Leases",
+  Operations: "Operations & Branding",
+  Attachment: "Operations & Branding",
+  Other: "Operations & Branding",
+};
+
+/** The owner-facing shelf for a document, from its category. Unknown/blank →
+ *  "Operations & Branding" (the general business-papers drawer). */
+export function shelfForCategory(category?: string | null): DocShelf {
+  if (category && category in CATEGORY_SHELF) return CATEGORY_SHELF[category as DocCategory]!;
+  return "Operations & Branding";
+}
+
+// A custom shelf the owner has accepted (Part D) — extends the built-in eight.
+export type CustomShelf = { name: string; code: string; keywords: string[] };
+
+/** Common document words that are too generic to define a new shelf or a routing
+ *  signature (every business has letters and reports). */
+const SHELF_STOPWORDS = new Set([
+  "the", "and", "for", "ltd", "limited", "company", "document", "documents", "file", "copy",
+  "letter", "report", "form", "notice", "statement", "memo", "memorandum", "scan", "page",
+  "certificate", "certificates", "official", "final", "draft", "signed", "dated",
+]);
+
+/** Distinctive lowercase tokens from a blob of document text (title + issuer +
+ *  type). Used by both the learning loop's signature and new-shelf detection. */
+export function distinctiveTokens(text: string, max = 6): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of (text ?? "").toLowerCase().split(/[^a-z0-9]+/)) {
+    if (raw.length < 4 || SHELF_STOPWORDS.has(raw) || seen.has(raw)) continue;
+    seen.add(raw);
+    out.push(raw);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** All shelves to render: the eight built-ins followed by any custom ones. */
+export function allShelves(custom: CustomShelf[]): Array<{ name: string; code: string }> {
+  return [
+    ...DOC_SHELVES.map((name) => ({ name, code: SHELF_CODE[name] })),
+    ...custom.map((c) => ({ name: c.name, code: c.code })),
+  ];
+}
+
+/** The shelf a document belongs to, honouring custom shelves first (keyword match
+ *  on title/category/type), then the built-in category mapping. */
+export function pickShelf(
+  doc: { category?: string | null; title?: string | null; docType?: string | null },
+  custom: CustomShelf[]
+): { name: string; code: string } {
+  const hay = `${doc.category ?? ""} ${doc.title ?? ""} ${doc.docType ?? ""}`.toLowerCase();
+  for (const c of custom) {
+    if (c.keywords.some((k) => k && hay.includes(k.toLowerCase()))) return { name: c.name, code: c.code };
+  }
+  const shelf = shelfForCategory(doc.category);
+  return { name: shelf, code: SHELF_CODE[shelf] };
+}
+
 // Sensible default reminder lead times (days before expiry) by category.
 export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Immigration: 90,

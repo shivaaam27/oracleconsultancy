@@ -9,6 +9,9 @@ import { CompanyDocuments } from "./_tabs/company-documents";
 import { CompanyProfile } from "./_tabs/company-profile";
 import { CompanyKeyDocuments } from "./_tabs/company-key-documents";
 import { buildCompanyKeyDocuments } from "@/lib/company-profile";
+import { SuggestionTray } from "@/components/suggestion-tray";
+import { listProfileSuggestions } from "@/lib/profile-suggestions";
+import { listCustomShelves } from "@/lib/shelves";
 import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
@@ -128,6 +131,15 @@ export default async function CompanyPage({
       }))
       .sort((a, b) => a.personName.localeCompare(b.personName));
   })();
+
+  // Profile-only: pending + auto-applied "Suggested additions" + custom shelves.
+  const [profileSuggestions, appliedSuggestions, customShelves] = tab === "profile"
+    ? await Promise.all([
+        listProfileSuggestions({ companyId, status: "pending" }),
+        listProfileSuggestions({ companyId, status: "applied" }),
+        listCustomShelves(),
+      ])
+    : [[], [], []];
 
   // Overview-only: assets at this company + its suppliers (heavier, so lazy).
   let overviewExtras: null | { assets: AssetRow[]; vendors: VendorRow[] } = null;
@@ -366,6 +378,7 @@ export default async function CompanyPage({
 
       {tab === "profile" && (
         <div className="space-y-3.5">
+          <SuggestionTray suggestions={profileSuggestions} applied={appliedSuggestions} companyId={companyId} />
           <CompanyProfile
             companyId={companyId}
             companyName={name}
@@ -400,6 +413,7 @@ export default async function CompanyPage({
             staffGroups={staffGroups}
             companies={companiesList}
             people={peopleList}
+            customShelves={customShelves}
           />
         </div>
       )}

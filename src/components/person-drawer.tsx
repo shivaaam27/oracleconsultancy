@@ -38,6 +38,8 @@ import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person
 import { PersonLeave } from "./person-leave";
 import { PersonProbation } from "./person-probation";
 import { FactsPanel } from "./facts-panel";
+import { SuggestionTray } from "./suggestion-tray";
+import type { ProfileSuggestion } from "@/lib/profile-suggestions";
 import type { PersonLeaveBalance, LeaveRequestRow } from "@/lib/leave-shared";
 import type { PersonAttendanceSummary } from "@/lib/leave";
 
@@ -125,6 +127,8 @@ type DrawerData = {
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
   portal: { enabled: boolean; role: string; lastLoginAt: string | null };
   directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
+  suggestions: ProfileSuggestion[];
+  appliedSuggestions: ProfileSuggestion[];
 };
 
 /* -------------------------------------------------------------------------
@@ -675,6 +679,12 @@ export function PersonDrawer() {
       </div>
     ) : (
       <>
+        {/* Suggested additions — pending decisions + auto-applied (undoable) */}
+        {(data.suggestions.length > 0 || data.appliedSuggestions.length > 0) && (
+          <div className="mb-3">
+            <SuggestionTray suggestions={data.suggestions} applied={data.appliedSuggestions} personId={person.id} />
+          </div>
+        )}
         {/* Profile details — grouped definition grids */}
         {(() => {
           const docFor = (kind: "passport" | "nationalId") =>

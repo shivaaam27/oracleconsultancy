@@ -35,12 +35,13 @@ import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, type IntakeState } from "@/lib/documents-shared";
+import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import { buildCompanyRequirementScores, getCompanyChecklist } from "@/lib/company-requirements";
 import { buildPersonRequirementScores, getPersonChecklist } from "@/lib/requirements";
 import { buildComplianceCsv, complianceCsvFilename } from "@/lib/compliance-export";
-import { enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
-import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
+import type { PersonProfileFields } from "@/app/people/actions";
+import type { CompanyProfileFields } from "@/app/companies/[id]/actions";
 
 export type OwnerDocMatch = {
   id: number;
@@ -334,6 +335,11 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       const folderCat = categoryFromFolder(folderHint);
       if (folderCat) f.category = folderCat;
     }
+    // Learning loop (Part C): if the owner has previously re-categorised documents
+    // like this one, follow that correction — it overrides the content guess,
+    // because the owner has already told us where this kind of document belongs.
+    const learnedCat = await learnedCategoryFor(`${f.title ?? ""} ${f.issuer ?? ""} ${fileName}`);
+    if (learnedCat) f.category = learnedCat;
 
     const hasOwner = !!companyId || !!personId;
     if (!ownerName && hasOwner) {
@@ -414,9 +420,16 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         await updateDocument(id, { supersedesId: supersedePhotoId });
         await setDocumentIntakeState(supersedePhotoId, "trash", `Replaced by a PDF — #${id} ${title}`);
       }
-      await appendDocumentFacts(id, f.facts ?? [], input.companyId ?? null, input.personId ?? null, input.title);
-      if (personId && f.person && Object.keys(f.person).length) { try { await enrichPersonProfile(personId, f.person); } catch { /* best effort */ } }
-      if (companyId && f.company && Object.keys(f.company).length) { try { await enrichCompanyProfile(companyId, f.company); } catch { /* best effort */ } }
+      // Always-ask-first: profile fields + ledger facts the AI read are PROPOSED
+      // on the company/person profile (a "Suggested additions" tray), not written
+      // silently. The owner accepts/dismisses; accept writes through blanks-only.
+      try {
+        const { enqueueDocumentSuggestions } = await import("@/lib/profile-suggestions");
+        // Smart-auto only on a clean read: a confident scan that isn't a
+        // stand-in photo. A shaky read still waits for a one-tap decision.
+        const cleanRead = !needsReview && !(input.needsOriginal ?? false);
+        await enqueueDocumentSuggestions({ documentId: id, companyId: input.companyId ?? null, personId: input.personId ?? null, fields: f, source: input.title, clean: cleanRead });
+      } catch { /* best-effort — never block the file from filing */ }
       if (input.companyId) {
         await backfillCompanyProfileFromDocument(input.companyId, { category: input.category ?? null, title: input.title ?? null, referenceNo: input.referenceNo ?? null, issueDate: input.issueDate ?? null });
       }
@@ -631,11 +644,12 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
     // that no longer belongs to them.
     const { data: priorDoc } = await supa
       .from("documents")
-      .select("person_id,company_id,review_status")
+      .select("person_id,company_id,review_status,category,title,issuer,doc_type")
       .eq("id", id)
       .maybeSingle();
     const priorPersonId = (priorDoc?.person_id as number | null) ?? null;
     const priorCompanyId = (priorDoc?.company_id as number | null) ?? null;
+    const priorCategory = (priorDoc?.category as string | null) ?? null;
 
     // A manual edit-save IS a human confirmation — clear any "needs review" flag
     // (the operator has just reviewed the fields), unless the form set it explicitly.
@@ -643,6 +657,16 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
       parsed.reviewStatus = "ok";
     }
     await updateDocument(id, parsed);
+    // Learning loop (Part C): a manual category change is the owner correcting the
+    // shelf — remember it so the next similar document follows the fix.
+    if (parsed.category && parsed.category !== priorCategory) {
+      await recordCategoryCorrection({
+        title: parsed.title ?? (priorDoc?.title as string | null) ?? null,
+        issuer: parsed.issuer ?? (priorDoc?.issuer as string | null) ?? null,
+        docType: parsed.docType ?? (priorDoc?.doc_type as string | null) ?? null,
+        toCategory: parsed.category,
+      });
+    }
     const file = fileFromForm(fd);
     if (file) await uploadDocumentFile(id, file);
     else if (fd.get("removeFile") === "1") await removeDocumentFile(id);

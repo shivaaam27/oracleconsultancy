@@ -8,7 +8,7 @@ import { DocumentForm } from "@/components/document-form";
 import { CompanyRequirementsChecklist } from "@/components/company-requirements-checklist";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { getDocumentFileLinkAction, archiveDocumentAction } from "@/app/documents/actions";
-import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
+import { deriveDocStatus, expiryLabel, pickShelf, allShelves, type CustomShelf, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 import { useToast } from "@/components/toast";
 
 const STATUS_BADGE: Record<DocStatus, string> = {
@@ -62,6 +62,7 @@ export function CompanyDocuments({
   staffGroups,
   companies,
   people,
+  customShelves = [],
 }: {
   companyId: number;
   companyName: string;
@@ -69,6 +70,7 @@ export function CompanyDocuments({
   staffGroups: StaffFileGroup[];
   companies: Array<{ id: number; name: string }>;
   people: Array<{ id: number; name: string }>;
+  customShelves?: CustomShelf[];
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -132,6 +134,79 @@ export function CompanyDocuments({
 
   const linkableDocs = documents.map((d) => ({ id: d.id, title: d.title, category: d.category }));
 
+  // Group the company's documents into the owner's eight shelves (their on-disk
+  // folders), so the page reads like their file explorer. Within a shelf,
+  // attention-first then by title (same order as the old flat list).
+  const docsByShelf = new Map<string, DocumentRow[]>();
+  for (const doc of sortedDocs) {
+    const shelf = pickShelf(doc, customShelves).name;
+    const list = docsByShelf.get(shelf) ?? [];
+    list.push(doc);
+    docsByShelf.set(shelf, list);
+  }
+  const shelves = allShelves(customShelves);
+
+  function renderDocRow(doc: DocumentRow) {
+    const status = deriveDocStatus(doc);
+    const exp = expiryLabel(doc);
+    return (
+      <li key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-bg-elev/40">
+        <span className="min-w-0 flex-1">
+          {doc.storagePath ? (
+            <button
+              type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
+              className="block w-full truncate text-left text-sm font-medium text-fg hover:text-accent hover:underline transition-colors disabled:opacity-50"
+            >
+              {doc.title}
+            </button>
+          ) : doc.fileUrl ? (
+            <a
+              href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
+              className="block w-full truncate text-sm font-medium text-fg hover:text-accent hover:underline transition-colors"
+            >
+              {doc.title}
+            </a>
+          ) : (
+            <span className="block truncate text-sm font-medium">{doc.title}</span>
+          )}
+          <span className="block truncate text-[11px] text-fg-subtle">
+            {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
+          </span>
+        </span>
+        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
+          {status}
+        </span>
+        {doc.storagePath ? (
+          <button
+            type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
+            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors disabled:opacity-50"
+          >
+            <Paperclip size={14} />
+          </button>
+        ) : doc.fileUrl ? (
+          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
+            className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors">
+            <ExternalLink size={14} />
+          </a>
+        ) : (
+          <span className="shrink-0 h-7 w-7" aria-hidden />
+        )}
+        <button
+          type="button" onClick={() => setEditDoc(doc)} title="Edit document"
+          className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors"
+        >
+          <Pencil size={13} />
+        </button>
+        <button
+          type="button" onClick={() => deleteDoc(doc)} disabled={deletingId === doc.id} title="Delete document"
+          className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+        >
+          {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+        </button>
+      </li>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* ── Company files ─────────────────────────────────────────────── */}
@@ -163,7 +238,8 @@ export function CompanyDocuments({
             defaultOpen={false}
           />
 
-          {/* Flat list of every company document (no category grouping). */}
+          {/* Shelves — the owner's eight folders. Every shelf shows so the page
+              mirrors their file explorer; empty ones offer a quick Add. */}
           {documents.length === 0 ? (
             <div className="px-2 py-8 text-center text-sm text-fg-muted space-y-3">
               <p>No documents filed for {companyName} yet.</p>
@@ -176,73 +252,49 @@ export function CompanyDocuments({
               </button>
             </div>
           ) : (
-            <ul className="rounded-xl ring-1 ring-border/60 divide-y divide-border/50 overflow-hidden">
-              {sortedDocs.map((doc) => {
-                const status = deriveDocStatus(doc);
-                const exp = expiryLabel(doc);
+            <div className="space-y-2">
+              {shelves.map(({ name: shelf, code }) => {
+                const shelfDocs = docsByShelf.get(shelf) ?? [];
+                const attention = shelfDocs.filter((d) => {
+                  const s = deriveDocStatus(d);
+                  return s === "Expired" || s === "Expiring";
+                }).length;
                 return (
-                  <li key={doc.id} className="flex items-center gap-3 px-3.5 py-2.5 bg-bg-elev/40">
-                    <span className="min-w-0 flex-1">
-                      {doc.storagePath ? (
-                        <button
-                          type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
-                          className="block w-full truncate text-left text-sm font-medium text-fg hover:text-accent hover:underline transition-colors disabled:opacity-50"
-                        >
-                          {doc.title}
-                        </button>
-                      ) : doc.fileUrl ? (
-                        <a
-                          href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
-                          className="block w-full truncate text-sm font-medium text-fg hover:text-accent hover:underline transition-colors"
-                        >
-                          {doc.title}
-                        </a>
-                      ) : (
-                        <span className="block truncate text-sm font-medium">{doc.title}</span>
-                      )}
-                      <span className="block truncate text-[11px] text-fg-subtle">
-                        {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
+                  <details key={shelf} open={shelfDocs.length > 0} className="group/shelf rounded-xl ring-1 ring-border/60 overflow-hidden bg-bg-elev/30">
+                    <summary className="list-none cursor-pointer flex items-center gap-2.5 px-3.5 py-2.5 select-none">
+                      <span className="text-[10px] font-semibold tabular text-fg-subtle">{code}</span>
+                      <span className="text-sm font-medium">{shelf}</span>
+                      <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[10px] font-semibold tabular">
+                        {shelfDocs.length}
                       </span>
-                    </span>
-                    <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_BADGE[status]}`}>
-                      {status}
-                    </span>
-                    {doc.storagePath ? (
+                      {attention > 0 && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-warn-soft text-warn">
+                          {attention} need{attention === 1 ? "s" : ""} attention
+                        </span>
+                      )}
                       <button
-                        type="button" onClick={() => openFile(doc.id)} disabled={opening} title="Open file"
-                        className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors disabled:opacity-50"
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); startAdd({ category: null }); }}
+                        title={`Add a document to ${shelf}`}
+                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent/80 transition-colors rounded-full px-2 py-0.5 hover:bg-accent-soft/40"
                       >
-                        <Paperclip size={14} />
+                        <FilePlus size={12} /> Add
                       </button>
-                    ) : doc.fileUrl ? (
-                      <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" title="Open link"
-                        className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-accent hover:bg-bg-muted/60 transition-colors">
-                        <ExternalLink size={14} />
-                      </a>
+                      <ChevronDown size={15} className="shrink-0 text-fg-subtle transition-transform group-open/shelf:rotate-180" />
+                    </summary>
+                    {shelfDocs.length > 0 ? (
+                      <ul className="border-t border-border/50 divide-y divide-border/50">
+                        {shelfDocs.map((doc) => renderDocRow(doc))}
+                      </ul>
                     ) : (
-                      <span className="shrink-0 h-7 w-7" aria-hidden />
+                      <p className="border-t border-border/50 px-3.5 py-3 text-[11px] text-fg-subtle">
+                        Nothing filed here yet — drop a document and it lands automatically.
+                      </p>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setEditDoc(doc)}
-                      title="Edit document"
-                      className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-bg-muted/60 transition-colors"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteDoc(doc)}
-                      disabled={deletingId === doc.id}
-                      title="Delete document"
-                      className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-subtle hover:text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
-                    >
-                      {deletingId === doc.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                    </button>
-                  </li>
+                  </details>
                 );
               })}
-            </ul>
+            </div>
           )}
         </div>
       </details>

@@ -1098,6 +1098,68 @@ export const automationEvents = pgTable("automation_events", {
   index("automation_events_document_idx").on(t.documentId),
 ]);
 
+// Profile suggestions ("the system tells you what to add"). When a document is
+// filed, the AI's structured read (profile fields, ledger facts) is proposed here
+// rather than written silently — the owner accepts/dismisses on the company or
+// person profile. Always-ask-first sibling of automation_events (which moves
+// processes); this one fills RECORDS. Accept writes through to the real table.
+export const profileSuggestions = pgTable("profile_suggestions", {
+  id: serial("id").primaryKey(),
+  // What to add: company-field | person-field | fact.
+  kind: text("kind").notNull(),
+  // pending → accepted | dismissed.
+  status: text("status").notNull().default("pending"),
+  // The document whose filing produced this suggestion.
+  documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+  personId: integer("person_id").references(() => people.id, { onDelete: "cascade" }),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+  // The target field. For company-field/person-field this is the profile key
+  // (e.g. "registrationNo"); for fact it is the ledger field (e.g. "Directors").
+  field: text("field").notNull(),
+  // Proposed value (string/number/array/object — facts can be lists).
+  value: jsonb("value").notNull(),
+  display: text("display"),        // human rendering of value
+  summary: text("summary").notNull(), // "Add Registration no. 12345 to Dar Spices"
+  detail: text("detail"),             // where it came from, e.g. the file title
+  effectiveDate: timestamp("effective_date", { mode: "date", withTimezone: true }), // for facts
+  source: text("source"),             // proving source label (for facts)
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  actedAt: timestamp("acted_at", { mode: "date", withTimezone: true }),
+  createdBy: text("created_by").notNull().default("ai-intake"),
+}, (t) => [
+  index("profile_suggestions_status_idx").on(t.status),
+  index("profile_suggestions_company_idx").on(t.companyId),
+  index("profile_suggestions_person_idx").on(t.personId),
+  index("profile_suggestions_document_idx").on(t.documentId),
+]);
+
+// Learning loop (Part C): when the owner corrects a filed document's category
+// (the intake guessed the wrong shelf), the fix is remembered here so the next
+// similar document follows the correction. Keyed by a small set of distinctive
+// keywords read off the title/issuer; `hits` grows each time the same fix recurs.
+export const routingCorrections = pgTable("routing_corrections", {
+  id: serial("id").primaryKey(),
+  keywords: text("keywords").notNull(),       // comma-joined distinctive tokens
+  toCategory: text("to_category").notNull(),  // the category the owner chose
+  sampleTitle: text("sample_title"),          // an example, for transparency
+  hits: integer("hits").notNull().default(1),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }),
+}, (t) => [index("routing_corrections_keywords_idx").on(t.keywords)]);
+
+// Custom shelves (Part D): the owner's eight built-in folders can be extended.
+// A genuinely new kind of document (e.g. a Trademark certificate) is PROPOSED as
+// a new shelf (a profile_suggestions row, kind "new-shelf"); accepting inserts a
+// row here. Documents route to a custom shelf when their text matches `keywords`.
+export const customShelves = pgTable("custom_shelves", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  code: text("code").notNull(),               // display prefix, e.g. "09"
+  keywords: text("keywords").notNull(),       // comma-joined match terms
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+});
+
 // Extraction memory: the AI's structured read of a file, keyed by the file's
 // CONTENT hash. Reading the same bytes again returns this cached result with no
 // Groq call — so re-scanning an unchanged document is free AND deterministic
