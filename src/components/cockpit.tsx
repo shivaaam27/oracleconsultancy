@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X, Loader2, RotateCcw, ChevronDown, Inbox, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Check, X, Loader2, RotateCcw, ChevronDown, Inbox, Sparkles, AlertTriangle } from "lucide-react";
 import { approveCockpitItem, dismissCockpitItem, undoCockpitItem } from "@/app/approvals/actions";
 import { cockpitKindLabel, type CockpitItem } from "@/lib/cockpit-shared";
 import { useToast } from "@/components/toast";
@@ -24,7 +25,17 @@ function ago(iso: string): string {
   return new Date(norm).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-export function Cockpit({ approvals, activity }: { approvals: CockpitItem[]; activity: CockpitItem[] }) {
+export function Cockpit({
+  approvals,
+  activity,
+  needsYou = 0,
+  needsYouParts = [],
+}: {
+  approvals: CockpitItem[];
+  activity: CockpitItem[];
+  needsYou?: number;
+  needsYouParts?: string[];
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [pending, start] = useTransition();
@@ -44,8 +55,14 @@ export function Cockpit({ approvals, activity }: { approvals: CockpitItem[]; act
 
   return (
     <div className="mx-auto max-w-[760px] space-y-4">
-      {/* Bands — the "while you were away" summary */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Bands — the "while you were away" summary, three at a glance */}
+      <div className="grid grid-cols-3 gap-3">
+        <Link href="/?tab=tasks&flag=overdue" className="glass elevated rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md" title={needsYouParts.join(" · ") || "Nothing urgent"}>
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+            <AlertTriangle size={12} className={needsYou ? "text-danger" : "text-fg-muted"} /> Needs you
+          </p>
+          <p className={`mt-1 text-2xl font-semibold tabular ${needsYou ? "text-danger" : "text-fg-muted"}`}>{needsYou}</p>
+        </Link>
         <div className="glass elevated rounded-2xl p-4">
           <p className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
             <Inbox size={12} className="text-warn" /> Waiting for you

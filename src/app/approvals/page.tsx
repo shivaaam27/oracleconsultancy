@@ -1,12 +1,13 @@
 import { Cockpit } from "@/components/cockpit";
 import { listApprovals, listCockpitActivity } from "@/lib/cockpit";
+import { gatherUrgent } from "@/lib/morning-brief";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Approvals · COS" };
 
 export default async function ApprovalsPage() {
-  const [approvals, activity] = await Promise.all([listApprovals(), listCockpitActivity()]);
+  const [approvals, activity, urgent] = await Promise.all([listApprovals(), listCockpitActivity(), gatherUrgent()]);
   return (
     <div className="mx-auto max-w-[760px] space-y-4">
       <div className="px-1">
@@ -15,7 +16,7 @@ export default async function ApprovalsPage() {
           One place to verify what the system proposes — and review what it did on its own.
         </p>
       </div>
-      <Cockpit approvals={approvals} activity={activity} />
+      <Cockpit approvals={approvals} activity={activity} needsYou={urgent.total} needsYouParts={urgent.parts} />
     </div>
   );
 }
