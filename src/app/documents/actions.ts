@@ -36,6 +36,7 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
+import { learnedOwnerFor, recordOwnerCorrection } from "@/lib/owner-corrections";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import { buildCompanyRequirementScores, getCompanyChecklist } from "@/lib/company-requirements";
 import { buildPersonRequirementScores, getPersonChecklist } from "@/lib/requirements";
@@ -337,6 +338,18 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = resolvedBy ?? "file"; } }
     }
 
+    // Learned owner (self-learning): if the owner has previously assigned documents
+    // like this one to a company/person, follow that — last resort before quarantine.
+    if (!companyId && !personId) {
+      const learned = await learnedOwnerFor(`${f.title ?? ""} ${f.issuer ?? ""} ${f.docType ?? ""}`);
+      if (learned) {
+        const { companies, people } = await loadEntities();
+        if (learned.ownerType === "company") { companyId = learned.ownerId; ownerName = companies.find((c) => c.id === companyId)?.name ?? ownerName; }
+        else { personId = learned.ownerId; ownerName = people.find((p) => p.id === personId)?.name ?? ownerName; }
+        resolvedBy = resolvedBy ?? "file";
+      }
+    }
+
     // Category from the owner's standard folders (01_Legal … 08_Operations) when
     // the file's own content didn't determine one — so a scan dropped in 03_Tax is
     // filed as Tax even with AI off. Content always wins.
@@ -577,9 +590,17 @@ export async function bulkAssignQuarantineAction(ids: number[], owner: { company
   let filed = 0;
   for (const id of ids) {
     try {
+      const doc = await getDocument(id);
       await updateDocument(id, { companyId: owner.companyId ?? null, personId: owner.personId ?? null });
       await setDocumentIntakeState(id, "filed", null);
       await setDocumentVetted(id, true);
+      // Learn: this owner for documents like this one.
+      if (doc && (owner.companyId || owner.personId)) {
+        await recordOwnerCorrection({
+          title: doc.title, issuer: doc.issuer, docType: doc.docType,
+          ownerType: owner.companyId ? "company" : "person", ownerId: (owner.companyId ?? owner.personId) as number,
+        });
+      }
       await reconcileOwnerCompliance(owner.personId ?? null, owner.companyId ?? null);
       await fireDocumentReactions(id);
       filed++;
@@ -796,6 +817,19 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
         issuer: parsed.issuer ?? (priorDoc?.issuer as string | null) ?? null,
         docType: parsed.docType ?? (priorDoc?.doc_type as string | null) ?? null,
         toCategory: parsed.category,
+      });
+    }
+    // Learn the OWNER too: if the operator set/changed the company or person, remember
+    // it so the next similar document resolves to that owner on its own.
+    const newCompanyId = parsed.companyId ?? null;
+    const newPersonId = parsed.personId ?? null;
+    if ((newCompanyId && newCompanyId !== priorCompanyId) || (newPersonId && newPersonId !== priorPersonId)) {
+      await recordOwnerCorrection({
+        title: parsed.title ?? (priorDoc?.title as string | null) ?? null,
+        issuer: parsed.issuer ?? (priorDoc?.issuer as string | null) ?? null,
+        docType: parsed.docType ?? (priorDoc?.doc_type as string | null) ?? null,
+        ownerType: newCompanyId ? "company" : "person",
+        ownerId: (newCompanyId ?? newPersonId) as number,
       });
     }
     const file = fileFromForm(fd);

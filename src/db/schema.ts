@@ -1147,6 +1147,21 @@ export const routingCorrections = pgTable("routing_corrections", {
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }),
 }, (t) => [index("routing_corrections_keywords_idx").on(t.keywords)]);
 
+// Owner-correction memory (self-learning): when the owner assigns/corrects a
+// document's owner, remember it keyed by the document's distinctive words, so the
+// next similar document resolves to that company/person on its own. Sibling of
+// routing_corrections (which learns category); this learns the OWNER.
+export const ownerCorrections = pgTable("owner_corrections", {
+  id: serial("id").primaryKey(),
+  keywords: text("keywords").notNull(),      // comma-joined distinctive tokens
+  ownerType: text("owner_type").notNull(),   // "company" | "person"
+  ownerId: integer("owner_id").notNull(),
+  sampleTitle: text("sample_title"),
+  hits: integer("hits").notNull().default(1),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }),
+}, (t) => [index("owner_corrections_keywords_idx").on(t.keywords)]);
+
 // Custom shelves (Part D): the owner's eight built-in folders can be extended.
 // A genuinely new kind of document (e.g. a Trademark certificate) is PROPOSED as
 // a new shelf (a profile_suggestions row, kind "new-shelf"); accepting inserts a
