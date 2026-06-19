@@ -14,7 +14,7 @@ import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disco
 import { RevealPassword } from "@/components/reveal-password";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
-import { getAutomationRuleStatuses } from "@/app/automations/actions";
+import { getAutomationRuleStatuses, getRecordsConfidence } from "@/app/automations/actions";
 import { EmailStatus } from "./email-test";
 import { WhatsAppStatus } from "./whatsapp-test";
 import { adminChangePassword, adminLogout, adminSaveOwnerIdentity } from "../login/actions";
@@ -63,6 +63,7 @@ export default async function SettingsPage({
   const { data: tmRow } = await sb.from("settings").select("value").eq("key", "email.testMode").maybeSingle();
   const emailTestMode = (tmRow?.value as string | null) === "1";
   const automationStatuses = await getAutomationRuleStatuses();
+  const recordsConfidence = await getRecordsConfidence();
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -290,7 +291,7 @@ export default async function SettingsPage({
 
           {/* Smart automations — the reaction-layer control room */}
           <SettingsCard id="automations" icon={<Wrench size={15} />} title="Automations" desc="How hands-off the system runs. Each rule can act on its own (Auto), wait for your one-click approval in the Inbox (Suggest), or do nothing (Off). Everything it does is logged in the Inbox and can be undone.">
-            <AutomationSettings statuses={automationStatuses} />
+            <AutomationSettings statuses={automationStatuses} recordsConfidence={recordsConfidence} />
           </SettingsCard>
 
           {/* Google Calendar connection */}

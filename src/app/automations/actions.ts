@@ -162,6 +162,24 @@ export async function getAutomationRuleStatuses(): Promise<AutomationRuleStatus[
   return out;
 }
 
+/** Phase 6: the minimum AI read-confidence (0–100%) for AUTO-filling records.
+ *  0 = a clean read is enough (default). */
+export async function getRecordsConfidence(): Promise<number> {
+  try {
+    const { data } = await sb.from("settings").select("value").eq("key", "automation.records.confidence").maybeSingle();
+    const n = parseInt((data?.value as string | null) ?? "", 10);
+    if (!Number.isNaN(n)) return Math.min(100, Math.max(0, n));
+  } catch { /* default */ }
+  return 0;
+}
+
+export async function setRecordsConfidenceAction(pct: number): Promise<{ ok: boolean }> {
+  const v = Math.min(100, Math.max(0, Math.round(pct)));
+  await sb.from("settings").upsert({ key: "automation.records.confidence", value: String(v) }, { onConflict: "key" });
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 /** Set a rule's mode (Auto / Suggest / Off). */
 export async function setAutomationModeAction(kind: string, mode: AutomationMode): Promise<{ ok: boolean }> {
   if (!["auto", "suggest", "off"].includes(mode)) return { ok: false };

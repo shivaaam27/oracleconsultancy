@@ -25,6 +25,14 @@ function ago(iso: string): string {
   return new Date(norm).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+// Phase 6 escalation: how many whole days an item has been waiting. Anything past
+// the threshold gets a "waiting Nd" nudge so it can't rot silently in the queue.
+const STALE_DAYS = 3;
+function waitingDays(iso: string): number {
+  const norm = /[Zz]$|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  return Math.floor((Date.now() - new Date(norm).getTime()) / 86400000);
+}
+
 export function Cockpit({
   approvals,
   activity,
@@ -94,10 +102,15 @@ export function Cockpit({
             {approvals.map((s) => {
               const isBusy = pending && busy === s.key;
               return (
-                <div key={s.key} className="rounded-xl border border-border/70 bg-bg-subtle/40 p-3 space-y-1.5">
+                <div key={s.key} className={`rounded-xl border p-3 space-y-1.5 ${waitingDays(s.createdAt) >= STALE_DAYS ? "border-warn/40 bg-warn-soft/15" : "border-border/70 bg-bg-subtle/40"}`}>
                   <div className="flex items-center gap-2">
                     <Tag item={s} />
                     <p className="text-sm font-medium leading-snug">{s.summary}</p>
+                    {waitingDays(s.createdAt) >= STALE_DAYS && (
+                      <span className="ml-auto shrink-0 inline-flex items-center rounded-full bg-warn-soft text-warn px-1.5 py-0.5 text-[10px] font-semibold">
+                        waiting {waitingDays(s.createdAt)}d
+                      </span>
+                    )}
                   </div>
                   {s.detail && <p className="text-[11px] text-fg-subtle pl-0.5">{s.detail}</p>}
                   <div className="flex items-center gap-2 pt-0.5">

@@ -92,10 +92,16 @@ export async function buildMorningBrief(): Promise<MorningBrief> {
     return new Date(iso).getTime() >= since;
   }).length;
   const waiting = approvals.length;
+  // Phase 6 escalation: how long the oldest pending item has waited, so a stale
+  // queue nags louder in the brief instead of sitting silently.
+  const oldestWaitingDays = approvals.reduce((max, a) => {
+    const iso = /[Zz]$|[+-]\d\d:?\d\d$/.test(a.createdAt) ? a.createdAt : `${a.createdAt}Z`;
+    return Math.max(max, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+  }, 0);
 
   const bits: string[] = [];
   if (doneOvernight) bits.push(`${doneOvernight} done overnight`);
-  if (waiting) bits.push(`${waiting} waiting for you`);
+  if (waiting) bits.push(`${waiting} waiting for you${oldestWaitingDays >= 3 ? ` (oldest ${oldestWaitingDays}d)` : ""}`);
   if (urgent.total) bits.push(`${urgent.parts.join(", ")} need attention`);
   const line = bits.length ? bits.join(" · ") : "All caught up — nothing needs you.";
   const empty = doneOvernight === 0 && waiting === 0 && urgent.total === 0;

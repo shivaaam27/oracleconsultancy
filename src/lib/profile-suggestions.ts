@@ -130,6 +130,38 @@ async function recordsMode(): Promise<"auto" | "suggest" | "off"> {
   return "auto";
 }
 
+/** Phase 6: the minimum read-confidence (0–100%) for AUTO-applying a record. 0 =
+ *  off (a clean read is enough, the pre-Phase-6 behaviour). Above 0, a clean read
+ *  ALSO needs the AI's confidence to clear the bar, else it's proposed not applied. */
+async function recordsThreshold(): Promise<number> {
+  try {
+    const { data } = await sb.from("settings").select("value").eq("key", "automation.records.confidence").maybeSingle();
+    const n = parseInt((data?.value as string | null) ?? "", 10);
+    if (!Number.isNaN(n)) return Math.min(100, Math.max(0, n));
+  } catch { /* default below */ }
+  return 0;
+}
+
+// Phase 6 learning: after the owner dismisses the same kind of suggestion this many
+// times, stop proposing it at all (it's settled). Counts dismissed rows directly —
+// no extra table. Applies to facts + profile fields (whose `field` is stable);
+// structural proposals (shelf/department) vary by name and are never suppressed.
+const DISMISS_SUPPRESS_THRESHOLD = 3;
+async function isSuppressed(kind: SuggestionKind, field: string): Promise<boolean> {
+  try {
+    const { data } = await sb
+      .from("profile_suggestions")
+      .select("id")
+      .eq("kind", kind)
+      .eq("field", field)
+      .eq("status", "dismissed")
+      .limit(DISMISS_SUPPRESS_THRESHOLD);
+    return (data?.length ?? 0) >= DISMISS_SUPPRESS_THRESHOLD;
+  } catch {
+    return false;
+  }
+}
+
 /** Don't propose the same thing twice if a document is re-filed/re-saved — and,
  *  for a per-document field, don't re-nag something the owner already dismissed
  *  (the learning loop, Part C: a dismissal sticks for that document). */
@@ -283,6 +315,8 @@ export async function enqueueDocumentSuggestions(opts: {
   /** The document read cleanly (not flagged needs-review / awaiting-original).
    *  Only clean reads auto-apply; a shaky scan always waits for a tap. */
   clean?: boolean;
+  /** The AI's read-confidence for this document (0–1), for the Phase-6 threshold. */
+  confidence?: number;
 }): Promise<number> {
   const { documentId, companyId, personId, fields, source } = opts;
   // The owner's Autonomy dial (Settings → Automations → "Fill records from
@@ -290,7 +324,11 @@ export async function enqueueDocumentSuggestions(opts: {
   // tap; off = don't even propose. Default auto.
   const mode = await recordsMode();
   if (mode === "off") return 0;
-  const clean = mode === "auto" && (opts.clean ?? false);
+  // Phase 6 confidence gate: above the threshold, a clean read ALSO needs the AI's
+  // confidence to clear the bar; an unknown confidence is treated as below it.
+  const threshold = await recordsThreshold();
+  const meetsConfidence = threshold <= 0 || (opts.confidence != null && opts.confidence * 100 >= threshold);
+  const clean = mode === "auto" && (opts.clean ?? false) && meetsConfidence;
   let made = 0;
 
   // Insert a row, auto-applying first when the read is clean and the kind is safe
@@ -322,6 +360,7 @@ export async function enqueueDocumentSuggestions(opts: {
         const col = COMPANY_COL[key];
         if (!val || !col) continue;
         if (company && !isBlank((company as Record<string, unknown>)[col])) continue; // blanks-only
+        if (await isSuppressed("company-field", key)) continue; // learned: owner keeps dismissing this
         if (await alreadyProposed(documentId, "company-field", key, "company_id", companyId)) continue;
         const label = COMPANY_LABELS[key] ?? key;
         await emit(
@@ -359,6 +398,7 @@ export async function enqueueDocumentSuggestions(opts: {
           );
           continue;
         }
+        if (await isSuppressed("person-field", key)) continue; // learned: keeps being dismissed
         if (await alreadyProposed(documentId, "person-field", key, "person_id", personId)) continue;
         const label = PERSON_LABELS[key] ?? key;
         await emit(
@@ -375,6 +415,7 @@ export async function enqueueDocumentSuggestions(opts: {
       const ownerCol = f.entityType === "company" ? "company_id" : "person_id";
       const ownerId = f.entityType === "company" ? companyId : personId;
       if (!ownerId) continue;
+      if (await isSuppressed("fact", f.field)) continue; // learned: this fact keeps being dismissed
       if (await alreadyProposed(documentId, "fact", f.field, ownerCol, ownerId)) continue;
       const display = typeof f.value === "string" ? f.value : JSON.stringify(f.value);
       const eff = f.effectiveDate ? new Date(f.effectiveDate).toISOString() : null;

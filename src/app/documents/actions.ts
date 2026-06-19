@@ -428,7 +428,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         // Smart-auto only on a clean read: a confident scan that isn't a
         // stand-in photo. A shaky read still waits for a one-tap decision.
         const cleanRead = !needsReview && !(input.needsOriginal ?? false);
-        await enqueueDocumentSuggestions({ documentId: id, companyId: input.companyId ?? null, personId: input.personId ?? null, fields: f, source: input.title, clean: cleanRead });
+        await enqueueDocumentSuggestions({ documentId: id, companyId: input.companyId ?? null, personId: input.personId ?? null, fields: f, source: input.title, clean: cleanRead, confidence: res.confidence ?? undefined });
       } catch { /* best-effort — never block the file from filing */ }
       if (input.companyId) {
         await backfillCompanyProfileFromDocument(input.companyId, { category: input.category ?? null, title: input.title ?? null, referenceNo: input.referenceNo ?? null, issueDate: input.issueDate ?? null });
