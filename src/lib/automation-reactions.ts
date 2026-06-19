@@ -9,7 +9,7 @@
 
 import { sb } from "@/db/supabase";
 import { getDocument } from "@/lib/documents";
-import { verifyRequirement, unverifyRequirement } from "@/lib/requirements";
+import { verifyRequirement, unverifyRequirement, getPersonChecklist } from "@/lib/requirements";
 import { verifyCompanyRequirement, unverifyCompanyRequirement } from "@/lib/company-requirements";
 import { setPipelineStage } from "@/lib/pipeline";
 import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/pipeline-shared";
@@ -24,7 +24,7 @@ export type AutomationTable = "person_requirements" | "company_requirements" | "
 type LogInput = {
   kind: AutomationKind;
   status: "applied" | "suggested";
-  documentId: number;
+  documentId: number | null;
   targetTable: AutomationTable;
   targetId: number;
   personId: number | null;
@@ -49,6 +49,25 @@ async function alreadyLogged(documentId: number, kind: AutomationKind, targetTab
     .in("status", ["suggested", "applied"])
     .limit(1);
   return !!(data && data.length);
+}
+
+/** Dedup for cascades that aren't keyed to a triggering document (e.g. assets
+ *  returned) — match on the target row + kind alone. */
+async function alreadyLoggedByTarget(kind: AutomationKind, targetTable: string, targetId: number): Promise<boolean> {
+  const { data } = await sb
+    .from("automation_events")
+    .select("id")
+    .eq("kind", kind)
+    .eq("target_table", targetTable)
+    .eq("target_id", targetId)
+    .in("status", ["suggested", "applied"])
+    .limit(1);
+  return !!(data && data.length);
+}
+
+async function lookupPersonName(id: number): Promise<string> {
+  const { data } = await sb.from("people").select("name").eq("id", id).maybeSingle();
+  return (data?.name as string | null) ?? "the person";
 }
 
 async function logEvent(i: LogInput): Promise<void> {
@@ -155,6 +174,7 @@ export async function reactToFiledDocument(documentId: number): Promise<void> {
       reactLinkedTasks(doc, who),
       reactPipeline(doc, who),
       reactOnboarding(doc, who),
+      cascadeComplianceComplete(doc, who),
     ]);
   } catch (e) {
     await recordEvent("automation.react", "error", { documentId, message: e instanceof Error ? e.message : String(e) });
@@ -240,6 +260,53 @@ async function reactPipeline(doc: DocumentRow, who: string): Promise<void> {
       } else {
         await logEvent({ ...base, status: "suggested" });
       }
+    }
+  } catch { /* best-effort */ }
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 3 — cross-process cascades (one process completing nudges the */
+/* next). Both reuse the onboarding-tick kind + undo (toggleTodo).     */
+/* ------------------------------------------------------------------ */
+
+/** When filing a document pushes a person's MANDATORY compliance to 100%, tick
+ *  the onboarding "collect & verify documents" step — closing the compliance loop.
+ *  Runs as part of reactToFiledDocument (after the compliance verify). */
+async function cascadeComplianceComplete(doc: DocumentRow, who: string): Promise<void> {
+  try {
+    if (!doc.personId) return;
+    const chk = await getPersonChecklist(doc.personId);
+    if (!chk || chk.mandatoryTotal === 0) return;
+    // Only when EVERY mandatory item is satisfied (verified, none missing/expired).
+    if (chk.score < 100 || chk.missingMandatory > 0 || chk.expiredMandatory > 0) return;
+    const { data } = await sb.from("todos").select("id,title").eq("person_id", doc.personId).eq("kind", "onboarding").eq("done", false).limit(40);
+    for (const td of data ?? []) {
+      if (!/document|compliance|collect/.test(norm(td.title as string))) continue;
+      const targetId = td.id as number;
+      if (await alreadyLoggedByTarget("onboarding-tick", "todos", targetId)) continue;
+      const base = { kind: "onboarding-tick" as const, documentId: doc.id, targetTable: "todos" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Onboarding step “${td.title}” done — compliance complete for ${who}`, detail: "All required documents collected & verified", prevValue: "open", newValue: "done" };
+      await performAutomationMove(base);
+      await logEvent({ ...base, status: "applied" });
+      break; // one step is enough
+    }
+  } catch { /* best-effort */ }
+}
+
+/** When all of a person's assets are returned (offboarding), tick the offboarding
+ *  "return equipment" step. Called from the offboarding path after assets are
+ *  freed. CERTAIN (the offboarding flow just returned everything). */
+export async function reactToOffboardingAssetsReturned(personId: number): Promise<void> {
+  try {
+    const who = await lookupPersonName(personId);
+    const { data } = await sb.from("todos").select("id,title").eq("person_id", personId).eq("kind", "offboarding").eq("done", false).limit(40);
+    for (const td of data ?? []) {
+      if (!/return equipment|return.*asset/.test(norm(td.title as string))) continue;
+      const targetId = td.id as number;
+      if (await alreadyLoggedByTarget("onboarding-tick", "todos", targetId)) continue;
+      const base = { kind: "onboarding-tick" as const, documentId: null, targetTable: "todos" as const, targetId, personId, companyId: null, summary: `Offboarding step “${td.title}” done — equipment returned for ${who}`, detail: "All assets returned via the Asset Register", prevValue: "open", newValue: "done" };
+      await performAutomationMove(base);
+      await logEvent({ ...base, status: "applied" });
+      break;
     }
   } catch { /* best-effort */ }
 }

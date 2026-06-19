@@ -748,6 +748,11 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   }
 
   await logPersonEvent(id, nextActive ? "restored" : "archived");
+  // Cross-process cascade: offboarding just returned all the person's assets, so
+  // tick the "Return equipment" offboarding step (logged + undoable). Guarded.
+  if (!nextActive) {
+    try { const m = await import("@/lib/automation-reactions"); await m.reactToOffboardingAssetsReturned(id); } catch { /* best-effort */ }
+  }
   if (orphanedReports.length > 0) {
     await logPersonEvent(id, "updated", {
       field: "Direct reports",
