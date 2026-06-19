@@ -1,5 +1,15 @@
 # Intake auto-sort: Inbox → Quarantine → Trash (June 2026)
 
+> ⚠️ **VERCEL HOBBY GOTCHA (blocked a whole session's deploys):** the project is on the
+> Vercel **Hobby/free plan**, which only allows **DAILY** cron jobs. A sub-daily cron in
+> `vercel.json` (I added `/api/cron/auto-sort` as `0 * * * *` hourly) makes **every deploy
+> FAIL** with "Hobby accounts are limited to daily cron jobs", and the failed deploys are
+> HIDDEN by the dashboard status filter — so it looks like Vercel "isn't picking up"
+> pushes when really every build is erroring. Keep ALL crons daily unless the owner
+> upgrades to Pro. Fixed auto-sort → `0 8 * * *` (commit 318e017). Force a deploy bypassing
+> the webhook: `npx vercel --prod --yes --token <token>` from repo root (project linked,
+> team scope flowhrms). Production domain alias = cos-system-one.vercel.app.
+
 Owner ask: drop a folder/bundle into the inbox and have it sort itself — filed by
 company, renamed, by expiry/process — **without thinking about it**, and **even
 when AI is down**. Three buckets the owner named:
