@@ -151,6 +151,17 @@ async function allPeopleMap(): Promise<Map<number, string>> {
   return new Map((data ?? []).map((p) => [p.id as number, p.name as string]));
 }
 
+/** Fire the cross-process cascade when a task's status changes: completing a task
+ *  that DRIVES a pipeline case (pipeline.task_id) advances that case a stage.
+ *  Guarded + dynamic-imported (avoids cycles); never affects the task write. */
+async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: string) {
+  if (wasStatus === nowStatus) return;
+  try {
+    const m = await import("@/lib/automation-reactions");
+    await m.reactToTaskStatusChange(taskId, wasStatus, nowStatus);
+  } catch { /* best-effort */ }
+}
+
 export async function updateTask(code: string, formData: FormData) {
   const actionItemField = str(formData.get("actionItem"));
   const departmentName = str(formData.get("department"));
@@ -269,6 +280,7 @@ export async function updateTask(code: string, formData: FormData) {
       } else {
         await sb.from("tasks").update(baseUpdate).eq("id", t.id);
       }
+      await fireTaskCascade(t.id, t.status as string, status);
 
       const newNames = splitNames(accountableRaw);
       const pMap = await allPeopleMap();
@@ -600,6 +612,7 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
       }
 
       await sb.from("tasks").update(updatePayload).eq("id", taskId);
+      if (newStatus) await fireTaskCascade(taskId, t.status as string, newStatus);
 
       return {
         result: { taskUpdateId },
@@ -1114,6 +1127,7 @@ export async function inlineUpdateTask(
 
       await logChangeSb(t.id, t.code, t.company_id, fieldLabel, oldVal, newVal, null);
       await sb.from("tasks").update(patch).eq("id", t.id);
+      if (typeof patch.status === "string") await fireTaskCascade(t.id, t.status as string, patch.status);
 
       return {
         result: { code: t.code },

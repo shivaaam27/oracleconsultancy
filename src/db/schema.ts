@@ -467,6 +467,9 @@ export const pipeline = pgTable(
     nextAction: text("next_action"),
     owner: text("owner"),
     documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+    // The task that DRIVES this application (its "next action" as a tracked task).
+    // Completing that task auto-advances this case one stage (automation cascade).
+    taskId: integer("task_id").references((): AnyPgColumn => tasks.id, { onDelete: "set null" }),
     file: text("file"), // legacy file path from the local engine
     notes: text("notes"),
     archived: boolean("archived").notNull().default(false),

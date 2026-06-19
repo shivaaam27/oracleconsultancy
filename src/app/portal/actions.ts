@@ -1010,6 +1010,8 @@ export async function portalCompleteTask(
   });
   await sb.from("tasks").update({ status: "Completed", closed_date: computeClosedDate("Completed", null, now), latest_update: body, last_updated_at: now }).eq("id", taskId);
   await logChangeSb(taskId, t.code as string, t.company_id as number, "status", current, "Completed", "Completed from portal (with note)", createdBy);
+  // Cross-process cascade: if this task drives a pipeline case, advance it. Guarded.
+  try { const m = await import("@/lib/automation-reactions"); await m.reactToTaskStatusChange(taskId, current, "Completed"); } catch { /* best-effort */ }
 
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);

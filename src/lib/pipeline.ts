@@ -9,10 +9,12 @@ export type { PipelineItem } from "@/lib/pipeline-shared";
 // DB error, so a failed write can never be mistaken for success (ACTHRMS-05).
 export type WriteResult = { ok: true } | { ok: false; error: string };
 
-const COLS = "id,subject,subject_type,company_id,person_id,type,stage,control_no,amount,last_update,deadline,next_action,owner,notes,document_id";
+const COLS = "id,subject,subject_type,company_id,person_id,type,stage,control_no,amount,last_update,deadline,next_action,owner,notes,document_id,task_id,tasks(code)";
 
 function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): PipelineItem {
   const companyId = (r.company_id as number | null) ?? null;
+  const taskRel = (r as { tasks?: { code?: string } | { code?: string }[] }).tasks;
+  const taskCode = (Array.isArray(taskRel) ? taskRel[0]?.code : taskRel?.code) ?? null;
   return {
     id: r.id as number,
     subject: r.subject as string,
@@ -30,6 +32,8 @@ function mapRow(r: Record<string, unknown>, nameById: Map<number, string>): Pipe
     owner: (r.owner as string | null) ?? null,
     notes: (r.notes as string | null) ?? null,
     documentId: (r.document_id as number | null) ?? null,
+    taskId: (r.task_id as number | null) ?? null,
+    taskCode,
   };
 }
 
@@ -38,6 +42,26 @@ export async function linkPipelineDocument(id: number, documentId: number | null
   const { error } = await sb.from("pipeline").update({ document_id: documentId, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+/** Link (or unlink) the task that drives this case. */
+export async function linkPipelineTask(id: number, taskId: number | null): Promise<WriteResult> {
+  const { error } = await sb.from("pipeline").update({ task_id: taskId, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** The pipeline case (id + current stage) driven by a given task, if any —
+ *  for the "complete task → advance stage" cascade. Open cases only. */
+export async function pipelineForTask(taskId: number): Promise<{ id: number; stage: string; type: string; companyId: number | null; personId: number | null } | null> {
+  const { data } = await sb
+    .from("pipeline")
+    .select("id,stage,type,company_id,person_id")
+    .eq("task_id", taskId)
+    .eq("archived", false)
+    .maybeSingle();
+  if (!data) return null;
+  return { id: data.id as number, stage: data.stage as string, type: data.type as string, companyId: (data.company_id as number | null) ?? null, personId: (data.person_id as number | null) ?? null };
 }
 
 /** All open pipeline items (not archived), newest update first. */

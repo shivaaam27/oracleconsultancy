@@ -11,7 +11,7 @@ import { sb } from "@/db/supabase";
 import { getDocument } from "@/lib/documents";
 import { verifyRequirement, unverifyRequirement, getPersonChecklist } from "@/lib/requirements";
 import { verifyCompanyRequirement, unverifyCompanyRequirement } from "@/lib/company-requirements";
-import { setPipelineStage } from "@/lib/pipeline";
+import { setPipelineStage, pipelineForTask } from "@/lib/pipeline";
 import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/pipeline-shared";
 import { toggleTodo } from "@/app/todos/actions";
 import { addTaskUpdate } from "@/app/task/actions";
@@ -289,6 +289,32 @@ async function cascadeComplianceComplete(doc: DocumentRow, who: string): Promise
       await logEvent({ ...base, status: "applied" });
       break; // one step is enough
     }
+  } catch { /* best-effort */ }
+}
+
+/** When a task that DRIVES a pipeline case is completed, advance that case one
+ *  stage. CERTAIN — the link is explicit (pipeline.task_id), so it auto-applies.
+ *  Called after a task's status is written (the open→closed transition). Deduped
+ *  per (case, from-stage) so it advances once per completion, not on every path. */
+export async function reactToTaskStatusChange(taskId: number, wasStatus: string, nowStatus: string): Promise<void> {
+  try {
+    const isClosed = (s: string) => s === "Completed" || s === "Closed";
+    if (!isClosed(nowStatus) || isClosed(wasStatus)) return; // only on open → closed
+    const p = await pipelineForTask(taskId);
+    if (!p) return;
+    const curIdx = PIPELINE_STAGES.indexOf(p.stage as PipelineStage);
+    if (curIdx < 0 || curIdx >= PIPELINE_STAGES.length - 1) return; // unknown or already Issued
+    const next = PIPELINE_STAGES[curIdx + 1];
+    // Dedup THIS advance (same case, same from-stage) so two write paths firing for
+    // one completion don't double-advance — but later stages can still advance.
+    const { data: dup } = await sb
+      .from("automation_events")
+      .select("id").eq("kind", "pipeline-advance").eq("target_table", "pipeline").eq("target_id", p.id).eq("prev_value", p.stage).in("status", ["applied", "suggested"]).limit(1);
+    if (dup && dup.length) return;
+    const code = await taskCode(taskId);
+    const base = { kind: "pipeline-advance" as const, documentId: null, targetTable: "pipeline" as const, targetId: p.id, personId: p.personId, companyId: p.companyId, summary: `Advanced ${p.type} → ${next}${code ? ` (task ${code} done)` : ""}`, detail: `Driving task completed — advanced from ${p.stage}`, prevValue: p.stage, newValue: next };
+    await performAutomationMove(base);
+    await logEvent({ ...base, status: "applied" });
   } catch { /* best-effort */ }
 }
 

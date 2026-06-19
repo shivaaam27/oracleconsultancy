@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, Plus, Archive, Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Archive, Loader2, X, CheckSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { PIPELINE_STAGES, STAGE_TONE, type PipelineItem, type PipelineStage } from "@/lib/pipeline-shared";
-import { createPipelineItemAction, movePipelineStageAction, archivePipelineItemAction, linkPipelineDocumentAction } from "@/app/hrms/pipeline/actions";
+import { createPipelineItemAction, movePipelineStageAction, archivePipelineItemAction, linkPipelineDocumentAction, createPipelineTaskAction, unlinkPipelineTaskAction } from "@/app/hrms/pipeline/actions";
 import { DocLinkControl, type LinkDoc } from "./doc-link-control";
 
 const COL_TONE: Record<string, string> = {
@@ -34,6 +34,14 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
     if (!confirm("Archive this case? (Use when it's fully issued/closed.)")) return;
     setBusy(id);
     start(async () => { await archivePipelineItemAction(id); setBusy(null); });
+  }
+  function createTask(id: number) {
+    setBusy(id);
+    start(async () => { const r = await createPipelineTaskAction(id); setBusy(null); if (!r.ok && r.error) alert(r.error); });
+  }
+  function unlinkTask(id: number) {
+    setBusy(id);
+    start(async () => { await unlinkPipelineTaskAction(id); setBusy(null); });
   }
 
   return (
@@ -80,6 +88,17 @@ export function PipelineBoard({ items, companies, documents = [] }: { items: Pip
                       <button type="button" disabled={PIPELINE_STAGES.indexOf(stage) === PIPELINE_STAGES.length - 1 || busy === i.id} onClick={() => move(i.id, 1, stage)}
                         className="rounded-md p-1 text-fg-subtle hover:bg-bg-muted disabled:opacity-30"><ChevronRight size={14} /></button>
                       <span className="ml-auto inline-flex items-center gap-1.5">
+                        {i.taskId ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft/60 px-1.5 py-0.5 text-[10px] text-accent" title="Driving task — completing it advances this case a stage">
+                            <CheckSquare size={10} /> {i.taskCode ?? "Task"}
+                            <button type="button" onClick={() => unlinkTask(i.id)} disabled={busy === i.id} title="Unlink task" className="hover:text-danger"><X size={9} /></button>
+                          </span>
+                        ) : (
+                          <button type="button" onClick={() => createTask(i.id)} disabled={busy === i.id} title="Create a task that drives this case (completing it advances the stage)"
+                            className="inline-flex items-center gap-0.5 text-[10px] text-fg-subtle hover:text-accent">
+                            <Plus size={10} /> Task
+                          </button>
+                        )}
                         <DocLinkControl documentId={i.documentId} documents={documents} companyId={i.companyId} onLink={(docId) => linkPipelineDocumentAction(i.id, docId).then(() => {})} />
                         {i.deadline && <span className="text-[10px] text-fg-subtle">due {fmtDate(i.deadline)}</span>}
                       </span>

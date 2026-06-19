@@ -39,6 +39,9 @@ export type PipelineItem = {
   owner: string | null;
   notes: string | null;
   documentId: number | null;
+  /** The task that drives this case; completing it auto-advances the stage. */
+  taskId: number | null;
+  taskCode: string | null;
 };
 
 const normLower = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
