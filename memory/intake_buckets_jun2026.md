@@ -201,6 +201,26 @@ backlog).
 - tsc clean, 66 tests green, /?tab=tasks + &kind=auto both 200 with the lane toggle.
   **NOT pushed.** (Auto lane empty until "Run checks"/cron creates tasks.)
 
-## State: NOT pushed (owner reviews first). Parked by owner: the chat/search side
+## Round 7 — Automation Phase 3: cross-process cascades (PUSHED, commit 7c62b9d)
+"yes continue". No migration (reuses automation_events). Built the two cascades with
+clean single triggers (the task-status→pipeline cascade was DEFERRED — journeys have
+no task_id set and pipeline has no task link, so it'd be low-yield + need hooking 7
+scattered task-write paths):
+- **Compliance complete → onboarding step**: `cascadeComplianceComplete` in
+  reactToFiledDocument — when filing a doc pushes a person's mandatory compliance to
+  100% (`getPersonChecklist`: score 100, no missing/expired mandatory), tick the
+  onboarding step matching /document|compliance|collect/.
+- **Assets returned → offboarding step**: `reactToOffboardingAssetsReturned(personId)`
+  hooked into `togglePersonActive` (people/actions.ts) after the offboarding withTx —
+  ticks the offboarding step matching /return equipment|return.*asset/.
+- Both reuse onboarding-tick kind + toggleTodo undo; `alreadyLoggedByTarget` dedup;
+  LogInput.documentId now nullable. tsc clean, 66 tests, /inbox+/people 200.
+- **Earlier rounds 1-6 now ALSO PUSHED** (commit b71e9f0): intake buckets + Phases 1-2
+  + Renewals lane. Migrations 0087+0088 already applied to live DB.
+- **Remaining**: Phase 4 = full Automations control-room settings page (per-rule
+  Auto/Suggest toggle; the /inbox feed + Run-checks + undo is the MVP). Plus deferred
+  task→pipeline cascade (needs pipeline↔task linking first).
+
+## State: was NOT pushed — NOW PUSHED (rounds 1-7 on master). Parked by owner: the chat/search side
 ("works in Documents, not in chat") and the email source (inbox already has
 `source='email'` for later). "Sort others later" = more category folders beyond the 8.
