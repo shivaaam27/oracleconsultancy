@@ -233,7 +233,7 @@ export async function setDocumentIntakeState(
   id: number,
   state: IntakeState,
   reason?: string | null,
-  extra?: { supersedesId?: number | null }
+  extra?: { supersedesId?: number | null; markExpired?: boolean }
 ): Promise<void> {
   const archived = state !== "filed";
   const payload: Record<string, unknown> = {
@@ -244,6 +244,13 @@ export async function setDocumentIntakeState(
     updated_at: new Date().toISOString(),
   };
   if (extra && "supersedesId" in extra) payload.supersedes_id = extra.supersedesId ?? null;
+  // A replaced/expired file gets " -EXP" so it's obvious in Trash which is the
+  // retired copy on review.
+  if (extra?.markExpired) {
+    const { data: cur } = await sb.from("documents").select("title").eq("id", id).maybeSingle();
+    const t = (cur?.title as string | null) ?? "";
+    if (t && !/\s-EXP$/.test(t)) payload.title = `${t} -EXP`.slice(0, 124);
+  }
   const { error } = await sb.from("documents").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
   // Quarantine/trash rows must not appear in semantic search; filing re-indexes.

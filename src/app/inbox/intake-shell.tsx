@@ -8,9 +8,11 @@ import {
 } from "lucide-react";
 import { InboxList } from "./inbox-list";
 import { signInboxAttachment, autoSortInboxAction, type InboxItem, type AutoSortSummary } from "./actions";
+import { DocPreview } from "@/components/doc-preview";
+import { useToast } from "@/components/toast";
 import {
   fileFromQuarantineAction, trashIntakeDocAction, restoreFromTrashAction,
-  deleteIntakeForeverAction, emptyTrashAction, type IntakeBucketItem,
+  deleteIntakeForeverAction, emptyTrashAction, retryQuarantineAction, type IntakeBucketItem,
 } from "@/app/documents/actions";
 import { RescanDocumentsButton } from "@/components/rescan-documents-button";
 import { FindDuplicatesButton } from "@/components/find-duplicates-button";
@@ -161,12 +163,22 @@ function EmptyBucket({ icon: Icon, title, sub }: { icon: typeof InboxIcon; title
 
 function QuarantineList({ items }: { items: IntakeBucketItem[] }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [busy, setBusy] = useState<number | null>(null);
   const [pending, start] = useTransition();
+  const [rescanning, startRescan] = useTransition();
 
   function act(id: number, fn: () => Promise<unknown>) {
     setBusy(id);
     start(async () => { await fn(); router.refresh(); setBusy(null); });
+  }
+
+  function rescan() {
+    startRescan(async () => {
+      const r = await retryQuarantineAction();
+      toast(r.filed ? `Re-scanned ${r.scanned} — filed ${r.filed} that now have an owner.` : `Re-scanned ${r.scanned} — none could be placed yet.`, { tone: r.filed ? "success" : "default", duration: 4500 });
+      router.refresh();
+    });
   }
 
   if (items.length === 0)
@@ -174,7 +186,12 @@ function QuarantineList({ items }: { items: IntakeBucketItem[] }) {
 
   return (
     <div className="space-y-2.5">
-      <p className="text-[11px] text-fg-subtle px-1">The sorter couldn&apos;t settle these on its own. File the good ones; bin the rest.</p>
+      <div className="flex items-center gap-2 px-1">
+        <p className="text-[11px] text-fg-subtle flex-1">The sorter couldn&apos;t settle these on its own. File the good ones; bin the rest.</p>
+        <Button type="button" variant="secondary" size="sm" onClick={rescan} disabled={rescanning}>
+          {rescanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Re-scan &amp; auto-file
+        </Button>
+      </div>
       {items.map((it) => {
         const isBusy = pending && busy === it.id;
         return (
@@ -189,6 +206,7 @@ function QuarantineList({ items }: { items: IntakeBucketItem[] }) {
             </div>
             <p className="text-sm font-medium leading-snug">{it.title}</p>
             {it.reason && <p className="text-xs text-fg-muted">{it.reason}</p>}
+            {it.storagePath && <DocPreview documentId={it.id} fileName={it.fileName ?? it.title} />}
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <FileChip item={it} />
               <Button type="button" size="sm" onClick={() => act(it.id, () => fileFromQuarantineAction(it.id))} disabled={isBusy}>

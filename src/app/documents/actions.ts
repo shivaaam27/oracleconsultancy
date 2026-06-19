@@ -328,6 +328,15 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       }
     }
 
+    // Fuzzy fallback: the AI often reads an owner NAME (e.g. "DSC Ltd") that the
+    // strict text scan didn't tie to a record. Match it loosely (exact / alias /
+    // contains-either-way) before giving up and quarantining as "no owner".
+    if (!companyId && !personId && (f.companyName || f.personName)) {
+      const { companies, people } = await loadEntities();
+      if (f.personName) { const p = resolveEntity(f.personName, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = resolvedBy ?? "file"; } }
+      if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = resolvedBy ?? "file"; } }
+    }
+
     // Category from the owner's standard folders (01_Legal … 08_Operations) when
     // the file's own content didn't determine one — so a scan dropped in 03_Tax is
     // filed as Tax even with AI off. Content always wins.
@@ -360,7 +369,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         const title = f.title || fallbackTitle;
         const id = await createDocument({ title, category: f.category ?? null, companyId, personId, reviewStatus: "ok" }, "ai-intake");
         if (file.size > 0) await uploadDocumentFile(id, file);
-        await setDocumentIntakeState(id, "trash", `A PDF copy is already on file — #${target.id} ${target.title}`, { supersedesId: target.id });
+        await setDocumentIntakeState(id, "trash", `A PDF copy is already on file — #${target.id} ${target.title}`, { supersedesId: target.id, markExpired: true });
         revalidateDocs();
         return { ok: true, id, title, status: "duplicate", owner: ownerName, duplicateOfId: target.id, duplicateOfTitle: target.title, reason: "A PDF copy is already on file — photo moved to Trash" };
       }
@@ -422,7 +431,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       // Filed: run the enrich / backfill / facts / compliance side-effects.
       if (supersedePhotoId) {
         await updateDocument(id, { supersedesId: supersedePhotoId });
-        await setDocumentIntakeState(supersedePhotoId, "trash", `Replaced by a PDF — #${id} ${title}`);
+        await setDocumentIntakeState(supersedePhotoId, "trash", `Replaced by a PDF — #${id} ${title}`, { markExpired: true });
       }
       // Always-ask-first: profile fields + ledger facts the AI read are PROPOSED
       // on the company/person profile (a "Suggested additions" tray), not written
@@ -561,6 +570,72 @@ export async function fileFromQuarantineAction(id: number): Promise<{ ok: boolea
   revalidateDocs();
   revalidatePath("/inbox");
   return { ok: true };
+}
+
+/** Bulk: assign an owner to several quarantined docs and file them in one pass. */
+export async function bulkAssignQuarantineAction(ids: number[], owner: { companyId?: number | null; personId?: number | null }): Promise<{ ok: boolean; filed: number }> {
+  let filed = 0;
+  for (const id of ids) {
+    try {
+      await updateDocument(id, { companyId: owner.companyId ?? null, personId: owner.personId ?? null });
+      await setDocumentIntakeState(id, "filed", null);
+      await setDocumentVetted(id, true);
+      await reconcileOwnerCompliance(owner.personId ?? null, owner.companyId ?? null);
+      await fireDocumentReactions(id);
+      filed++;
+    } catch { /* skip the one that fails, keep going */ }
+  }
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true, filed };
+}
+
+/** Bulk: send several quarantined docs to Trash. */
+export async function bulkTrashQuarantineAction(ids: number[]): Promise<{ ok: boolean; count: number }> {
+  for (const id of ids) { try { await setDocumentIntakeState(id, "trash", "Dismissed in bulk"); } catch { /* skip */ } }
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true, count: ids.length };
+}
+
+/**
+ * Deep re-scan of the quarantine pile: re-read each ownerless doc with the latest
+ * extractor (HEIC convert, big-photo downscale) + fuzzy owner-matching, and AUTO-
+ * file the ones that now resolve to an owner with a clean read. Owner-chosen
+ * auto behaviour; everything filed runs the normal side-effects. Capped per run.
+ */
+export async function retryQuarantineAction(): Promise<{ ok: boolean; scanned: number; filed: number }> {
+  let rows;
+  try { rows = await listIntakeDocuments("quarantine"); } catch { return { ok: true, scanned: 0, filed: 0 }; }
+  const { companies, people } = await loadEntities();
+  let scanned = 0, filed = 0;
+  for (const r of rows.slice(0, 100)) {
+    // Only the OWNERLESS ones — leave near-duplicates / unclear-but-owned for review.
+    if (r.companyId || r.personId) continue;
+    scanned++;
+    try {
+      const res = await reExtractStored({ storagePath: r.storagePath, fileName: r.fileName, fileHash: r.fileHash }, true);
+      const f = res?.fields;
+      if (!f) continue;
+      let companyId = f.companyId ?? null;
+      let personId = f.personId ?? null;
+      if (!companyId && !personId) {
+        if (f.personName) { const p = resolveEntity(f.personName, people); if (p) personId = p.id; }
+        if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) companyId = c.id; }
+      }
+      const clean = !!res?.ok && !res?.needsReview;
+      if ((companyId || personId) && clean) {
+        await updateDocument(r.id, { companyId, personId });
+        await setDocumentIntakeState(r.id, "filed", null);
+        await reconcileOwnerCompliance(personId, companyId);
+        await fireDocumentReactions(r.id);
+        filed++;
+      }
+    } catch { /* skip this doc */ }
+  }
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true, scanned, filed };
 }
 
 /** Move a row into Trash (from Quarantine, or directly). */
@@ -1119,7 +1194,7 @@ export async function autoSweepLibraryDuplicatesAction(): Promise<{ trashed: num
           await setDocumentIntakeState(d.id, "trash", `Identical file already on record — #${keep.id} ${keep.title}`, { supersedesId: keep.id });
           trashed++;
         } else if (keepIsPdf && isImageFile(d.fileName)) {
-          await setDocumentIntakeState(d.id, "trash", `A PDF copy is on file — #${keep.id} ${keep.title}`, { supersedesId: keep.id });
+          await setDocumentIntakeState(d.id, "trash", `A PDF copy is on file — #${keep.id} ${keep.title}`, { supersedesId: keep.id, markExpired: true });
           trashed++;
         } else {
           await setDocumentIntakeState(d.id, "quarantine", `Possible duplicate of #${keep.id} ${keep.title}`);
@@ -1248,6 +1323,33 @@ function isHeicFile(file: File): boolean {
   return n.endsWith(".heic") || n.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
 }
 
+/** Shrink an over-size image so the vision model accepts it, instead of rejecting
+ *  big phone photos. Caps the longest side and re-encodes JPEG until under the
+ *  limit. Best-effort: returns the original buffer if the encoder isn't available. */
+async function downscaleToLimit(buf: Buffer, maxBytes = MAX_OCR_IMAGE_BYTES): Promise<Buffer> {
+  if (buf.length <= maxBytes) return buf;
+  try {
+    const { createCanvas, Image } = await import("@napi-rs/canvas");
+    const img = new Image();
+    img.src = buf;
+    let w = img.width, h = img.height;
+    if (!w || !h) return buf;
+    const maxDim = 2200;
+    if (Math.max(w, h) > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+    let q = 0.82;
+    for (let i = 0; i < 6; i++) {
+      const canvas = createCanvas(w, h);
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      const out = canvas.toBuffer("image/jpeg", q);
+      if (out.length <= maxBytes || w < 700) return out;
+      w = Math.round(w * 0.8); h = Math.round(h * 0.8); q = Math.max(0.6, q - 0.06);
+    }
+    return buf;
+  } catch {
+    return buf;
+  }
+}
+
 /** Decode a HEIC/HEIF buffer to JPEG so the vision model can read iPhone photos.
  *  Best-effort: returns null if the optional decoder isn't available or fails. */
 async function heicToJpeg(buf: Buffer): Promise<Buffer | null> {
@@ -1322,6 +1424,10 @@ async function ocrDocumentText(file: File): Promise<string | null> {
       const jpeg = await heicToJpeg(buf);
       if (!jpeg) return null;
       buf = jpeg; mime = "image/jpeg";
+    }
+    if (buf.length > MAX_OCR_IMAGE_BYTES) {
+      const ds = await downscaleToLimit(buf);
+      if (ds !== buf) { buf = ds; mime = "image/jpeg"; }
     }
     if (buf.length > MAX_OCR_IMAGE_BYTES) return null;
     images = [`data:${mime};base64,${buf.toString("base64")}`];
@@ -2195,22 +2301,27 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
     };
   }
 
-  // HEIC (Apple's iPhone photo format) can't be read by the vision model and the
-  // browser can't downscale it — tell the operator how to share it instead of
-  // failing silently. Common for forwarded iPhone IDs.
   const isHeic = lowerName.endsWith(".heic") || lowerName.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
-  if (isHeic) {
-    return { ok: false, fields: {}, source: "vision", note: "HEIC photos can't be read — please share it as a JPEG or PNG (on iPhone: open the photo, Share, then Save/Export as JPEG).", failKind: "heic" };
-  }
 
-  if (file.type.startsWith("image/")) {
+  if (file.type.startsWith("image/") || isHeic) {
     if (!apiKey) return { ok: false, fields: {}, source: "rules", note: "AI is off, so images can't be read automatically. Type the details, or paste the document text.", failKind: "no-key" };
-    // Groq base64 image limit is 4 MB; the client downscales before sending.
-    if (file.size > 4 * 1024 * 1024) {
-      return { ok: false, fields: {}, source: "vision", note: "Image is too large (max 4 MB). Try a smaller photo.", failKind: "too-big" };
+    let buf: Buffer = Buffer.from(await file.arrayBuffer());
+    let mime = file.type.startsWith("image/") ? file.type : "image/jpeg";
+    // iPhone HEIC → JPEG so the vision model can read it (was previously rejected).
+    if (isHeic) {
+      const jpeg = await heicToJpeg(buf);
+      if (!jpeg) return { ok: false, fields: {}, source: "vision", note: "Couldn't convert this HEIC photo. Try sharing it as JPEG.", failKind: "heic" };
+      buf = jpeg; mime = "image/jpeg";
     }
-    const b64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    const dataUrl = `data:${file.type};base64,${b64}`;
+    // Over the model's 4 MB limit → downscale instead of refusing big phone photos.
+    if (buf.length > MAX_OCR_IMAGE_BYTES) {
+      const ds = await downscaleToLimit(buf);
+      if (ds !== buf) { buf = ds; mime = "image/jpeg"; }
+    }
+    if (buf.length > MAX_OCR_IMAGE_BYTES) {
+      return { ok: false, fields: {}, source: "vision", note: "Image is too large even after shrinking — try a smaller photo.", failKind: "too-big" };
+    }
+    const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
     const result = await groqVision([dataUrl], extractPrompt(companies, people), apiKey);
     if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo.", failKind: "unreadable" };
     return {
