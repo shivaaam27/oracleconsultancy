@@ -1652,7 +1652,14 @@ export type ExtractedFact = {
   effectiveDate?: string; // YYYY-MM-DD
 };
 
-type Entity = { id: number; name: string; aliases?: string[] };
+type Entity = {
+  id: number; name: string; aliases?: string[];
+  // RAG context (companies): identifiers so the model can resolve an owner from a
+  // TIN/VRN/email-domain/short-code even when the full name isn't on the document.
+  tin?: string | null; vrn?: string | null; prefix?: string | null; emailDomain?: string | null;
+  // RAG context (people): their role + company, so relations resolve from little info.
+  role?: string | null; company?: string | null;
+};
 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
@@ -1728,12 +1735,27 @@ function ruleExtract(text: string): ExtractedFields {
 // Load the companies + active people so extraction can match names to records.
 async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }> {
   const [{ data: c }, { data: p }] = await Promise.all([
-    supa.from("companies").select("id,name,aliases"),
-    supa.from("people").select("id,name").eq("active", true),
+    supa.from("companies").select("id,name,aliases,tin,vrn,code_prefix,email"),
+    supa.from("people").select("id,name,role,company_id").eq("active", true),
   ]);
+  const coName = new Map((c ?? []).map((r) => [r.id as number, r.name as string]));
   return {
-    companies: (c ?? []).map((r) => ({ id: r.id as number, name: r.name as string, aliases: (r.aliases as string[] | null) ?? undefined })),
-    people: (p ?? []).map((r) => ({ id: r.id as number, name: r.name as string })),
+    companies: (c ?? []).map((r) => {
+      const email = (r.email as string | null) ?? null;
+      return {
+        id: r.id as number, name: r.name as string,
+        aliases: (r.aliases as string[] | null) ?? undefined,
+        tin: (r.tin as string | null)?.replace(/\D/g, "") || null,
+        vrn: (r.vrn as string | null)?.replace(/\D/g, "") || null,
+        prefix: (r.code_prefix as string | null) ?? null,
+        emailDomain: email && email.includes("@") ? email.split("@")[1].toLowerCase() : null,
+      };
+    }),
+    people: (p ?? []).map((r) => ({
+      id: r.id as number, name: r.name as string,
+      role: (r.role as string | null) ?? null,
+      company: r.company_id ? coName.get(r.company_id as number) ?? null : null,
+    })),
   };
 }
 
@@ -1959,8 +1981,23 @@ function coerceFields(
 const EXTRACT_SHAPE: ShapeSpec = { optional: { confidence: "number" } };
 
 function extractPrompt(companies: Entity[], people: Entity[]): string {
-  const cNames = companies.map((c) => c.name).join(", ") || "(none)";
-  const pNames = people.map((p) => p.name).slice(0, 150).join(", ") || "(none)";
+  // RAG context: rich, identifier-laden lines so the model can resolve the owner
+  // and relations from sparse documents (a TIN, an email domain, a short name).
+  const cLines = companies.map((c) => {
+    const ids = [
+      c.aliases?.length ? `aka ${c.aliases.join(", ")}` : null,
+      c.tin ? `TIN ${c.tin}` : null,
+      c.vrn ? `VRN ${c.vrn}` : null,
+      c.prefix ? `code ${c.prefix}` : null,
+      c.emailDomain ? `email @${c.emailDomain}` : null,
+    ].filter(Boolean);
+    return `- ${c.name}${ids.length ? " — " + ids.join(" · ") : ""}`;
+  }).join("\n") || "(none)";
+  const pLines = people.slice(0, 150).map((p) =>
+    `- ${p.name}${p.role ? ` (${p.role})` : ""}${p.company ? ` at ${p.company}` : ""}`
+  ).join("\n") || "(none)";
+  const cNames = "the COMPANIES list below (match by name, alias, TIN, VRN, email domain or code)";
+  const pNames = "the PEOPLE list below (match by name; use their company/role to disambiguate)";
   return `You are reading a business/compliance document (it may be a licence, certificate, permit, passport, visa, insurance policy, lease, contract or tax document). It may be a clean scan, a phone photo, a faded/old/dirty page, or rough handwritten notes, possibly at an angle or in mixed languages (English/Swahili). Read it as carefully as you can; transcribe uncertain text rather than dropping it. Extract the key details and return ONLY a JSON object with these optional keys (omit any you genuinely cannot find):
 - title: a short human label for the document
 - category: one of [${DOC_CATEGORIES.join(", ")}]
@@ -1979,7 +2016,13 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - is_photo_placeholder: true ONLY if this file is clearly a phone photo or screenshot standing in for an official document that should be a clean scan/PDF (e.g. a photo of a paper licence, a screenshot of a bank letter). Set false for documents that are legitimately images (logos, stamps, headshots, product labels, signatures, certificates).
 - confidence: a number from 0 to 1 for how confident you are that you read this document correctly (1 = crystal-clear scan you are sure about, 0.3 = a blurry/partial/ambiguous page you mostly guessed). Always include this.
 - parts: ONLY if this file is clearly a COMPILATION of SEVERAL DISTINCT documents bundled together (e.g. a new recruit's scan containing a passport AND a CV AND a contract, or several different certificates scanned in one go), return an array describing each distinct document: [{ title, category (from the list above), docType, issuer, referenceNo, issueDate, expiryDate, expiryKind ("yes"/"no"), person (matched name), company (matched name), pageRange (the pages it spans, e.g. "1" or "2-3") }]. Judge by content, NOT page count — a single multi-page contract is ONE document, so OMIT "parts" for it. Only include "parts" when there are genuinely two or more different documents in the one file. When you DO return parts, still fill the top-level fields for the FIRST/primary document.
-Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.`;
+Resolve relative or worded dates to YYYY-MM-DD. British English. Do not invent values you cannot see.
+
+KNOWN RECORDS — match "company"/"person" to one of these (a document may name only a TIN, an email domain, a short name or a person; use any of these to identify the right owner). Do NOT invent an owner that isn't listed.
+COMPANIES:
+${cLines}
+PEOPLE:
+${pLines}`;
 }
 
 // Run an extraction through the shared Groq harness: retries on 429/5xx/network,
