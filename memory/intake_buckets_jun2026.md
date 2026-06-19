@@ -267,6 +267,24 @@ Deferred/future: task-create "suggest" mode (needs storing doc/commitment id to 
 later); hook remaining 3 task-write paths (bulk/adminAdd/portalUpdate) for the pipeline
 cascade; richer history view; promote pipeline/onboarding fuzzy matches to broader auto.
 
-## State: was NOT pushed — NOW PUSHED (rounds 1-9 on master). Parked by owner: the chat/search side
+## Round 10 — history logbook + true renewals "suggest" (PUSHED, commit 3f5a2f1)
+No migration.
+- **History/logbook**: Inbox Automations card (`automation-feed.tsx`) gained a "History"
+  expandable — rule filters (All/Compliance/Tasks/Pipeline/Onboarding/Renewals) + status
+  filters (Done/Suggested/Dismissed/Undone), owner+time per row, inline Undo/Apply/Dismiss.
+  New `listAutomationHistory({kind,status,limit})` action (all statuses, resolves owner
+  names, degrades to [] pre-migration). Loaded on demand client-side.
+- **Renewals "suggest"**: `task-create` now supportsSuggest=true (Auto/Suggest/Off).
+  automation-time refactored: `createRenewalTask`/`createCommitmentTask` (shared by Auto +
+  Apply), `suggestTaskCreate` (records a suggestion pointing at source — target_table
+  "documents"|"commitments", target_id = source id), `createTaskFromSuggestion(row)`
+  (Apply path: fetch source → create task → return {taskId,code}). `applyAutomationSuggestion`
+  special-cases kind="task-create": creates the task then repoints the event
+  (target_table→tasks, target_id→new task id, new_value→code) so Undo archives it. Renewal
+  suggest deduped via automation_events(document_id,status in suggested/applied); commitments
+  via existing ilike detail commitment:<id>.
+- tsc clean, 66 tests, /inbox history verified (filters render, "Nothing here yet").
+
+## State: was NOT pushed — NOW PUSHED (rounds 1-10 on master). Parked by owner: the chat/search side
 ("works in Documents, not in chat") and the email source (inbox already has
 `source='email'` for later). "Sort others later" = more category folders beyond the 8.
