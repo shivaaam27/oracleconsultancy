@@ -16,6 +16,7 @@ import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/p
 import { toggleTodo } from "@/app/todos/actions";
 import { addTaskUpdate } from "@/app/task/actions";
 import { recordEvent } from "@/lib/system-events";
+import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
 import type { DocumentRow } from "@/lib/documents-shared";
 
 export type AutomationKind = "compliance-verify" | "task-complete" | "pipeline-advance" | "onboarding-tick";
@@ -31,8 +32,8 @@ type LogInput = {
   companyId: number | null;
   summary: string;
   detail?: string | null;
-  prevValue?: string | null;
-  newValue?: string | null;
+  prevValue: string | null;
+  newValue: string | null;
 };
 
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -68,6 +69,34 @@ async function alreadyLoggedByTarget(kind: AutomationKind, targetTable: string, 
 async function lookupPersonName(id: number): Promise<string> {
   const { data } = await sb.from("people").select("name").eq("id", id).maybeSingle();
   return (data?.name as string | null) ?? "the person";
+}
+
+/** The owner's chosen mode for an automation kind (Settings → Automations). */
+export async function getAutomationMode(kind: string): Promise<AutomationMode> {
+  try {
+    const { data } = await sb.from("settings").select("value").eq("key", `automation.mode.${kind}`).maybeSingle();
+    const v = data?.value as string | null;
+    if (v === "auto" || v === "suggest" || v === "off") return v;
+  } catch { /* fall through to default */ }
+  return DEFAULT_AUTOMATION_MODE;
+}
+
+type CommitBase = Omit<LogInput, "status">;
+
+/**
+ * Apply or suggest a move, honouring the rule's mode:
+ *   off     → nothing; auto + certain → apply; otherwise → suggest.
+ * This is the single place the control-room mode is enforced.
+ */
+async function commit(base: CommitBase, certain: boolean, appliedSummary?: string): Promise<void> {
+  const mode = await getAutomationMode(base.kind);
+  if (mode === "off") return;
+  if (mode === "auto" && certain) {
+    await performAutomationMove({ ...base, summary: appliedSummary ?? base.summary });
+    await logEvent({ ...base, status: "applied", summary: appliedSummary ?? base.summary });
+  } else {
+    await logEvent({ ...base, status: "suggested" });
+  }
 }
 
 async function logEvent(i: LogInput): Promise<void> {
@@ -195,12 +224,7 @@ async function reactCompliance(doc: DocumentRow, who: string): Promise<void> {
         const targetId = r.id as number;
         if (await alreadyLogged(doc.id, "compliance-verify", table, targetId)) continue;
         const base = { kind: "compliance-verify" as const, documentId: doc.id, targetTable: table, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Verify “${doc.title}” for ${who}`, detail: "Auto-linked to a compliance requirement", prevValue: status, newValue: "verified" };
-        if (clean) {
-          await performAutomationMove({ ...base, summary: `Verified “${doc.title}” for ${who}` });
-          await logEvent({ ...base, status: "applied", summary: `Verified “${doc.title}” for ${who}` });
-        } else {
-          await logEvent({ ...base, status: "suggested" });
-        }
+        await commit(base, clean, `Verified “${doc.title}” for ${who}`);
       }
     }
   } catch { /* best-effort */ }
@@ -221,10 +245,8 @@ async function reactLinkedTasks(doc: DocumentRow, who: string): Promise<void> {
       if (status === "Completed" || status === "Closed") continue;
       const targetId = t.id as number;
       if (await alreadyLogged(doc.id, "task-complete", "tasks", targetId)) continue;
-      const summary = `Completed task ${t.code} — “${doc.title}” filed`;
-      const base = { kind: "task-complete" as const, documentId: doc.id, targetTable: "tasks" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary, detail: `Document linked to ${t.code}`, prevValue: status, newValue: "Completed" };
-      await performAutomationMove(base);
-      await logEvent({ ...base, status: "applied" });
+      const base = { kind: "task-complete" as const, documentId: doc.id, targetTable: "tasks" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Complete task ${t.code} — “${doc.title}” filed`, detail: `Document linked to ${t.code}`, prevValue: status, newValue: "Completed" };
+      await commit(base, true, `Completed task ${t.code} — “${doc.title}” filed`);
     }
   } catch { /* best-effort */ }
 }
@@ -252,14 +274,8 @@ async function reactPipeline(doc: DocumentRow, who: string): Promise<void> {
       if (!certain && !typeMatch) continue;
       const targetId = p.id as number;
       if (await alreadyLogged(doc.id, "pipeline-advance", "pipeline", targetId)) continue;
-      const summary = `Advance ${p.type} → ${target} for ${who}`;
-      const base = { kind: "pipeline-advance" as const, documentId: doc.id, targetTable: "pipeline" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary, detail: `From ${p.stage} (matched ${certain ? "control no." : "type"})`, prevValue: p.stage as string, newValue: target };
-      if (certain) {
-        await performAutomationMove(base);
-        await logEvent({ ...base, status: "applied", summary: `Advanced ${p.type} → ${target}` });
-      } else {
-        await logEvent({ ...base, status: "suggested" });
-      }
+      const base = { kind: "pipeline-advance" as const, documentId: doc.id, targetTable: "pipeline" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Advance ${p.type} → ${target} for ${who}`, detail: `From ${p.stage} (matched ${certain ? "control no." : "type"})`, prevValue: p.stage as string, newValue: target };
+      await commit(base, !!certain, `Advanced ${p.type} → ${target}`);
     }
   } catch { /* best-effort */ }
 }
@@ -285,8 +301,7 @@ async function cascadeComplianceComplete(doc: DocumentRow, who: string): Promise
       const targetId = td.id as number;
       if (await alreadyLoggedByTarget("onboarding-tick", "todos", targetId)) continue;
       const base = { kind: "onboarding-tick" as const, documentId: doc.id, targetTable: "todos" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Onboarding step “${td.title}” done — compliance complete for ${who}`, detail: "All required documents collected & verified", prevValue: "open", newValue: "done" };
-      await performAutomationMove(base);
-      await logEvent({ ...base, status: "applied" });
+      await commit(base, true);
       break; // one step is enough
     }
   } catch { /* best-effort */ }
@@ -312,9 +327,8 @@ export async function reactToTaskStatusChange(taskId: number, wasStatus: string,
       .select("id").eq("kind", "pipeline-advance").eq("target_table", "pipeline").eq("target_id", p.id).eq("prev_value", p.stage).in("status", ["applied", "suggested"]).limit(1);
     if (dup && dup.length) return;
     const code = await taskCode(taskId);
-    const base = { kind: "pipeline-advance" as const, documentId: null, targetTable: "pipeline" as const, targetId: p.id, personId: p.personId, companyId: p.companyId, summary: `Advanced ${p.type} → ${next}${code ? ` (task ${code} done)` : ""}`, detail: `Driving task completed — advanced from ${p.stage}`, prevValue: p.stage, newValue: next };
-    await performAutomationMove(base);
-    await logEvent({ ...base, status: "applied" });
+    const base = { kind: "pipeline-advance" as const, documentId: null, targetTable: "pipeline" as const, targetId: p.id, personId: p.personId, companyId: p.companyId, summary: `Advance ${p.type} → ${next}${code ? ` (task ${code} done)` : ""}`, detail: `Driving task completed — advanced from ${p.stage}`, prevValue: p.stage, newValue: next };
+    await commit(base, true, `Advanced ${p.type} → ${next}${code ? ` (task ${code} done)` : ""}`);
   } catch { /* best-effort */ }
 }
 
@@ -330,8 +344,7 @@ export async function reactToOffboardingAssetsReturned(personId: number): Promis
       const targetId = td.id as number;
       if (await alreadyLoggedByTarget("onboarding-tick", "todos", targetId)) continue;
       const base = { kind: "onboarding-tick" as const, documentId: null, targetTable: "todos" as const, targetId, personId, companyId: null, summary: `Offboarding step “${td.title}” done — equipment returned for ${who}`, detail: "All assets returned via the Asset Register", prevValue: "open", newValue: "done" };
-      await performAutomationMove(base);
-      await logEvent({ ...base, status: "applied" });
+      await commit(base, true);
       break;
     }
   } catch { /* best-effort */ }
@@ -355,14 +368,8 @@ async function reactOnboarding(doc: DocumentRow, who: string): Promise<void> {
       if (!strong && !weak) continue;
       const targetId = td.id as number;
       if (await alreadyLogged(doc.id, "onboarding-tick", "todos", targetId)) continue;
-      const summary = `Onboarding step “${td.title}” done — ${who}`;
-      const base = { kind: "onboarding-tick" as const, documentId: doc.id, targetTable: "todos" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary, detail: `Satisfied by “${doc.title}”`, prevValue: "open", newValue: "done" };
-      if (strong) {
-        await performAutomationMove(base);
-        await logEvent({ ...base, status: "applied" });
-      } else {
-        await logEvent({ ...base, status: "suggested" });
-      }
+      const base = { kind: "onboarding-tick" as const, documentId: doc.id, targetTable: "todos" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Onboarding step “${td.title}” done — ${who}`, detail: `Satisfied by “${doc.title}”`, prevValue: "open", newValue: "done" };
+      await commit(base, strong);
     }
   } catch { /* best-effort */ }
 }

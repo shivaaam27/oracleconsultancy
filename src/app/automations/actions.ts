@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { performAutomationMove, undoAutomationMove } from "@/lib/automation-reactions";
+import { performAutomationMove, undoAutomationMove, getAutomationMode } from "@/lib/automation-reactions";
 import { runTimeAutomations } from "@/lib/automation-time";
+import { AUTOMATION_RULES, type AutomationMode } from "@/lib/automation-rules";
 
 export type AutomationFeedItem = {
   id: number;
@@ -94,6 +95,38 @@ export async function undoAutomationEvent(id: number): Promise<{ ok: boolean; er
 /** Dismiss a suggestion without acting on it. */
 export async function dismissAutomationSuggestion(id: number): Promise<{ ok: boolean }> {
   await sb.from("automation_events").update({ status: "dismissed", acted_at: new Date().toISOString() }).eq("id", id);
+  revalidatePath("/inbox");
+  return { ok: true };
+}
+
+export type AutomationRuleStatus = { kind: string; mode: AutomationMode; applied: number; suggested: number };
+
+/** Per-rule mode + lifetime activity counts, for the Settings control room. */
+export async function getAutomationRuleStatuses(): Promise<AutomationRuleStatus[]> {
+  const counts = new Map<string, { applied: number; suggested: number }>();
+  try {
+    const { data } = await sb.from("automation_events").select("kind,status");
+    for (const r of (data ?? []) as Array<{ kind: string; status: string }>) {
+      const c = counts.get(r.kind) ?? { applied: 0, suggested: 0 };
+      if (r.status === "applied") c.applied++;
+      else if (r.status === "suggested") c.suggested++;
+      counts.set(r.kind, c);
+    }
+  } catch { /* table may not exist yet */ }
+  const out: AutomationRuleStatus[] = [];
+  for (const rule of AUTOMATION_RULES) {
+    const c = counts.get(rule.kind) ?? { applied: 0, suggested: 0 };
+    out.push({ kind: rule.kind, mode: await getAutomationMode(rule.kind), applied: c.applied, suggested: c.suggested });
+  }
+  return out;
+}
+
+/** Set a rule's mode (Auto / Suggest / Off). */
+export async function setAutomationModeAction(kind: string, mode: AutomationMode): Promise<{ ok: boolean }> {
+  if (!["auto", "suggest", "off"].includes(mode)) return { ok: false };
+  if (!AUTOMATION_RULES.some((r) => r.kind === kind)) return { ok: false };
+  await sb.from("settings").upsert({ key: `automation.mode.${kind}`, value: mode }, { onConflict: "key" });
+  revalidatePath("/settings");
   revalidatePath("/inbox");
   return { ok: true };
 }

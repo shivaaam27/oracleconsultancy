@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 
 const GROUPS: Array<{ label: string; items: Array<[string, string]> }> = [
   { label: "General", items: [["about", "About you"], ["risk", "Risk rules"], ["location", "Location & weather"], ["swipe", "Swipe actions"], ["navigation", "Navigation"]] },
-  { label: "Intelligence", items: [["ai", "AI assistance"], ["voice", "Voice"]] },
+  { label: "Intelligence", items: [["ai", "AI assistance"], ["voice", "Voice"], ["automations", "Automations"]] },
   { label: "Email & messaging", items: [["google", "Google Calendar"], ["email", "Email sending"], ["email-automation", "Email automation"], ["messaging", "Messaging"]] },
   { label: "Security & access", items: [["owner", "Owner sign-in"], ["passkeys", "Face ID & fingerprint"], ["portal", "Staff portal"]] },
   { label: "Device", items: [["notifications", "Notifications"], ["design", "Design"]] },

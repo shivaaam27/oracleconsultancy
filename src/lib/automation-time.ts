@@ -12,6 +12,7 @@ import { listDocuments, linkDocumentTask } from "@/lib/documents";
 import { getDocumentRenewalCandidates } from "@/lib/automation-suggestions";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { commitmentUrgency, noticeByDate, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
+import { getAutomationMode } from "@/lib/automation-reactions";
 import { recordEvent } from "@/lib/system-events";
 
 type LogTaskCreate = {
@@ -70,6 +71,8 @@ async function getOrInitBaseline(): Promise<Date> {
 export async function runTimeAutomations(): Promise<{ renewals: number; commitments: number }> {
   let renewals = 0;
   let commitments = 0;
+  // Respect the control-room mode: "off" disables spawning work entirely.
+  if ((await getAutomationMode("task-create")) === "off") return { renewals, commitments };
   const baseline = await getOrInitBaseline(); // forward-only: skip the existing backlog
 
   // 1. Renewal tasks for expiring/expired renewable documents. getDocumentRenewal-
