@@ -48,6 +48,12 @@ export const AUTOMATION_RULES: AutomationRule[] = [
     description: "Create a task when a document is expiring/expired or a lease/insurance/contract nears its notice date.",
     supportsSuggest: true,
   },
+  {
+    kind: "records",
+    label: "Fill records from documents",
+    description: "When a document reads cleanly, fill blank profile fields and add facts on their own (every change is logged and can be undone). New shelves are always proposed, never auto-created.",
+    supportsSuggest: true,
+  },
 ];
 
 export const MODE_LABEL: Record<AutomationMode, string> = {

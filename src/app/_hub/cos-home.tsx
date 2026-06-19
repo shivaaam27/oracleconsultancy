@@ -13,6 +13,7 @@ import { CockpitActivity } from "@/components/cockpit-activity";
 import { CockpitWorlds } from "@/components/cockpit-worlds";
 import { listRecentActivity } from "@/lib/activity";
 import { gatherCockpitNow } from "@/lib/cockpit-now";
+import { listApprovals } from "@/lib/cockpit";
 import type { Tone } from "@/components/surface-kit";
 import { HomeActions } from "./home-actions";
 import { AnnouncementAdminBanner } from "@/components/announcement-admin-banner";
@@ -27,7 +28,7 @@ function greeting(h: number): string {
 
 export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: Todo[] }) {
   const now = new Date();
-  const [settings, signals, automation, emailCfg, dirRow, activity, nowData] = await Promise.all([
+  const [settings, signals, automation, emailCfg, dirRow, activity, nowData, approvals] = await Promise.all([
     getAppSettings(),
     gatherHomeSignals(rows, todos),
     getAutomationConfig(),
@@ -35,6 +36,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle(),
     listRecentActivity(8),
     gatherCockpitNow(),
+    listApprovals(),
   ]);
 
   // The command levers — live state of the operation's automation, outreach and AI.
@@ -45,6 +47,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     aiEnabled: settings.aiEnabled,
     emailConnected: emailCfg !== null,
     emailTestMode: emailCfg?.testMode ?? false,
+    pendingApprovals: approvals.length,
   };
 
   // Persist today's health so the ring can show a real "vs last reading" delta.

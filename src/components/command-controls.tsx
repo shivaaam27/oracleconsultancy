@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SlidersHorizontal, Sparkles, Send, Mail, ArrowUpRight, ShieldCheck, Zap, FileText } from "lucide-react";
+import { SlidersHorizontal, Sparkles, Send, Mail, ArrowUpRight, ShieldCheck, Zap, FileText, ListChecks } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import { Button, Switch } from "@/components/ui";
@@ -30,6 +30,8 @@ export type CommandControlsState = {
   emailConnected: boolean;
   /** Whether automation email is in test mode (everything to the owner). */
   emailTestMode: boolean;
+  /** Items across the system waiting for the owner's one-tap approval. */
+  pendingApprovals: number;
 };
 
 function Lever({
@@ -230,6 +232,17 @@ export function CommandControls({ state }: { state: CommandControlsState }) {
         <Button type="button" variant="secondary" size="sm" loading={busy === "brief"} onClick={() => fire("brief", sendBriefNowAction)}>
           {busy === "brief" ? null : <FileText size={13} />} Send Brief now
         </Button>
+        <Link
+          href="/approvals"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-2.5 text-xs font-medium text-fg transition-colors hover:bg-bg-muted btn-rim"
+        >
+          <ListChecks size={13} /> Approvals
+          {state.pendingApprovals > 0 && (
+            <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-semibold tabular">
+              {state.pendingApprovals}
+            </span>
+          )}
+        </Link>
 
         {state.emailConnected && (
           <button

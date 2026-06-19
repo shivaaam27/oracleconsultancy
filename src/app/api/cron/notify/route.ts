@@ -11,6 +11,7 @@ import { isReminderDueToday } from "@/lib/documents-shared";
 import { gatherSafetyFindings } from "@/lib/safety-net";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
+import { listApprovals } from "@/lib/cockpit";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,10 @@ export async function GET(req: NextRequest) {
     const findings = await gatherSafetyFindings();
     const dataIssues = findings.filter((f) => f.severity !== "low").length;
 
+    // Cockpit: things the self-running system has queued for the owner's one-tap
+    // approval (record + process proposals). The "while you were away" line.
+    const approvalsWaiting = (await listApprovals()).length;
+
     const parts: string[] = [];
     if (overdue.length) parts.push(`${overdue.length} overdue`);
     if (escalated.length) parts.push(`${escalated.length} escalated`);
@@ -75,6 +80,7 @@ export async function GET(req: NextRequest) {
     if (remindersDue.length) parts.push(`${remindersDue.length} renewal reminder${remindersDue.length === 1 ? "" : "s"} due`);
     if (complianceGaps) parts.push(`${complianceGaps} compliance gap${complianceGaps === 1 ? "" : "s"}`);
     if (dataIssues) parts.push(`${dataIssues} data issue${dataIssues === 1 ? "" : "s"}`);
+    if (approvalsWaiting) parts.push(`${approvalsWaiting} waiting for approval`);
 
     // Nothing actionable — don't notify.
     if (parts.length === 0) {
@@ -83,19 +89,28 @@ export async function GET(req: NextRequest) {
     }
 
     // De-dupe: only push when the situation changes from the last run.
-    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${remindersDue.length}|${complianceGaps}|${dataIssues}`;
+    const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${remindersDue.length}|${complianceGaps}|${dataIssues}|${approvalsWaiting}`;
     const { data: last } = await sb.from("settings").select("value").eq("key", SIG_KEY).maybeSingle();
     if ((last?.value as string | null) === signature) {
       await recordEvent("cron.notify", "ok", { sent: 0, reason: "unchanged" });
       return NextResponse.json({ ok: true, sent: 0, reason: "unchanged" });
     }
 
-    // If the only actionable items are documents/compliance, deep-link there.
-    const onlyDocs = overdue.length === 0 && escalated.length === 0 && dueToday.length === 0;
+    // Deep-link to the most relevant surface: tasks if any are urgent, else
+    // documents if those are the issue, else the approvals cockpit.
+    const noTasks = overdue.length === 0 && escalated.length === 0 && dueToday.length === 0;
+    const noDocs = docsExpired.length === 0 && docsExpiring.length === 0 && remindersDue.length === 0;
+    const url = !noTasks
+      ? "/?tab=tasks&flag=overdue"
+      : !noDocs
+      ? "/documents"
+      : approvalsWaiting
+      ? "/approvals"
+      : "/documents";
     const res = await sendToAll({
       title: "Oracle Consultancy — needs attention",
       body: parts.join(" · "),
-      url: onlyDocs ? "/documents" : "/?tab=tasks&flag=overdue",
+      url,
       tag: "cos-attention",
     });
 

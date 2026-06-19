@@ -113,6 +113,17 @@ const PERSON_COL: Record<string, string> = {
 
 const isBlank = (v: unknown) => v == null || (typeof v === "string" && v.trim() === "");
 
+/** The owner's autonomy mode for the record-filling engine (auto/suggest/off),
+ *  read directly from settings to avoid pulling the heavy reaction graph in. */
+async function recordsMode(): Promise<"auto" | "suggest" | "off"> {
+  try {
+    const { data } = await sb.from("settings").select("value").eq("key", "automation.mode.records").maybeSingle();
+    const v = data?.value as string | null;
+    if (v === "auto" || v === "suggest" || v === "off") return v;
+  } catch { /* default below */ }
+  return "auto";
+}
+
 /** Don't propose the same thing twice if a document is re-filed/re-saved — and,
  *  for a per-document field, don't re-nag something the owner already dismissed
  *  (the learning loop, Part C: a dismissal sticks for that document). */
@@ -251,7 +262,12 @@ export async function enqueueDocumentSuggestions(opts: {
   clean?: boolean;
 }): Promise<number> {
   const { documentId, companyId, personId, fields, source } = opts;
-  const clean = opts.clean ?? false;
+  // The owner's Autonomy dial (Settings → Automations → "Fill records from
+  // documents"): auto = smart-auto on a clean read; suggest = always wait for a
+  // tap; off = don't even propose. Default auto.
+  const mode = await recordsMode();
+  if (mode === "off") return 0;
+  const clean = mode === "auto" && (opts.clean ?? false);
   let made = 0;
 
   // Insert a row, auto-applying first when the read is clean and the kind is safe
