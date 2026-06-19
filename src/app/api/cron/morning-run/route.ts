@@ -3,7 +3,7 @@ import { sb } from "@/db/supabase";
 import { authoriseCron } from "@/lib/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { sendToAll, configurePush } from "@/lib/push";
+import { sendToRecipient, configurePush } from "@/lib/push";
 import { runTimeAutomations } from "@/lib/automation-time";
 import { buildMorningBrief } from "@/lib/morning-brief";
 
@@ -52,7 +52,8 @@ export async function GET(req: NextRequest) {
     }
 
     const url = brief.urgent.total > 0 ? "/?tab=tasks&flag=overdue" : brief.waiting > 0 ? "/approvals" : "/";
-    const res = await sendToAll({
+    // Owner-only: the morning brief is operational, never sent to staff devices.
+    const sent = await sendToRecipient("admin", {
       title: "Good morning — your overnight run is done",
       body: brief.line,
       url,
@@ -60,8 +61,8 @@ export async function GET(req: NextRequest) {
     });
 
     await sb.from("settings").upsert({ key: SIG_KEY, value: signature }, { onConflict: "key" });
-    await recordEvent("cron.morning", "ok", { sent: res.sent, pruned: res.pruned, work, signature });
-    return NextResponse.json({ ok: true, ...res, work });
+    await recordEvent("cron.morning", "ok", { sent, work, signature });
+    return NextResponse.json({ ok: true, sent, work });
   } catch (err) {
     await reportError(err, { route: "cron.morning" });
     await recordEvent("cron.morning", "error", { message: err instanceof Error ? err.message : String(err) });

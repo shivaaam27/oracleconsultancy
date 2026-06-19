@@ -5,7 +5,7 @@ import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
-import { sendToAll, configurePush } from "@/lib/push";
+import { sendToRecipient, configurePush } from "@/lib/push";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { isReminderDueToday } from "@/lib/documents-shared";
 import { gatherSafetyFindings } from "@/lib/safety-net";
@@ -107,7 +107,8 @@ export async function GET(req: NextRequest) {
       : approvalsWaiting
       ? "/approvals"
       : "/documents";
-    const res = await sendToAll({
+    // Owner-only: this is an operations alert, never broadcast to staff devices.
+    const sent = await sendToRecipient("admin", {
       title: "Oracle Consultancy — needs attention",
       body: parts.join(" · "),
       url,
@@ -115,8 +116,8 @@ export async function GET(req: NextRequest) {
     });
 
     await sb.from("settings").upsert({ key: SIG_KEY, value: signature }, { onConflict: "key" });
-    await recordEvent("cron.notify", "ok", { sent: res.sent, pruned: res.pruned, signature });
-    return NextResponse.json({ ok: true, ...res });
+    await recordEvent("cron.notify", "ok", { sent, signature });
+    return NextResponse.json({ ok: true, sent });
   } catch (err) {
     await reportError(err, { route: "cron.notify" });
     await recordEvent("cron.notify", "error", {

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { sendToAll } from "@/lib/push";
+import { sendToRecipient } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,8 @@ export async function POST(req: NextRequest) {
   // Capped to stay within the web-push ~4KB payload limit.
   const full = text || "(no text — see attachment)";
   const notifBody = (subject ? `${subject}\n${full}` : full).slice(0, 1500);
-  await sendToAll({
+  // Owner-only: filing alerts go to the owner, not staff portal devices.
+  await sendToRecipient("admin", {
     title: source === "email" ? "New email to file" : "New item to file",
     body: notifBody,
     url: "/inbox",
