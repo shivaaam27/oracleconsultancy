@@ -94,6 +94,17 @@ export async function toggleTodo(id: number, done: boolean): Promise<void> {
   if (error) throw new Error(error.message);
   revalidatePath("/workbook");
   revalidatePath("/");
+  // Phase 4 cascade: ticking the last onboarding step schedules the probation
+  // review. Best-effort + dynamic import so it never blocks the toggle.
+  if (done) {
+    try {
+      const { data: td } = await sb.from("todos").select("person_id,kind").eq("id", id).maybeSingle();
+      if (td?.kind === "onboarding" && td.person_id) {
+        const m = await import("@/lib/automation-time");
+        await m.cascadeOnboardingComplete(td.person_id as number);
+      }
+    } catch { /* cascade is best-effort */ }
+  }
 }
 
 export async function deleteTodo(id: number): Promise<void> {

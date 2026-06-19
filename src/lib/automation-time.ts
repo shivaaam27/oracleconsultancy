@@ -160,7 +160,95 @@ export async function createTaskFromSuggestion(row: { target_table: string; targ
     if (!p || !p.company_id) throw new Error("That person is no longer available.");
     return createProbationTask(p);
   }
+  if (row.target_table === "pipeline") {
+    const { data } = await sb.from("pipeline").select("id,type,company_id,stage").eq("id", row.target_id).maybeSingle();
+    const c = data as PipelineLite | null;
+    if (!c || !c.company_id) throw new Error("That application is no longer available.");
+    return createCollectionTask(c);
+  }
   throw new Error("Unknown suggestion source.");
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 4 — cross-process cascades. One process finishing spawns the  */
+/* next step. Each is gated by the task-create mode, deduped, logged,  */
+/* and undoable; they create TASKS only (never toggle a todo or move a */
+/* pipeline), so they can't loop back into their own trigger.          */
+/* ------------------------------------------------------------------ */
+
+type PipelineLite = { id: number; type: string; company_id: number | null; stage: string };
+
+/** Create the "collect & file the issued document" task for an Issued application. */
+async function createCollectionTask(c: PipelineLite): Promise<{ taskId: number; code: string; title: string }> {
+  const now = new Date();
+  const companyId = c.company_id as number;
+  const prefix = await companyPrefix(companyId);
+  const title = `Collect & file: ${c.type}`;
+  const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
+    actionItem: title, status: "Not Started", priority: "High", category: "Admin",
+    deadline: null, createdDate: now, lastUpdatedAt: now, archived: false,
+  });
+  await sb.from("audit_log").insert({
+    task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task",
+    old_value: null, new_value: title, change_reason: "Created by automation — application issued", created_at: now.toISOString(), created_by: "automation",
+  });
+  return { taskId: task.id, code: task.code, title };
+}
+
+/** Onboarding all done → schedule the probation review (shares the `probation:<id>`
+ *  dedup key with the time sweep, so the two never double-create). */
+export async function cascadeOnboardingComplete(personId: number): Promise<void> {
+  try {
+    const mode = await getAutomationMode("task-create");
+    if (mode === "off") return;
+    const { data: p } = await sb.from("people").select("id,name,company_id,manager_id,probation_end_date,active").eq("id", personId).maybeSingle();
+    if (!p || !p.active || !p.company_id || !p.probation_end_date) return; // no probation to schedule
+    const { data: steps } = await sb.from("todos").select("id,done").eq("person_id", personId).eq("kind", "onboarding");
+    if (!steps || steps.length === 0 || steps.some((s) => !s.done)) return; // not fully onboarded yet
+    const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "task-create").ilike("detail", `probation:${personId}|%`).limit(1);
+    if (ex && ex.length) return; // already handled (here or by the time sweep)
+    if (mode === "suggest") {
+      await sb.from("automation_events").insert({
+        kind: "task-create", status: "suggested", document_id: null, target_table: "people", target_id: personId,
+        person_id: personId, company_id: p.company_id, summary: `Create probation review — ${p.name}`,
+        detail: `probation:${personId}| Onboarding complete — schedule the review`, prev_value: null, new_value: null,
+        created_at: new Date().toISOString(), acted_at: null, created_by: "automation",
+      });
+    } else {
+      const t = await createProbationTask(p as ProbationPerson);
+      await logTaskCreate({ documentId: null, companyId: p.company_id, personId, taskId: t.taskId, taskCode: t.code,
+        summary: `Created probation review ${t.code} — ${p.name}`, detail: `probation:${personId}| Onboarding complete — auto-created the review` });
+    }
+  } catch (e) {
+    await recordEvent("automation.cascade", "error", { step: "onboarding", personId, message: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Pipeline reached "Issued" → spawn the task to collect & file the issued document. */
+export async function cascadePipelineIssued(pipelineId: number): Promise<void> {
+  try {
+    const mode = await getAutomationMode("task-create");
+    if (mode === "off") return;
+    const { data: c } = await sb.from("pipeline").select("id,type,company_id,stage,archived").eq("id", pipelineId).maybeSingle();
+    if (!c || c.archived || !c.company_id || c.stage !== "Issued") return;
+    const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "task-create").ilike("detail", `pipeline-issued:${pipelineId}|%`).limit(1);
+    if (ex && ex.length) return;
+    const row = c as PipelineLite;
+    if (mode === "suggest") {
+      await sb.from("automation_events").insert({
+        kind: "task-create", status: "suggested", document_id: null, target_table: "pipeline", target_id: pipelineId,
+        person_id: null, company_id: c.company_id, summary: `Create task — collect & file ${c.type}`,
+        detail: `pipeline-issued:${pipelineId}| Application issued — collect the document`, prev_value: null, new_value: null,
+        created_at: new Date().toISOString(), acted_at: null, created_by: "automation",
+      });
+    } else {
+      const t = await createCollectionTask(row);
+      await logTaskCreate({ documentId: null, companyId: c.company_id, personId: null, taskId: t.taskId, taskCode: t.code,
+        summary: `Created task ${t.code} — collect & file ${c.type}`, detail: `pipeline-issued:${pipelineId}| Application issued — auto-created the collection task` });
+    }
+  } catch (e) {
+    await recordEvent("automation.cascade", "error", { step: "pipeline-issued", pipelineId, message: e instanceof Error ? e.message : String(e) });
+  }
 }
 
 /** Run the time-based automations. Returns how many work items were created. */

@@ -123,6 +123,14 @@ export async function setPipelineStage(id: number, stage: PipelineStage): Promis
   const now = new Date().toISOString();
   const { error } = await sb.from("pipeline").update({ stage, last_update: now, updated_at: now }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  // Phase 4 cascade: reaching "Issued" spawns the collect-&-file task. Best-effort
+  // + dynamic import; creating a task can't loop back into a stage change.
+  if (stage === "Issued") {
+    try {
+      const m = await import("@/lib/automation-time");
+      await m.cascadePipelineIssued(id);
+    } catch { /* cascade is best-effort */ }
+  }
   return { ok: true };
 }
 
