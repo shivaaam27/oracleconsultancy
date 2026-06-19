@@ -154,15 +154,18 @@ export async function deltaFiles(opts: { pullExisting?: boolean } = {}): Promise
   const token = await accessToken();
   if (!token) return { files: [], ok: false };
   const folder = (await getSetting(KEYS.folder)) ?? "";
-  let cursor = await getSetting(KEYS.cursor);
+  const cursor = await getSetting(KEYS.cursor);
 
-  // First sync: baseline (skip backlog) unless the owner asked to pull existing.
+  // "Pull existing" ALWAYS re-lists the whole folder from scratch (even if a cursor
+  // exists), so the owner can re-fetch the backlog or anything an earlier run missed.
+  if (opts.pullExisting) {
+    const start = await rpc(token, "/files/list_folder", { path: folder, recursive: true, limit: 1000 });
+    return collect(token, start, true);
+  }
+
+  // First normal sync with no cursor: baseline to "now" (skip the backlog) so
+  // enabling the connector doesn't dump everything already in the folder.
   if (!cursor) {
-    if (opts.pullExisting) {
-      const start = await rpc(token, "/files/list_folder", { path: folder, recursive: true, limit: 1000 });
-      // fall through into the pagination loop below using this response
-      return collect(token, start, true);
-    }
     const r = await rpc(token, "/files/list_folder/get_latest_cursor", { path: folder, recursive: true });
     const j = await r.json();
     if (r.ok && j.cursor) await setSetting(KEYS.cursor, j.cursor as string);
