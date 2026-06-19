@@ -3,6 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+import { autoFileDocumentAction, autoSweepLibraryDuplicatesAction } from "@/app/documents/actions";
+
+export type AutoSortSummary = {
+  ok: boolean;
+  bundles: number; // bundles fully handled
+  filed: number;
+  quarantined: number;
+  trashed: number;
+  failed: number;
+  error?: string;
+};
 
 export type InboxAttachment = { name?: string; url?: string; type?: string; storagePath?: string; size?: number };
 
@@ -140,6 +151,75 @@ export async function markInboxFiled(
     .update({ status: "filed", filed_kind: filedKind, filed_ref: filedRef, filed_at: new Date().toISOString() })
     .eq("id", id);
   revalidatePath("/inbox");
+}
+
+/**
+ * Auto-sort the inbox with ZERO clicks: read every pending bundle's attachments
+ * and run each through the document brain (autoFileDocumentAction), which files
+ * the confident ones, holds the unclear ones in Quarantine, and bins exact/format
+ * duplicates to Trash. Works with AI off (rule-based classify + rename). A bundle
+ * is marked filed only once ALL its files are handled; text-only bundles are left
+ * for the manual "Make a task" flow. Safe to run repeatedly (cron + "Sort now").
+ */
+export async function autoSortInboxAction(): Promise<AutoSortSummary> {
+  try {
+    const { data } = await sb
+      .from("inbox")
+      .select("id,subject,sender,attachments")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+    const bundles = data ?? [];
+    let filed = 0, quarantined = 0, trashed = 0, failed = 0, handledBundles = 0;
+
+    for (const b of bundles) {
+      const atts = parseAttachments(b.attachments as string | null);
+      const files = atts.filter((a) => a.storagePath || a.url);
+      if (files.length === 0) continue; // text-only — leave for "Make a task"
+      // Folder/sender give the owner hint when a file doesn't self-identify.
+      const folderHint = [b.subject as string | null, b.sender as string | null].filter(Boolean).join("  ");
+      let allHandled = true;
+
+      for (const a of files) {
+        try {
+          let blob: Blob | null = null;
+          if (a.storagePath) {
+            const url = await signDocumentFile(a.storagePath);
+            if (url) blob = await (await fetch(url)).blob();
+          } else if (a.url) {
+            blob = await (await fetch(a.url)).blob();
+          }
+          if (!blob) { allHandled = false; failed++; continue; }
+          const file = new File([blob], a.name || "file", { type: a.type || blob.type });
+          const fd = new FormData();
+          fd.set("file", file);
+          if (folderHint) fd.set("folderHint", folderHint);
+          const r = await autoFileDocumentAction(fd);
+          if (!r.ok) { failed++; allHandled = false; }
+          else if (r.status === "filed") filed++;
+          else if (r.status === "duplicate") trashed++;
+          else quarantined++; // needs_review → Quarantine
+        } catch {
+          failed++; allHandled = false;
+        }
+      }
+      // Only retire the bundle when every file landed somewhere (filed/quarantine/
+      // trash). The document brain already copied each file into its own path, so
+      // markInboxFiled safely removes the redundant inbox/ copies.
+      if (allHandled) { await markInboxFiled(b.id as number, "documents", ""); handledBundles++; }
+    }
+
+    // Sweep the EXISTING library for duplicates too (not just the new drops), so
+    // a pile-up already filed gets cleaned on the same pass.
+    const swept = await autoSweepLibraryDuplicatesAction();
+    trashed += swept.trashed;
+    quarantined += swept.quarantined;
+
+    revalidatePath("/inbox");
+    revalidatePath("/documents");
+    return { ok: true, bundles: handledBundles, filed, quarantined, trashed, failed };
+  } catch (e) {
+    return { ok: false, bundles: 0, filed: 0, quarantined: 0, trashed: 0, failed: 0, error: e instanceof Error ? e.message : "Auto-sort failed." };
+  }
 }
 
 function parseAttachments(raw: string | null): InboxItem["attachments"] {

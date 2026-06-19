@@ -2,19 +2,13 @@ import { PageHeader } from "@/components/ui";
 import { DocumentsTable } from "@/components/documents-table";
 import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
-import { SafetyNetPanel } from "@/components/safety-net-panel";
-import { NeedsReviewPanel } from "@/components/needs-review-panel";
-import { ExtractionHealth } from "@/components/extraction-health";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { ComplianceExportButton } from "@/components/compliance-export-button";
-import { FindDuplicatesButton } from "@/components/find-duplicates-button";
-import { RescanDocumentsButton } from "@/components/rescan-documents-button";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { buildCompanyRequirementScores, ensureAllCompanyRequirements } from "@/lib/company-requirements";
 import { buildPersonRequirementScores } from "@/lib/requirements";
-import { gatherSafetyFindings } from "@/lib/safety-net";
 import { leaveMetrics } from "@/lib/leave";
 import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
@@ -50,20 +44,6 @@ export default async function DocumentsPage({
   const companyScores = await buildCompanyRequirementScores(companies);
   const personScores = await buildPersonRequirementScores();
   const { pending: pendingLeave } = await leaveMetrics();
-  const safetyFindings = await gatherSafetyFindings();
-
-  // Needs-review queue: documents the AI scan wasn't confident about.
-  const companyName = new Map(companies.map((c) => [c.id, c.name]));
-  const peopleName = new Map(people.map((p) => [p.id, p.name]));
-  const reviewDocs = documents
-    .filter((d) => !d.archived && d.reviewStatus === "needs_review")
-    .map((d) => ({
-      id: d.id,
-      title: d.title,
-      category: d.category,
-      ownerName: (d.companyId ? companyName.get(d.companyId) : null) ?? (d.personId ? peopleName.get(d.personId) : null) ?? null,
-      needsOriginal: d.needsOriginal,
-    }));
 
   // Linked renewal/action tasks per document (backward link, mirrors meeting_tasks).
   const { data: linkRows } = await sb.from("document_links").select("document_id, tasks(code,status)");
@@ -88,8 +68,6 @@ export default async function DocumentsPage({
         sub={sub}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <FindDuplicatesButton />
-            <RescanDocumentsButton />
             <ComplianceExportButton />
             <RequirementTemplatesButton />
             <JourneyTemplatesButton />
@@ -105,9 +83,6 @@ export default async function DocumentsPage({
         personScores={personScores}
         pendingLeaveCount={pendingLeave}
       />
-      <NeedsReviewPanel docs={reviewDocs} />
-      <ExtractionHealth />
-      <SafetyNetPanel findings={safetyFindings} />
       <DocumentsTable documents={documents} companies={companies} people={people} linkedTasks={linkedTasks} />
     </div>
   );

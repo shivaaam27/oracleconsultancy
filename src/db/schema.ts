@@ -1040,6 +1040,17 @@ export const documents = pgTable("documents", {
   // expiryDate); "no" = it has no expiry by nature (CV, invoice, analytical) —
   // so a blank expiry is correct, not missing; null = not yet determined.
   expiryKind: text("expiry_kind"),
+  // Intake bucket (auto-sorter): "filed" = in the live library; "quarantine" =
+  // the sorter couldn't settle it (no owner / unreadable / suspected duplicate),
+  // held for a glance; "trash" = a certain duplicate or a copy superseded by a
+  // better one (e.g. a photo replaced by a PDF). Quarantine/trash rows also carry
+  // archived=true so every active query/compliance scorer already hides them.
+  intakeState: text("intake_state").notNull().default("filed"),
+  // Plain-language reason a row sits in quarantine/trash (shown in those views).
+  intakeReason: text("intake_reason"),
+  // When the row was moved to trash — the Trash view sorts by it. Trash is never
+  // emptied automatically (owner empties it); this is just for ordering/age.
+  trashedAt: timestamp("trashed_at", { mode: "date", withTimezone: true }),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),
@@ -1049,6 +1060,39 @@ export const documents = pgTable("documents", {
   index("documents_person_idx").on(t.personId),
   index("documents_vendor_idx").on(t.vendorId),
   index("documents_file_hash_idx").on(t.fileHash),
+]);
+
+// Automation reaction log (V3 "the system moves on its own"). When a document is
+// filed, the reaction layer advances the processes it touches — verifies a matching
+// compliance item, completes a linked task, advances a pipeline stage, ticks an
+// onboarding step. CERTAIN matches are applied automatically; fuzzier ones are
+// recorded as suggestions for a one-click Apply. EVERY action is logged here with
+// enough to UNDO it (prev_value), so a self-moving system stays visible + reversible.
+export const automationEvents = pgTable("automation_events", {
+  id: serial("id").primaryKey(),
+  // What moved: compliance-verify | task-complete | pipeline-advance | onboarding-tick.
+  kind: text("kind").notNull(),
+  // applied = done automatically (certain); suggested = pending a one-click Apply.
+  // Transitions: suggested → applied | dismissed; applied → undone.
+  status: text("status").notNull().default("suggested"),
+  // The document whose filing triggered this reaction.
+  documentId: integer("document_id").references(() => documents.id, { onDelete: "set null" }),
+  // The row that was (or would be) changed, for apply + undo.
+  targetTable: text("target_table").notNull(), // person_requirements | company_requirements | tasks | pipeline | todos
+  targetId: integer("target_id").notNull(),
+  // For display/grouping.
+  personId: integer("person_id").references(() => people.id, { onDelete: "set null" }),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "set null" }),
+  summary: text("summary").notNull(), // human line, e.g. "Verified Passport for John"
+  detail: text("detail"),             // why it matched
+  prevValue: text("prev_value"),      // state before the move (for undo)
+  newValue: text("new_value"),        // state after the move
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
+  actedAt: timestamp("acted_at", { mode: "date", withTimezone: true }), // applied/undone/dismissed at
+  createdBy: text("created_by").notNull().default("automation"),
+}, (t) => [
+  index("automation_events_status_idx").on(t.status),
+  index("automation_events_document_idx").on(t.documentId),
 ]);
 
 // Extraction memory: the AI's structured read of a file, keyed by the file's

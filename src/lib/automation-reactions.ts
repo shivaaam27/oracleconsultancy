@@ -1,0 +1,275 @@
+// Automation reaction layer ("the system moves on its own"). When a document is
+// FILED, this advances the processes it touches. The guardrail (owner's choice):
+// CERTAIN matches are applied automatically; fuzzier ones are recorded as
+// suggestions for a one-click Apply. EVERY action is logged to automation_events
+// with enough to UNDO it, so the self-moving system stays visible and reversible.
+//
+// Reactions are best-effort and fully guarded — a reaction failure must NEVER
+// block the document from filing.
+
+import { sb } from "@/db/supabase";
+import { getDocument } from "@/lib/documents";
+import { verifyRequirement, unverifyRequirement } from "@/lib/requirements";
+import { verifyCompanyRequirement, unverifyCompanyRequirement } from "@/lib/company-requirements";
+import { setPipelineStage } from "@/lib/pipeline";
+import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/pipeline-shared";
+import { toggleTodo } from "@/app/todos/actions";
+import { addTaskUpdate } from "@/app/task/actions";
+import { recordEvent } from "@/lib/system-events";
+import type { DocumentRow } from "@/lib/documents-shared";
+
+export type AutomationKind = "compliance-verify" | "task-complete" | "pipeline-advance" | "onboarding-tick";
+export type AutomationTable = "person_requirements" | "company_requirements" | "tasks" | "pipeline" | "todos";
+
+type LogInput = {
+  kind: AutomationKind;
+  status: "applied" | "suggested";
+  documentId: number;
+  targetTable: AutomationTable;
+  targetId: number;
+  personId: number | null;
+  companyId: number | null;
+  summary: string;
+  detail?: string | null;
+  prevValue?: string | null;
+  newValue?: string | null;
+};
+
+const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Don't double-record the same reaction if a document is re-filed/re-saved. */
+async function alreadyLogged(documentId: number, kind: AutomationKind, targetTable: string, targetId: number): Promise<boolean> {
+  const { data } = await sb
+    .from("automation_events")
+    .select("id")
+    .eq("document_id", documentId)
+    .eq("kind", kind)
+    .eq("target_table", targetTable)
+    .eq("target_id", targetId)
+    .in("status", ["suggested", "applied"])
+    .limit(1);
+  return !!(data && data.length);
+}
+
+async function logEvent(i: LogInput): Promise<void> {
+  await sb.from("automation_events").insert({
+    kind: i.kind,
+    status: i.status,
+    document_id: i.documentId,
+    target_table: i.targetTable,
+    target_id: i.targetId,
+    person_id: i.personId,
+    company_id: i.companyId,
+    summary: i.summary,
+    detail: i.detail ?? null,
+    prev_value: i.prevValue ?? null,
+    new_value: i.newValue ?? null,
+    created_at: new Date().toISOString(),
+    acted_at: i.status === "applied" ? new Date().toISOString() : null,
+    created_by: "automation",
+  });
+}
+
+async function ownerName(doc: DocumentRow): Promise<string> {
+  if (doc.personId) {
+    const { data } = await sb.from("people").select("name").eq("id", doc.personId).maybeSingle();
+    if (data?.name) return data.name as string;
+  }
+  if (doc.companyId) {
+    const { data } = await sb.from("companies").select("name").eq("id", doc.companyId).maybeSingle();
+    if (data?.name) return data.name as string;
+  }
+  return "the owner";
+}
+
+/* ------------------------------------------------------------------ */
+/* The shared "do the move" + "undo the move" — used by both the auto  */
+/* path here and the Apply/Undo actions, so behaviour is identical.    */
+/* ------------------------------------------------------------------ */
+
+type MoveRow = { kind: string; targetTable: string; targetId: number; newValue: string | null; prevValue: string | null; summary: string };
+
+async function taskCode(taskId: number): Promise<string | null> {
+  const { data } = await sb.from("tasks").select("code").eq("id", taskId).maybeSingle();
+  return (data?.code as string | null) ?? null;
+}
+
+/** Perform (or re-perform, on Apply) an automation move. */
+export async function performAutomationMove(row: MoveRow): Promise<void> {
+  switch (row.kind) {
+    case "compliance-verify":
+      if (row.targetTable === "person_requirements") await verifyRequirement(row.targetId);
+      else await verifyCompanyRequirement(row.targetId);
+      return;
+    case "task-complete": {
+      const code = await taskCode(row.targetId);
+      if (code) await addTaskUpdate(row.targetId, code, `Auto-completed — ${row.summary}`, row.newValue || "Completed");
+      return;
+    }
+    case "pipeline-advance":
+      if (row.newValue) await setPipelineStage(row.targetId, row.newValue as PipelineStage);
+      return;
+    case "onboarding-tick":
+      await toggleTodo(row.targetId, true);
+      return;
+  }
+}
+
+/** Reverse an applied automation move. */
+export async function undoAutomationMove(row: MoveRow): Promise<void> {
+  switch (row.kind) {
+    case "task-create":
+      // Undo a time-spawned task by archiving it (recoverable, not deleted).
+      await sb.from("tasks").update({ archived: true, last_updated_at: new Date().toISOString() }).eq("id", row.targetId);
+      return;
+    case "compliance-verify":
+      if (row.targetTable === "person_requirements") await unverifyRequirement(row.targetId);
+      else await unverifyCompanyRequirement(row.targetId);
+      return;
+    case "task-complete": {
+      const code = await taskCode(row.targetId);
+      if (code) await addTaskUpdate(row.targetId, code, "Reopened — automation undone", row.prevValue || "In Progress");
+      return;
+    }
+    case "pipeline-advance":
+      if (row.prevValue) await setPipelineStage(row.targetId, row.prevValue as PipelineStage);
+      return;
+    case "onboarding-tick":
+      await toggleTodo(row.targetId, false);
+      return;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Entry point: react to a freshly-filed document.                     */
+/* ------------------------------------------------------------------ */
+
+export async function reactToFiledDocument(documentId: number): Promise<void> {
+  try {
+    const doc = await getDocument(documentId);
+    if (!doc || doc.archived || doc.intakeState !== "filed") return;
+    const who = await ownerName(doc);
+    // Each reaction is independently guarded so one failure never stops the rest.
+    await Promise.allSettled([
+      reactCompliance(doc, who),
+      reactLinkedTasks(doc, who),
+      reactPipeline(doc, who),
+      reactOnboarding(doc, who),
+    ]);
+  } catch (e) {
+    await recordEvent("automation.react", "error", { documentId, message: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Compliance: a document the matcher auto-linked to a requirement → verify it.
+ *  CERTAIN when the read was clean (not needs-review, not an awaiting-original
+ *  photo); otherwise suggest. Reuses the system's own auto-link as the signal. */
+async function reactCompliance(doc: DocumentRow, who: string): Promise<void> {
+  try {
+    const clean = doc.reviewStatus === "ok" && !doc.needsOriginal;
+    for (const table of ["person_requirements", "company_requirements"] as const) {
+      const { data } = await sb.from(table).select("id,status").eq("document_id", doc.id).limit(20);
+      for (const r of data ?? []) {
+        const status = (r.status as string | null) ?? "received";
+        if (status === "verified" || status === "waived") continue;
+        const targetId = r.id as number;
+        if (await alreadyLogged(doc.id, "compliance-verify", table, targetId)) continue;
+        const base = { kind: "compliance-verify" as const, documentId: doc.id, targetTable: table, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Verify “${doc.title}” for ${who}`, detail: "Auto-linked to a compliance requirement", prevValue: status, newValue: "verified" };
+        if (clean) {
+          await performAutomationMove({ ...base, summary: `Verified “${doc.title}” for ${who}` });
+          await logEvent({ ...base, status: "applied", summary: `Verified “${doc.title}” for ${who}` });
+        } else {
+          await logEvent({ ...base, status: "suggested" });
+        }
+      }
+    }
+  } catch { /* best-effort */ }
+}
+
+/** Tasks: an open task explicitly linked (document_links) to this document — or to
+ *  the document it supersedes — is fulfilled by it → complete it. Always CERTAIN
+ *  (an explicit link), so it auto-completes. */
+async function reactLinkedTasks(doc: DocumentRow, who: string): Promise<void> {
+  try {
+    const docIds = [doc.id, doc.supersedesId].filter((x): x is number => !!x);
+    const { data: links } = await sb.from("document_links").select("task_id").in("document_id", docIds);
+    const taskIds = [...new Set((links ?? []).map((l) => l.task_id as number))];
+    if (!taskIds.length) return;
+    const { data: tasks } = await sb.from("tasks").select("id,code,title,status").in("id", taskIds);
+    for (const t of tasks ?? []) {
+      const status = t.status as string;
+      if (status === "Completed" || status === "Closed") continue;
+      const targetId = t.id as number;
+      if (await alreadyLogged(doc.id, "task-complete", "tasks", targetId)) continue;
+      const summary = `Completed task ${t.code} — “${doc.title}” filed`;
+      const base = { kind: "task-complete" as const, documentId: doc.id, targetTable: "tasks" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary, detail: `Document linked to ${t.code}`, prevValue: status, newValue: "Completed" };
+      await performAutomationMove(base);
+      await logEvent({ ...base, status: "applied" });
+    }
+  } catch { /* best-effort */ }
+}
+
+/** Pipeline: advance the application a document belongs to. CERTAIN when the item
+ *  is linked to this exact document or its control number matches; else suggest. */
+async function reactPipeline(doc: DocumentRow, who: string): Promise<void> {
+  try {
+    if (!doc.companyId && !doc.personId) return;
+    const target = inferPipelineStage(doc);
+    if (!target) return;
+    const targetIdx = PIPELINE_STAGES.indexOf(target);
+    let q = sb.from("pipeline").select("id,type,stage,control_no,company_id,person_id,document_id").eq("archived", false);
+    // Match the document's owner (company or person).
+    if (doc.companyId) q = q.eq("company_id", doc.companyId);
+    else q = q.eq("person_id", doc.personId as number);
+    const { data } = await q;
+    const refKey = doc.referenceNo ? norm(doc.referenceNo) : null;
+    const typeHay = norm(`${doc.title} ${doc.docType ?? ""} ${doc.category ?? ""}`);
+    for (const p of data ?? []) {
+      const curIdx = PIPELINE_STAGES.indexOf((p.stage as string) as PipelineStage);
+      if (curIdx < 0 || targetIdx <= curIdx) continue; // only advance forward
+      const certain = (p.document_id as number | null) === doc.id || (refKey && p.control_no && norm(p.control_no as string) === refKey);
+      const typeMatch = norm(p.type as string).split(" ").some((w) => w.length >= 4 && typeHay.includes(w));
+      if (!certain && !typeMatch) continue;
+      const targetId = p.id as number;
+      if (await alreadyLogged(doc.id, "pipeline-advance", "pipeline", targetId)) continue;
+      const summary = `Advance ${p.type} → ${target} for ${who}`;
+      const base = { kind: "pipeline-advance" as const, documentId: doc.id, targetTable: "pipeline" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary, detail: `From ${p.stage} (matched ${certain ? "control no." : "type"})`, prevValue: p.stage as string, newValue: target };
+      if (certain) {
+        await performAutomationMove(base);
+        await logEvent({ ...base, status: "applied", summary: `Advanced ${p.type} → ${target}` });
+      } else {
+        await logEvent({ ...base, status: "suggested" });
+      }
+    }
+  } catch { /* best-effort */ }
+}
+
+/** Onboarding: a new hire's document ticks the matching onboarding step. CERTAIN
+ *  when the step's label clearly names this document's category; else suggest. */
+async function reactOnboarding(doc: DocumentRow, who: string): Promise<void> {
+  try {
+    if (!doc.personId) return;
+    const { data } = await sb.from("todos").select("id,title").eq("person_id", doc.personId).eq("kind", "onboarding").eq("done", false).limit(40);
+    const cat = norm(doc.category);
+    const titleHay = norm(doc.title);
+    for (const td of data ?? []) {
+      const stepTitle = norm(td.title as string);
+      if (!stepTitle) continue;
+      // Strong: the step names this document's category (e.g. "Collect passport").
+      const strong = !!cat && cat.length >= 4 && stepTitle.includes(cat);
+      // Weak: the step and the document title share a meaningful word.
+      const weak = stepTitle.split(" ").some((w) => w.length >= 5 && titleHay.includes(w));
+      if (!strong && !weak) continue;
+      const targetId = td.id as number;
+      if (await alreadyLogged(doc.id, "onboarding-tick", "todos", targetId)) continue;
+      const summary = `Onboarding step “${td.title}” done — ${who}`;
+      const base = { kind: "onboarding-tick" as const, documentId: doc.id, targetTable: "todos" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary, detail: `Satisfied by “${doc.title}”`, prevValue: "open", newValue: "done" };
+      if (strong) {
+        await performAutomationMove(base);
+        await logEvent({ ...base, status: "applied" });
+      } else {
+        await logEvent({ ...base, status: "suggested" });
+      }
+    }
+  } catch { /* best-effort */ }
+}

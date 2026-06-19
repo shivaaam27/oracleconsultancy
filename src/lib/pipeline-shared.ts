@@ -41,6 +41,21 @@ export type PipelineItem = {
   documentId: number | null;
 };
 
+const normLower = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Which pipeline stage a document implies (a receipt → Receipt Received, etc.).
+ *  Null when the document doesn't clearly map to a stage — the automation layer
+ *  only advances a stage on a clear signal, never a guess. Pure + unit-tested. */
+export function inferPipelineStage(doc: { title?: string | null; docType?: string | null; notes?: string | null; category?: string | null }): PipelineStage | null {
+  const hay = normLower(`${doc.title ?? ""} ${doc.docType ?? ""} ${doc.notes ?? ""}`);
+  if (/\breceipt\b/.test(hay)) return "Receipt Received";
+  if (/\bcontrol\b|assessment|control no/.test(hay)) return "Control No. Issued";
+  if (/\bpaid\b|payment|proof of payment/.test(hay)) return "Paid";
+  // The actual issued permit/licence/visa itself.
+  if (["Immigration", "Permit", "Licence", "Passport"].includes(doc.category ?? "")) return "Issued";
+  return null;
+}
+
 /** Stage → tone for the kanban column / chip. "Issued" is done (success). */
 export const STAGE_TONE: Record<PipelineStage, "muted" | "accent" | "warn" | "success"> = {
   "To Apply": "muted",

@@ -29,6 +29,7 @@ type Sp = {
   unread?: string;
   group?: string;
   archived?: string;
+  kind?: string; // "auto" = the renewals/admin lane (created_by "automation")
 };
 
 /** Builds a hub URL for the tasks tab, preserving all task filter params. */
@@ -49,6 +50,7 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.unread) u.set("unread", next.unread);
   if (next.group) u.set("group", next.group);
   if (next.archived) u.set("archived", next.archived);
+  if (next.kind) u.set("kind", next.kind);
   return `/?${u.toString()}`;
 }
 
@@ -65,6 +67,7 @@ function queryWithoutView(sp: Sp): string {
   if (sp.q) u.set("q", sp.q);
   if (sp.all) u.set("all", sp.all);
   if (sp.archived) u.set("archived", sp.archived);
+  if (sp.kind) u.set("kind", sp.kind);
   return u.toString();
 }
 
@@ -75,12 +78,15 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const showArchived = sp.archived === "1";
   // Hub Tasks tab is always global — no scope filtering. The scope cookie
   // applies to /task (standalone) but the hub shows all companies by design.
-  const [all, savedViews, taskSources, adminViews, peopleRows] = await Promise.all([
+  const [all, savedViews, taskSources, adminViews, peopleRows, autoEvents] = await Promise.all([
     showArchived ? getArchivedTasks() : getAllTasks(),
     getSavedViews(),
     getTaskSources(),
     sb.from("task_views").select("task_id,last_viewed_at").eq("viewer", "admin"),
     sb.from("people").select("name").eq("active", true).order("name"),
+    // Which tasks the automation layer created (renewals / commitment notices) —
+    // the marker for the separate lane. Tolerates the table not existing yet.
+    sb.from("automation_events").select("target_id").eq("kind", "task-create").eq("target_table", "tasks"),
   ]);
   // Active people names for the quick-create assignee combobox suggestions.
   const peopleNames = [...new Set((peopleRows.data ?? []).map((p) => p.name as string).filter(Boolean))];
@@ -99,6 +105,20 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     // flagged, so the system doesn't flood on first use.
     r.unread = seen !== undefined && upd > seen && r.status !== "Closed" && r.status !== "Completed";
   }
+  // Separate machine-generated admin work (renewals / commitment notices, stamped
+  // created_by "automation") from real, people-driven tasks. The default Task
+  // Management view shows only "work"; the "Renewals & admin" lane shows only the
+  // auto ones. They stay real tasks (codes, deadlines, links) — just in their own
+  // lane, so the day-to-day list isn't flooded by the compliance machine.
+  const isOpenRow = (r: (typeof all)[number]) => r.status !== "Completed" && r.status !== "Closed";
+  const autoTaskIds = new Set((autoEvents.data ?? []).map((e) => e.target_id as number));
+  const allAuto = all.filter((r) => autoTaskIds.has(r.id));
+  const allWork = all.filter((r) => !autoTaskIds.has(r.id));
+  const kindAuto = sp.kind === "auto";
+  const autoOpenCount = allAuto.filter(isOpenRow).length;
+  const workOpenCount = allWork.filter(isOpenRow).length;
+  const base = kindAuto ? allAuto : allWork;
+
   const view = parseViewMode(sp.view);
   // The global activity feed only needs loading for the Timeline view.
   const activity = view === "timeline" ? await getRecentActivity() : null;
@@ -110,7 +130,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   const showClosed = sp.closed === "1" || showArchived;
   const statusOverridesClosed = sp.status === "Closed" || sp.status === "Completed";
 
-  let rows = showClosed || statusOverridesClosed ? all : all.filter((r) => r.status !== "Closed");
+  let rows = showClosed || statusOverridesClosed ? base : base.filter((r) => r.status !== "Closed");
   if (sp.company) rows = rows.filter((r) => r.companyName === sp.company);
   if (sp.priority) rows = rows.filter((r) => r.priority === sp.priority);
   if (sp.flag) rows = rows.filter((r) => r.flag === sp.flag);
@@ -137,7 +157,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     : undefined;
   const priorities = ["Critical", "High", "Medium", "Low"];
 
-  const baseForKpis = (showClosed ? all : all.filter((r) => r.status !== "Closed")).filter(
+  const baseForKpis = (showClosed ? base : base.filter((r) => r.status !== "Closed")).filter(
     (r) => !sp.company || r.companyName === sp.company
   );
   const kpi = {
@@ -150,10 +170,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     noOwner: baseForKpis.filter((r) => r.assignees.length === 0).length,
     unread: baseForKpis.filter((r) => r.unread).length,
   };
-  const closedCount = all.filter((r) => r.status === "Closed").length;
+  const closedCount = base.filter((r) => r.status === "Closed").length;
 
   // Workload pulse metrics (respect the active company filter).
-  const scoped = all.filter((r) => !sp.company || r.companyName === sp.company);
+  const scoped = base.filter((r) => !sp.company || r.companyName === sp.company);
   const openScoped = scoped.filter((r) => r.status !== "Completed" && r.status !== "Closed");
   const onTrack = openScoped.filter(
     (r) => !["overdue", "escalate-now", "escalated", "stalled"].includes(r.flag) && r.status !== "Blocked" && r.status !== "Escalated"
@@ -210,6 +230,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     if (sp.month) u.set("month", sp.month);
     if (sp.q) u.set("q", sp.q);
     if (sp.all) u.set("all", sp.all);
+    if (sp.kind) u.set("kind", sp.kind);
     return u.toString();
   })();
 
@@ -245,6 +266,29 @@ export async function TasksSection({ sp }: { sp: Sp }) {
         }
         action={<ViewSwitcher current={view} queryWithoutView={queryWithoutView(sp)} basePath="/" />}
       />
+
+      {/* Lane switch — real, people-driven work vs the machine-generated
+          renewals/admin lane (tasks created by automation). Keeps Task Management
+          for real work; the compliance machine lives in its own tab. */}
+      <div className="inline-flex items-center gap-1 p-1 rounded-full bg-bg-subtle/70 ring-1 ring-border/60 text-xs">
+        <Link
+          href={buildHref(sp, { kind: undefined, all: undefined })}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${!kindAuto ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+        >
+          <CheckSquare size={13} /> Work{workOpenCount > 0 && <span className="opacity-70">· {workOpenCount}</span>}
+        </Link>
+        <Link
+          href={buildHref(sp, { kind: "auto", all: "1" })}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${kindAuto ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"}`}
+        >
+          <Sparkles size={13} /> Renewals &amp; admin{autoOpenCount > 0 && <span className="opacity-70">· {autoOpenCount}</span>}
+        </Link>
+      </div>
+      {kindAuto && (
+        <p className="-mt-1 text-[11px] text-fg-subtle">
+          Auto-created by the system from expiring documents &amp; commitments. Complete or undo them like any task.
+        </p>
+      )}
 
       {/* Controls — just two calm rows: the toolbar, then Focus/All · attention
           chips · group-by all on one wrapping line. Keeps the table the hero. */}

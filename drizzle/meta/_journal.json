@@ -610,6 +610,20 @@
       "when": 1781820674421,
       "tag": "0086_even_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1781849614852,
+      "tag": "0087_lethal_scarecrow",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1781855620139,
+      "tag": "0088_funny_tyrannus",
+      "breakpoints": true
     }
   ]
 }

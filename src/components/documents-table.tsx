@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   Search, Filter, FilePlus, X, FileText, Pencil, RefreshCw, Archive,
-  ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip, UploadCloud,
+  ArchiveRestore, ExternalLink, Building2, User as UserIcon, Paperclip,
   CheckSquare, Check, List as ListIcon, CalendarRange, Scissors,
 } from "lucide-react";
 import { FluidSelect } from "./fluid-select";
@@ -13,7 +13,6 @@ import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
 import { SplitDocumentDialog } from "./split-document-dialog";
-import { BulkAutoUpload } from "./bulk-auto-upload";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
 import { triggerHaptic } from "@/lib/use-long-press";
@@ -24,7 +23,7 @@ import {
 } from "@/lib/documents-shared";
 import { archiveDocumentAction, renewDocumentAction, getDocumentFileLinkAction } from "@/app/documents/actions";
 
-type StatusFilter = "all" | DocStatus;
+type StatusFilter = "all" | DocStatus | "needs-renewal";
 
 function fmtDate(d: Date | null): string {
   if (!d) return "—";
@@ -50,7 +49,6 @@ export function DocumentsTable({
   const [showArchived, setShowArchived] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [autoOpen, setAutoOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
   const [splitDoc, setSplitDoc] = useState<DocumentRow | null>(null);
   const [peek, setPeek] = useState<DocumentRow | null>(null);
@@ -198,7 +196,12 @@ export function DocumentsTable({
     if (companyFilter !== "all") rows = rows.filter((d) => d.companyId === companyFilter);
     if (personFilter !== "all") rows = rows.filter((d) => d.personId === personFilter);
     if (categoryFilter !== "all") rows = rows.filter((d) => d.category === categoryFilter);
-    if (statusFilter !== "all") rows = rows.filter((d) => deriveDocStatus(d) === statusFilter);
+    if (statusFilter === "needs-renewal") {
+      // "Needs renewal" collects both Expired and Expiring soon in one view.
+      rows = rows.filter((d) => { const s = deriveDocStatus(d); return s === "Expired" || s === "Expiring"; });
+    } else if (statusFilter !== "all") {
+      rows = rows.filter((d) => deriveDocStatus(d) === statusFilter);
+    }
     // Expired/expiring soonest first, nulls last.
     rows.sort((a, b) => {
       const da = a.expiryDate?.getTime() ?? Infinity;
@@ -216,6 +219,7 @@ export function DocumentsTable({
       all: live.length,
       expired: tally("Expired"),
       expiring: tally("Expiring"),
+      needsRenewal: tally("Expired") + tally("Expiring"),
       valid: tally("Valid"),
       noExpiry: tally("No expiry"),
     };
@@ -374,10 +378,6 @@ export function DocumentsTable({
             { value: "Valid", label: "Valid" },
             { value: "No expiry", label: "No expiry" },
           ]} />
-        <button type="button" onClick={() => setAutoOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-accent/50 bg-accent-soft/50 px-3 py-2 text-sm text-accent hover:bg-accent-soft transition-colors">
-          <UploadCloud size={15} /> Add all (auto)
-        </button>
         <button type="button" onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
           className={cn("inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm transition-colors",
             selectMode ? "border-accent bg-accent-soft/60 text-accent" : "border-border bg-bg-subtle/60 text-fg-muted hover:text-fg hover:border-accent")}>
@@ -405,6 +405,7 @@ export function DocumentsTable({
         <Filter size={11} className="text-fg-subtle" />
         {[
           { key: "all" as StatusFilter, label: "All", count: counts.all, tone: "default" as const },
+          { key: "needs-renewal" as StatusFilter, label: "Needs renewal", count: counts.needsRenewal, tone: "danger" as const },
           { key: "Expired" as StatusFilter, label: "Expired", count: counts.expired, tone: "danger" as const },
           { key: "Expiring" as StatusFilter, label: "Expiring soon", count: counts.expiring, tone: "warn" as const },
           { key: "Valid" as StatusFilter, label: "Valid", count: counts.valid, tone: "success" as const },
@@ -548,7 +549,6 @@ export function DocumentsTable({
       />
 
       {/* Automatic bulk intake — drop all, AI files them, review only exceptions. */}
-      <BulkAutoUpload open={autoOpen} onOpenChange={setAutoOpen} companies={companies} people={people} onDone={() => router.refresh()} />
 
       <DocDialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) closeCreate(); }} title="Add a document">
         <DocumentForm mode="create" companies={companies} people={people} initialExtractText={prefillText}

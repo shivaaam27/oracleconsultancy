@@ -1,0 +1,302 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Inbox as InboxIcon, ShieldQuestion, Trash2, Sparkles, Loader2, FileText, Image as ImageIcon,
+  FolderInput, RotateCcw, X, CheckCircle2, UploadCloud,
+} from "lucide-react";
+import { InboxList } from "./inbox-list";
+import { signInboxAttachment, autoSortInboxAction, type InboxItem, type AutoSortSummary } from "./actions";
+import {
+  fileFromQuarantineAction, trashIntakeDocAction, restoreFromTrashAction,
+  deleteIntakeForeverAction, emptyTrashAction, type IntakeBucketItem,
+} from "@/app/documents/actions";
+import { BulkAutoUpload } from "@/components/bulk-auto-upload";
+import { RescanDocumentsButton } from "@/components/rescan-documents-button";
+import { FindDuplicatesButton } from "@/components/find-duplicates-button";
+import { Button } from "@/components/ui";
+
+type Tab = "inbox" | "quarantine" | "trash";
+
+function relTime(iso: string | null): string {
+  if (!iso) return "";
+  const norm = /[Zz]$|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  const s = (Date.now() - new Date(norm).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  return new Date(norm).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+export function IntakeShell({
+  inboxItems,
+  companies,
+  people,
+  quarantine,
+  trash,
+}: {
+  inboxItems: InboxItem[];
+  companies: Array<{ id: number; name: string; aliases?: string[] }>;
+  people: Array<{ id: number; name: string }>;
+  quarantine: IntakeBucketItem[];
+  trash: IntakeBucketItem[];
+}) {
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>("inbox");
+  const [sorting, startSort] = useTransition();
+  const [summary, setSummary] = useState<AutoSortSummary | null>(null);
+  const [autoOpen, setAutoOpen] = useState(false);
+
+  function sortNow() {
+    setSummary(null);
+    startSort(async () => {
+      const res = await autoSortInboxAction();
+      setSummary(res);
+      router.refresh();
+    });
+  }
+
+  const tabs: Array<{ id: Tab; label: string; icon: typeof InboxIcon; count: number }> = [
+    { id: "inbox", label: "Inbox", icon: InboxIcon, count: inboxItems.length },
+    { id: "quarantine", label: "Quarantine", icon: ShieldQuestion, count: quarantine.length },
+    { id: "trash", label: "Trash", icon: Trash2, count: trash.length },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Tab bar + Sort now */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="inline-flex items-center gap-1 rounded-full glass p-1">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  active ? "bg-accent text-white shadow-sm" : "text-fg-muted hover:text-fg"
+                }`}
+              >
+                <Icon size={13} /> {t.label}
+                {t.count > 0 && (
+                  <span className={`ml-0.5 rounded-full px-1.5 text-[10px] ${active ? "bg-white/25" : "bg-bg-muted"}`}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAutoOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-accent/50 bg-accent-soft/50 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-soft transition-colors"
+          >
+            <UploadCloud size={14} /> Add all (auto)
+          </button>
+          <Button type="button" size="sm" onClick={sortNow} disabled={sorting}>
+            {sorting ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Sort now
+          </Button>
+        </div>
+      </div>
+
+      {/* Whole-library housekeeping — moved here so Inbox is the one-stop place. */}
+      <div className="flex items-center gap-2 flex-wrap text-xs text-fg-subtle">
+        <span className="pl-1">Library tools:</span>
+        <RescanDocumentsButton />
+        <FindDuplicatesButton />
+      </div>
+
+      {/* Last run summary */}
+      {summary && (
+        <div className={`glass rounded-xl px-3.5 py-2.5 text-xs flex items-center gap-2 ${summary.ok ? "" : "ring-1 ring-danger/30"}`}>
+          <CheckCircle2 size={14} className={summary.ok ? "text-success" : "text-danger"} />
+          {summary.ok ? (
+            summary.bundles === 0 && summary.filed + summary.quarantined + summary.trashed === 0 ? (
+              <span className="text-fg-muted">Nothing new to sort.</span>
+            ) : (
+              <span className="text-fg-muted">
+                Sorted: <b className="text-fg">{summary.filed}</b> filed
+                {summary.quarantined > 0 && <> · <b className="text-fg">{summary.quarantined}</b> to quarantine</>}
+                {summary.trashed > 0 && <> · <b className="text-fg">{summary.trashed}</b> to trash</>}
+                {summary.failed > 0 && <> · <b className="text-warn">{summary.failed}</b> couldn&apos;t be read</>}
+              </span>
+            )
+          ) : (
+            <span className="text-danger">{summary.error}</span>
+          )}
+        </div>
+      )}
+
+      {tab === "inbox" && <InboxList items={inboxItems} companies={companies} people={people} />}
+      {tab === "quarantine" && <QuarantineList items={quarantine} />}
+      {tab === "trash" && <TrashList items={trash} />}
+
+      <BulkAutoUpload
+        open={autoOpen}
+        onOpenChange={setAutoOpen}
+        companies={companies}
+        people={people}
+        onDone={() => router.refresh()}
+      />
+    </div>
+  );
+}
+
+function openFile(storagePath: string | null) {
+  if (!storagePath) return;
+  signInboxAttachment(storagePath).then(({ url }) => {
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  });
+}
+
+function FileChip({ item }: { item: IntakeBucketItem }) {
+  const Icon = item.isPdf ? FileText : ImageIcon;
+  if (!item.storagePath) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => openFile(item.storagePath)}
+      className="inline-flex items-center gap-1 text-[11px] text-accent bg-accent-soft/50 ring-1 ring-accent/20 rounded-full px-2 py-0.5 hover:bg-accent-soft transition-colors"
+    >
+      <Icon size={10} /> {item.fileName || "file"}
+    </button>
+  );
+}
+
+function EmptyBucket({ icon: Icon, title, sub }: { icon: typeof InboxIcon; title: string; sub: string }) {
+  return (
+    <div className="glass elevated rounded-2xl py-12 text-center">
+      <Icon size={26} className="mx-auto text-fg-subtle mb-2" />
+      <p className="text-sm text-fg-muted">{title}</p>
+      <p className="text-xs text-fg-subtle mt-1">{sub}</p>
+    </div>
+  );
+}
+
+function QuarantineList({ items }: { items: IntakeBucketItem[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<number | null>(null);
+  const [pending, start] = useTransition();
+
+  function act(id: number, fn: () => Promise<unknown>) {
+    setBusy(id);
+    start(async () => { await fn(); router.refresh(); setBusy(null); });
+  }
+
+  if (items.length === 0)
+    return <EmptyBucket icon={ShieldQuestion} title="Quarantine is clear." sub="Anything the sorter can't place — no owner, unreadable, or a suspected duplicate — waits here for a glance." />;
+
+  return (
+    <div className="space-y-2.5">
+      <p className="text-[11px] text-fg-subtle px-1">The sorter couldn&apos;t settle these on its own. File the good ones; bin the rest.</p>
+      {items.map((it) => {
+        const isBusy = pending && busy === it.id;
+        return (
+          <div key={it.id} className="glass elevated p-3.5 space-y-2 rounded-2xl">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft text-warn px-2 py-0.5 font-medium">
+                <ShieldQuestion size={11} /> Held
+              </span>
+              {it.category && <span className="text-fg-muted">{it.category}</span>}
+              {it.owner && <span className="text-fg-muted truncate">· {it.owner}</span>}
+              <span className="ml-auto shrink-0 text-fg-subtle">{relTime(it.when)}</span>
+            </div>
+            <p className="text-sm font-medium leading-snug">{it.title}</p>
+            {it.reason && <p className="text-xs text-fg-muted">{it.reason}</p>}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <FileChip item={it} />
+              <Button type="button" size="sm" onClick={() => act(it.id, () => fileFromQuarantineAction(it.id))} disabled={isBusy}>
+                {isBusy ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} File it
+              </Button>
+              <button
+                type="button"
+                onClick={() => act(it.id, () => trashIntakeDocAction(it.id, "Sent to Trash from Quarantine"))}
+                disabled={isBusy}
+                className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
+              >
+                <Trash2 size={13} /> Trash
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TrashList({ items }: { items: IntakeBucketItem[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<number | null>(null);
+  const [pending, start] = useTransition();
+  const [emptying, startEmpty] = useTransition();
+
+  function act(id: number, fn: () => Promise<unknown>) {
+    setBusy(id);
+    start(async () => { await fn(); router.refresh(); setBusy(null); });
+  }
+
+  function emptyAll() {
+    if (!window.confirm(`Permanently delete all ${items.length} item${items.length === 1 ? "" : "s"} in Trash? This can't be undone.`)) return;
+    startEmpty(async () => { await emptyTrashAction(); router.refresh(); });
+  }
+
+  if (items.length === 0)
+    return <EmptyBucket icon={Trash2} title="Trash is empty." sub="Exact duplicates and photos replaced by a PDF land here. Nothing is ever deleted automatically." />;
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between px-1">
+        <p className="text-[11px] text-fg-subtle">Duplicates and superseded copies. Restore anything, or empty when you&apos;re sure.</p>
+        <button
+          type="button"
+          onClick={emptyAll}
+          disabled={emptying}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-danger/30 text-xs text-danger hover:bg-danger-soft transition-colors disabled:opacity-50"
+        >
+          {emptying ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Empty Trash
+        </button>
+      </div>
+      {items.map((it) => {
+        const isBusy = pending && busy === it.id;
+        return (
+          <div key={it.id} className="glass p-3.5 space-y-2 rounded-2xl opacity-90">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1 rounded-full bg-bg-muted text-fg-muted px-2 py-0.5 font-medium">
+                <Trash2 size={11} /> Trashed
+              </span>
+              {it.category && <span className="text-fg-muted">{it.category}</span>}
+              {it.owner && <span className="text-fg-muted truncate">· {it.owner}</span>}
+              <span className="ml-auto shrink-0 text-fg-subtle">{relTime(it.when)}</span>
+            </div>
+            <p className="text-sm font-medium leading-snug line-through decoration-fg-subtle/40">{it.title}</p>
+            {it.reason && <p className="text-xs text-fg-muted">{it.reason}</p>}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <FileChip item={it} />
+              <button
+                type="button"
+                onClick={() => act(it.id, () => restoreFromTrashAction(it.id))}
+                disabled={isBusy}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs text-fg-muted hover:text-fg transition-colors disabled:opacity-50"
+              >
+                {isBusy ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />} Restore
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (window.confirm("Permanently delete this item? This can't be undone.")) act(it.id, () => deleteIntakeForeverAction(it.id)); }}
+                disabled={isBusy}
+                className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
+              >
+                <X size={13} /> Delete forever
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

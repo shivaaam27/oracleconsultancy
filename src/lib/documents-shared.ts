@@ -15,6 +15,7 @@ export const DOC_CATEGORIES = [
   "Tax",
   "Banking",
   "Legal",
+  "Operations",
   "Attachment",
   "Other",
 ] as const;
@@ -36,6 +37,41 @@ export function categoryExpiryDefault(category?: string | null): "yes" | "no" | 
   return null; // Certificate / Contract / Tax / Banking / Legal / Other → trust the AI
 }
 
+// The owner files documents under a fixed set of category folders inside each
+// company (01_Legal-and-Registration … 08_Operations-and-Branding). When a file
+// is auto-sorted from one of these folders, the folder name is a strong category
+// hint — especially for unreadable scans or when AI is off. Used as a FALLBACK
+// only (the file's own content wins when it yields a category). People-and-HR is
+// intentionally absent: the document type there varies (contract / certificate /
+// ID), so it's left to the content. Returns null when no folder matches.
+const FOLDER_CATEGORY: Array<{ test: RegExp; cat: DocCategory }> = [
+  { test: /immigration|visa|residence|work[\s_-]?permit|passport/i, cat: "Immigration" },
+  { test: /legal|registration|incorporat|memart|brela|annual[\s_-]?return/i, cat: "Registration" },
+  { test: /licen[cs]e|permit/i, cat: "Licence" },
+  { test: /\btax\b|vat|tin|paye|\btra\b|statutory/i, cat: "Tax" },
+  { test: /bank|finance|financial|loan/i, cat: "Banking" },
+  { test: /contract|lease|tenanc|agreement/i, cat: "Contract" },
+  { test: /operation|branding|\bbrand\b|marketing|\blogo\b/i, cat: "Operations" },
+];
+
+/** Map an upload's folder path (e.g. "Dar Spices/03_Tax/vat.pdf") to a document
+ *  category from the owner's standard category folders. Only FOLDER segments count
+ *  — the filename (last segment, has an extension) is excluded, since the filename
+ *  is already read by the content classifier; this is purely the folder signal.
+ *  Immigration is tested first so a "work permit" folder isn't read as a Licence. */
+export function categoryFromFolder(folderHint?: string | null): DocCategory | null {
+  const segs = (folderHint ?? "")
+    .split(/[\\/]/)
+    .filter((s) => s.trim() && !/\.[a-z0-9]{1,5}$/i.test(s.trim())) // drop the filename
+    // Normalise separators/numeric prefixes to spaces so "03_Tax" → " Tax " and a
+    // \b word boundary fires (underscore is a word char, so \btax\b fails on "_Tax").
+    .map((s) => ` ${s.replace(/[_\-\d]+/g, " ")} `);
+  for (const seg of segs) {
+    for (const { test, cat } of FOLDER_CATEGORY) if (test.test(seg)) return cat;
+  }
+  return null;
+}
+
 // Sensible default reminder lead times (days before expiry) by category.
 export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Immigration: 90,
@@ -50,6 +86,7 @@ export const DEFAULT_LEAD_DAYS: Record<string, number> = {
   Tax: 30,
   Banking: 30,
   Legal: 60,
+  Operations: 30,
   Attachment: 30,
   Other: 30,
 };
@@ -101,6 +138,38 @@ export function isReminderDueToday(d: DocStatusInput & { category?: string | nul
 export function widestLeadFor(category?: string | null, docType?: string | null): number {
   const cfg = ALERT_CONFIG[alertClassFor(category, docType)];
   return cfg.earlyHeadsUp[0] ?? cfg.window; // 120 for immigration, 30 for compliance
+}
+
+// Intake bucket (auto-sorter). "filed" = live library; "quarantine" = held for a
+// glance (no owner / unreadable / suspected duplicate); "trash" = certain
+// duplicate or a copy superseded by a better one (photo → PDF). Quarantine/trash
+// rows are also archived=true so active queries already hide them.
+export const INTAKE_STATES = ["filed", "quarantine", "trash"] as const;
+export type IntakeState = (typeof INTAKE_STATES)[number];
+
+// Format priority for "same document, different file" dedup. The owner's rule:
+// a PDF beats a photo. Lower rank = better/more authoritative copy.
+export function isPdfFile(nameOrType?: string | null): boolean {
+  return /\.pdf$|application\/pdf/i.test(nameOrType ?? "");
+}
+export function isImageFile(nameOrType?: string | null): boolean {
+  return /\.(jpe?g|png|heic|heif|webp|gif|bmp|tiff?)$|^image\//i.test(nameOrType ?? "");
+}
+/**
+ * Given an incoming file and an existing one (by name/MIME), decide a format
+ * supersede ONLY for the clear photo↔PDF case the owner described — never for
+ * two PDFs, two photos, or office files (those fall to exact-hash dedup or
+ * quarantine, so a genuinely different document is never auto-binned).
+ *   "incoming-wins" → the new PDF replaces the old photo (bin the old one).
+ *   "existing-wins" → a better PDF is already on file (bin the incoming photo).
+ */
+export function formatSupersede(
+  incoming: string | null | undefined,
+  existing: string | null | undefined
+): "incoming-wins" | "existing-wins" | null {
+  if (isPdfFile(incoming) && isImageFile(existing)) return "incoming-wins";
+  if (isImageFile(incoming) && isPdfFile(existing)) return "existing-wins";
+  return null;
 }
 
 export type DocStatus = "Valid" | "Expiring" | "Expired" | "No expiry" | "Archived";
@@ -205,6 +274,12 @@ export type DocumentRow = {
   expiryKind: string | null;
   /** When a human confirmed this document — re-scan skips vetted docs. */
   vettedAt: Date | null;
+  /** Intake bucket: "filed" | "quarantine" | "trash". */
+  intakeState: IntakeState;
+  /** Plain-language reason a row is in quarantine/trash. */
+  intakeReason: string | null;
+  /** When the row was moved to trash (for ordering the Trash view). */
+  trashedAt: Date | null;
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;

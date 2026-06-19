@@ -7,7 +7,7 @@ import { cache } from "react";
 import { createHash } from "crypto";
 import { sb } from "@/db/supabase";
 import { indexEmbedding, removeEmbedding } from "@/lib/embeddings";
-import { DEFAULT_LEAD_DAYS, type DocumentRow } from "./documents-shared";
+import { DEFAULT_LEAD_DAYS, type DocumentRow, type IntakeState } from "./documents-shared";
 
 export * from "./documents-shared";
 
@@ -38,6 +38,9 @@ type DocDbRow = {
   page_range: string | null;
   expiry_kind: string | null;
   vetted_at: string | null;
+  intake_state: string | null;
+  intake_reason: string | null;
+  trashed_at: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -75,6 +78,9 @@ function mapRow(r: DocDbRow): DocumentRow {
     pageRange: r.page_range ?? null,
     expiryKind: r.expiry_kind ?? null,
     vettedAt: d(r.vetted_at),
+    intakeState: (r.intake_state as IntakeState | null) ?? "filed",
+    intakeReason: r.intake_reason ?? null,
+    trashedAt: d(r.trashed_at),
     archived: r.archived,
     createdAt: new Date(r.created_at),
     updatedAt: new Date(r.updated_at),
@@ -210,6 +216,58 @@ export async function setDocumentArchived(id: number, archived: boolean): Promis
   if (error) throw new Error(error.message);
   // Drop its vectors immediately on archive (the nightly sweep would catch it too).
   if (archived) void removeEmbedding("document", id);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Intake buckets (auto-sorter): filed / quarantine / trash               */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * Move a document between intake buckets. Quarantine and trash also set
+ * archived=true so every active query/compliance scorer already hides the row
+ * (no need to retrofit `intake_state` filters across the codebase); filing again
+ * clears archived and the reason. `trashed_at` is stamped on the way into trash
+ * (for the Trash view's ordering) and cleared on the way out.
+ */
+export async function setDocumentIntakeState(
+  id: number,
+  state: IntakeState,
+  reason?: string | null,
+  extra?: { supersedesId?: number | null }
+): Promise<void> {
+  const archived = state !== "filed";
+  const payload: Record<string, unknown> = {
+    intake_state: state,
+    intake_reason: reason ?? null,
+    trashed_at: state === "trash" ? new Date().toISOString() : null,
+    archived,
+    updated_at: new Date().toISOString(),
+  };
+  if (extra && "supersedesId" in extra) payload.supersedes_id = extra.supersedesId ?? null;
+  const { error } = await sb.from("documents").update(payload).eq("id", id);
+  if (error) throw new Error(error.message);
+  // Quarantine/trash rows must not appear in semantic search; filing re-indexes.
+  if (archived) void removeEmbedding("document", id);
+}
+
+/** Documents sitting in a given intake bucket (quarantine/trash), newest first. */
+export async function listIntakeDocuments(state: IntakeState): Promise<DocumentRow[]> {
+  const { data, error } = await sb
+    .from("documents")
+    .select("*")
+    .eq("intake_state", state)
+    .order(state === "trash" ? "trashed_at" : "updated_at", { ascending: false, nullsFirst: false });
+  if (error) throw new Error(error.message);
+  return (data as DocDbRow[]).map(mapRow);
+}
+
+/** Permanently delete a document row (and its stored file, if not shared). Used
+ *  only from Trash — "Delete forever". removeDocumentFile keeps a shared object. */
+export async function deleteDocumentForever(id: number): Promise<void> {
+  await removeDocumentFile(id);
+  void removeEmbedding("document", id);
+  const { error } = await sb.from("documents").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 /* ---------------------------------------------------------------------- */

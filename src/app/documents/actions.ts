@@ -23,6 +23,9 @@ import {
   getCachedExtraction,
   putCachedExtraction,
   setDocumentVetted,
+  setDocumentIntakeState,
+  listIntakeDocuments,
+  deleteDocumentForever,
   DOCUMENTS_BUCKET,
   type DocumentInput,
 } from "@/lib/documents";
@@ -31,7 +34,7 @@ import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
-import { DOC_CATEGORIES, deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
+import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, type IntakeState } from "@/lib/documents-shared";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
 import { buildCompanyRequirementScores, getCompanyChecklist } from "@/lib/company-requirements";
 import { buildPersonRequirementScores, getPersonChecklist } from "@/lib/requirements";
@@ -223,6 +226,22 @@ async function reconcileOwnerCompliance(personId: number | null, companyId: numb
   }
 }
 
+/**
+ * Fire the automation reaction layer for a freshly-FILED document (advance its
+ * pipeline / complete its task / tick onboarding / verify compliance). Dynamic
+ * import keeps the heavy reaction graph (which pulls in task + todo actions) out
+ * of this module's static cycle, and the call is fully guarded — a reaction
+ * failure must never affect whether the document itself was saved.
+ */
+async function fireDocumentReactions(documentId: number) {
+  try {
+    const m = await import("@/lib/automation-reactions");
+    await m.reactToFiledDocument(documentId);
+  } catch {
+    /* automation is best-effort */
+  }
+}
+
 export type AutoFileResult = {
   ok: boolean;
   id?: number;
@@ -258,16 +277,31 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
   const ctxPersonId = intOrNull(fd, "contextPersonId");
   try {
     const res = await extractDocumentFromFile(fd);
-    const f = res.fields ?? {};
+    let f = res.fields ?? {};
 
-    // Exact-duplicate guard: if this very file (same content hash) is already on
-    // record, do NOT create another copy — point at the existing one. This is the
-    // single biggest source of the duplicate pile-up (the same file re-dropped).
+    // Rule-based fallback so sorting + renaming work even when AI is OFF or the
+    // read failed (a scanned PDF / photo with no key returns no fields). Classify
+    // from the file name + folder path; AI-read values win wherever present.
+    if (!res.ok || (!f.title && !f.category)) {
+      const ruled = ruleExtract([fileName, folderHint].filter(Boolean).join("  \n"));
+      f = mergePreferAI(ruled, f);
+    }
+
+    // (1) Exact-duplicate → Trash. The same file re-dropped is the biggest source
+    // of the pile-up. We DON'T silently skip it — we record a Trash row (sharing
+    // the existing stored object, so no second copy of the bytes) so the owner can
+    // SEE what was caught and undo it if ever wrong.
     if (res.fileHash) {
       try {
-        const dups = await findDocumentsByHash(res.fileHash);
+        const dups = await findDocumentsByHash(res.fileHash, undefined, { excludeCompilations: true });
         if (dups.length) {
-          return { ok: true, title: f.title || fallbackTitle, status: "duplicate", owner: null, duplicateOfId: dups[0].id, duplicateOfTitle: dups[0].title, reason: "Already on file (identical file)" };
+          const existing = dups[0];
+          const title = f.title || fallbackTitle;
+          const id = await createDocument({ title, category: f.category ?? null, companyId: existing.companyId, personId: existing.personId, reviewStatus: "ok" }, "ai-intake");
+          if (existing.storagePath) await attachStoredFile(id, existing.storagePath, existing.fileName ?? fileName, existing.fileHash);
+          await setDocumentIntakeState(id, "trash", `Identical file already on record — #${existing.id} ${existing.title}`, { supersedesId: existing.id });
+          revalidateDocs();
+          return { ok: true, id, title, status: "duplicate", owner: null, duplicateOfId: existing.id, duplicateOfTitle: existing.title, reason: "Identical file already on record — moved to Trash" };
         }
       } catch { /* dedup is best-effort — fall through and file it */ }
     }
@@ -277,13 +311,14 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     let companyId = f.companyId ?? null;
     let personId = f.personId ?? null;
     let resolvedBy: "file" | "folder" | "context" | null = companyId || personId ? "file" : null;
+    let ownerName: string | null = f.companyName ?? f.personName ?? null;
     if (!companyId && !personId && (folderHint || ctxCompanyId || ctxPersonId)) {
       const { companies, people } = await loadEntities();
       // Folder path segments (deepest-first), matched against people then companies.
       const segs = folderHint.split(/[\\/]/).map((s) => s.trim()).filter(Boolean).reverse();
       for (const seg of segs) {
-        if (!personId) { const p = resolveEntity(seg, people); if (p) { personId = p.id; resolvedBy = "folder"; } }
-        if (!companyId) { const c = resolveEntity(seg, companies); if (c) { companyId = c.id; resolvedBy = "folder"; } }
+        if (!personId) { const p = resolveEntity(seg, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = "folder"; } }
+        if (!companyId) { const c = resolveEntity(seg, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = "folder"; } }
       }
       // Fall back to the operator-declared batch owner.
       if (!companyId && !personId) {
@@ -292,19 +327,55 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       }
     }
 
+    // Category from the owner's standard folders (01_Legal … 08_Operations) when
+    // the file's own content didn't determine one — so a scan dropped in 03_Tax is
+    // filed as Tax even with AI off. Content always wins.
+    if (!f.category) {
+      const folderCat = categoryFromFolder(folderHint);
+      if (folderCat) f.category = folderCat;
+    }
+
     const hasOwner = !!companyId || !!personId;
+    if (!ownerName && hasOwner) {
+      const { companies, people } = await loadEntities();
+      ownerName = (personId ? people.find((p) => p.id === personId)?.name : null) ?? (companyId ? companies.find((c) => c.id === companyId)?.name : null) ?? null;
+    }
+
+    // (2) Same-logical-document handling — the owner's "photo vs PDF" rule plus a
+    // "maybe duplicate" guard. A clear photo↔PDF pair auto-resolves; an ambiguous
+    // same-reference/same-title match is HELD in Quarantine (never auto-binned).
+    let supersedePhotoId: number | null = null;     // incoming PDF replaces this photo
+    let nearDupOf: { id: number; title: string } | null = null;
+    if (file instanceof File && hasOwner) {
+      const target = await findSameLogicalDoc({ companyId, personId }, f.category ?? null, f.referenceNo ?? null, f.title ?? fallbackTitle, fileName);
+      if (target?.verdict === "existing-wins") {
+        // A better PDF is already on file — bin the incoming photo (keep its file
+        // so it's restorable).
+        const title = f.title || fallbackTitle;
+        const id = await createDocument({ title, category: f.category ?? null, companyId, personId, reviewStatus: "ok" }, "ai-intake");
+        if (file.size > 0) await uploadDocumentFile(id, file);
+        await setDocumentIntakeState(id, "trash", `A PDF copy is already on file — #${target.id} ${target.title}`, { supersedesId: target.id });
+        revalidateDocs();
+        return { ok: true, id, title, status: "duplicate", owner: ownerName, duplicateOfId: target.id, duplicateOfTitle: target.title, reason: "A PDF copy is already on file — photo moved to Trash" };
+      }
+      if (target?.verdict === "incoming-wins") supersedePhotoId = target.id;
+      if (target?.verdict === "near-duplicate") nearDupOf = { id: target.id, title: target.title };
+    }
+
     // A detected multi-document bundle is NEVER auto-split — the operator confirms
     // the split (review-before-commit). We file the whole bundle as one document
     // flagged for review, with the proposed parts stashed in notes.
     const segCount = f.segments?.length ?? 0;
     const isCompilation = segCount > 1;
-    // Review when the read failed, the scan was unclear, NO owner resolved, or it
-    // looks like several documents bundled together.
-    const needsReview = !res.ok || !!res.needsReview || !hasOwner || isCompilation;
+    // Quarantine when the read failed, the scan was unclear, NO owner resolved, it
+    // looks like several documents bundled, or it might be a duplicate (held, not
+    // auto-binned, since we're not certain).
+    const needsReview = !res.ok || !!res.needsReview || !hasOwner || isCompilation || !!nearDupOf;
     const reason = !res.ok
-      ? (res.note ?? "Couldn't read the file")
+      ? (res.note ?? "Couldn't read the file — AI may be off")
       : isCompilation ? `Looks like ${segCount} documents — open to split`
-      : !hasOwner ? "No company/person matched"
+      : !hasOwner ? "No company or person matched"
+      : nearDupOf ? `Possible duplicate of #${nearDupOf.id} ${nearDupOf.title}`
       : res.needsReview ? "Scan was unclear"
       : undefined;
 
@@ -312,8 +383,11 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       ? `\n\n[Bundle of ${segCount} documents detected]\n` + f.segments!.map((s, i) => `${i + 1}. ${s.title ?? s.category ?? "Document"}${s.pageRange ? ` (p.${s.pageRange})` : ""}`).join("\n")
       : "";
 
+    // (3) Build + create the document, then route it into its bucket.
+    const finalState: IntakeState = needsReview ? "quarantine" : "filed";
+    const title = finalState === "filed" ? composeFiledTitle(f, ownerName, fallbackTitle) : (f.title || fallbackTitle);
     const input: DocumentInput = {
-      title: f.title || fallbackTitle,
+      title,
       category: f.category ?? null,
       docType: f.docType ?? null,
       issuer: f.issuer ?? null,
@@ -329,31 +403,192 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     };
     const id = await createDocument(input, "ai-intake");
     if (file instanceof File && file.size > 0) await uploadDocumentFile(id, file);
-    await appendDocumentFacts(id, f.facts ?? [], input.companyId ?? null, input.personId ?? null, input.title);
-    // Enrich the resolved person/company profile (blanks-only — never overwrites).
-    if (personId && f.person && Object.keys(f.person).length) { try { await enrichPersonProfile(personId, f.person); } catch { /* best effort */ } }
-    if (companyId && f.company && Object.keys(f.company).length) { try { await enrichCompanyProfile(companyId, f.company); } catch { /* best effort */ } }
-    if (input.companyId) {
-      await backfillCompanyProfileFromDocument(input.companyId, { category: input.category ?? null, title: input.title ?? null, referenceNo: input.referenceNo ?? null, issueDate: input.issueDate ?? null });
-    }
-    await reconcileOwnerCompliance(input.personId ?? null, input.companyId ?? null);
-    revalidateDocs();
-    // Owner name for the summary line.
-    let owner = f.companyName ?? f.personName ?? null;
-    if (!owner && hasOwner) {
-      const { companies, people } = await loadEntities();
-      owner = (companyId ? companies.find((c) => c.id === companyId)?.name : null) ?? (personId ? people.find((p) => p.id === personId)?.name : null) ?? null;
+
+    if (finalState === "quarantine") {
+      // Held for a glance — no profile/compliance side-effects until it's filed.
+      await setDocumentIntakeState(id, "quarantine", reason ?? "Held for review");
+      revalidateDocs();
+    } else {
+      // Filed: run the enrich / backfill / facts / compliance side-effects.
+      if (supersedePhotoId) {
+        await updateDocument(id, { supersedesId: supersedePhotoId });
+        await setDocumentIntakeState(supersedePhotoId, "trash", `Replaced by a PDF — #${id} ${title}`);
+      }
+      await appendDocumentFacts(id, f.facts ?? [], input.companyId ?? null, input.personId ?? null, input.title);
+      if (personId && f.person && Object.keys(f.person).length) { try { await enrichPersonProfile(personId, f.person); } catch { /* best effort */ } }
+      if (companyId && f.company && Object.keys(f.company).length) { try { await enrichCompanyProfile(companyId, f.company); } catch { /* best effort */ } }
+      if (input.companyId) {
+        await backfillCompanyProfileFromDocument(input.companyId, { category: input.category ?? null, title: input.title ?? null, referenceNo: input.referenceNo ?? null, issueDate: input.issueDate ?? null });
+      }
+      await reconcileOwnerCompliance(input.personId ?? null, input.companyId ?? null);
+      await fireDocumentReactions(id);
+      revalidateDocs();
     }
     return {
       ok: true, id, title: input.title,
       status: needsReview ? "needs_review" : "filed",
-      owner: resolvedBy && resolvedBy !== "file" && owner ? `${owner} (from ${resolvedBy})` : owner,
+      owner: resolvedBy && resolvedBy !== "file" && ownerName ? `${ownerName} (from ${resolvedBy})` : ownerName,
       reason,
       segmentCount: isCompilation ? segCount : undefined,
     };
   } catch (e) {
     return { ok: false, title: fallbackTitle, status: "needs_review", owner: null, error: e instanceof Error ? e.message : "Could not file the document." };
   }
+}
+
+/** Merge rule-extracted fields with AI-read fields, AI winning wherever it
+ *  actually produced a value (undefined AI keys never clobber a rule value). */
+function mergePreferAI(ruled: ExtractedFields, ai: ExtractedFields): ExtractedFields {
+  const out: ExtractedFields = { ...ruled };
+  for (const [k, v] of Object.entries(ai)) {
+    if (v !== undefined && v !== null && v !== "") (out as Record<string, unknown>)[k] = v;
+  }
+  return out;
+}
+
+/** A tidy display title for a filed document — keep a real read title; otherwise
+ *  compose "<Owner> – <Category> – <Type>" so auto-filed scans aren't named after
+ *  a messy filename. The original filename is always preserved on the row. */
+function composeFiledTitle(f: ExtractedFields, ownerName: string | null, fallbackTitle: string): string {
+  const base = (f.title ?? "").trim();
+  const looksLikeFilename = !base || base.toLowerCase() === fallbackTitle.toLowerCase() || /\b(img|image|scan|photo|document|doc|untitled|whatsapp)\b|^\d{6,}$/i.test(base);
+  if (!looksLikeFilename) return base.slice(0, 120);
+  const bits = [ownerName, f.category, f.docType].filter((x): x is string => !!x && x.trim().length > 0);
+  return (bits.length ? bits.join(" – ") : base || fallbackTitle).slice(0, 120);
+}
+
+/**
+ * Find a FILED document that is the same logical document as an incoming file
+ * (same owner + category AND matching reference ≥4 chars or near-identical title).
+ * Conservative — never matches on owner alone. Returns:
+ *   "incoming-wins"  → incoming PDF beats an existing photo (bin the photo).
+ *   "existing-wins"  → a better PDF is already on file (bin the incoming photo).
+ *   "near-duplicate" → same logical doc, same format (or office) → HOLD in
+ *                      Quarantine; never auto-binned on a guess.
+ */
+async function findSameLogicalDoc(
+  owner: { companyId: number | null; personId: number | null },
+  category: string | null,
+  referenceNo: string | null,
+  fileTitle: string | null,
+  incomingName: string,
+): Promise<{ id: number; title: string; verdict: "incoming-wins" | "existing-wins" | "near-duplicate" } | null> {
+  if (!owner.companyId && !owner.personId) return null;
+  let q = supa.from("documents").select("id,title,file_name,reference_no").eq("intake_state", "filed").eq("archived", false);
+  if (owner.personId) q = q.eq("person_id", owner.personId);
+  else q = q.eq("company_id", owner.companyId);
+  if (category) q = q.eq("category", category);
+  const { data } = await q;
+  const rows = (data ?? []) as Array<{ id: number; title: string; file_name: string | null; reference_no: string | null }>;
+  const norm = (s: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const refKey = referenceNo && referenceNo.replace(/\s/g, "").length >= 4 ? referenceNo.replace(/\s/g, "").toLowerCase() : null;
+  const tKey = norm(fileTitle);
+  let nearDup: { id: number; title: string } | null = null;
+  for (const r of rows) {
+    const sameRef = refKey && r.reference_no && r.reference_no.replace(/\s/g, "").toLowerCase() === refKey;
+    const sameTitle = tKey.length >= 5 && norm(r.title) === tKey;
+    if (!sameRef && !sameTitle) continue;
+    // A clear photo↔PDF pair resolves immediately (the better format wins).
+    const verdict = formatSupersede(incomingName, r.file_name);
+    if (verdict) return { id: r.id, title: r.title, verdict };
+    // Otherwise it's a "maybe" duplicate — remember the first and hold for review.
+    if (!nearDup) nearDup = { id: r.id, title: r.title };
+  }
+  return nearDup ? { ...nearDup, verdict: "near-duplicate" } : null;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Intake buckets — Quarantine + Trash (shown on /inbox)                  */
+/* ---------------------------------------------------------------------- */
+
+export type IntakeBucketItem = {
+  id: number;
+  title: string;
+  category: string | null;
+  reason: string | null;
+  owner: string | null;
+  fileName: string | null;
+  storagePath: string | null;
+  isPdf: boolean;
+  when: string | null; // ISO — trashedAt (trash) or updatedAt (quarantine)
+};
+
+/** Quarantine or Trash rows with owner names resolved, for the bucket UI. */
+export async function getIntakeBucket(state: "quarantine" | "trash"): Promise<IntakeBucketItem[]> {
+  let rows;
+  try {
+    rows = await listIntakeDocuments(state);
+  } catch (e) {
+    // Tolerate the pre-migration window: until 0087 adds intake_state, the buckets
+    // are simply empty so /inbox keeps working. Any other error still surfaces.
+    if (e instanceof Error && /intake_state|trashed_at/.test(e.message)) return [];
+    throw e;
+  }
+  if (rows.length === 0) return [];
+  const { companies, people } = await loadEntities();
+  const coName = (id: number | null) => (id ? companies.find((c) => c.id === id)?.name ?? null : null);
+  const peName = (id: number | null) => (id ? people.find((p) => p.id === id)?.name ?? null : null);
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    category: r.category,
+    reason: r.intakeReason,
+    owner: peName(r.personId) ?? coName(r.companyId),
+    fileName: r.fileName,
+    storagePath: r.storagePath,
+    isPdf: isPdfFile(r.fileName) || isPdfFile(r.storagePath),
+    when: (state === "trash" ? r.trashedAt : r.updatedAt)?.toISOString() ?? null,
+  }));
+}
+
+/** File a quarantined document into the live library (clears archived/reason). */
+export async function fileFromQuarantineAction(id: number): Promise<{ ok: boolean }> {
+  const doc = await getDocument(id);
+  await setDocumentIntakeState(id, "filed", null);
+  await setDocumentVetted(id, true);
+  if (doc) await reconcileOwnerCompliance(doc.personId, doc.companyId);
+  await fireDocumentReactions(id);
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true };
+}
+
+/** Move a row into Trash (from Quarantine, or directly). */
+export async function trashIntakeDocAction(id: number, reason?: string): Promise<{ ok: boolean }> {
+  await setDocumentIntakeState(id, "trash", reason ?? "Moved to Trash");
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true };
+}
+
+/** Restore a trashed row back to the live library. */
+export async function restoreFromTrashAction(id: number): Promise<{ ok: boolean }> {
+  const doc = await getDocument(id);
+  await setDocumentIntakeState(id, "filed", null);
+  if (doc) await reconcileOwnerCompliance(doc.personId, doc.companyId);
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true };
+}
+
+/** Permanently delete one trashed row (and its stored file, if not shared). */
+export async function deleteIntakeForeverAction(id: number): Promise<{ ok: boolean }> {
+  await deleteDocumentForever(id);
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true };
+}
+
+/** Empty the whole Trash — permanent. Returns how many rows were removed. */
+export async function emptyTrashAction(): Promise<{ ok: boolean; removed: number }> {
+  const rows = await listIntakeDocuments("trash");
+  let removed = 0;
+  for (const r of rows) {
+    try { await deleteDocumentForever(r.id); removed++; } catch { /* skip one bad row */ }
+  }
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true, removed };
 }
 
 export async function createDocumentAction(fd: FormData): Promise<Result> {
@@ -378,6 +613,7 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
     // A document the operator typed/checked and saved is confirmed — unless they
     // deliberately left it "needs review". Vetted docs are left alone by re-scan.
     if (parsed.reviewStatus !== "needs_review") await setDocumentVetted(id, true);
+    if (parsed.reviewStatus !== "needs_review") await fireDocumentReactions(id);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -461,6 +697,7 @@ export async function confirmDocumentReviewAction(id: number): Promise<Result> {
   try {
     await updateDocument(id, { reviewStatus: "ok" });
     await setDocumentVetted(id, true); // confirming out of the queue is a human OK
+    await fireDocumentReactions(id);
     revalidateDocs();
     return { ok: true, id };
   } catch (e) {
@@ -774,6 +1011,50 @@ export async function findExistingDuplicatesAction(): Promise<DuplicateCluster[]
   } catch {
     return [];
   }
+}
+
+/**
+ * AUTOMATIC duplicate sweep over the EXISTING library (runs on "Sort now" + the
+ * hourly cron, so dupes already filed get cleaned, not just new drops). Acts only
+ * on the confident cases; a weaker "maybe" is HELD in Quarantine, never binned:
+ *   - identical-file cluster → keep one, others → Trash.
+ *   - same-reference cluster → a photo with a PDF sibling → Trash the photo;
+ *     otherwise the extras → Quarantine for a glance.
+ *   - same-title-only cluster → left for the manual "Find duplicates" review
+ *     (too weak a signal to move automatically).
+ * Everything is recoverable. Returns how many were trashed / quarantined.
+ */
+export async function autoSweepLibraryDuplicatesAction(): Promise<{ trashed: number; quarantined: number }> {
+  let trashed = 0, quarantined = 0;
+  try {
+    const clusters = await findExistingDuplicatesAction();
+    const touchedOwners: number[] = [];
+    for (const c of clusters) {
+      if (c.reason === "same-title") continue; // too weak — leave for manual review
+      const keep = c.documents.find((d) => d.suggestKeep) ?? c.documents[0];
+      const keepIsPdf = isPdfFile(keep.fileName);
+      for (const d of c.documents) {
+        if (d.id === keep.id) continue;
+        if (c.reason === "identical-file") {
+          await setDocumentIntakeState(d.id, "trash", `Identical file already on record — #${keep.id} ${keep.title}`, { supersedesId: keep.id });
+          trashed++;
+        } else if (keepIsPdf && isImageFile(d.fileName)) {
+          await setDocumentIntakeState(d.id, "trash", `A PDF copy is on file — #${keep.id} ${keep.title}`, { supersedesId: keep.id });
+          trashed++;
+        } else {
+          await setDocumentIntakeState(d.id, "quarantine", `Possible duplicate of #${keep.id} ${keep.title}`);
+          quarantined++;
+        }
+      }
+      touchedOwners.push(keep.id);
+    }
+    // Keep the surviving copy's compliance link intact after binning its twins.
+    for (const keepId of touchedOwners) {
+      try { const kd = await getDocument(keepId); if (kd) await reconcileOwnerCompliance(kd.personId, kd.companyId); } catch { /* best-effort */ }
+    }
+    if (trashed || quarantined) { revalidateDocs(); revalidatePath("/inbox"); }
+  } catch { /* best-effort — a sweep failure must never block intake */ }
+  return { trashed, quarantined };
 }
 
 /**
