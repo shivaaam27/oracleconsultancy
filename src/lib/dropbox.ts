@@ -193,14 +193,18 @@ async function collect(token: string, first: Response, savePullCursor: boolean):
   return { files, ok: true };
 }
 
-/** Download a file's bytes. Read-only content scope. */
-export async function downloadFile(path: string): Promise<Buffer | null> {
+/** Download a file's bytes. Read-only content scope. Returns the reason on failure
+ *  (e.g. a missing files.content.read scope) so sync can surface it. */
+export async function downloadFile(path: string): Promise<{ bytes: Buffer | null; error?: string }> {
   const token = await accessToken();
-  if (!token) return null;
+  if (!token) return { bytes: null, error: "no-access-token" };
   const res = await fetch(`${CONTENT}/files/download`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Dropbox-API-Arg": JSON.stringify({ path }) },
   });
-  if (!res.ok) return null;
-  return Buffer.from(await res.arrayBuffer());
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return { bytes: null, error: `${res.status} ${body.slice(0, 200)}` };
+  }
+  return { bytes: Buffer.from(await res.arrayBuffer()) };
 }

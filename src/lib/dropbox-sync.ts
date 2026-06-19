@@ -22,13 +22,14 @@ export async function syncDropbox(opts: { pullExisting?: boolean } = {}): Promis
     if (files.length === 0) return { ok: true, pulled: 0 };
 
     let pulled = 0;
+    let firstError: string | undefined;
     for (const f of files.slice(0, MAX_PER_RUN)) {
       try {
-        const bytes = await downloadFile(f.path);
-        if (!bytes) continue;
+        const dl = await downloadFile(f.path);
+        if (!dl.bytes) { firstError ??= `download: ${dl.error ?? "unknown"}`; continue; }
         const storagePath = `inbox/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(f.name)}`;
-        const { error: upErr } = await sb.storage.from(DOCUMENTS_BUCKET).upload(storagePath, bytes, { upsert: true });
-        if (upErr) continue;
+        const { error: upErr } = await sb.storage.from(DOCUMENTS_BUCKET).upload(storagePath, dl.bytes, { upsert: true });
+        if (upErr) { firstError ??= `upload: ${upErr.message}`; continue; }
         await sb.from("inbox").insert({
           source: "dropbox",
           status: "pending",
@@ -51,7 +52,7 @@ export async function syncDropbox(opts: { pullExisting?: boolean } = {}): Promis
       } catch { /* auto-sort is best-effort; items remain pending in the inbox */ }
     }
 
-    await recordEvent("dropbox.sync", "ok", { pulled, seen: files.length });
+    await recordEvent("dropbox.sync", "ok", { pulled, seen: files.length, ...(firstError ? { firstError } : {}) });
     return { ok: true, pulled };
   } catch (e) {
     await recordEvent("dropbox.sync", "error", { message: e instanceof Error ? e.message : String(e) });
