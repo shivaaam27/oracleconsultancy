@@ -240,6 +240,33 @@ cascade). Wired the missing link first:
   not hooked — lower-traffic, add later if needed.
 - tsc clean, 66 tests, /hrms/pipeline 200 (the tasks(code) join needs the FK → applied).
 
-## State: was NOT pushed — NOW PUSHED (rounds 1-8 on master). Parked by owner: the chat/search side
+## Round 9 — Automation Phase 4: control room (PUSHED, commit b1c4a1c)
+"yes phase 4". No migration (modes in settings). The "fully automated system" arc is
+now COMPLETE (Phases 1-4 + task→pipeline link all live).
+- **`lib/automation-rules.ts`** (client-safe): `AUTOMATION_RULES` registry (5 rules keyed
+  by kind), `AutomationMode` = auto|suggest|off, MODE_LABEL. task-create supportsSuggest:false
+  (auto/off only — a created task can't be pre-staged).
+- **Engine respects mode** via single `commit(base, certain, appliedSummary?)` gate in
+  automation-reactions: off→nothing, auto+certain→apply, else→suggest. ALL reactions
+  refactored to route through commit() (compliance/task/pipeline/onboarding + the 3
+  cascades). `getAutomationMode(kind)` reads `settings.automation.mode.<kind>` (default
+  auto). runTimeAutomations skips when task-create=off.
+- **`app/automations/actions.ts`**: `getAutomationRuleStatuses` (mode + lifetime
+  applied/suggested counts per rule), `setAutomationModeAction(kind, mode)`.
+- **UI**: `components/automation-settings.tsx` (Auto/Suggest/Off segmented per rule +
+  counts) → Settings card id="automations" (Intelligence nav group). Kept DISTINCT from
+  the existing outreach `getAutomationConfig`/setAutomationTuning engine (different thing).
+- IMPORTANT refactor: LogInput.prevValue/newValue made REQUIRED (string|null) so the
+  `{...base}` spread satisfies MoveRow (performAutomationMove). All bases set both.
+- tsc clean, 66 tests, /settings 200 with all 5 rules. (Screenshots timed out — heavy
+  page — verified via fetch instead.)
+
+## Automation arc DONE: P1 doc→work · P2 time→work (own lane, forward-only) · P3
+cross-process cascades · task↔pipeline link · P4 control room. All on master.
+Deferred/future: task-create "suggest" mode (needs storing doc/commitment id to apply
+later); hook remaining 3 task-write paths (bulk/adminAdd/portalUpdate) for the pipeline
+cascade; richer history view; promote pipeline/onboarding fuzzy matches to broader auto.
+
+## State: was NOT pushed — NOW PUSHED (rounds 1-9 on master). Parked by owner: the chat/search side
 ("works in Documents, not in chat") and the email source (inbox already has
 `source='email'` for later). "Sort others later" = more category folders beyond the 8.
