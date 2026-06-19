@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { performAutomationMove, undoAutomationMove, getAutomationMode } from "@/lib/automation-reactions";
-import { runTimeAutomations } from "@/lib/automation-time";
+import { runTimeAutomations, createTaskFromSuggestion } from "@/lib/automation-time";
 import { AUTOMATION_RULES, type AutomationMode } from "@/lib/automation-rules";
 
 export type AutomationFeedItem = {
@@ -49,6 +49,40 @@ export async function listAutomationFeed(): Promise<{ applied: AutomationFeedIte
   }
 }
 
+export type AutomationHistoryItem = AutomationFeedItem & { owner: string | null; actedAt: string | null };
+
+/** Full automation log (every status), with owner names + optional filters — the
+ *  Inbox card's "History" view. Degrades to [] pre-migration. */
+export async function listAutomationHistory(opts: { kind?: string; status?: string; limit?: number } = {}): Promise<AutomationHistoryItem[]> {
+  try {
+    let q = sb
+      .from("automation_events")
+      .select("id,kind,status,target_table,target_id,summary,detail,prev_value,new_value,created_at,acted_at,person_id,company_id")
+      .order("created_at", { ascending: false })
+      .limit(opts.limit ?? 120);
+    if (opts.kind && opts.kind !== "all") q = q.eq("kind", opts.kind);
+    if (opts.status && opts.status !== "all") q = q.eq("status", opts.status);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = (data ?? []) as Array<Row & { acted_at: string | null; person_id: number | null; company_id: number | null }>;
+    const personIds = [...new Set(rows.map((r) => r.person_id).filter((x): x is number => !!x))];
+    const companyIds = [...new Set(rows.map((r) => r.company_id).filter((x): x is number => !!x))];
+    const [ppl, cos] = await Promise.all([
+      personIds.length ? sb.from("people").select("id,name").in("id", personIds) : Promise.resolve({ data: [] as Array<{ id: number; name: string }> }),
+      companyIds.length ? sb.from("companies").select("id,name").in("id", companyIds) : Promise.resolve({ data: [] as Array<{ id: number; name: string }> }),
+    ]);
+    const pName = new Map((ppl.data ?? []).map((p) => [p.id as number, p.name as string]));
+    const cName = new Map((cos.data ?? []).map((c) => [c.id as number, c.name as string]));
+    return rows.map((r) => ({
+      ...toItem(r),
+      owner: (r.person_id ? pName.get(r.person_id) : null) ?? (r.company_id ? cName.get(r.company_id) : null) ?? null,
+      actedAt: r.acted_at,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 function revalidateAll() {
   revalidatePath("/inbox");
   revalidatePath("/documents");
@@ -69,8 +103,15 @@ export async function applyAutomationSuggestion(id: number): Promise<{ ok: boole
   const row = await fetchRow(id, "suggested");
   if (!row) return { ok: false, error: "Already handled." };
   try {
-    await performAutomationMove(toMoveRow(row));
-    await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString() }).eq("id", id);
+    if (row.kind === "task-create") {
+      // The task doesn't exist yet — create it from the remembered source, then
+      // repoint the event at the new task so Undo can archive it.
+      const created = await createTaskFromSuggestion(row);
+      await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString(), target_table: "tasks", target_id: created.taskId, new_value: created.code }).eq("id", id);
+    } else {
+      await performAutomationMove(toMoveRow(row));
+      await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString() }).eq("id", id);
+    }
     revalidateAll();
     return { ok: true };
   } catch (e) {

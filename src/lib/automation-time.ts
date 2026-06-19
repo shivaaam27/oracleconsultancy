@@ -8,7 +8,7 @@
 // and can be reversed in one click. Fully guarded — never throws.
 
 import { sb } from "@/db/supabase";
-import { listDocuments, linkDocumentTask } from "@/lib/documents";
+import { listDocuments, getDocument, linkDocumentTask, type DocumentRow } from "@/lib/documents";
 import { getDocumentRenewalCandidates } from "@/lib/automation-suggestions";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { commitmentUrgency, noticeByDate, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
@@ -67,102 +67,144 @@ async function getOrInitBaseline(): Promise<Date> {
   return midnight;
 }
 
+type CommitmentRow = { id: number; kind: string; title: string; company_id: number | null; end_date: string | null; notice_days: number | null; status: string };
+
+/** Create + link the renewal task for a renewable document. Shared by the Auto
+ *  path and the "Apply" of a renewal suggestion. */
+async function createRenewalTask(document: DocumentRow): Promise<{ taskId: number; code: string }> {
+  const now = new Date();
+  const companyId = document.companyId as number;
+  const prefix = await companyPrefix(companyId);
+  const title = `Renew: ${document.title}`;
+  const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
+    actionItem: title, status: "Not Started", priority: "High", category: "Admin",
+    deadline: document.expiryDate, createdDate: now, lastUpdatedAt: now, archived: false,
+  });
+  await sb.from("audit_log").insert({
+    task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task",
+    old_value: null, new_value: title, change_reason: "Created by automation — document expiring", created_at: now.toISOString(), created_by: "automation",
+  });
+  await linkDocumentTask(document.id, task.id);
+  return { taskId: task.id, code: task.code };
+}
+
+/** Create the notice task for a commitment. Shared by Auto + Apply. */
+async function createCommitmentTask(c: CommitmentRow, urgent: boolean): Promise<{ taskId: number; code: string; title: string }> {
+  const now = new Date();
+  const companyId = c.company_id as number;
+  const prefix = await companyPrefix(companyId);
+  const label = KIND_LABEL[c.kind as CommitmentKind] ?? "Commitment";
+  const title = `${label} notice: ${c.title}`;
+  const nb = noticeByDate({ endDate: c.end_date, noticeDays: c.notice_days });
+  const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
+    actionItem: title, status: "Not Started", priority: urgent ? "Critical" : "High", category: "Admin",
+    deadline: nb, createdDate: now, lastUpdatedAt: now, archived: false,
+  });
+  await sb.from("audit_log").insert({
+    task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task",
+    old_value: null, new_value: title, change_reason: "Created by automation — commitment notice", created_at: now.toISOString(), created_by: "automation",
+  });
+  return { taskId: task.id, code: task.code, title };
+}
+
+/** Record a "create a task" SUGGESTION (Suggest mode) that remembers its source —
+ *  a document (renewal) or a commitment (notice) — so Apply can create it later. */
+async function suggestTaskCreate(opts: { source: "documents" | "commitments"; sourceId: number; documentId: number | null; companyId: number | null; personId: number | null; summary: string; detail: string }): Promise<void> {
+  const now = new Date().toISOString();
+  await sb.from("automation_events").insert({
+    kind: "task-create", status: "suggested", document_id: opts.documentId, target_table: opts.source, target_id: opts.sourceId,
+    person_id: opts.personId, company_id: opts.companyId, summary: opts.summary, detail: opts.detail,
+    prev_value: null, new_value: null, created_at: now, acted_at: null, created_by: "automation",
+  });
+}
+
+/** Apply a renewal/notice SUGGESTION — create the task now from its remembered
+ *  source. Returns the new task so the feed can repoint the event for Undo. */
+export async function createTaskFromSuggestion(row: { target_table: string; target_id: number }): Promise<{ taskId: number; code: string }> {
+  if (row.target_table === "documents") {
+    const doc = await getDocument(row.target_id);
+    if (!doc || !doc.companyId) throw new Error("That document is no longer available.");
+    return createRenewalTask(doc);
+  }
+  if (row.target_table === "commitments") {
+    const { data } = await sb.from("commitments").select("id,kind,title,company_id,end_date,notice_days,status").eq("id", row.target_id).maybeSingle();
+    const c = data as CommitmentRow | null;
+    if (!c || !c.company_id) throw new Error("That commitment is no longer available.");
+    const urg = commitmentUrgency({ endDate: c.end_date, noticeDays: c.notice_days, status: c.status });
+    return createCommitmentTask(c, urg === "overdue");
+  }
+  throw new Error("Unknown suggestion source.");
+}
+
 /** Run the time-based automations. Returns how many work items were created. */
 export async function runTimeAutomations(): Promise<{ renewals: number; commitments: number }> {
   let renewals = 0;
   let commitments = 0;
-  // Respect the control-room mode: "off" disables spawning work entirely.
-  if ((await getAutomationMode("task-create")) === "off") return { renewals, commitments };
+  // Respect the control-room mode: "off" disables spawning work entirely;
+  // "suggest" records a one-click suggestion instead of creating the task.
+  const mode = await getAutomationMode("task-create");
+  if (mode === "off") return { renewals, commitments };
+  const suggesting = mode === "suggest";
   const baseline = await getOrInitBaseline(); // forward-only: skip the existing backlog
 
-  // 1. Renewal tasks for expiring/expired renewable documents. getDocumentRenewal-
-  //    Candidates already excludes any document that still has an OPEN linked task —
-  //    and an undone (archived) task keeps its open status, so it stays excluded:
-  //    undoing a created task does NOT cause it to be recreated next run.
+  // 1. Renewals for expiring/expired renewable documents. getDocumentRenewal-
+  //    Candidates excludes docs with an OPEN linked task; we ALSO skip any doc that
+  //    already has a pending/applied task-create event (so a suggestion isn't
+  //    re-proposed, and an undone task isn't re-created).
   try {
     const docs = await listDocuments();
     const candidates = await getDocumentRenewalCandidates(docs);
-    const now = new Date();
     for (const { document, status } of candidates) {
       if (!document.companyId) continue; // renewal tasks are company-owned
-      // Forward-only: skip documents already expired before automation was enabled.
-      if (!document.expiryDate || document.expiryDate < baseline) continue;
-      const prefix = await companyPrefix(document.companyId);
-      const title = `Renew: ${document.title}`;
-      const task = await insertTaskWithUniqueCodeSb(document.companyId, prefix, {
-        actionItem: title,
-        status: "Not Started",
-        priority: "High",
-        category: "Admin",
-        deadline: document.expiryDate,
-        createdDate: now,
-        lastUpdatedAt: now,
-        archived: false,
-      });
-      await sb.from("audit_log").insert({
-        task_id: task.id, task_code: task.code, company_id: document.companyId,
-        entry_type: "CREATE", field: "Task", old_value: null, new_value: title,
-        change_reason: "Created by automation — document expiring", created_at: now.toISOString(), created_by: "automation",
-      });
-      await linkDocumentTask(document.id, task.id);
-      await logTaskCreate({
-        documentId: document.id, companyId: document.companyId, personId: document.personId,
-        taskId: task.id, taskCode: task.code,
-        summary: `Created renewal task ${task.code} — ${status === "Expired" ? "expired" : "expiring"}: “${document.title}”`,
-        detail: `${status} document — auto-created its renewal task`,
-      });
+      if (!document.expiryDate || document.expiryDate < baseline) continue; // forward-only
+      const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "task-create").eq("document_id", document.id).in("status", ["suggested", "applied"]).limit(1);
+      if (ex && ex.length) continue;
+      const word = status === "Expired" ? "expired" : "expiring";
+      if (suggesting) {
+        await suggestTaskCreate({
+          source: "documents", sourceId: document.id, documentId: document.id, companyId: document.companyId, personId: document.personId,
+          summary: `Create renewal task — ${word}: “${document.title}”`, detail: `${status} document — renewal task for ${document.title}`,
+        });
+      } else {
+        const t = await createRenewalTask(document);
+        await logTaskCreate({
+          documentId: document.id, companyId: document.companyId, personId: document.personId, taskId: t.taskId, taskCode: t.code,
+          summary: `Created renewal task ${t.code} — ${word}: “${document.title}”`, detail: `${status} document — auto-created its renewal task`,
+        });
+      }
       renewals++;
     }
   } catch (e) {
     await recordEvent("automation.time", "error", { step: "renewals", message: e instanceof Error ? e.message : String(e) });
   }
 
-  // 2. Notice tasks for commitments entering (or past) their notice window.
+  // 2. Notices for commitments entering (or past) their notice window.
   try {
-    const { data: rows } = await sb
-      .from("commitments")
-      .select("id,kind,title,company_id,end_date,notice_days,status")
-      .eq("archived", false);
-    const now = new Date();
-    for (const c of rows ?? []) {
-      const companyId = c.company_id as number | null;
+    const { data: rows } = await sb.from("commitments").select("id,kind,title,company_id,end_date,notice_days,status").eq("archived", false);
+    for (const c of (rows ?? []) as CommitmentRow[]) {
+      const companyId = c.company_id;
       if (!companyId) continue;
-      const urg = commitmentUrgency({ endDate: c.end_date as string | null, noticeDays: c.notice_days as number | null, status: c.status as string });
+      const urg = commitmentUrgency({ endDate: c.end_date, noticeDays: c.notice_days, status: c.status });
       if (urg !== "overdue" && urg !== "soon") continue;
-      // Forward-only: skip commitments whose notice window passed before baseline.
-      const nbForward = noticeByDate({ endDate: c.end_date as string | null, noticeDays: c.notice_days as number | null });
-      if (!nbForward || nbForward < baseline) continue;
-      // Dedup across ALL statuses (incl. undone), keyed by the commitment id in
-      // detail — so an undone notice task is never silently recreated next run.
-      const { data: existing } = await sb
-        .from("automation_events")
-        .select("id").eq("kind", "task-create").ilike("detail", `commitment:${c.id}|%`).limit(1);
+      const nbForward = noticeByDate({ endDate: c.end_date, noticeDays: c.notice_days });
+      if (!nbForward || nbForward < baseline) continue; // forward-only
+      // Dedup across ALL statuses, keyed by the commitment id in detail.
+      const { data: existing } = await sb.from("automation_events").select("id").eq("kind", "task-create").ilike("detail", `commitment:${c.id}|%`).limit(1);
       if (existing && existing.length) continue;
-      const prefix = await companyPrefix(companyId);
       const label = KIND_LABEL[c.kind as CommitmentKind] ?? "Commitment";
-      const title = `${label} notice: ${c.title}`;
-      const nb = noticeByDate({ endDate: c.end_date as string | null, noticeDays: c.notice_days as number | null });
-      const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
-        actionItem: title,
-        status: "Not Started",
-        priority: urg === "overdue" ? "Critical" : "High",
-        category: "Admin",
-        deadline: nb,
-        createdDate: now,
-        lastUpdatedAt: now,
-        archived: false,
-      });
-      await sb.from("audit_log").insert({
-        task_id: task.id, task_code: task.code, company_id: companyId,
-        entry_type: "CREATE", field: "Task", old_value: null, new_value: title,
-        change_reason: "Created by automation — commitment notice", created_at: now.toISOString(), created_by: "automation",
-      });
-      await logTaskCreate({
-        documentId: null, companyId, personId: null,
-        taskId: task.id, taskCode: task.code,
-        summary: `Created task ${task.code} — ${label.toLowerCase()} notice ${urg === "overdue" ? "overdue" : "due soon"}: “${c.title}”`,
-        detail: `commitment:${c.id}| Notice ${urg} — act to renew or exit`,
-      });
+      const word = urg === "overdue" ? "overdue" : "due soon";
+      if (suggesting) {
+        await suggestTaskCreate({
+          source: "commitments", sourceId: c.id, documentId: null, companyId, personId: null,
+          summary: `Create ${label.toLowerCase()} notice task — ${word}: “${c.title}”`, detail: `commitment:${c.id}| Notice ${urg} — act to renew or exit`,
+        });
+      } else {
+        const t = await createCommitmentTask(c, urg === "overdue");
+        await logTaskCreate({
+          documentId: null, companyId, personId: null, taskId: t.taskId, taskCode: t.code,
+          summary: `Created task ${t.code} — ${label.toLowerCase()} notice ${word}: “${c.title}”`, detail: `commitment:${c.id}| Notice ${urg} — act to renew or exit`,
+        });
+      }
       commitments++;
     }
   } catch (e) {

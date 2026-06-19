@@ -46,7 +46,7 @@ export const AUTOMATION_RULES: AutomationRule[] = [
     kind: "task-create",
     label: "Create renewal & notice tasks",
     description: "Create a task when a document is expiring/expired or a lease/insurance/contract nears its notice date.",
-    supportsSuggest: false,
+    supportsSuggest: true,
   },
 ];
 

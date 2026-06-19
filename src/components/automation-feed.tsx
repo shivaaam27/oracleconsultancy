@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Check, RotateCcw, X, Loader2, ChevronDown, RefreshCw } from "lucide-react";
+import { Zap, Check, RotateCcw, X, Loader2, ChevronDown, RefreshCw, History } from "lucide-react";
 import {
   applyAutomationSuggestion, undoAutomationEvent, dismissAutomationSuggestion, runTimeAutomationsNow,
-  type AutomationFeedItem,
+  listAutomationHistory, type AutomationFeedItem, type AutomationHistoryItem,
 } from "@/app/automations/actions";
 
 const KIND_LABEL: Record<string, string> = {
@@ -13,6 +13,21 @@ const KIND_LABEL: Record<string, string> = {
   "task-complete": "Task",
   "pipeline-advance": "Pipeline",
   "onboarding-tick": "Onboarding",
+  "task-create": "Renewal",
+};
+
+const KIND_FILTERS: Array<[string, string]> = [
+  ["all", "All"], ["compliance-verify", "Compliance"], ["task-complete", "Tasks"],
+  ["pipeline-advance", "Pipeline"], ["onboarding-tick", "Onboarding"], ["task-create", "Renewals"],
+];
+const STATUS_FILTERS: Array<[string, string]> = [
+  ["all", "All"], ["applied", "Done"], ["suggested", "Suggested"], ["dismissed", "Dismissed"], ["undone", "Undone"],
+];
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  applied: { label: "Done", cls: "bg-success-soft text-success" },
+  suggested: { label: "Suggested", cls: "bg-accent-soft text-accent" },
+  dismissed: { label: "Dismissed", cls: "bg-bg-muted text-fg-subtle" },
+  undone: { label: "Undone", cls: "bg-bg-muted text-fg-subtle" },
 };
 
 function Tag({ kind }: { kind: string }) {
@@ -21,6 +36,16 @@ function Tag({ kind }: { kind: string }) {
       {KIND_LABEL[kind] ?? kind}
     </span>
   );
+}
+
+function ago(iso: string | null): string {
+  if (!iso) return "";
+  const norm = /[Zz]$|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  const s = (Date.now() - new Date(norm).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  return new Date(norm).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
 export function AutomationFeed({
@@ -33,13 +58,19 @@ export function AutomationFeed({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [busy, setBusy] = useState<number | null>(null);
-  const [openLog, setOpenLog] = useState(false);
   const [checking, startCheck] = useTransition();
   const [checkMsg, setCheckMsg] = useState<string | null>(null);
 
+  // History (the logbook) — loaded on demand.
+  const [openHistory, setOpenHistory] = useState(false);
+  const [history, setHistory] = useState<AutomationHistoryItem[] | null>(null);
+  const [loadingHist, startHist] = useTransition();
+  const [fKind, setFKind] = useState("all");
+  const [fStatus, setFStatus] = useState("all");
+
   function act(id: number, fn: () => Promise<unknown>) {
     setBusy(id);
-    start(async () => { await fn(); router.refresh(); setBusy(null); });
+    start(async () => { await fn(); if (openHistory) await loadHistory(fKind, fStatus); router.refresh(); setBusy(null); });
   }
 
   function runChecks() {
@@ -47,10 +78,22 @@ export function AutomationFeed({
     startCheck(async () => {
       const r = await runTimeAutomationsNow();
       const made = r.renewals + r.commitments;
-      setCheckMsg(r.ok ? (made ? `Created ${made} task${made === 1 ? "" : "s"} from passing dates.` : "Nothing due — all caught up.") : "Couldn't run the checks.");
+      setCheckMsg(r.ok ? (made ? `${made} renewal/notice item${made === 1 ? "" : "s"} from passing dates.` : "Nothing due — all caught up.") : "Couldn't run the checks.");
       router.refresh();
     });
   }
+
+  async function loadHistory(kind: string, status: string) {
+    const rows = await listAutomationHistory({ kind, status });
+    setHistory(rows);
+  }
+  function toggleHistory() {
+    const next = !openHistory;
+    setOpenHistory(next);
+    if (next && history === null) startHist(() => loadHistory(fKind, fStatus));
+  }
+  function setKind(k: string) { setFKind(k); startHist(() => loadHistory(k, fStatus)); }
+  function setStatus(s: string) { setFStatus(s); startHist(() => loadHistory(fKind, s)); }
 
   return (
     <div className="glass elevated rounded-2xl p-4 space-y-3">
@@ -99,34 +142,67 @@ export function AutomationFeed({
         </div>
       )}
 
-      {/* Recent applied actions — collapsible, each undoable */}
-      {applied.length > 0 && (
-        <div>
-          <button type="button" onClick={() => setOpenLog((v) => !v)}
-            className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg transition">
-            <ChevronDown size={13} className={`transition-transform ${openLog ? "rotate-180" : ""}`} />
-            Done automatically ({applied.length})
-          </button>
-          {openLog && (
-            <div className="mt-2 space-y-1.5">
-              {applied.map((a) => {
-                const isBusy = pending && busy === a.id;
-                return (
-                  <div key={a.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-subtle/40">
-                    <Check size={13} className="text-success shrink-0" />
-                    <Tag kind={a.kind} />
-                    <span className="text-xs text-fg-muted truncate flex-1">{a.summary}</span>
-                    <button type="button" disabled={isBusy} onClick={() => act(a.id, () => undoAutomationEvent(a.id))}
-                      className="inline-flex items-center gap-1 text-[11px] text-fg-subtle hover:text-danger transition disabled:opacity-50 shrink-0">
-                      {isBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Undo
-                    </button>
-                  </div>
-                );
-              })}
+      {/* History — the full logbook, with filters */}
+      <div>
+        <button type="button" onClick={toggleHistory}
+          className="inline-flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg transition">
+          <History size={13} /> History
+          <ChevronDown size={13} className={`transition-transform ${openHistory ? "rotate-180" : ""}`} />
+        </button>
+
+        {openHistory && (
+          <div className="mt-2 space-y-2">
+            {/* filters */}
+            <div className="flex flex-wrap items-center gap-1">
+              {KIND_FILTERS.map(([k, label]) => (
+                <button key={k} type="button" onClick={() => setKind(k)}
+                  className={`rounded-full px-2 py-0.5 text-[10px] transition ${fKind === k ? "bg-accent text-white" : "bg-bg-subtle/70 text-fg-muted hover:text-fg"}`}>{label}</button>
+              ))}
             </div>
-          )}
-        </div>
-      )}
+            <div className="flex flex-wrap items-center gap-1">
+              {STATUS_FILTERS.map(([s, label]) => (
+                <button key={s} type="button" onClick={() => setStatus(s)}
+                  className={`rounded-full px-2 py-0.5 text-[10px] transition ${fStatus === s ? "bg-fg text-bg" : "bg-bg-subtle/70 text-fg-muted hover:text-fg"}`}>{label}</button>
+              ))}
+            </div>
+
+            {loadingHist ? (
+              <p className="px-1 py-2 text-[11px] text-fg-subtle inline-flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading…</p>
+            ) : !history || history.length === 0 ? (
+              <p className="px-1 py-2 text-[11px] text-fg-subtle">Nothing here yet.</p>
+            ) : (
+              <div className="space-y-1">
+                {history.map((h) => {
+                  const isBusy = pending && busy === h.id;
+                  const meta = STATUS_META[h.status] ?? { label: h.status, cls: "bg-bg-muted text-fg-subtle" };
+                  return (
+                    <div key={h.id} className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-bg-subtle/40">
+                      <span className={`mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${meta.cls}`}>{meta.label}</span>
+                      <Tag kind={h.kind} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs leading-snug truncate">{h.summary}</p>
+                        <p className="text-[10px] text-fg-subtle truncate">{[h.owner, ago(h.actedAt ?? h.createdAt)].filter(Boolean).join(" · ")}</p>
+                      </div>
+                      {h.status === "applied" && (
+                        <button type="button" disabled={isBusy} onClick={() => act(h.id, () => undoAutomationEvent(h.id))}
+                          className="inline-flex items-center gap-1 text-[10px] text-fg-subtle hover:text-danger transition disabled:opacity-50 shrink-0">
+                          {isBusy ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Undo
+                        </button>
+                      )}
+                      {h.status === "suggested" && (
+                        <span className="inline-flex shrink-0 items-center gap-1">
+                          <button type="button" disabled={isBusy} onClick={() => act(h.id, () => applyAutomationSuggestion(h.id))} className="text-[10px] text-accent hover:underline disabled:opacity-50">Apply</button>
+                          <button type="button" disabled={isBusy} onClick={() => act(h.id, () => dismissAutomationSuggestion(h.id))} className="text-[10px] text-fg-subtle hover:text-danger disabled:opacity-50">Dismiss</button>
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
