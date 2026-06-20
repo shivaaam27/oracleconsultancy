@@ -387,7 +387,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     let supersedePhotoId: number | null = null;     // incoming PDF replaces this photo
     let nearDupOf: { id: number; title: string } | null = null;
     if (file instanceof File && hasOwner) {
-      const target = await findSameLogicalDoc({ companyId, personId }, f.category ?? null, f.referenceNo ?? null, f.title ?? fallbackTitle, fileName);
+      const target = await findSameLogicalDoc({ companyId, personId }, f.category ?? null, f.referenceNo ?? null, f.title ?? fallbackTitle, fileName, res.fullText ?? null);
       if (target?.verdict === "existing-wins") {
         // A better PDF is already on file — bin the incoming photo (keep its file
         // so it's restorable).
@@ -510,28 +510,46 @@ function mergePreferAI(ruled: ExtractedFields, ai: ExtractedFields): ExtractedFi
  *   "near-duplicate" → same logical doc, same format (or office) → HOLD in
  *                      Quarantine; never auto-binned on a guess.
  */
+// Distinctive word-set of a document's body, for content-based duplicate detection
+// (a re-scanned / renamed / re-typed copy shares most of its words even with a new
+// name, format or no reference number).
+function contentTokenSet(text: string | null | undefined): Set<string> {
+  return new Set((text ?? "").toLowerCase().match(/[a-z0-9]{4,}/g)?.slice(0, 400) ?? []);
+}
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  for (const x of a) if (b.has(x)) inter++;
+  return inter / (a.size + b.size - inter);
+}
+
 async function findSameLogicalDoc(
   owner: { companyId: number | null; personId: number | null },
   category: string | null,
   referenceNo: string | null,
   fileTitle: string | null,
   incomingName: string,
+  incomingText?: string | null,
 ): Promise<{ id: number; title: string; verdict: "incoming-wins" | "existing-wins" | "near-duplicate" } | null> {
   if (!owner.companyId && !owner.personId) return null;
-  let q = supa.from("documents").select("id,title,file_name,reference_no").eq("intake_state", "filed").eq("archived", false);
+  // Match within the OWNER across ALL categories (a re-scan can land a different
+  // category) — the reference / title / content signals decide, not the folder.
+  let q = supa.from("documents").select("id,title,file_name,reference_no,category,extracted_text").eq("intake_state", "filed").eq("archived", false);
   if (owner.personId) q = q.eq("person_id", owner.personId);
   else q = q.eq("company_id", owner.companyId);
-  if (category) q = q.eq("category", category);
   const { data } = await q;
-  const rows = (data ?? []) as Array<{ id: number; title: string; file_name: string | null; reference_no: string | null }>;
+  const rows = (data ?? []) as Array<{ id: number; title: string; file_name: string | null; reference_no: string | null; category: string | null; extracted_text: string | null }>;
   const norm = (s: string | null) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const refKey = referenceNo && referenceNo.replace(/\s/g, "").length >= 4 ? referenceNo.replace(/\s/g, "").toLowerCase() : null;
   const tKey = norm(fileTitle);
+  const incTokens = contentTokenSet(incomingText);
   let nearDup: { id: number; title: string } | null = null;
   for (const r of rows) {
     const sameRef = refKey && r.reference_no && r.reference_no.replace(/\s/g, "").toLowerCase() === refKey;
     const sameTitle = tKey.length >= 5 && norm(r.title) === tKey;
-    if (!sameRef && !sameTitle) continue;
+    // Content match: most of the words are shared → same document, any name/format.
+    const sameContent = incTokens.size >= 25 && jaccard(incTokens, contentTokenSet(r.extracted_text)) >= 0.7;
+    if (!sameRef && !sameTitle && !sameContent) continue;
     // A clear photo↔PDF pair resolves immediately (the better format wins).
     const verdict = formatSupersede(incomingName, r.file_name);
     if (verdict) return { id: r.id, title: r.title, verdict };
