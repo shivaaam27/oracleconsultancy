@@ -5,7 +5,7 @@ import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { SettingsCard } from "@/components/settings-card";
 import { SettingsNav } from "@/components/settings-nav";
-import { getAppSettings, getEmailConfig, SWIPE_ACTIONS } from "@/lib/settings";
+import { getAppSettings, getEmailConfig, getGroqKeyPreview, SWIPE_ACTIONS } from "@/lib/settings";
 import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
@@ -46,6 +46,7 @@ export default async function SettingsPage({
     getOwnerIdentity(),
   ]);
   const ownerPasskeys = await listCredentials({ kind: "admin" });
+  const groqKey = await getGroqKeyPreview();
   const signatureImageUrl = s.emailSignatureImagePath
     ? await signDocumentFile(s.emailSignatureImagePath, 3600)
     : null;
@@ -238,6 +239,42 @@ export default async function SettingsPage({
                   </span>
                 </label>
               </div>
+
+              {/* In-app Groq key — set/rotate without a redeploy */}
+              <div className="mt-1 max-w-xl space-y-2 border-t border-border/60 pt-3.5">
+                <FieldLabel>AI key (Groq)</FieldLabel>
+                <div className="flex items-center gap-2 text-xs">
+                  {groqKey.source === "settings" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 font-medium text-success ring-1 ring-success/30">
+                      <Check size={12} /> Key set here · ends &hellip;{groqKey.last4}
+                    </span>
+                  )}
+                  {groqKey.source === "env" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle/70 px-2.5 py-1 font-medium text-fg-muted ring-1 ring-border">
+                      Using built-in key · ends &hellip;{groqKey.last4}
+                    </span>
+                  )}
+                  {groqKey.source === "none" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warn/10 px-2.5 py-1 font-medium text-warn ring-1 ring-warn/30">
+                      No key — AI runs on manual fallbacks
+                    </span>
+                  )}
+                </div>
+                <Input
+                  name="groqApiKey"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={groqKey.source === "settings" ? "Enter a new key to rotate it" : "Paste a Groq API key (gsk_…)"}
+                />
+                {groqKey.source === "settings" && (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-danger">
+                    <input type="checkbox" name="remove_groqApiKey" value="1" className="h-3.5 w-3.5 accent-[var(--accent)]" /> Remove the key set here (fall back to the built-in one)
+                  </label>
+                )}
+                <p className="text-xs text-fg-muted">
+                  Set or rotate the Groq key here to fix AI instantly without a redeploy — it overrides the built-in key. For your security the key itself is never shown again, only the last four characters. Leave blank to keep the current key.
+                </p>
+              </div>
             </SettingsCard>
 
             {/* Voice */}
@@ -285,6 +322,38 @@ export default async function SettingsPage({
             {/* Messaging status */}
             <SettingsCard id="messaging" icon={<MessageCircle size={15} />} title="Messaging" desc={`Email sending is ${emailCfg ? "connected" : "not connected"}. Until a channel is connected, the Outbox prepares copy-ready drafts with one-tap send links.`}>
               <WhatsAppStatus configured={whatsAppOn} defaultTo="+255686450999" />
+            </SettingsCard>
+
+            {/* Quiet hours & batching — how non-urgent alerts behave */}
+            <SettingsCard id="quiet-hours" icon={<Bell size={15} />} title="Quiet hours & batching" desc="Calm down non-urgent alerts. Urgent things (overdue, escalated) always come through straight away — these only hold back the routine ones.">
+              <div className="max-w-xl space-y-3.5">
+                <div>
+                  <p className="text-sm font-medium">Quiet hours</p>
+                  <p className="text-[11px] text-fg-muted">Hold routine alerts during this window (your local Dar es Salaam time). Leave both blank to switch off. The window can run past midnight (e.g. 22:00 to 07:00).</p>
+                  <div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-xs">
+                    <div>
+                      <FieldLabel>From</FieldLabel>
+                      <Input name="quietHoursStart" type="time" defaultValue={s.quietHoursStart} />
+                    </div>
+                    <div>
+                      <FieldLabel>To</FieldLabel>
+                      <Input name="quietHoursEnd" type="time" defaultValue={s.quietHoursEnd} />
+                    </div>
+                  </div>
+                </div>
+                <label className="flex cursor-pointer select-none items-start gap-3 border-t border-border/60 pt-3.5">
+                  <input
+                    type="checkbox"
+                    name="notifyDigest"
+                    defaultChecked={s.notifyDigest}
+                    className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
+                  />
+                  <span className="text-sm">
+                    Batch routine alerts into a digest
+                    <span className="block text-xs text-fg-subtle">Group everyday notifications into a periodic summary instead of buzzing one-by-one. Urgent alerts still come through immediately.</span>
+                  </span>
+                </label>
+              </div>
             </SettingsCard>
 
             <div className="sticky bottom-3 z-10 flex justify-end">

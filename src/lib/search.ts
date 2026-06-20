@@ -1,17 +1,40 @@
 // Unified "deep index" search across the whole COS system.
 //
 // One pass over the high-value entities — people, companies, documents,
-// letters, meetings, vendors, assets — with typo-tolerant, relevance-ranked
+// letters, meetings, vendors, assets — plus the board/governance/process data
+// (cap table, beneficial owners, signatories, key persons, risk register,
+// pipeline applications, commitments) with typo-tolerant, relevance-ranked
 // matching. Tasks are handled separately (they keep their rich action rows in
 // the palette), so they're not duplicated here.
 //
+// History-aware: by default only current items surface, but `includeHistory`
+// ALSO returns archived people, inactive vendors, archived assets/documents and
+// closed/expired/terminal records — never dropping them, just labelling each as
+// "history" with a human badge and a small ranking penalty.
+//
 // Single-operator system with modest data volumes, so we fetch a wide net via
 // per-token ilike OR-filters and rank in memory. No new infrastructure.
+//
+// REGISTRY-DRIVEN: the per-type knowledge (which table, which columns, the ilike
+// net, the current-only filter, and the row→result mapping) lives ONCE in
+// src/lib/entity-registry.ts. This file just loops over SEARCHABLE_DEFS, runs each
+// def's query, scores via the shared scorer, and applies the history penalty +
+// per-type cap. Adding a new searchable entity = add one EntityDef there; this
+// file does NOT change. The scorer (score/within/tokenize) stays the single
+// source of ranking truth and lives here.
 
 import { sb } from "@/db/supabase";
+import { expandQuery } from "@/lib/synonyms";
+import {
+  SEARCHABLE_DEFS,
+  type EntityRow,
+  type SearchCustomCtx,
+  type ScoredSearchResult,
+} from "@/lib/entity-registry";
 
 export type SearchResultType =
-  | "person" | "company" | "document" | "letter" | "meeting" | "vendor" | "asset";
+  | "person" | "company" | "document" | "letter" | "meeting" | "vendor" | "asset"
+  | "governance" | "risk" | "pipeline" | "commitment";
 
 export type SearchResult = {
   type: SearchResultType;
@@ -21,9 +44,13 @@ export type SearchResult = {
   href: string;
   badge?: string;
   score: number;
+  lifecycle?: "active" | "history";
 };
 
 const STOP = new Set(["the", "a", "an", "of", "for", "to", "in", "on", "and", "is", "with"]);
+
+// History rows still appear, just below their live equivalents.
+const HISTORY_PENALTY = 18;
 
 function tokenize(q: string): string[] {
   return q
@@ -57,8 +84,18 @@ function within(a: string, b: string, max: number): boolean {
  * Score how well `parts` (the searchable fields of a record, in priority order:
  * the most important field first) match the query tokens. Higher is better; 0
  * means no match at all (caller should drop it).
+ *
+ * `tokens` are the literal user words (strict — every one must land somewhere).
+ * `extra` are synonym-expanded recall tokens: they only ADD score (a soft
+ * boost), they never gate the result, so "supplier" can light up a vendor whose
+ * own fields only ever say "vendor".
  */
-function score(parts: (string | null | undefined)[], q: string, tokens: string[]): number {
+function score(
+  parts: (string | null | undefined)[],
+  q: string,
+  tokens: string[],
+  extra: string[] = [],
+): number {
   const fields = parts.map((p) => (p ?? "").toLowerCase()).filter(Boolean);
   if (fields.length === 0) return 0;
   const primary = fields[0];
@@ -87,9 +124,25 @@ function score(parts: (string | null | undefined)[], q: string, tokens: string[]
     s += best;
   }
 
-  // Every token must land somewhere, or it isn't a real hit.
+  // Synonym recall: a small additive boost only (never a gate). Skip any extra
+  // token that's already a literal token so we don't double-count.
+  const literal = new Set(tokens);
+  for (const t of extra) {
+    if (literal.has(t)) continue;
+    let best = 0;
+    for (let fi = 0; fi < fields.length; fi++) {
+      const f = fields[fi];
+      const weight = fi === 0 ? 1 : 0.5;
+      const words = f.split(/[\s\-_/]+/);
+      if (words.some((w) => w === t)) best = Math.max(best, 12 * weight);
+      else if (words.some((w) => w.startsWith(t))) best = Math.max(best, 9 * weight);
+      else if (f.includes(t)) best = Math.max(best, 6 * weight);
+    }
+    s += best;
+  }
+
+  // Every literal token must land somewhere, or it isn't a real hit.
   if (tokens.length > 0 && matchedTokens < tokens.length) {
-    // Allow a single near-miss token only if the rest matched strongly.
     if (matchedTokens < tokens.length - 0) return 0;
   }
   return s;
@@ -105,109 +158,112 @@ function one<T>(rel: T | T[] | null | undefined): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel ?? null;
 }
 
-export async function unifiedSearch(query: string, perTypeLimit = 6): Promise<SearchResult[]> {
+export async function unifiedSearch(
+  query: string,
+  perTypeLimit = 6,
+  includeHistory = false,
+): Promise<SearchResult[]> {
   const q = query.toLowerCase().trim();
   const tokens = tokenize(q);
   if (!q || tokens.length === 0) return [];
 
-  // Small, typo-critical tables (people/companies/vendors/assets): fetch all and
-  // rank in memory so near-miss spellings ("Solanky" → Solanki) still surface —
-  // an ilike pre-filter would exclude typos before scoring ever runs.
-  // Larger free-text tables (documents/letters/meetings): keep the ilike net.
-  const [people, companies, documents, letters, meetings, vendors, assets] = await Promise.all([
-    sb.from("people").select("id,name,role,email,nationality,passport_no,national_id,company_id,active, companies(name)").limit(500),
-    sb.from("companies").select("id,name,code,code_prefix,legal_name").limit(100),
-    sb.from("documents").select("id,title,category,doc_type,issuer,reference_no,company_id,person_id,archived, companies(name), people(name)")
-      .eq("archived", false).or(orIlike(["title", "category", "doc_type", "issuer", "reference_no"], tokens)).limit(40),
-    sb.from("letters").select("id,title,type,ref,status,company_id, companies(name), people(name)")
-      .or(orIlike(["title", "type", "ref", "addressee", "subject"], tokens)).limit(20),
-    sb.from("meetings").select("id,title,company_id,meeting_date,attendees, companies(name)")
-      .or(orIlike(["title", "attendees", "minutes", "raw_notes"], tokens)).order("meeting_date", { ascending: false }).limit(20),
-    sb.from("vendors").select("id,name,category,location,contact_name,company_id,active, companies(name)").eq("active", true).limit(300),
-    sb.from("assets").select("id,name,tag,category,serial_no,status,archived, holder:people!assets_assigned_to_person_id_people_id_fk(name)").eq("archived", false).limit(500),
-  ]);
+  // Synonym-expanded recall tokens — used to WIDEN the ilike net on the
+  // free-text tables and to softly boost in-memory scoring. Always include the
+  // literal tokens so the net never narrows.
+  let expanded: string[] = [];
+  try {
+    expanded = expandQuery(q);
+  } catch {
+    expanded = [];
+  }
+  const netTokens = Array.from(new Set([...tokens, ...expanded]));
+
+  // Build the supabase query for one per-row searchable def, applying exactly the
+  // select/ilike-net/current-filter/order/limit the hand-written block used.
+  //  - ilikeColumns set → the OR-ilike net (free-text tables) on the widened
+  //    synonym token set, so the net never narrows.
+  //  - currentFilter set AND not including history → the current-only `.eq(...)`
+  //    (small/typo-critical tables instead drop history rows in `toResult`).
+  const buildQuery = (def: (typeof SEARCHABLE_DEFS)[number]) => {
+    const s = def.search!;
+    // Apply the FILTER ops (.or/.eq) first so `qb` keeps the filter-builder type,
+    // then chain the transform ops (.order/.limit) in the return expression — the
+    // same op order the hand-written blocks used.
+    let qb = sb.from(def.table).select(s.select);
+    if (s.ilikeColumns) qb = qb.or(orIlike(s.ilikeColumns, netTokens));
+    if (s.currentFilter && !includeHistory) qb = qb.eq(s.currentFilter.column, s.currentFilter.value);
+    const transformed = s.order ? qb.order(s.order.column, { ascending: s.order.ascending }) : qb;
+    return transformed.limit(s.limit);
+  };
+
+  // The scorer + the read context handed to each def. `score` here closes over
+  // this query's tokens, so a def's `toResult` parts and `searchCustom` self-score
+  // are ranked identically to the inline blocks they replaced.
+  const scoreParts = (parts: (string | null | undefined)[]) => score(parts, q, tokens, expanded);
+  const ctx: SearchCustomCtx = { q, tokens, includeHistory, score: scoreParts, one };
+
+  // One collected result set per def. `custom` = the governance escape-hatch
+  // (self-scored); `rows` = raw DB rows for a per-row def.
+  type DefResult =
+    | { def: (typeof SEARCHABLE_DEFS)[number]; custom: ScoredSearchResult[] }
+    | { def: (typeof SEARCHABLE_DEFS)[number]; rows: EntityRow[] };
+
+  // Fire every searchable def in parallel. Each carries its def so the COLLECTION
+  // phase can re-order independently of fetch order. Best-effort per def: a table
+  // that errors logs + yields an empty set, never breaking the whole search.
+  const results: DefResult[] = await Promise.all(
+    SEARCHABLE_DEFS.map(async (def): Promise<DefResult> => {
+      try {
+        if (def.searchCustom) return { def, custom: await def.searchCustom(ctx) };
+        const r = (await buildQuery(def)) as { data: EntityRow[] | null };
+        return { def, rows: r.data ?? [] };
+      } catch (e) {
+        console.error("Unified search table error:", e);
+        return def.searchCustom ? { def, custom: [] } : { def, rows: [] };
+      }
+    }),
+  );
 
   const out: SearchResult[] = [];
   const push = (r: SearchResult | null) => { if (r && r.score > 0) out.push(r); };
 
-  for (const p of people.data ?? []) {
-    const company = one<{ name?: string }>(p.companies as any)?.name ?? null;
-    push({
-      type: "person", id: p.id as number,
-      title: p.name as string,
-      subtitle: [p.role as string | null, company].filter(Boolean).join(" · ") || "Person",
-      href: `/people?person=${p.id}`,
-      badge: (p.active as boolean) === false ? "Archived" : undefined,
-      score: score([p.name as string, p.role as string | null, company, p.email as string | null, p.passport_no as string | null, p.national_id as string | null, p.nationality as string | null], q, tokens),
-    });
-  }
-  for (const c of companies.data ?? []) {
-    push({
-      type: "company", id: c.id as number,
-      title: c.name as string,
-      subtitle: [c.code as string | null, c.legal_name as string | null].filter(Boolean).join(" · ") || "Company",
-      href: `/companies/${c.id}`,
-      badge: (c.code_prefix as string | null) ?? undefined,
-      score: score([c.name as string, c.code as string | null, c.code_prefix as string | null, c.legal_name as string | null], q, tokens),
-    });
-  }
-  for (const d of documents.data ?? []) {
-    const company = one<{ name?: string }>(d.companies as any)?.name ?? null;
-    const person = one<{ name?: string }>(d.people as any)?.name ?? null;
-    const owner = person || company;
-    const href = d.person_id ? `/documents?person=${d.person_id}` : d.company_id ? `/documents?company=${d.company_id}` : `/documents`;
-    push({
-      type: "document", id: d.id as number,
-      title: d.title as string,
-      subtitle: [d.category as string | null, owner].filter(Boolean).join(" · ") || "Document",
-      href,
-      badge: (d.doc_type as string | null) ?? undefined,
-      score: score([d.title as string, d.category as string | null, d.doc_type as string | null, d.issuer as string | null, d.reference_no as string | null, owner], q, tokens),
-    });
-  }
-  for (const l of letters.data ?? []) {
-    const company = one<{ name?: string }>(l.companies as any)?.name ?? null;
-    const person = one<{ name?: string }>(l.people as any)?.name ?? null;
-    push({
-      type: "letter", id: l.id as number,
-      title: (l.title as string) || (l.type as string) || "Letter",
-      subtitle: [l.ref as string | null, person || company].filter(Boolean).join(" · ") || "Letter",
-      href: `/letters/${l.id}`,
-      badge: (l.status as string | null) ?? undefined,
-      score: score([l.title as string | null, l.type as string | null, l.ref as string | null, person, company], q, tokens),
-    });
-  }
-  for (const m of meetings.data ?? []) {
-    const company = one<{ name?: string }>(m.companies as any)?.name ?? null;
-    const date = m.meeting_date ? new Date(m.meeting_date as string).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
-    push({
-      type: "meeting", id: m.id as number,
-      title: m.title as string,
-      subtitle: [company, date].filter(Boolean).join(" · ") || "Meeting",
-      href: `/workbook?tab=meetings&open=${m.id}`,
-      score: score([m.title as string, company, m.attendees as string | null], q, tokens),
-    });
-  }
-  for (const v of vendors.data ?? []) {
-    const company = one<{ name?: string }>(v.companies as any)?.name ?? null;
-    push({
-      type: "vendor", id: v.id as number,
-      title: v.name as string,
-      subtitle: [v.category as string | null, v.location as string | null, company].filter(Boolean).join(" · ") || "Vendor",
-      href: `/hrms/assets?tab=vendors`,
-      score: score([v.name as string, v.category as string | null, v.location as string | null, v.contact_name as string | null], q, tokens),
-    });
-  }
-  for (const a of assets.data ?? []) {
-    const holder = one<{ name?: string }>(a.holder as any)?.name ?? null;
-    push({
-      type: "asset", id: a.id as number,
-      title: (a.name as string) || (a.tag as string) || "Asset",
-      subtitle: [a.tag as string | null, a.category as string | null, holder ? `with ${holder}` : null].filter(Boolean).join(" · ") || "Asset",
-      href: `/hrms/assets`,
-      badge: (a.status as string | null) ?? undefined,
-      score: score([a.name as string | null, a.tag as string | null, a.category as string | null, a.serial_no as string | null], q, tokens),
-    });
+  // Apply the history label + ranking penalty in one place (unchanged from the
+  // hand-written `past()` helper).
+  const HISTORY = (r: SearchResult): SearchResult =>
+    r.lifecycle === "history" ? { ...r, score: Math.max(1, r.score - HISTORY_PENALTY) } : r;
+
+  // The final ranking sort is STABLE, so for two cross-type rows that tie on score
+  // the one pushed FIRST wins the higher slot. To keep results byte-for-byte
+  // identical to the hand-written blocks, collect in their exact original push
+  // order (not searchOrder). Any future type the legacy order doesn't name simply
+  // falls to the end (by searchOrder), so a new EntityDef still surfaces.
+  const LEGACY_PUSH_ORDER = [
+    "person", "company", "document", "letter", "meeting", "vendor", "asset",
+    "governance", "risk", "pipeline", "commitment",
+  ];
+  const pushRank = (type: string) => {
+    const i = LEGACY_PUSH_ORDER.indexOf(type);
+    return i === -1 ? LEGACY_PUSH_ORDER.length : i;
+  };
+  const ordered = [...results].sort((a, b) => pushRank(a.def.type) - pushRank(b.def.type));
+
+  for (const res of ordered) {
+    if ("custom" in res) {
+      // Governance: already fully scored by its own scorer; apply the history
+      // penalty uniformly (governance is always active, so this is a no-op there).
+      for (const r of res.custom) push(HISTORY(r as SearchResult));
+      continue;
+    }
+    // Per-row defs: map each row to a SearchEntityResult (null = drop), then score
+    // its scoreParts here so the scorer stays the single source of ranking truth.
+    for (const row of res.rows) {
+      const er = res.def.search!.toResult(row, ctx);
+      if (!er) continue;
+      const { scoreParts: parts, ...rest } = er;
+      // `rest.type` is the wide EntityType (includes "task"); searchable defs never
+      // include tasks, so it's always a SearchResultType at runtime — assert it.
+      push(HISTORY({ ...rest, score: scoreParts(parts) } as SearchResult));
+    }
   }
 
   // Rank globally, then keep at most `perTypeLimit` of each type so no single
@@ -218,5 +274,5 @@ export async function unifiedSearch(query: string, perTypeLimit = 6): Promise<Se
     counts[r.type] = (counts[r.type] ?? 0) + 1;
     return counts[r.type] <= perTypeLimit;
   });
-  return kept.sort((x, y) => y.score - x.score).slice(0, 24);
+  return kept.sort((x, y) => y.score - x.score).slice(0, includeHistory ? 40 : 24);
 }

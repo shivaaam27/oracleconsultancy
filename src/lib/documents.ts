@@ -6,7 +6,8 @@
 import { cache } from "react";
 import { createHash } from "crypto";
 import { sb } from "@/db/supabase";
-import { indexEmbedding, removeEmbedding } from "@/lib/embeddings";
+import { indexEmbedding } from "@/lib/embeddings";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { DEFAULT_LEAD_DAYS, type DocumentRow, type IntakeState } from "./documents-shared";
 
 export * from "./documents-shared";
@@ -210,6 +211,9 @@ export async function updateDocument(id: number, patch: Partial<DocumentInput>):
   if (patch.confidence !== undefined) payload.confidence = patch.confidence;
   const { error } = await sb.from("documents").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
+  // Metadata/title/owner edits change the searchable text — re-index (best-effort,
+  // de-dupes on no-op content). Don't block the response.
+  void reindexEntity("document", id);
 }
 
 /** Soft-delete via archived flag (matches tasks.archived convention). */
@@ -219,8 +223,10 @@ export async function setDocumentArchived(id: number, archived: boolean): Promis
     .update({ archived, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
-  // Drop its vectors immediately on archive (the nightly sweep would catch it too).
-  if (archived) void removeEmbedding("document", id);
+  // Re-index either way: archive re-stamps the vectors as lifecycle="history"
+  // (we KEEP archived docs searchable, just labelled past), restore puts them
+  // back to "active". Best-effort, never blocks.
+  void reindexEntity("document", id);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -258,8 +264,10 @@ export async function setDocumentIntakeState(
   }
   const { error } = await sb.from("documents").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
-  // Quarantine/trash rows must not appear in semantic search; filing re-indexes.
-  if (archived) void removeEmbedding("document", id);
+  // Re-index for the new bucket: quarantine/trash flips archived=true so the doc
+  // re-stamps as lifecycle="history" (kept, labelled past, hidden from active
+  // search); filing flips it back to "active". Best-effort, never blocks.
+  void reindexEntity("document", id);
 }
 
 /** Documents sitting in a given intake bucket (quarantine/trash), newest first. */
@@ -277,7 +285,8 @@ export async function listIntakeDocuments(state: IntakeState): Promise<DocumentR
  *  only from Trash — "Delete forever". removeDocumentFile keeps a shared object. */
 export async function deleteDocumentForever(id: number): Promise<void> {
   await removeDocumentFile(id);
-  void removeEmbedding("document", id);
+  // True hard-delete (the row is about to be gone for good) — drop its vectors.
+  void removeEntityIndex("document", id);
   const { error } = await sb.from("documents").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

@@ -4,6 +4,10 @@ import { unifiedSearch } from "@/lib/search";
 
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").toLowerCase().trim();
+  // History-aware: `?history=1` also surfaces archived/closed/expired records,
+  // each labelled (lifecycle "history") and ranked below the live items.
+  const historyParam = req.nextUrl.searchParams.get("history");
+  const includeHistory = historyParam === "1" || historyParam === "true";
 
   // Tasks keep their rich action rows in the palette, so they're returned
   // separately from the deep-index `results`.
@@ -36,7 +40,7 @@ export async function GET(req: NextRequest) {
   let results: Awaited<ReturnType<typeof unifiedSearch>> = [];
   if (q) {
     try {
-      results = await unifiedSearch(q);
+      results = await unifiedSearch(q, 6, includeHistory);
     } catch (e) {
       console.error("Unified search error:", e);
     }

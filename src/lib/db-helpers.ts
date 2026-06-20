@@ -5,6 +5,7 @@
 
 import { sb } from "@/db/supabase";
 import { indexEmbedding } from "@/lib/embeddings";
+import { reindexEntity } from "@/lib/index-hooks";
 
 export function fmtLocalDate(d: Date): string {
   const y = d.getFullYear();
@@ -49,6 +50,9 @@ export async function getOrCreatePersonSb(
     .eq("name", name)
     .single();
   if (e2) throw new Error(e2.message);
+  // Newly auto-created stub person — best-effort index (no-op unless semantic
+  // search is on). Existing people returned above are already indexed.
+  void reindexEntity("person", after.id as number);
   return after.id as number;
 }
 

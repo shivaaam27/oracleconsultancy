@@ -11,7 +11,7 @@ import { ensurePersonRequirements } from "@/lib/requirements";
 import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
 import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/assets";
 import { getGroqKey } from "@/lib/settings";
-import { indexEmbedding } from "@/lib/embeddings";
+import { reindexEntity } from "@/lib/index-hooks";
 import { staffIdFor } from "@/lib/staff-id";
 import { resolveSiteId } from "@/lib/sites";
 import { hashPassword } from "@/lib/portal-auth";
@@ -482,11 +482,7 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   if (error) return { ok: false, error: error.message };
 
   // Best-effort semantic index (no-op unless semantic search is enabled).
-  void indexEmbedding(
-    "person",
-    data.id as number,
-    [name, s(formData, "role"), s(formData, "staffCategory"), s(formData, "notes")].filter(Boolean).join("\n"),
-  );
+  void reindexEntity("person", data.id as number);
 
   await syncAssociations(data.id as number, parseAssociations(formData));
   await syncReportingLines(data.id as number, parseSecondaryManagers(formData), n(formData, "managerId"));
@@ -620,6 +616,9 @@ export async function updatePerson(id: number, formData: FormData): Promise<Acti
     try { await startJourney(id, "onboarding"); } catch {}
   }
 
+  // Best-effort re-index: name/role/staff category/notes may have changed.
+  void reindexEntity("person", id);
+
   invalidate();
   return { ok: true, id };
 }
@@ -709,6 +708,9 @@ export async function enrichPersonProfile(
 
   await logPersonEvent(personId, "enriched", { detail: filled.join(", "), createdBy: "intake" });
 
+  // Best-effort re-index in case a blank-filling enrich set role (indexed field).
+  void reindexEntity("person", personId);
+
   // Profile enrichment fills blank columns only; it never changes person_type,
   // so the document checklist does not need reconciling here.
   invalidate();
@@ -760,6 +762,10 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
       newValue: "Manager cleared (archived)",
     });
   }
+
+  // Re-index to re-stamp lifecycle (active ↔ history). We keep archived people
+  // searchable, so this is reindexEntity, not removeEntityIndex.
+  void reindexEntity("person", id);
 
   invalidate();
   return { ok: true, active: nextActive };
@@ -824,6 +830,9 @@ export async function setPeopleActive(ids: number[], active: boolean): Promise<A
           })
     )
   );
+
+  // Re-index each person to re-stamp lifecycle (active ↔ history); kept searchable.
+  for (const pid of clean) void reindexEntity("person", pid);
 
   invalidate();
   return { ok: true };

@@ -15,7 +15,7 @@ import { withTx } from "@/lib/tx";
 import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
 import { tasks as tasksTable, taskAssignees, auditLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { indexEmbedding } from "@/lib/embeddings";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { createTaskAttachment } from "@/lib/documents";
 import { parseMentionIds } from "@/lib/mentions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
@@ -297,6 +297,10 @@ export async function updateTask(code: string, formData: FormData) {
         }
       }
 
+      // Best-effort re-index after the edit (status/action item/latest update +
+      // lifecycle may all have moved). No-op unless semantic search is enabled.
+      void reindexEntity("task", t.id);
+
       return {
         result: { code: finalCode },
         undo: {
@@ -471,7 +475,7 @@ export async function createTask(formData: FormData) {
       });
 
       // Best-effort semantic index (no-op unless semantic search is enabled).
-      void indexEmbedding("task", task.id, actionItem);
+      void reindexEntity("task", task.id);
 
       return {
         result: { code: task.code },
@@ -536,6 +540,10 @@ export async function deleteTask(code: string) {
       // snapshotted into the undo payload first so a 10-minute Undo restores the
       // task, assignees, the full discussion thread and its provenance.
       await sb.from("tasks").delete().eq("id", t.id);
+
+      // Hard-delete: the row is gone, so drop its index entry. (A 10-minute Undo
+      // re-creates the task via the create path, which re-indexes it.)
+      void removeEntityIndex("task", t.id);
 
       return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees, updates, meetingLinks) };
     },
@@ -613,6 +621,9 @@ export async function addTaskUpdate(taskId: number, taskCode: string, body: stri
 
       await sb.from("tasks").update(updatePayload).eq("id", taskId);
       if (newStatus) await fireTaskCascade(taskId, t.status as string, newStatus);
+
+      // Best-effort re-index: latest_update (and possibly status/lifecycle) moved.
+      void reindexEntity("task", taskId);
 
       return {
         result: { taskUpdateId },
@@ -748,6 +759,9 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
   }
   await sb.from("tasks").update(patch).eq("id", taskId);
 
+  // Best-effort re-index: latest_update (and possibly status/lifecycle) moved.
+  void reindexEntity("task", taskId);
+
   revalidatePath(`/task/${taskCode}`);
   revalidatePath("/");
   updateTag("tasks");
@@ -866,6 +880,7 @@ export async function editTaskUpdate(
   });
 
   await recomputeLatestUpdateMirror(u.task_id);
+  void reindexEntity("task", u.task_id); // latest_update mirror changed
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
@@ -891,6 +906,7 @@ export async function deleteTaskUpdate(
   await sb.from("task_updates").update({ deleted_at: new Date().toISOString() }).eq("id", updateId);
 
   await recomputeLatestUpdateMirror(u.task_id);
+  void reindexEntity("task", u.task_id); // latest_update mirror changed
   if (t) {
     revalidatePath(`/task/${t.code}`);
     revalidatePath(`/companies/${t.company_id}`);
@@ -908,6 +924,7 @@ export async function restoreTaskUpdate(updateId: number): Promise<{ ok: boolean
 
   await sb.from("task_updates").update({ deleted_at: null }).eq("id", updateId);
   await recomputeLatestUpdateMirror(u.task_id);
+  void reindexEntity("task", u.task_id); // latest_update mirror changed
   revalidatePath(`/task/${t.code}`);
   revalidatePath(`/companies/${t.company_id}`);
   revalidatePath("/");
@@ -988,6 +1005,7 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
       // confirms first; grouped undo is a planned follow-up.
       if (action.kind === "delete") {
         await sb.from("tasks").delete().eq("id", t.id);
+        void removeEntityIndex("task", t.id); // row gone — drop its index entry
         applied++;
         continue;
       }
@@ -1061,6 +1079,8 @@ export async function bulkUpdateTasks(codes: string[], action: BulkAction): Prom
         await logChangeSb(t.id, t.code, t.company_id, field, oldVal, newVal, changeReason);
       }
       await sb.from("tasks").update(patch).eq("id", t.id);
+      // Best-effort re-index: status/latest_update/lifecycle may have moved.
+      void reindexEntity("task", t.id);
       applied++;
     } catch (e) {
       errors.push({ code, error: e instanceof Error ? e.message : String(e) });
@@ -1129,6 +1149,9 @@ export async function inlineUpdateTask(
       await sb.from("tasks").update(patch).eq("id", t.id);
       if (typeof patch.status === "string") await fireTaskCascade(t.id, t.status as string, patch.status);
 
+      // Best-effort re-index: status/lifecycle may have moved.
+      void reindexEntity("task", t.id);
+
       return {
         result: { code: t.code },
         undo: {
@@ -1180,6 +1203,9 @@ export async function setTaskArchived(code: string, archived: boolean): Promise<
     old_value: String(!archived), new_value: String(archived),
     change_reason: null, created_at: new Date().toISOString(), created_by: "web-ui",
   });
+  // Re-index to re-stamp lifecycle (active ↔ history). We keep history searchable,
+  // so this is reindexEntity, not removeEntityIndex.
+  void reindexEntity("task", t.id);
   revalidatePath("/"); updateTag("tasks");
   return { ok: true };
 }
@@ -1199,6 +1225,7 @@ export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undo
       // Recoverable delete (see deleteTask): snapshot conversation + meeting links
       // for a faithful Undo, keep audit history, offer a 10-min Undo.
       await sb.from("tasks").delete().eq("id", t.id);
+      void removeEntityIndex("task", t.id); // row gone — drop its index entry
       return { result: { deleted: true }, undo: taskDeleteUndo(t, assignees, updates, meetingLinks) };
     },
   });

@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
+import { removeEntityIndex } from "@/lib/index-hooks";
 
 // outbox.markSent — delete the reminder + outbox rows we just inserted.
 registerUndoHandler("outbox.markSent", async (raw) => {
@@ -15,6 +16,7 @@ registerUndoHandler("meeting.bulkCreate", async (raw) => {
   const p = raw as { taskIds: number[] };
   if (!p.taskIds.length) return;
   await sb.from("tasks").delete().in("id", p.taskIds);
+  for (const id of p.taskIds) void removeEntityIndex("task", id); // rows gone — drop their index entries
 });
 
 // person.snooze — restore prior snoozed_until value (or null).

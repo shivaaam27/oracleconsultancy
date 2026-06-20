@@ -1,4 +1,5 @@
 import { sb } from "@/db/supabase";
+import { reindexEntity } from "@/lib/index-hooks";
 import { normalizeStage, type PipelineItem, type PipelineStage } from "@/lib/pipeline-shared";
 
 // Server reads/writes for the in-flight bureaucracy pipeline.
@@ -115,6 +116,7 @@ export async function createPipelineItem(
     created_by: createdBy,
   }).select("id").single();
   if (error || !data) return { ok: false, error: error?.message ?? "Insert returned no row." };
+  void reindexEntity("pipeline", data.id as number);
   return { ok: true, id: data.id as number };
 }
 
@@ -123,6 +125,7 @@ export async function setPipelineStage(id: number, stage: PipelineStage): Promis
   const now = new Date().toISOString();
   const { error } = await sb.from("pipeline").update({ stage, last_update: now, updated_at: now }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  void reindexEntity("pipeline", id); // stage may flip lifecycle active↔history (terminal stage)
   // Phase 4 cascade: reaching "Issued" spawns the collect-&-file task. Best-effort
   // + dynamic import; creating a task can't loop back into a stage change.
   if (stage === "Issued") {
@@ -162,6 +165,7 @@ export async function createPipelineFromDocument(documentId: number): Promise<{ 
     last_update: now, created_at: now, updated_at: now, created_by: "automation",
   }).select("id").single();
   if (error || !data) return { ok: false, error: error?.message ?? "Could not create the application." };
+  void reindexEntity("pipeline", data.id as number);
   return { ok: true, id: data.id as number, stage, type };
 }
 
@@ -179,11 +183,13 @@ export async function updatePipelineItem(id: number, patch: Partial<PipelineInpu
   if (patch.notes !== undefined) payload.notes = patch.notes;
   const { error } = await sb.from("pipeline").update(payload).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  void reindexEntity("pipeline", id);
   return { ok: true };
 }
 
 export async function archivePipelineItem(id: number, archived = true): Promise<WriteResult> {
   const { error } = await sb.from("pipeline").update({ archived, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  void reindexEntity("pipeline", id); // archive re-stamps lifecycle="history" (kept, not removed)
   return { ok: true };
 }

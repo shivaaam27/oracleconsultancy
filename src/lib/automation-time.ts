@@ -14,6 +14,7 @@ import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { commitmentUrgency, noticeByDate, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
 import { getAutomationMode } from "@/lib/automation-reactions";
 import { recordEvent } from "@/lib/system-events";
+import { listObligations, dueObligationInstances, type DueObligationInstance } from "@/lib/recurring";
 
 type LogTaskCreate = {
   documentId: number | null;
@@ -139,9 +140,54 @@ async function createProbationTask(p: ProbationPerson): Promise<{ taskId: number
   return { taskId: task.id, code: task.code, title };
 }
 
+// Valid task categories; an obligation's statutory category is mapped onto these
+// (anything unrecognised → Admin) so the spawned task always has a clean category.
+const TASK_CATEGORIES = new Set([
+  "Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other",
+]);
+function obligationCategory(category: string | null | undefined): string {
+  const c = (category ?? "").trim();
+  return TASK_CATEGORIES.has(c) ? c : "Admin";
+}
+
+/** Create the "do this recurring obligation" task for one company. Shared by Auto
+ *  + Apply. The deadline is the obligation's computed due date for this period. */
+async function createObligationTask(o: DueObligationInstance): Promise<{ taskId: number; code: string; title: string }> {
+  const now = new Date();
+  const companyId = o.companyId;
+  const prefix = await companyPrefix(companyId);
+  const title = `${o.label}`;
+  const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
+    actionItem: title, status: "Not Started",
+    priority: o.flag === "overdue" ? "Critical" : "High",
+    category: obligationCategory(o.category),
+    deadline: o.dueDate, createdDate: now, lastUpdatedAt: now, archived: false,
+  });
+  await sb.from("audit_log").insert({
+    task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task",
+    old_value: null, new_value: title, change_reason: "Created by automation — recurring obligation due", created_at: now.toISOString(), created_by: "automation",
+  });
+  return { taskId: task.id, code: task.code, title };
+}
+
+/** Resolve one DUE obligation instance from its dedup key (obligation:obId:coId:period).
+ *  Re-derives the live instance so Apply uses current dates, not a stale snapshot. */
+async function obligationInstanceFromKey(key: string): Promise<DueObligationInstance | null> {
+  const obligations = await listObligations();
+  const due = await dueObligationInstances(obligations);
+  return due.find((d) => d.key === key) ?? null;
+}
+
 /** Apply a renewal/notice SUGGESTION — create the task now from its remembered
  *  source. Returns the new task so the feed can repoint the event for Undo. */
-export async function createTaskFromSuggestion(row: { target_table: string; target_id: number }): Promise<{ taskId: number; code: string }> {
+export async function createTaskFromSuggestion(row: { target_table: string; target_id: number; detail?: string | null }): Promise<{ taskId: number; code: string }> {
+  if (row.target_table === "recurring_obligations") {
+    // The (company, period) lives in the dedup key, not the row id — read it from detail.
+    const key = (row.detail ?? "").split("|")[0]?.trim() ?? "";
+    const inst = key ? await obligationInstanceFromKey(key) : null;
+    if (!inst) throw new Error("That obligation is no longer due (it may have been done or the period has rolled over).");
+    return createObligationTask(inst);
+  }
   if (row.target_table === "documents") {
     const doc = await getDocument(row.target_id);
     if (!doc || !doc.companyId) throw new Error("That document is no longer available.");
@@ -251,15 +297,20 @@ export async function cascadePipelineIssued(pipelineId: number): Promise<void> {
   }
 }
 
+// Cap how many obligation tasks one sweep can spawn — a safety bound so a fresh
+// install (or a wide lead window) can't dump a huge batch in one tick.
+const MAX_OBLIGATION_TASKS_PER_RUN = 40;
+
 /** Run the time-based automations. Returns how many work items were created. */
-export async function runTimeAutomations(): Promise<{ renewals: number; commitments: number; probations: number }> {
+export async function runTimeAutomations(): Promise<{ renewals: number; commitments: number; probations: number; obligations: number }> {
   let renewals = 0;
   let commitments = 0;
   let probations = 0;
+  let obligations = 0;
   // Respect the control-room mode: "off" disables spawning work entirely;
   // "suggest" records a one-click suggestion instead of creating the task.
   const mode = await getAutomationMode("task-create");
-  if (mode === "off") return { renewals, commitments, probations };
+  if (mode === "off") return { renewals, commitments, probations, obligations };
   const suggesting = mode === "suggest";
   const baseline = await getOrInitBaseline(); // forward-only: skip the existing backlog
 
@@ -364,6 +415,47 @@ export async function runTimeAutomations(): Promise<{ renewals: number; commitme
     await recordEvent("automation.time", "error", { step: "probations", message: e instanceof Error ? e.message : String(e) });
   }
 
-  await recordEvent("automation.time", "ok", { renewals, commitments, probations });
-  return { renewals, commitments, probations };
+  // 4. Recurring obligations — the Tax & Legal cadence grid. For each obligation
+  //    now DUE (inside its lead window, this period) and applicable to a company
+  //    that hasn't ticked it, spawn a task to do it. Due-ness + per-company
+  //    applicability + "done this period" all come from dueObligationInstances
+  //    (which reuses outstandingDeadlines) — nothing about cadence is reinvented.
+  //    Deduped one-task-per-obligation+company+period via a stable key in detail,
+  //    so it never re-spawns within a period (and an undone task isn't re-created).
+  try {
+    const obList = await listObligations();
+    const due = await dueObligationInstances(obList);
+    for (const o of due) {
+      if (obligations >= MAX_OBLIGATION_TASKS_PER_RUN) break; // bounded per run
+      // Forward-only: skip anything whose deadline fell before the baseline so
+      // enabling automation doesn't dump the existing statutory backlog. (Undated
+      // annual anchors are already filtered out upstream — they have no period.)
+      if (o.dueDate && o.dueDate < baseline) continue;
+      // Dedup across ALL statuses, keyed by obligation+company+period in detail.
+      const { data: existing } = await sb.from("automation_events").select("id").eq("kind", "task-create").ilike("detail", `${o.key}|%`).limit(1);
+      if (existing && existing.length) continue;
+      const word = o.flag === "overdue" ? "overdue" : "due";
+      if (suggesting) {
+        await sb.from("automation_events").insert({
+          kind: "task-create", status: "suggested", document_id: null, target_table: "recurring_obligations", target_id: o.obligationId,
+          person_id: null, company_id: o.companyId, summary: `Create task — ${word}: “${o.label}” (${o.companyName})`,
+          detail: `${o.key}| Recurring obligation ${word} — create the task to do it`, prev_value: null, new_value: null,
+          created_at: new Date().toISOString(), acted_at: null, created_by: "automation",
+        });
+      } else {
+        const t = await createObligationTask(o);
+        await logTaskCreate({
+          documentId: null, companyId: o.companyId, personId: null, taskId: t.taskId, taskCode: t.code,
+          summary: `Created task ${t.code} — ${word}: “${o.label}” (${o.companyName})`,
+          detail: `${o.key}| Recurring obligation ${word} — auto-created the task`,
+        });
+      }
+      obligations++;
+    }
+  } catch (e) {
+    await recordEvent("automation.time", "error", { step: "obligations", message: e instanceof Error ? e.message : String(e) });
+  }
+
+  await recordEvent("automation.time", "ok", { renewals, commitments, probations, obligations });
+  return { renewals, commitments, probations, obligations };
 }

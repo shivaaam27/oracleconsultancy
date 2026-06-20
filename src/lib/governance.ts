@@ -1,4 +1,6 @@
 import { sb } from "@/db/supabase";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
+import { GOV_BASE } from "@/lib/entity-registry";
 import {
   riskScore,
   type CompanyGovernance,
@@ -112,14 +114,22 @@ export async function getRiskRegister(): Promise<Risk[]> {
 // ── Writes (in-app governance editing; CLI seed is one-off) ────────────────
 
 export async function addCapHolder(companyId: number, holder: string, shares: number | null, pct: number | null, holderType: string | null): Promise<void> {
-  await sb.from("cap_table").insert({ company_id: companyId, holder, shares, pct, holder_type: holderType });
+  const { data } = await sb.from("cap_table").insert({ company_id: companyId, holder, shares, pct, holder_type: holderType }).select("id").single();
+  if (data) void reindexEntity("governance", GOV_BASE.capTable + (data.id as number));
 }
-export async function deleteCapHolder(id: number): Promise<void> { await sb.from("cap_table").delete().eq("id", id); }
+export async function deleteCapHolder(id: number): Promise<void> {
+  await sb.from("cap_table").delete().eq("id", id);
+  void removeEntityIndex("governance", GOV_BASE.capTable + id); // hard delete — drop from index
+}
 
 export async function addSignatory(companyId: number, name: string, scope: string | null): Promise<void> {
-  await sb.from("signatories").insert({ company_id: companyId, name, scope });
+  const { data } = await sb.from("signatories").insert({ company_id: companyId, name, scope }).select("id").single();
+  if (data) void reindexEntity("governance", GOV_BASE.signatory + (data.id as number));
 }
-export async function deleteSignatory(id: number): Promise<void> { await sb.from("signatories").delete().eq("id", id); }
+export async function deleteSignatory(id: number): Promise<void> {
+  await sb.from("signatories").delete().eq("id", id);
+  void removeEntityIndex("governance", GOV_BASE.signatory + id); // hard delete — drop from index
+}
 
 export async function addResolution(companyId: number, date: string | null, type: string | null, summary: string): Promise<void> {
   await sb.from("resolutions").insert({ company_id: companyId, date: date ? new Date(date + "T00:00:00Z").toISOString() : null, type, summary });
@@ -127,11 +137,18 @@ export async function addResolution(companyId: number, date: string | null, type
 export async function deleteResolution(id: number): Promise<void> { await sb.from("resolutions").delete().eq("id", id); }
 
 export async function addRisk(input: { code: string; title: string; category: string | null; likelihood: number | null; impact: number | null; owner: string | null; mitigation: string | null }): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await sb.from("risks").insert({ ...input, status: "Open" });
+  const { data, error } = await sb.from("risks").insert({ ...input, status: "Open" }).select("id").single();
+  if (!error && data) void reindexEntity("risk", data.id as number);
   return { ok: !error, error: error?.message };
 }
-export async function setRiskStatus(id: number, status: string): Promise<void> { await sb.from("risks").update({ status }).eq("id", id); }
-export async function deleteRisk(id: number): Promise<void> { await sb.from("risks").delete().eq("id", id); }
+export async function setRiskStatus(id: number, status: string): Promise<void> {
+  await sb.from("risks").update({ status }).eq("id", id);
+  void reindexEntity("risk", id); // status may flip lifecycle active↔history (closed/done)
+}
+export async function deleteRisk(id: number): Promise<void> {
+  await sb.from("risks").delete().eq("id", id);
+  void removeEntityIndex("risk", id); // hard delete — drop from index
+}
 
 export async function addDecision(input: { code: string; title: string; companyId: number | null; type: string | null; context: string | null; due: string | null }): Promise<{ ok: boolean; error?: string }> {
   const { error } = await sb.from("decisions").insert({ code: input.code, title: input.title, company_id: input.companyId, type: input.type, context: input.context, due: input.due ? new Date(input.due + "T00:00:00Z").toISOString() : null, status: "Pending" });

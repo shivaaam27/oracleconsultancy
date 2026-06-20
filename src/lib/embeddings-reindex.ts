@@ -1,46 +1,84 @@
-// S6 — semantic-search freshness safety net.
+// S6 — semantic-search freshness safety net (history-aware, all-entity).
 //
-// reindexAll() re-indexes every ACTIVE task/meeting/document/person (unchanged
-// items are skipped via content_hash, so it's cheap) and deletes embeddings whose
-// source row no longer exists OR was archived/deactivated (orphans/ghosts). This
-// is the catch-all behind the per-write create/update/delete hooks: it heals
-// missed fire-and-forget calls, picks up edits, and removes stale vectors. Run by
-// the nightly /api/cron/reindex cron and by the backfill script.
+// reindexAll() re-indexes EVERY entity the system holds — tasks, meetings,
+// documents, people, companies, letters, vendors, assets, governance, risks,
+// pipeline cases and commitments — both CURRENT and HISTORICAL. Unchanged rows
+// are skipped via content_hash (+ lifecycle), so it stays cheap. Each row is
+// stamped lifecycle "active" (live) or "history" (archived/closed/inactive); the
+// owner asked that the past be KEPT and labelled, not deleted, so old records
+// stay searchable behind the lifecycle filter.
+//
+// The set of rows, their text and their lifecycle are now DERIVED from the
+// single source of truth in src/lib/entity-registry.ts (ENTITY_DEFS +
+// getGovernanceRows), the same definitions the per-write hooks use — so adding a
+// new entity there makes it auto-index nightly here, with zero drift between the
+// write-hooks and the catch-all.
+//
+// The ONLY embeddings we delete are TRUE ORPHANS: rows whose source no longer
+// exists at all (hard-deleted). An archived/closed/inactive source is NOT an
+// orphan — it is re-indexed as history. This is the catch-all behind the
+// per-write create/update/delete hooks: it heals missed fire-and-forget calls,
+// picks up edits, flips lifecycle, and removes only genuinely vanished vectors.
+// Run by the nightly /api/cron/reindex cron and by the backfill script.
 
 import { sb } from "@/db/supabase";
-import { indexEmbedding, type SourceType } from "@/lib/embeddings";
+import { indexEmbedding, type SourceType, type Lifecycle } from "@/lib/embeddings";
+import { ENTITY_DEFS, getGovernanceRows, isGovernance, type EntityRow } from "@/lib/entity-registry";
 
-type Row = { type: SourceType; id: number; content: string };
-const join = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join("\n");
+type Row = { type: SourceType; id: number; content: string; lifecycle: Lifecycle };
 
-/** All active source rows + the text we index for each. Mirrors the write hooks. */
-async function activeRows(): Promise<Row[]> {
+/** All source rows (current + historical) + the text + lifecycle to index.
+ *  DERIVED from ENTITY_DEFS so it always matches the per-write hooks; lifecycle
+ *  decides active vs history. Governance is special (composite ids over four
+ *  tables) and gathered via getGovernanceRows(). */
+async function allRows(): Promise<Row[]> {
   const rows: Row[] = [];
 
-  const { data: tasks } = await sb.from("tasks").select("id,action_item,latest_update").eq("archived", false);
-  for (const t of tasks ?? []) rows.push({ type: "task", id: t.id as number, content: join(t.action_item as string, t.latest_update as string) });
+  for (const def of ENTITY_DEFS) {
+    // Governance is handled out-of-band: one SourceType, four physical tables,
+    // composite ids. getGovernanceRows() mirrors the old collectGovernance().
+    if (isGovernance(def.type)) {
+      for (const g of await getGovernanceRows())
+        rows.push({ type: def.type, id: g.id, content: g.content, lifecycle: g.lifecycle });
+      continue;
+    }
 
-  const { data: meetings } = await sb.from("meetings").select("id,title,attendees,raw_notes,minutes");
-  for (const m of meetings ?? []) rows.push({ type: "meeting", id: m.id as number, content: join(m.title as string, m.attendees as string, m.raw_notes as string, m.minutes as string) });
-
-  const { data: docs } = await sb.from("documents").select("id,title,doc_type,issuer,category,reference_no,notes,extracted_text").eq("archived", false);
-  for (const d of docs ?? []) rows.push({ type: "document", id: d.id as number, content: join(d.title as string, d.doc_type as string, d.issuer as string, d.category as string, d.reference_no as string, d.notes as string, d.extracted_text as string) });
-
-  const { data: people } = await sb.from("people").select("id,name,role,staff_category,notes").eq("active", true);
-  for (const p of people ?? []) rows.push({ type: "person", id: p.id as number, content: join(p.name as string, p.role as string, p.staff_category as string, p.notes as string) });
+    const { data } = await sb.from(def.table).select(def.selectColumns.join(","));
+    for (const r of data ?? []) {
+      const row = r as unknown as EntityRow;
+      rows.push({
+        type: def.type,
+        id: Number(row[def.idColumn]),
+        lifecycle: def.lifecycleFor(row),
+        content: def.textFor(row),
+      });
+    }
+  }
 
   return rows;
 }
 
-/** Delete embeddings whose (type, source_id) is not among the current active rows. */
+/**
+ * Delete embeddings that are TRUE ORPHANS only: their (source_type, source_id)
+ * is not present among the current rows (the source was hard-deleted). Archived/
+ * closed/inactive sources are NOT orphans — they stay indexed as history.
+ */
 async function removeOrphans(rows: Row[]): Promise<number> {
-  const valid: Record<SourceType, Set<number>> = { task: new Set(), meeting: new Set(), document: new Set(), person: new Set() };
-  for (const r of rows) valid[r.type].add(r.id);
+  const valid = new Map<SourceType, Set<number>>();
+  for (const r of rows) {
+    let set = valid.get(r.type);
+    if (!set) valid.set(r.type, (set = new Set()));
+    set.add(r.id);
+  }
+  // Every SourceType we manage — derived from the registry so a type whose source
+  // table is now empty still has its leftover vectors swept.
+  const allTypes: SourceType[] = ENTITY_DEFS.map((d) => d.type);
   let removed = 0;
-  for (const type of Object.keys(valid) as SourceType[]) {
+  for (const type of allTypes) {
+    const present = valid.get(type) ?? new Set<number>();
     const { data } = await sb.from("embeddings").select("source_id").eq("source_type", type);
     const ids = [...new Set((data ?? []).map((r) => r.source_id as number))];
-    const orphans = ids.filter((id) => !valid[type].has(id));
+    const orphans = ids.filter((id) => !present.has(id));
     if (orphans.length) {
       await sb.from("embeddings").delete().eq("source_type", type).in("source_id", orphans);
       removed += orphans.length;
@@ -50,9 +88,9 @@ async function removeOrphans(rows: Row[]): Promise<number> {
 }
 
 export async function reindexAll(force = false): Promise<{ checked: number; orphansRemoved: number }> {
-  const rows = await activeRows();
+  const rows = await allRows();
   for (const r of rows) {
-    if (r.content.trim()) await indexEmbedding(r.type, r.id, r.content, force);
+    if (r.content.trim()) await indexEmbedding(r.type, r.id, r.content, force, r.lifecycle);
   }
   const orphansRemoved = await removeOrphans(rows);
   return { checked: rows.length, orphansRemoved };

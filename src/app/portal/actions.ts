@@ -26,6 +26,7 @@ import {
   verifyPassword,
 } from "@/lib/portal-auth";
 import { computeClosedDate } from "@/lib/task-status";
+import { reindexEntity } from "@/lib/index-hooks";
 import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
@@ -250,6 +251,7 @@ export async function portalCreateTask(
     actor: me.name,
   });
 
+  void reindexEntity("task", task.id); // new task — index it (best-effort)
   revalidatePath("/portal");
   revalidatePath("/portal/tasks");
   revalidatePath("/");
@@ -562,6 +564,7 @@ export async function portalDirectorCreateTask(
     title: `${me.name} assigned you a task`, body: actionItem, actor: me.name,
   });
 
+  void reindexEntity("task", task.id); // new task — index it (best-effort)
   revalidatePath("/portal/board");
   revalidatePath("/portal/tasks");
   revalidatePath("/");
@@ -654,6 +657,8 @@ export async function portalEditTask(input: {
 
   const { error } = await sb.from("tasks").update(patch).eq("id", t.id as number);
   if (error) return { ok: false, error: error.message };
+
+  void reindexEntity("task", t.id as number); // status/lifecycle may have moved (best-effort)
 
   if (reassigned) {
     await notifyMany([personRecipient(reassigned), "admin"], {
@@ -952,6 +957,7 @@ export async function portalAddUpdate(formData: FormData) {
   const { error: upErr } = await sb.from("tasks").update(patch).eq("id", taskId);
   if (upErr) throw new Error(upErr.message);
 
+  void reindexEntity("task", taskId); // latest_update/status may have moved (best-effort)
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);
   revalidatePath("/portal");
@@ -1010,6 +1016,7 @@ export async function portalCompleteTask(
   });
   await sb.from("tasks").update({ status: "Completed", closed_date: computeClosedDate("Completed", null, now), latest_update: body, last_updated_at: now }).eq("id", taskId);
   await logChangeSb(taskId, t.code as string, t.company_id as number, "status", current, "Completed", "Completed from portal (with note)", createdBy);
+  void reindexEntity("task", taskId); // Completed → lifecycle="history" (best-effort)
   // Cross-process cascade: if this task drives a pipeline case, advance it. Guarded.
   try { const m = await import("@/lib/automation-reactions"); await m.reactToTaskStatusChange(taskId, current, "Completed"); } catch { /* best-effort */ }
 

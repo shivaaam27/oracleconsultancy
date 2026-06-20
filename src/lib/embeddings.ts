@@ -18,8 +18,33 @@ import { getAppSettings, getGroqKey } from "@/lib/settings";
 import { callGroqText } from "@/lib/ai-json";
 import { GROQ_FAST } from "@/lib/ai-models";
 
-export type SourceType = "task" | "meeting" | "document" | "person";
-export type SemanticHit = { sourceType: SourceType; sourceId: number; content: string; similarity: number };
+export type SourceType =
+  | "task"
+  | "meeting"
+  | "document"
+  | "person"
+  | "company"
+  | "letter"
+  | "vendor"
+  | "asset"
+  | "governance"
+  | "risk"
+  | "pipeline"
+  | "commitment";
+
+// Lifecycle of an indexed source row. `active` = current/live; `history` = the
+// row still EXISTS but is archived/closed/inactive (kept searchable, just
+// labelled so callers can include or exclude past records). Old vectors written
+// before migration 0094 default to `active` in the DB.
+export type Lifecycle = "active" | "history";
+
+export type SemanticHit = {
+  sourceType: SourceType;
+  sourceId: number;
+  content: string;
+  similarity: number;
+  lifecycle: Lifecycle;
+};
 
 const EMBED_FN = "embed";
 const CHUNK_CHARS = 1800;   // ~450 tokens — within gte-small's 512-token cap
@@ -118,10 +143,19 @@ async function embedText(text: string): Promise<number[] | null> {
  * Index one item's content for hybrid search. Chunks it, embeds each chunk (the
  * English translation when needed), and replaces the parent's rows atomically.
  * Best-effort + safe to call fire-and-forget: no-ops when the feature is off,
- * content is empty, or unchanged since last index (content_hash), and never throws.
- * `force` bypasses the on/off gate (for the backfill script).
+ * content is empty, or unchanged since last index (content_hash + lifecycle),
+ * and never throws. `force` bypasses the on/off gate (for the backfill script).
+ * `lifecycle` labels the row as current ("active") or archived/closed/inactive
+ * ("history") — history is kept searchable, never deleted; defaults to "active"
+ * so existing callers keep their behaviour.
  */
-export async function indexEmbedding(sourceType: SourceType, sourceId: number, content: string, force = false): Promise<void> {
+export async function indexEmbedding(
+  sourceType: SourceType,
+  sourceId: number,
+  content: string,
+  force = false,
+  lifecycle: Lifecycle = "active",
+): Promise<void> {
   try {
     if (!sourceId || !content?.trim()) return;
     if (!force && !(await semanticEnabled())) return;
@@ -129,12 +163,15 @@ export async function indexEmbedding(sourceType: SourceType, sourceId: number, c
     const h = hash(full);
     const { data: existing } = await sb
       .from("embeddings")
-      .select("content_hash")
+      .select("content_hash,lifecycle")
       .eq("source_type", sourceType)
       .eq("source_id", sourceId)
       .limit(1)
       .maybeSingle();
-    if (existing && (existing as { content_hash?: string }).content_hash === h) return;
+    // Skip only when BOTH the content and the lifecycle are unchanged, so a row
+    // flipping active⇄history is always re-stamped even if its text is identical.
+    const prev = existing as { content_hash?: string; lifecycle?: string } | null;
+    if (prev && prev.content_hash === h && (prev.lifecycle ?? "active") === lifecycle) return;
 
     const chunks = chunkText(full);
     if (!chunks.length) return;
@@ -149,6 +186,7 @@ export async function indexEmbedding(sourceType: SourceType, sourceId: number, c
       p_source_id: sourceId,
       p_content_hash: h,
       p_chunks: out,
+      p_lifecycle: lifecycle,
     });
   } catch {
     /* best-effort: never break the write path */
@@ -164,26 +202,47 @@ export async function removeEmbedding(sourceType: SourceType, sourceId: number):
   }
 }
 
+export type SearchOpts = {
+  types?: SourceType[];
+  limit?: number;
+  /**
+   * Which lifecycle of records to search:
+   *   "active"  (default) — current/live records only, as callers expected before
+   *   "history"           — archived/closed/inactive records only
+   *   "all"               — both current and historical
+   * Maps to the RPC's `filter_lifecycle` arg (NULL = all).
+   */
+  lifecycle?: Lifecycle | "all";
+};
+
 /**
  * Hybrid search: full-text + vector fused by RRF, rolled up to the best chunk per
  * parent. Returns [] when the feature is off, the query can't be embedded, or
  * nothing is indexed — so callers fall back to keyword search. `similarity` carries
- * the RRF score (higher = better; not a cosine value).
+ * the RRF score (higher = better; not a cosine value). Defaults to current records
+ * only (`lifecycle: "active"`), so existing callers never surface archived history.
+ *
+ * Best-effort: if the deployed DB still has the OLD hybrid_search signature (no
+ * lifecycle arg — i.e. before migration 0094 is applied), the RPC errors and we
+ * return [] so prod simply falls back to keyword search until the migration lands.
  */
 export async function hybridSearch(
   query: string,
-  opts?: { types?: SourceType[]; limit?: number },
+  opts?: SearchOpts,
 ): Promise<SemanticHit[]> {
   try {
     if (!query?.trim()) return [];
     if (!(await semanticEnabled())) return [];
     const vec = await embedText(await maybeTranslate(query));
     if (!vec) return [];
+    const lifecycle = opts?.lifecycle ?? "active";
     const { data, error } = await sb.rpc("hybrid_search", {
       query_text: query.trim().slice(0, 1000),
       query_embedding: toVectorString(vec),
       match_count: opts?.limit ?? 12,
       filter_types: opts?.types ?? null,
+      // NULL = all lifecycles; otherwise restrict to the one asked for.
+      filter_lifecycle: lifecycle === "all" ? null : lifecycle,
     });
     if (error || !Array.isArray(data)) return [];
     return (data as Record<string, unknown>[]).map((r) => ({
@@ -191,6 +250,7 @@ export async function hybridSearch(
       sourceId: Number(r.source_id),
       content: r.content as string,
       similarity: Number(r.score),
+      lifecycle: ((r.lifecycle as string) === "history" ? "history" : "active") as Lifecycle,
     }));
   } catch {
     return [];
@@ -200,7 +260,7 @@ export async function hybridSearch(
 /** Back-compat alias — now hybrid (full-text + vector). */
 export async function semanticSearch(
   query: string,
-  opts?: { types?: SourceType[]; limit?: number },
+  opts?: SearchOpts,
 ): Promise<SemanticHit[]> {
   return hybridSearch(query, opts);
 }

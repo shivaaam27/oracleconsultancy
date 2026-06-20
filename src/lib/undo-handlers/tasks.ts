@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 
 type TaskFields = {
   actionItem: string;
@@ -71,11 +72,13 @@ registerUndoHandler("task.update", async (raw) => {
       .upsert({ task_id: p.taskId, person_id: personId }, { ignoreDuplicates: true });
   }
   await writeUndoAudit(p.taskId, p.taskCode, p.companyId, "task.update");
+  void reindexEntity("task", p.taskId); // fields reverted — re-index (best-effort)
 });
 
 registerUndoHandler("task.create", async (raw) => {
   const p = raw as { taskId: number };
   await sb.from("tasks").delete().eq("id", p.taskId);
+  void removeEntityIndex("task", p.taskId); // row gone — drop its index entry
 });
 
 registerUndoHandler("task.delete", async (raw) => {
@@ -172,6 +175,7 @@ registerUndoHandler("task.delete", async (raw) => {
         .insert({ task_id: newId, meeting_id: link.meeting_id, created_at: link.created_at });
     }
     await writeUndoAudit(newId, p.task.code, p.task.companyId, "task.delete");
+    void reindexEntity("task", newId); // task re-created — re-index (best-effort)
   }
 });
 
@@ -199,4 +203,5 @@ registerUndoHandler("task.update.add", async (raw) => {
     })
     .eq("id", p.taskId);
   await writeUndoAudit(p.taskId, p.taskCode, p.companyId, "task.update.add");
+  void reindexEntity("task", p.taskId); // latest_update/status reverted — re-index
 });

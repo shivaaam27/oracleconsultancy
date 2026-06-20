@@ -1,6 +1,7 @@
 import { sb } from "@/db/supabase";
 import { deriveDocStatus, expiryLabel, type DocStatus } from "@/lib/documents-shared";
 import type { VendorRow } from "@/lib/vendors-shared";
+import { reindexEntity } from "@/lib/index-hooks";
 
 /* ------------------------------------------------------------------ */
 /* Vendor / Supplier register. Contracts reuse the documents engine    */
@@ -146,7 +147,9 @@ export async function createVendor(input: VendorInput): Promise<number> {
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  return data.id as number;
+  const id = data.id as number;
+  void reindexEntity("vendor", id); // best-effort, never throws
+  return id;
 }
 
 export async function updateVendor(id: number, input: VendorInput): Promise<void> {
@@ -165,6 +168,7 @@ export async function updateVendor(id: number, input: VendorInput): Promise<void
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
+  void reindexEntity("vendor", id); // best-effort
 }
 
 export async function archiveVendor(id: number): Promise<void> {
@@ -173,4 +177,8 @@ export async function archiveVendor(id: number): Promise<void> {
     .update({ active: false, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw new Error(error.message);
+  // Soft archive (active=false) — re-stamp lifecycle to "history" (registry
+  // lifecycleFor reads `active`) and keep it searchable, rather than removing
+  // the index. Only a true hard-delete would call removeEntityIndex.
+  void reindexEntity("vendor", id); // best-effort
 }

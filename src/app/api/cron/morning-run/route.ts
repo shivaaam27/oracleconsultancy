@@ -3,7 +3,7 @@ import { sb } from "@/db/supabase";
 import { authoriseCron } from "@/lib/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { sendToRecipient, configurePush } from "@/lib/push";
+import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/push";
 import { runTimeAutomations } from "@/lib/automation-time";
 import { buildMorningBrief } from "@/lib/morning-brief";
 
@@ -27,6 +27,18 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "automations", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1a. Chase the GAPS — propose tasks for missing records the system spotted
+    //     (a company with no TIN, a person missing a mandatory document, an
+    //     expired critical doc with no renewal). Same rails as the date sweep:
+    //     mode-gated, forward-only, deduped, capped, logged + undoable.
+    let gaps = { created: 0, suggested: 0 };
+    try {
+      const { runGapChasing } = await import("@/lib/automation-gaps");
+      gaps = await runGapChasing();
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "gaps", message: e instanceof Error ? e.message : String(e) });
+    }
+
     // 1b. Self-heal: re-read documents the system previously mis-read (scanner
     //     watermarks) and fill owners that now resolve. Best-effort, capped.
     try {
@@ -36,18 +48,36 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "selfheal", message: e instanceof Error ? e.message : String(e) });
     }
 
-    // 1c. Watchdog: check every scheduled job + the AI reader. If anything has
-    //     failed or gone silent, log it so it surfaces in the Activity log and the
-    //     System-health panel (in-app only — no email).
+    // 1c. Watchdog + SELF-REPAIR: check every scheduled job + the AI reader. Pass
+    //     repair:true so any job that failed or went stale gets ONE re-run attempt
+    //     here BEFORE it's reported — a transient stall self-heals and the owner
+    //     never sees red. We only log a "system.health" alert for what's STILL
+    //     unhealthy after the repair pass; jobs that self-repaired are logged as a
+    //     calm "system.repaired" note instead. In-app only — no email.
     try {
       const { checkSystemHealth } = await import("@/lib/system-health");
-      const health = await checkSystemHealth();
+      const health = await checkSystemHealth({ repair: true });
+      const repaired = health.jobs.filter((j) => j.repaired);
+      if (repaired.length) {
+        await recordEvent("system.repaired", "ok", { jobs: repaired.map((j) => j.label) });
+      }
       if (health.status !== "ok") {
         const bad = health.jobs.filter((j) => j.state !== "healthy");
         await recordEvent("system.health", "error", {
           status: health.status,
           schedulerStale: health.schedulerStale,
           down: bad.map((j) => `${j.label}: ${j.state}`),
+          autoRepaired: repaired.map((j) => j.label),
+        });
+      } else if (repaired.length) {
+        // All green AFTER a self-repair — worth a calm positive note in the feed so
+        // the owner can see the system looked after itself overnight. When nothing
+        // needed fixing we stay quiet (the live card already shows the green state),
+        // so the feed isn't spammed with a daily "all fine" row.
+        await recordEvent("system.health", "ok", {
+          healthy: `${health.summary.healthyJobs}/${health.summary.totalJobs}`,
+          repaired: `${repaired.length} job${repaired.length === 1 ? "" : "s"}`,
+          itemsIndexed: health.summary.itemsIndexed,
         });
       }
     } catch (e) {
@@ -64,19 +94,32 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "model-watch", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1e. Flush any routine notifications held back overnight by quiet hours /
+    //     the digest setting into one "while you were away" summary push. This is
+    //     the SCHEDULED job that actually runs in vercel.json, so the digest must
+    //     drain here — otherwise enabling it would silently lose every routine
+    //     device buzz (the in-app bell still has the rows). Best-effort; held back
+    //     again if we're still inside the quiet-hours window.
+    let digest: Awaited<ReturnType<typeof flushRoutineDigests>> = { recipients: 0, pushed: 0 };
+    try {
+      digest = await flushRoutineDigests();
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "digest", message: e instanceof Error ? e.message : String(e) });
+    }
+
     // 2. Compose the three-band brief from the freshly-updated state.
     const brief = await buildMorningBrief();
 
     // 3. One notification — deep-link to the cockpit when there's something to act
     //    on, else the command centre. Skip entirely when there's nothing to say.
     if (brief.empty) {
-      await recordEvent("cron.morning", "ok", { sent: 0, reason: "nothing-to-say", work });
-      return NextResponse.json({ ok: true, sent: 0, work });
+      await recordEvent("cron.morning", "ok", { sent: 0, reason: "nothing-to-say", work, gaps, digest });
+      return NextResponse.json({ ok: true, sent: 0, work, gaps, digest });
     }
 
     if (!configurePush()) {
-      await recordEvent("cron.morning", "ok", { sent: 0, reason: "push-not-configured", work, brief: brief.line });
-      return NextResponse.json({ ok: true, sent: 0, reason: "push-not-configured", work });
+      await recordEvent("cron.morning", "ok", { sent: 0, reason: "push-not-configured", work, gaps, brief: brief.line, digest });
+      return NextResponse.json({ ok: true, sent: 0, reason: "push-not-configured", work, gaps, digest });
     }
 
     // De-dupe: only push when the picture changed from the last run.
@@ -84,8 +127,8 @@ export async function GET(req: NextRequest) {
     const signature = `${today.toISOString().slice(0, 10)}|${brief.doneOvernight}|${brief.waiting}|${brief.urgent.total}`;
     const { data: last } = await sb.from("settings").select("value").eq("key", SIG_KEY).maybeSingle();
     if ((last?.value as string | null) === signature) {
-      await recordEvent("cron.morning", "ok", { sent: 0, reason: "unchanged", work });
-      return NextResponse.json({ ok: true, sent: 0, reason: "unchanged", work });
+      await recordEvent("cron.morning", "ok", { sent: 0, reason: "unchanged", work, gaps, digest });
+      return NextResponse.json({ ok: true, sent: 0, reason: "unchanged", work, gaps, digest });
     }
 
     const url = brief.urgent.total > 0 ? "/?tab=tasks&flag=overdue" : brief.waiting > 0 ? "/approvals" : "/";
@@ -98,8 +141,8 @@ export async function GET(req: NextRequest) {
     });
 
     await sb.from("settings").upsert({ key: SIG_KEY, value: signature }, { onConflict: "key" });
-    await recordEvent("cron.morning", "ok", { sent, work, signature });
-    return NextResponse.json({ ok: true, sent, work });
+    await recordEvent("cron.morning", "ok", { sent, work, gaps, signature, digest });
+    return NextResponse.json({ ok: true, sent, work, gaps, digest });
   } catch (err) {
     await reportError(err, { route: "cron.morning" });
     await recordEvent("cron.morning", "error", { message: err instanceof Error ? err.message : String(err) });

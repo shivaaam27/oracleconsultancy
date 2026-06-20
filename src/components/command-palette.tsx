@@ -3,8 +3,10 @@ import { Command } from "cmdk";
 import { useEffect, useState, createContext, useContext, useCallback, useRef, type ComponentPropsWithoutRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, Users, Building2, FileText, Mail, NotebookPen, Truck, Laptop, CalendarPlus, type LucideIcon } from "lucide-react";
-import type { SearchResult, SearchResultType } from "@/lib/search";
+import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch } from "lucide-react";
+import type { SearchResult } from "@/lib/search";
+import { buildPaletteTypeMeta } from "./entity-ui";
+import { Switch } from "./ui";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
@@ -15,6 +17,7 @@ import { derivePageContext } from "@/lib/page-context";
 import { suggestionsFor } from "@/lib/page-suggestions";
 import { useCurrentView } from "@/lib/current-view";
 import { friendlyAIError } from "@/lib/ai-errors";
+import { TracePanel } from "./trace-panel";
 import dynamic from "next/dynamic";
 
 // Lazy: the WebGL aurora only loads (and only ships) once the palette opens.
@@ -29,7 +32,7 @@ type SearchItem = { code: string; label: string; sub: string; href: string; stat
 // A turn in the conversation thread.
 type Msg =
   | { id: string; role: "user"; text: string }
-  | { id: string; role: "assistant"; text: string; taskCount?: number | null; meetingCount?: number | null; streaming?: boolean }
+  | { id: string; role: "assistant"; text: string; taskCount?: number | null; meetingCount?: number | null; sourceSummary?: string | null; streaming?: boolean }
   | { id: string; role: "action"; command: string }
   | { id: string; role: "error"; text: string; retry?: string };
 
@@ -74,17 +77,12 @@ function isDeterministicQuery(text: string): boolean {
   return missing || leave;
 }
 
-// Deep-index result types → heading, row icon, and accent colour.
-const TYPE_META: Record<SearchResultType, { label: string; icon: LucideIcon; tint: string }> = {
-  person:   { label: "People",    icon: Users,      tint: "text-sky-500" },
-  company:  { label: "Companies", icon: Building2,  tint: "text-violet-500" },
-  document: { label: "Documents", icon: FileText,   tint: "text-amber-500" },
-  letter:   { label: "Letters",   icon: Mail,       tint: "text-emerald-500" },
-  meeting:  { label: "Meetings",  icon: NotebookPen, tint: "text-rose-500" },
-  vendor:   { label: "Vendors",   icon: Truck,      tint: "text-teal-500" },
-  asset:    { label: "Assets",    icon: Laptop,     tint: "text-indigo-500" },
-};
-const TYPE_ORDER: SearchResultType[] = ["person", "company", "document", "letter", "meeting", "vendor", "asset"];
+// Deep-index result types → heading, row icon, and accent colour. Derived from
+// the entity registry (label/order) + ENTITY_UI (icon/tint) via buildPaletteTypeMeta,
+// so adding one EntityDef makes a new entity group render here with no edits to
+// this file. The headings, icons, tints and order are byte-for-byte the same as
+// the old hand-written TYPE_META/TYPE_ORDER.
+const { order: TYPE_ORDER, meta: TYPE_META } = buildPaletteTypeMeta();
 
 // Magnetic hover — the element leans a few px toward the cursor and springs back
 // on leave. No-op on touch (no cursor). The CSS `transition-transform` does the
@@ -152,6 +150,10 @@ export function CommandPaletteProvider({
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SearchItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
+  // Search mode: when ON, the deep index also returns archived/closed/expired
+  // records (each flagged lifecycle:"history"). Default OFF keeps everyday
+  // search to live records only.
+  const [includeHistory, setIncludeHistory] = useState(false);
   const [recents, setRecents] = useState<string[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [thread, setThread] = useState<Msg[]>([]);
@@ -191,10 +193,16 @@ export function CommandPaletteProvider({
     return () => { killed = true; window.clearTimeout(id); };
   }, [isOpen, mode]);
 
-  // ⌘K / Ctrl+K hotkey
+  // ⌘K / Ctrl+K (and Ctrl+Space) hotkey
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (!onPortal) setIsOpen((o) => !o);
+      }
+      // Ctrl+Space also toggles. Not Cmd+Space — that's Spotlight / the IME
+      // switcher on macOS, so we deliberately only honour the Ctrl modifier.
+      if (e.ctrlKey && (e.code === "Space" || e.key === " ")) {
         e.preventDefault();
         if (!onPortal) setIsOpen((o) => !o);
       }
@@ -267,7 +275,7 @@ export function CommandPaletteProvider({
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}${includeHistory ? "&history=1" : ""}`);
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) {
@@ -280,7 +288,7 @@ export function CommandPaletteProvider({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, isOpen, mode]);
+  }, [query, isOpen, mode, includeHistory]);
 
   // Reset everything on close.
   useEffect(() => {
@@ -354,6 +362,7 @@ export function CommandPaletteProvider({
       }
       const taskCount = Number(res.headers.get("X-Task-Count")) || null;
       const meetingCount = Number(res.headers.get("X-Meeting-Count")) || null;
+      const sourceSummary = res.headers.get("X-Source-Summary") || null;
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let acc = "";
@@ -364,8 +373,20 @@ export function CommandPaletteProvider({
         if (!streamId) { streamId = newId(); setThinking(false); append({ id: streamId, role: "assistant", text: acc, streaming: true }); }
         else updateMsg(streamId, { text: acc });
       }
-      if (streamId) updateMsg(streamId, { streaming: false, taskCount, meetingCount });
+      if (streamId) updateMsg(streamId, { streaming: false, taskCount, meetingCount, sourceSummary });
       else { setThinking(false); append({ id: newId(), role: "assistant", text: "(no answer)" }); }
+      // ORI MEMORY (record), STREAM path. The server can't capture the final
+      // answer mid-stream, so the client POSTs the assembled Q&A to the dedicated
+      // best-effort endpoint once the stream completes. Fire-and-forget: never
+      // block the UI and never surface an error (memory is additive).
+      if (streamId && acc.trim()) {
+        void fetch("/api/ai-memory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: text, answer: acc.trim() }),
+          keepalive: true,
+        }).catch(() => {});
+      }
     } catch {
       setThinking(false);
       // If the stream failed mid-answer, finalise the partial bubble and flag it
@@ -428,6 +449,9 @@ export function CommandPaletteProvider({
       }}
     >
       {children}
+      {/* Self-managing trace surface — listens for window "cos:trace" events
+          dispatched from result rows; always mounted, opens itself. */}
+      <TracePanel />
       <AnimatePresence>
         {isOpen && (
           <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4">
@@ -504,6 +528,21 @@ export function CommandPaletteProvider({
                       placeholder="Search, ask ORI, or type a command…"
                       className="flex-1 w-full min-w-0 !bg-transparent !border-0 !rounded-none !shadow-none text-[15px] leading-6 focus:outline-none focus:!shadow-none focus:!ring-0 placeholder:text-fg-subtle"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setIncludeHistory((h) => !h)}
+                      role="switch"
+                      aria-checked={includeHistory}
+                      title="Also search archived / closed records"
+                      className={cn(
+                        "shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] transition-colors",
+                        includeHistory ? "border-accent/30 bg-accent-soft text-fg" : "border-border text-fg-muted hover:text-fg",
+                      )}
+                    >
+                      <Clock size={12} className={includeHistory ? "text-accent" : "text-fg-subtle"} />
+                      <span className="hidden sm:inline">History</span>
+                      <Switch on={includeHistory} size="sm" />
+                    </button>
                     <kbd className="shrink-0 text-[10px] font-mono text-fg-subtle border border-border rounded-md px-1.5 py-0.5">
                       ESC
                     </kbd>
@@ -648,7 +687,10 @@ export function CommandPaletteProvider({
                               // never drops a server-ranked (incl. typo-tolerant) hit.
                               value={`${query} ${r.type} ${r.title} ${r.subtitle}`}
                               onSelect={() => go(r.href)}
-                              className="px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted"
+                              className={cn(
+                                "group/idx px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted",
+                                r.lifecycle === "history" && "opacity-70",
+                              )}
                             >
                               <Icon size={14} className={cn("shrink-0", meta.tint)} />
                               <span className="flex-1 truncate">{r.title}</span>
@@ -656,6 +698,24 @@ export function CommandPaletteProvider({
                                 <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{r.badge}</span>
                               )}
                               <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
+                              {/* Trace — opens the self-managed TracePanel. Not for
+                                  governance (trace doesn't support it). */}
+                              {r.type !== "governance" && (
+                                <button
+                                  type="button"
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    window.dispatchEvent(new CustomEvent("cos:trace", { detail: { type: r.type, id: r.id, title: r.title } }));
+                                  }}
+                                  aria-label="Trace history"
+                                  title="Trace history"
+                                  className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md text-fg-subtle hover:text-accent hover:bg-bg-elev transition-colors opacity-0 group-hover/idx:opacity-100 group-data-[selected=true]/idx:opacity-100"
+                                >
+                                  <GitBranch size={13} />
+                                </button>
+                              )}
                             </MagneticItem>
                           ))}
                         </Command.Group>
@@ -959,9 +1019,11 @@ function MessageBubble({
           {msg.streaming && (
             <span className="inline-block w-1.5 h-3.5 -mb-0.5 ml-0.5 bg-accent/70 rounded-sm animate-pulse" aria-hidden />
           )}
-          {!msg.streaming && msg.taskCount != null && (
+          {!msg.streaming && msg.sourceSummary ? (
+            <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.sourceSummary}</div>
+          ) : (!msg.streaming && msg.taskCount != null && (
             <div className="mt-1.5 text-[10px] text-fg-subtle">based on {msg.taskCount} task{msg.taskCount !== 1 ? "s" : ""}{msg.meetingCount ? ` · ${msg.meetingCount} meeting${msg.meetingCount !== 1 ? "s" : ""}` : ""}</div>
-          )}
+          ))}
         </div>
       </div>
     );

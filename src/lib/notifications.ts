@@ -1,6 +1,7 @@
 import "server-only";
 import { sb } from "@/db/supabase";
-import { sendToRecipient } from "./push";
+import { sendToRecipient, queueDigestItem, isCritical } from "./push";
+import { isQuietHoursNow, getAppSettings } from "./settings";
 
 /* ------------------------------------------------------------------ *
  * In-app notifications (T4). Recipient is "admin" (the owner) or
@@ -106,13 +107,45 @@ export async function createNotification(input: {
         : isAdmin
           ? `/hrms/leave`
           : `/portal/profile`;
-    await sendToRecipient(input.recipient, {
-      title: input.title,
-      body: input.body ?? "",
-      url,
-      tag: input.taskCode ? `task-${input.taskCode}` : input.requestId ? `request-${input.requestId}` : `notif-${input.kind}`,
-      count: await unreadCount(input.recipient),
-    });
+    const tag = input.taskCode
+      ? `task-${input.taskCode}`
+      : input.requestId
+        ? `request-${input.requestId}`
+        : `notif-${input.kind}`;
+
+    // Smart, calm delivery (the in-app row above is already written — the bell
+    // never misses anything; here we only shape the DEVICE BUZZ):
+    //  - critical kinds always push immediately;
+    //  - else, during quiet hours OR when the digest is on, HOLD the buzz and
+    //    let the consolidated cron flush it as one batched push.
+    // Default (no quiet hours, digest off) → push immediately as before.
+    const critical = isCritical(input.kind);
+    let deferred = false;
+    if (!critical) {
+      const { notifyDigest } = await getAppSettings();
+      const quiet = await isQuietHoursNow();
+      if (notifyDigest || quiet) {
+        await queueDigestItem(input.recipient, {
+          kind: input.kind,
+          title: input.title,
+          body: input.body ?? "",
+          url,
+          tag,
+          at: new Date().toISOString(),
+        });
+        deferred = true;
+      }
+    }
+
+    if (!deferred) {
+      await sendToRecipient(input.recipient, {
+        title: input.title,
+        body: input.body ?? "",
+        url,
+        tag,
+        count: await unreadCount(input.recipient),
+      });
+    }
   } catch {
     /* swallow — best effort */
   }

@@ -30,9 +30,10 @@ import {
   type DocumentInput,
 } from "@/lib/documents";
 import { categoryExpiryDefault } from "@/lib/documents-shared";
+import { extractPhones, extractEmails, extractBankAccounts, extractAddresses, normalisePhone as normalisePhoneKey, normaliseAddress as normaliseAddressKey, personNamesMatch } from "@/lib/doc-correlation";
 import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
-import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
+import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
@@ -321,7 +322,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       // Folder path segments (deepest-first), matched against people then companies.
       const segs = folderHint.split(/[\\/]/).map((s) => s.trim()).filter(Boolean).reverse();
       for (const seg of segs) {
-        if (!personId) { const p = resolveEntity(seg, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = "folder"; resolutionReason = `matched the folder path "${seg}"`; } }
+        if (!personId) { const p = resolveEntity(seg, people, "person"); if (p) { personId = p.id; ownerName = p.name; resolvedBy = "folder"; resolutionReason = `matched the folder path "${seg}"`; } }
         if (!companyId) { const c = resolveEntity(seg, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = "folder"; resolutionReason = `matched the folder path "${seg}"`; } }
       }
       // Fall back to the operator-declared batch owner.
@@ -336,7 +337,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     // contains-either-way) before giving up and quarantining as "no owner".
     if (!companyId && !personId && (f.companyName || f.personName)) {
       const { companies, people } = await loadEntities();
-      if (f.personName) { const p = resolveEntity(f.personName, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.personName}" matched ${p.name}`; } }
+      if (f.personName) { const p = resolveEntity(f.personName, people, "person"); if (p) { personId = p.id; ownerName = p.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.personName}" matched ${p.name}`; } }
       if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.companyName}" matched ${c.name}`; } }
     }
 
@@ -353,8 +354,9 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       }
     }
 
-    // Cross-document correlation (no AI): a TIN/VRN/reference with no name links to
-    // whatever the system already knows — another doc or fact with that identifier.
+    // Cross-document correlation (no AI): a TIN/VRN/reference — or a phone, email,
+    // bank account or address — with no readable name links to whatever the system
+    // already knows (another doc, a fact, or a known company/person profile).
     if (!companyId && !personId) {
       const corr = await correlateOwnerByIdentifiers(`${f.referenceNo ?? ""} ${res.fullText ?? f.notes ?? ""}`, f.referenceNo ?? null);
       if (corr && (corr.companyId || corr.personId)) {
@@ -362,7 +364,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         companyId = corr.companyId; personId = corr.personId;
         ownerName = (personId ? people.find((p) => p.id === personId)?.name : companies.find((c) => c.id === companyId)?.name) ?? ownerName;
         resolvedBy = resolvedBy ?? "file";
-        resolutionReason = "shares an ID/reference number with another document on file";
+        resolutionReason = "shares an identifier (reference/phone/email/account/address) with a record on file";
       }
     }
 
@@ -753,7 +755,7 @@ export async function retryQuarantineAction(): Promise<{ ok: boolean; scanned: n
       let companyId = f.companyId ?? null;
       let personId = f.personId ?? null;
       if (!companyId && !personId) {
-        if (f.personName) { const p = resolveEntity(f.personName, people); if (p) personId = p.id; }
+        if (f.personName) { const p = resolveEntity(f.personName, people, "person"); if (p) personId = p.id; }
         if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) companyId = c.id; }
       }
       const clean = !!res?.ok && !res?.needsReview;
@@ -807,7 +809,7 @@ export async function selfHealDocuments(limit = 20): Promise<{ ok: boolean; scan
           let companyId = f.companyId ?? null;
           let personId = f.personId ?? null;
           if (!companyId && !personId) {
-            if (f.personName) { const p = resolveEntity(f.personName, people); if (p) personId = p.id; }
+            if (f.personName) { const p = resolveEntity(f.personName, people, "person"); if (p) personId = p.id; }
             if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) companyId = c.id; }
           }
           if (!companyId && !personId) {
@@ -1576,8 +1578,22 @@ async function reExtractStored(doc: { storagePath: string | null; fileName: stri
 
 // --- DR0/DR2: read full body text from stored files (typed text + OCR) ---------
 
-const MAX_OCR_PAGES = 20; // scanned PDFs: OCR up to this many pages
+// Scanned PDFs: OCR up to this many pages. Raised 20 → 40 so long statements /
+// contracts / bundles are read end-to-end. Env-overridable (DOC_MAX_OCR_PAGES),
+// mirroring GROQ_VISION_MODELS, so the cap can be tuned without a redeploy.
+// COST TRADE-OFF: each extra page is one more Groq vision call (latency + spend);
+// 40 is a deliberate ceiling on very long files, not "read everything".
+const MAX_OCR_PAGES = envPageCap("DOC_MAX_OCR_PAGES", 40);
 const MAX_OCR_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/** Read a positive integer page-cap from the environment, else fall back to the
+ *  default. Clamped to a sane range so a typo can't send thousands of pages. */
+function envPageCap(envKey: string, fallback: number): number {
+  const raw = process.env[envKey];
+  const n = raw ? parseInt(raw, 10) : NaN;
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return Math.min(n, 200);
+}
 
 function isHeicFile(file: File): boolean {
   const n = file.name.toLowerCase();
@@ -2041,10 +2057,12 @@ async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }
 
 /**
  * Cross-document correlation (no AI): a document may carry only a TIN / VRN /
- * reference number with no readable name. If ANY existing record already ties that
- * identifier to an owner — another filed document with the same reference number,
- * or a fact recorded against a company/person — inherit that owner. This is how the
- * system "remembers": a sparse new scan links to what it already knows.
+ * reference number — or a phone, email, bank account, or address — with no
+ * readable name. If ANY existing record already ties one of those identifiers to
+ * an owner (another filed document, a recorded fact, or a known company/person
+ * profile) inherit that owner. This is how the system "remembers": a sparse new
+ * scan links to what it already knows. Deterministic, best-effort, AI-free; the
+ * caller falls through to quarantine only when this returns null.
  */
 async function correlateOwnerByIdentifiers(haystack: string, referenceNo: string | null): Promise<{ companyId: number | null; personId: number | null } | null> {
   // Distinctive numeric identifiers (TIN/VRN/control/reference style: 6+ digits).
@@ -2052,34 +2070,155 @@ async function correlateOwnerByIdentifiers(haystack: string, referenceNo: string
   for (const t of (haystack.match(/\d[\d-]{5,}\d/g) ?? [])) { const d = t.replace(/\D/g, ""); if (d.length >= 6) tokens.add(d); }
   const ref = referenceNo?.trim();
   if (ref && ref.length >= 4) tokens.add(ref);
-  if (tokens.size === 0) return null;
   const toks = [...tokens].slice(0, 12);
   try {
-    // 1) Another FILED document with the same reference number → its owner.
-    const { data: byRef } = await supa
-      .from("documents")
-      .select("company_id,person_id,reference_no")
-      .eq("archived", false).not("reference_no", "is", null)
-      .in("reference_no", toks).limit(5);
-    for (const r of byRef ?? []) {
-      if (r.company_id || r.person_id) return { companyId: (r.company_id as number | null) ?? null, personId: (r.person_id as number | null) ?? null };
+    if (toks.length) {
+      // 1) Another FILED document with the same reference number → its owner.
+      const { data: byRef } = await supa
+        .from("documents")
+        .select("company_id,person_id,reference_no")
+        .eq("archived", false).not("reference_no", "is", null)
+        .in("reference_no", toks).limit(5);
+      for (const r of byRef ?? []) {
+        if (r.company_id || r.person_id) return { companyId: (r.company_id as number | null) ?? null, personId: (r.person_id as number | null) ?? null };
+      }
+      // 2) A recorded FACT whose value is one of these identifiers → its owner.
+      // escapeLike: digit-runs are safe, but a reference_no can carry LIKE
+      // metacharacters — match it literally so it never wildcard-resolves.
+      for (const t of toks) {
+        const { data: f } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${escapeLike(t)}%`).limit(1);
+        const hit = (f ?? [])[0];
+        if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+      }
+      // 3) Any filed document whose body text contains one of these identifiers.
+      for (const t of toks) {
+        const { data: d } = await supa
+          .from("documents").select("company_id,person_id")
+          .eq("archived", false).ilike("extracted_text", `%${escapeLike(t)}%`)
+          .or("company_id.not.is.null,person_id.not.is.null").limit(1);
+        const hit = (d ?? [])[0];
+        if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+      }
     }
-    // 2) A recorded FACT whose value is one of these identifiers → its owner.
-    for (const t of toks) {
-      const { data: f } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${t}%`).limit(1);
-      const hit = (f ?? [])[0];
-      if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
-    }
-    // 3) Any filed document whose body text contains one of these identifiers.
-    for (const t of toks) {
-      const { data: d } = await supa
-        .from("documents").select("company_id,person_id")
-        .eq("archived", false).ilike("extracted_text", `%${t}%`)
-        .or("company_id.not.is.null,person_id.not.is.null").limit(1);
-      const hit = (d ?? [])[0];
-      if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
-    }
+    // 4) Contact identifiers — phone / email / bank account / address. Each is a
+    //    different shape of "the same entity written without its name", so try
+    //    them all before giving up. Same fall-through order: known profiles first
+    //    (the strongest tie), then facts, then any other filed document's body.
+    const contact = await correlateByContactIdentifiers(haystack);
+    if (contact && (contact.companyId || contact.personId)) return contact;
   } catch { /* best-effort */ }
+  return null;
+}
+
+/**
+ * The contact-identifier half of cross-document correlation. Phones are matched
+ * on a normalised 9-digit TZ key (so +255/0 variants agree); emails on the full
+ * address (and, separately, the email DOMAIN → company); bank accounts on the
+ * digit run; addresses on a normalised key compared in JS (the DB stores them
+ * free-text, so we can't push the normalisation into SQL). Returns the first
+ * confident owner or null. Best-effort: any failed query is swallowed.
+ */
+async function correlateByContactIdentifiers(haystack: string): Promise<{ companyId: number | null; personId: number | null } | null> {
+  const phones = extractPhones(haystack);
+  const emails = extractEmails(haystack);
+  const accounts = extractBankAccounts(haystack);
+  const addresses = extractAddresses(haystack);
+  if (!phones.length && !emails.length && !accounts.length && !addresses.length) return null;
+
+  const co = (id: unknown) => ({ companyId: (id as number | null) ?? null, personId: null });
+  const pe = (id: unknown) => ({ companyId: null, personId: (id as number | null) ?? null });
+
+  // ── Emails: a known company/person profile carries it directly. ──
+  // escapeLike → a case-insensitive EXACT match (an address like "a_b@x.com"
+  // must NOT be read as a wildcard and resolve the wrong owner; DBSPINE-04).
+  for (const email of emails.slice(0, 6)) {
+    const { data: p } = await supa.from("people").select("id").ilike("email", escapeLike(email)).eq("active", true).limit(1);
+    if (p?.[0]) return pe(p[0].id);
+    const { data: c } = await supa.from("companies").select("id").ilike("email", escapeLike(email)).limit(1);
+    if (c?.[0]) return co(c[0].id);
+  }
+  // Email DOMAIN → company (a personal mailbox at the company domain still ties
+  // to that company when no exact person matched above).
+  for (const email of emails.slice(0, 6)) {
+    const at = email.lastIndexOf("@");
+    const domain = at >= 0 ? email.slice(at + 1) : "";
+    // Skip the public webmail domains — they tie to nobody in particular.
+    if (!domain || /^(gmail|yahoo|hotmail|outlook|icloud|live|aol)\./.test(domain)) continue;
+    const { data: c } = await supa.from("companies").select("id,email").not("email", "is", null).ilike("email", `%@${escapeLike(domain)}`).limit(1);
+    if (c?.[0]) return co(c[0].id);
+  }
+
+  // ── Phones: match a person's OWN phone / whatsapp (companies one). ──
+  // Compare on the normalised key — match the trailing 9 digits (handles a stored
+  // "+255…" against a document "0712…" and vice-versa). NOTE: emergency_contact_phone
+  // is deliberately EXCLUDED — it is a third party's (next-of-kin) number, often
+  // SHARED across siblings/colleagues, so a document carrying it does NOT belong to
+  // that staff member. Accept ONLY a UNIQUE owner so a number two records happen to
+  // share resolves nobody (mirrors the conservative address path).
+  if (phones.length) {
+    const phoneSet = new Set(phones);
+    const pePhoneHits = new Set<number>();
+    const { data: ppl } = await supa
+      .from("people").select("id,phone,whatsapp").eq("active", true).limit(2000);
+    for (const r of ppl ?? []) {
+      for (const raw of [r.phone, r.whatsapp]) {
+        const key = raw ? normalisePhoneKey(raw as string) : null;
+        if (key && phoneSet.has(key)) { pePhoneHits.add(r.id as number); break; }
+      }
+    }
+    const coPhoneHits = new Set<number>();
+    const { data: cos } = await supa.from("companies").select("id,phone").not("phone", "is", null).limit(500);
+    for (const r of cos ?? []) {
+      const key = normalisePhoneKey(r.phone as string);
+      if (key && phoneSet.has(key)) coPhoneHits.add(r.id as number);
+    }
+    // A phone shared between two records (or between a person and a company) is
+    // ambiguous — only resolve when exactly one entity owns it.
+    if (coPhoneHits.size === 1 && pePhoneHits.size === 0) return co([...coPhoneHits][0]);
+    if (pePhoneHits.size === 1 && coPhoneHits.size === 0) return pe([...pePhoneHits][0]);
+  }
+
+  // ── Bank accounts: live as facts ("Bank Account") and in document bodies. ──
+  for (const acct of accounts.slice(0, 6)) {
+    const { data: f } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${escapeLike(acct)}%`).limit(1);
+    const hit = (f ?? [])[0];
+    if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+  }
+
+  // ── Addresses: companies/people store them free-text — fetch + compare keys. ──
+  // An address is a WEAK signal: several companies can share one registered office
+  // (CLAUDE.md notes PES & MES do), and a household shares one. So accept it ONLY
+  // when exactly one entity owns that address — a shared address resolves nobody.
+  if (addresses.length) {
+    const addrSet = new Set(addresses);
+    const coHits: number[] = [];
+    const { data: cos } = await supa.from("companies").select("id,address").not("address", "is", null).limit(500);
+    for (const r of cos ?? []) {
+      const key = normaliseAddressKey(r.address as string);
+      if (key && addrSet.has(key)) coHits.push(r.id as number);
+    }
+    if (coHits.length === 1) return co(coHits[0]);
+    const peHits: number[] = [];
+    const { data: ppl } = await supa.from("people").select("id,address").eq("active", true).not("address", "is", null).limit(2000);
+    for (const r of ppl ?? []) {
+      const key = normaliseAddressKey(r.address as string);
+      if (key && addrSet.has(key)) peHits.push(r.id as number);
+    }
+    // Only when no company claimed it AND a single person does.
+    if (coHits.length === 0 && peHits.length === 1) return pe(peHits[0]);
+  }
+
+  // ── Fall-through: another filed document whose body carries this email/phone/
+  //    account (covers identifiers not yet promoted onto a profile or a fact). ──
+  const bodyToks = [...emails.slice(0, 4), ...phones.slice(0, 4), ...accounts.slice(0, 4)];
+  for (const t of bodyToks) {
+    const { data: d } = await supa
+      .from("documents").select("company_id,person_id")
+      .eq("archived", false).ilike("extracted_text", `%${escapeLike(t)}%`)
+      .or("company_id.not.is.null,person_id.not.is.null").limit(1);
+    const hit = (d ?? [])[0];
+    if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+  }
   return null;
 }
 
@@ -2135,7 +2274,11 @@ function sigTokens(s: string): string[] {
     .filter((w) => w.length >= 3 && !NAME_STOP.has(w));
 }
 
-function resolveEntity(name: string | undefined, list: Entity[]): Entity | null {
+// `kind` lets the person path add an initials-aware name match as a LAST resort
+// (e.g. "S. J. Manek" → "Samir Jayantilal Manek"). It is person-only because
+// that logic — single-letter tokens, honorifics, extra middle names — would
+// wrongly merge companies (e.g. "S. Solutions"). Companies keep the prior path.
+function resolveEntity(name: string | undefined, list: Entity[], kind?: "person" | "company"): Entity | null {
   if (!name) return null;
   const q = name.trim().toLowerCase();
   if (!q) return null;
@@ -2171,7 +2314,18 @@ function resolveEntity(name: string | undefined, list: Entity[]): Entity | null 
       }
     }
   }
-  return best?.e ?? null;
+  if (best?.e) return best.e;
+
+  // LAST resort (people only): "same person spelled differently" — initials and
+  // extra/missing middle names. personNamesMatch is deliberately conservative
+  // (first + last must agree, ≥2 aligning tokens, no contradicting given name),
+  // so it never merges two distinct people who merely share a surname. To stay
+  // safe when several people could match, accept ONLY a unique match.
+  if (kind === "person") {
+    const hits = list.filter((e) => personNamesMatch(name, e.name) || (e.aliases?.some((a) => personNamesMatch(name, a)) ?? false));
+    if (hits.length === 1) return hits[0];
+  }
+  return null;
 }
 
 // Scan raw document text for a known company/person name OR a sufficiently long
@@ -2224,9 +2378,18 @@ function coerceFields(
   if (f.expiryKind === "no") f.expiryDate = undefined;
   const co = resolveEntity(s(parsed.company, 80), companies);
   if (co) { f.companyId = co.id; f.companyName = co.name; }
-  const pe = resolveEntity(s(parsed.person, 80), people);
+  const pe = resolveEntity(s(parsed.person, 80), people, "person");
   if (pe) { f.personId = pe.id; f.personName = pe.name; }
   f.notes = s(parsed.notes, 600);
+  // Itemised tables (invoices / receipts / statements): fold the AI's short
+  // line-item summary into the notes so the key figures are stored + searchable
+  // (extracted_text/notes feed search) WITHOUT a new schema column. Low-risk,
+  // additive: appended after any free-text notes, total length still capped.
+  const lineItems = s(parsed.lineItems, 600);
+  if (lineItems) {
+    const merged = [f.notes, `Items/figures: ${lineItems}`].filter(Boolean).join("\n");
+    f.notes = merged.slice(0, 1000);
+  }
   // Person profile sub-object (unified intake) — read straight from the doc.
   // Keyed as "personProfile" so it never collides with the "person" name string
   // used above for owner matching. (Older prompts returned an object under
@@ -2308,7 +2471,7 @@ function coerceFields(
       seg.expiryDate = seg.expiryKind === "no" ? undefined : date10(r.expiryDate);
       const segCo = resolveEntity(s(r.company, 80), companies);
       if (segCo) { seg.companyId = segCo.id; seg.companyName = segCo.name; }
-      const segPe = resolveEntity(s(r.person, 80), people);
+      const segPe = resolveEntity(s(r.person, 80), people, "person");
       if (segPe) { seg.personId = segPe.id; seg.personName = segPe.name; }
       seg.notes = s(r.notes, 400);
       seg.pageRange = s(r.pageRange, 20);
@@ -2363,6 +2526,7 @@ function extractPrompt(companies: Entity[], people: Entity[]): string {
 - company: the related business — choose the closest match from: ${cNames}
 - person: the named individual the document is about — choose the closest match from: ${pNames} (only if clearly named)
 - notes: a brief plain-text summary of ANY other useful information that does not fit the fields above — extra reference/serial numbers, conditions, amounts/fees, addresses, named officials, remarks, or anything handwritten. Keep it concise. Omit if there is nothing extra.
+- lineItems: ONLY for an invoice, receipt, quotation, bank/account statement or any document with an itemised table — a short plain-text summary of the key rows/totals (e.g. "3× Widget @ 10,000 = 30,000; Subtotal 30,000; VAT 5,400; Total 35,400" or "Opening 1,200,000; Closing 980,500; 14 transactions"). Capture the figures that matter for searching/auditing, not every row. Omit entirely for documents with no itemised table.
 - personProfile: IF the document is about a specific individual (e.g. passport, ID, CV, contract, permit), a nested JSON object with any of these you can read about THAT person: { dateOfBirth (YYYY-MM-DD), nationality, nationalId, passportNo, address, emergencyContactName, emergencyContactPhone, role, startDate (YYYY-MM-DD), probationEndDate (YYYY-MM-DD), department, supervisorName, companyName }. Omit the whole "personProfile" object for company-only documents. (Note: "person" above is just the matched name; "personProfile" is the detail object — keep them separate.)
 - companyProfile: IF the document is about a BUSINESS/COMPANY (e.g. certificate of incorporation, business licence, TIN/VRN certificate, tax document, lease), a nested JSON object with any of these you can read about THAT company: { legalName (the full registered name), registrationNo, tin, vrn (VAT/VRN number), incorporationDate (YYYY-MM-DD), address, phone, email }. Omit the whole "companyProfile" object for personal documents.
 - facts: IF the document states verifiable facts worth tracking over time, an array of objects { entityType ("company" or "person"), field (e.g. "Salary", "Shareholding", "Bank Account", "Passport Number", "Contract End", "Authorised Capital"), value (the value as written), effectiveDate (YYYY-MM-DD if the document gives a date the fact takes effect, else omit) }. Only include facts you can actually read. Omit the array entirely if there are none.
@@ -2449,25 +2613,34 @@ async function renderPdfPages(base: Buffer, maxPages = MAX_VISION_PAGES): Promis
   }
 }
 
-// How many pages of a scanned PDF we rasterise + send to the vision model. Raised
-// from 2 so multi-page bundles (and compilations) are actually read end-to-end,
-// while capping cost/latency for very long files.
-const MAX_VISION_PAGES = 8;
+// How many pages of a scanned PDF we rasterise + send to the vision model for
+// FIELD extraction. Raised 8 → 20 so multi-page bundles / compilations and long
+// documents are read end-to-end (the AI needs to SEE every page to detect several
+// documents in one file and to read late-page detail). Env-overridable
+// (DOC_MAX_VISION_PAGES), mirroring GROQ_VISION_MODELS.
+// COST TRADE-OFF: every page is an extra image in one vision call (more input
+// tokens + latency); 20 is a deliberate ceiling, not unbounded.
+const MAX_VISION_PAGES = envPageCap("DOC_MAX_VISION_PAGES", 20);
 
 /** Read one or more images with the Groq vision model (through the harness).
  *  More images (a multi-page bundle) needs a bigger answer budget so a `parts`
- *  array isn't truncated. */
-async function groqVision(imageUrls: string[], prompt: string, apiKey: string): Promise<GroqJsonResult> {
+ *  array isn't truncated.
+ *  `startIndex` lets the two-pass re-read skip to the NEXT model in the ladder
+ *  (a stronger fallback) when the first model read low-confidence. */
+async function groqVision(imageUrls: string[], prompt: string, apiKey: string, startIndex = 0): Promise<GroqJsonResult> {
   const content = [
     { type: "text", text: prompt },
     ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
   ];
-  const maxTokens = imageUrls.length > 1 ? 1200 : 500;
-  // Try each vision model in turn: an http-error (incl. a decommissioned model)
-  // falls through to the next; rate-limit / bad-json / empty would recur on any
-  // model, so those return immediately.
+  // More pages ⇒ a bigger answer budget so a long `parts` array / notes on a
+  // many-page bundle isn't truncated mid-JSON. Scales with page count and is
+  // capped so a single call stays bounded.
+  const maxTokens = imageUrls.length <= 1 ? 500 : Math.min(800 + imageUrls.length * 120, 3000);
+  // Try each vision model in turn (from startIndex): an http-error (incl. a
+  // decommissioned model) falls through to the next; rate-limit / bad-json / empty
+  // would recur on any model, so those return immediately.
   let last: GroqJsonResult = { ok: false, data: null, confidence: null, error: "http-error" };
-  for (const model of GROQ_VISION_MODELS) {
+  for (const model of GROQ_VISION_MODELS.slice(startIndex)) {
     last = await groqExtract([{ role: "user", content }], model, apiKey, maxTokens);
     if (last.ok || last.error !== "http-error") return last;
   }
@@ -2502,7 +2675,10 @@ async function fieldsFromText(
   text: string,
   companies: Entity[],
   people: Entity[],
-  apiKey: string | undefined
+  apiKey: string | undefined,
+  // Two-pass re-read forces the stronger model regardless of the aiHighQuality
+  // toggle; otherwise the configured quality model is used.
+  modelOverride?: string,
 ): Promise<ExtractResult> {
   if (!text.trim()) return { ok: false, fields: {}, source: "rules" };
   if (!apiKey) {
@@ -2513,7 +2689,7 @@ async function fieldsFromText(
       { role: "system", content: "You extract structured data and reply with strict JSON only." },
       { role: "user", content: `${extractPrompt(companies, people)}\n\nDOCUMENT TEXT:\n${text.slice(0, 6000)}` },
     ],
-    await getQualityTextModel(),
+    modelOverride ?? await getQualityTextModel(),
     apiKey,
     900
   );
@@ -2594,19 +2770,71 @@ async function cachedExtract(fd: FormData, fileHash: string | null, force: boole
       return { ...cached, fileHash, cached: true };
     }
   }
+  // First pass: the normal read (text uses the configured quality model; vision
+  // uses the model ladder from the top).
   const res = await extractDocumentFromFileInner(fd);
-  if (res.ok && fileHash) {
+  // Track the model that actually produced the KEPT read, so caching stays
+  // model-aware (a future model swap invalidates the cache).
+  let modelUsed =
+    res.source === "vision" ? GROQ_VISION
+    : res.source === "ai" ? await getQualityTextModel()
+    : "rules";
+
+  // --- Two-pass confidence re-read -----------------------------------------
+  // When the first read is an AI read that landed BELOW the confidence gate, try
+  // ONE stronger re-read and keep whichever result is more confident. No-op when
+  // AI is off (source would be "rules"), the first read already cleared the gate,
+  // or no stronger path exists. Best-effort: a retry failure never harms the
+  // first read. Capped to a SINGLE retry so cost stays bounded.
+  let escalated: ExtractResult | null = null;
+  if (res.ok && (res.source === "ai" || res.source === "vision") && isLowConfidence(res.confidence)) {
+    let opts: RereadOpts | null = null;
+    let retryModel: string | null = null;
+    if (res.source === "ai") {
+      // Text: force the stronger model regardless of the aiHighQuality toggle —
+      // but only if the first pass didn't already use it (else the retry is a
+      // wasted identical call).
+      if (modelUsed !== GROQ_SMART) { opts = { textModel: GROQ_SMART }; retryModel = GROQ_SMART; }
+    } else {
+      // Vision: step to the NEXT model in the ladder (a stronger fallback), if one
+      // is configured. With a single vision model there's nothing stronger to try.
+      if (GROQ_VISION_MODELS.length > 1) { opts = { visionStartIndex: 1 }; retryModel = GROQ_VISION_MODELS[1]; }
+    }
+    if (opts) {
+      try {
+        const second = await extractDocumentFromFileInner(fd, opts);
+        // Keep the better (more confident) read. Only adopt the retry when it
+        // genuinely succeeded AND beats the first pass.
+        if (second.ok && (second.confidence ?? 0) > (res.confidence ?? 0)) {
+          escalated = second;
+          if (retryModel) modelUsed = retryModel;
+        }
+        // Surface the escalation in diagnostics whether or not it won, so the
+        // re-read is visible in the AI-health readout. Best-effort.
+        try {
+          await recordEvent("doc-extraction", "ok", {
+            phase: "reread",
+            source: res.source,
+            firstConfidence: res.confidence ?? null,
+            secondConfidence: second.confidence ?? null,
+            kept: escalated ? "second" : "first",
+            retryModel,
+          });
+        } catch { /* telemetry never throws */ }
+      } catch { /* a failed retry leaves the first read untouched */ }
+    }
+  }
+  const finalRes = escalated ?? res;
+  // ------------------------------------------------------------------------
+
+  if (finalRes.ok && fileHash) {
     // Store the read without the volatile hash field; re-attached on read.
-    const toStore: ExtractResult = { ...res, fileHash: null };
+    const toStore: ExtractResult = { ...finalRes, fileHash: null };
     // Record the ACTUAL model that produced this read (not just the source kind),
     // so a future model swap invalidates it. "rules" = deterministic, no model.
-    const modelUsed =
-      res.source === "vision" ? GROQ_VISION
-      : res.source === "ai" ? await getQualityTextModel()
-      : "rules";
     await putCachedExtraction(fileHash, toStore, modelUsed);
   }
-  return res;
+  return finalRes;
 }
 
 export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResult> {
@@ -2637,8 +2865,13 @@ export async function extractDocumentFromFile(fd: FormData): Promise<ExtractResu
   return out;
 }
 
+/** Options for a STRONGER second read (the two-pass confidence re-read). When
+ *  set, the AI branches escalate: text → force GROQ_SMART; vision → start one step
+ *  further down the model ladder (a stronger fallback) when one exists. */
+type RereadOpts = { textModel?: string; visionStartIndex?: number };
+
 /** The actual reader (wrapped by extractDocumentFromFile for hashing + diagnostics). */
-async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult> {
+async function extractDocumentFromFileInner(fd: FormData, reread?: RereadOpts): Promise<ExtractResult> {
   let file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) return { ok: false, fields: {}, source: "rules", note: "No file provided.", failKind: "unreadable" };
 
@@ -2667,7 +2900,7 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
       if (text.trim().length < 20) {
         return { ok: false, fields: {}, source: "rules", note: "Couldn't read useful text from that Word/Excel file.", failKind: "unreadable" };
       }
-      const result = await fieldsFromText(text, companies, people, apiKey);
+      const result = await fieldsFromText(text, companies, people, apiKey, reread?.textModel);
       return { ...result, fullText: text, textSource: "typed", note: result.source === "rules" ? "Read the file text with rule-based extraction." : undefined };
     } catch {
       return { ok: false, fields: {}, source: "rules", note: "Couldn't read that Word/Excel file. Try saving it as PDF or paste the text.", failKind: "unreadable" };
@@ -2691,7 +2924,7 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
     // through to vision OCR below so the real scanned content is read.
     const usable = usableTextLayer(text);
     if (usable) {
-      const result = await fieldsFromText(usable, companies, people, apiKey);
+      const result = await fieldsFromText(usable, companies, people, apiKey, reread?.textModel);
       return { ...result, fullText: usable, textSource: "typed" };
     }
 
@@ -2705,7 +2938,7 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
     if (!images.length) {
       return { ok: false, fields: {}, source: "vision", note: "Couldn't render this PDF to read it. Try uploading a clear photo of the document instead.", failKind: "unreadable" };
     }
-    const result = await groqVision(images, extractPrompt(companies, people), apiKey);
+    const result = await groqVision(images, extractPrompt(companies, people), apiKey, reread?.visionStartIndex ?? 0);
     if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo.", failKind: "unreadable" };
     return {
       ok: true,
@@ -2737,7 +2970,7 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
       return { ok: false, fields: {}, source: "vision", note: "Image is too large even after shrinking — try a smaller photo.", failKind: "too-big" };
     }
     const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
-    const result = await groqVision([dataUrl], extractPrompt(companies, people), apiKey);
+    const result = await groqVision([dataUrl], extractPrompt(companies, people), apiKey, reread?.visionStartIndex ?? 0);
     if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo.", failKind: "unreadable" };
     return {
       ok: true,

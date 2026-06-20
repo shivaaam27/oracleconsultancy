@@ -11,6 +11,7 @@ import { sb } from "@/db/supabase";
 import { getGroqKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
+import { reindexEntity } from "@/lib/index-hooks";
 import type { PersonPackPurpose } from "@/lib/person-pack-shared";
 import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox/links";
 import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
@@ -18,6 +19,7 @@ import { createCalendarEvent, toIcsEvent } from "@/lib/calendar";
 import { googleCalendarUrl } from "@/lib/ics";
 import { buildPersonRequirementScores } from "@/lib/requirements";
 import { listLeaveRequests } from "@/lib/leave";
+import { rememberPreference, recallMemories, listMemories, forgetMemory } from "@/lib/ai-memory";
 
 export const maxDuration = 60;
 
@@ -35,7 +37,13 @@ type ParsedIntent =
   | { type: "draft_brief"; companyName?: string; period?: string }
   | { type: "find_missing"; doc: string }
   | { type: "leave_status"; window: "today" | "week" }
+  | { type: "remember"; text: string; kind: "preference" | "fact" }
+  | { type: "recall_memory"; query?: string }
+  | { type: "forget_memory"; query?: string }
   | { type: "unknown"; reason: string };
+
+// Who memories are stored against — single owner-operator on the admin side.
+const MEMORY_RECIPIENT = "admin";
 
 const SYSTEM_PROMPT = `You are the command parser for the Oracle Consultancy task system. Convert the principal's natural-language command into a single JSON intent.
 
@@ -297,6 +305,55 @@ function parseLeaveStatusCommand(command: string): ParsedIntent | null {
   return { type: "leave_status", window };
 }
 
+/**
+ * Deterministic AI-memory parser — "remember that …", "remember: …",
+ * "note that I prefer …", "for future, …", "what do you remember", "forget …".
+ * Runs before the LLM so personal memory works fully AI-off (it's a plain insert/
+ * select, no model needed). Returns null when the command isn't about memory.
+ */
+function parseMemoryCommand(command: string): ParsedIntent | null {
+  const c = command.trim();
+
+  // Recall: "what do you remember", "what have you remembered (about X)",
+  // "what do you know about me", "recall …".
+  const recall = c.match(
+    /^(?:what (?:do|have) you (?:remember|know|recall|stored?|noted?)|what'?s (?:in your )?memory|recall|show (?:me )?(?:your |my )?(?:memory|memories|preferences?|notes?))\b(?:.*?\b(?:about|on|regarding|re)\s+(.+))?[?.!]*$/i,
+  );
+  if (recall) {
+    const query = (recall[1] || "").trim().replace(/[?.!]+$/, "") || undefined;
+    return { type: "recall_memory", query };
+  }
+
+  // Forget: "forget that …", "forget about X", "forget what I said about X".
+  const forget = c.match(/^forget\b(?:\s+(?:that|about|what (?:i|you)(?:'ve| have)? (?:said|told you|noted)(?:\s+about)?))?\s*(.*)$/i);
+  if (forget) {
+    let query = (forget[1] || "").trim().replace(/[?.!]+$/, "");
+    // Bail if "forget" was clearly conversational filler ("forget it").
+    if (/^(it|that|this|everything|all of it)?$/i.test(query)) query = "";
+    return { type: "forget_memory", query: query || undefined };
+  }
+
+  // Remember / note: leading verb forms.
+  const remember = c.match(
+    /^(?:remember|note|keep in mind|for (?:future|the future|next time)|bear in mind|don'?t forget)\b\s*[:,]?\s*(.+)$/i,
+  );
+  if (remember) {
+    let text = (remember[1] || "").trim();
+    // Strip a leading "that" / "to" so "remember that X" stores "X".
+    text = text.replace(/^(?:that|to)\s+/i, "").trim().replace(/[.!]+$/, "");
+    if (!text) return null;
+    // A statement about a stable fact ("X's TIN is …", "the VRN is …") is a
+    // fact; anything about how the owner likes things done is a preference.
+    const kind: "preference" | "fact" =
+      /\b(i (?:prefer|like|want|always|never|usually)|prefer|please always|use (?:british|uk)|spell|tone|style|format|address me|call me|my name)\b/i.test(text)
+        ? "preference"
+        : "fact";
+    return { type: "remember", text, kind };
+  }
+
+  return null;
+}
+
 async function parseCommand(
   command: string,
   history: { role: "user" | "assistant"; content: string }[] = [],
@@ -448,6 +505,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     await sb.from("tasks").update({ status: "Completed", closed_date: nowIso, last_updated_at: nowIso }).eq("id", t.id);
     await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, "Completed", "Marked complete via command");
+    void reindexEntity("task", t.id); // Completed → lifecycle="history" (best-effort)
     revalidatePath("/registry"); revalidatePath("/"); revalidatePath(`/task/${t.code}`); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `✓ Marked ${t.code} as Completed`, redirect: `/task/${t.code}` };
   }
@@ -457,6 +515,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     if (!t) return { ok: false, message: `Task ${intent.taskCode} not found` };
     await sb.from("tasks").update({ escalation: "Yes", status: "Escalated", last_updated_at: nowIso }).eq("id", t.id);
     await audit(t.id, t.code, t.company_id, "CHANGE", "Escalation", t.escalation, "Yes", "Escalated via command");
+    void reindexEntity("task", t.id); // status/escalation moved (best-effort)
     revalidatePath("/"); revalidatePath(`/task/${t.code}`); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `🚨 Escalated ${t.code}`, redirect: `/task/${t.code}` };
   }
@@ -481,6 +540,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
       await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, intent.newStatus, intent.body);
     }
     await sb.from("tasks").update(patch).eq("id", t.id);
+    void reindexEntity("task", t.id); // latest_update/status moved (best-effort)
     revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `📝 Added update to ${t.code}`, redirect: `/task/${t.code}` };
   }
@@ -497,6 +557,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     else if (!isClosed && wasClosed) patch.closed_date = null; // reopening clears the closed date
     await sb.from("tasks").update(patch).eq("id", t.id);
     await audit(t.id, t.code, t.company_id, "CHANGE", "Status", t.status, intent.status, "Set via command");
+    void reindexEntity("task", t.id); // status may flip lifecycle (best-effort)
     revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `✓ ${t.code} → ${intent.status}`, redirect: `/task/${t.code}` };
   }
@@ -508,6 +569,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     if (!valid.includes(intent.priority)) return { ok: false, message: `Invalid priority "${intent.priority}"` };
     await sb.from("tasks").update({ priority: intent.priority, last_updated_at: nowIso }).eq("id", t.id);
     await audit(t.id, t.code, t.company_id, "CHANGE", "Priority", t.priority, intent.priority, "Set via command");
+    void reindexEntity("task", t.id); // best-effort (priority isn't indexed text, but keep parity)
     revalidatePath(`/task/${t.code}`); revalidatePath("/"); revalidatePath(`/companies/${t.company_id}`);
     return { ok: true, message: `⚡ ${t.code} priority → ${intent.priority}`, redirect: `/task/${t.code}` };
   }
@@ -544,6 +606,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
     }
 
     await audit(task.id, newCode, companyId, "CREATE", "Task", null, intent.actionItem, "Created via command");
+    void reindexEntity("task", task.id); // new task — index it (best-effort)
 
     revalidatePath("/registry"); revalidatePath("/");
     return { ok: true, message: `✨ Created ${newCode}: ${intent.actionItem}`, redirect: `/task/${newCode}` };
@@ -574,6 +637,7 @@ async function execute(intent: ParsedIntent): Promise<{ ok: boolean; message: st
         await sb.from("tasks").update({ priority: intent.priority, last_updated_at: nowIso }).eq("id", t.id);
         await audit(t.id, t.code, t.company_id, "CHANGE", "Priority", t.priority, intent.priority, "Bulk priority via command");
       }
+      void reindexEntity("task", t.id); // status/lifecycle may have moved (best-effort)
       done.push(t.code);
     }
     revalidatePath("/registry"); revalidatePath("/");
@@ -739,6 +803,7 @@ export async function POST(req: NextRequest) {
     if (!command) return NextResponse.json({ error: "command required" }, { status: 400 });
 
     const intent =
+      parseMemoryCommand(command) ??
       parsePersonPackCommand(command) ??
       parseRemindCommand(command) ??
       parseBriefCommand(command) ??
@@ -851,6 +916,92 @@ export async function POST(req: NextRequest) {
         ok: true,
         executed: true,
         message: `${overlap.length} ${overlap.length === 1 ? "person is" : "people are"} on leave ${label}: ${shown}${extra}.`,
+      });
+    }
+
+    if (intent.type === "remember") {
+      // Personal memory — a single best-effort insert; works fully AI-off.
+      const ok = await rememberPreference(MEMORY_RECIPIENT, intent.text, intent.kind);
+      return NextResponse.json({
+        intent,
+        ok,
+        executed: ok,
+        message: ok
+          ? `🧠 Got it — I'll remember: "${intent.text}".`
+          : `Couldn't save that to memory just now. The note was: "${intent.text}".`,
+      });
+    }
+
+    if (intent.type === "recall_memory") {
+      // Read-only: list what's stored (optionally filtered by topic). No AI.
+      const rows = intent.query
+        ? await recallMemories(MEMORY_RECIPIENT, intent.query, 8)
+        : (await listMemories(MEMORY_RECIPIENT, 8)).map((m) => ({
+            kind: m.kind, question: m.question, answer: m.answer, createdAt: m.createdAt,
+          }));
+      if (rows.length === 0) {
+        return NextResponse.json({
+          intent,
+          ok: true,
+          executed: true,
+          message: intent.query
+            ? `I haven't got anything remembered about "${intent.query}".`
+            : "I haven't remembered anything yet. Tell me \"remember that …\" and I'll keep it.",
+        });
+      }
+      const lines = rows.map((m) => {
+        if (m.kind === "qa") return m.question ? `You asked: ${m.question}` : (m.answer ?? "");
+        return m.answer ?? "";
+      }).filter(Boolean);
+      const shown = lines.slice(0, 8).join("\n• ");
+      const head = intent.query
+        ? `Here's what I remember about "${intent.query}":`
+        : "Here's what I'm remembering:";
+      return NextResponse.json({
+        intent,
+        ok: true,
+        executed: true,
+        message: `${head}\n• ${shown}`,
+      });
+    }
+
+    if (intent.type === "forget_memory") {
+      // "forget" with no topic is ambiguous — ask rather than wipe everything.
+      if (!intent.query) {
+        return NextResponse.json({
+          intent,
+          ok: false,
+          message: "Tell me what to forget, for example: \"forget that I prefer email reminders\".",
+        });
+      }
+      // Find the matching memories, then remove them. Best-effort throughout.
+      const matches = await recallMemories(MEMORY_RECIPIENT, intent.query, 5);
+      if (matches.length === 0) {
+        return NextResponse.json({
+          intent,
+          ok: true,
+          executed: true,
+          message: `Nothing stored matched "${intent.query}", so there's nothing to forget.`,
+        });
+      }
+      // recallMemories doesn't return ids, so resolve them from the full list by
+      // matching the stored text — only delete clear matches.
+      const all = await listMemories(MEMORY_RECIPIENT, 200);
+      const wanted = new Set(
+        matches.map((m) => `${m.kind}|${m.question ?? ""}|${m.answer ?? ""}`),
+      );
+      const toDelete = all.filter((r) => wanted.has(`${r.kind}|${r.question ?? ""}|${r.answer ?? ""}`));
+      let removed = 0;
+      for (const r of toDelete) {
+        if (await forgetMemory(r.id)) removed++;
+      }
+      return NextResponse.json({
+        intent,
+        ok: removed > 0,
+        executed: removed > 0,
+        message: removed > 0
+          ? `🧠 Forgotten ${removed} thing${removed === 1 ? "" : "s"} about "${intent.query}".`
+          : `Couldn't remove anything matching "${intent.query}" just now.`,
       });
     }
 

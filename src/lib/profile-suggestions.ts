@@ -11,6 +11,7 @@
 import { sb } from "@/db/supabase";
 import { distinctiveTokens, shelfForCategory } from "@/lib/documents-shared";
 import { listCustomShelves } from "@/lib/shelves";
+import { reindexEntity } from "@/lib/index-hooks";
 import type { ExtractedFields } from "@/app/documents/actions";
 
 export type SuggestionKind = "company-field" | "person-field" | "fact" | "new-shelf" | "new-structure";
@@ -513,6 +514,8 @@ export async function undoProfileSuggestion(id: number): Promise<{ ok: boolean; 
         const cur = (data as Record<string, unknown> | null)?.[col];
         if (cur != null && String(cur).startsWith(String(s.value))) {
           await sb.from("companies").update({ [col]: null }).eq("id", s.companyId);
+          // legal_name feeds the company search text — re-index if we cleared it.
+          if (col === "legal_name") void reindexEntity("company", s.companyId);
         }
       }
     } else if (s.kind === "person-field" && s.personId) {
@@ -522,6 +525,8 @@ export async function undoProfileSuggestion(id: number): Promise<{ ok: boolean; 
         const cur = (data as Record<string, unknown> | null)?.[col];
         if (cur != null && String(cur).startsWith(String(s.value))) {
           await sb.from("people").update({ [col]: null }).eq("id", s.personId);
+          // role feeds the person search text — re-index if we cleared it.
+          if (col === "role") void reindexEntity("person", s.personId);
         }
       }
     } else if (s.kind === "fact") {

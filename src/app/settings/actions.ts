@@ -136,7 +136,20 @@ export async function saveSettings(fd: FormData): Promise<void> {
     emailFrom: (fd.get("emailFrom") as string | null)?.trim() || undefined,
     emailFromName: (fd.get("emailFromName") as string | null)?.trim() || undefined,
     emailSignature: ((fd.get("emailSignature") as string | null) ?? "").trim(),
+    notifyDigest: fd.get("notifyDigest") === "on",
+    quietHoursStart: ((fd.get("quietHoursStart") as string | null) ?? "").trim(),
+    quietHoursEnd: ((fd.get("quietHoursEnd") as string | null) ?? "").trim(),
   };
+
+  // Groq API key: only WRITE when the owner types a new value (the field renders
+  // empty with a masked preview, so a blank submit must NOT wipe the saved key),
+  // or when "remove" is ticked to clear it. The raw key is never echoed back.
+  const groqKeyInput = ((fd.get("groqApiKey") as string | null) ?? "").trim();
+  if (fd.get("remove_groqApiKey") === "1") {
+    patch.groqApiKey = ""; // clear → fall back to the env var
+  } else if (groqKeyInput) {
+    patch.groqApiKey = groqKeyInput; // set / rotate
+  }
 
   // Signature image: upload a new file, or clear it when "remove" is ticked.
   const sigImg = fd.get("emailSignatureImage");

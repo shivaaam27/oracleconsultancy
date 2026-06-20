@@ -5,7 +5,7 @@ import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
-import { sendToRecipient, configurePush } from "@/lib/push";
+import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/push";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
 import { isReminderDueToday } from "@/lib/documents-shared";
 import { gatherSafetyFindings } from "@/lib/safety-net";
@@ -17,6 +17,9 @@ export const dynamic = "force-dynamic";
 
 const SIG_KEY = "push.lastSignature";
 
+// flushRoutineDigests now lives in lib/push (single source of truth) so the
+// scheduled morning-run cron can flush the digest too — see its comment there.
+
 export async function GET(req: NextRequest) {
   const auth = authoriseCron(req);
   if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
@@ -25,6 +28,11 @@ export async function GET(req: NextRequest) {
     if (!configurePush()) {
       return NextResponse.json({ ok: true, skipped: "push-not-configured" });
     }
+
+    // Flush any routine notifications held back by quiet hours / the digest
+    // setting first — this runs every invocation, independent of the
+    // consolidated owner alert below.
+    const digest = await flushRoutineDigests();
 
     const rows = await getAllTasks();
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -82,18 +90,18 @@ export async function GET(req: NextRequest) {
     if (dataIssues) parts.push(`${dataIssues} data issue${dataIssues === 1 ? "" : "s"}`);
     if (approvalsWaiting) parts.push(`${approvalsWaiting} waiting for approval`);
 
-    // Nothing actionable — don't notify.
+    // Nothing actionable — don't notify (the routine digest may still have run).
     if (parts.length === 0) {
-      await recordEvent("cron.notify", "ok", { sent: 0, reason: "nothing-actionable" });
-      return NextResponse.json({ ok: true, sent: 0 });
+      await recordEvent("cron.notify", "ok", { sent: 0, reason: "nothing-actionable", digest });
+      return NextResponse.json({ ok: true, sent: 0, digest });
     }
 
     // De-dupe: only push when the situation changes from the last run.
     const signature = `${todayStart.toISOString().slice(0, 10)}|${overdue.length}|${escalated.length}|${dueToday.length}|${docsExpired.length}|${docsExpiring.length}|${remindersDue.length}|${complianceGaps}|${dataIssues}|${approvalsWaiting}`;
     const { data: last } = await sb.from("settings").select("value").eq("key", SIG_KEY).maybeSingle();
     if ((last?.value as string | null) === signature) {
-      await recordEvent("cron.notify", "ok", { sent: 0, reason: "unchanged" });
-      return NextResponse.json({ ok: true, sent: 0, reason: "unchanged" });
+      await recordEvent("cron.notify", "ok", { sent: 0, reason: "unchanged", digest });
+      return NextResponse.json({ ok: true, sent: 0, reason: "unchanged", digest });
     }
 
     // Deep-link to the most relevant surface: tasks if any are urgent, else
@@ -116,8 +124,8 @@ export async function GET(req: NextRequest) {
     });
 
     await sb.from("settings").upsert({ key: SIG_KEY, value: signature }, { onConflict: "key" });
-    await recordEvent("cron.notify", "ok", { sent, signature });
-    return NextResponse.json({ ok: true, sent });
+    await recordEvent("cron.notify", "ok", { sent, signature, digest });
+    return NextResponse.json({ ok: true, sent, digest });
   } catch (err) {
     await reportError(err, { route: "cron.notify" });
     await recordEvent("cron.notify", "error", {

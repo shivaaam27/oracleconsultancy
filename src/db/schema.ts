@@ -878,6 +878,38 @@ export const undoTokens = pgTable("undo_tokens", {
   consumedAt: timestamp("consumed_at", { mode: "date", withTimezone: true }),
 });
 
+// Conversational memory for Ask COS (and any future assistant surface). Stores
+// past Q&A ("qa"), learned working preferences ("preference"), and stable facts
+// ("fact") per recipient ("admin" = owner; a staff name on portal surfaces).
+// Recall is cheap + deterministic (recency + keyword overlap in src/lib/ai-memory.ts,
+// no AI call). Read/written via supabase-js. See migration 0095.
+export const aiMemory = pgTable("ai_memory", {
+  id: serial("id").primaryKey(),
+  recipient: text("recipient").notNull().default("admin"),
+  kind: text("kind").notNull(),          // "qa" | "preference" | "fact"
+  question: text("question"),
+  answer: text("answer"),
+  tags: text("tags"),                    // free-form, comma-joined topic tags
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("ai_memory_recipient_created_idx").on(t.recipient, t.createdAt)]);
+
+// AI usage ledger. One row per successful Groq call (written best-effort,
+// fire-and-forget from src/lib/ai-json.ts): model, source ("ask"/"extract"/
+// "translate"/…), token counts and an estimated cost. est_cost defaults to 0
+// because the Groq free tier is free today; set a per-model rate + a monthly
+// spend cap (settings) to make the ledger drive a graceful AI-off when over
+// budget. Read/written via supabase-js. See migration 0096 + src/lib/ai-spend.ts.
+export const aiUsage = pgTable("ai_usage", {
+  id: serial("id").primaryKey(),
+  at: timestamp("at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  model: text("model"),
+  source: text("source"),                  // call-site label, e.g. "ask" | "extract" | "translate"
+  promptTokens: integer("prompt_tokens"),
+  completionTokens: integer("completion_tokens"),
+  estCost: numeric("est_cost", { precision: 12, scale: 4 }).default("0"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("ai_usage_at_idx").on(t.at)]);
+
 // Inbound capture queue: forwarded emails and shared WhatsApp items land here as
 // "pending" until filed (into a task or a note) or dismissed via the Capture Wizard.
 export const inbox = pgTable("inbox", {

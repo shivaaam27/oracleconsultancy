@@ -76,7 +76,17 @@ Each is a web address that does its work when visited with the `CRON_SECRET`.
 |---|---|---|
 | `/api/cron/snapshots` | 02:00 daily | Records a daily health snapshot per company (for trends). |
 | `/api/cron/cleanup` | 03:00 daily | Removes expired "undo" tokens. |
-| `/api/cron/notify` | 04:00 daily | Sends push alerts for overdue / escalated / due-today tasks. |
+| `/api/cron/email` | 06:00 daily | Runs the enabled email-automation categories. |
+| `/api/cron/reindex` | 05:00 daily | Re-indexes changed rows for search. |
+| `/api/cron/reminders` | 07:00 daily | Fires due per-person reminder pushes. |
+| `/api/cron/auto-sort` | 08:00 daily | Sorts the inbox (files docs to owners/categories). |
+| `/api/cron/morning-run` | 05:30 daily | The consolidated owner job: chases dates, self-heals, watches model/key health, flushes the held notification digest, and sends ONE morning brief. (Replaced the old standalone `/api/cron/notify` schedule.) |
+
+> `/api/cron/notify` still exists (the same consolidated alert + digest flush) for
+> manual or legacy triggers, but it is **not** scheduled — the morning-run above is
+> the one in `vercel.json`. If you enable "Batch routine alerts into a digest" or
+> quiet hours, the held pushes are flushed by the morning-run, so they are never
+> lost. Authoritative list is always `vercel.json`.
 
 **On Vercel:** these work automatically as long as `CRON_SECRET` is set in
 Vercel — Vercel Cron sends the secret for you.

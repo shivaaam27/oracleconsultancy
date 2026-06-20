@@ -4,6 +4,7 @@ import {
   deadlineFlag,
   daysUntil,
   doneThisPeriod,
+  periodKey,
   type CcFlag,
   type ObligationFrequency,
 } from "@/lib/command-centre";
@@ -210,6 +211,66 @@ export async function outstandingDeadlines(
   return buildDeadlinesWithCompanies(obligations, companies, ocMap, today)
     .filter((d) => (d.flag === "overdue" || d.flag === "dueNow" || d.flag === "soon")
       && d.applicableCount > 0 && d.doneCount < d.applicableCount);
+}
+
+/* ------------------------------------------------------------------ */
+/* Auto-spawn feed — one DUE (obligation, company, period) instance per   */
+/* applicable company that hasn't done it this period. The time-automation */
+/* sweep turns each into a task (mirroring renewals/notices/probations).   */
+/* All cadence/due-ness maths is reused from outstandingDeadlines —        */
+/* nothing about windows or periods is reinvented here.                    */
+/* ------------------------------------------------------------------ */
+
+export type DueObligationInstance = {
+  /** Unique key for one obligation+company+period — drives automation_events dedup. */
+  key: string;
+  obligationId: number;
+  label: string;
+  category: string;
+  why: string | null;
+  frequency: ObligationFrequency;
+  flag: CcFlag;
+  /** The concrete deadline for this period (may be null for undated annual anchors). */
+  dueDate: Date | null;
+  companyId: number;
+  companyName: string;
+};
+
+/**
+ * The recurring obligations now DUE (inside their lead window, this period) for
+ * each applicable company that hasn't ticked them — exploded one row per company.
+ * Only TASKABLE cadences (monthly/quarterly/annual) are returned; daily/weekly
+ * habits are ticked in place, never turned into tasks. Reuses outstanding-
+ * Deadlines so the warning-window + per-company applicability + "done this
+ * period" logic is identical to Home/Brief/the Tax & Legal grid.
+ */
+export async function dueObligationInstances(
+  obligations: RecurringObligation[],
+  today: Date = new Date(),
+): Promise<DueObligationInstance[]> {
+  const deadlines = await outstandingDeadlines(obligations, today);
+  const out: DueObligationInstance[] = [];
+  for (const d of deadlines) {
+    if (!d.taskable) continue; // daily/weekly habits are not promoted to tasks
+    const pk = periodKey(d.frequency, today);
+    if (!pk) continue; // undated cadence has no period to dedup against
+    for (const c of d.companies) {
+      if (!c.applicable || c.done) continue; // only the companies that still owe it
+      out.push({
+        key: `obligation:${d.id}:${c.companyId}:${pk}`,
+        obligationId: d.id,
+        label: d.label,
+        category: d.category,
+        why: d.why,
+        frequency: d.frequency,
+        flag: d.flag,
+        dueDate: d.dueDate,
+        companyId: c.companyId,
+        companyName: c.name,
+      });
+    }
+  }
+  return out;
 }
 
 /** Split obligations into in-place habits (daily/weekly) and dated deadlines. */

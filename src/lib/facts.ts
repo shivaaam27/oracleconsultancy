@@ -5,6 +5,8 @@ import {
   type FactValue,
   renderFactValue,
 } from "@/lib/facts-shared";
+import { detectFactDiscrepancy, type FactDiscrepancy } from "@/lib/fact-checks";
+import { recordEvent } from "@/lib/system-events";
 
 // Server-side data layer for the append-only fact ledger. The CURRENT value of
 // an entity+field is the row with the latest effectiveDate; older rows are kept
@@ -81,6 +83,24 @@ export async function factHistory(entity: EntityRef, field: string): Promise<Fac
   return (await listFacts(entity)).filter((f) => f.field === field);
 }
 
+/**
+ * The CURRENT fact for a single field (latest effective day, tie-broken by most
+ * recently recorded) — or null if the field has never been recorded. Same ranking
+ * rule as currentFacts(), but for one field only, so the discrepancy cross-check
+ * stays cheap.
+ */
+async function currentFactForField(entity: EntityRef, field: string): Promise<Fact | null> {
+  const history = await factHistory(entity, field.trim());
+  if (!history.length) return null;
+  const ranked = [...history].sort((a, b) => {
+    const dayA = a.effectiveDate.slice(0, 10), dayB = b.effectiveDate.slice(0, 10);
+    if (dayA !== dayB) return dayB.localeCompare(dayA);
+    if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt);
+    return b.id - a.id;
+  });
+  return ranked[0];
+}
+
 export interface RecordFactInput {
   entity: EntityRef;
   field: string;
@@ -98,23 +118,54 @@ export interface RecordFactInput {
   createdBy?: string;
 }
 
+/** A recorded fact, plus a discrepancy signal when its value contradicts the
+ *  fact it supersedes (only computed for document-sourced appends). */
+export type RecordedFact = Fact & { discrepancy?: FactDiscrepancy };
+
 /**
  * Append a new fact. Never mutates an existing row — a change is a new entry,
  * and currentFacts() will surface it as the live value. Best-effort: a failed
  * write returns null rather than throwing into the caller's action.
+ *
+ * Cross-check: when the new fact comes FROM A DOCUMENT (source/documentId set)
+ * and MATERIALLY disagrees with the current fact for the same field, the append
+ * still happens (history is the point) but the disagreement is logged as a
+ * `fact-discrepancy` system_event and the proving document is flagged
+ * review_status='needs_review' so the owner is alerted to verify. The signal is
+ * also returned on the fact (`.discrepancy`). All of this is best-effort and
+ * never throws into — nor blocks — the caller's save.
  */
-export async function recordFact(input: RecordFactInput): Promise<Fact | null> {
+export async function recordFact(input: RecordFactInput): Promise<RecordedFact | null> {
   const effective = input.effectiveDate
     ? new Date(input.effectiveDate).toISOString()
     : new Date().toISOString();
   const verified = input.verified ?? false;
+  const field = input.field.trim();
+  const display = input.display ?? renderFactValue(field, input.value);
+
+  // Compare against the CURRENT fact BEFORE we append — only for document-sourced
+  // facts (a manual entry or a non-document append has nothing to cross-check).
+  let discrepancy: FactDiscrepancy | undefined;
+  const fromDocument = input.documentId != null || !!input.source;
+  if (fromDocument) {
+    try {
+      const current = await currentFactForField(input.entity, field);
+      if (current) {
+        const d = detectFactDiscrepancy(field, current.display, current.value, display, input.value);
+        if (d.conflict) discrepancy = d;
+      }
+    } catch {
+      /* cross-check is advisory — never block the append on it */
+    }
+  }
+
   const row = {
     entity_type: input.entity.type,
     person_id: input.entity.type === "person" ? input.entity.id : null,
     company_id: input.entity.type === "company" ? input.entity.id : null,
-    field: input.field.trim(),
+    field,
     value: input.value,
-    display: input.display ?? renderFactValue(input.field, input.value),
+    display,
     effective_date: effective,
     source: input.source ?? null,
     document_id: input.documentId ?? null,
@@ -127,7 +178,42 @@ export async function recordFact(input: RecordFactInput): Promise<Fact | null> {
   };
   const { data, error } = await sb.from("facts").insert(row).select(COLS).single();
   if (error || !data) return null;
-  return mapRow(data);
+  const fact = mapRow(data);
+
+  // Surface the contradiction: log it + flag the document for review. Both are
+  // best-effort and fire after the append has succeeded.
+  if (discrepancy) {
+    await flagFactDiscrepancy(input.entity, fact, input.documentId ?? null, discrepancy);
+  }
+  return { ...fact, ...(discrepancy ? { discrepancy } : {}) };
+}
+
+/**
+ * Record a fact-discrepancy: a system_event for the audit trail + the History
+ * panel, and a needs_review flag on the proving document so the contradiction
+ * lands in the Verify queue. Fully guarded — telemetry must never crash the save.
+ */
+async function flagFactDiscrepancy(
+  entity: EntityRef,
+  fact: Fact,
+  documentId: number | null,
+  discrepancy: FactDiscrepancy
+): Promise<void> {
+  await recordEvent("fact-discrepancy", "ok", {
+    entityType: entity.type,
+    entityId: entity.id,
+    field: fact.field,
+    factId: fact.id,
+    documentId,
+    reason: discrepancy.reason,
+  });
+  if (documentId != null) {
+    try {
+      await sb.from("documents").update({ review_status: "needs_review" }).eq("id", documentId);
+    } catch {
+      /* flag is advisory — a failed update must not unwind the fact append */
+    }
+  }
 }
 
 /**

@@ -98,7 +98,11 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
       const cfg2 = await getEmailConfig();
       const to = cfg2?.fromAddress ?? null;
       const html = opts?.doc ? renderEmail(opts.doc) : undefined;
-      if (cfg2 && to) {
+      // Tier-3 gate: a no-human-in-the-loop SEND must pass the central guardrail
+      // (master pause / outreach pause / per-channel auto-send). When it says no,
+      // fall through to leaving an Outbox draft so nothing is lost.
+      const { canAutoSend } = await import("@/lib/guardrails");
+      if (cfg2 && to && (await canAutoSend("email"))) {
         const { sendEmail } = await import("@/lib/email/send");
         const res = await sendEmail({ to, subject, text, html, fromName: senderName(opts?.doc?.office), attachments: opts?.attachments });
         if (res.ok) {
@@ -120,6 +124,11 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
     },
     async sendToPerson(toEmail, subject, text, opts) {
       if (!toEmail) return { sent: 0, skipped: 1 };
+      // Tier-3 gate: never auto-email a person when the guardrail is closed
+      // (paused / outreach paused / email auto-send off). Skipped, not sent —
+      // the category's own PREPARE path is the route for a human-reviewed send.
+      const { canAutoSend } = await import("@/lib/guardrails");
+      if (!(await canAutoSend("email"))) return { sent: 0, skipped: 1 };
       const { sendEmail } = await import("@/lib/email/send");
       const html = opts?.doc ? renderEmail(opts.doc) : undefined;
       const res = await sendEmail({ to: toEmail, subject, text, html, fromName: senderName(opts?.doc?.office) });

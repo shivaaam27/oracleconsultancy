@@ -56,6 +56,58 @@ export type AppSettings = {
    * at the foot of outgoing email. Embedded inline (CID) so it always renders.
    */
   emailSignatureImagePath: string;
+  /**
+   * Monthly AI spend ceiling, in the same currency unit as ai-spend.ts MODEL_RATES.
+   * 0 = UNLIMITED (the default — AI is never disabled by budget out of the box).
+   * When > 0 and the current EAT month's recorded spend reaches it, getGroqKey()
+   * returns undefined so every AI path degrades to its manual/rule fallback — a
+   * graceful, reversible "out of budget" rather than a silent overspend. The Groq
+   * free tier costs nothing today, so this stays inert until a paid rate is set.
+   */
+  aiMonthlySpendCap: number;
+  /**
+   * Tier-3 "send" guardrails (see lib/guardrails.ts). Whether automated code may
+   * auto-send on each channel WITHOUT a human tap. Defaults preserve today:
+   *  - email follows the existing email-automation setup (auto-send stays ON when
+   *    email is configured and automations aren't paused) → default true;
+   *  - WhatsApp/SMS have no auto-send wiring today → default false (opt-in).
+   * canAutoSend() AND-combines these with automation.paused / outreachPaused.
+   */
+  autoSendEmail: boolean;
+  autoSendWhatsapp: boolean;
+  autoSendSms: boolean;
+  /**
+   * Tier-3 "delete" guardrail. When true (the default), automated paths MUST take
+   * the reversible route — archive, never hard-delete — so nothing the system does
+   * on its own is unrecoverable. Only an explicit human action may hard-delete.
+   */
+  autoHardDeleteForbidden: boolean;
+  /**
+   * An IN-APP Groq API key the owner can set/rotate from Settings WITHOUT a
+   * redeploy. When non-empty it takes precedence over process.env.GROQ_API_KEY in
+   * getGroqKey(), so a dead/rotated key can be fixed instantly from the UI.
+   *
+   * SECURITY NOTE: this is stored as a plain row in the `settings` table. The whole
+   * admin side is behind one owner password (single operator), so an admin-only
+   * secret in admin-only storage is an acceptable trade-off for redeploy-free
+   * rotation. It is NEVER echoed back to the client — the UI only ever sees a
+   * masked preview (getGroqKeyPreview); the raw value stays server-side.
+   */
+  groqApiKey: string;
+  /**
+   * Quiet hours — local Dar es Salaam (UTC+3) "HH:MM" window during which
+   * non-critical pushes are held (urgent always go through). Empty = OFF (the
+   * default, so today's behaviour is unchanged). The window may wrap midnight
+   * (e.g. 22:00 → 07:00). See isQuietHoursNow().
+   */
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  /**
+   * When on, routine notifications batch into a periodic digest instead of buzzing
+   * one-by-one (urgent always go through immediately). Default false = today's
+   * behaviour (every notification pushes individually).
+   */
+  notifyDigest: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -87,6 +139,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   emailFromName: "Oracle Consultancy",
   emailSignature: "",
   emailSignatureImagePath: "",
+  aiMonthlySpendCap: 0, // 0 = unlimited; never disable AI by default
+  autoSendEmail: true, // mirror today: email auto-send follows the email-automation setup
+  autoSendWhatsapp: false,
+  autoSendSms: false,
+  autoHardDeleteForbidden: true, // automated paths archive, never hard-delete
+  groqApiKey: "", // blank = fall back to process.env.GROQ_API_KEY (today's behaviour)
+  quietHoursStart: "", // blank = quiet hours OFF (every push goes through)
+  quietHoursEnd: "",
+  notifyDigest: false, // off = each notification buzzes individually (today's behaviour)
 };
 
 /** Map of canonical setting field → storage key. */
@@ -109,6 +170,15 @@ const KEY: Record<keyof AppSettings, string> = {
   emailFromName: "v2.emailFromName",
   emailSignature: "v2.emailSignature",
   emailSignatureImagePath: "v2.emailSignatureImagePath",
+  aiMonthlySpendCap: "ai.monthlySpendCap",
+  autoSendEmail: "v2.autoSendEmail",
+  autoSendWhatsapp: "v2.autoSendWhatsapp",
+  autoSendSms: "v2.autoSendSms",
+  autoHardDeleteForbidden: "v2.autoHardDeleteForbidden",
+  groqApiKey: "ai.groqApiKey",
+  quietHoursStart: "v2.quietHoursStart",
+  quietHoursEnd: "v2.quietHoursEnd",
+  notifyDigest: "v2.notifyDigest",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -151,6 +221,15 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     emailFromName: map.get(KEY.emailFromName) ?? d.emailFromName,
     emailSignature: map.get(KEY.emailSignature) ?? d.emailSignature,
     emailSignatureImagePath: map.get(KEY.emailSignatureImagePath) ?? d.emailSignatureImagePath,
+    aiMonthlySpendCap: toNum(map.get(KEY.aiMonthlySpendCap), d.aiMonthlySpendCap),
+    autoSendEmail: toBool(map.get(KEY.autoSendEmail), d.autoSendEmail),
+    autoSendWhatsapp: toBool(map.get(KEY.autoSendWhatsapp), d.autoSendWhatsapp),
+    autoSendSms: toBool(map.get(KEY.autoSendSms), d.autoSendSms),
+    autoHardDeleteForbidden: toBool(map.get(KEY.autoHardDeleteForbidden), d.autoHardDeleteForbidden),
+    groqApiKey: map.get(KEY.groqApiKey) ?? d.groqApiKey,
+    quietHoursStart: map.get(KEY.quietHoursStart) ?? d.quietHoursStart,
+    quietHoursEnd: map.get(KEY.quietHoursEnd) ?? d.quietHoursEnd,
+    notifyDigest: toBool(map.get(KEY.notifyDigest), d.notifyDigest),
   };
 });
 
@@ -168,12 +247,91 @@ export async function saveAppSettings(patch: Partial<AppSettings>): Promise<void
  * Returns the Groq API key only when AI is enabled in settings AND a key is set.
  * AI routes already degrade gracefully when this is null, so toggling AI off
  * makes the whole app run manually via existing fallbacks.
+ *
+ * KEY PRECEDENCE: prefer the in-app settings key (settings.groqApiKey) when the
+ * owner has set one, else fall back to process.env.GROQ_API_KEY. This lets the
+ * owner fix a dead/rotated key instantly from Settings with no redeploy. The env
+ * var stays the zero-config default, so out-of-the-box behaviour is unchanged.
+ *
+ * Also returns undefined when the monthly spend cap is set and reached, so the
+ * app degrades gracefully to manual when over budget. This is GATED on a cap
+ * actually being set (default 0 = unlimited), and isOverSpendCap() fails OPEN on
+ * any error — so default behaviour is completely unchanged.
  */
 export async function getGroqKey(): Promise<string | undefined> {
-  const key = process.env.GROQ_API_KEY;
+  const { aiEnabled, groqApiKey } = await getAppSettings();
+  // In-app key (admin-only settings row) wins so it can be rotated without a
+  // redeploy; otherwise use the build-time env var.
+  const key = groqApiKey.trim() || process.env.GROQ_API_KEY;
   if (!key) return undefined;
-  const { aiEnabled } = await getAppSettings();
-  return aiEnabled ? key : undefined;
+  if (!aiEnabled) return undefined;
+  // Local import avoids a settings ⇄ ai-spend cycle at module load; isOverSpendCap
+  // is cached (~60s) and only does any work when a cap is set.
+  const { isOverSpendCap } = await import("./ai-spend");
+  if (await isOverSpendCap()) return undefined;
+  return key;
+}
+
+/**
+ * A SAFE, client-displayable summary of where the Groq key comes from. Never
+ * returns the raw secret — only the last 4 characters of whichever key is in
+ * effect, so the owner can confirm which one is live and that a rotation took.
+ *
+ *  - source "settings": the in-app key is set (takes precedence).
+ *  - source "env": no in-app key; falling back to the GROQ_API_KEY env var.
+ *  - source "none": no key anywhere → AI runs on manual fallbacks.
+ */
+export async function getGroqKeyPreview(): Promise<{ source: "settings" | "env" | "none"; last4: string }> {
+  const { groqApiKey } = await getAppSettings();
+  const inApp = groqApiKey.trim();
+  if (inApp) return { source: "settings", last4: inApp.slice(-4) };
+  const env = process.env.GROQ_API_KEY?.trim();
+  if (env) return { source: "env", last4: env.slice(-4) };
+  return { source: "none", last4: "" };
+}
+
+/** Parse an "HH:MM" string to minutes-since-midnight, or null when invalid/empty. */
+function hhmmToMinutes(v: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/**
+ * True when the current Dar es Salaam (UTC+3, no DST) local time falls inside the
+ * configured quiet-hours window, during which NON-CRITICAL pushes should be held.
+ * Urgent notifications must always bypass this — the caller decides urgency.
+ *
+ * Returns false when quiet hours are not configured (either bound blank/invalid),
+ * so default behaviour is unchanged. The window may wrap past midnight
+ * (e.g. start 22:00, end 07:00). A start == end window is treated as OFF.
+ *
+ * Best-effort: any error → false (fail OPEN so a hiccup never silences alerts).
+ */
+export async function isQuietHoursNow(now = new Date()): Promise<boolean> {
+  try {
+    const { quietHoursStart, quietHoursEnd } = await getAppSettings();
+    const start = hhmmToMinutes(quietHoursStart);
+    const end = hhmmToMinutes(quietHoursEnd);
+    if (start == null || end == null || start === end) return false;
+    // Current time in Dar es Salaam, as minutes since local midnight.
+    const hm = now.toLocaleTimeString("en-GB", {
+      timeZone: "Africa/Nairobi",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const cur = hhmmToMinutes(hm);
+    if (cur == null) return false;
+    return start < end
+      ? cur >= start && cur < end // same-day window
+      : cur >= start || cur < end; // wraps past midnight
+  } catch {
+    return false; // fail open — never silence notifications on an error
+  }
 }
 
 /**

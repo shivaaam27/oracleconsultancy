@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+import { reindexEntity } from "@/lib/index-hooks";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -117,6 +118,8 @@ export async function saveCompanyLetterheadAction(companyId: number, fd: FormDat
 
   const { error } = await sb.from("companies").update(patch).eq("id", companyId);
   if (error) return { ok: false, error: error.message };
+  // legal_name (etc.) feeds the company search text — best-effort re-index.
+  void reindexEntity("company", companyId);
   revalidatePath("/letterheads");
   return { ok: true };
 }

@@ -1,5 +1,5 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v7";
+const CACHE_VERSION = "cos-v8";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const OFFLINE_URL = "/offline.html";
@@ -79,7 +79,16 @@ self.addEventListener("fetch", (event) => {
 });
 
 // --- Push notifications -------------------------------------------------
-// Server sends a JSON payload: { title, body, url, tag }.
+// Server sends a JSON payload: { title, body, url, tag, count } and, for
+// actionable notifications: { id, actions: ["open","done","snooze"],
+// taskCode, threadId }. All of the action fields are optional — older
+// payloads (and the cron operations alert) just open the deep link.
+const ACTION_LABELS = {
+  open: "Open",
+  done: "Mark done",
+  snooze: "Snooze",
+};
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -88,12 +97,31 @@ self.addEventListener("push", (event) => {
     data = { title: "COS", body: event.data ? event.data.text() : "" };
   }
   const title = data.title || "COS";
+
+  // Build the action buttons from the payload's action ids. We never show
+  // "open" as a button — tapping the notification body already opens it,
+  // and a duplicate button just wastes the limited action slots. Unknown
+  // ids are ignored so a future payload can't break older clients.
+  const actions = Array.isArray(data.actions)
+    ? data.actions
+        .filter((a) => a !== "open" && ACTION_LABELS[a])
+        .slice(0, 2) // most platforms only render two action buttons
+        .map((a) => ({ action: a, title: ACTION_LABELS[a] }))
+    : [];
+
   const options = {
     body: data.body || "",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     tag: data.tag || "cos",
-    data: { url: data.url || "/" },
+    // Carry everything the click handler needs to act offline (no window open).
+    data: {
+      url: data.url || "/",
+      id: typeof data.id === "number" ? data.id : null,
+      taskCode: data.taskCode || null,
+      threadId: typeof data.threadId === "number" ? data.threadId : null,
+    },
+    actions,
   };
   // Badge the installed-app icon (Android / desktop PWA / iOS 16.4+ home screen)
   // even while the app is closed. The page sets the exact count and clears it
@@ -109,26 +137,65 @@ self.addEventListener("push", (event) => {
       self.registration.showNotification(title, options),
       // Nudge any open tab so the in-app bell refreshes its count/list in
       // real time, not on the next poll.
-      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-        for (const client of clients) client.postMessage({ type: "cos-notification" });
-      }),
+      refreshBell(),
     ])
   );
 });
 
-// Focus an existing tab if open, otherwise open a new one at the target URL.
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || "/";
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if ("focus" in client) {
-          client.navigate(target);
-          return client.focus();
-        }
+// Nudge any open tab so the in-app bell refreshes its count/list.
+function refreshBell() {
+  return self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((clients) => {
+      for (const client of clients) client.postMessage({ type: "cos-notification" });
+    });
+}
+
+// Open (focus an existing tab if one is open, else open a new one).
+function openTarget(target) {
+  return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+    for (const client of clients) {
+      if ("focus" in client) {
+        client.navigate(target);
+        return client.focus();
       }
-      return self.clients.openWindow(target);
-    })
-  );
+    }
+    return self.clients.openWindow(target);
+  });
+}
+
+// POST an action to the act endpoint. Works with no window open (the SW can
+// fetch in the background). Best-effort — failures are swallowed so a flaky
+// network never throws out of the click handler. credentials:"include" sends
+// the admin/portal session cookie so the route can scope to the recipient.
+function postAct(action, info) {
+  return fetch("/api/notifications/act", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      id: info.id,
+      action,
+      taskCode: info.taskCode || undefined,
+      threadId: info.threadId || undefined,
+    }),
+  }).catch(() => {});
+}
+
+self.addEventListener("notificationclick", (event) => {
+  const info = (event.notification && event.notification.data) || {};
+  const target = info.url || "/";
+  const act = event.action; // "" for a body tap, else the action id
+
+  event.notification.close();
+
+  // "done" / "snooze" act in the background and DON'T navigate — the whole
+  // point of the buttons is to clear the item without opening the app.
+  if ((act === "done" || act === "snooze") && typeof info.id === "number") {
+    event.waitUntil(Promise.all([postAct(act, info), refreshBell()]));
+    return;
+  }
+
+  // Body tap, "open", or any unhandled action → deep-link as before.
+  event.waitUntil(Promise.all([openTarget(target), refreshBell()]));
 });

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 
 // Notes are Apple-Notes-style jottings stored in the `meetings` table with
 // kind="note" — so they share company tagging and Ask COS context with
@@ -74,6 +75,9 @@ export async function createNote(input: {
     .select(NOTE_COLS)
     .single();
   if (error) throw new Error(error.message);
+  // Notes live in the meetings table, so they index as "meeting" (best-effort,
+  // no-op unless semantic search is on; mirrors the registry's meeting def).
+  void reindexEntity("meeting", data.id as number);
   revalidatePath("/workbook");
   return mapRow(data);
 }
@@ -94,6 +98,8 @@ export async function updateNote(input: {
 
   const { error } = await sb.from("meetings").update(patch).eq("id", input.id).eq("kind", "note");
   if (error) return { ok: false, updatedAt: now };
+  // title/body feed the meeting search text — re-index (best-effort).
+  void reindexEntity("meeting", input.id);
   revalidatePath("/workbook");
   return { ok: true, updatedAt: now };
 }
@@ -106,5 +112,7 @@ export async function setNotePinned(id: number, pinned: boolean): Promise<void> 
 
 export async function deleteNote(id: number): Promise<void> {
   await sb.from("meetings").delete().eq("id", id).eq("kind", "note");
+  // Hard-delete — drop its vectors (best-effort).
+  void removeEntityIndex("meeting", id);
   revalidatePath("/workbook");
 }

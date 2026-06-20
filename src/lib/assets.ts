@@ -3,6 +3,7 @@ import type { AssetRow, AssetHistoryRow, AssetStatus } from "@/lib/assets-shared
 import { type Tx } from "@/lib/tx";
 import { assets, assetAssignments } from "@/db/schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import { reindexEntity } from "@/lib/index-hooks";
 
 /* ------------------------------------------------------------------ */
 /* Asset register — durable, individually-assigned company equipment.  */
@@ -241,7 +242,9 @@ export async function createAsset(input: AssetInput): Promise<number> {
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  return data.id as number;
+  const id = data.id as number;
+  void reindexEntity("asset", id); // best-effort, never throws
+  return id;
 }
 
 /**
@@ -272,6 +275,7 @@ export async function createAssetsBulk(inputs: AssetInput[]): Promise<number> {
   }));
   const { data, error } = await sb.from("assets").insert(rows).select("id");
   if (error) throw new Error(error.message);
+  for (const r of data ?? []) void reindexEntity("asset", r.id as number); // best-effort
   return data?.length ?? 0;
 }
 
@@ -297,6 +301,7 @@ export async function updateAsset(id: number, input: AssetInput): Promise<void> 
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
+  void reindexEntity("asset", id); // best-effort
 }
 
 /**
@@ -322,6 +327,7 @@ export async function assignAsset(
     .from("asset_assignments")
     .insert({ asset_id: assetId, person_id: personId, assigned_at: handover, notes, created_at: now });
   if (lErr) throw new Error(lErr.message);
+  void reindexEntity("asset", assetId); // best-effort
 }
 
 /** Assets a person is the accountable custodian of (shared/team kit). */
@@ -363,6 +369,7 @@ export async function assignAssetShared(
     .from("asset_assignments")
     .insert({ asset_id: assetId, person_id: opts.custodianPersonId, assigned_at: now, notes: "Shared / team assignment", created_at: now });
   if (lErr) throw new Error(lErr.message);
+  void reindexEntity("asset", assetId); // best-effort
 }
 
 /** Return an asset — closes the open ledger row and frees the asset. */
@@ -385,6 +392,7 @@ export async function returnAsset(assetId: number, notes: string | null = null):
     })
     .eq("id", assetId);
   if (error) throw new Error(error.message);
+  void reindexEntity("asset", assetId); // best-effort
 }
 
 /** Return every asset a person currently holds. Used by offboarding. */
@@ -503,6 +511,8 @@ export async function setAssetStatus(assetId: number, status: AssetStatus): Prom
   }
   const { error } = await sb.from("assets").update(patch).eq("id", assetId);
   if (error) throw new Error(error.message);
+  // Re-index: status drives lifecycle (retired = history) in the registry.
+  void reindexEntity("asset", assetId); // best-effort
 }
 
 export async function archiveAsset(assetId: number, archived: boolean): Promise<void> {
@@ -511,4 +521,8 @@ export async function archiveAsset(assetId: number, archived: boolean): Promise<
     .update({ archived, updated_at: new Date().toISOString() })
     .eq("id", assetId);
   if (error) throw new Error(error.message);
+  // Soft archive/restore — re-stamp lifecycle (archived = history), keep it
+  // searchable rather than removing the index (registry lifecycleFor reads
+  // `archived`). Only a true hard-delete would call removeEntityIndex.
+  void reindexEntity("asset", assetId); // best-effort
 }

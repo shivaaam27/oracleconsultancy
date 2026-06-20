@@ -18,7 +18,23 @@
 // keeps a flaky free-tier model from silently corrupting data. Kept dependency
 // free (no Zod) to match the codebase's existing hand-rolled validators.
 
-import { GROQ_FAST } from "./ai-models";
+import { GROQ_FAST, ladderFor } from "./ai-models";
+import { recordUsage, isOverSpendCap } from "./ai-spend";
+
+/** Token counts a Groq response carries under `usage` (OpenAI-compatible). */
+type GroqUsage = { prompt_tokens?: number; completion_tokens?: number } | null | undefined;
+
+/** Record one call's token usage in the ledger. Fire-and-forget, never awaited,
+ *  never throws (recordUsage swallows its own errors) — usage tracking must not
+ *  affect an AI feature. */
+function trackUsage(model: string, source: string, usage: GroqUsage): void {
+  void recordUsage({
+    model,
+    source,
+    promptTokens: usage?.prompt_tokens ?? 0,
+    completionTokens: usage?.completion_tokens ?? 0,
+  });
+}
 
 /**
  * Pull the first complete JSON object out of a model reply. Handles:
@@ -114,9 +130,98 @@ export function validateShape(obj: Record<string, unknown> | null, shape: ShapeS
   return problems;
 }
 
+// --- Provider abstraction (scaffold) ---------------------------------------
+//
+// All AI today runs on Groq. This thin interface is the documented EXTENSION
+// POINT for adding a second provider later (e.g. if Groq is down for an extended
+// outage, point at OpenRouter / a self-hosted gateway). It is deliberately
+// INERT beyond Groq: `PROVIDERS` wires only `groqProvider`, and the harness
+// always uses Groq today, so call-site behaviour is unchanged. Wiring a second
+// (paid) provider is an OWNER decision — when that day comes, implement the
+// interface, add it to `PROVIDERS`, and add a selection rule (env / settings).
+// Nothing else in the codebase needs to know which provider answered.
+
+/** A normalised result from one provider chat call — the harness reads only
+ *  these fields, so a new provider just needs to fill them. */
+export interface ProviderChatResult {
+  /** HTTP-ish status (200 ok; 429 rate-limit; >=500 transient; 4xx fatal-for-this-model). */
+  status: number;
+  /** Assistant message text, or null if the body had none. */
+  content: string | null;
+  /** Token usage for the spend ledger, if the provider reports it. */
+  usage?: GroqUsage;
+  /** True only when a request was actually made AND a body parsed. */
+  ok: boolean;
+}
+
+export interface ProviderChatRequest {
+  apiKey: string;
+  model: string;
+  messages: unknown[];
+  temperature: number;
+  maxTokens: number;
+  /** Ask for a strict JSON object back (OpenAI-compatible response_format). */
+  jsonMode?: boolean;
+  /** Per-request timeout in ms. */
+  timeoutMs: number;
+}
+
+export interface AIProvider {
+  /** Stable id for logging / future selection. */
+  readonly id: string;
+  /**
+   * Make one chat call. MUST NOT throw for an HTTP error — return the status so
+   * the harness can decide retry-vs-fall-through. It MAY throw on a true network
+   * failure / timeout (the harness catches that and treats it as transient).
+   */
+  chat(req: ProviderChatRequest): Promise<ProviderChatResult>;
+}
+
 // --- Guard 4: the retrying call --------------------------------------------
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+/** The only wired provider today: Groq's OpenAI-compatible chat endpoint. */
+export const groqProvider: AIProvider = {
+  id: "groq",
+  async chat(req: ProviderChatRequest): Promise<ProviderChatResult> {
+    const res = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${req.apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: req.model,
+        messages: req.messages,
+        temperature: req.temperature,
+        max_tokens: req.maxTokens,
+        ...(req.jsonMode ? { response_format: { type: "json_object" as const } } : {}),
+      }),
+      signal: AbortSignal.timeout(req.timeoutMs),
+    });
+    // Only parse the body on a 2xx; for non-OK the harness branches on `status`
+    // before touching content, so we avoid a needless (and possibly failing) read.
+    if (!res.ok) return { status: res.status, content: null, ok: false };
+    const body = await res.json();
+    return {
+      status: res.status,
+      content: body?.choices?.[0]?.message?.content ?? null,
+      usage: body?.usage as GroqUsage,
+      ok: true,
+    };
+  },
+};
+
+/** Provider registry. Groq only today — the documented extension point above
+ *  explains how/when to add a second. Order is not significant yet. */
+export const PROVIDERS: Record<string, AIProvider> = {
+  groq: groqProvider,
+};
+
+/** The active provider. Hard-wired to Groq today (everything is Groq); kept as a
+ *  function so a future env/settings selection slots in here without touching any
+ *  call site. */
+function activeProvider(): AIProvider {
+  return PROVIDERS.groq;
+}
 
 /** Default per-attempt request timeout. Without it, a hung Groq request blocks
  *  until the platform's 60s function wall. A thrown AbortError is caught as a
@@ -125,6 +230,7 @@ export const DEFAULT_TIMEOUT_MS = 20000;
 
 export type GroqJsonError =
   | "no-key"
+  | "spend-cap" // over the monthly spend ceiling — degrade to manual/rules
   | "rate-limited" // 429 after all retries
   | "http-error" // non-OK, non-429
   | "network" // fetch threw after all retries
@@ -161,6 +267,8 @@ export interface CallGroqJsonOpts {
   backoffMs?: number;
   /** Per-attempt request timeout in ms (default DEFAULT_TIMEOUT_MS). */
   timeoutMs?: number;
+  /** Call-site label for the usage ledger, e.g. "extract" / "ask". Default "ai". */
+  source?: string;
 }
 
 /**
@@ -179,58 +287,61 @@ export async function callGroqJson(opts: CallGroqJsonOpts): Promise<GroqJsonResu
     attempts = 3,
     backoffMs = 500,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    source = "ai",
   } = opts;
 
   if (!apiKey) return { ok: false, data: null, confidence: null, error: "no-key" };
+  // Spend ceiling (default unlimited): refuse gracefully when over budget. Callers
+  // already handle !ok by falling back to rules/manual — same as a missing key.
+  if (await isOverSpendCap()) return { ok: false, data: null, confidence: null, error: "spend-cap" };
 
+  const provider = activeProvider();
+  // A single `model` that heads the fast/smart ladder expands to the WHOLE ladder,
+  // so a decommissioned primary self-heals to the next entry with no call-site
+  // change. Any other model (a specific vision id the caller already loops, a
+  // one-off) stays single — behaviour unchanged.
+  const ladder = ladderFor(model);
   let lastError: GroqJsonError = "network";
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    if (attempt > 0) await sleep(backoffMs * 2 ** (attempt - 1));
-    let res: Response;
-    try {
-      res = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature,
-          max_tokens: maxTokens,
-          response_format: { type: "json_object" },
-        }),
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-    } catch {
-      lastError = "network"; // transient (incl. AbortError timeout) — retry
-      continue;
-    }
-    // Retry the genuinely transient HTTP statuses; give up on the rest.
-    if (res.status === 429) { lastError = "rate-limited"; continue; }
-    if (res.status >= 500) { lastError = "http-error"; continue; }
-    if (!res.ok) return { ok: false, data: null, confidence: null, error: "http-error" };
 
-    let content: string | null = null;
-    try {
-      const body = await res.json();
-      content = body?.choices?.[0]?.message?.content ?? null;
-    } catch {
-      lastError = "http-error"; continue;
-    }
-    if (!content) return { ok: false, data: null, confidence: null, error: "empty", raw: content };
-
-    const parsed = parseJsonObject(content);
-    if (!parsed) return { ok: false, data: null, confidence: null, error: "bad-json", raw: content };
-
-    const confidence = readConfidence(parsed);
-    if (shape) {
-      const problems = validateShape(parsed, shape);
-      if (problems.length) {
-        return { ok: false, data: null, confidence, error: "schema", problems, raw: content };
+  for (const m of ladder) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (attempt > 0) await sleep(backoffMs * 2 ** (attempt - 1));
+      let res: ProviderChatResult;
+      try {
+        res = await provider.chat({ apiKey, model: m, messages, temperature, maxTokens, jsonMode: true, timeoutMs });
+      } catch {
+        lastError = "network"; // transient (incl. AbortError timeout) — retry
+        continue;
       }
+      // Retry the genuinely transient HTTP statuses on the SAME model.
+      if (res.status === 429) { lastError = "rate-limited"; continue; }
+      if (res.status >= 500) { lastError = "http-error"; continue; }
+      // A 4xx (e.g. 400 model_decommissioned / 404 model_not_found) won't recover
+      // by retrying THIS model — abandon it and fall through to the next ladder
+      // entry, if any (mirrors the vision/text fall-through). Single-model callers
+      // just return the error, exactly as before.
+      if (!res.ok) { lastError = "http-error"; break; }
+
+      const content = res.content;
+      // Successful billed call — record token usage (fire-and-forget, best-effort).
+      trackUsage(m, source, res.usage);
+      if (!content) return { ok: false, data: null, confidence: null, error: "empty", raw: content };
+
+      const parsed = parseJsonObject(content);
+      if (!parsed) return { ok: false, data: null, confidence: null, error: "bad-json", raw: content };
+
+      const confidence = readConfidence(parsed);
+      if (shape) {
+        const problems = validateShape(parsed, shape);
+        if (problems.length) {
+          return { ok: false, data: null, confidence, error: "schema", problems, raw: content };
+        }
+      }
+      return { ok: true, data: parsed, confidence, raw: content };
     }
-    return { ok: true, data: parsed, confidence, raw: content };
+    // this model exhausted its attempts on a transient error — fall to the next
   }
-  // All attempts exhausted on a transient error.
+  // All attempts (across all ladder entries) exhausted on a transient/fatal error.
   return { ok: false, data: null, confidence: null, error: lastError };
 }
 
@@ -257,7 +368,7 @@ export const LOW_CONFIDENCE = 0.75;
 // polish, draft narrative — so a brief 429 / 5xx / hang is retried instead of
 // dropping to a weaker fallback (or erroring) on the first hiccup.
 
-export type GroqTextError = "no-key" | "rate-limited" | "http-error" | "network" | "empty";
+export type GroqTextError = "no-key" | "spend-cap" | "rate-limited" | "http-error" | "network" | "empty";
 
 export interface GroqTextResult {
   ok: boolean;
@@ -282,6 +393,8 @@ export interface CallGroqTextOpts {
   backoffMs?: number;
   /** Per-attempt request timeout in ms (default DEFAULT_TIMEOUT_MS). */
   timeoutMs?: number;
+  /** Call-site label for the usage ledger, e.g. "ask" / "translate". Default "ai". */
+  source?: string;
 }
 
 export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResult> {
@@ -293,25 +406,27 @@ export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResu
     attempts = 3,
     backoffMs = 500,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    source = "ai",
   } = opts;
 
   if (!apiKey) return { ok: false, text: null, error: "no-key" };
+  // Spend ceiling (default unlimited): refuse gracefully when over budget.
+  if (await isOverSpendCap()) return { ok: false, text: null, error: "spend-cap" };
 
-  const ladder = opts.models?.length ? opts.models : [opts.model ?? GROQ_FAST];
+  const provider = activeProvider();
+  // Precedence: an explicit `models` ladder (caller knows best) → else expand a
+  // single `model` to the fast/smart ladder it heads (so a decommissioned primary
+  // self-heals) → else the default fast ladder. A non-ladder model stays single.
+  const ladder = opts.models?.length ? opts.models : ladderFor(opts.model ?? GROQ_FAST);
   let lastError: GroqTextError = "network";
   let lastStatus: number | undefined;
 
   for (const model of ladder) {
     for (let attempt = 0; attempt < attempts; attempt++) {
       if (attempt > 0) await sleep(backoffMs * 2 ** (attempt - 1));
-      let res: Response;
+      let res: ProviderChatResult;
       try {
-        res = await fetch(GROQ_URL, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens }),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
+        res = await provider.chat({ apiKey, model, messages, temperature, maxTokens, timeoutMs });
       } catch {
         lastError = "network"; // includes AbortError (timeout) — transient, retry
         continue;
@@ -324,13 +439,9 @@ export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResu
       // entry, if any. Single-model callers just return the error (same as before).
       if (!res.ok) { lastError = "http-error"; break; }
 
-      let content: string | null = null;
-      try {
-        const body = await res.json();
-        content = body?.choices?.[0]?.message?.content ?? null;
-      } catch {
-        lastError = "http-error"; continue;
-      }
+      const content = res.content;
+      // Successful billed call — record token usage (fire-and-forget, best-effort).
+      trackUsage(model, source, res.usage);
       if (!content) { lastError = "empty"; continue; }
       return { ok: true, text: content, status: res.status };
     }

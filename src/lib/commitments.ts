@@ -1,4 +1,5 @@
 import { sb } from "@/db/supabase";
+import { reindexEntity } from "@/lib/index-hooks";
 import type { Commitment, CommitmentKind } from "@/lib/commitments-shared";
 
 export type { Commitment } from "@/lib/commitments-shared";
@@ -84,6 +85,7 @@ export async function createCommitment(
     created_by: createdBy,
   }).select("id").single();
   if (error || !data) return { ok: false, error: error?.message ?? "Insert returned no row." };
+  void reindexEntity("commitment", data.id as number);
   return { ok: true, id: data.id as number };
 }
 
@@ -102,11 +104,13 @@ export async function updateCommitment(id: number, patch: Partial<CommitmentInpu
   if (patch.note !== undefined) payload.note = patch.note;
   const { error } = await sb.from("commitments").update(payload).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  void reindexEntity("commitment", id);
   return { ok: true };
 }
 
 export async function archiveCommitment(id: number, archived = true): Promise<WriteResult> {
   const { error } = await sb.from("commitments").update({ archived, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  void reindexEntity("commitment", id); // archive re-stamps lifecycle="history" (kept, not removed)
   return { ok: true };
 }

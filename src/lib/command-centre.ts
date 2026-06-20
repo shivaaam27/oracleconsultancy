@@ -172,6 +172,20 @@ export function doneThisPeriod(frequency: ObligationFrequency, lastDone: Date | 
   return lastDone.getTime() >= start.getTime();
 }
 
+/**
+ * A stable identifier for the current cadence period — derived from periodStart
+ * so it rolls over exactly when "done this period" does. Used to key one-task-per-
+ * obligation-period dedup (e.g. "annual:2025-07-01"). Null for undated cadences.
+ */
+export function periodKey(frequency: ObligationFrequency, today: Date = new Date()): string | null {
+  const start = periodStart(frequency, today);
+  if (!start) return null;
+  const y = start.getFullYear();
+  const m = String(start.getMonth() + 1).padStart(2, "0");
+  const d = String(start.getDate()).padStart(2, "0");
+  return `${frequency}:${y}-${m}-${d}`;
+}
+
 export type NextDueInput = {
   frequency: ObligationFrequency;
   dueDay?: number | null;

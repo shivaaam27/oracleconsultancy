@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { createLetter, updateLetterDraft, issueLetter, duplicateLetter, deleteLetter } from "@/lib/letters";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -14,6 +15,8 @@ function invalidate(id?: number) {
 export async function createLetterAction(type: string, companyId: number | null, personId: number | null): Promise<Result> {
   try {
     const id = await createLetter(type, companyId, personId);
+    // Best-effort semantic index (no-op unless semantic search is enabled).
+    void reindexEntity("letter", id);
     invalidate(id);
     return { ok: true, id };
   } catch (e) {
@@ -27,6 +30,8 @@ export async function saveLetterDraftAction(
 ): Promise<Result> {
   try {
     await updateLetterDraft(id, fields);
+    // Best-effort semantic re-index (no-op unless semantic search is enabled).
+    void reindexEntity("letter", id);
     invalidate(id);
     return { ok: true, id };
   } catch (e) {
@@ -37,6 +42,8 @@ export async function saveLetterDraftAction(
 export async function issueLetterAction(id: number): Promise<Result> {
   try {
     await issueLetter(id);
+    // Best-effort semantic re-index (no-op unless semantic search is enabled).
+    void reindexEntity("letter", id);
     invalidate(id);
     return { ok: true, id };
   } catch (e) {
@@ -47,6 +54,8 @@ export async function issueLetterAction(id: number): Promise<Result> {
 export async function duplicateLetterAction(id: number): Promise<Result> {
   try {
     const newId = await duplicateLetter(id);
+    // Best-effort semantic index (no-op unless semantic search is enabled).
+    void reindexEntity("letter", newId);
     invalidate(newId);
     return { ok: true, id: newId };
   } catch (e) {
@@ -57,6 +66,8 @@ export async function duplicateLetterAction(id: number): Promise<Result> {
 export async function deleteLetterAction(id: number): Promise<Result> {
   try {
     await deleteLetter(id);
+    // Hard-delete (Draft letters only) — drop its index entries.
+    void removeEntityIndex("letter", id);
     invalidate();
     return { ok: true };
   } catch (e) {

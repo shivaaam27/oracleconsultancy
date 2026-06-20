@@ -80,7 +80,16 @@ function systemEventSummary(kind: string, d: Record<string, unknown>): { summary
     case "cron.reindex":
       return { summary: `Re-indexed for search`, detail: null };
     case "system.health":
-      return { summary: `Flagged a system-health problem`, detail: Array.isArray(d.down) ? (d.down as string[]).join("; ") : s(d.status), href: "/inbox" };
+      // status:ok rows are the calm "all healthy" heartbeat; only the error rows
+      // are a flagged problem. (The "— failed" suffix is added by the caller for
+      // error rows, so keep the summary status-neutral here.)
+      return Array.isArray(d.down) && (d.down as string[]).length
+        ? { summary: `Flagged a system-health problem`, detail: (d.down as string[]).join("; "), href: "/inbox" }
+        : { summary: `Checked system health — all ${s(d.healthy) ?? "jobs"} healthy`, detail: d.repaired ? `auto-fixed ${s(d.repaired)}` : null, href: "/inbox" };
+    case "system.repair":
+      return { summary: `Self-repaired a stalled job (${s(d.job) ?? "a job"})`, detail: s(d.message), href: "/inbox" };
+    case "system.repaired":
+      return { summary: `Auto-fixed ${Array.isArray(d.jobs) ? (d.jobs as string[]).join(", ") : "a job"}`, detail: null, href: "/inbox" };
     case "automation.time":
       return { summary: `Created scheduled work that came due`, detail: s(d.summary), href: "/" };
     case "portal.access.granted":

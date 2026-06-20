@@ -659,6 +659,27 @@
       "when": 1781950000000,
       "tag": "0093_document_confidence",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1782000000000,
+      "tag": "0094_embeddings_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1782000100000,
+      "tag": "0095_ai_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1782000200000,
+      "tag": "0096_ai_usage",
+      "breakpoints": true
     }
   ]
 }

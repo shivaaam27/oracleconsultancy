@@ -5,6 +5,9 @@
 // silent failure becomes loud.
 
 import { sb } from "@/db/supabase";
+import { auditCoverage } from "@/lib/coverage-audit";
+import { isRepairable, attemptRepair } from "@/lib/system-repair";
+import { checkGroqKeyHealth, type GroqKeyHealth } from "@/lib/model-watch";
 
 export type JobState = "healthy" | "failed" | "stale" | "never";
 
@@ -15,12 +18,26 @@ export type JobHealth = {
   lastRun: string | null;   // ISO — most recent run of any status
   lastOk: string | null;    // ISO — most recent successful run
   detail: string | null;    // why it's unhealthy (error message / how overdue)
+  repaired?: boolean;       // this run self-repaired the job (re-ran it, it's healthy now)
+};
+
+// Calm positive picture for the "all is well" state — so the card can SAY
+// something good (not just go quiet) when everything is healthy.
+export type HealthSummary = {
+  totalJobs: number;        // jobs we watch
+  healthyJobs: number;      // …that are currently healthy
+  repairedJobs: number;     // …that this run self-repaired (only set on a repair pass)
+  recentlyRepaired: string[]; // job labels self-repaired in the last 24h (from the log)
+  lastRun: string | null;   // ISO — newest run of any watched job (the "heartbeat")
+  itemsIndexed: number | null; // distinct records in the search index (null = search off)
 };
 
 export type SystemHealth = {
   status: "ok" | "warn" | "down";   // worst across jobs
   jobs: JobHealth[];
   schedulerStale: boolean;          // nothing at all has run recently (dead-man switch)
+  summary: HealthSummary;           // glanceable "all N healthy" line
+  keyHealth: GroqKeyHealth;         // is the active Groq API key still good?
   checkedAt: string;
 };
 
@@ -47,10 +64,18 @@ function fmtOverdue(ageMs: number): string {
   return `no success for ${Math.floor(h / 24)}d`;
 }
 
-export async function checkSystemHealth(): Promise<SystemHealth> {
+export async function checkSystemHealth(
+  // repair: when true, a failed/stale job we know how to re-run gets ONE repair
+  // attempt before it's reported — so a transient stall self-heals and never
+  // reaches the owner as red. Off by default: a page render must stay side-effect
+  // free; the morning-run cron opts in. Best-effort — a failed repair just leaves
+  // the job in its original unhealthy state (so the alert still fires).
+  opts: { repair?: boolean } = {},
+): Promise<SystemHealth> {
   const now = Date.now();
   const sinceIso = new Date(now - 7 * 86_400_000).toISOString();
-  const kinds = [...JOBS.map((j) => j.kind), AI_KIND, MODEL_KIND];
+  const REPAIR_KIND = "system.repair";
+  const kinds = [...JOBS.map((j) => j.kind), AI_KIND, MODEL_KIND, REPAIR_KIND];
 
   const { data } = await sb
     .from("system_events")
@@ -84,6 +109,29 @@ export async function checkSystemHealth(): Promise<SystemHealth> {
     return { kind: j.kind, label: j.label, state, lastRun: last?.created_at ?? null, lastOk: lastOkRow?.created_at ?? null, detail };
   });
 
+  // SELF-REPAIR (opt-in): before we let anything ring an alarm, try to re-run each
+  // failed/stale cron job ONCE. Most stalls are transient and a quiet retry fixes
+  // them. A repair that succeeds flips the job to healthy (with a `repaired` flag);
+  // one that fails leaves the job exactly as it was, so the alert still fires.
+  // One attempt per job per run — never throws.
+  if (opts.repair) {
+    for (const j of jobs) {
+      if ((j.state !== "failed" && j.state !== "stale") || !isRepairable(j.kind)) continue;
+      const outcome = await attemptRepair(j.kind);
+      if (outcome.ok) {
+        j.state = "healthy";
+        j.repaired = true;
+        j.lastOk = new Date(now).toISOString();
+        j.lastRun = j.lastOk;
+        j.detail = `self-repaired — ${outcome.message}`;
+      } else {
+        // Re-run failed too → it's genuinely down. Keep the original state, but
+        // make the detail say we tried, so the alert is honest.
+        j.detail = `${j.detail ?? "unhealthy"} (auto-retry failed: ${outcome.message})`;
+      }
+    }
+  }
+
   // AI reads — error rate over the last 24h.
   const aiRecent = rows.filter((r) => r.kind === AI_KIND && now - new Date(r.created_at).getTime() < 86_400_000);
   const aiFails = aiRecent.filter((r) => r.status === "error").length;
@@ -107,6 +155,73 @@ export async function checkSystemHealth(): Promise<SystemHealth> {
     jobs.push({ kind: MODEL_KIND, label: "AI model availability", state: "failed", lastRun: lastModel.created_at, lastOk: rows.find((r) => r.kind === MODEL_KIND && r.status === "ok")?.created_at ?? null, detail });
   }
 
+  // Groq KEY health + search coverage in parallel (both best-effort, never throw).
+  //
+  // KEY: its own brain in model-watch (cached a few minutes), kept separate from
+  // getGroqKey so "key expired" reads differently to "AI switched off" / "over
+  // budget".
+  //
+  // COVERAGE: does the index actually cover everything it should? A material gap
+  // (a type with records but materially under-indexed, or an entity-like table
+  // nothing indexes) is a quiet failure: those records won't surface in search
+  // until the nightly re-index catches up. Treated as a warn, not a hard down.
+  const [keyHealth, coverage] = await Promise.all([
+    checkGroqKeyHealth().catch(
+      (): GroqKeyHealth => ({ status: "unknown", source: "none", checkedAt: new Date(now).toISOString() }),
+    ),
+    auditCoverage(),
+  ]);
+
+  // Surface the key state as a calm row. Only a genuinely rejected key
+  // (expired/revoked) is a "failed" — it silently stops every AI feature. No-key
+  // and AI-off are intentional configurations (informational, not alarms), and
+  // "unknown" (couldn't reach Groq) must never cry wolf, so neither degrades the
+  // headline. "valid" is shown green so the card can say something good.
+  jobs.push({
+    kind: "ai.key",
+    label: "AI key",
+    state: keyHealth.status === "invalid" ? "failed" : "healthy",
+    lastRun: keyHealth.checkedAt,
+    lastOk: keyHealth.status === "valid" ? keyHealth.checkedAt : null,
+    detail:
+      keyHealth.status === "valid" ? "valid"
+      : keyHealth.status === "invalid" ? "expired or revoked — set a new one in Settings"
+      : keyHealth.status === "no-key" ? "no key set — AI runs on manual fallbacks"
+      : keyHealth.status === "ai-off" ? "AI is switched off in Settings"
+      : "couldn’t reach Groq to check",
+  });
+  // No rows = semantic search is off (the default, index intentionally empty) or
+  // the audit couldn't read anything. Either way there's nothing to report — skip
+  // the row entirely rather than show a misleading green/red coverage status.
+  const gaps = coverage.rows.filter((r) => r.severity !== "ok");
+  if (coverage.rows.length === 0) {
+    // skip — feature off or audit unavailable
+  } else if (gaps.length) {
+    const worst = gaps.some((g) => g.severity === "missing") ? "missing" : "gap";
+    const names = gaps
+      .slice(0, 4)
+      .map((g) => `${g.type}${g.gapPct != null ? ` (${Math.round(g.gapPct * 100)}% un-indexed)` : ""}`)
+      .join(", ");
+    const more = gaps.length > 4 ? ` +${gaps.length - 4} more` : "";
+    jobs.push({
+      kind: "search.coverage",
+      label: "Search index coverage",
+      state: "stale",
+      lastRun: coverage.checkedAt,
+      lastOk: null,
+      detail: `${worst === "missing" ? "not indexed" : "under-indexed"}: ${names}${more}`,
+    });
+  } else {
+    jobs.push({
+      kind: "search.coverage",
+      label: "Search index coverage",
+      state: "healthy",
+      lastRun: coverage.checkedAt,
+      lastOk: coverage.checkedAt,
+      detail: null,
+    });
+  }
+
   // Dead-man switch: nothing at all has run in 36h → the scheduler itself may be down.
   const newest = rows[0] ? new Date(rows[0].created_at).getTime() : 0;
   const schedulerStale = newest === 0 || now - newest > 36 * 3_600_000;
@@ -115,5 +230,41 @@ export async function checkSystemHealth(): Promise<SystemHealth> {
   const anyWarn = jobs.some((j) => j.state === "stale" || j.state === "never");
   const status: SystemHealth["status"] = anyDown || schedulerStale ? "down" : anyWarn ? "warn" : "ok";
 
-  return { status, jobs, schedulerStale, checkedAt: new Date(now).toISOString() };
+  // Calm positive picture. itemsIndexed reuses the coverage audit we already ran
+  // (sum of distinct indexed rows across types); null when search is off, so the
+  // card can omit that clause rather than show "0 indexed". The heartbeat is the
+  // newest run of any watched job.
+  const itemsIndexed = coverage.rows.length
+    ? coverage.rows.reduce((sum, r) => sum + (r.indexedRows ?? 0), 0)
+    : null;
+
+  // Recently self-repaired (last 24h), read back from the log so the card reflects
+  // overnight repairs even on a plain (non-repairing) page render. Maps the logged
+  // job kind to its friendly label; deduped, newest-first order preserved.
+  const labelByKind = new Map(JOBS.map((j) => [j.kind, j.label]));
+  const recentlyRepaired: string[] = [];
+  for (const r of rows) {
+    if (r.kind !== REPAIR_KIND || r.status !== "ok") continue;
+    if (now - new Date(r.created_at).getTime() > 86_400_000) continue;
+    let jobKind: string | null = null;
+    try { jobKind = (JSON.parse(r.details ?? "{}").job as string) ?? null; } catch { /* ignore */ }
+    const label = (jobKind && labelByKind.get(jobKind)) || jobKind;
+    if (label && !recentlyRepaired.includes(label)) recentlyRepaired.push(label);
+  }
+  // Fold in repairs done in THIS pass (their log rows post-date the query above),
+  // so a repairing call returns a self-consistent summary.
+  for (const j of jobs) {
+    if (j.repaired && !recentlyRepaired.includes(j.label)) recentlyRepaired.unshift(j.label);
+  }
+
+  const summary: HealthSummary = {
+    totalJobs: jobs.length,
+    healthyJobs: jobs.filter((j) => j.state === "healthy").length,
+    repairedJobs: jobs.filter((j) => j.repaired).length,
+    recentlyRepaired,
+    lastRun: newest ? new Date(newest).toISOString() : null,
+    itemsIndexed,
+  };
+
+  return { status, jobs, schedulerStale, summary, keyHealth, checkedAt: new Date(now).toISOString() };
 }

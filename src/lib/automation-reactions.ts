@@ -16,6 +16,7 @@ import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/p
 import { toggleTodo } from "@/app/todos/actions";
 import { addTaskUpdate } from "@/app/task/actions";
 import { recordEvent } from "@/lib/system-events";
+import { reindexEntity } from "@/lib/index-hooks";
 import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
 import type { DocumentRow } from "@/lib/documents-shared";
 
@@ -37,6 +38,36 @@ type LogInput = {
 };
 
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/* ------------------------------------------------------------------ */
+/* Recursion guard. A cascade chain (task done → tick step → schedule  */
+/* next review …) reuses the same write primitives the system uses for */
+/* ordinary edits, so in theory a move could re-enter the layer and    */
+/* loop. We never want a cascade to trigger itself. This in-flight set  */
+/* records the cascade signatures running on THIS request; a re-entry   */
+/* with the same signature (or one that's already deep) bails out. The  */
+/* set is per-process and self-clearing (finally), so it never leaks    */
+/* between requests and never throws.                                   */
+/* ------------------------------------------------------------------ */
+const inFlightCascades = new Set<string>();
+const MAX_CASCADE_DEPTH = 8;
+
+/** Run `fn` once per signature within a request; a re-entry (or runaway depth)
+ *  is skipped. Always best-effort: a thrown body never escapes, and the guard
+ *  always clears. Returns false when the cascade was skipped by the guard. */
+async function withCascadeGuard(signature: string, fn: () => Promise<void>): Promise<boolean> {
+  if (inFlightCascades.has(signature)) return false;          // same chain already running → don't loop
+  if (inFlightCascades.size >= MAX_CASCADE_DEPTH) return false; // runaway chain → stop the cascade
+  inFlightCascades.add(signature);
+  try {
+    await fn();
+    return true;
+  } catch {
+    return false; // best-effort: a cascade failure never propagates
+  } finally {
+    inFlightCascades.delete(signature);
+  }
+}
 
 /** Don't double-record the same reaction if a document is re-filed/re-saved. */
 async function alreadyLogged(documentId: number, kind: AutomationKind, targetTable: string, targetId: number): Promise<boolean> {
@@ -169,10 +200,12 @@ export async function undoAutomationMove(row: MoveRow): Promise<void> {
     case "task-create":
       // Undo a time-spawned task by archiving it (recoverable, not deleted).
       await sb.from("tasks").update({ archived: true, last_updated_at: new Date().toISOString() }).eq("id", row.targetId);
+      void reindexEntity("task", row.targetId); // archive re-stamps lifecycle="history"
       return;
     case "pipeline-create":
       // Undo an auto-started application by archiving the case (recoverable).
       await sb.from("pipeline").update({ archived: true, updated_at: new Date().toISOString() }).eq("id", row.targetId);
+      void reindexEntity("pipeline", row.targetId); // archive re-stamps lifecycle="history"
       return;
     case "compliance-verify":
       if (row.targetTable === "person_requirements") await unverifyRequirement(row.targetId);
@@ -202,14 +235,17 @@ export async function reactToFiledDocument(documentId: number): Promise<void> {
     if (!doc || doc.archived || doc.intakeState !== "filed") return;
     const who = await ownerName(doc);
     // Each reaction is independently guarded so one failure never stops the rest.
-    await Promise.allSettled([
+    // The recursion guard keys on this document so a reaction that ticks a todo /
+    // advances a pipeline (which may itself spawn work) can't re-enter the same
+    // document's reaction set and loop.
+    await withCascadeGuard(`doc-filed:${doc.id}`, () => Promise.allSettled([
       reactCompliance(doc, who),
       reactLinkedTasks(doc, who),
       reactPipeline(doc, who),
       reactStartPipeline(doc, who),
       reactOnboarding(doc, who),
       cascadeComplianceComplete(doc, who),
-    ]);
+    ]).then(() => undefined));
   } catch (e) {
     await recordEvent("automation.react", "error", { documentId, message: e instanceof Error ? e.message : String(e) });
   }
@@ -349,14 +385,31 @@ async function cascadeComplianceComplete(doc: DocumentRow, who: string): Promise
   } catch { /* best-effort */ }
 }
 
-/** When a task that DRIVES a pipeline case is completed, advance that case one
- *  stage. CERTAIN — the link is explicit (pipeline.task_id), so it auto-applies.
- *  Called after a task's status is written (the open→closed transition). Deduped
- *  per (case, from-stage) so it advances once per completion, not on every path. */
+/** When a task is COMPLETED (open → closed), run the state-driven cascade chains:
+ *   • a task that DRIVES a pipeline case → advance that case one stage;
+ *   • a probation-review task → tick the person's "confirm probation/review" step.
+ *  Called after a task's status is written. Each chain is independently guarded,
+ *  deduped, logged + undoable, and protected by the recursion guard so a chain
+ *  can't re-enter itself. A renewal task completing is intentionally NOT handled
+ *  here — filing the renewed document drives that loop instead. */
 export async function reactToTaskStatusChange(taskId: number, wasStatus: string, nowStatus: string): Promise<void> {
+  const isClosed = (s: string) => s === "Completed" || s === "Closed";
+  if (!isClosed(nowStatus) || isClosed(wasStatus)) return; // only on open → closed
+  // One guard signature per task-completion so the two chains below, and anything
+  // they touch, can't re-enter this same completion and loop.
+  await withCascadeGuard(`task-done:${taskId}`, async () => {
+    await Promise.allSettled([
+      cascadeTaskDrivesPipeline(taskId),
+      cascadeProbationReviewDone(taskId),
+    ]);
+  });
+}
+
+/** A task that DRIVES a pipeline case is completed → advance that case one stage.
+ *  CERTAIN — the link is explicit (pipeline.task_id), so it auto-applies. Deduped
+ *  per (case, from-stage) so it advances once per completion, not on every path. */
+async function cascadeTaskDrivesPipeline(taskId: number): Promise<void> {
   try {
-    const isClosed = (s: string) => s === "Completed" || s === "Closed";
-    if (!isClosed(nowStatus) || isClosed(wasStatus)) return; // only on open → closed
     const p = await pipelineForTask(taskId);
     if (!p) return;
     const curIdx = PIPELINE_STAGES.indexOf(p.stage as PipelineStage);
@@ -374,11 +427,75 @@ export async function reactToTaskStatusChange(taskId: number, wasStatus: string,
   } catch { /* best-effort */ }
 }
 
+/** Identify the subject of a completed probation-review task and return it.
+ *  CERTAIN when the system itself auto-created the task (an automation_events
+ *  "task-create" row carries `detail: "probation:<id>|…"` + the person); fuzzy
+ *  when only the title "Probation review: <name>" matches a person in the task's
+ *  company (covers manually-created reviews) → those are suggested, not applied. */
+async function probationSubjectOfTask(taskId: number): Promise<{ personId: number; certain: boolean } | null> {
+  // 1. Strong: the task was auto-created by the probation cascade/time sweep.
+  const { data: ev } = await sb
+    .from("automation_events")
+    .select("person_id,detail")
+    .eq("kind", "task-create").eq("target_table", "tasks").eq("target_id", taskId)
+    .limit(1).maybeSingle();
+  if (ev?.person_id != null && /(^|\|)\s*probation:\d+/.test(String(ev.detail ?? ""))) {
+    return { personId: ev.person_id as number, certain: true };
+  }
+  // 2. Fuzzy: title "Probation review: <name>" matched to a person in the company.
+  const { data: t } = await sb.from("tasks").select("action_item,company_id").eq("id", taskId).maybeSingle();
+  if (!t) return null;
+  const title = norm(t.action_item as string | null);
+  if (!/\bprobation\b/.test(title) || !/\breview\b/.test(title)) return null;
+  const companyId = t.company_id as number | null;
+  if (!companyId) return null;
+  const { data: candidates } = await sb.from("people").select("id,name").eq("company_id", companyId).eq("active", true);
+  // Pick the person whose name is wholly present in the task title (longest wins,
+  // so "Ann Marie" beats "Ann" when both exist). No match → don't guess.
+  let best: { personId: number; len: number } | null = null;
+  for (const person of candidates ?? []) {
+    const nm = norm(person.name as string | null);
+    if (nm.length >= 3 && title.includes(nm) && (!best || nm.length > best.len)) {
+      best = { personId: person.id as number, len: nm.length };
+    }
+  }
+  return best ? { personId: best.personId, certain: false } : null;
+}
+
+/** A probation-review task is completed → tick the person's onboarding step that
+ *  confirms the probation period / review date, closing the probation loop. The
+ *  onboarding-tick kind reuses the existing perform/undo (toggleTodo), so it shows
+ *  in the feed and is reversible. CERTAIN only when the subject is unambiguous
+ *  (the system created the review); a title-only match is suggested.
+ *
+ *  This only TICKS a todo — it never completes another task — so it cannot loop
+ *  back into reactToTaskStatusChange; the request-level guard backstops anyway. */
+async function cascadeProbationReviewDone(taskId: number): Promise<void> {
+  try {
+    const subject = await probationSubjectOfTask(taskId);
+    if (!subject) return; // not a probation-review task (or no resolvable person)
+    const { personId, certain } = subject;
+    const { data } = await sb.from("todos").select("id,title").eq("person_id", personId).eq("kind", "onboarding").eq("done", false).limit(40);
+    const who = await lookupPersonName(personId);
+    for (const td of data ?? []) {
+      const stepTitle = norm(td.title as string);
+      // The step that confirms probation / schedules the review.
+      if (!/probation|review date/.test(stepTitle)) continue;
+      const targetId = td.id as number;
+      // Dedup on the step itself (this cascade isn't keyed to a document).
+      if (await alreadyLoggedByTarget("onboarding-tick", "todos", targetId)) continue;
+      const base = { kind: "onboarding-tick" as const, documentId: null, targetTable: "todos" as const, targetId, personId, companyId: null, summary: `Onboarding step “${td.title}” done — probation review complete for ${who}`, detail: "Probation-review task completed", prevValue: "open", newValue: "done" };
+      await commit(base, certain);
+      break; // one step is enough
+    }
+  } catch { /* best-effort */ }
+}
+
 /** When all of a person's assets are returned (offboarding), tick the offboarding
  *  "return equipment" step. Called from the offboarding path after assets are
  *  freed. CERTAIN (the offboarding flow just returned everything). */
 export async function reactToOffboardingAssetsReturned(personId: number): Promise<void> {
-  try {
+  await withCascadeGuard(`offboarding-assets:${personId}`, async () => {
     const who = await lookupPersonName(personId);
     const { data } = await sb.from("todos").select("id,title").eq("person_id", personId).eq("kind", "offboarding").eq("done", false).limit(40);
     for (const td of data ?? []) {
@@ -389,7 +506,7 @@ export async function reactToOffboardingAssetsReturned(personId: number): Promis
       await commit(base, true);
       break;
     }
-  } catch { /* best-effort */ }
+  });
 }
 
 /** Onboarding: a new hire's document ticks the matching onboarding step. CERTAIN

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
+import { reindexEntity } from "@/lib/index-hooks";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -56,6 +57,8 @@ export async function saveCompanyProfileAction(companyId: number, fd: FormData):
 
   const { error } = await sb.from("companies").update(patch).eq("id", companyId);
   if (error) return { ok: false, error: error.message };
+  // Best-effort semantic re-index (no-op unless semantic search is enabled).
+  void reindexEntity("company", companyId);
   revalidatePath(`/companies/${companyId}`);
   revalidatePath("/companies");
   revalidatePath("/letters");
@@ -117,6 +120,8 @@ export async function enrichCompanyProfile(
 
     const { error } = await sb.from("companies").update(patch).eq("id", companyId);
     if (error) throw new Error(error.message);
+    // Best-effort semantic re-index (no-op unless semantic search is enabled).
+    void reindexEntity("company", companyId);
     revalidatePath(`/companies/${companyId}`);
     revalidatePath("/letters");
     // Parity with the person enrich path so the Documents centre + Home reflect

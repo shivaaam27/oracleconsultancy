@@ -10,7 +10,7 @@ import { sb } from "@/db/supabase";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 import { verifyProseAgainstSource, type ProseFlag } from "@/lib/ai-verify";
-import { indexEmbedding, removeEmbedding } from "@/lib/embeddings";
+import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
 import { getOrCreatePersonSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 
 export type SavedMeeting = {
@@ -149,11 +149,10 @@ export async function saveMeeting(input: {
     input.id = data.id as number;
   }
 
-  // Best-effort semantic index (no-op unless semantic search is enabled).
-  if (input.id) {
-    const content = [title, input.attendees ?? "", input.rawNotes, input.minutes ?? ""].filter(Boolean).join("\n\n");
-    void indexEmbedding("meeting", input.id, content);
-  }
+  // Best-effort semantic index on every save — create AND edit (no-op unless
+  // semantic search is enabled; re-reads the canonical text from the registry so
+  // it never drifts from the nightly cron). Don't block the response.
+  if (input.id) void reindexEntity("meeting", input.id);
 
   revalidatePath("/meeting");
   const meetings = await listMeetings();
@@ -166,7 +165,8 @@ export async function saveMeeting(input: {
 export async function deleteMeeting(id: number): Promise<void> {
   const { error } = await sb.from("meetings").delete().eq("id", id);
   if (error) throw new Error(error.message);
-  void removeEmbedding("meeting", id);
+  // True hard-delete — drop its vectors (best-effort).
+  void removeEntityIndex("meeting", id);
   revalidatePath("/meeting");
   revalidatePath("/workbook");
 }
@@ -576,6 +576,7 @@ export async function bulkCreateTasks(
               );
           }
 
+          void reindexEntity("task", task.id); // new task — index it (best-effort)
           created++;
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);

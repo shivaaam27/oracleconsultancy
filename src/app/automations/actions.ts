@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { performAutomationMove, undoAutomationMove, getAutomationMode } from "@/lib/automation-reactions";
 import { runTimeAutomations, createTaskFromSuggestion } from "@/lib/automation-time";
+import { isGapChaseRow, createGapChaseFromSuggestion } from "@/lib/automation-gaps";
 import { AUTOMATION_RULES, type AutomationMode } from "@/lib/automation-rules";
 
 export type AutomationFeedItem = {
@@ -105,8 +106,13 @@ export async function applyAutomationSuggestion(id: number): Promise<{ ok: boole
   try {
     if (row.kind === "task-create") {
       // The task doesn't exist yet — create it from the remembered source, then
-      // repoint the event at the new task so Undo can archive it.
-      const created = await createTaskFromSuggestion(row);
+      // repoint the event at the new task so Undo can archive it. A gap-chase
+      // suggestion (proactive missing-record chasing) carries its full spec in the
+      // detail and is built self-contained; everything else is a time-sweep
+      // renewal/notice/probation created from its source row.
+      const created = isGapChaseRow(row)
+        ? await createGapChaseFromSuggestion({ target_id: row.target_id, company_id: row.target_id, detail: row.detail, summary: row.summary })
+        : await createTaskFromSuggestion(row);
       await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString(), target_table: "tasks", target_id: created.taskId, new_value: created.code }).eq("id", id);
     } else if (row.kind === "pipeline-create") {
       // The application case doesn't exist yet — create it from the source document,
