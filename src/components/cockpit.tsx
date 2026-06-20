@@ -167,6 +167,9 @@ export function Cockpit({
                 );
               })
             )}
+            <a href="/activity" className="mt-1 block px-2 py-1.5 text-[11px] text-accent hover:underline">
+              See all activity (System · You · Staff) →
+            </a>
           </div>
         )}
       </section>

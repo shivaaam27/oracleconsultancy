@@ -19,6 +19,7 @@ import {
   Megaphone,
   MessageSquareText,
   ListChecks,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,6 +59,7 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "letters",     href: "/letters",             label: "Letters",             icon: FileText },
   { id: "outbox",      href: "/outbox",              label: "Outbox",              icon: Send },
   { id: "inbox",       href: "/inbox",               label: "Inbox",               icon: Inbox },
+  { id: "activity",    href: "/activity",            label: "Activity log",        icon: Activity },
   { id: "insights",    href: "/insights",            label: "Insights",            icon: BarChart3 },
   { id: "settings",    href: "/settings",            label: "Settings",            icon: Settings },
 ];

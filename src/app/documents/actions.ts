@@ -456,6 +456,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     if (finalState === "quarantine") {
       // Held for a glance — no profile/compliance side-effects until it's filed.
       await setDocumentIntakeState(id, "quarantine", reason ?? "Held for review");
+      try { await recordEvent("documents.quarantine", "skip", { docId: id, title: input.title, reason: reason ?? "Held for review" }); } catch { /* best-effort */ }
       revalidateDocs();
     } else {
       // Store the "why this owner" on the filed doc (shown in the edit form) so an
@@ -492,6 +493,9 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       }
       await reconcileOwnerCompliance(input.personId ?? null, input.companyId ?? null);
       await fireDocumentReactions(id);
+      // Log the filing so it appears in the scannable Activity log (the system,
+      // not a person, filed this). Best-effort — never blocks the file.
+      try { await recordEvent("documents.filed", "ok", { docId: id, title: input.title, owner: ownerName ?? null, reason: resolutionReason ?? null, confidence: res.confidence ?? null }); } catch { /* best-effort */ }
       revalidateDocs();
     }
     return {
