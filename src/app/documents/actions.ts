@@ -1,6 +1,6 @@
 "use server";
 
-import { GROQ_VISION } from "@/lib/ai-models";
+import { GROQ_VISION, GROQ_VISION_MODELS, GROQ_FAST, GROQ_SMART } from "@/lib/ai-models";
 import { callGroqJson, callGroqText, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
 import { recordFact } from "@/lib/facts";
 import { coerceFactValue } from "@/lib/facts-shared";
@@ -1665,7 +1665,7 @@ async function extractTypedTextFromFile(file: File): Promise<string | null> {
 async function visionTranscribe(imageUrl: string, apiKey: string): Promise<string | null> {
   const res = await callGroqText({
     apiKey,
-    model: GROQ_VISION,
+    models: GROQ_VISION_MODELS, // try each vision model in turn — survives a deprecation
     maxTokens: 3000,
     temperature: 0,
     messages: [{
@@ -2463,7 +2463,15 @@ async function groqVision(imageUrls: string[], prompt: string, apiKey: string): 
     ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
   ];
   const maxTokens = imageUrls.length > 1 ? 1200 : 500;
-  return groqExtract([{ role: "user", content }], GROQ_VISION, apiKey, maxTokens);
+  // Try each vision model in turn: an http-error (incl. a decommissioned model)
+  // falls through to the next; rate-limit / bad-json / empty would recur on any
+  // model, so those return immediately.
+  let last: GroqJsonResult = { ok: false, data: null, confidence: null, error: "http-error" };
+  for (const model of GROQ_VISION_MODELS) {
+    last = await groqExtract([{ role: "user", content }], model, apiKey, maxTokens);
+    if (last.ok || last.error !== "http-error") return last;
+  }
+  return last;
 }
 
 // Shared shape for every extraction return: fields + provenance + (when AI ran)
@@ -2579,7 +2587,9 @@ async function extractOfficeText(file: File): Promise<string> {
  */
 async function cachedExtract(fd: FormData, fileHash: string | null, force: boolean): Promise<ExtractResult & { cached?: boolean }> {
   if (!force && fileHash) {
-    const cached = (await getCachedExtraction(fileHash)) as ExtractResult | null;
+    // Model-aware: only serve a cached read if its model is still one we'd use.
+    const validModels = [...GROQ_VISION_MODELS, GROQ_FAST, GROQ_SMART, "rules"];
+    const cached = (await getCachedExtraction(fileHash, validModels)) as ExtractResult | null;
     if (cached && typeof cached === "object" && "fields" in cached) {
       return { ...cached, fileHash, cached: true };
     }
@@ -2588,7 +2598,13 @@ async function cachedExtract(fd: FormData, fileHash: string | null, force: boole
   if (res.ok && fileHash) {
     // Store the read without the volatile hash field; re-attached on read.
     const toStore: ExtractResult = { ...res, fileHash: null };
-    await putCachedExtraction(fileHash, toStore, res.source);
+    // Record the ACTUAL model that produced this read (not just the source kind),
+    // so a future model swap invalidates it. "rules" = deterministic, no model.
+    const modelUsed =
+      res.source === "vision" ? GROQ_VISION
+      : res.source === "ai" ? await getQualityTextModel()
+      : "rules";
+    await putCachedExtraction(fileHash, toStore, modelUsed);
   }
   return res;
 }

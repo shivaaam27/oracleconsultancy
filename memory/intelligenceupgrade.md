@@ -117,11 +117,19 @@ separate "key missing" from "AI switched off" (both surface as `no-key` today, c
   for 2 days". (This is the original Phase-0 observability gap.)
 - **Central `src/lib/prompts.ts`** — the "Chief of Staff" persona + anti-invent clause are
   duplicated/drifting across ≥6 prompts; domain enums duplicated as prompt text AND JS arrays.
-- **Model-aware extraction cache key** — `extraction_cache` ignores the model on read, so a
-  future vision-model swap keeps serving the old model's reads.
-- **GROQ_VISION deprecation watch** — `llama-4-scout` is at risk (sibling maverick deprecated
-  Feb 2026; no announced vision successor). If it retires, document scanning breaks with no
-  one-line fix. Monitor Groq's model list.
+- ~~**Model-aware extraction cache key**~~ **DONE (2026-06-20):** `getCachedExtraction(hash, validModels?)`
+  now selects `model` and skips a cached read whose model is no longer in use; `cachedExtract`
+  stores the ACTUAL model (vision→GROQ_VISION / ai→quality text model / "rules") and validates
+  against `[...GROQ_VISION_MODELS, GROQ_FAST, GROQ_SMART, "rules"]`. A model swap re-reads stale
+  rows once. Old rows (model stored as source "ai"/"vision") self-heal on next access.
+- ~~**GROQ_VISION deprecation watch**~~ **DONE (2026-06-20):** vision is now a FALLBACK LADDER
+  `GROQ_VISION_MODELS` (env-overridable via `GROQ_VISION_MODELS`, comma-sep) not one hardcoded name;
+  `visionTranscribe` passes `models:`, `groqVision` loops the ladder, and `callGroqText` now falls
+  through a 4xx (incl. `model_decommissioned`) to the next ladder entry instead of returning. If
+  Scout retires: set one Vercel env var, no source change. Plus a monitor — `lib/model-watch.ts`
+  `checkModelAvailability()` (fetches Groq's `/models`, flags missing configured models) runs in the
+  morning-run cron → logs `model.deprecation` event → shown in System status card ("AI model
+  availability") + Activity log. tsc + 74 tests green. NOT pushed.
 
 ## Status
 - **Part A S0-S4: BUILT + LIVE (migration 0077).** S0 eval harness (`scripts/eval-search.ts`

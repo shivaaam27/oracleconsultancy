@@ -319,7 +319,10 @@ export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResu
       lastStatus = res.status;
       if (res.status === 429) { lastError = "rate-limited"; continue; }
       if (res.status >= 500) { lastError = "http-error"; continue; }
-      if (!res.ok) return { ok: false, text: null, error: "http-error", status: res.status };
+      // A 4xx (e.g. 400 model_decommissioned / 404 model_not_found) won't recover
+      // by retrying THIS model — abandon it and fall through to the next ladder
+      // entry, if any. Single-model callers just return the error (same as before).
+      if (!res.ok) { lastError = "http-error"; break; }
 
       let content: string | null = null;
       try {

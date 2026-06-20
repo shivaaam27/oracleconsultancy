@@ -434,12 +434,29 @@ export async function findDocumentsByHash(
 /* Extraction cache (read once per file content; reuse forever)           */
 /* ---------------------------------------------------------------------- */
 
-/** The AI's stored read for a file hash, or null on a miss. Best-effort. */
-export async function getCachedExtraction(fileHash: string): Promise<unknown | null> {
+/**
+ * The AI's stored read for a file hash, or null on a miss. Best-effort.
+ *
+ * `validModels` makes the cache MODEL-AWARE: when given, a cached read is only
+ * served if the model that produced it is still one we'd use. So when the vision
+ * (or text) model is swapped/deprecated, stale reads from the retired model are
+ * treated as a miss → re-read once with the new model → re-cached. Omit it for
+ * model-agnostic reads (e.g. just pulling stored full text).
+ */
+export async function getCachedExtraction(
+  fileHash: string,
+  validModels?: string[]
+): Promise<unknown | null> {
   if (!fileHash) return null;
   try {
-    const { data } = await sb.from("extraction_cache").select("result").eq("file_hash", fileHash).maybeSingle();
+    const { data } = await sb
+      .from("extraction_cache")
+      .select("result, model")
+      .eq("file_hash", fileHash)
+      .maybeSingle();
     if (!data?.result) return null;
+    // A read from a model we no longer use (e.g. a retired vision model) is stale.
+    if (validModels && data.model && !validModels.includes(data.model as string)) return null;
     return JSON.parse(data.result as string);
   } catch {
     return null;

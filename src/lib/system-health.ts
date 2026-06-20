@@ -37,6 +37,7 @@ const JOBS: Array<{ kind: string; label: string; everyHours: number; graceHours:
 ];
 
 const AI_KIND = "doc-extraction";
+const MODEL_KIND = "model.deprecation";   // a configured Groq model is no longer served
 const AI_ERROR_RATE = 0.5;   // flag if >50% of recent reads failed
 const AI_MIN_SAMPLE = 4;     // …over at least this many reads
 
@@ -49,7 +50,7 @@ function fmtOverdue(ageMs: number): string {
 export async function checkSystemHealth(): Promise<SystemHealth> {
   const now = Date.now();
   const sinceIso = new Date(now - 7 * 86_400_000).toISOString();
-  const kinds = [...JOBS.map((j) => j.kind), AI_KIND];
+  const kinds = [...JOBS.map((j) => j.kind), AI_KIND, MODEL_KIND];
 
   const { data } = await sb
     .from("system_events")
@@ -94,6 +95,17 @@ export async function checkSystemHealth(): Promise<SystemHealth> {
     return { kind: AI_KIND, label: "AI document reading", state: "healthy", lastRun: last?.created_at ?? null, lastOk: rows.find((r) => r.kind === AI_KIND && r.status === "ok")?.created_at ?? null, detail: null };
   })();
   jobs.push(aiAi);
+
+  // Model deprecation — surface the latest model-watch verdict (vision is the risk).
+  const lastModel = rows.find((r) => r.kind === MODEL_KIND) ?? null;
+  if (lastModel?.status === "error") {
+    let detail = "a Groq model is no longer available";
+    try {
+      const missing = (JSON.parse(lastModel.details ?? "{}").missing as string[]) ?? [];
+      if (missing.length) detail = `no longer served: ${missing.join(", ")}`;
+    } catch { /* keep default */ }
+    jobs.push({ kind: MODEL_KIND, label: "AI model availability", state: "failed", lastRun: lastModel.created_at, lastOk: rows.find((r) => r.kind === MODEL_KIND && r.status === "ok")?.created_at ?? null, detail });
+  }
 
   // Dead-man switch: nothing at all has run in 36h → the scheduler itself may be down.
   const newest = rows[0] ? new Date(rows[0].created_at).getTime() : 0;

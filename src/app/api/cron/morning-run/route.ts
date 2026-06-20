@@ -54,6 +54,16 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "health", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1d. Model-deprecation watch: flag any configured Groq model that Groq no
+    //     longer serves (vision is the known risk) so it surfaces BEFORE document
+    //     scanning silently breaks. Best-effort, in-app only.
+    try {
+      const { checkModelAvailability } = await import("@/lib/model-watch");
+      await checkModelAvailability();
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "model-watch", message: e instanceof Error ? e.message : String(e) });
+    }
+
     // 2. Compose the three-band brief from the freshly-updated state.
     const brief = await buildMorningBrief();
 
