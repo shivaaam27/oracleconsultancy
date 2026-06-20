@@ -9,7 +9,7 @@ import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { CountUp } from "./arc-gauge";
 import { DOC_CATEGORIES } from "@/lib/documents-shared";
-import { ProgressTrack, EmptyState, SectionCard, type KitTone } from "./drawer-kit";
+import { ProgressTrack, EmptyState, SectionCard, CollapsibleSection, type KitTone } from "./drawer-kit";
 import {
   REQUIREMENT_STATUS_LABELS,
   REQUIREMENT_STATUS_TONE,
@@ -169,8 +169,6 @@ export function RequirementsChecklist({
   const [openItem, setOpenItem] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
-  const [showInPlace, setShowInPlace] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [requesting, setRequesting] = useState(false);
   const [, startTransition] = useTransition();
@@ -297,27 +295,27 @@ export function RequirementsChecklist({
       </SectionCard>
 
       {/* Needs action */}
-      <SectionCard>
-        <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5 w-full">
-          Needs action
-          {needsAction.length > 0 && <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{needsAction.length}</span>}
-          {(data.missingMandatory > 0 || data.expiredMandatory > 0) && (
-            <span className="ml-auto inline-flex items-center gap-1.5">
-              <button type="button" disabled={requesting} onClick={doDraftChase}
-                title="Draft a chase (missing + expired, with reasons) in the Outbox to review and send"
-                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
-                {requesting ? <Loader2 size={11} className="animate-spin" /> : <FileText size={11} />} Draft chase
+      <CollapsibleSection
+        title="Needs action"
+        count={needsAction.length}
+        defaultOpen={needsAction.length > 0}
+        right={(data.missingMandatory > 0 || data.expiredMandatory > 0) ? (
+          <>
+            <button type="button" disabled={requesting} onClick={doDraftChase}
+              title="Draft a chase (missing + expired, with reasons) in the Outbox to review and send"
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+              {requesting ? <Loader2 size={11} className="animate-spin" /> : <FileText size={11} />} Chase
+            </button>
+            {data.missingMandatory > 0 && (
+              <button type="button" disabled={requesting} onClick={doRequest}
+                title="Email this person their missing documents now (and mark them requested)"
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+                {requesting ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Email
               </button>
-              {data.missingMandatory > 0 && (
-                <button type="button" disabled={requesting} onClick={doRequest}
-                  title="Email this person their missing documents now (and mark them requested)"
-                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
-                  {requesting ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Email now
-                </button>
-              )}
-            </span>
-          )}
-        </div>
+            )}
+          </>
+        ) : undefined}
+      >
         {needsAction.length === 0 ? (
           <EmptyState icon={<CheckCircle2 size={20} />} tone="success" title="All caught up" hint="Every required document is in place." />
         ) : (
@@ -334,32 +332,19 @@ export function RequirementsChecklist({
             <Plus size={13} /> Add a required document
           </button>
         )}
-      </SectionCard>
+      </CollapsibleSection>
 
-      {/* In place — collapsed */}
+      {/* In place — collapsed by default */}
       {inPlace.length > 0 && (
-        <SectionCard>
-          <button type="button" onClick={() => setShowInPlace((s) => !s)}
-            className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-fg-muted hover:bg-bg-muted/40 transition-colors">
-            <CheckCircle2 size={13} className="text-success" /> In place
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{inPlace.length}</span>
-            <ChevronDown size={14} className={cn("ml-auto text-fg-subtle transition-transform", showInPlace && "rotate-180")} />
-          </button>
-          {showInPlace && <div className="divide-y divide-border/50 border-t border-border/50">{inPlace.map((item) => <ItemRow key={item.id} item={item} />)}</div>}
-        </SectionCard>
+        <CollapsibleSection icon={<CheckCircle2 size={14} className="text-success" />} title="In place" count={inPlace.length}>
+          <div className="divide-y divide-border/50">{inPlace.map((item) => <ItemRow key={item.id} item={item} />)}</div>
+        </CollapsibleSection>
       )}
 
       {/* Audit trail — who did what, when */}
       {events.length > 0 && (
-        <SectionCard>
-          <button type="button" onClick={() => setShowHistory((s) => !s)}
-            className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-fg-muted hover:bg-bg-muted/40 transition-colors">
-            <History size={13} className="text-fg-subtle" /> History
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{events.length}</span>
-            <ChevronDown size={14} className={cn("ml-auto text-fg-subtle transition-transform", showHistory && "rotate-180")} />
-          </button>
-          {showHistory && (
-            <ul className="divide-y divide-border/50 border-t border-border/50">
+        <CollapsibleSection icon={<History size={14} />} title="History" count={events.length}>
+          <ul className="divide-y divide-border/50">
               {events.map((e) => (
                 <li key={e.id} className="flex items-start gap-2.5 px-3.5 py-2">
                   <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-subtle/60" />
@@ -376,8 +361,7 @@ export function RequirementsChecklist({
                 </li>
               ))}
             </ul>
-          )}
-        </SectionCard>
+        </CollapsibleSection>
       )}
     </div>
 

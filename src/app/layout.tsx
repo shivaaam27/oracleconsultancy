@@ -25,6 +25,7 @@ import { IosResume } from "@/components/ios-resume";
 import { CaptureWizardMount } from "@/components/capture-wizard-mount";
 import { LiquidGlassDefs } from "@/components/liquid-glass";
 import { HideOnPortal } from "@/components/hide-on-portal";
+import { NavVisibilityProvider } from "@/components/nav-visibility";
 import { AppSplash } from "@/components/app-splash";
 import { getAppSettings } from "@/lib/settings";
 import { appBaseUrl } from "@/lib/app-url";
@@ -70,7 +71,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children, modal }: { children: React.ReactNode; modal: React.ReactNode }) {
-  const { operatorName, voiceLanguage } = await getAppSettings();
+  const { operatorName, voiceLanguage, commandCentrePaused } = await getAppSettings();
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -86,6 +87,7 @@ export default async function RootLayout({ children, modal }: { children: React.
             <UndoBanner />
             <Suspense>
             <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage}>
+              <NavVisibilityProvider value={{ commandCentrePaused }}>
               <RecentsTracker />
               <ContextActionsProvider>
                 {/* Bottom padding clears the floating bottom pill on mobile/tablet.
@@ -114,6 +116,7 @@ export default async function RootLayout({ children, modal }: { children: React.
                   <CaptureWizardMount />
                 </Suspense>
               </HideOnPortal>
+              </NavVisibilityProvider>
             </CommandPaletteProvider>
             </Suspense>
           </ToastProvider>

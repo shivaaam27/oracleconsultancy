@@ -6,7 +6,7 @@ import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, Pencil, Trash2, Plu
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { Button } from "./ui";
-import { EmptyState, SectionCard, ProgressTrack } from "./drawer-kit";
+import { SectionCard, ProgressTrack, CollapsibleSection } from "./drawer-kit";
 import { JOURNEY_LABELS, type Journey, type JourneyKind } from "@/lib/onboarding-shared";
 import {
   startJourneyAction,
@@ -179,34 +179,29 @@ export function JourneyChecklist({
   const hasJourney = !!data && data.total > 0;
 
   if (!hasJourney) {
+    // Slim, one-line "not started" card — expands only when steps exist.
     return (
-      <SectionCard>
-        <EmptyState
-          icon={<Icon size={20} />}
-          tone="accent"
-          title={`${title} not started`}
-          hint={kind === "onboarding" ? "Kick off the onboarding steps for this person." : "Begin the offboarding checklist."}
-          action={
-            <Button type="button" size="sm" variant="primary" onClick={start} disabled={busyId === -1}>
-              {busyId === -1 ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />} Start {title.toLowerCase()}
-            </Button>
-          }
-        />
-      </SectionCard>
+      <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 flex items-center gap-2 px-3.5 py-2.5">
+        <Icon size={14} className="shrink-0 text-fg-muted" />
+        <span className="text-[13px] font-semibold">{title}</span>
+        <span className="text-[11px] text-fg-subtle">· not started</span>
+        <Button type="button" size="xs" variant="primary" onClick={start} disabled={busyId === -1} className="ml-auto">
+          {busyId === -1 ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />} Start
+        </Button>
+      </div>
     );
   }
 
   const done = data!.completed === data!.total;
 
   return (
-    <SectionCard>
-      {/* Pulse header */}
-      <div className="p-3.5 space-y-2.5 border-b border-border/50">
-        <div className="flex items-center gap-2">
-          <Icon size={15} className={done ? "text-success" : "text-accent"} />
-          <span className="text-sm font-semibold">{title}</span>
-          <span className="ml-auto text-sm font-semibold tabular text-fg-muted">{data!.completed}/{data!.total}</span>
-        </div>
+    <CollapsibleSection
+      icon={<Icon size={14} className={done ? "text-success" : undefined} />}
+      title={title}
+      right={<span className="text-xs font-semibold tabular text-fg-muted">{data!.completed}/{data!.total}</span>}
+    >
+      {/* Progress */}
+      <div className="px-3.5 pt-3">
         <ProgressTrack value={data!.completed} total={data!.total} tone={done ? "success" : "accent"} />
       </div>
 
@@ -275,6 +270,6 @@ export function JourneyChecklist({
           className="inline-flex items-center gap-1 text-[11px] text-fg-subtle hover:text-danger transition-colors disabled:opacity-50">
           {busyId === -2 ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Remove</button>
       </div>
-    </SectionCard>
+    </CollapsibleSection>
   );
 }

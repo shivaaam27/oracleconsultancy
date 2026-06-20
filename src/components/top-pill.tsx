@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID, type NavRoute } from "@/lib/nav";
 import { WORLDS, worldForPath } from "@/lib/worlds";
+import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
 import * as Lucide from "lucide-react";
 import { Settings as SettingsIcon } from "lucide-react";
@@ -119,6 +120,7 @@ function HrmsLauncher({ active, reduce, worldColor, worldName }: { active: boole
   // pill → world → page, two taps), instead of navigating to the /world screen.
   const [drill, setDrill] = useState<string | null>(null);
   const { pins } = usePins();
+  const navVisibility = useNavVisibility();
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function go(href: string) { setOpen(false); setDrill(null); router.push(href); }
@@ -144,12 +146,14 @@ function HrmsLauncher({ active, reduce, worldColor, worldName }: { active: boole
     return () => { cancelled = true; };
   }, [open]);
 
-  const pinRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(Boolean) as NavRoute[];
+  // Hidden routes (e.g. Tax & Legal when paused) drop out of every launcher list.
+  const shown = (r: NavRoute | undefined): r is NavRoute => !!r && !isHiddenNavHref(r.href, navVisibility);
+  const pinRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(shown);
   const pinnedIds = new Set(pins);
   const recentRoutes = recents
     .map((id) => ROUTE_BY_ID[id])
-    .filter((r) => r && !pinnedIds.has(r.id))
-    .slice(0, 5) as NavRoute[];
+    .filter((r) => shown(r) && !pinnedIds.has(r.id))
+    .slice(0, 5);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -211,7 +215,7 @@ function HrmsLauncher({ active, reduce, worldColor, worldName }: { active: boole
           {drillWorld ? (
             /* Drill-in: this world's pages, one tap to open (pill → world → page). */
             <div className="space-y-0.5">
-              {drillWorld.pages.map((p) => {
+              {drillWorld.pages.filter((p) => !isHiddenNavHref(p.href, navVisibility)).map((p) => {
                 const PIcon = resolveIcon(p.icon);
                 const base = p.href.split("?")[0];
                 const isActive = base !== "/" && (pathname === base || pathname.startsWith(base + "/"));

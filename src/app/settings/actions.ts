@@ -164,10 +164,26 @@ export async function saveSettings(fd: FormData): Promise<void> {
     patch.emailSignatureImagePath = "";
   }
 
+  // The Settings page is split into per-section forms, so each form only submits
+  // its own fields. A hidden `__keys` marker lists the setting keys that section
+  // owns; we keep ONLY those in the patch. This stops an absent checkbox (which
+  // reads as "off") or an absent text field (which reads as "") in one section
+  // from silently wiping a setting that belongs to a different section. When
+  // `__keys` is absent we fall back to the whole patch (single-form behaviour).
+  const keysMarker = fd.get("__keys");
+  if (typeof keysMarker === "string" && keysMarker.length) {
+    const owned = new Set(keysMarker.split(",").map((k) => k.trim()).filter(Boolean));
+    for (const k of Object.keys(patch) as (keyof AppSettings)[]) {
+      if (!owned.has(k)) delete patch[k];
+    }
+  }
+
   await saveAppSettings(patch);
   revalidatePath("/");
   revalidatePath("/settings");
-  redirect("/settings?saved=1");
+  // Reopen the same section after the round-trip so the owner stays in context.
+  const section = (fd.get("__section") as string | null)?.trim();
+  redirect(`/settings?saved=1${section ? `&section=${encodeURIComponent(section)}` : ""}`);
 }
 
 /** Enable (or reset the password for) staff-portal access on a person. */
@@ -299,6 +315,35 @@ export async function setDirectorOutreach(fd: FormData): Promise<void> {
   await sb.from("settings").upsert({ key: "director.outreachPaused", value: paused ? "1" : "0" }, { onConflict: "key" });
   revalidatePath("/settings");
   redirect("/settings?portal=saved");
+}
+
+/**
+ * Master pause/resume for the Tax & Legal area (the /hrms/command-centre page +
+ * its recurring-obligation automation). When paused the page is hidden from all
+ * nav and shows a placeholder, no tax/legal tasks are spawned, and the statutory
+ * section is dropped from the Director Brief + Home signals.
+ *
+ * On RESUME we reset the automation "forward-only" baseline to today, so the
+ * cadence starts from a CLEAN SLATE and never back-fills the obligations that
+ * fell due while it was paused (matching the owner's "renders from that day").
+ */
+export async function setCommandCentrePause(fd: FormData): Promise<void> {
+  const paused = fd.get("paused") === "1";
+  await saveAppSettings({ commandCentrePaused: paused });
+  if (!paused) {
+    // Resuming: move the baseline forward to today's midnight so dueObligation-
+    // Instances older than now are treated as backlog and skipped.
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+    await sb
+      .from("settings")
+      .upsert({ key: "automation.time.baseline", value: midnight.toISOString() }, { onConflict: "key" });
+  }
+  await recordEvent("settings.tax-legal", "ok", { action: paused ? "paused" : "resumed" });
+  revalidatePath("/settings");
+  revalidatePath("/hrms/command-centre");
+  revalidatePath("/");
+  redirect("/settings?saved=1");
 }
 
 /** Revoke portal access — the person's session stops working immediately

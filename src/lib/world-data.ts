@@ -12,6 +12,7 @@ import { leaveMetrics } from "@/lib/leave";
 import { listAssets, assetMetrics } from "@/lib/assets";
 import { listOutboxDrafts } from "@/lib/outbox/drafts";
 import { listObligations, outstandingDeadlines } from "@/lib/recurring";
+import { getAppSettings } from "@/lib/settings";
 
 export type WorldStat = {
   label: string;
@@ -219,10 +220,13 @@ async function complianceData(): Promise<WorldData> {
     getBrief(new Date()),
     listObligations(),
   ]);
-  const [signals, deadlines] = await Promise.all([
+  const { commandCentrePaused } = await getAppSettings();
+  const [signals, deadlinesRaw] = await Promise.all([
     gatherHomeSignals(tasks),
     outstandingDeadlines(obligations),
   ]);
+  // Tax & Legal paused → drop all statutory figures + the tile from this world.
+  const deadlines = commandCentrePaused ? [] : deadlinesRaw;
   const stats0 = signals.healthStats;
   const companyGaps = brief.compliance.filter((c) => c.missing > 0).length;
   const overdueDeadlines = deadlines.filter((d) => d.flag === "overdue");
@@ -246,12 +250,16 @@ async function complianceData(): Promise<WorldData> {
       tone: companyGaps > 0 ? "warn" : "success",
       href: "/documents",
     },
-    {
-      label: "Statutory due",
-      value: deadlines.length,
-      tone: overdueDeadlines.length > 0 ? "danger" : deadlines.length > 0 ? "warn" : "success",
-      href: "/hrms/command-centre",
-    },
+    ...(commandCentrePaused
+      ? []
+      : [
+          {
+            label: "Statutory due",
+            value: deadlines.length,
+            tone: (overdueDeadlines.length > 0 ? "danger" : deadlines.length > 0 ? "warn" : "success") as WorldStat["tone"],
+            href: "/hrms/command-centre",
+          },
+        ]),
   ];
 
   const needsYou: WorldNeed[] = [];

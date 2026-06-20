@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { getWorld } from "@/lib/worlds";
 import { getWorldData } from "@/lib/world-data";
 import { WorldScreen } from "@/components/world-screen";
+import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -21,5 +22,10 @@ export default async function WorldPage({
   if (!world) notFound();
 
   const data = await getWorldData(world.slug);
-  return <WorldScreen world={world} data={data} />;
+  // Tax & Legal paused → drop its page link from the world's "Inside" list.
+  const { commandCentrePaused } = await getAppSettings();
+  const shown = commandCentrePaused
+    ? { ...world, pages: world.pages.filter((p) => p.href.split("?")[0] !== "/hrms/command-centre") }
+    : world;
+  return <WorldScreen world={shown} data={data} />;
 }

@@ -31,6 +31,7 @@ import { normalizePersonType } from "@/lib/person-types";
 import { sb } from "@/db/supabase";
 import { getPortfolioTrends } from "@/lib/trends";
 import { listObligations, outstandingDeadlines } from "@/lib/recurring";
+import { getAppSettings } from "@/lib/settings";
 import { ownerPendingRequestCount } from "@/lib/requests";
 import type { Todo } from "@/app/todos/actions";
 import type {
@@ -193,7 +194,9 @@ export async function gatherHomeSignals(rows: TaskRow[], todos: Todo[] = []): Pr
   // Statutory deadlines coming up — per-company aware: only obligations inside
   // their warning window that still have an applicable company not done this
   // period (see Command Centre). Shared definition via outstandingDeadlines.
-  const upcomingDeadlines = await outstandingDeadlines(obligations, now);
+  // Dropped from Home signals when the Tax & Legal area is paused (master switch).
+  const { commandCentrePaused } = await getAppSettings();
+  const upcomingDeadlines = commandCentrePaused ? [] : await outstandingDeadlines(obligations, now);
   const overdueDeadlines = upcomingDeadlines.filter((d) => d.flag === "overdue");
   const dueNowDeadlines = upcomingDeadlines.filter((d) => d.flag === "dueNow");
   const nextDeadline = upcomingDeadlines[0];

@@ -14,6 +14,10 @@ export type DrawerTab = {
   /** Small count/dot shown next to the label. */
   badge?: ReactNode;
   content: ReactNode;
+  /** Mounted (so summaries report) but NOT shown in the tab pill — reachable by
+   *  setting it active programmatically (e.g. from a metric chip or a "More"
+   *  menu). Used by the person drawer's deep views. */
+  hidden?: boolean;
 };
 
 /**
@@ -99,21 +103,23 @@ export function EntityDrawer({
         {fullScreenOnMobile ? (
           <Dialog.Content
             aria-describedby={undefined}
-            className="group fixed inset-0 z-[51] flex sm:items-center sm:justify-center outline-none
+            className="group fixed inset-0 z-[51] flex items-end justify-center sm:items-center outline-none
               data-[state=open]:animate-in data-[state=closed]:animate-out
               data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 duration-200
               data-[state=closed]:pointer-events-none"
           >
             <div
               style={{ "--drawer-mw": maxWidth } as CSSProperties}
-              className="relative flex flex-col overflow-hidden glass glass-refract outline-none
-                w-full h-[100dvh] rounded-none
+              className="relative flex flex-col overflow-hidden bg-bg ring-1 ring-border shadow-2xl outline-none
+                w-full max-h-[92dvh] rounded-t-3xl
                 sm:h-auto sm:max-h-[90dvh] sm:w-[calc(100%-1.5rem)] sm:max-w-[var(--drawer-mw)] sm:rounded-3xl
                 group-data-[state=open]:animate-in group-data-[state=closed]:animate-out duration-200
                 group-data-[state=open]:slide-in-from-bottom-6 group-data-[state=closed]:slide-out-to-bottom-6
                 sm:group-data-[state=open]:slide-in-from-bottom-0 sm:group-data-[state=closed]:slide-out-to-bottom-0
                 sm:group-data-[state=open]:zoom-in-95 sm:group-data-[state=closed]:zoom-out-95"
             >
+              {/* iPhone-style grab handle (mobile sheet only) */}
+              <div className="sm:hidden mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-border" />
               {inner}
             </div>
           </Dialog.Content>
@@ -125,7 +131,7 @@ export function EntityDrawer({
             animate={{ x: "-50%", y: "-50%", opacity: open ? 1 : 0, scale: open ? 1 : 0.88 }}
             transition={spring}
             className="fixed left-1/2 top-1/2 z-[51] max-h-[90dvh] w-[calc(100%-1.5rem)]
-              flex flex-col overflow-hidden glass glass-refract rounded-3xl outline-none"
+              flex flex-col overflow-hidden bg-bg ring-1 ring-border shadow-2xl rounded-3xl outline-none"
           >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           {/* Close button floats over the hero */}
@@ -164,16 +170,16 @@ export function EntityDrawer({
               {/* Tab pill */}
               <TabPill tabs={tabs} current={current} onTabChange={onTabChange} />
 
-              {/* Body — all tabs mounted (so summaries report + switching is
-                  instant); only the active one is shown, with a gentle entrance. */}
-              <div className="flex-1 overflow-y-auto px-4 pb-4">
+              {/* Body — solid content surface (glass stays on the hero/footer
+                  chrome only). All tabs mounted; only the active one is shown. */}
+              <div className="flex-1 overflow-y-auto bg-bg px-4 pt-1 pb-4">
                 {tabs.map((t) => {
                   const active = t.id === current.id;
                   return (
                     <div
                       key={t.id}
                       hidden={!active}
-                      className={cn("space-y-3", active && "animate-in fade-in-0 slide-in-from-bottom-1 duration-200")}
+                      className={cn("space-y-2.5", active && "animate-in fade-in-0 slide-in-from-bottom-1 duration-200")}
                     >
                       {t.content}
                     </div>
@@ -183,7 +189,7 @@ export function EntityDrawer({
 
               {/* Sticky action bar */}
               {actionBar && (
-                <div className="shrink-0 border-t border-border/70 bg-bg-elev/60 backdrop-blur px-4 py-2.5">
+                <div className="shrink-0 border-t border-border/70 bg-bg-elev px-4 py-2.5">
                   {actionBar}
                 </div>
               )}
@@ -250,15 +256,15 @@ function DrawerBody({
       {/* Tab pill */}
       <TabPill tabs={tabs} current={current} onTabChange={onTabChange} />
 
-      {/* Body — all tabs mounted; only the active one is shown. */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      {/* Body — solid content surface (glass stays on the hero/footer chrome). */}
+      <div className="flex-1 overflow-y-auto bg-bg px-4 pt-1 pb-4">
         {tabs.map((t) => {
           const active = t.id === current.id;
           return (
             <div
               key={t.id}
               hidden={!active}
-              className={cn("space-y-3", active && "animate-in fade-in-0 slide-in-from-bottom-1 duration-200")}
+              className={cn("space-y-2.5", active && "animate-in fade-in-0 slide-in-from-bottom-1 duration-200")}
             >
               {t.content}
             </div>
@@ -268,7 +274,7 @@ function DrawerBody({
 
       {/* Sticky action bar */}
       {actionBar && (
-        <div className="shrink-0 border-t border-border/70 bg-bg-elev/60 backdrop-blur px-4 py-2.5">
+        <div className="shrink-0 border-t border-border/70 bg-bg-elev px-4 py-2.5">
           {actionBar}
         </div>
       )}
@@ -301,9 +307,12 @@ function TabPill({
     activeRef.current?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [current.id]);
 
-  if (tabs.length <= 1) return null;
+  // Only tabs without `hidden` appear in the pill; hidden ones stay mounted in
+  // the body (for summaries) and are reached programmatically.
+  const visible = tabs.filter((t) => !t.hidden);
+  if (visible.length <= 1) return null;
   // Collapse to icons on the narrowest screens once the row gets crowded.
-  const iconOnly = tabs.length >= 5 && tabs.every((t) => t.icon != null);
+  const iconOnly = visible.length >= 5 && visible.every((t) => t.icon != null);
 
   return (
     <div className="shrink-0 px-4 pb-2">
@@ -315,8 +324,8 @@ function TabPill({
         }}
         className="-mx-4 px-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
       >
-        <div className="inline-flex w-max items-center gap-1 p-1 rounded-full glass elevated">
-          {tabs.map((t) => {
+        <div className="inline-flex w-max items-center gap-1 p-1 rounded-full bg-bg-elev ring-1 ring-border">
+          {visible.map((t) => {
             const active = t.id === current.id;
             return (
               <button

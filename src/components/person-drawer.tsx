@@ -7,13 +7,13 @@ import {
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
   LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake, Users,
-  Rocket, LogOut, ListPlus,
+  Rocket, LogOut, ListPlus, ChevronLeft, Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { HrmsDialog } from "./hrms/hrms-dialog";
-import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel } from "./drawer-kit";
+import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel, CollapsibleSection } from "./drawer-kit";
 import { CompanyDrawerLink } from "./company-drawer-link";
 import { StaffIdChip } from "./staff-id-chip";
 import { TaskDrawerLink } from "./task-drawer-link";
@@ -228,6 +228,16 @@ function Ring({ score, band }: { score: number | null; band: "Good" | "Watch" | 
   );
 }
 
+/** Header for a deep view reached from a chip / the More menu. */
+function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <button type="button" onClick={onBack}
+      className="-mt-1 mb-1 inline-flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-accent transition-colors">
+      <ChevronLeft size={14} /> {label}
+    </button>
+  );
+}
+
 /* -------------------------------------------------------------------------
  * PersonDrawer
  * ---------------------------------------------------------------------- */
@@ -245,7 +255,9 @@ export function PersonDrawer() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("snapshot");
+  // Where a deep view's "Back" returns to (the chip/menu it was opened from).
+  const [backTo, setBackTo] = useState("snapshot");
   // Which lifecycle journey the Journey tab is showing. Defaults to the
   // lifecycle-relevant one (onboarding while active, offboarding once archived)
   // but you can switch to view/prepare the other regardless of active state.
@@ -300,9 +312,13 @@ export function PersonDrawer() {
   }, [idStr, refreshKey]);
 
   // Reset to view mode + Overview whenever a new person opens
-  useEffect(() => { setMode("view"); setActiveTab("overview"); setRemindInfo(null); setPackOpen(openPack); setNewTask(false); setAddDoc(null); }, [idStr, openPack]);
+  useEffect(() => { setMode("view"); setActiveTab("snapshot"); setBackTo("snapshot"); setRemindInfo(null); setPackOpen(openPack); setNewTask(false); setAddDoc(null); }, [idStr, openPack]);
 
   const refresh = () => setRefreshKey((k) => k + 1);
+  // Open a deep view, remembering where to return ("snapshot" by default, "more"
+  // when launched from the More menu).
+  const openView = useCallback((id: string, from = "snapshot") => { setBackTo(from); setActiveTab(id); }, []);
+  const goBack = useCallback(() => setActiveTab(backTo), [backTo]);
 
   // After creating a task from the in-place dialog, createTask redirects back to
   // this URL carrying ?taskcreated=… — pick that up, close the dialog, refresh
@@ -491,14 +507,8 @@ export function PersonDrawer() {
             return days >= 0 && days <= 21 ? <Badge tone="default"><Plane size={10} className="inline mr-0.5" /> Leave in {days}d</Badge> : null;
           })()}
           {snoozed && person.snoozedUntil && <Badge tone="warn"><MoonStar size={10} className="inline mr-0.5" /> Snoozed</Badge>}
-        </div>
-        {/* Contact quick links — compact icon buttons */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
-          {person.email && <IconButton icon={<Mail size={15} />} label={person.email} href={`mailto:${person.email}`} />}
-          {person.whatsapp && <IconButton icon={<MessageCircle size={15} />} label={person.whatsapp} href={whatsappHref(person.whatsapp)} external />}
-          {person.phone && <IconButton icon={<Phone size={15} />} label={person.phone} href={`tel:${person.phone}`} />}
           {!person.email && !person.whatsapp && !person.phone && (
-            <span className="text-xs text-danger inline-flex items-center gap-1"><AlertCircleMini /> No contact info</span>
+            <Badge tone="danger"><AlertCircleMini /> No contact</Badge>
           )}
         </div>
       </div>
@@ -509,57 +519,48 @@ export function PersonDrawer() {
   const attention: Array<{ key: string; icon: React.ReactNode; label: string; sub?: string; onClick: () => void }> = [];
   if (data) {
     overdueTasks.slice(0, 4).forEach((t) =>
-      attention.push({ key: `t${t.id}`, icon: <AlertTriangle size={14} className="text-danger" />, label: t.actionItem, sub: `${t.code} · overdue`, onClick: () => setActiveTab("tasks") })
+      attention.push({ key: `t${t.id}`, icon: <AlertTriangle size={14} className="text-danger" />, label: t.actionItem, sub: `${t.code} · overdue`, onClick: () => openView("tasks") })
     );
     docIssues.slice(0, 4).forEach((d) =>
-      attention.push({ key: `d${d.id}`, icon: <FileText size={14} className={d.status === "Expired" ? "text-danger" : "text-warn"} />, label: d.title, sub: `${d.status}${d.expiryLabel ? ` · ${d.expiryLabel}` : ""}`, onClick: () => setActiveTab("details") })
+      attention.push({ key: `d${d.id}`, icon: <FileText size={14} className={d.status === "Expired" ? "text-danger" : "text-warn"} />, label: d.title, sub: `${d.status}${d.expiryLabel ? ` · ${d.expiryLabel}` : ""}`, onClick: () => openView("compliance") })
     );
     if (compSum && compSum.missing > 0)
-      attention.push({ key: "comp", icon: <ShieldCheck size={14} className="text-warn" />, label: `${compSum.missing} required document${compSum.missing === 1 ? "" : "s"} missing`, sub: "Open compliance", onClick: () => setActiveTab("compliance") });
+      attention.push({ key: "comp", icon: <ShieldCheck size={14} className="text-warn" />, label: `${compSum.missing} required document${compSum.missing === 1 ? "" : "s"} missing`, sub: "Open compliance", onClick: () => openView("compliance") });
     if (pendingLeave > 0)
-      attention.push({ key: "leave", icon: <Plane size={14} className="text-warn" />, label: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} pending`, sub: "Review in Leave & Attendance", onClick: () => setActiveTab("leave") });
+      attention.push({ key: "leave", icon: <Plane size={14} className="text-warn" />, label: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} pending`, sub: "Review in Leave", onClick: () => openView("leave") });
     if (person?.active && anniversary)
-      attention.push({ key: "anniv", icon: <Cake size={14} className="text-accent" />, label: `${anniversary.years}-year work anniversary ${anniversary.days === 0 ? "today" : `in ${anniversary.days}d`}`, sub: "A nice moment to acknowledge", onClick: () => setActiveTab("details") });
+      attention.push({ key: "anniv", icon: <Cake size={14} className="text-accent" />, label: `${anniversary.years}-year work anniversary ${anniversary.days === 0 ? "today" : `in ${anniversary.days}d`}`, sub: "A nice moment to acknowledge", onClick: () => setActiveTab("profile") });
   }
 
-  const overviewContent = person && data ? (
-    <>
-      {/* Compliance hero card */}
-      <button type="button" onClick={() => setActiveTab("compliance")}
-        className="w-full text-left glass elevated rounded-2xl p-3.5 flex items-center gap-3.5 hover:ring-1 hover:ring-accent/30 transition-all">
-        <Ring score={compSum?.score ?? null} band={band} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">Document compliance</span>
-            {band && <Badge tone={band === "Good" ? "success" : band === "Watch" ? "warn" : "danger"}>{band}</Badge>}
-          </div>
-          <p className="mt-0.5 text-xs text-fg-muted">
-            {compSum
-              ? compSum.total === 0 ? "No required documents." : `${compSum.total - compSum.missing} of ${compSum.total} required in place${compSum.missing ? ` · ${compSum.missing} missing` : ""}`
-              : "Loading…"}
-          </p>
-        </div>
-        <ExternalLink size={14} className="text-fg-subtle shrink-0" />
-      </button>
+  // Vitals — the ONLY entry points to the deep views. Each chip is a door.
+  const compBandTone =
+    band === "Good" ? "text-success" : band === "Watch" ? "text-warn" : band === "Risk" ? "text-danger" : "text-fg-subtle";
+  const vitals: Array<{ key: string; label: string; value: React.ReactNode; tone: string; onClick: () => void }> = data && person ? [
+    { key: "compliance", label: "Compliance", value: compSum ? `${compSum.score}%` : "—", tone: compBandTone, onClick: () => openView("compliance") },
+    { key: "open", label: "Open tasks", value: openTasks, tone: data.workload.overdue ? "text-danger" : openTasks ? "text-info" : "text-fg-subtle", onClick: () => openView("tasks") },
+    { key: "equipment", label: "Equipment", value: assetsSum ? assetsSum.held : "—", tone: assetsSum && assetsSum.held ? "text-info" : "text-fg-subtle", onClick: () => openView("journey") },
+    { key: "journey", label: person.active ? "Journey" : "Exit", value: journeySum && journeySum.total > 0 ? `${journeySum.completed}/${journeySum.total}` : "—", tone: journeySum && journeySum.total > 0 && journeySum.completed === journeySum.total ? "text-success" : "text-info", onClick: () => openView("journey") },
+  ] : [];
 
-      {/* Stat tiles */}
+  const snapshotContent = person && data ? (
+    <>
+      {/* Vitals strip — replaces the old compliance card + 4 tiles */}
       <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Open", value: openTasks, tone: data.workload.overdue ? "text-danger" : openTasks ? "text-info" : "text-fg-subtle", onClick: () => setActiveTab("tasks") },
-          { label: "Doc issues", value: docIssues.length, tone: docIssues.length ? "text-warn" : "text-success", onClick: () => setActiveTab("details") },
-          { label: "Equipment", value: assetsSum ? assetsSum.held : "—", tone: assetsSum && assetsSum.held ? "text-info" : "text-fg-subtle", onClick: () => setActiveTab("journey") },
-          { label: person.active ? "Journey" : "Exit", value: journeySum && journeySum.total > 0 ? `${journeySum.completed}/${journeySum.total}` : "—", tone: journeySum && journeySum.total > 0 && journeySum.completed === journeySum.total ? "text-success" : "text-info", onClick: () => setActiveTab("journey") },
-        ].map((t) => (
-          <button key={t.label} type="button" onClick={t.onClick} className="rounded-xl bg-bg-elev ring-1 ring-border/70 px-2 py-2.5 text-center hover:ring-accent/30 transition-all">
-            <div className={cn("text-lg font-semibold tabular leading-none", t.tone)}>{t.value}</div>
-            <div className="mt-1 text-[10px] text-fg-muted leading-tight">{t.label}</div>
+        {vitals.map((v) => (
+          <button key={v.key} type="button" onClick={v.onClick} className="rounded-xl bg-bg-elev ring-1 ring-border/70 px-2 py-2.5 text-center hover:ring-accent/30 transition-all">
+            <div className={cn("text-lg font-semibold tabular leading-none", v.tone)}>{v.value}</div>
+            <div className="mt-1 text-[10px] text-fg-muted leading-tight">{v.label}</div>
           </button>
         ))}
       </div>
 
-      {/* Needs attention */}
-      <div className="glass elevated rounded-2xl overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted">Needs attention</div>
+      {/* To handle — one ranked list (overdue tasks + doc/compliance gaps +
+          pending leave + probation/anniversary), no longer duplicated as tiles. */}
+      <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-fg-muted">
+          To handle
+          {attention.length > 0 && <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-danger-soft text-danger text-[11px] font-semibold tabular normal-case">{attention.length}</span>}
+        </div>
         {attention.length === 0 ? (
           <EmptyState icon={<CheckCircle2 size={20} />} tone="success" title="All clear" hint="Nothing needs action right now." />
         ) : (
@@ -581,7 +582,7 @@ export function PersonDrawer() {
       </div>
 
       {person.notes && (
-        <div className="glass elevated rounded-2xl p-4">
+        <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 p-4">
           <div className="text-[10px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Notes</div>
           <p className="text-xs text-fg-muted leading-relaxed whitespace-pre-wrap">{person.notes}</p>
         </div>
@@ -597,11 +598,7 @@ export function PersonDrawer() {
     ) : (
       <>
         {data.assignedTasks.length > 0 && (
-          <SectionCard>
-            <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-              <ListTodo size={12} /> Assigned tasks
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.assignedTasks.length}</span>
-            </div>
+          <CollapsibleSection icon={<ListTodo size={14} />} title="Assigned tasks" count={data.assignedTasks.length}>
             <div className="divide-y divide-border/50">
               {data.assignedTasks.slice(0, 20).map((t) => {
                 const urgent = t.flag === "overdue" || t.flag === "escalate-now";
@@ -620,11 +617,10 @@ export function PersonDrawer() {
                 );
               })}
             </div>
-          </SectionCard>
+          </CollapsibleSection>
         )}
         {data.recentUpdates.length > 0 && (
-          <SectionCard className="p-4">
-            <div className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5 mb-3"><Activity size={12} /> Recent activity</div>
+          <CollapsibleSection icon={<Activity size={14} />} title="Recent activity" count={data.recentUpdates.length} contentClassName="p-4">
             <div className="relative pl-4">
               <div className="absolute left-1 top-1.5 bottom-1.5 w-px bg-border" />
               <div className="space-y-2.5">
@@ -640,16 +636,17 @@ export function PersonDrawer() {
                 ))}
               </div>
             </div>
-          </SectionCard>
+          </CollapsibleSection>
         )}
       </>
     )
   ) : null;
 
-  // ── Details tab (read rows + inline edit toggle + documents + manage) ─
-  const detailsContent = person && data ? (
+  // ── Profile tab (read rows + inline edit toggle + facts + documents) —
+  // sections are uniform CollapsibleSection cards, collapsed by default.
+  const profileContent = person && data ? (
     mode === "edit" ? (
-      <div className="glass elevated rounded-2xl p-4">
+      <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 p-4">
         <p className="text-xs text-fg-muted mb-3">Editing <span className="font-medium text-fg">{person.name}</span></p>
         <PersonForm
           mode="edit"
@@ -724,33 +721,38 @@ export function PersonDrawer() {
             { label: "Also reports to", value: person.secondaryManagers.map((m) => m.name).filter(Boolean).join(", ") || null },
             { label: "Related", value: person.relatedPersonName },
           ];
+          const editBtn = (
+            <button type="button" onClick={(e) => { e.stopPropagation(); setMode("edit"); }}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-accent hover:bg-bg-subtle transition-colors">
+              <Pencil size={11} /> Edit
+            </button>
+          );
           return (
-            <SectionCard className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5"><IdCard size={12} /> Details</span>
-                <button type="button" onClick={() => setMode("edit")} className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent px-2 py-1 rounded-lg hover:bg-bg-subtle transition-colors">
-                  <Pencil size={11} /> Edit
-                </button>
-              </div>
-              <div className="space-y-1.5"><GroupLabel>Identity</GroupLabel><DefGrid rows={identity} /></div>
-              <div className="space-y-1.5"><GroupLabel>Contact</GroupLabel><DefGrid rows={contact} /></div>
-              <div className="space-y-1.5"><GroupLabel>Employment</GroupLabel><DefGrid rows={employment} /></div>
+            <>
+              <CollapsibleSection icon={<IdCard size={14} />} title="Identity" right={editBtn}>
+                <div className="p-3.5"><DefGrid rows={identity} /></div>
+              </CollapsibleSection>
+              <CollapsibleSection icon={<Phone size={14} />} title="Contact">
+                <div className="p-3.5"><DefGrid rows={contact} /></div>
+              </CollapsibleSection>
+              <CollapsibleSection icon={<Briefcase size={14} />} title="Employment">
+                <div className="p-3.5"><DefGrid rows={employment} /></div>
+              </CollapsibleSection>
               {data.directReports.length > 0 && (
-                <div className="space-y-1.5">
-                  <GroupLabel>Direct reports ({data.directReports.length})</GroupLabel>
-                  <div className="rounded-xl ring-1 ring-border/60 divide-y divide-border/50 overflow-hidden">
+                <CollapsibleSection icon={<Users size={14} />} title="Direct reports" count={data.directReports.length}>
+                  <div className="divide-y divide-border/50">
                     {data.directReports.map((r) => (
                       <button key={`${r.kind}-${r.id}`} type="button" onClick={() => goToManager(r.id)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-bg-muted/40 transition-colors">
+                        className="w-full flex items-center gap-2 px-3.5 py-2 text-left hover:bg-bg-muted/40 transition-colors">
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-fg">{r.name}</span>
                         <span className="text-[11px] text-fg-subtle truncate shrink-0 max-w-[45%]">{[r.role, r.companyName].filter(Boolean).join(" · ")}</span>
                         {r.kind === "dotted" && <span className="text-[9px] font-semibold uppercase tracking-wide text-info/80 shrink-0">dotted</span>}
                       </button>
                     ))}
                   </div>
-                </div>
+                </CollapsibleSection>
               )}
-            </SectionCard>
+            </>
           );
         })()}
 
@@ -759,11 +761,7 @@ export function PersonDrawer() {
 
         {/* Documents */}
         {data.documents.length > 0 && (
-          <SectionCard>
-            <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-              <FileText size={12} /> Documents
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.documents.length}</span>
-            </div>
+          <CollapsibleSection icon={<FileText size={14} />} title="Documents" count={data.documents.length}>
             <div className="divide-y divide-border/50">
               {data.documents.slice(0, 10).map((doc) => (
                 <button key={doc.id} type="button" onClick={() => openDocFile(doc.id)} className="flex w-full items-center gap-2.5 px-4 py-2 text-left hover:bg-bg-muted/50 transition-colors">
@@ -776,101 +774,163 @@ export function PersonDrawer() {
                 </button>
               ))}
             </div>
-          </SectionCard>
+          </CollapsibleSection>
         )}
 
-        {/* Manage */}
-        <SectionCard className="p-4 space-y-3">
-          <div className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5"><Clock size={12} /> Manage</div>
-          {person.active && (
-            <PersonProbation personId={person.id} probationEndDate={person.probationEndDate} onChanged={refresh} />
-          )}
-          <a href={`/people/form?person=${person.id}`} target="_blank" rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle/70 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
-            <FileText size={13} /> Data form (PDF) — for staff with no system access
-          </a>
-          <PersonPortalAccess personId={person.id} portal={data.portal} onChanged={refresh} fmtDate={fmtDate} />
-          <div>
-            <div className="text-[11px] font-medium uppercase tracking-wider text-fg-subtle mb-1.5">Snooze reminders</div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input type="date" value={snoozeInput} onChange={(e) => setSnoozeInput(e.target.value)} min={new Date().toISOString().slice(0, 10)} disabled={actionPending}
-                className="flex-1 min-w-[8.5rem] rounded-md border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50" />
-              <Button type="button" size="sm" onClick={handleSnoozeSave} disabled={actionPending}>Save</Button>
-            </div>
-            {person.snoozedUntil && <p className="text-[11px] text-fg-subtle mt-1">Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.</p>}
-          </div>
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <button type="button" onClick={handleArchiveToggle} disabled={actionPending}
-              className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50", person.active ? "border-danger/40 text-danger hover:bg-danger/10" : "border-success/40 text-success hover:bg-success/10")}>
-              {person.active ? <><Archive size={12} /> Archive</> : <><RotateCcw size={12} /> Restore</>}
-            </button>
-            <Link href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`} className="inline-flex items-center gap-1 text-xs text-fg-muted hover:text-accent transition-colors">
-              <ExternalLink size={11} /> All tasks
-            </Link>
-          </div>
-        </SectionCard>
-
-        {/* History — who changed what, when */}
-        {data.events.length > 0 && (
-          <SectionCard>
-            <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-              <Clock size={12} /> History
-              <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.events.length}</span>
-            </div>
-            <ul className="divide-y divide-border/50">
-              {data.events.map((e) => (
-                <li key={e.id} className="flex items-start gap-2.5 px-4 py-2">
-                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-subtle/60" />
-                  <span className="min-w-0 flex-1 text-[12px] leading-snug text-fg-muted break-words">{personEventText(e)}</span>
-                  <span className="shrink-0 text-[11px] text-fg-subtle whitespace-nowrap">{relTime(e.createdAt)} · {personActor(e.createdBy)}</span>
-                </li>
-              ))}
-            </ul>
-          </SectionCard>
-        )}
       </>
     )
   ) : null;
 
+  // ── Manage (hidden deep view) — every admin action in one place ──────
+  const manageContent = person && data ? (
+    <>
+      <BackBar label="Back" onBack={goBack} />
+
+      {person.active && (
+        <SectionCard className="p-3.5 space-y-2.5">
+          <GroupLabel>Probation</GroupLabel>
+          <PersonProbation personId={person.id} probationEndDate={person.probationEndDate} onChanged={refresh} />
+        </SectionCard>
+      )}
+
+      <SectionCard className="p-3.5 space-y-2.5">
+        <GroupLabel>Staff portal access</GroupLabel>
+        <PersonPortalAccess personId={person.id} portal={data.portal} onChanged={refresh} fmtDate={fmtDate} />
+      </SectionCard>
+
+      <SectionCard className="p-3.5 space-y-2">
+        <GroupLabel>Snooze reminders</GroupLabel>
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="date" value={snoozeInput} onChange={(e) => setSnoozeInput(e.target.value)} min={new Date().toISOString().slice(0, 10)} disabled={actionPending}
+            className="flex-1 min-w-[8.5rem] rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50" />
+          <Button type="button" size="sm" onClick={handleSnoozeSave} disabled={actionPending}>Save</Button>
+        </div>
+        {person.snoozedUntil && <p className="text-[11px] text-fg-subtle">Currently snoozed until {fmtDate(new Date(person.snoozedUntil))}.</p>}
+      </SectionCard>
+
+      <SectionCard className="p-3.5 space-y-2">
+        <GroupLabel>Tools</GroupLabel>
+        <a href={`/people/form?person=${person.id}`} target="_blank" rel="noopener"
+          className="flex items-center gap-2 rounded-lg bg-bg-subtle/60 px-3 py-2 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
+          <FileText size={14} className="shrink-0" /> Data form (PDF) — for staff with no system access
+        </a>
+        <Link href={`/?tab=tasks&view=table&q=${encodeURIComponent(person.name)}&all=1`}
+          className="flex items-center gap-2 rounded-lg bg-bg-subtle/60 px-3 py-2 text-[12px] font-medium text-fg-muted hover:bg-bg-muted/70 transition-colors">
+          <ExternalLink size={14} className="shrink-0" /> View all of their tasks
+        </Link>
+      </SectionCard>
+
+      <SectionCard className="p-3.5 space-y-2">
+        <GroupLabel>{person.active ? "Archive" : "Restore"}</GroupLabel>
+        <p className="text-[11px] text-fg-subtle">
+          {person.active
+            ? "Moves this person out of the active directory and starts offboarding. Nothing is deleted — you can restore them any time."
+            : "Brings this person back into the active directory."}
+        </p>
+        <button type="button" onClick={handleArchiveToggle} disabled={actionPending}
+          className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50", person.active ? "border-danger/40 text-danger hover:bg-danger/10" : "border-success/40 text-success hover:bg-success/10")}>
+          {person.active ? <><Archive size={13} /> Archive person</> : <><RotateCcw size={13} /> Restore person</>}
+        </button>
+      </SectionCard>
+    </>
+  ) : null;
+
+  // ── History (hidden deep view) — who changed what, when ─────────────
+  const historyContent = person && data ? (
+    <>
+      <BackBar label="Back" onBack={goBack} />
+      {data.events.length > 0 ? (
+        <SectionCard>
+          <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
+            <Clock size={12} /> History
+            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{data.events.length}</span>
+          </div>
+          <ul className="divide-y divide-border/50">
+            {data.events.map((e) => (
+              <li key={e.id} className="flex items-start gap-2.5 px-4 py-2">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-fg-subtle/60" />
+                <span className="min-w-0 flex-1 text-[12px] leading-snug text-fg-muted break-words">{personEventText(e)}</span>
+                <span className="shrink-0 text-[11px] text-fg-subtle whitespace-nowrap">{relTime(e.createdAt)} · {personActor(e.createdBy)}</span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : (
+        <SectionCard><EmptyState icon={<Clock size={20} />} title="No history yet" hint="Changes to this person will appear here." /></SectionCard>
+      )}
+    </>
+  ) : null;
+
   // ── Tabs + action bar ───────────────────────────────────────────────
   // When the pack step is open it takes over the body as a single view.
+  // More menu — the door to every deep view (each is a hidden, mounted tab).
+  const moreItems = person && data ? [
+    { id: "compliance", icon: <ShieldCheck size={15} />, label: "Compliance", meta: compSum ? `${compSum.score}%` : undefined },
+    { id: "journey", icon: <RouteIcon size={15} />, label: person.active ? "Journey" : "Exit", meta: journeySum && journeySum.total > 0 ? `${journeySum.completed}/${journeySum.total}` : undefined },
+    { id: "leave", icon: <CalendarDays size={15} />, label: "Leave", meta: pendingLeave ? `${pendingLeave} pending` : undefined },
+    { id: "tasks", icon: <ListTodo size={15} />, label: "Tasks", meta: openTasks ? `${openTasks} open` : undefined },
+    { id: "history", icon: <Clock size={15} />, label: "History", meta: data.events.length ? String(data.events.length) : undefined },
+    { id: "manage", icon: <Wrench size={15} />, label: "Manage", meta: undefined },
+  ] : [];
+  const moreContent = person && data ? (
+    <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden divide-y divide-border/50">
+      {moreItems.map((m) => (
+        <button key={m.id} type="button" onClick={() => openView(m.id, "more")}
+          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-bg-muted/50 transition-colors">
+          <span className="text-fg-muted shrink-0">{m.icon}</span>
+          <span className="flex-1 text-sm font-medium">{m.label}</span>
+          {m.meta && <span className="text-xs text-fg-subtle tabular">{m.meta}</span>}
+          <ExternalLink size={14} className="text-fg-subtle shrink-0" />
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  const journeyView = person && data ? (() => {
+    // The lifecycle-relevant journey drives the Journey vital; the other one
+    // stays viewable (prep offboarding while active; keep onboarding after
+    // archive) but doesn't override that headline count.
+    const lifecycleKind = person.active ? "onboarding" : "offboarding";
+    return (
+      <div className="space-y-3">
+        <BackBar label="Back" onBack={goBack} />
+        <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-bg-subtle ring-1 ring-border/60 text-[11px]">
+          {(["onboarding", "offboarding"] as const).map((k) => (
+            <button key={k} type="button" onClick={() => setJourneyKind(k)}
+              className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full transition-colors",
+                journeyKind === k ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg")}>
+              {k === "onboarding" ? <Rocket size={11} /> : <LogOut size={11} />}
+              {k === "onboarding" ? "Onboarding" : "Offboarding"}
+              {k === lifecycleKind && journeyKind !== k && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+            </button>
+          ))}
+        </div>
+        <JourneyChecklist key={journeyKind} personId={person.id} kind={journeyKind} onChanged={refresh} onNavigate={close}
+          onSummary={journeyKind === lifecycleKind ? setJourneySum : undefined} />
+        <PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} />
+      </div>
+    );
+  })() : null;
+
   const tabs: DrawerTab[] = !(person && data)
     ? []
     : packOpen
     ? [{ id: "pack", label: "Pack", content: <PersonPackPanel personId={person.id} personName={person.name} initialPurpose={packPurpose} onBack={() => setPackOpen(false)} /> }]
     : [
-        { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} />, content: overviewContent },
-        { id: "compliance", label: "Compliance", icon: <ShieldCheck size={14} />, badge: compSum?.missing || undefined,
-          content: <RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /> },
-        { id: "journey", label: person.active ? "Journey" : "Exit", icon: <RouteIcon size={14} />,
-          content: (() => {
-            // The lifecycle-relevant journey drives the Overview tile; the other
-            // one stays viewable (prep offboarding while active; keep onboarding
-            // visible after archive) but doesn't override that headline count.
-            const lifecycleKind = person.active ? "onboarding" : "offboarding";
-            return (
-              <div className="space-y-3">
-                <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-bg-subtle ring-1 ring-border/60 text-[11px]">
-                  {(["onboarding", "offboarding"] as const).map((k) => (
-                    <button key={k} type="button" onClick={() => setJourneyKind(k)}
-                      className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full transition-colors",
-                        journeyKind === k ? "bg-accent text-accent-fg font-medium shadow-sm" : "text-fg-muted hover:text-fg")}>
-                      {k === "onboarding" ? <Rocket size={11} /> : <LogOut size={11} />}
-                      {k === "onboarding" ? "Onboarding" : "Offboarding"}
-                      {k === lifecycleKind && journeyKind !== k && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
-                    </button>
-                  ))}
-                </div>
-                <JourneyChecklist key={journeyKind} personId={person.id} kind={journeyKind} onChanged={refresh} onNavigate={close}
-                  onSummary={journeyKind === lifecycleKind ? setJourneySum : undefined} />
-                <PersonAssets personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setAssetsSum} />
-              </div>
-            );
-          })() },
-        { id: "leave", label: "Leave", icon: <CalendarDays size={14} />, badge: pendingLeave || undefined,
-          content: <PersonLeave personId={person.id} balances={data.leave.balances} requests={data.leave.requests} attendance={data.leave.attendance} onChanged={refresh} /> },
-        { id: "tasks", label: "Tasks", icon: <ListTodo size={14} />, badge: openTasks || undefined, content: tasksContent },
-        { id: "details", label: "Details", icon: <IdCard size={14} />, content: detailsContent },
+        // Visible: just three doors.
+        { id: "snapshot", label: "Snapshot", icon: <LayoutDashboard size={14} />, content: snapshotContent },
+        { id: "profile", label: "Profile", icon: <IdCard size={14} />, content: profileContent },
+        { id: "more", label: "More", icon: <ListPlus size={14} />, content: moreContent },
+        // Hidden but mounted (so their onSummary feeds the vitals); reached from
+        // a vital chip or the More menu.
+        { id: "compliance", label: "Compliance", hidden: true,
+          content: <><BackBar label="Back" onBack={goBack} /><RequirementsChecklist personId={person.id} onChanged={refresh} onNavigate={close} onSummary={setCompSum} onAddDocument={(opts) => setAddDoc({ title: opts.title, category: opts.category })} reloadSignal={refreshKey} /></> },
+        { id: "journey", label: "Journey", hidden: true, content: journeyView },
+        { id: "leave", label: "Leave", hidden: true,
+          content: <><BackBar label="Back" onBack={goBack} /><PersonLeave personId={person.id} balances={data.leave.balances} requests={data.leave.requests} attendance={data.leave.attendance} onChanged={refresh} /></> },
+        { id: "tasks", label: "Tasks", hidden: true, content: <><BackBar label="Back" onBack={goBack} />{tasksContent}</> },
+        { id: "manage", label: "Manage", hidden: true, content: manageContent },
+        { id: "history", label: "History", hidden: true, content: historyContent },
       ];
 
   const hasOpenTasks = !!data?.assignedTasks.some((t) => t.status !== "Completed" && t.status !== "Closed");
@@ -889,14 +949,20 @@ export function PersonDrawer() {
         </div>
       )}
       <div className="flex items-center gap-2">
-        <Button type="button" size="sm" onClick={() => setPackOpen(true)}>
-          <PackageCheck size={13} /> Prepare pack
-        </Button>
+        {/* Contact cluster — moved here from the hero to keep the header slim. */}
+        <div className="flex items-center gap-1.5">
+          {person.email && <IconButton icon={<Mail size={15} />} label={person.email} href={`mailto:${person.email}`} />}
+          {person.whatsapp && <IconButton icon={<MessageCircle size={15} />} label={person.whatsapp} href={whatsappHref(person.whatsapp)} external />}
+          {person.phone && <IconButton icon={<Phone size={15} />} label={person.phone} href={`tel:${person.phone}`} />}
+          <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href={`/chat?dm=${person.id}`} />
+        </div>
         <div className="ml-auto flex items-center gap-1.5">
           {hasOpenTasks && <IconButton icon={<Send size={15} />} label="Remind about open work" onClick={handleRemind} tone="accent" />}
           <IconButton icon={<ListPlus size={15} />} label="New task" onClick={() => setNewTask(true)} />
-          <IconButton icon={<MessageCircle size={15} />} label="Message in chat" href={`/chat?dm=${person.id}`} />
           <IconButton icon={<FileText size={15} />} label="Add document" onClick={() => setAddDoc({ category: null })} />
+          <Button type="button" size="sm" onClick={() => setPackOpen(true)}>
+            <PackageCheck size={13} /> Pack
+          </Button>
         </div>
       </div>
     </div>

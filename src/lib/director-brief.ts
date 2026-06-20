@@ -11,6 +11,7 @@ import { leaveMetrics, listLeaveRequests } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
 import { listObligations, outstandingDeadlines } from "./recurring";
+import { getAppSettings } from "./settings";
 import { listCalendarEvents } from "./calendar";
 import { listBriefNotes, type BriefNote } from "./brief-notes";
 import { type CcFlag } from "./command-centre";
@@ -370,12 +371,16 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
 
   // Statutory deadlines coming up — per-company aware: inside the warning window
   // with an applicable company still outstanding this period (see Command Centre).
-  const statutory: BriefStatutory[] = (await outstandingDeadlines(await listObligations(), now))
-    .slice(0, 6)
-    .map((d) => ({
-      label: d.label, dueDate: d.dueDate, daysLeft: d.daysLeft, flag: d.flag,
-      doneCount: d.doneCount, applicableCount: d.applicableCount,
-    }));
+  // Dropped entirely when the Tax & Legal area is paused (master switch).
+  const { commandCentrePaused } = await getAppSettings();
+  const statutory: BriefStatutory[] = commandCentrePaused
+    ? []
+    : (await outstandingDeadlines(await listObligations(), now))
+        .slice(0, 6)
+        .map((d) => ({
+          label: d.label, dueDate: d.dueDate, daysLeft: d.daysLeft, flag: d.flag,
+          doneCount: d.doneCount, applicableCount: d.applicableCount,
+        }));
 
   const directorActions: BriefDirectorAction[] = [
     ...[...openTasks]

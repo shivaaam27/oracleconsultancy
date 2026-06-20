@@ -9,6 +9,7 @@ import { buildPaletteTypeMeta } from "./entity-ui";
 import { Switch } from "./ui";
 import { cn } from "@/lib/cn";
 import { NAV_ROUTES, ROUTE_BY_ID } from "@/lib/nav";
+import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 import { usePins } from "@/lib/use-pins";
 import { IntentPreview } from "./intent-preview";
 import { RichAnswer } from "./rich-answer";
@@ -159,6 +160,7 @@ export function CommandPaletteProvider({
   const [thread, setThread] = useState<Msg[]>([]);
   const [thinking, setThinking] = useState(false);
   const { pins, toggle } = usePins();
+  const navVisibility = useNavVisibility();
   const router = useRouter();
   const pathname = usePathname() || "";
   const searchParams = useSearchParams();
@@ -426,15 +428,18 @@ export function CommandPaletteProvider({
     [router],
   );
 
-  // Build route groups
-  const pinnedRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
+  // Build route groups. Hidden routes (e.g. Tax & Legal when paused) drop out of
+  // every group so the page can't be jumped to.
+  const visible = (r: { href: string } | undefined): r is { href: string } =>
+    !!r && !isHiddenNavHref(r.href, navVisibility);
+  const pinnedRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(visible);
   const recentRoutes = recents
     .filter((id) => !pins.includes(id))
     .map((id) => ROUTE_BY_ID[id])
-    .filter(Boolean)
+    .filter(visible)
     .slice(0, 5);
   const otherRoutes = NAV_ROUTES.filter(
-    (r) => !pins.includes(r.id) && !recentRoutes.some((rr) => rr.id === r.id),
+    (r) => visible(r) && !pins.includes(r.id) && !recentRoutes.some((rr) => rr.id === r.id),
   );
 
   return (

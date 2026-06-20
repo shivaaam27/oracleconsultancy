@@ -10,7 +10,6 @@ import { CockpitHero, type HeroKpi, type HeroPill } from "@/components/cockpit-h
 import { CommandControls, type CommandControlsState } from "@/components/command-controls";
 import { CockpitNow } from "@/components/cockpit-now";
 import { CockpitActivity } from "@/components/cockpit-activity";
-import { CockpitWorlds } from "@/components/cockpit-worlds";
 import { listRecentActivity } from "@/lib/activity";
 import { gatherCockpitNow } from "@/lib/cockpit-now";
 import { listApprovals } from "@/lib/cockpit";
@@ -104,7 +103,6 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         <CommandControls state={controls} />
         <CockpitNow now={nowData} dueToday={dueToday} />
         <CockpitActivity items={activity} />
-        <CockpitWorlds />
       </div>
     </CommandWall>
   );

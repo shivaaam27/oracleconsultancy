@@ -152,3 +152,23 @@ request). tsc + full next build green; verified in preview. Earlier improvements
 Legal icon de-dupe, portal person/company detail pages) were pushed in commit 427ceec.
 
 Next: P4 fill the side rails (clock/weather/ticker/pins) + P8 ambient/ops theme; P6 command-bar verbs.
+
+## Tax & Legal master pause (June 2026)
+
+The owner had no real obligation data to feed yet but the morning automation
+already spawned 40 tax/legal tasks. Built a single master pause for the whole
+area + deleted those 40 (backup `2026-06-20T17-02-14Z`, tasks 93→53).
+
+- **Setting**: `settings.commandCentrePaused` (`v2.commandCentrePaused`), default
+  `false` = live. Toggle in **Settings → Tax & Legal** (`setCommandCentrePause`).
+- **When paused**: page `/hrms/command-centre` shows a placeholder (early guard in
+  its `page.tsx`); hidden from the launcher pill, ⌘K, Settings pins, and the
+  `/world/compliance` page list (client flag via `components/nav-visibility.tsx`
+  → `NavVisibilityProvider` in `app/layout.tsx`; world page filters server-side);
+  obligation auto-spawn skipped in `automation-time.ts` phase 4; statutory section
+  dropped from Director Brief (`director-brief.ts`) + Home signals (`signals.ts`)
+  + the compliance world stats (`world-data.ts`).
+- **Clean slate on resume**: `setCommandCentrePause` resets
+  `automation.time.baseline` to today's local midnight, so the cadence never
+  back-fills obligations that fell due while paused. Verified live.
+- Left **paused** (owner has no data yet). tsc + 126 tests green. NOT pushed.

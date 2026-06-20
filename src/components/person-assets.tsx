@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Laptop, Loader2, RotateCcw, Plus, Users } from "lucide-react";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
-import { SectionCard, EmptyState } from "./drawer-kit";
+import { CollapsibleSection, EmptyState } from "./drawer-kit";
 import type { AssetRow } from "@/lib/assets-shared";
 import { assignAssetAction, returnAssetAction } from "@/app/hrms/assets/actions";
 
@@ -72,15 +72,7 @@ export function PersonAssets({
   const custodian = data.custodian ?? [];
 
   return (
-    <SectionCard>
-      <div className="px-4 py-2.5 border-b border-border/50 flex items-center gap-2">
-        <Laptop size={14} className="text-accent" />
-        <span className="text-xs font-medium uppercase tracking-wider text-fg-muted">Equipment held</span>
-        <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">
-          {held.length}
-        </span>
-      </div>
-
+    <CollapsibleSection icon={<Laptop size={14} />} title="Equipment held" count={held.length}>
       {held.length > 0 ? (
         <div className="divide-y divide-border/50">
           {held.map((a) => {
@@ -156,6 +148,6 @@ export function PersonAssets({
           </Link>
         )}
       </div>
-    </SectionCard>
+    </CollapsibleSection>
   );
 }

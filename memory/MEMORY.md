@@ -1,3 +1,5 @@
+- [ERP build checklist (scored)](erp_build_checklist.md) — owner's 246-item full-ERP map scored vs live system (Jun 2026): strong=docs/automation/HR/usability/multi-entity; absent=finance/procurement/sales/CRM/payroll/manufacturing/integrations. Map not order; finance+masters+security first.
+- [Doc-mgmt baseline checklist (scored)](build_checklist_baseline.md) — owner's 84-item no-AI document-core checklist scored vs live system; gaps=WhatsApp/Telegram, human IDs, RBAC, rate limiting, Excel export.
 - **[V2 Handover](../HANDOVER.md)** - what V2 shipped, architecture, run, DB, known limits (repo root).
 - **[V2 Plan - START HERE](v2_plan.md)** - current direction, phase status, and how to work here.
 - **[V3 Plan](v3_plan.md)** - Home Intelligence, system-wide automations, and the V3 operating-layer direction.

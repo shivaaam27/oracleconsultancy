@@ -5,6 +5,8 @@ import { listObligations, splitObligations, buildDeadlinesWithCompanies, loadObl
 import { listDocuments } from "@/lib/documents";
 import { permitFlag, daysUntil, type CcFlag } from "@/lib/command-centre";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
+import { getAppSettings } from "@/lib/settings";
+import { PauseCircle } from "lucide-react";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,32 @@ export default async function CommandCentrePage({
 }) {
   const { from, view } = await searchParams;
   const now = new Date();
+
+  // Master pause: when the Tax & Legal area is paused, the page is hidden from all
+  // nav and shows a calm placeholder if reached directly. Nothing is computed or
+  // spawned; unpausing in Settings brings it straight back, starting fresh from
+  // that day (the automation baseline is reset on resume).
+  const { commandCentrePaused } = await getAppSettings();
+  if (commandCentrePaused) {
+    return (
+      <div className="space-y-4 max-w-5xl mx-auto">
+        <HrmsCrumbs from={from} />
+        <Hero title="Tax & Legal" subtitle="Paused" accentTone="muted">
+          <div className="flex items-start gap-3 rounded-2xl bg-bg-elev/70 px-4 py-3.5 ring-1 ring-border/60 backdrop-blur-sm">
+            <PauseCircle size={20} className="mt-0.5 shrink-0 text-fg-muted" />
+            <div className="text-sm text-fg-muted">
+              <p className="font-medium text-fg">This area is paused.</p>
+              <p className="mt-1">
+                No tax or legal tasks are being created and nothing here is shown elsewhere in the
+                system. Turn it back on in <span className="font-medium text-fg">Settings → Tax &amp; Legal</span>;
+                it will resume fresh from that day, with no backlog of items that fell due while paused.
+              </p>
+            </div>
+          </div>
+        </Hero>
+      </div>
+    );
+  }
 
   const [obligations, documents, ocMap, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
     listObligations(),

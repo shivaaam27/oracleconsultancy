@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { CalendarDays, Plane, Check, X, Plus, Loader2, CalendarCheck } from "lucide-react";
 import { Badge, Button } from "./ui";
-import { EmptyState, SectionCard } from "./drawer-kit";
+import { EmptyState, SectionCard, CollapsibleSection } from "./drawer-kit";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { LEAVE_STATUS_TONE, type LeaveRequestRow, type PersonLeaveBalance } from "@/lib/leave-shared";
@@ -96,10 +96,7 @@ export function PersonLeave({
       )}
 
       {/* Balances */}
-      <SectionCard>
-        <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-          <CalendarDays size={12} /> Leave balances
-        </div>
+      <CollapsibleSection icon={<CalendarDays size={14} />} title="Leave balances" count={capped.length + uncapped.length}>
         {capped.length === 0 && uncapped.length === 0 ? (
           <EmptyState icon={<CalendarDays size={20} />} title="No leave types" hint="Set up leave types in Leave & Attendance." />
         ) : (
@@ -135,16 +132,10 @@ export function PersonLeave({
             ))}
           </div>
         )}
-      </SectionCard>
+      </CollapsibleSection>
 
       {/* Requests */}
-      <SectionCard>
-        <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-          <Plane size={12} /> Leave requests
-          {requests.length > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{requests.length}</span>
-          )}
-        </div>
+      <CollapsibleSection icon={<Plane size={14} />} title="Leave requests" count={requests.length}>
         {requests.length === 0 ? (
           <EmptyState icon={<Plane size={20} />} title="No leave requests" hint="Record leave below, or staff can request it from the portal." />
         ) : (
@@ -216,7 +207,7 @@ export function PersonLeave({
             <Plus size={13} /> Record leave
           </button>
         )}
-      </SectionCard>
+      </CollapsibleSection>
     </div>
   );
 }

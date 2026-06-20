@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CountPill } from "@/components/ui";
 
@@ -149,9 +150,49 @@ export function EmptyState({ icon, title, hint, tone = "muted", action }: { icon
   );
 }
 
-/** A glass card wrapper to keep section chrome consistent. */
+/** A solid card wrapper to keep section chrome consistent (content layer — no
+ *  glass-on-glass; the drawer itself is the glass chrome). */
 export function SectionCard({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("glass elevated rounded-2xl overflow-hidden", className)}>{children}</div>;
+  return <div className={cn("bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden", className)}>{children}</div>;
+}
+
+/**
+ * The ONE uniform, collapsible section card used by every drawer section so they
+ * look and behave identically: a tappable header (icon · title · count · right
+ * actions · chevron) over a body that's COLLAPSED BY DEFAULT. The body only
+ * renders when open, so an empty section is just a slim one-line header. Pass
+ * `defaultOpen` to start expanded; `right` for header actions (they don't toggle).
+ */
+export function CollapsibleSection({
+  icon, title, count, right, defaultOpen = false, contentClassName, children,
+}: {
+  icon?: ReactNode;
+  title: string;
+  count?: number;
+  right?: ReactNode;
+  defaultOpen?: boolean;
+  contentClassName?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden">
+      <div className="flex items-center gap-1.5 px-3.5 py-2.5">
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
+          className="group flex min-w-0 flex-1 items-center gap-2 text-left">
+          {icon && <span className="shrink-0 text-fg-muted">{icon}</span>}
+          <span className="truncate text-[13px] font-semibold">{title}</span>
+          {count != null && <CountPill>{count}</CountPill>}
+        </button>
+        {right && <span className="flex shrink-0 items-center gap-1">{right}</span>}
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-label={open ? "Collapse" : "Expand"}
+          className="shrink-0 text-fg-subtle hover:text-fg transition-colors">
+          <ChevronDown size={16} className={cn("transition-transform", open && "rotate-180")} />
+        </button>
+      </div>
+      {open && <div className={cn("border-t border-border/60", contentClassName)}>{children}</div>}
+    </div>
+  );
 }
 
 /** A small caption used to head a group within a card. */

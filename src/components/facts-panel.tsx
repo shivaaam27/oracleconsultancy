@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { NotebookPen, ChevronDown, Plus, Check, Trash2, FileText, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { SectionCard, StatusChip, type KitTone } from "./drawer-kit";
+import { CollapsibleSection, StatusChip, type KitTone } from "./drawer-kit";
 import { Combobox } from "./combobox";
 import {
   factStatus,
@@ -64,19 +64,14 @@ export function FactsPanel({
   }, [entityType, entityId]);
 
   return (
-    <SectionCard className="p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5">
-          <NotebookPen size={12} /> Tracked facts
-        </span>
-        <button
-          type="button"
-          onClick={() => setAdding((a) => !a)}
-          className="ml-auto inline-flex items-center gap-1 rounded-lg bg-bg-subtle/60 px-2 py-1 text-[11px] font-medium text-fg-muted hover:bg-bg-muted/60 transition-colors"
-        >
-          <Plus size={12} /> Record a fact
-        </button>
-      </div>
+    <CollapsibleSection icon={<NotebookPen size={14} />} title="Tracked facts" count={current.length} contentClassName="p-3.5 space-y-3">
+      <button
+        type="button"
+        onClick={() => setAdding((a) => !a)}
+        className="inline-flex items-center gap-1 rounded-lg bg-bg-subtle/60 px-2.5 py-1 text-[11px] font-medium text-fg-muted hover:bg-bg-muted/60 transition-colors"
+      >
+        <Plus size={12} /> Record a fact
+      </button>
 
       {adding && (
         <RecordForm
@@ -156,7 +151,7 @@ export function FactsPanel({
           })}
         </div>
       )}
-    </SectionCard>
+    </CollapsibleSection>
   );
 }
 

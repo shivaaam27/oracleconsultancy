@@ -4,13 +4,13 @@ import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { SettingsCard } from "@/components/settings-card";
-import { SettingsNav } from "@/components/settings-nav";
+import { SettingsSections, type SettingsGroup } from "@/components/settings-sections";
 import { getAppSettings, getEmailConfig, getGroqKeyPreview, SWIPE_ACTIONS } from "@/lib/settings";
 import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
 import { sb } from "@/db/supabase";
-import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow } from "./actions";
+import { saveSettings, setPortalAccess, setPortalRole, revokePortalAccess, disconnectGoogleAction, setDirectorOutreach, setEmailAutomation, setAutomationTuning, sendDirectorBriefNow, runEmailAutomationNow, setCommandCentrePause } from "./actions";
 import { RevealPassword } from "@/components/reveal-password";
 import { getAutomationConfig, CATEGORY_META } from "@/lib/automation";
 import { AutomationSettings } from "@/components/automation-settings";
@@ -24,15 +24,38 @@ import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./pas
 import { getOwnerIdentity } from "@/lib/admin-auth";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
+import { FormSwitch } from "@/components/form-switch";
 import Link from "next/link";
-import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync } from "lucide-react";
+import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+// The Settings page is sectioned: the rail picks a group, only that group's cards
+// show. Order here = rail order. `cards` lets a deep link to #card-id open the
+// group that holds it.
+const SETTINGS_GROUPS: SettingsGroup[] = [
+  { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "risk", "location", "swipe", "navigation"] },
+  { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
+  { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "tax-legal"] },
+  { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google", "dropbox"] },
+  { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal"] },
+  { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
+];
+
+/** Sticky Save button shared by every per-section settings form. Tagged
+ *  data-savebar so the in-page search can hide it while filtering. */
+function SaveBar() {
+  return (
+    <div data-savebar className="sticky bottom-3 z-10 flex justify-end">
+      <Button type="submit" className="shadow-lg"><Save size={13} /> Save changes</Button>
+    </div>
+  );
+}
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string }>;
+  searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string; section?: string }>;
 }) {
   const [s, sp, googleStatus, { data: peopleRows }, ownerIdentity] = await Promise.all([
     getAppSettings(),
@@ -98,76 +121,21 @@ export default async function SettingsPage({
         </div>
       )}
 
-      <div className="mt-5 lg:grid lg:grid-cols-[11rem_1fr] lg:gap-6">
-        <SettingsNav />
-
-        <div className="min-w-0 space-y-4">
-          {/* About you */}
+      <SettingsSections groups={SETTINGS_GROUPS} initial={sp.section}>
+        {/* ───────────────────────── General ───────────────────────── */}
+        <section data-group="general" className="space-y-4">
           <form action={saveSettings} className="space-y-4">
-            <SettingsCard id="about" icon={<Sparkles size={15} />} title="About you" desc="Your name — used to greet you in the ORI assistant.">
+            <input type="hidden" name="__keys" value="operatorName,dueSoonDays,stalledDays,agingDays,weatherCity,weatherLat,weatherLon,swipeRightAction,swipeLeftAction" />
+            <input type="hidden" name="__section" value="general" />
+
+            <SettingsCard id="about" icon={<Sparkles size={15} />} title="About you" desc="How ORI greets you." keywords="name operator greeting">
               <div className="max-w-xs">
                 <FieldLabel>Your name</FieldLabel>
                 <Input name="operatorName" defaultValue={s.operatorName} placeholder="e.g. Sunny" />
               </div>
             </SettingsCard>
 
-            {/* Email sending */}
-            <SettingsCard id="email" icon={<Mail size={15} />} title="Email sending" desc="The name and address your outgoing email (e.g. calendar invites) is sent from. You can change this any time.">
-              <EmailStatus
-                configured={!!emailCfg}
-                provider={emailCfg?.provider ?? null}
-                from={emailCfg?.from ?? `${s.emailFromName} <${s.emailFrom}>`}
-                defaultTo={s.emailFrom}
-              />
-              <div className="grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <FieldLabel>Sender name</FieldLabel>
-                  <Input name="emailFromName" defaultValue={s.emailFromName} placeholder="Oracle Consultancy" />
-                </div>
-                <div>
-                  <FieldLabel>Sender email address</FieldLabel>
-                  <Input name="emailFrom" type="email" defaultValue={s.emailFrom} placeholder="admin@oracle.co.tz" />
-                </div>
-              </div>
-              <div className="max-w-xl">
-                <FieldLabel>Email signature / footer</FieldLabel>
-                <Textarea
-                  name="emailSignature"
-                  rows={4}
-                  defaultValue={s.emailSignature}
-                  placeholder={"Oracle Consultancy\nadmin@oracle.co.tz\n+255 ..."}
-                />
-                <p className="mt-1 text-xs text-fg-muted">
-                  Added to the bottom of every email the system sends. Your normal Gmail signature is
-                  not included on these messages, so set it here. Leave blank to use the sender name and
-                  address.
-                </p>
-              </div>
-              <div className="max-w-xl space-y-2">
-                <FieldLabel>Signature image (logo / branded sign-off)</FieldLabel>
-                {signatureImageUrl ? (
-                  <div className="flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={signatureImageUrl}
-                      alt="Current signature"
-                      className="max-h-20 rounded border border-border bg-white p-1"
-                    />
-                    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-danger">
-                      <input type="checkbox" name="remove_emailSignatureImage" value="1" /> Remove image
-                    </label>
-                  </div>
-                ) : null}
-                <Input name="emailSignatureImage" type="file" accept="image/png,image/jpeg,image/gif,image/webp" />
-                <p className="text-xs text-fg-muted">
-                  Embedded inline at the foot of each email (PNG/JPG). It always renders for the
-                  recipient. Use a wide image up to ~360px; transparent PNG looks best.
-                </p>
-              </div>
-            </SettingsCard>
-
-            {/* Risk rules */}
-            <SettingsCard id="risk" icon={<SlidersHorizontal size={15} />} title="Risk rules" desc="How the system decides when a task needs attention. Changing these instantly re-colours every task.">
+            <SettingsCard id="risk" icon={<SlidersHorizontal size={15} />} title="Risk rules" desc="When a task flags for attention." keywords="due soon stalled aging overdue thresholds colour">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <FieldLabel>Due soon — within (days)</FieldLabel>
@@ -184,8 +152,7 @@ export default async function SettingsPage({
               </div>
             </SettingsCard>
 
-            {/* Location & weather */}
-            <SettingsCard id="location" icon={<MapPin size={15} />} title="Location & weather" desc="Shown on the welcome screen. Coordinates drive the live weather (uses a free, keyless source).">
+            <SettingsCard id="location" icon={<MapPin size={15} />} title="Location & weather" desc="Drives the welcome-screen weather." keywords="city latitude longitude coordinates weather">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-3">
                   <FieldLabel>City name</FieldLabel>
@@ -202,42 +169,42 @@ export default async function SettingsPage({
               </div>
             </SettingsCard>
 
-            {/* AI */}
-            <SettingsCard id="ai" icon={<Sparkles size={15} />} title="AI assistance" desc="Master switch for all AI features (Ask, polish, drafting, meeting extraction). Turn off to run the system fully manually — everything keeps working without AI.">
-              <div className="grid grid-cols-1 gap-3">
-                <label className="flex cursor-pointer select-none items-center gap-3">
-                  <input
-                    type="checkbox"
-                    name="aiEnabled"
-                    defaultChecked={s.aiEnabled}
-                    className="h-4 w-4 accent-[var(--accent)]"
-                  />
-                  <span className="text-sm">Enable AI features</span>
-                </label>
-                <label className="flex cursor-pointer select-none items-start gap-3">
-                  <input
-                    type="checkbox"
-                    name="aiHighQuality"
-                    defaultChecked={s.aiHighQuality}
-                    className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
-                  />
-                  <span className="text-sm">
-                    Higher-quality reading
-                    <span className="block text-xs text-fg-subtle">Use the stronger AI model to read documents and write meeting minutes — more accurate, a little slower. Turn off if AI feels slow or rate-limited.</span>
-                  </span>
-                </label>
-                <label className="flex cursor-pointer select-none items-start gap-3">
-                  <input
-                    type="checkbox"
-                    name="semanticSearch"
-                    defaultChecked={s.semanticSearch}
-                    className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
-                  />
-                  <span className="text-sm">
-                    Semantic search (ORI)
-                    <span className="block text-xs text-fg-subtle">Let ORI find tasks, meetings and documents by meaning, not just matching words. Only switch on after the one-time setup (deploy the &ldquo;embed&rdquo; function and run the backfill — see SEMANTIC_SEARCH.md). Off = keyword search.</span>
-                  </span>
-                </label>
+            <SettingsCard id="swipe" icon={<Hand size={15} />} title="Swipe actions" desc="Left / right swipe on a task row." keywords="swipe gesture complete escalate task row">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <FieldLabel>Swipe right</FieldLabel>
+                  <Select name="swipeRightAction" defaultValue={s.swipeRightAction}>
+                    {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Swipe left</FieldLabel>
+                  <Select name="swipeLeftAction" defaultValue={s.swipeLeftAction}>
+                    {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+                  </Select>
+                </div>
+              </div>
+            </SettingsCard>
+
+            <SaveBar />
+          </form>
+
+          <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Pin your most-used pages. Saves automatically." keywords="pin nav pages search command menu shortcuts">
+            <NavSettings />
+          </SettingsCard>
+        </section>
+
+        {/* ───────────────────────── AI & Voice ───────────────────────── */}
+        <section data-group="ai" className="space-y-4">
+          <form action={saveSettings} className="space-y-4">
+            <input type="hidden" name="__keys" value="aiEnabled,aiHighQuality,semanticSearch,groqApiKey,voiceLanguage,voiceDictionary" />
+            <input type="hidden" name="__section" value="ai" />
+
+            <SettingsCard id="ai" icon={<Sparkles size={15} />} title="AI assistance" desc="Master switch for all AI features." keywords="ai groq ask polish drafting meeting semantic search key model">
+              <div className="grid grid-cols-1 gap-2">
+                <FormSwitch name="aiEnabled" defaultChecked={s.aiEnabled} label="Enable AI features" hint="Off runs the whole system manually — nothing breaks." />
+                <FormSwitch name="aiHighQuality" defaultChecked={s.aiHighQuality} label="Higher-quality reading" hint="Stronger model for documents & minutes — more accurate, a little slower." />
+                <FormSwitch name="semanticSearch" defaultChecked={s.semanticSearch} label="Semantic search (ORI)" hint="Find by meaning, not just words. Needs the one-time setup (SEMANTIC_SEARCH.md)." />
               </div>
 
               {/* In-app Groq key — set/rotate without a redeploy */}
@@ -271,14 +238,13 @@ export default async function SettingsPage({
                     <input type="checkbox" name="remove_groqApiKey" value="1" className="h-3.5 w-3.5 accent-[var(--accent)]" /> Remove the key set here (fall back to the built-in one)
                   </label>
                 )}
-                <p className="text-xs text-fg-muted">
-                  Set or rotate the Groq key here to fix AI instantly without a redeploy — it overrides the built-in key. For your security the key itself is never shown again, only the last four characters. Leave blank to keep the current key.
+                <p className="text-[11px] text-fg-muted">
+                  Set or rotate the key here to fix AI instantly — overrides the built-in one. Never shown again; blank keeps the current key.
                 </p>
               </div>
             </SettingsCard>
 
-            {/* Voice */}
-            <SettingsCard id="voice" icon={<Mic2 size={15} />} title="Voice intelligence" desc="Dictation language and trusted words used when ORI cleans rough speech into polished notes.">
+            <SettingsCard id="voice" icon={<Mic2 size={15} />} title="Voice intelligence" desc="Dictation language & trusted words." keywords="voice dictation language swahili hindi gujarati dictionary speech">
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <FieldLabel>Primary dictation language</FieldLabel>
@@ -301,105 +267,96 @@ export default async function SettingsPage({
               </div>
             </SettingsCard>
 
-            {/* Swipe actions */}
-            <SettingsCard id="swipe" icon={<Hand size={15} />} title="Swipe actions" desc="What a left or right swipe does on a task row (Oracle Consultancy Home list). Applies as soon as you save.">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <FieldLabel>Swipe right</FieldLabel>
-                  <Select name="swipeRightAction" defaultValue={s.swipeRightAction}>
-                    {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                  </Select>
-                </div>
-                <div>
-                  <FieldLabel>Swipe left</FieldLabel>
-                  <Select name="swipeLeftAction" defaultValue={s.swipeLeftAction}>
-                    {SWIPE_ACTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-                  </Select>
-                </div>
-              </div>
-            </SettingsCard>
-
-            {/* Messaging status */}
-            <SettingsCard id="messaging" icon={<MessageCircle size={15} />} title="Messaging" desc={`Email sending is ${emailCfg ? "connected" : "not connected"}. Until a channel is connected, the Outbox prepares copy-ready drafts with one-tap send links.`}>
-              <WhatsAppStatus configured={whatsAppOn} defaultTo="+255686450999" />
-            </SettingsCard>
-
-            {/* Quiet hours & batching — how non-urgent alerts behave */}
-            <SettingsCard id="quiet-hours" icon={<Bell size={15} />} title="Quiet hours & batching" desc="Calm down non-urgent alerts. Urgent things (overdue, escalated) always come through straight away — these only hold back the routine ones.">
-              <div className="max-w-xl space-y-3.5">
-                <div>
-                  <p className="text-sm font-medium">Quiet hours</p>
-                  <p className="text-[11px] text-fg-muted">Hold routine alerts during this window (your local Dar es Salaam time). Leave both blank to switch off. The window can run past midnight (e.g. 22:00 to 07:00).</p>
-                  <div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-xs">
-                    <div>
-                      <FieldLabel>From</FieldLabel>
-                      <Input name="quietHoursStart" type="time" defaultValue={s.quietHoursStart} />
-                    </div>
-                    <div>
-                      <FieldLabel>To</FieldLabel>
-                      <Input name="quietHoursEnd" type="time" defaultValue={s.quietHoursEnd} />
-                    </div>
-                  </div>
-                </div>
-                <label className="flex cursor-pointer select-none items-start gap-3 border-t border-border/60 pt-3.5">
-                  <input
-                    type="checkbox"
-                    name="notifyDigest"
-                    defaultChecked={s.notifyDigest}
-                    className="mt-0.5 h-4 w-4 accent-[var(--accent)]"
-                  />
-                  <span className="text-sm">
-                    Batch routine alerts into a digest
-                    <span className="block text-xs text-fg-subtle">Group everyday notifications into a periodic summary instead of buzzing one-by-one. Urgent alerts still come through immediately.</span>
-                  </span>
-                </label>
-              </div>
-            </SettingsCard>
-
-            <div className="sticky bottom-3 z-10 flex justify-end">
-              <Button type="submit" className="shadow-lg"><Save size={13} /> Save changes</Button>
-            </div>
+            <SaveBar />
           </form>
+        </section>
 
-          {/* Smart automations — the reaction-layer control room */}
-          <SettingsCard id="automations" icon={<Wrench size={15} />} title="Automations" desc="How hands-off the system runs. Each rule can act on its own (Auto), wait for your one-click approval in the Inbox (Suggest), or do nothing (Off). Everything it does is logged in the Inbox and can be undone.">
+        {/* ───────────────────────── Automation ───────────────────────── */}
+        <section data-group="automation" className="space-y-4">
+          <SettingsCard id="automations" icon={<Wrench size={15} />} title="Automations" desc="How hands-off the system runs. Auto · Suggest · Off." keywords="automation rules auto suggest reactions hands-off">
             <AutomationSettings statuses={automationStatuses} recordsConfidence={recordsConfidence} />
           </SettingsCard>
 
-          {/* Google Calendar connection */}
-          <SettingsCard id="google" icon={<CalendarCheck size={15} />} title="Google Calendar" desc="Connect a Google account so events created in Oracle Consultancy appear in guests' calendars automatically and generate real Google Meet links. When connected, invites are sent through Google; otherwise they go out as email invitations.">
-            {!googleStatus.configured ? (
-              <p className="text-xs text-warn">
-                Not configured yet — the Google client credentials need adding to the app before this can be switched on.
-              </p>
-            ) : googleStatus.connected ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm text-success">
-                  <Check size={14} /> Connected{googleStatus.email ? ` as ${googleStatus.email}` : ""}
+          <SettingsCard id="tax-legal" icon={<Scale size={15} />} title="Tax & Legal" desc="Pause the area until you have real data. Resumes fresh." keywords="tax legal pause hide obligations statutory command centre">
+            <form action={setCommandCentrePause} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{s.commandCentrePaused ? "Paused" : "Live"}</p>
+                <p className="text-[11px] text-fg-muted">
+                  {s.commandCentrePaused
+                    ? "Hidden everywhere and dormant. Resume to start fresh from today."
+                    : "Visible in navigation; recurring obligations can spawn tasks."}
+                </p>
+              </div>
+              <input type="hidden" name="paused" value={s.commandCentrePaused ? "0" : "1"} />
+              <Button type="submit" variant={s.commandCentrePaused ? "primary" : "secondary"}>
+                {s.commandCentrePaused ? "Resume" : "Pause"}
+              </Button>
+            </form>
+          </SettingsCard>
+        </section>
+
+        {/* ───────────────────── Email & Integrations ───────────────────── */}
+        <section data-group="email" className="space-y-4">
+          <form action={saveSettings} className="space-y-4">
+            <input type="hidden" name="__keys" value="emailFromName,emailFrom,emailSignature,emailSignatureImagePath" />
+            <input type="hidden" name="__section" value="email" />
+
+            <SettingsCard id="email" icon={<Mail size={15} />} title="Email sending" desc="Sender name, address & signature." keywords="email sender from address signature footer logo invites">
+              <EmailStatus
+                configured={!!emailCfg}
+                provider={emailCfg?.provider ?? null}
+                from={emailCfg?.from ?? `${s.emailFromName} <${s.emailFrom}>`}
+                defaultTo={s.emailFrom}
+              />
+              <div className="grid max-w-xl grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <FieldLabel>Sender name</FieldLabel>
+                  <Input name="emailFromName" defaultValue={s.emailFromName} placeholder="Oracle Consultancy" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Link href="/api/google/connect" className="text-xs text-fg-muted underline hover:text-fg">
-                    Reconnect / switch account
-                  </Link>
-                  <form action={disconnectGoogleAction}>
-                    <Button type="submit" variant="secondary" size="sm">Disconnect</Button>
-                  </form>
+                <div>
+                  <FieldLabel>Sender email address</FieldLabel>
+                  <Input name="emailFrom" type="email" defaultValue={s.emailFrom} placeholder="admin@oracle.co.tz" />
                 </div>
               </div>
-            ) : (
-              <Link href="/api/google/connect">
-                <Button type="button" className="gap-1.5"><CalendarCheck size={15} /> Connect Google Calendar</Button>
-              </Link>
-            )}
-          </SettingsCard>
+              <div className="max-w-xl">
+                <FieldLabel>Email signature / footer</FieldLabel>
+                <Textarea
+                  name="emailSignature"
+                  rows={4}
+                  defaultValue={s.emailSignature}
+                  placeholder={"Oracle Consultancy\nadmin@oracle.co.tz\n+255 ..."}
+                />
+                <p className="mt-1 text-[11px] text-fg-muted">
+                  Added to every email (your Gmail signature isn&apos;t). Blank = sender name + address.
+                </p>
+              </div>
+              <div className="max-w-xl space-y-2">
+                <FieldLabel>Signature image (logo / branded sign-off)</FieldLabel>
+                {signatureImageUrl ? (
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={signatureImageUrl}
+                      alt="Current signature"
+                      className="max-h-20 rounded border border-border bg-white p-1"
+                    />
+                    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-danger">
+                      <input type="checkbox" name="remove_emailSignatureImage" value="1" /> Remove image
+                    </label>
+                  </div>
+                ) : null}
+                <Input name="emailSignatureImage" type="file" accept="image/png,image/jpeg,image/gif,image/webp" />
+                <p className="text-[11px] text-fg-muted">
+                  Shown at the foot of each email. Wide PNG/JPG up to ~360px; transparent looks best.
+                </p>
+              </div>
+            </SettingsCard>
 
-          {/* Dropbox inbox connector */}
-          <SettingsCard id="dropbox" icon={<FolderSync size={15} />} title="Dropbox inbox" desc="Drop a file in your watched Dropbox folder and it pulls into the inbox automatically for sorting. One-way and read-only." className="scroll-mt-24">
-            <DropboxSettings status={dropboxStatus} />
-          </SettingsCard>
+            <SaveBar />
+          </form>
 
           {/* Email automation */}
-          <SettingsCard id="email-automation" icon={<Mail size={15} />} title="Email automation" desc={`Scheduled email reminders. Each runs once a day inside the send window (08:00–18:00).${emailCfg ? "" : " Email isn't connected yet, so these prepare Outbox drafts you send with one tap."}`} className="scroll-mt-24">
+          <SettingsCard id="email-automation" icon={<Mail size={15} />} title="Email automation" desc={emailCfg ? "Scheduled daily reminders (08:00–18:00)." : "Not connected — prepares Outbox drafts to send with one tap."} keywords="email automation reminders schedule test mode director brief send window cap" className="scroll-mt-24">
             <form action={setEmailAutomation} className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ${emailTestMode ? "bg-warn-soft/50 ring-1 ring-warn/30" : "bg-bg-subtle/50"}`}>
               <div className="min-w-0">
                 <p className="text-sm font-medium">{emailTestMode ? "🧪 Test mode is ON" : "Test mode"}</p>
@@ -493,8 +450,48 @@ export default async function SettingsPage({
             </form>
           </SettingsCard>
 
+          {/* Messaging status */}
+          <SettingsCard id="messaging" icon={<MessageCircle size={15} />} title="Messaging" desc={`WhatsApp / SMS channel. Email is ${emailCfg ? "connected" : "not connected"}.`} keywords="messaging whatsapp sms channel outbox drafts">
+            <WhatsAppStatus configured={whatsAppOn} defaultTo="+255686450999" />
+          </SettingsCard>
+
+          {/* Google Calendar connection */}
+          <SettingsCard id="google" icon={<CalendarCheck size={15} />} title="Google Calendar" desc="Connect for real calendar invites & Meet links." keywords="google calendar meet invites connect oauth">
+            {!googleStatus.configured ? (
+              <p className="text-xs text-warn">
+                Not configured yet — the Google client credentials need adding to the app before this can be switched on.
+              </p>
+            ) : googleStatus.connected ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-sm text-success">
+                  <Check size={14} /> Connected{googleStatus.email ? ` as ${googleStatus.email}` : ""}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link href="/api/google/connect" className="text-xs text-fg-muted underline hover:text-fg">
+                    Reconnect / switch account
+                  </Link>
+                  <form action={disconnectGoogleAction}>
+                    <Button type="submit" variant="secondary" size="sm">Disconnect</Button>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              <Link href="/api/google/connect">
+                <Button type="button" className="gap-1.5"><CalendarCheck size={15} /> Connect Google Calendar</Button>
+              </Link>
+            )}
+          </SettingsCard>
+
+          {/* Dropbox inbox connector */}
+          <SettingsCard id="dropbox" icon={<FolderSync size={15} />} title="Dropbox inbox" desc="Auto-pull files from a watched folder. Read-only." keywords="dropbox inbox folder sync files import" className="scroll-mt-24">
+            <DropboxSettings status={dropboxStatus} />
+          </SettingsCard>
+        </section>
+
+        {/* ───────────────────── Security & Access ───────────────────── */}
+        <section data-group="security" className="space-y-4">
           {/* Owner sign-in */}
-          <SettingsCard id="owner" icon={<KeyRound size={15} />} title="Owner sign-in" desc="The password that protects the whole admin system (everything except the staff portal).">
+          <SettingsCard id="owner" icon={<KeyRound size={15} />} title="Owner sign-in" desc="Password & identity for the admin system." keywords="owner password sign-in identity admin login security">
             {sp.owner === "saved" && (
               <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Password changed.</p>
             )}
@@ -543,12 +540,12 @@ export default async function SettingsPage({
           </SettingsCard>
 
           {/* Face ID / fingerprint */}
-          <SettingsCard id="passkeys" icon={<ScanFace size={15} />} title="Face ID & fingerprint" desc="Add this device so you can sign in to the Command Centre with Face ID, Touch ID, or your fingerprint — no password to type. Your biometric never leaves the device; we only store a key.">
+          <SettingsCard id="passkeys" icon={<ScanFace size={15} />} title="Face ID & fingerprint" desc="Sign in without a password. Biometric stays on device." keywords="passkey face id touch fingerprint biometric webauthn windows hello">
             <PasskeyManager initial={ownerPasskeys} begin={adminBeginPasskey} finish={adminFinishPasskey} remove={adminRemovePasskey} />
           </SettingsCard>
 
           {/* Staff portal access */}
-          <SettingsCard id="portal" icon={<Users size={15} />} title="Staff portal access" desc={<>Give a staff member a sign-in for the portal at <strong className="text-fg">/portal</strong> — they see only their own tasks, can post updates, and nothing else. Set a password here and share it with them privately. Revoking locks them out immediately.</>}>
+          <SettingsCard id="portal" icon={<Users size={15} />} title="Staff portal access" desc="Give staff a /portal sign-in. Revoke any time." keywords="portal staff access password role manager director revoke outreach">
             {sp.portal === "saved" && (
               <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Portal access saved.</p>
             )}
@@ -640,26 +637,49 @@ export default async function SettingsPage({
               </Button>
             </form>
           </SettingsCard>
+        </section>
 
-          {/* Navigation */}
-          <SettingsCard id="navigation" icon={<LayoutGrid size={15} />} title="Navigation" desc="Pin the pages you use most so they appear first in Search (the ⌘K command menu). Changes save automatically. The floating bottom bar itself stays the same.">
-            <NavSettings />
-          </SettingsCard>
-
+        {/* ───────────────────── Notifications & More ───────────────────── */}
+        <section data-group="alerts" className="space-y-4">
           {/* Notifications */}
-          <SettingsCard id="notifications" icon={<Bell size={15} />} title="Notifications" desc="Get alerts on this device — even when Oracle Consultancy is closed — when tasks become overdue, are escalated, or are due today. Enable it on each device you want alerts on. On iPhone, add Oracle Consultancy to your Home Screen first.">
+          <SettingsCard id="notifications" icon={<Bell size={15} />} title="Notifications" desc="Device alerts for overdue, escalated & due-today tasks." keywords="notifications push alerts device overdue escalated reminders iphone">
             <NotificationSettings />
           </SettingsCard>
 
+          {/* Quiet hours & batching — how non-urgent alerts behave */}
+          <form action={saveSettings} className="space-y-4">
+            <input type="hidden" name="__keys" value="quietHoursStart,quietHoursEnd,notifyDigest" />
+            <input type="hidden" name="__section" value="alerts" />
+            <SettingsCard id="quiet-hours" icon={<Bell size={15} />} title="Quiet hours & batching" desc="Hold routine alerts; urgent ones always go through." keywords="quiet hours batching digest notifications mute window">
+              <div className="max-w-xl space-y-3">
+                <div>
+                  <p className="text-[11px] text-fg-muted">Hold routine alerts in this window (Dar es Salaam time). Blank = off; can wrap midnight.</p>
+                  <div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-xs">
+                    <div>
+                      <FieldLabel>From</FieldLabel>
+                      <Input name="quietHoursStart" type="time" defaultValue={s.quietHoursStart} />
+                    </div>
+                    <div>
+                      <FieldLabel>To</FieldLabel>
+                      <Input name="quietHoursEnd" type="time" defaultValue={s.quietHoursEnd} />
+                    </div>
+                  </div>
+                </div>
+                <FormSwitch name="notifyDigest" defaultChecked={s.notifyDigest} label="Batch routine alerts into a digest" hint="Group everyday alerts into a summary. Urgent ones still buzz immediately." />
+              </div>
+            </SettingsCard>
+            <SaveBar />
+          </form>
+
           {/* Design */}
-          <SettingsCard id="design" icon={<Palette size={15} />} title="Design" desc="The living Liquid Glass gallery — every colour, surface, control and gesture in one place.">
+          <SettingsCard id="design" icon={<Palette size={15} />} title="Design" desc="The living Aurora gallery." keywords="design aurora gallery colours glass theme">
             <Link href="/design" className="btn-rim inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg-elev px-3 py-2 text-sm text-fg transition-colors hover:bg-bg-muted">
               <Palette size={14} /> Open the design gallery <ArrowRight size={14} className="text-fg-muted" />
             </Link>
           </SettingsCard>
 
           {/* Maintenance / advanced */}
-          <SettingsCard id="maintenance" icon={<Wrench size={15} />} title="Maintenance" desc="Rarely needed. Safe to run any time — these tidy-up tools never change your tasks or notes.">
+          <SettingsCard id="maintenance" icon={<Wrench size={15} />} title="Maintenance" desc="Rarely needed tidy-up tools. Safe to run." keywords="maintenance rebuild summaries resync advanced tools">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Rebuild task summaries</p>
@@ -668,8 +688,8 @@ export default async function SettingsPage({
               <ResyncLatestUpdateButton />
             </div>
           </SettingsCard>
-        </div>
-      </div>
+        </section>
+      </SettingsSections>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { ChevronUp, ChevronDown, Plus, X } from "lucide-react";
 import { NAV_ROUTES, ROUTE_BY_ID, type NavRoute } from "@/lib/nav";
 import { usePins } from "@/lib/use-pins";
+import { useNavVisibility, isHiddenNavHref } from "./nav-visibility";
 
 /**
  * Reorder / pin / unpin the nav-pill buttons. Writes to the same server-backed
@@ -10,9 +11,12 @@ import { usePins } from "@/lib/use-pins";
  */
 export function NavSettings() {
   const { pins, move, toggle, loaded } = usePins();
+  const navVisibility = useNavVisibility();
 
-  const pinnedRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(Boolean) as NavRoute[];
-  const unpinned = NAV_ROUTES.filter((r) => !pins.includes(r.id));
+  // Hidden routes (e.g. Tax & Legal when paused) can't be pinned or shown here.
+  const shown = (r: NavRoute | undefined): r is NavRoute => !!r && !isHiddenNavHref(r.href, navVisibility);
+  const pinnedRoutes = pins.map((id) => ROUTE_BY_ID[id]).filter(shown);
+  const unpinned = NAV_ROUTES.filter((r) => shown(r) && !pins.includes(r.id));
 
   if (!loaded) {
     return <div className="text-xs text-fg-muted">Loading navigation…</div>;

@@ -13,6 +13,7 @@ import { getDocumentRenewalCandidates } from "@/lib/automation-suggestions";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { commitmentUrgency, noticeByDate, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
 import { getAutomationMode } from "@/lib/automation-reactions";
+import { getAppSettings } from "@/lib/settings";
 import { recordEvent } from "@/lib/system-events";
 import { listObligations, dueObligationInstances, type DueObligationInstance } from "@/lib/recurring";
 
@@ -423,8 +424,13 @@ export async function runTimeAutomations(): Promise<{ renewals: number; commitme
   //    Deduped one-task-per-obligation+company+period via a stable key in detail,
   //    so it never re-spawns within a period (and an undone task isn't re-created).
   try {
-    const obList = await listObligations();
-    const due = await dueObligationInstances(obList);
+    // Master Tax & Legal pause: when on, the recurring-obligation cadence is
+    // frozen — no tax/legal tasks are spawned. On unpause the baseline is reset
+    // (see setCommandCentrePause) so this resumes from a clean slate, never
+    // back-filling obligations that fell due while paused.
+    const { commandCentrePaused } = await getAppSettings();
+    const obList = commandCentrePaused ? [] : await listObligations();
+    const due = commandCentrePaused ? [] : await dueObligationInstances(obList);
     for (const o of due) {
       if (obligations >= MAX_OBLIGATION_TASKS_PER_RUN) break; // bounded per run
       // Forward-only: skip anything whose deadline fell before the baseline so

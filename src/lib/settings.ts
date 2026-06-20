@@ -108,6 +108,19 @@ export type AppSettings = {
    * behaviour (every notification pushes individually).
    */
   notifyDigest: boolean;
+  /**
+   * Master pause/hide switch for the **Tax & Legal** area (the
+   * /hrms/command-centre page + its recurring-obligation automation). When true:
+   *  - the page is hidden from the HRMS launcher + ⌘K and shows a "paused"
+   *    placeholder if reached directly;
+   *  - the morning automation SKIPS the recurring-obligation step (no new tax
+   *    tasks are spawned);
+   *  - the statutory section is dropped from the Director Brief and Home signals.
+   * Default false = today's behaviour (live). On UNPAUSE the automation baseline
+   * is reset to that day so it starts from a clean slate and never back-fills the
+   * obligations that fell due while paused. See setCommandCentrePause().
+   */
+  commandCentrePaused: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -148,6 +161,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   quietHoursStart: "", // blank = quiet hours OFF (every push goes through)
   quietHoursEnd: "",
   notifyDigest: false, // off = each notification buzzes individually (today's behaviour)
+  commandCentrePaused: false, // false = Tax & Legal live (today's behaviour)
 };
 
 /** Map of canonical setting field → storage key. */
@@ -179,6 +193,7 @@ const KEY: Record<keyof AppSettings, string> = {
   quietHoursStart: "v2.quietHoursStart",
   quietHoursEnd: "v2.quietHoursEnd",
   notifyDigest: "v2.notifyDigest",
+  commandCentrePaused: "v2.commandCentrePaused",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -230,6 +245,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     quietHoursStart: map.get(KEY.quietHoursStart) ?? d.quietHoursStart,
     quietHoursEnd: map.get(KEY.quietHoursEnd) ?? d.quietHoursEnd,
     notifyDigest: toBool(map.get(KEY.notifyDigest), d.notifyDigest),
+    commandCentrePaused: toBool(map.get(KEY.commandCentrePaused), d.commandCentrePaused),
   };
 });
 
