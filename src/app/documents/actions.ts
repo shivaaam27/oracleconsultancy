@@ -799,6 +799,61 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
   }
 }
 
+export type RelatedDoc = { id: number; title: string; category: string | null; intakeState: string; reason: string };
+
+/**
+ * Find documents RELATED to this one (deterministic correlation, no AI): shared
+ * reference number, renewal/supersede lineage, same source file, a shared ID
+ * number (TIN/VRN) in the text, or the same owner + type. So a document shows what
+ * it connects to — the system's understanding of how the library hangs together.
+ */
+export async function getRelatedDocumentsAction(id: number): Promise<RelatedDoc[]> {
+  const { data: d } = await supa
+    .from("documents")
+    .select("id,reference_no,company_id,person_id,extracted_text,supersedes_id,compilation_id,category")
+    .eq("id", id).maybeSingle();
+  if (!d) return [];
+  const found = new Map<number, RelatedDoc & { rank: number }>();
+  const add = (r: { id: number; title: string; category: string | null; intake_state: string }, reason: string, rank: number) => {
+    if (r.id === id) return;
+    const ex = found.get(r.id);
+    if (!ex || rank < ex.rank) found.set(r.id, { id: r.id, title: r.title, category: r.category, intakeState: r.intake_state, reason, rank });
+  };
+  const SEL = "id,title,category,intake_state";
+  try {
+    // 1. Same reference number (strongest).
+    if (d.reference_no) {
+      const { data } = await supa.from("documents").select(SEL).eq("archived", false).eq("reference_no", d.reference_no).neq("id", id).limit(10);
+      for (const r of data ?? []) add(r, "Same reference number", 1);
+    }
+    // 2. Renewal / supersede lineage.
+    {
+      const orClause = d.supersedes_id ? `supersedes_id.eq.${id},id.eq.${d.supersedes_id}` : `supersedes_id.eq.${id}`;
+      const { data } = await supa.from("documents").select(SEL).or(orClause).limit(10);
+      for (const r of data ?? []) add(r, "Renewal / earlier version", 1);
+    }
+    // 3. Split from the same uploaded file.
+    if (d.compilation_id) {
+      const { data } = await supa.from("documents").select(SEL).eq("compilation_id", d.compilation_id as string).neq("id", id).limit(10);
+      for (const r of data ?? []) add(r, "From the same file", 2);
+    }
+    // 4. Shares an ID number (TIN/VRN, 8+ digits to avoid noise) in the body text.
+    const tokens = new Set<string>();
+    for (const t of (`${d.extracted_text ?? ""} ${d.reference_no ?? ""}`.match(/\d[\d-]{6,}\d/g) ?? [])) { const x = t.replace(/\D/g, ""); if (x.length >= 8) tokens.add(x); }
+    for (const t of [...tokens].slice(0, 5)) {
+      const { data } = await supa.from("documents").select(SEL).eq("archived", false).ilike("extracted_text", `%${t}%`).neq("id", id).limit(5);
+      for (const r of data ?? []) add(r, "Shares an ID number", 3);
+    }
+    // 5. Same owner + same type (weak "you might also want").
+    const owner = d.person_id ? { col: "person_id", v: d.person_id as number } : d.company_id ? { col: "company_id", v: d.company_id as number } : null;
+    if (owner && d.category) {
+      const { data } = await supa.from("documents").select(SEL).eq("archived", false).eq(owner.col, owner.v).eq("category", d.category as string).neq("id", id).limit(5);
+      for (const r of data ?? []) add(r, "Same owner & type", 4);
+    }
+  } catch { /* best-effort */ }
+  return [...found.values()].sort((a, b) => a.rank - b.rank).slice(0, 8).map(({ rank, ...r }) => { void rank; return r; });
+}
+
 /** Quick inline rename — just the title, no full edit form. */
 export async function renameDocumentAction(id: number, title: string): Promise<Result> {
   const t = title.trim().slice(0, 120);

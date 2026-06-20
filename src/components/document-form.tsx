@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Save, FilePlus, AlertCircle, X, Sparkles, Upload, Link2, Type, UserPlus } from "lucide-react";
 import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findDuplicateDocumentsAction, archiveDocumentAction, type ExtractedFields, type DuplicateMatch, type ExtractedSegment } from "@/app/documents/actions";
 import { DocPreview } from "@/components/doc-preview";
+import { RelatedDocuments } from "@/components/related-documents";
 import { downscaleImage } from "@/lib/downscale-image";
 import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
 import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
@@ -483,6 +484,7 @@ export function DocumentForm({
               <Upload size={15} /> Choose PDF, Word, Excel or photo — read automatically
             </button>
           )}
+          {mode === "edit" && doc?.id != null && <RelatedDocuments documentId={doc.id} />}
           <p className="text-[11px] text-fg-subtle mt-1.5">Max 20 MB. Supports PDF, DOCX, Excel/CSV, scans, photos and handwritten notes.</p>
         </div>
 
