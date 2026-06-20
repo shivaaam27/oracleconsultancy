@@ -2,6 +2,7 @@
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 
+import { GROQ_FAST } from "@/lib/ai-models";
 import { callGroqText } from "@/lib/ai-json";
 import { expandQuery, expandTokens } from "@/lib/synonyms";
 import { hybridSearch } from "@/lib/embeddings";
@@ -946,9 +947,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
     }
     // ORI answers on the stronger model when "Higher-quality reading" is on
-    // (Settings → AI; default on). Falls back to the fast model when off or if
-    // the smart model is rate-limited.
-    const model = await getQualityTextModel();
+    // (Settings → AI; default on). If the smart model is rate-limited it AUTO-
+    // FALLS BACK to the fast model (see both call sites below).
+    const smartModel = await getQualityTextModel();
+    const canFallback = smartModel !== GROQ_FAST;
 
     // For retrieval, combine the current question with the last user message
     // so follow-ups like "open it" still hit relevant data.
@@ -974,13 +976,17 @@ export async function POST(req: NextRequest) {
 
     // Non-streaming answers go through the shared harness (retry + timeout).
     if (!wantStream) {
-      const result = await callGroqText({
+      let result = await callGroqText({
         messages,
         apiKey,
-        model,
+        model: smartModel,
         maxTokens: 600,
         temperature: 0.2,
       });
+      // Smart model busy → retry once on the fast model automatically.
+      if (!result.ok && result.error === "rate-limited" && canFallback) {
+        result = await callGroqText({ messages, apiKey, model: GROQ_FAST, maxTokens: 600, temperature: 0.2 });
+      }
       if (!result.ok || !result.text) {
         return NextResponse.json({ error: `groq-${result.error}` }, { status: 502 });
       }
@@ -1009,6 +1015,7 @@ export async function POST(req: NextRequest) {
     // 429/5xx — a busy free-tier minute, or another job using the same account —
     // with backoff before giving up, mirroring the non-stream path's retries.
     let res: Response | null = null;
+    let currentModel = smartModel;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
       try {
@@ -1019,7 +1026,7 @@ export async function POST(req: NextRequest) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model,
+            model: currentModel,
             messages,
             max_tokens: 600,
             temperature: 0.2,
@@ -1032,6 +1039,8 @@ export async function POST(req: NextRequest) {
         res = null;
         continue;
       }
+      // Smart model busy → drop to the fast model for the remaining attempts.
+      if (res.status === 429 && canFallback && currentModel === smartModel) { currentModel = GROQ_FAST; res = null; continue; }
       if ((res.status === 429 || res.status >= 500) && attempt < 2) { res = null; continue; }
       break;
     }
