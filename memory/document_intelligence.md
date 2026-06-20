@@ -45,6 +45,16 @@ blocks a document from filing — and grows automatically as data is added.
 - `profile_suggestions` dismissals — stops re-proposing what you keep dismissing.
 - `custom_shelves` — a genuinely new document type can become a new shelf (proposed).
 
+## System health (silent-failure watchdog, in-app only)
+
+`lib/system-health.ts` `checkSystemHealth()` knows every scheduled job's cadence
+(cron.morning/snapshots/cleanup/reminders/email/reindex/auto-sort + AI doc-extraction
+error-rate) and classifies each healthy/failed/stale/never from its `system_events`
+rows. A dead-man switch flags the scheduler itself if nothing ran in 36h.
+`SystemHealthPanel` on /inbox shows it (quiet green when fine, red/amber card with
+per-job last-run when not). The morning-run cron is the watchdog: on any non-ok it
+logs a `system.health` event → shows in the Activity log. No email, no spend.
+
 ## Self-healing (nightly, in the morning-run cron)
 
 `selfHealDocuments` finds filed docs the system previously mis-read (scanner

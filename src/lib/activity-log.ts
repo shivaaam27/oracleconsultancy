@@ -79,6 +79,8 @@ function systemEventSummary(kind: string, d: Record<string, unknown>): { summary
       return { summary: `Tidied up old data`, detail: null };
     case "cron.reindex":
       return { summary: `Re-indexed for search`, detail: null };
+    case "system.health":
+      return { summary: `Flagged a system-health problem`, detail: Array.isArray(d.down) ? (d.down as string[]).join("; ") : s(d.status), href: "/inbox" };
     case "automation.time":
       return { summary: `Created scheduled work that came due`, detail: s(d.summary), href: "/" };
     case "portal.access.granted":

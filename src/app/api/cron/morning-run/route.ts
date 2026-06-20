@@ -36,6 +36,24 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "selfheal", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1c. Watchdog: check every scheduled job + the AI reader. If anything has
+    //     failed or gone silent, log it so it surfaces in the Activity log and the
+    //     System-health panel (in-app only — no email).
+    try {
+      const { checkSystemHealth } = await import("@/lib/system-health");
+      const health = await checkSystemHealth();
+      if (health.status !== "ok") {
+        const bad = health.jobs.filter((j) => j.state !== "healthy");
+        await recordEvent("system.health", "error", {
+          status: health.status,
+          schedulerStale: health.schedulerStale,
+          down: bad.map((j) => `${j.label}: ${j.state}`),
+        });
+      }
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "health", message: e instanceof Error ? e.message : String(e) });
+    }
+
     // 2. Compose the three-band brief from the freshly-updated state.
     const brief = await buildMorningBrief();
 

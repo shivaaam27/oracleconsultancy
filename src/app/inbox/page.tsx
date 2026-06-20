@@ -7,6 +7,8 @@ import { IntakeShell } from "./intake-shell";
 import { SmartAdd } from "@/components/smart-add";
 import { ExtractionHealth } from "@/components/extraction-health";
 import { SafetyNetPanel } from "@/components/safety-net-panel";
+import { SystemHealthPanel } from "@/components/system-health-panel";
+import { checkSystemHealth } from "@/lib/system-health";
 import { AutomationFeed } from "@/components/automation-feed";
 import { listAutomationFeed } from "@/app/automations/actions";
 import { gatherSafetyFindings } from "@/lib/safety-net";
@@ -30,9 +32,10 @@ export default async function InboxPage({
   const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string, aliases: (c.aliases as string[] | null) ?? undefined }));
   const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
 
-  const [safetyFindings, automation] = await Promise.all([
+  const [safetyFindings, automation, health] = await Promise.all([
     gatherSafetyFindings(),
     listAutomationFeed(),
+    checkSystemHealth(),
   ]);
   return (
     <div className="space-y-5 max-w-3xl mx-auto">
@@ -55,6 +58,7 @@ export default async function InboxPage({
       {/* Health — the housekeeping that used to clutter /documents. The needs-review
           lane now lives in the Verify tab above. These self-hide when empty. */}
       <div className="space-y-3">
+        <SystemHealthPanel health={health} />
         <ExtractionHealth />
         <SafetyNetPanel findings={safetyFindings} />
       </div>
