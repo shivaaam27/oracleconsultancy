@@ -706,6 +706,31 @@ export async function bulkTrashQuarantineAction(ids: number[]): Promise<{ ok: bo
   return { ok: true, count: ids.length };
 }
 
+/** Bulk: confirm several Verify-queue docs in one pass. A quarantined doc is filed
+ *  into the library; an already-filed "unsure" doc has its review flag cleared and
+ *  confidence settled to certain. Mixed selections are handled per row. */
+export async function bulkConfirmVerifyAction(ids: number[]): Promise<{ ok: boolean; count: number }> {
+  let count = 0;
+  for (const id of ids) {
+    try {
+      const doc = await getDocument(id);
+      if (!doc) continue;
+      if (doc.intakeState === "quarantine") {
+        await setDocumentIntakeState(id, "filed", null);
+      } else {
+        await updateDocument(id, { reviewStatus: "ok", confidence: 1 });
+      }
+      await setDocumentVetted(id, true);
+      await reconcileOwnerCompliance(doc.personId, doc.companyId);
+      await fireDocumentReactions(id);
+      count++;
+    } catch { /* skip the one that fails, keep going */ }
+  }
+  revalidateDocs();
+  revalidatePath("/inbox");
+  return { ok: true, count };
+}
+
 /**
  * Deep re-scan of the quarantine pile: re-read each ownerless doc with the latest
  * extractor (HEIC convert, big-photo downscale) + fuzzy owner-matching, and AUTO-

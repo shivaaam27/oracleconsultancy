@@ -60,6 +60,18 @@ watermark text, or never-extracted) and re-OCRs them + fills a now-resolvable ow
   traversable: people, **linked companies that share a director**, documents, facts,
   applications, compliance; person view = directorships, manager/reports, docs, facts.
 
+## Verify queue (review-by-exception)
+
+`/inbox` → **Verify** tab (first tab). One worklist of documents needing a decision,
+from flags the intake already sets (`lib/verify-queue.ts` `getVerifyQueue`): **Couldn't
+place** (quarantine, incl. suspected duplicates), **Unsure reads** (filed, confidence
+<0.6 or needs_review), **No owner yet** (filed, no company/person). Checkbox select +
+per-group "Select all" → a sticky **bulk bar**: Confirm (`bulkConfirmVerifyAction` —
+files quarantine, clears review on filed), Assign owner (`bulkAssignQuarantineAction`),
+Bin (`bulkTrashQuarantineAction`), Export CSV. Quarantine was FOLDED IN here (its old
+tab + `needs-review-panel.tsx` removed); **Trash stays a separate tab** (the decided
+bin). Empty state = "all caught up".
+
 ## Confidence (the "unsure, please check" lane)
 
 Every AI read stores its `confidence` (0–1) on the document (`documents.confidence`,

@@ -3,22 +3,21 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Inbox as InboxIcon, ShieldQuestion, Trash2, Sparkles, Loader2, FileText, Image as ImageIcon,
-  FolderInput, RotateCcw, X, CheckCircle2,
+  Inbox as InboxIcon, ShieldCheck, Trash2, Sparkles, Loader2, FileText, Image as ImageIcon,
+  RotateCcw, X, CheckCircle2,
 } from "lucide-react";
 import { InboxList } from "./inbox-list";
 import { signInboxAttachment, autoSortInboxAction, type InboxItem, type AutoSortSummary } from "./actions";
-import { DocPreview } from "@/components/doc-preview";
-import { useToast } from "@/components/toast";
 import {
-  fileFromQuarantineAction, trashIntakeDocAction, restoreFromTrashAction,
-  deleteIntakeForeverAction, emptyTrashAction, retryQuarantineAction, type IntakeBucketItem,
+  restoreFromTrashAction, deleteIntakeForeverAction, emptyTrashAction, type IntakeBucketItem,
 } from "@/app/documents/actions";
+import { VerifyQueue } from "@/components/verify-queue";
+import type { VerifyItem } from "@/lib/verify-queue";
 import { RescanDocumentsButton } from "@/components/rescan-documents-button";
 import { FindDuplicatesButton } from "@/components/find-duplicates-button";
 import { Button } from "@/components/ui";
 
-type Tab = "inbox" | "quarantine" | "trash";
+type Tab = "verify" | "inbox" | "trash";
 
 function relTime(iso: string | null): string {
   if (!iso) return "";
@@ -34,17 +33,17 @@ export function IntakeShell({
   inboxItems,
   companies,
   people,
-  quarantine,
+  verify,
   trash,
 }: {
   inboxItems: InboxItem[];
   companies: Array<{ id: number; name: string; aliases?: string[] }>;
   people: Array<{ id: number; name: string }>;
-  quarantine: IntakeBucketItem[];
+  verify: VerifyItem[];
   trash: IntakeBucketItem[];
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("inbox");
+  const [tab, setTab] = useState<Tab>(verify.length > 0 ? "verify" : "inbox");
   const [sorting, startSort] = useTransition();
   const [summary, setSummary] = useState<AutoSortSummary | null>(null);
 
@@ -58,8 +57,8 @@ export function IntakeShell({
   }
 
   const tabs: Array<{ id: Tab; label: string; icon: typeof InboxIcon; count: number }> = [
+    { id: "verify", label: "Verify", icon: ShieldCheck, count: verify.length },
     { id: "inbox", label: "Inbox", icon: InboxIcon, count: inboxItems.length },
-    { id: "quarantine", label: "Quarantine", icon: ShieldQuestion, count: quarantine.length },
     { id: "trash", label: "Trash", icon: Trash2, count: trash.length },
   ];
 
@@ -123,8 +122,8 @@ export function IntakeShell({
         </div>
       )}
 
+      {tab === "verify" && <VerifyQueue items={verify} companies={companies} people={people} />}
       {tab === "inbox" && <InboxList items={inboxItems} companies={companies} people={people} />}
-      {tab === "quarantine" && <QuarantineList items={quarantine} />}
       {tab === "trash" && <TrashList items={trash} />}
     </div>
   );
@@ -157,73 +156,6 @@ function EmptyBucket({ icon: Icon, title, sub }: { icon: typeof InboxIcon; title
       <Icon size={26} className="mx-auto text-fg-subtle mb-2" />
       <p className="text-sm text-fg-muted">{title}</p>
       <p className="text-xs text-fg-subtle mt-1">{sub}</p>
-    </div>
-  );
-}
-
-function QuarantineList({ items }: { items: IntakeBucketItem[] }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [busy, setBusy] = useState<number | null>(null);
-  const [pending, start] = useTransition();
-  const [rescanning, startRescan] = useTransition();
-
-  function act(id: number, fn: () => Promise<unknown>) {
-    setBusy(id);
-    start(async () => { await fn(); router.refresh(); setBusy(null); });
-  }
-
-  function rescan() {
-    startRescan(async () => {
-      const r = await retryQuarantineAction();
-      toast(r.filed ? `Re-scanned ${r.scanned} — filed ${r.filed} that now have an owner.` : `Re-scanned ${r.scanned} — none could be placed yet.`, { tone: r.filed ? "success" : "default", duration: 4500 });
-      router.refresh();
-    });
-  }
-
-  if (items.length === 0)
-    return <EmptyBucket icon={ShieldQuestion} title="Quarantine is clear." sub="Anything the sorter can't place — no owner, unreadable, or a suspected duplicate — waits here for a glance." />;
-
-  return (
-    <div className="space-y-2.5">
-      <div className="flex items-center gap-2 px-1">
-        <p className="text-[11px] text-fg-subtle flex-1">The sorter couldn&apos;t settle these on its own. File the good ones; bin the rest.</p>
-        <Button type="button" variant="secondary" size="sm" onClick={rescan} disabled={rescanning}>
-          {rescanning ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} Re-scan &amp; auto-file
-        </Button>
-      </div>
-      {items.map((it) => {
-        const isBusy = pending && busy === it.id;
-        return (
-          <div key={it.id} className="glass elevated p-3.5 space-y-2 rounded-2xl">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1 rounded-full bg-warn-soft text-warn px-2 py-0.5 font-medium">
-                <ShieldQuestion size={11} /> Held
-              </span>
-              {it.category && <span className="text-fg-muted">{it.category}</span>}
-              {it.owner && <span className="text-fg-muted truncate">· {it.owner}</span>}
-              <span className="ml-auto shrink-0 text-fg-subtle">{relTime(it.when)}</span>
-            </div>
-            <p className="text-sm font-medium leading-snug">{it.title}</p>
-            {it.reason && <p className="text-xs text-fg-muted">{it.reason}</p>}
-            {it.storagePath && <DocPreview documentId={it.id} fileName={it.fileName ?? it.title} />}
-            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-              <FileChip item={it} />
-              <Button type="button" size="sm" onClick={() => act(it.id, () => fileFromQuarantineAction(it.id))} disabled={isBusy}>
-                {isBusy ? <Loader2 size={13} className="animate-spin" /> : <FolderInput size={13} />} File it
-              </Button>
-              <button
-                type="button"
-                onClick={() => act(it.id, () => trashIntakeDocAction(it.id, "Sent to Trash from Quarantine"))}
-                disabled={isBusy}
-                className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-fg-muted hover:text-danger transition-colors disabled:opacity-50"
-              >
-                <Trash2 size={13} /> Trash
-              </button>
-            </div>
-          </div>
-        );
-      })}
     </div>
   );
 }
