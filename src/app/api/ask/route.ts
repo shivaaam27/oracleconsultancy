@@ -2,13 +2,12 @@
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 
-import { GROQ_FAST } from "@/lib/ai-models";
 import { callGroqText } from "@/lib/ai-json";
 import { expandQuery, expandTokens } from "@/lib/synonyms";
 import { hybridSearch } from "@/lib/embeddings";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getGroqKey } from "@/lib/settings";
+import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
 import { worstComplianceScores } from "@/lib/compliance";
 import { buildCompanyRequirementScores } from "@/lib/company-requirements";
@@ -23,6 +22,7 @@ export const maxDuration = 60; // allow up to 60s on Vercel
 const SYSTEM_PROMPT = `You are ORI, the assistant for a multi-company portfolio (Oracle Consultancy). Answer the principal's question using ONLY the data provided in the CONTEXT below. Be specific — name people, task codes, deadlines, and companies.
 
 STYLE:
+- CRITICAL — speak like a chief of staff, never like a database. NEVER begin with "Based on the CONTEXT/data provided", never write the word "CONTEXT", internal field names (CONTEXT.graph, "matched companies", "matched people"), or raw JSON/bracketed arrays. Just give the answer. If linked records exist but don't directly answer, say e.g. "I don't have the directors on record, but the people linked to Terra Green are …".
 - Direct and decision-grade. No hedging.
 - British English.
 - Use task codes in brackets, e.g. [DAR-007].
@@ -945,6 +945,10 @@ export async function POST(req: NextRequest) {
     if (!apiKey) {
       return NextResponse.json({ error: "AI not configured", source: "no-key" }, { status: 503 });
     }
+    // ORI answers on the stronger model when "Higher-quality reading" is on
+    // (Settings → AI; default on). Falls back to the fast model when off or if
+    // the smart model is rate-limited.
+    const model = await getQualityTextModel();
 
     // For retrieval, combine the current question with the last user message
     // so follow-ups like "open it" still hit relevant data.
@@ -973,7 +977,7 @@ export async function POST(req: NextRequest) {
       const result = await callGroqText({
         messages,
         apiKey,
-        model: GROQ_FAST,
+        model,
         maxTokens: 600,
         temperature: 0.2,
       });
@@ -1015,7 +1019,7 @@ export async function POST(req: NextRequest) {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: GROQ_FAST,
+            model,
             messages,
             max_tokens: 600,
             temperature: 0.2,

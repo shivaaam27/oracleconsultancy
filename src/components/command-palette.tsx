@@ -28,6 +28,16 @@ type Ctx = { open: () => void; close: () => void; ask: (q: string) => void };
 const CommandCtx = createContext<Ctx>({ open: () => {}, close: () => {}, ask: () => {} });
 export const useCommandPalette = () => useContext(CommandCtx);
 
+/** Backstop tidy of an ORI answer: strip the "Based on the CONTEXT…" opener and
+ *  any leaked internal jargon, in case the model ignores the prompt rule. */
+function tidyOri(s: string): string {
+  let t = s.replace(/^\s*based on (the )?(provided )?(context|data|information)[^,.:]*[,:.]?\s*/i, "");
+  t = t.replace(/\bthe context(\.\w+)?\b/gi, "the records").replace(/\bcontext(\.\w+)?\b/gi, "records");
+  t = t.replace(/\bmatched (people|companies|person|company)\b/gi, "linked $1");
+  if (t.length) t = t[0].toUpperCase() + t.slice(1);
+  return t;
+}
+
 type SearchItem = { code: string; label: string; sub: string; href: string; status: string; flag: string };
 
 // A turn in the conversation thread.
@@ -378,7 +388,7 @@ export function CommandPaletteProvider({
         if (!streamId) { streamId = newId(); setThinking(false); append({ id: streamId, role: "assistant", text: acc, streaming: true }); }
         else updateMsg(streamId, { text: acc });
       }
-      if (streamId) updateMsg(streamId, { streaming: false, taskCount, meetingCount, sourceSummary });
+      if (streamId) updateMsg(streamId, { text: tidyOri(acc), streaming: false, taskCount, meetingCount, sourceSummary });
       else { setThinking(false); append({ id: newId(), role: "assistant", text: "(no answer)" }); }
       // ORI MEMORY (record), STREAM path. The server can't capture the final
       // answer mid-stream, so the client POSTs the assembled Q&A to the dedicated
