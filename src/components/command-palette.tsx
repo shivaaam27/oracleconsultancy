@@ -364,7 +364,10 @@ export function CommandPaletteProvider({
       }
       const taskCount = Number(res.headers.get("X-Task-Count")) || null;
       const meetingCount = Number(res.headers.get("X-Meeting-Count")) || null;
-      const sourceSummary = res.headers.get("X-Source-Summary") || null;
+      // Server percent-encodes this (the "·" separator is multi-byte UTF-8).
+      const rawSummary = res.headers.get("X-Source-Summary");
+      let sourceSummary: string | null = null;
+      if (rawSummary) { try { sourceSummary = decodeURIComponent(rawSummary); } catch { sourceSummary = rawSummary; } }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let acc = "";
