@@ -12,6 +12,8 @@ import { buildCompanyKeyDocuments } from "@/lib/company-profile";
 import { SuggestionTray } from "@/components/suggestion-tray";
 import { listProfileSuggestions } from "@/lib/profile-suggestions";
 import { listCustomShelves } from "@/lib/shelves";
+import { getCompanyRelationships } from "@/lib/relationships";
+import { CompanyRelationships } from "@/components/company-relationships";
 import { MomentumStrip } from "./_tabs/momentum-strip";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
@@ -134,14 +136,15 @@ export default async function CompanyPage({
 
   // Profile-only: pending + auto-applied "Suggested additions" + custom shelves +
   // the pipeline stage of any document (so the Documents list shows it at a glance).
-  const [profileSuggestions, appliedSuggestions, customShelves, pipelineRows] = tab === "profile"
+  const [profileSuggestions, appliedSuggestions, customShelves, pipelineRows, relationships] = tab === "profile"
     ? await Promise.all([
         listProfileSuggestions({ companyId, status: "pending" }),
         listProfileSuggestions({ companyId, status: "applied" }),
         listCustomShelves(),
         sb.from("pipeline").select("document_id,stage").eq("company_id", companyId).eq("archived", false),
+        getCompanyRelationships(companyId),
       ])
-    : [[], [], [], { data: [] as Array<{ document_id: number | null; stage: string }> }];
+    : [[], [], [], { data: [] as Array<{ document_id: number | null; stage: string }> }, []];
   const stageByDoc: Record<number, string> = {};
   for (const r of (pipelineRows as { data: Array<{ document_id: number | null; stage: string }> }).data ?? []) {
     if (r.document_id != null) stageByDoc[r.document_id] = r.stage;
@@ -385,6 +388,7 @@ export default async function CompanyPage({
       {tab === "profile" && (
         <div className="space-y-3.5">
           <SuggestionTray suggestions={profileSuggestions} applied={appliedSuggestions} companyId={companyId} />
+          <CompanyRelationships relationships={relationships} />
           <CompanyProfile
             companyId={companyId}
             companyName={name}
