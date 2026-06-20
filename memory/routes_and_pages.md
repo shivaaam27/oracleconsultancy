@@ -92,6 +92,9 @@ One bottom-floating pill: **Home · Director Brief · Task Management · Workboo
 | `/api/prefs/nav-pins` | Navigation pins in settings table. |
 | `/api/prefs/nav-recents` | Navigation recents in settings table. |
 | `/api/prefs/task-views` | Saved task view preferences. |
+| `/api/trace` | **Entity trail** (ORI-brain, Jun 2026): `?type=&id=` → `{type,id,label,events:[…]}` newest-first (≤200, best-effort). Stitches each entity's history from its native trail (task→task_updates+audit_log; person→person_events+leave+assets; company→facts ledger+resolutions+audit_log; document→intake state+renewal chain+links+automation_events; generic fallback→row state+automation_events). Powers the "Trace history" button on deep-search results + `TracePanel` (`src/components/trace-panel.tsx`, listens for `cos:trace` CustomEvent). |
+| `/api/ai-memory` | **ORI memory** (Jun 2026): POST records a QA/preference/fact; GET lists. Lets the streaming Ask client persist answers into the `ai_memory` table. `src/lib/ai-memory.ts` (recordQA/rememberPreference/recallMemories — AI-free recall). |
+| `/api/notifications/act` | **Actionable push** (Jun 2026): handles notification action buttons (open / done / snooze) from the service worker (`sw.js`, cache `cos-v8`); offline-safe, never performs a Tier-3 (send/spend/delete) action. |
 
 Note: meeting extraction now lives in `src/app/meeting/actions.ts` rather than a separate `/api/extract-meeting` route.
 
@@ -104,3 +107,10 @@ Note: meeting extraction now lives in `src/app/meeting/actions.ts` rather than a
 - `/people` — Work site/Residence fields, reporting on cards/drawer, All-Locations filter.
 - `/portal/profile` — adds Your attendance + Sign in faster (passkeys); portal home adds Team attendance today; check-in pop-up in portal `(app)/layout.tsx`.
 - `/settings` — redesigned (compact `SettingsCard` + `SettingsNav`); adds Owner identity, Face ID & fingerprint sections. Same forms/fields.
+
+## ORI-as-the-brain surface changes (Jun 2026 — see `memory/ori_brain.md`)
+- **Command palette** (mounted in the root layout, `src/components/command-palette.tsx`) now opens with **Ctrl+Space** as well as ⌘K / Ctrl+K (portal guard respected).
+- **Deep search** groups now span the 12 indexable entity types — added **Governance · Risks · Applications · Commitments** alongside People/Companies/Documents/Letters/Meetings/Vendors/Assets/Tasks. New **"Include history"** toggle (default off) surfaces archived/closed/inactive/expired rows (dimmed, ranked below live). Each deep-index result row carries a **"Trace history"** button (→ `/api/trace` → `TracePanel`). The searchable/traceable/visible set all derive from the single entity registry (`src/lib/entity-registry.ts`; client-safe labels in `src/lib/entity-meta.ts`).
+- **`/inbox`** now hosts the **System status card**, the **Intake accuracy card** (`intake-accuracy.tsx`), and the **Automations feed** — the intake/automation cockpit.
+- **`/approvals`** — the cockpit: pending automation/AI proposals to approve.
+- **`/settings`** gained the in-app **Groq key** (masked, rotate without redeploy), **AI monthly spend cap**, **quiet hours**, and **notification digest** controls.

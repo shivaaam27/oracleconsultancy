@@ -48,8 +48,27 @@ blends meaning-based results with its keyword search.
   is embedded weakly, but keyword search still covers those by literal match. A fully
   multilingual in-region model is too heavy for the current hosting, so this is the
   trade-off of staying in-region and free.
-- **What's indexed:** task action items (+ latest update) and meeting titles/notes/minutes.
-  Documents already get strong keyword coverage; they can be added to semantic search later.
+- **What's indexed:** **all 12 record types** — tasks, meetings, documents, people,
+  companies, letters, vendors, assets, governance (shareholders/owners/signatories/key
+  persons), risks, applications-in-progress (pipeline) and commitments. The original
+  release covered only the first four; coverage has since grown to everything the system
+  holds.
+- **Always fresh.** Indexing is now **continuous as well as nightly**. Every create,
+  edit and archive fires a per-write index hook (`src/lib/index-hooks.ts`
+  `reindexEntity` / `removeEntityIndex`, driven by the entity registry in
+  `src/lib/entity-registry.ts`), so a record is searchable within moments of being
+  changed. The nightly `/api/cron/reindex` job (05:00) is still there as a catch-all —
+  it re-indexes changed rows, heals any missed hook and sweeps truly-deleted vectors.
+- **History is kept, not deleted.** When a record is archived, closed or made inactive
+  it is **re-stamped as history** (the `embeddings.lifecycle` column, `active` vs
+  `history`; migration 0094) rather than dropped. By default Ask COS searches only
+  current records; the deep search palette has an "Include history" toggle, and the
+  underlying `hybrid_search` RPC takes a `filter_lifecycle` argument
+  (`active` / `history` / all). Only genuinely hard-deleted rows have their vectors
+  removed.
+- **Coverage self-audit.** A background check (`src/lib/coverage-audit.ts`) compares
+  what exists against what's indexed and flags any under-indexed record type on the
+  **System status** card. It stays inert until the toggle below is on.
 - **Cost:** none beyond your existing Supabase usage — the model runs on your own project.
 - **Privacy:** text is embedded inside your Supabase region only; nothing goes to Groq or
   any other outside processor for this feature.

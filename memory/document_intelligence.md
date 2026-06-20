@@ -38,6 +38,38 @@ blocks a document from filing — and grows automatically as data is added.
    clean reads, undoable), compliance reconcile, automation reactions, relationship
    facts. Quarantine = couldn't read / no owner / suspected duplicate / low confidence.
 
+## Deeper reading & accuracy (Wave 4/5 upgrades, Jun 2026)
+
+- **Two-pass confidence re-read** (`documents/actions.ts`) — when a first extraction
+  comes back below `LOW_CONFIDENCE` (0.75) and AI is on, the system does **one**
+  automatic retry along the stronger path: a text read is forced onto `GROQ_SMART`; a
+  vision read steps to the **next model in the `GROQ_VISION` ladder** (skipping the one
+  already used). It keeps whichever result is more confident, caches under the model
+  that actually produced it (model-aware cache), and logs the first→second confidence to
+  `system_events`. No-op when AI is off, the first read was already confident, there's a
+  cache hit, or no stronger path exists. Best-effort and capped to a SINGLE retry so cost
+  stays bounded.
+- **Raised, env-overridable page caps** — long contracts/bundles are now read end to
+  end. `MAX_VISION_PAGES` 8→**20** (override `DOC_MAX_VISION_PAGES`) and `MAX_OCR_PAGES`
+  20→**40** (override `DOC_MAX_OCR_PAGES`), each clamped to 1–200.
+- **Fact-ledger cross-check** (`src/lib/fact-checks.ts` `detectFactDiscrepancy`) — a
+  freshly-read value is compared against the CURRENT fact before it is appended. The
+  comparison is field-aware (identifiers like TIN/passport/bank matched verbatim,
+  percentages folded to a fraction, director/shareholder lists compared as sets, all
+  formatting-insensitive). On a real disagreement it logs a `fact-discrepancy`
+  `system_event` and flags the document `needs_review` — it **never blocks the append**
+  (the ledger stays append-only; the conflict surfaces for a human).
+- **Richer owner correlation** (`src/lib/doc-correlation.ts`) — `correlateOwnerByIdentifiers`
+  now matches on **phone, email, email-domain, bank account and address** (not just 6+-digit
+  IDs), with **initials-aware person resolution** ("S. J. Manek" ~ "Samir Jayantilal
+  Manek", conservative threshold). `emergency_contact_phone` is **deliberately NOT** used
+  as an owner signal (it would mis-merge a staff member to their next-of-kin), and all
+  ILIKE wildcards are escaped. Quarantine is still the last resort.
+- **Intake accuracy dashboard** (`src/lib/intake-metrics.ts` `computeIntakeMetrics(30d)` +
+  `components/intake-accuracy.tsx`) — an Aurora card on `/inbox` showing auto-filed %,
+  how often the intake needed a human, corrections learned and discrepancies, with a
+  trend.
+
 ## Self-learning (compounds with use)
 
 - `routing_corrections` — owner re-categorises a doc → future similar docs follow.

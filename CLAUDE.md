@@ -104,6 +104,8 @@ Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index over all 12 entity types, driven by `src/lib/entity-registry.ts`; **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0096**.
+
 See `memory/database_schema.md`.
 
 ## Current Pages
@@ -238,9 +240,67 @@ Other intelligence: **consistent naming** `buildDocTitle` ("Owner · Type · Ref
 
 System-wide branded PDF letters. `letters` table + `/letters` editor + `/letters/[id]/print` route. Per-company letterhead (Letterheads tab on `/letters`): typed fields, or a designed **header+footer image** (repeats each page), or a **full-page A4 background**. **Draft → Issue** freezes a letterhead snapshot + stamps a ref (`PREFIX/INV/YYYY/NNN`); reprints are identical. **Full body editing**; PDF (in-place iframe print) + optional Outbox draft; no auto-send. Letter font matches the Director Brief (system sans-serif). New types = add to `LETTER_TEMPLATES` + a `buildBody` fn in `src/lib/letters.ts`. First type = Invitation (auto-pulls invitee name/nationality/passport/DOB/role). See `memory/letters.md`.
 
+## ORI Search Brain — universal search / find / trace (V3 — Jun 2026, LIVE)
+
+ORI is the brain of the system: everything from a task to a board-level shareholding can be
+searched, found and **traced** from one place. Built across 7 verified waves (full log:
+`memory/ori_brain.md`); DEPLOYED to master (commit 415ef46); migrations 0094/0095/0096 applied.
+
+- **Entity registry = single source of truth** (`src/lib/entity-registry.ts`): one `EntityDef`
+  per the 12 indexable types (task/meeting/document/person/company/letter/vendor/asset/
+  governance/risk/pipeline/commitment) — table, columns, indexable text, lifecycle rule, search
+  mapping, trace mode. **FORWARD RULE: to make a new entity (incl. future ERP modules)
+  searchable/traceable/answerable, add ONE `EntityDef`** — indexing, deep search, the command
+  palette and trace all derive from it automatically.
+- **Client/server boundary (HARD RULE):** the registry imports the server-only `sb`. Client
+  components must import labels/order from the client-safe `src/lib/entity-meta.ts`, NEVER the
+  registry directly — a client value-import of the registry drags `@/db/supabase` into the browser
+  bundle and crashes every page ("SUPABASE_SERVICE_ROLE_KEY is not set"). `import type` is fine
+  (erased). This regressed once; always load the live preview after import refactors.
+- **Continuous indexing**: per-write hooks (`src/lib/index-hooks.ts` `reindexEntity`/
+  `removeEntityIndex`) re-index on every create/update/archive across all 12 types, on top of the
+  nightly `/api/cron/reindex` catch-all. History is KEPT + labelled (`embeddings.lifecycle`
+  active|history), never deleted. Coverage self-audit `src/lib/coverage-audit.ts` flags
+  under-indexed entities on the System status card (inert until the `semanticSearch` toggle is on).
+- **Deep search** (`src/lib/search.ts` → command palette): all 12 types, typo-tolerant, "Include
+  history" toggle, conversational synonyms (`src/lib/synonyms.ts`). Opens with **Ctrl+Space** or
+  ⌘K/Ctrl+K.
+- **ORI Ask** (`/api/ask`): governance/ownership + every entity in context; passage citations;
+  knowledge-graph traversal (multi-hop); ORI memory (`src/lib/ai-memory.ts`, `ai_memory` table —
+  "remember that…"); provenance line ("8 tasks · 2 documents · 1 governance record").
+- **Trace** (`/api/trace` + `src/components/trace-panel.tsx`): any entity → its full timeline
+  (updates, person/company events, facts history, renewal chains, automation events). Triggered by
+  the "Trace history" button on search results (window `cos:trace` event).
+- **Surfaces**: `/inbox` = System status card + Intake accuracy card (`intake-metrics.ts` +
+  `intake-accuracy.tsx`) + Automations feed; `/approvals` = cockpit; home = CONTROLS HELD levers;
+  Settings = in-app Groq key + spend cap + quiet hours + digest.
+
+## Autonomy & safety tiers (V3 — Jun 2026)
+
+Spine = Propose → auto-if-safe → log → undo, with 3 tiers (**Tier 3 = send/spend/delete → NEVER
+auto without explicit opt-in**).
+
+- **Guardrails** (`src/lib/guardrails.ts`): `canAutoSend(channel)` gates every automated external
+  send; automated paths archive, never hard-delete (`AUTO_HARD_DELETE_FORBIDDEN`).
+- **AI spend ledger** (`src/lib/ai-spend.ts`, `ai_usage` table): records usage; `aiMonthlySpendCap`
+  (default 0 = UNLIMITED, FAILS OPEN) gates AI only when a cap is set.
+- **Reaction chains** (`src/lib/automation-reactions.ts`): cross-process cascades with a recursion
+  guard + dedup; auto/suggest per `getAutomationMode`; all undoable.
+- **Self-repairing health** (`src/lib/system-health.ts` + `system-repair.ts`): re-runs a
+  failed/stale job once before alerting; calm green "all N jobs healthy" status.
+- **Recurring obligations auto-spawn** tasks when due (Tax & Legal grid, `automation-time.ts`).
+- **Notifications** (`src/lib/push.ts`): quiet hours + smart digest (flushed by morning-run, NOT
+  the unscheduled `/api/cron/notify`) + actionable push (open/done/snooze, `/api/notifications/act`,
+  `sw.js` cache `cos-v8`).
+
 ## AI Conventions
 
-- Use `getGroqKey()` so the AI master switch works.
+- Use `getGroqKey()` so the AI master switch works. **Precedence (Jun 2026):** in-app Settings key
+  (`groqApiKey`) → `GROQ_API_KEY` env → (`aiEnabled` + spend cap). The owner can rotate the key
+  in-app (Settings → AI key) without a redeploy; it's stored in the shared settings table so prod
+  picks it up too. `GROQ_FAST`/`GROQ_SMART` have env ladders (`GROQ_FAST_MODELS`/`GROQ_SMART_MODELS`);
+  text calls fall through a decommissioned model like the vision ladder. Provider-fallback beyond
+  Groq is a scaffold only.
 - AI-off must degrade gracefully unless the endpoint explicitly documents 503.
 - Preserve `source` discriminators where routes/components rely on them.
 - British English in prompts.

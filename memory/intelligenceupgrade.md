@@ -1,5 +1,40 @@
 # Intelligence Upgrade — parked roadmap (pick-up point)
 
+> ## STATUS UPDATE (2026-06-20) — much of this is now SUPERSEDED/EXTENDED by the ORI-brain build
+>
+> The 7-wave **"ORI as the self-sustaining brain"** build shipped (DEPLOYED to master,
+> commit `415ef46`; migrations `0094`/`0095`/`0096` applied to the live DB; Groq key now
+> settable in-app via Settings). See **`memory/ori_brain.md`** for the full record. It
+> overtakes large parts of the plan below:
+>
+> - **Semantic search now covers all 12 entity types** (was tasks+meetings+docs+people) and
+>   is **history-aware** (active + archived/closed/expired rows kept and labelled) with
+>   **continuous per-write indexing** across ~20 write paths (was create-only hooks). This
+>   extends S1 (coverage) and S6 (freshness) well beyond what's described below.
+> - **RAG depth shipped:** passage citations (the matched chunk is quoted per top doc/meeting),
+>   graph traversal for relational questions, and **ORI memory** (`ai_memory`, migration 0095 —
+>   records QA + preferences, AI-free recall). This delivers the DR3 "cite the passage" goal and
+>   adds a memory layer the plan didn't anticipate.
+> - **Document two-pass reading + page caps done:** vision/OCR page caps raised and env-overridable
+>   (DOC_MAX_VISION_PAGES 20 / DOC_MAX_OCR_PAGES 40), plus an automatic confidence-gated re-read
+>   with the stronger model — extends DR0/DR2/Part B Phase 4 (scan-cap).
+> - **Spend ceiling + key-in-app shipped** (`ai_usage`, migration 0096; `aiMonthlySpendCap`;
+>   in-app `groqApiKey`) — covers the Part B Phase 6 "monthly spend ceiling" + the "key missing
+>   vs AI off" separation.
+>
+> **STILL open / parked (unchanged by the ORI build):**
+> - **S5 — durable multilingual EU container** (`multilingual-e5-small`, ~£3-7/mo): still the
+>   owner's cost decision; the only remaining advanced-search phase.
+> - **Native in-region multilingual embeddings**: still no zero-infra option — translate→embed
+>   (S4) remains the interim bridge.
+> - **Re-ranker**: still deferred (low value at this scale).
+> - **A paid 2nd AI provider**: only a scaffold exists (`AIProvider`, Groq-only) — wiring a real
+>   second provider is future.
+>
+> The detailed plan below is kept for reference; treat `ori_brain.md` as the current state.
+
+---
+
 Named by the owner ("intelligenceupgrade") on 2026-06-15. Two parts:
 - **Part A — Advanced Semantic Search** (the next priority; owner asked for a "full
   on upgrade", plan laid out below, NOT yet built).

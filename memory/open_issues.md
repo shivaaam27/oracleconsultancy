@@ -37,6 +37,18 @@ metadata:
 - **site_tools still uses free-text `location`** (not yet pointed at the shared `sites` table); person-card doesn't show location; no "magic link" email login (discussed, not built).
 - **Attendance:** no clock in/out times (status-per-day by design); manager-confirm flow not built (self-marking is trusted).
 
+## ORI-brain build — follow-ups (June 2026)
+
+The 7-wave "ORI as the self-sustaining brain" build shipped (commit `415ef46`; migrations 0094/0095/0096 applied). See `memory/ori_brain.md`. Remaining loose ends:
+
+- **Streaming ORI client doesn't persist QA.** The Ask route auto-records question/answer to `ai_memory` only on the **non-stream** path; the streaming client should POST its final answer to `/api/ai-memory` so streamed conversations are remembered too. Client wiring is still a follow-up.
+- **Per-write index hooks rely on the nightly reindex as the catch-all.** Continuous indexing covers the main write paths, but freshness ultimately leans on `/api/cron/reindex` (`reindexAll`) to sweep anything a hook missed. Add hooks on any new write path; don't assume same-second semantic freshness everywhere.
+- **AI spend rate is 0 today (Groq free tier).** `MODEL_RATES` carry no real prices and `aiMonthlySpendCap` defaults to 0 = unlimited. Before going paid, set real per-model rates in `MODEL_RATES` and a sensible cap.
+- **Provider fallback is a scaffold only.** `GROQ_FAST`/`GROQ_SMART` now have env model ladders (self-heal through a decommissioned model), and an `AIProvider` extension point exists, but only Groq is wired. Adding a real second provider is future.
+
+**Resolved this round** (don't re-flag):
+- ~~ORI couldn't answer "who owns Dar Spices" (governance was blind to the Ask context)~~ → **Done:** the Ask context now pulls governance (cap table, beneficial owners, signatories, key persons, company facts, resolutions) plus letters/vendors/assets/leave/pipeline/commitments, so ownership/governance questions are answerable.
+
 ## Meeting Workspace Follow-ups
 
 - Add recent meetings to company pages.

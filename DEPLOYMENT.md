@@ -42,6 +42,11 @@ Set these in your host's environment settings (and keep matching copies in
 |---|---|
 | `GROQ_API_KEY` | Groq Cloud key powering Ask COS, dictation polish, meeting intelligence, etc. If absent, AI features degrade gracefully and the rest of the app still works. **Secret.** |
 
+> **The Groq key can now be set two ways.** As of June 2026 the owner can paste the key
+> **in-app** (Settings → masked Groq key field) so it can be rotated without a redeploy, **or**
+> set `GROQ_API_KEY` in the host environment. The in-app key takes precedence; the env var is
+> the fallback. For a fresh host, either works.
+
 ### Push notifications (phone alerts)
 
 | Name | What it is |
@@ -129,6 +134,14 @@ and the timer jobs need re-entering.
 ## Database migrations (for reference)
 
 - Schema is defined in `src/db/schema.ts`; migrations live in `drizzle/`.
+- **Migrations `0094`/`0095`/`0096` must be applied before (or together with) deploying
+  this code.** They are **already applied to the live DB** (backups taken before each), so a
+  Vercel redeploy needs nothing extra. A fresh host pointed at a fresh database must apply them.
+  - `0094_embeddings_lifecycle.sql` — adds `embeddings.lifecycle` + updates the
+    `replace_embeddings`/`hybrid_search` RPCs (history-aware search). Raw SQL — embeddings is
+    supabase-js/RPC, not Drizzle.
+  - `0095` — `ai_memory` table (ORI memory: recorded QA + preferences).
+  - `0096` — `ai_usage` table (AI spend tracking / monthly cap).
 - The baseline (`0000`), the documents tables, and some others were applied by
   hand, so the Drizzle snapshot can lag behind the live database. Generate with
   `npm run db:generate`, then **review the SQL** before applying — if it tries
