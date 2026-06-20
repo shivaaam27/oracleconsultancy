@@ -27,6 +27,15 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "automations", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1b. Self-heal: re-read documents the system previously mis-read (scanner
+    //     watermarks) and fill owners that now resolve. Best-effort, capped.
+    try {
+      const { selfHealDocuments } = await import("@/app/documents/actions");
+      await selfHealDocuments(20);
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "selfheal", message: e instanceof Error ? e.message : String(e) });
+    }
+
     // 2. Compose the three-band brief from the freshly-updated state.
     const brief = await buildMorningBrief();
 

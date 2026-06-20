@@ -659,6 +659,64 @@ export async function retryQuarantineAction(): Promise<{ ok: boolean; scanned: n
   return { ok: true, scanned, filed };
 }
 
+/**
+ * Self-healing pass: the system fixes its own bad reads. Finds FILED documents
+ * whose stored text is a scanner-app watermark (CamScanner / "Scanned with…") —
+ * meaning the real scan was never read — re-reads them properly, refreshes the
+ * search text, and fills a missing owner if it now resolves. Runs nightly (morning
+ * run) + on demand. Capped per run for cost; heals the backlog over a few nights.
+ */
+export async function selfHealDocuments(limit = 20): Promise<{ ok: boolean; scanned: number; healedText: number; filedOwner: number }> {
+  let scanned = 0, healedText = 0, filedOwner = 0;
+  try {
+    const { data } = await supa
+      .from("documents")
+      .select("id,storage_path,file_name,file_hash,company_id,person_id")
+      .eq("archived", false)
+      .not("storage_path", "is", null)
+      .or("extracted_text.ilike.*camscanner*,extracted_text.ilike.*scanned with*,extracted_text.ilike.*adobe scan*")
+      .limit(limit);
+    if (!data || data.length === 0) return { ok: true, scanned: 0, healedText: 0, filedOwner: 0 };
+    const { companies, people } = await loadEntities();
+    for (const d of data) {
+      scanned++;
+      try {
+        // Refresh the search text via the dedicated OCR path (now watermark-aware,
+        // so it reads the real scan instead of trusting the "CamScanner" layer).
+        const r = await ensureDocumentText(d.id as number, true);
+        if (r === "done") healedText++;
+        // Fill a missing owner now that we can actually read the document.
+        if (!d.company_id && !d.person_id) {
+          const res = await reExtractStored({ storagePath: d.storage_path as string, fileName: d.file_name as string | null, fileHash: d.file_hash as string | null }, true);
+          if (!res) continue;
+          const f = res.fields;
+          let companyId = f.companyId ?? null;
+          let personId = f.personId ?? null;
+          if (!companyId && !personId) {
+            if (f.personName) { const p = resolveEntity(f.personName, people); if (p) personId = p.id; }
+            if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) companyId = c.id; }
+          }
+          if (!companyId && !personId) {
+            const learned = await learnedOwnerFor(`${f.title ?? ""} ${f.issuer ?? ""} ${f.docType ?? ""}`);
+            if (learned) { if (learned.ownerType === "company") companyId = learned.ownerId; else personId = learned.ownerId; }
+          }
+          if (companyId || personId) {
+            await updateDocument(d.id as number, { companyId, personId });
+            await reconcileOwnerCompliance(personId, companyId);
+            await fireDocumentReactions(d.id as number);
+            filedOwner++;
+          }
+        }
+      } catch { /* skip this doc, heal the rest */ }
+    }
+    revalidateDocs();
+    await recordEvent("documents.selfheal", "ok", { scanned, healedText, filedOwner });
+  } catch (e) {
+    await recordEvent("documents.selfheal", "error", { message: e instanceof Error ? e.message : String(e) });
+  }
+  return { ok: true, scanned, healedText, filedOwner };
+}
+
 /** Move a row into Trash (from Quarantine, or directly). */
 export async function trashIntakeDocAction(id: number, reason?: string): Promise<{ ok: boolean }> {
   await setDocumentIntakeState(id, "trash", reason ?? "Moved to Trash");
