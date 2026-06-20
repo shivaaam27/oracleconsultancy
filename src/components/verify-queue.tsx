@@ -108,22 +108,22 @@ export function VerifyQueue({
         const allOn = rows.every((r) => selected.has(r.id));
         const isCollapsed = collapsed.has(group);
         return (
-          <section key={group} className="space-y-1.5">
-            <div className="flex items-center gap-2 px-1">
-              <button type="button" onClick={() => toggleCollapse(group)} className="flex items-center gap-2 min-w-0 text-left group">
-                <ChevronDown size={14} className={`shrink-0 text-fg-subtle transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
-                <meta.Icon size={14} className={meta.cls} />
-                <h3 className="text-[13px] font-semibold truncate">{meta.label}</h3>
-                <span className="text-[11px] text-fg-subtle">· {rows.length}</span>
+          <section key={group} className="glass elevated rounded-2xl overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3">
+              <button type="button" onClick={() => toggleCollapse(group)} className="flex items-center gap-2 min-w-0 text-left">
+                <ChevronDown size={15} className={`shrink-0 text-fg-subtle transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                <meta.Icon size={16} className={meta.cls} />
+                <span className="text-sm font-semibold truncate">{meta.label}</span>
+                <span className="text-xs text-fg-muted">· {rows.length}</span>
               </button>
               <button type="button" onClick={() => toggleGroup(rows)} className="ml-auto text-[11px] text-accent hover:underline shrink-0">
                 {allOn ? "Deselect" : "Select all"}
               </button>
             </div>
             {!isCollapsed && (
-              <>
-                <p className="text-[11px] text-fg-subtle px-1 -mt-1">{meta.sub}</p>
-                <ul className="glass elevated rounded-2xl divide-y divide-border/50 overflow-hidden">
+              <div className="border-t border-border/50">
+                <p className="text-[11px] text-fg-subtle px-4 py-2">{meta.sub}</p>
+                <ul className="divide-y divide-border/50 border-t border-border/50">
                   {rows.map((r) => {
                     const on = selected.has(r.id);
                     return (
@@ -153,7 +153,7 @@ export function VerifyQueue({
                     );
                   })}
                 </ul>
-              </>
+              </div>
             )}
           </section>
         );

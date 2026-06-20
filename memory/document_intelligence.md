@@ -51,9 +51,16 @@ blocks a document from filing — and grows automatically as data is added.
 (cron.morning/snapshots/cleanup/reminders/email/reindex/auto-sort + AI doc-extraction
 error-rate) and classifies each healthy/failed/stale/never from its `system_events`
 rows. A dead-man switch flags the scheduler itself if nothing ran in 36h.
-`SystemHealthPanel` on /inbox shows it (quiet green when fine, red/amber card with
-per-job last-run when not). The morning-run cron is the watchdog: on any non-ok it
-logs a `system.health` event → shows in the Activity log. No email, no spend.
+The morning-run cron is the watchdog: on any non-ok it logs a `system.health` event
+→ shows in the Activity log. No email, no spend.
+
+**One merged card** (`components/system-status-card.tsx`) on /inbox replaces the three
+old housekeeping panels: a single collapsible "System status" card with a segmented
+toggle **Automations · AI reading · Data checks** (each with a status dot; AI reading
+embeds `ExtractionHealth bare`, Data checks renders the safety-net findings). Headline
+= worst area; data-quality findings cap at "needs a look" (never "stopped working").
+The old `system-health-panel.tsx` / `extraction-health` standalone / `safety-net-panel.tsx`
+were folded in (first two deleted; ExtractionHealth kept with a new `bare` prop).
 
 ## Self-healing (nightly, in the morning-run cron)
 

@@ -5,9 +5,7 @@ import { getIntakeBucket } from "@/app/documents/actions";
 import { getVerifyQueue } from "@/lib/verify-queue";
 import { IntakeShell } from "./intake-shell";
 import { SmartAdd } from "@/components/smart-add";
-import { ExtractionHealth } from "@/components/extraction-health";
-import { SafetyNetPanel } from "@/components/safety-net-panel";
-import { SystemHealthPanel } from "@/components/system-health-panel";
+import { SystemStatusCard } from "@/components/system-status-card";
 import { checkSystemHealth } from "@/lib/system-health";
 import { AutomationFeed } from "@/components/automation-feed";
 import { listAutomationFeed } from "@/app/automations/actions";
@@ -55,13 +53,9 @@ export default async function InboxPage({
         trash={trash}
       />
 
-      {/* Health — the housekeeping that used to clutter /documents. The needs-review
-          lane now lives in the Verify tab above. These self-hide when empty. */}
-      <div className="space-y-3">
-        <SystemHealthPanel health={health} />
-        <ExtractionHealth />
-        <SafetyNetPanel findings={safetyFindings} />
-      </div>
+      {/* One merged status card — Automations · AI reading · Data checks. The
+          needs-review lane now lives in the Verify tab above. */}
+      <SystemStatusCard health={health} findings={safetyFindings} />
     </div>
   );
 }
