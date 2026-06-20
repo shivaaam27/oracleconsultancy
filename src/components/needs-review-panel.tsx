@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Inbox, Check, FileText, Loader2 } from "lucide-react";
 import { confirmDocumentReviewAction } from "@/app/documents/actions";
+import { ConfidenceBadge } from "@/components/confidence-badge";
 
 export type ReviewDoc = {
   id: number;
@@ -11,6 +12,7 @@ export type ReviewDoc = {
   category: string | null;
   ownerName: string | null;
   needsOriginal: boolean;
+  confidence?: number | null;
 };
 
 /**
@@ -53,7 +55,10 @@ export function NeedsReviewPanel({ docs }: { docs: ReviewDoc[] }) {
           >
             <FileText size={14} className="shrink-0 text-fg-subtle" />
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-medium text-fg truncate">{d.title}</span>
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[13px] font-medium text-fg truncate">{d.title}</span>
+                <ConfidenceBadge confidence={d.confidence} showLabel={false} className="shrink-0" />
+              </span>
               <span className="block text-[11px] text-fg-muted truncate">
                 {[d.category, d.ownerName ?? "no owner yet", d.needsOriginal ? "awaiting original" : null].filter(Boolean).join(" · ")}
               </span>

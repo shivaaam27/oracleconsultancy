@@ -448,6 +448,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       notes: (f.notes ?? "") + partsNote || null,
       needsOriginal: f.needsOriginal ?? false,
       reviewStatus: needsReview ? "needs_review" : "ok",
+      confidence: res.confidence ?? null,
     };
     const id = await createDocument(input, "ai-intake");
     if (file instanceof File && file.size > 0) await uploadDocumentFile(id, file);
@@ -1081,7 +1082,7 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
 /** Clear a document's "needs review" flag once the operator has confirmed it. */
 export async function confirmDocumentReviewAction(id: number): Promise<Result> {
   try {
-    await updateDocument(id, { reviewStatus: "ok" });
+    await updateDocument(id, { reviewStatus: "ok", confidence: 1 }); // human-confirmed = certain
     await setDocumentVetted(id, true); // confirming out of the queue is a human OK
     await fireDocumentReactions(id);
     revalidateDocs();

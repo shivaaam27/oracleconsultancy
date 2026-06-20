@@ -1051,6 +1051,9 @@ export const documents = pgTable("documents", {
   intakeState: text("intake_state").notNull().default("filed"),
   // Plain-language reason a row sits in quarantine/trash (shown in those views).
   intakeReason: text("intake_reason"),
+  // How sure the AI read was (0–1), from the extraction. Drives the confidence
+  // badge + the "unsure, please check" lane; null = no AI read (manual entry).
+  confidence: doublePrecision("confidence"),
   // When the row was moved to trash — the Trash view sorts by it. Trash is never
   // emptied automatically (owner empties it); this is just for ordering/age.
   trashedAt: timestamp("trashed_at", { mode: "date", withTimezone: true }),

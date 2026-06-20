@@ -34,7 +34,7 @@ export default async function InboxPage({
   const companyName = new Map(companies.map((c) => [c.id, c.name]));
   const peopleName = new Map(people.map((p) => [p.id, p.name]));
   const [{ data: reviewRaw }, safetyFindings, automation] = await Promise.all([
-    sb.from("documents").select("id,title,category,company_id,person_id,needs_original").eq("archived", false).eq("review_status", "needs_review"),
+    sb.from("documents").select("id,title,category,company_id,person_id,needs_original,confidence").eq("archived", false).eq("review_status", "needs_review"),
     gatherSafetyFindings(),
     listAutomationFeed(),
   ]);
@@ -44,6 +44,7 @@ export default async function InboxPage({
     category: (d.category as string | null) ?? null,
     ownerName: (d.company_id ? companyName.get(d.company_id as number) : null) ?? (d.person_id ? peopleName.get(d.person_id as number) : null) ?? null,
     needsOriginal: (d.needs_original as boolean | null) ?? false,
+    confidence: (d.confidence as number | null) ?? null,
   }));
   return (
     <div className="space-y-5 max-w-3xl mx-auto">

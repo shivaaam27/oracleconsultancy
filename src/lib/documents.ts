@@ -40,6 +40,7 @@ type DocDbRow = {
   vetted_at: string | null;
   intake_state: string | null;
   intake_reason: string | null;
+  confidence: number | null;
   trashed_at: string | null;
   archived: boolean;
   created_at: string;
@@ -80,6 +81,7 @@ function mapRow(r: DocDbRow): DocumentRow {
     vettedAt: d(r.vetted_at),
     intakeState: (r.intake_state as IntakeState | null) ?? "filed",
     intakeReason: r.intake_reason ?? null,
+    confidence: r.confidence ?? null,
     trashedAt: d(r.trashed_at),
     archived: r.archived,
     createdAt: new Date(r.created_at),
@@ -126,6 +128,7 @@ export type DocumentInput = {
   compilationId?: string | null;
   pageRange?: string | null;
   expiryKind?: string | null;
+  confidence?: number | null;
 };
 
 function toIso(v: Date | string | null | undefined): string | null {
@@ -164,6 +167,7 @@ export async function createDocument(
       compilation_id: input.compilationId ?? null,
       page_range: input.pageRange ?? null,
       expiry_kind: input.expiryKind ?? null,
+      confidence: input.confidence ?? null,
       archived: false,
       created_at: now,
       updated_at: now,
@@ -203,6 +207,7 @@ export async function updateDocument(id: number, patch: Partial<DocumentInput>):
   if (patch.compilationId !== undefined) payload.compilation_id = patch.compilationId;
   if (patch.pageRange !== undefined) payload.page_range = patch.pageRange;
   if (patch.expiryKind !== undefined) payload.expiry_kind = patch.expiryKind;
+  if (patch.confidence !== undefined) payload.confidence = patch.confidence;
   const { error } = await sb.from("documents").update(payload).eq("id", id);
   if (error) throw new Error(error.message);
 }

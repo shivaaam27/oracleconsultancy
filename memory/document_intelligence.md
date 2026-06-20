@@ -60,13 +60,22 @@ watermark text, or never-extracted) and re-OCRs them + fills a now-resolvable ow
   traversable: people, **linked companies that share a director**, documents, facts,
   applications, compliance; person view = directorships, manager/reports, docs, facts.
 
+## Confidence (the "unsure, please check" lane)
+
+Every AI read stores its `confidence` (0–1) on the document (`documents.confidence`,
+migration 0093). `ConfidenceBadge` (`components/confidence-badge.tsx`): ≥1 human-
+confirmed "Confirmed", ≥0.6 "High confidence", <0.6 amber "Please check". Low reads
+also set `review_status=needs_review` → the Needs-review lane on /inbox (badge shown
+there + on the doc edit form + as an amber chip in the documents list). Confirming a
+doc bumps confidence to 1.
+
 ## Compliance
 
 `requirements.ts` / `company-requirements.ts` — per-owner checklist, score, band.
 "Draft chase" (`draftComplianceChaseAction`) drafts a missing+expired request (with
 the reason for each) into the Outbox for review (never auto-sent); "Email now" sends.
 
-## Tables (migrations 0090–0092)
+## Tables (migrations 0090–0093)
 
 `profile_suggestions` (ask-first record proposals + Smart-auto log), `routing_corrections`
 (category learning), `custom_shelves` (Part D), `owner_corrections` (owner learning).

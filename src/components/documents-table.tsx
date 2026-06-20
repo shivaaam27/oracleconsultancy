@@ -12,6 +12,7 @@ import { Button, CountPill, RegisterList, RegisterRow, RegisterGroupHeader } fro
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { PeekPreview, type PeekAction } from "./peek-preview";
 import { DocumentForm } from "./document-form";
+import { ConfidenceBadge, confidenceTier } from "@/components/confidence-badge";
 import { SplitDocumentDialog } from "./split-document-dialog";
 import { useToast } from "./toast";
 import { useContextActions } from "./context-actions";
@@ -325,6 +326,7 @@ export function DocumentsTable({
             {doc.category && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0">{doc.category}</span>}
             {doc.personId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-info-soft text-info shrink-0">Person file</span>}
             {doc.supersedesId && <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-bg-muted text-fg-muted shrink-0" title="Replaces an earlier document">↻ Renewal</span>}
+            {confidenceTier(doc.confidence) === "low" && <ConfidenceBadge confidence={doc.confidence} showLabel={false} className="shrink-0" />}
             {openLinkedTask && (
               <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full bg-accent-soft text-accent shrink-0">
                 {openLinkedTask.code}

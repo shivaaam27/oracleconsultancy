@@ -6,6 +6,7 @@ import { Loader2, Save, FilePlus, AlertCircle, X, Sparkles, Upload, Link2, Type,
 import { createDocumentAction, updateDocumentAction, extractDocumentFields, extractDocumentFromFile, findDuplicateDocumentsAction, archiveDocumentAction, type ExtractedFields, type DuplicateMatch, type ExtractedSegment } from "@/app/documents/actions";
 import { DocPreview } from "@/components/doc-preview";
 import { RelatedDocuments } from "@/components/related-documents";
+import { ConfidenceBadge } from "@/components/confidence-badge";
 import { downscaleImage } from "@/lib/downscale-image";
 import { createPerson, enrichPersonProfile, type PersonProfileFields } from "@/app/people/actions";
 import { enrichCompanyProfile, type CompanyProfileFields } from "@/app/companies/[id]/actions";
@@ -485,8 +486,9 @@ export function DocumentForm({
             </button>
           )}
           {mode === "edit" && doc?.intakeState === "filed" && doc?.intakeReason && /^Filed to/.test(doc.intakeReason) && (
-            <p className="rounded-lg bg-bg-subtle/40 px-3 py-2 text-[11px] text-fg-muted">
-              <span className="font-medium text-fg-subtle">Why this owner: </span>{doc.intakeReason.replace(/^Filed to .*? — /, "")}
+            <p className="rounded-lg bg-bg-subtle/40 px-3 py-2 text-[11px] text-fg-muted flex items-start gap-2">
+              <span className="min-w-0 flex-1"><span className="font-medium text-fg-subtle">Why this owner: </span>{doc.intakeReason.replace(/^Filed to .*? — /, "")}</span>
+              <ConfidenceBadge confidence={doc.confidence} className="shrink-0 mt-0.5" />
             </p>
           )}
           {mode === "edit" && doc?.id != null && <RelatedDocuments documentId={doc.id} />}

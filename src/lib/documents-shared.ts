@@ -402,6 +402,8 @@ export type DocumentRow = {
   intakeState: IntakeState;
   /** Plain-language reason a row is in quarantine/trash. */
   intakeReason: string | null;
+  /** How sure the AI read was (0–1); null = manual entry, no AI read. */
+  confidence: number | null;
   /** When the row was moved to trash (for ordering the Trash view). */
   trashedAt: Date | null;
   archived: boolean;
