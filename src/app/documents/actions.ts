@@ -457,6 +457,14 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       if (supersedePhotoId) {
         await updateDocument(id, { supersedesId: supersedePhotoId });
         await setDocumentIntakeState(supersedePhotoId, "trash", `Replaced by a PDF — #${id} ${title}`, { markExpired: true });
+      } else if (f.expiryKind === "yes" || f.expiryDate) {
+        // Auto-expiry chaining: a renewable document that supersedes an older one of
+        // the same type → link it and retire the old one (-EXP → Trash for review).
+        const renew = await findRenewalTarget({ companyId, personId }, f.docType ?? null, f.issueDate ?? null, f.expiryDate ?? null, id);
+        if (renew) {
+          await updateDocument(id, { supersedesId: renew.id });
+          await setDocumentIntakeState(renew.id, "trash", `Renewed by #${id} ${title}`, { markExpired: true });
+        }
       }
       // Always-ask-first: profile fields + ledger facts the AI read are PROPOSED
       // on the company/person profile (a "Suggested additions" tray), not written
@@ -521,6 +529,40 @@ function jaccard(a: Set<string>, b: Set<string>): number {
   let inter = 0;
   for (const x of a) if (b.has(x)) inter++;
   return inter / (a.size + b.size - inter);
+}
+
+/**
+ * Find the OLDER document this one renews: same owner, same specific type, an
+ * earlier expiry/issue date. So a new licence/permit/insurance/passport is chained
+ * to the one it replaces — the old one is retired ("-EXP" → Trash for review) and
+ * the new one becomes the live record. Conservative: needs a specific docType match
+ * (never chains two unrelated docs) and only for renewable documents.
+ */
+async function findRenewalTarget(
+  owner: { companyId: number | null; personId: number | null },
+  docType: string | null,
+  issueDate: string | null,
+  expiryDate: string | null,
+  excludeId: number,
+): Promise<{ id: number; title: string } | null> {
+  if (!owner.companyId && !owner.personId) return null;
+  const dt = (docType ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (dt.length < 4) return null; // need a specific type to be safe
+  const newDate = expiryDate || issueDate;
+  if (!newDate) return null; // can't tell it's newer without a date
+  let q = supa.from("documents").select("id,title,doc_type,issue_date,expiry_date").eq("intake_state", "filed").eq("archived", false).neq("id", excludeId);
+  if (owner.personId) q = q.eq("person_id", owner.personId);
+  else q = q.eq("company_id", owner.companyId as number);
+  const { data } = await q;
+  let best: { id: number; title: string; d: string } | null = null;
+  for (const r of (data ?? []) as Array<{ id: number; title: string; doc_type: string | null; issue_date: string | null; expiry_date: string | null }>) {
+    const rdt = (r.doc_type ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!rdt || rdt !== dt) continue; // same specific type only
+    const rDate = (r.expiry_date || r.issue_date || "").slice(0, 10);
+    if (!rDate || rDate >= newDate.slice(0, 10)) continue; // candidate must be OLDER
+    if (!best || rDate > best.d) best = { id: r.id, title: r.title, d: rDate };
+  }
+  return best ? { id: best.id, title: best.title } : null;
 }
 
 async function findSameLogicalDoc(
