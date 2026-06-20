@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2, History, CalendarClock, X } from "lucide-react";
+import { Check, Plus, Link2, Send, Ban, RotateCcw, Loader2, ShieldCheck, ChevronDown, Pencil, Trash2, RefreshCw, CheckCircle2, History, CalendarClock, X, FileText } from "lucide-react";
 import { Badge, Button, LinkButton } from "./ui";
 import { DocumentForm } from "./document-form";
 import { useToast } from "./toast";
@@ -34,6 +34,7 @@ import {
   reqSetReviewDate,
   reqSync,
   requestDocumentsByEmail,
+  draftComplianceChaseAction,
 } from "@/app/people/requirement-actions";
 
 type ReqFields = { label: string; category: string | null; mandatory: boolean };
@@ -230,6 +231,14 @@ export function RequirementsChecklist({
       if (res.ok) load();
     });
   }
+  function doDraftChase() {
+    setRequesting(true);
+    startTransition(async () => {
+      const res = await draftComplianceChaseAction(personId);
+      setRequesting(false);
+      toast(res.ok && res.count ? `Chase drafted in Outbox — ${res.count} item${res.count === 1 ? "" : "s"} to review & send` : res.reason === "no-items" ? "Nothing missing or expired to chase" : "Couldn't draft the chase", { tone: res.ok && res.count ? "success" : "default", duration: 4500 });
+    });
+  }
 
   function doSync() {
     setSyncing(true);
@@ -292,12 +301,21 @@ export function RequirementsChecklist({
         <div className="px-4 py-2.5 border-b border-border/50 text-xs font-medium uppercase tracking-wider text-fg-muted inline-flex items-center gap-1.5 w-full">
           Needs action
           {needsAction.length > 0 && <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full bg-bg-subtle text-fg-muted text-[11px] font-semibold tabular normal-case">{needsAction.length}</span>}
-          {data.missingMandatory > 0 && (
-            <button type="button" disabled={requesting} onClick={doRequest}
-              title="Email this person their missing documents (and mark them requested)"
-              className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
-              {requesting ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Request by email
-            </button>
+          {(data.missingMandatory > 0 || data.expiredMandatory > 0) && (
+            <span className="ml-auto inline-flex items-center gap-1.5">
+              <button type="button" disabled={requesting} onClick={doDraftChase}
+                title="Draft a chase (missing + expired, with reasons) in the Outbox to review and send"
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+                {requesting ? <Loader2 size={11} className="animate-spin" /> : <FileText size={11} />} Draft chase
+              </button>
+              {data.missingMandatory > 0 && (
+                <button type="button" disabled={requesting} onClick={doRequest}
+                  title="Email this person their missing documents now (and mark them requested)"
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case font-medium text-fg-muted hover:text-accent hover:bg-bg-muted transition-colors disabled:opacity-50">
+                  {requesting ? <Loader2 size={11} className="animate-spin" /> : <Send size={11} />} Email now
+                </button>
+              )}
+            </span>
           )}
         </div>
         {needsAction.length === 0 ? (
