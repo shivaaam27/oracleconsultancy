@@ -1397,6 +1397,20 @@ async function heicToJpeg(buf: Buffer): Promise<Buffer | null> {
   }
 }
 
+/** A PDF's embedded text is only USABLE if it's the real document, not a scanner
+ *  app's watermark. CamScanner/Adobe Scan/etc. export image-only PDFs whose only
+ *  text layer is "CamScanner CamScanner…" — trusting that skips OCR and loses the
+ *  whole document. Returns the text if genuine, else null (→ fall through to OCR). */
+function usableTextLayer(raw: string | null | undefined): string | null {
+  const t = (raw ?? "").trim();
+  if (t.length < 40) return null;
+  const cleaned = t.replace(/cam\s?scanner|scanned with[a-z .]*|adobe scan|genius scan|tap\s?scanner|microsoft lens/gi, " ").trim();
+  const unique = new Set((cleaned.toLowerCase().match(/[a-z]{3,}/g) ?? []));
+  // A real document has many distinct words; a watermark-only layer has almost none.
+  if (cleaned.length < 40 || unique.size < 6) return null;
+  return t;
+}
+
 /** Embedded text (no AI) from a typed PDF / Office file. null for scans/images. */
 async function extractTypedTextFromFile(file: File): Promise<string | null> {
   const lower = file.name.toLowerCase();
@@ -1414,7 +1428,7 @@ async function extractTypedTextFromFile(file: File): Promise<string | null> {
       const pdf = await getDocumentProxy(Uint8Array.from(Buffer.from(await file.arrayBuffer())));
       const r = await extractText(pdf, { mergePages: true });
       const text = Array.isArray(r.text) ? r.text.join("\n") : r.text;
-      return text.trim().length >= 40 ? text : null;
+      return usableTextLayer(text);
     } catch { return null; }
   }
   return null;
@@ -1769,16 +1783,21 @@ function ruleExtract(text: string): ExtractedFields {
 // Load the companies + active people so extraction can match names to records.
 async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }> {
   const [{ data: c }, { data: p }] = await Promise.all([
-    supa.from("companies").select("id,name,aliases,tin,vrn,code_prefix,email"),
+    supa.from("companies").select("id,name,legal_name,aliases,tin,vrn,code_prefix,email"),
     supa.from("people").select("id,name,role,company_id").eq("active", true),
   ]);
   const coName = new Map((c ?? []).map((r) => [r.id as number, r.name as string]));
   return {
     companies: (c ?? []).map((r) => {
       const email = (r.email as string | null) ?? null;
+      // Fold the LEGAL name into aliases so every matcher (scan/resolve/RAG) sees
+      // it — documents usually use the legal name ("PINNACLE ENGINEERING SOLUTIONS
+      // LIMITED"), not the short display name ("PES Ltd").
+      const legal = (r.legal_name as string | null)?.trim();
+      const aliases = [...((r.aliases as string[] | null) ?? []), ...(legal ? [legal] : [])];
       return {
         id: r.id as number, name: r.name as string,
-        aliases: (r.aliases as string[] | null) ?? undefined,
+        aliases: aliases.length ? aliases : undefined,
         tin: (r.tin as string | null)?.replace(/\D/g, "") || null,
         vrn: (r.vrn as string | null)?.replace(/\D/g, "") || null,
         prefix: (r.code_prefix as string | null) ?? null,
@@ -1836,6 +1855,15 @@ function matchCompanyByIdentifiers(text: string, idents: CompanyIdent[]): Compan
 // Match a free-text name (an AI guess or an uploaded folder segment) to a known
 // entity: exact on the name OR any alias, then a contains-either-way match on the
 // name or a longer alias (≥4 chars, so short codes like "OC"/"V1" don't over-match).
+// Significant words of a company/person name, ignoring legal suffixes (Ltd vs
+// Limited, Co, PLC…) and generic words — so "Pinnacle Engineering Solutions Ltd"
+// and "PINNACLE ENGINEERING SOLUTIONS LIMITED" share the same tokens and match.
+const NAME_STOP = new Set(["ltd", "limited", "plc", "inc", "co", "company", "llc", "llp", "the", "and", "group", "holdings", "enterprises", "of"]);
+function sigTokens(s: string): string[] {
+  return s.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").split(" ")
+    .filter((w) => w.length >= 3 && !NAME_STOP.has(w));
+}
+
 function resolveEntity(name: string | undefined, list: Entity[]): Entity | null {
   if (!name) return null;
   const q = name.trim().toLowerCase();
@@ -1852,7 +1880,27 @@ function resolveEntity(name: string | undefined, list: Entity[]): Entity | null 
     })
     .filter((x): x is { e: Entity; len: number } => !!x)
     .sort((a, b) => b.len - a.len);
-  return candidates[0]?.e ?? null;
+  if (candidates[0]) return candidates[0].e;
+
+  // Suffix-agnostic token-overlap: match on the significant words shared between
+  // the query and a record's name/aliases (incl. the legal name). Needs ≥2 shared
+  // words, or 1 shared word that is most of a short name — avoids over-matching on
+  // a single common word like "engineering".
+  const qsig = sigTokens(q);
+  if (qsig.length === 0) return null;
+  let best: { e: Entity; overlap: number } | null = null;
+  for (const e of list) {
+    for (const n of [e.name, ...(e.aliases ?? [])]) {
+      const nsig = sigTokens(n);
+      if (!nsig.length) continue;
+      const overlap = qsig.filter((t) => nsig.includes(t)).length;
+      const ratio = overlap / Math.min(qsig.length, nsig.length);
+      if (overlap >= 2 || (overlap >= 1 && ratio >= 0.6)) {
+        if (!best || overlap > best.overlap) best = { e, overlap };
+      }
+    }
+  }
+  return best?.e ?? null;
 }
 
 // Scan raw document text for a known company/person name OR a sufficiently long
@@ -2351,10 +2399,13 @@ async function extractDocumentFromFileInner(fd: FormData): Promise<ExtractResult
       text = "";
     }
 
-    // Text-layer PDF → read the embedded text (all pages were merged above).
-    if (text.trim().length >= 40) {
-      const result = await fieldsFromText(text, companies, people, apiKey);
-      return { ...result, fullText: text, textSource: "typed" };
+    // Text-layer PDF → read the embedded text — but ONLY if it's the genuine
+    // document, not a scanner-app watermark (CamScanner etc.). A junk layer falls
+    // through to vision OCR below so the real scanned content is read.
+    const usable = usableTextLayer(text);
+    if (usable) {
+      const result = await fieldsFromText(usable, companies, people, apiKey);
+      return { ...result, fullText: usable, textSource: "typed" };
     }
 
     // Scanned / image-only PDF → rasterise the pages and read with the vision model.
