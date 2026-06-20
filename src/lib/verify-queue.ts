@@ -20,6 +20,7 @@ export type VerifyItem = {
   owner: string | null;
   category: string | null;
   confidence: number | null;
+  fileName: string | null;  // for the inline preview (PDF vs image); null = no file
 };
 
 const LOW_CONFIDENCE = 0.6;
@@ -38,7 +39,7 @@ export async function getVerifyQueue(): Promise<VerifyItem[]> {
 
   // 1) Couldn't place — quarantine (suspected duplicates carry their reason here too).
   for (const q of quarantine) {
-    items.push({ id: q.id, group: "place", title: q.title, why: q.reason, owner: q.owner, category: q.category, confidence: null });
+    items.push({ id: q.id, group: "place", title: q.title, why: q.reason, owner: q.owner, category: q.category, confidence: null, fileName: q.fileName });
   }
 
   // 2) Unsure reads + 3) No owner — filed docs only.
@@ -50,9 +51,9 @@ export async function getVerifyQueue(): Promise<VerifyItem[]> {
       const why = d.confidence != null && lowConf
         ? `Unsure read — ${Math.round(d.confidence * 100)}% confidence`
         : d.needsOriginal ? "Awaiting the original" : "Flagged for a quick check";
-      items.push({ id: d.id, group: "unsure", title: d.title, why, owner: ownerName, category: d.category, confidence: d.confidence });
+      items.push({ id: d.id, group: "unsure", title: d.title, why, owner: ownerName, category: d.category, confidence: d.confidence, fileName: d.fileName });
     } else if (!d.companyId && !d.personId) {
-      items.push({ id: d.id, group: "owner", title: d.title, why: "Filed with no owner yet", owner: null, category: d.category, confidence: d.confidence });
+      items.push({ id: d.id, group: "owner", title: d.title, why: "Filed with no owner yet", owner: null, category: d.category, confidence: d.confidence, fileName: d.fileName });
     }
   }
 

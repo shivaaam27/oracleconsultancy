@@ -2,8 +2,9 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldQuestion, ShieldAlert, UserX, Check, Trash2, FolderInput, Loader2, Download, CheckCircle2 } from "lucide-react";
+import { ShieldQuestion, ShieldAlert, UserX, Check, Trash2, FolderInput, Loader2, Download, CheckCircle2, ChevronDown } from "lucide-react";
 import { FluidSelect } from "@/components/fluid-select";
+import { DocPreview } from "@/components/doc-preview";
 import { useToast } from "@/components/toast";
 import { bulkConfirmVerifyAction, bulkAssignQuarantineAction, bulkTrashQuarantineAction } from "@/app/documents/actions";
 import type { VerifyItem, VerifyGroup } from "@/lib/verify-queue";
@@ -29,6 +30,7 @@ export function VerifyQueue({
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [pending, start] = useTransition();
   const [ownerPick, setOwnerPick] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<VerifyGroup>>(new Set());
 
   const groups = useMemo(() => ORDER.map((g) => ({ group: g, rows: items.filter((i) => i.group === g) })).filter((g) => g.rows.length), [items]);
   const selCount = selected.size;
@@ -48,6 +50,9 @@ export function VerifyQueue({
     const ids = rows.map((r) => r.id);
     const allOn = ids.every((id) => selected.has(id));
     setSelected((p) => { const n = new Set(p); ids.forEach((id) => (allOn ? n.delete(id) : n.add(id))); return n; });
+  }
+  function toggleCollapse(g: VerifyGroup) {
+    setCollapsed((p) => { const n = new Set(p); n.has(g) ? n.delete(g) : n.add(g); return n; });
   }
 
   function run(label: string, fn: () => Promise<unknown>) {
@@ -101,40 +106,55 @@ export function VerifyQueue({
       {groups.map(({ group, rows }) => {
         const meta = GROUP_META[group];
         const allOn = rows.every((r) => selected.has(r.id));
+        const isCollapsed = collapsed.has(group);
         return (
           <section key={group} className="space-y-1.5">
             <div className="flex items-center gap-2 px-1">
-              <meta.Icon size={14} className={meta.cls} />
-              <h3 className="text-[13px] font-semibold">{meta.label}</h3>
-              <span className="text-[11px] text-fg-subtle">· {rows.length}</span>
-              <button type="button" onClick={() => toggleGroup(rows)} className="ml-auto text-[11px] text-accent hover:underline">
+              <button type="button" onClick={() => toggleCollapse(group)} className="flex items-center gap-2 min-w-0 text-left group">
+                <ChevronDown size={14} className={`shrink-0 text-fg-subtle transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                <meta.Icon size={14} className={meta.cls} />
+                <h3 className="text-[13px] font-semibold truncate">{meta.label}</h3>
+                <span className="text-[11px] text-fg-subtle">· {rows.length}</span>
+              </button>
+              <button type="button" onClick={() => toggleGroup(rows)} className="ml-auto text-[11px] text-accent hover:underline shrink-0">
                 {allOn ? "Deselect" : "Select all"}
               </button>
             </div>
-            <p className="text-[11px] text-fg-subtle px-1 -mt-1">{meta.sub}</p>
-            <ul className="glass elevated rounded-2xl divide-y divide-border/50 overflow-hidden">
-              {rows.map((r) => {
-                const on = selected.has(r.id);
-                return (
-                  <li key={r.id} className={`flex items-start gap-3 px-4 py-2.5 transition-colors ${on ? "bg-accent/5" : "hover:bg-bg-subtle/40"}`}>
-                    <button
-                      type="button"
-                      onClick={() => toggle(r.id)}
-                      aria-pressed={on}
-                      className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${on ? "bg-accent border-accent text-white" : "border-border-strong"}`}
-                    >
-                      {on && <Check size={11} strokeWidth={3} />}
-                    </button>
-                    <button type="button" onClick={() => router.push(`/documents?doc=${r.id}`)} className="min-w-0 flex-1 text-left">
-                      <p className="text-[13px] font-medium truncate">{r.title}</p>
-                      <p className="text-[11px] text-fg-muted truncate">
-                        {[r.why, r.owner, r.category].filter(Boolean).join(" · ")}
-                      </p>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            {!isCollapsed && (
+              <>
+                <p className="text-[11px] text-fg-subtle px-1 -mt-1">{meta.sub}</p>
+                <ul className="glass elevated rounded-2xl divide-y divide-border/50 overflow-hidden">
+                  {rows.map((r) => {
+                    const on = selected.has(r.id);
+                    return (
+                      <li key={r.id} className={`px-4 py-2.5 transition-colors ${on ? "bg-accent/5" : "hover:bg-bg-subtle/40"}`}>
+                        <div className="flex items-start gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggle(r.id)}
+                            aria-pressed={on}
+                            className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${on ? "bg-accent border-accent text-white" : "border-border-strong"}`}
+                          >
+                            {on && <Check size={11} strokeWidth={3} />}
+                          </button>
+                          <button type="button" onClick={() => router.push(`/documents?doc=${r.id}`)} className="min-w-0 flex-1 text-left">
+                            <p className="text-[13px] font-medium truncate">{r.title}</p>
+                            <p className="text-[11px] text-fg-muted truncate">
+                              {[r.why, r.owner, r.category].filter(Boolean).join(" · ")}
+                            </p>
+                          </button>
+                        </div>
+                        {r.fileName && (
+                          <div className="pl-7 pt-1.5">
+                            <DocPreview documentId={r.id} fileName={r.fileName} />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
           </section>
         );
       })}
