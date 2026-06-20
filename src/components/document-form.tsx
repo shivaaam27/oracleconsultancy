@@ -484,6 +484,11 @@ export function DocumentForm({
               <Upload size={15} /> Choose PDF, Word, Excel or photo — read automatically
             </button>
           )}
+          {mode === "edit" && doc?.intakeState === "filed" && doc?.intakeReason && /^Filed to/.test(doc.intakeReason) && (
+            <p className="rounded-lg bg-bg-subtle/40 px-3 py-2 text-[11px] text-fg-muted">
+              <span className="font-medium text-fg-subtle">Why this owner: </span>{doc.intakeReason.replace(/^Filed to .*? — /, "")}
+            </p>
+          )}
           {mode === "edit" && doc?.id != null && <RelatedDocuments documentId={doc.id} />}
           <p className="text-[11px] text-fg-subtle mt-1.5">Max 20 MB. Supports PDF, DOCX, Excel/CSV, scans, photos and handwritten notes.</p>
         </div>

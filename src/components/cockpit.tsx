@@ -154,6 +154,7 @@ export function Cockpit({
                     <Tag item={h} />
                     <div className="min-w-0 flex-1">
                       <p className="text-xs leading-snug">{h.summary}</p>
+                      {h.detail && <p className="text-[10px] text-fg-subtle leading-snug"><span className="text-fg-muted">Why:</span> {h.detail}</p>}
                       <p className="text-[10px] text-fg-subtle truncate">{ago(h.createdAt)}</p>
                     </div>
                     {h.canUndo && (

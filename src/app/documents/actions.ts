@@ -314,18 +314,20 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     let personId = f.personId ?? null;
     let resolvedBy: "file" | "folder" | "context" | null = companyId || personId ? "file" : null;
     let ownerName: string | null = f.companyName ?? f.personName ?? null;
+    // Plain-language "why this owner" for transparency (shown on the filed document).
+    let resolutionReason: string | null = companyId || personId ? "read the owner from the document" : null;
     if (!companyId && !personId && (folderHint || ctxCompanyId || ctxPersonId)) {
       const { companies, people } = await loadEntities();
       // Folder path segments (deepest-first), matched against people then companies.
       const segs = folderHint.split(/[\\/]/).map((s) => s.trim()).filter(Boolean).reverse();
       for (const seg of segs) {
-        if (!personId) { const p = resolveEntity(seg, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = "folder"; } }
-        if (!companyId) { const c = resolveEntity(seg, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = "folder"; } }
+        if (!personId) { const p = resolveEntity(seg, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = "folder"; resolutionReason = `matched the folder path "${seg}"`; } }
+        if (!companyId) { const c = resolveEntity(seg, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = "folder"; resolutionReason = `matched the folder path "${seg}"`; } }
       }
       // Fall back to the operator-declared batch owner.
       if (!companyId && !personId) {
-        if (ctxPersonId) { personId = ctxPersonId; resolvedBy = "context"; }
-        if (ctxCompanyId) { companyId = ctxCompanyId; resolvedBy = "context"; }
+        if (ctxPersonId) { personId = ctxPersonId; resolvedBy = "context"; resolutionReason = "the batch you uploaded it with"; }
+        if (ctxCompanyId) { companyId = ctxCompanyId; resolvedBy = "context"; resolutionReason = "the batch you uploaded it with"; }
       }
     }
 
@@ -334,8 +336,8 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     // contains-either-way) before giving up and quarantining as "no owner".
     if (!companyId && !personId && (f.companyName || f.personName)) {
       const { companies, people } = await loadEntities();
-      if (f.personName) { const p = resolveEntity(f.personName, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = resolvedBy ?? "file"; } }
-      if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = resolvedBy ?? "file"; } }
+      if (f.personName) { const p = resolveEntity(f.personName, people); if (p) { personId = p.id; ownerName = p.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.personName}" matched ${p.name}`; } }
+      if (!companyId && f.companyName) { const c = resolveEntity(f.companyName, companies); if (c) { companyId = c.id; if (!ownerName) ownerName = c.name; resolvedBy = resolvedBy ?? "file"; resolutionReason = `the name "${f.companyName}" matched ${c.name}`; } }
     }
 
     // Learned owner (self-learning): if the owner has previously assigned documents
@@ -347,6 +349,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         if (learned.ownerType === "company") { companyId = learned.ownerId; ownerName = companies.find((c) => c.id === companyId)?.name ?? ownerName; }
         else { personId = learned.ownerId; ownerName = people.find((p) => p.id === personId)?.name ?? ownerName; }
         resolvedBy = resolvedBy ?? "file";
+        resolutionReason = "learned from a past document you filed like this";
       }
     }
 
@@ -359,6 +362,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
         companyId = corr.companyId; personId = corr.personId;
         ownerName = (personId ? people.find((p) => p.id === personId)?.name : companies.find((c) => c.id === companyId)?.name) ?? ownerName;
         resolvedBy = resolvedBy ?? "file";
+        resolutionReason = "shares an ID/reference number with another document on file";
       }
     }
 
@@ -453,6 +457,12 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       await setDocumentIntakeState(id, "quarantine", reason ?? "Held for review");
       revalidateDocs();
     } else {
+      // Store the "why this owner" on the filed doc (shown in the edit form) so an
+      // auto-filing is explainable, not magic. (filed rows don't show intake_reason
+      // in the buckets, so this is safe to reuse.)
+      if ((companyId || personId) && resolutionReason) {
+        try { await supa.from("documents").update({ intake_reason: `Filed to ${ownerName ?? "this owner"} — ${resolutionReason}` }).eq("id", id); } catch { /* best-effort */ }
+      }
       // Filed: run the enrich / backfill / facts / compliance side-effects.
       if (supersedePhotoId) {
         await updateDocument(id, { supersedesId: supersedePhotoId });
