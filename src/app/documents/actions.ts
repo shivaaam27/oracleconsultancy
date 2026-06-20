@@ -339,13 +339,25 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     }
 
     // Learned owner (self-learning): if the owner has previously assigned documents
-    // like this one to a company/person, follow that — last resort before quarantine.
+    // like this one to a company/person, follow that.
     if (!companyId && !personId) {
       const learned = await learnedOwnerFor(`${f.title ?? ""} ${f.issuer ?? ""} ${f.docType ?? ""}`);
       if (learned) {
         const { companies, people } = await loadEntities();
         if (learned.ownerType === "company") { companyId = learned.ownerId; ownerName = companies.find((c) => c.id === companyId)?.name ?? ownerName; }
         else { personId = learned.ownerId; ownerName = people.find((p) => p.id === personId)?.name ?? ownerName; }
+        resolvedBy = resolvedBy ?? "file";
+      }
+    }
+
+    // Cross-document correlation (no AI): a TIN/VRN/reference with no name links to
+    // whatever the system already knows — another doc or fact with that identifier.
+    if (!companyId && !personId) {
+      const corr = await correlateOwnerByIdentifiers(`${f.referenceNo ?? ""} ${res.fullText ?? f.notes ?? ""}`, f.referenceNo ?? null);
+      if (corr && (corr.companyId || corr.personId)) {
+        const { companies, people } = await loadEntities();
+        companyId = corr.companyId; personId = corr.personId;
+        ownerName = (personId ? people.find((p) => p.id === personId)?.name : companies.find((c) => c.id === companyId)?.name) ?? ownerName;
         resolvedBy = resolvedBy ?? "file";
       }
     }
@@ -674,7 +686,9 @@ export async function selfHealDocuments(limit = 20): Promise<{ ok: boolean; scan
       .select("id,storage_path,file_name,file_hash,company_id,person_id")
       .eq("archived", false)
       .not("storage_path", "is", null)
-      .or("extracted_text.ilike.*camscanner*,extracted_text.ilike.*scanned with*,extracted_text.ilike.*adobe scan*")
+      // Scanner-app watermark layers (real scan never read) OR never-extracted docs.
+      // ocr-empty is excluded so genuinely blank scans aren't re-tried every night.
+      .or("extracted_text.ilike.*camscanner*,extracted_text.ilike.*scanned with*,extracted_text.ilike.*adobe scan*,extracted_text.ilike.*tap scanner*,extracted_text.ilike.*microsoft lens*,extracted_text.is.null")
       .limit(limit);
     if (!data || data.length === 0) return { ok: true, scanned: 0, healedText: 0, filedOwner: 0 };
     const { companies, people } = await loadEntities();
@@ -1868,6 +1882,50 @@ async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }
       company: r.company_id ? coName.get(r.company_id as number) ?? null : null,
     })),
   };
+}
+
+/**
+ * Cross-document correlation (no AI): a document may carry only a TIN / VRN /
+ * reference number with no readable name. If ANY existing record already ties that
+ * identifier to an owner — another filed document with the same reference number,
+ * or a fact recorded against a company/person — inherit that owner. This is how the
+ * system "remembers": a sparse new scan links to what it already knows.
+ */
+async function correlateOwnerByIdentifiers(haystack: string, referenceNo: string | null): Promise<{ companyId: number | null; personId: number | null } | null> {
+  // Distinctive numeric identifiers (TIN/VRN/control/reference style: 6+ digits).
+  const tokens = new Set<string>();
+  for (const t of (haystack.match(/\d[\d-]{5,}\d/g) ?? [])) { const d = t.replace(/\D/g, ""); if (d.length >= 6) tokens.add(d); }
+  const ref = referenceNo?.trim();
+  if (ref && ref.length >= 4) tokens.add(ref);
+  if (tokens.size === 0) return null;
+  const toks = [...tokens].slice(0, 12);
+  try {
+    // 1) Another FILED document with the same reference number → its owner.
+    const { data: byRef } = await supa
+      .from("documents")
+      .select("company_id,person_id,reference_no")
+      .eq("archived", false).not("reference_no", "is", null)
+      .in("reference_no", toks).limit(5);
+    for (const r of byRef ?? []) {
+      if (r.company_id || r.person_id) return { companyId: (r.company_id as number | null) ?? null, personId: (r.person_id as number | null) ?? null };
+    }
+    // 2) A recorded FACT whose value is one of these identifiers → its owner.
+    for (const t of toks) {
+      const { data: f } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${t}%`).limit(1);
+      const hit = (f ?? [])[0];
+      if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+    }
+    // 3) Any filed document whose body text contains one of these identifiers.
+    for (const t of toks) {
+      const { data: d } = await supa
+        .from("documents").select("company_id,person_id")
+        .eq("archived", false).ilike("extracted_text", `%${t}%`)
+        .or("company_id.not.is.null,person_id.not.is.null").limit(1);
+      const hit = (d ?? [])[0];
+      if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+    }
+  } catch { /* best-effort */ }
+  return null;
 }
 
 // Hard identifiers per company, for the deterministic ID-first match that runs
