@@ -48,6 +48,7 @@ import {
   ShieldCheck,
   Package,
   Truck,
+  Network,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -389,6 +390,9 @@ export default async function CompanyPage({
         <div className="space-y-3.5">
           <SuggestionTray suggestions={profileSuggestions} applied={appliedSuggestions} companyId={companyId} />
           <CompanyRelationships relationships={relationships} />
+          <Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1.5 text-xs text-fg-muted hover:text-accent transition-colors rounded-full px-2.5 py-1 hover:bg-bg-muted/60">
+            <Network size={13} /> Explore all connections
+          </Link>
           <CompanyProfile
             companyId={companyId}
             companyName={name}
