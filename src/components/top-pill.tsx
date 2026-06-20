@@ -6,7 +6,7 @@ import { cloneElement, isValidElement, useEffect, useRef, useState, type RefObje
 import { motion, useMotionValue, useTransform, useSpring, animate, AnimatePresence, useReducedMotion } from "framer-motion";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
-  Home, LayoutGrid, Search, X,
+  Home, LayoutGrid, Search, X, ChevronLeft,
   Plus, MessageCircle, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -24,7 +24,9 @@ import { useRegisteredActions } from "./context-actions";
 
 /* --------------------------------------------------------------------- */
 
-/** A primary nav tab — icon only, filled-accent pill when active. */
+/** A primary nav tab — icon only, filled-accent pill when active. The active tab
+ *  grows to show its label inline (iOS-tab-bar style), so the current location is
+ *  always named without crowding the bar. Touch targets are ≥44px on mobile. */
 function NavTab({
   href, icon: Icon, label, active, reduce,
 }: {
@@ -40,8 +42,8 @@ function NavTab({
       aria-label={label}
       title={label}
       className={cn(
-        "relative inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full shrink-0 transition-colors",
-        active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+        "relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors",
+        active ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60 w-11 md:w-12"
       )}
     >
       {active && (
@@ -55,7 +57,8 @@ function NavTab({
           />
         )
       )}
-      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative" />
+      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
+      {active && <span className="relative text-[13px] font-medium whitespace-nowrap">{label}</span>}
     </Link>
   );
 }
@@ -82,11 +85,6 @@ const DESTINATIONS: Array<{ href: string; label: string; icon: LucideIcon }> =
 const resolveIcon = (name: string): LucideIcon =>
   ((Lucide as Record<string, unknown>)[name] as LucideIcon) ?? Lucide.Circle;
 
-const WORLD_TILES: Array<{ href: string; label: string; icon: LucideIcon; color?: string }> = [
-  ...WORLDS.map((w) => ({ href: `/world/${w.slug}`, label: w.name, icon: resolveIcon(w.icon), color: w.color })),
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
-];
-
 /** A compact chip row (Pinned / Recent) above the Worlds grid. */
 function QuickRow({ label, routes, onGo }: { label: string; routes: NavRoute[]; onGo: (href: string) => void }) {
   return (
@@ -112,14 +110,21 @@ function QuickRow({ label, routes, onGo }: { label: string; routes: NavRoute[]; 
   );
 }
 
-function HrmsLauncher({ active, reduce, worldColor }: { active: boolean; reduce: boolean; worldColor?: string }) {
+function HrmsLauncher({ active, reduce, worldColor, worldName }: { active: boolean; reduce: boolean; worldColor?: string; worldName?: string }) {
   const router = useRouter();
+  const pathname = usePathname() || "/";
   const [open, setOpen] = useState(false);
   const [recents, setRecents] = useState<string[]>([]);
+  // When a world tile is tapped we drill into its page list in-place (mobile path:
+  // pill → world → page, two taps), instead of navigating to the /world screen.
+  const [drill, setDrill] = useState<string | null>(null);
   const { pins } = usePins();
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function go(href: string) { setOpen(false); router.push(href); }
+  function go(href: string) { setOpen(false); setDrill(null); router.push(href); }
+  // Reset the drill view whenever the sheet closes, so it reopens at the grid.
+  useEffect(() => { if (!open) setDrill(null); }, [open]);
+  const drillWorld = drill ? WORLDS.find((w) => w.slug === drill) : null;
   function onMouseEnter() {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     hoverTimer.current = setTimeout(() => setOpen(true), 160);
@@ -156,8 +161,8 @@ function HrmsLauncher({ active, reduce, worldColor }: { active: boolean; reduce:
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           className={cn(
-            "relative inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full shrink-0 transition-colors outline-none",
-            active || open ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60"
+            "relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors outline-none",
+            active || open ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60 w-11 md:w-12"
           )}
         >
           {(active || open) && (
@@ -170,9 +175,14 @@ function HrmsLauncher({ active, reduce, worldColor }: { active: boolean; reduce:
           <LayoutGrid
             size={18}
             strokeWidth={active ? 2.4 : 2}
-            className="relative"
+            className="relative shrink-0"
             style={active && worldColor ? { color: worldColor } : undefined}
           />
+          {(active || open) && (
+            <span className="relative text-[13px] font-medium whitespace-nowrap" style={active && worldColor ? { color: worldColor } : undefined}>
+              {active && worldName ? worldName : "Worlds"}
+            </span>
+          )}
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -183,46 +193,91 @@ function HrmsLauncher({ active, reduce, worldColor }: { active: boolean; reduce:
           -translate-x-1/2 -translate-y-1/2 glass glass-menu elevated rounded-3xl p-4 shadow-pill outline-none
           data-[state=open]:animate-in data-[state=open]:zoom-in-95 data-[state=open]:fade-in-0
           data-[state=closed]:animate-out data-[state=closed]:zoom-out-95">
-          <div className="flex items-center justify-between mb-3 px-1">
-            <Dialog.Title className="text-sm font-semibold">Worlds</Dialog.Title>
+          <div className="flex items-center gap-1.5 mb-3 px-1">
+            {drillWorld && (
+              <button type="button" aria-label="Back to Worlds" onClick={() => setDrill(null)} className="h-7 w-7 -ml-1 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+            )}
+            <Dialog.Title className="text-sm font-semibold flex items-center gap-1.5" style={drillWorld ? { color: drillWorld.color } : undefined}>
+              {drillWorld?.name ?? "Worlds"}
+            </Dialog.Title>
             <Dialog.Close asChild>
-              <button type="button" aria-label="Close" className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
+              <button type="button" aria-label="Close" className="ml-auto h-7 w-7 inline-flex items-center justify-center rounded-lg text-fg-muted hover:text-fg hover:bg-bg-muted transition-colors">
                 <X size={15} />
               </button>
             </Dialog.Close>
           </div>
-          {(pinRoutes.length > 0 || recentRoutes.length > 0) && (
-            <div className="mb-3 space-y-2.5">
-              {pinRoutes.length > 0 && <QuickRow label="Pinned" routes={pinRoutes} onGo={go} />}
-              {recentRoutes.length > 0 && <QuickRow label="Recent" routes={recentRoutes} onGo={go} />}
+          {drillWorld ? (
+            /* Drill-in: this world's pages, one tap to open (pill → world → page). */
+            <div className="space-y-0.5">
+              {drillWorld.pages.map((p) => {
+                const PIcon = resolveIcon(p.icon);
+                const base = p.href.split("?")[0];
+                const isActive = base !== "/" && (pathname === base || pathname.startsWith(base + "/"));
+                return (
+                  <button
+                    key={p.href}
+                    type="button"
+                    onClick={() => go(p.href)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 h-12 rounded-xl text-sm text-left transition-colors active:scale-[0.98]",
+                      isActive ? "bg-accent-soft text-accent" : "text-fg hover:bg-bg-muted/60"
+                    )}
+                  >
+                    <PIcon size={18} className="shrink-0" style={{ color: isActive ? undefined : drillWorld.color }} />
+                    <span className="truncate font-medium">{p.label}</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
-          <div className="grid grid-cols-3 gap-2">
-            {WORLD_TILES.map((d) => {
-              const Icon = d.icon;
-              return (
+          ) : (
+            <>
+              {(pinRoutes.length > 0 || recentRoutes.length > 0) && (
+                <div className="mb-3 space-y-2.5">
+                  {pinRoutes.length > 0 && <QuickRow label="Pinned" routes={pinRoutes} onGo={go} />}
+                  {recentRoutes.length > 0 && <QuickRow label="Recent" routes={recentRoutes} onGo={go} />}
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2">
+                {WORLDS.map((w) => {
+                  const Icon = resolveIcon(w.icon);
+                  return (
+                    <button
+                      key={w.slug}
+                      type="button"
+                      onClick={() => setDrill(w.slug)}
+                      className="flex flex-col items-center justify-center gap-2 h-[4.75rem] rounded-2xl border border-border bg-bg-elev/60 hover:bg-accent-soft hover:border-accent/30 active:scale-[0.97] transition-all text-center"
+                    >
+                      <Icon size={20} strokeWidth={1.75} style={{ color: w.color }} />
+                      <span className="text-[11px] font-medium text-fg leading-tight px-1">{w.name}</span>
+                    </button>
+                  );
+                })}
                 <button
-                  key={d.href}
                   type="button"
-                  onClick={() => go(d.href)}
+                  onClick={() => go("/settings")}
                   className="flex flex-col items-center justify-center gap-2 h-[4.75rem] rounded-2xl border border-border bg-bg-elev/60 hover:bg-accent-soft hover:border-accent/30 active:scale-[0.97] transition-all text-center"
                 >
-                  <Icon size={20} strokeWidth={1.75} className={d.color ? undefined : "text-accent"} style={d.color ? { color: d.color } : undefined} />
-                  <span className="text-[11px] font-medium text-fg leading-tight px-1">{d.label}</span>
+                  <SettingsIcon size={20} strokeWidth={1.75} className="text-accent" />
+                  <span className="text-[11px] font-medium text-fg leading-tight px-1">Settings</span>
                 </button>
-              );
-            })}
-          </div>
+              </div>
+            </>
+          )}
           {/* Preferences — appearance + comfort controls, consolidated here so
-              the nav pill stays minimal (especially on mobile). */}
-          <div className="mt-3 flex items-center gap-1 rounded-2xl border border-border bg-bg-elev/60 px-2 py-1.5">
-            <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
-            <div className="ml-auto flex items-center gap-0.5">
-              <ThemeToggle />
-              <DensityToggle />
-              <FocusToggle withLabel />
+              the nav pill stays minimal (especially on mobile). Hidden while
+              drilled into a world's page list. */}
+          {!drillWorld && (
+            <div className="mt-3 flex items-center gap-1 rounded-2xl border border-border bg-bg-elev/60 px-2 py-1.5">
+              <span className="px-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-muted">Preferences</span>
+              <div className="ml-auto flex items-center gap-0.5">
+                <ThemeToggle />
+                <DensityToggle />
+                <FocusToggle withLabel />
+              </div>
             </div>
-          </div>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -255,7 +310,7 @@ function NavActionButton() {
   const show = mounted && actions.length > 0 && !suppressed;
   const primary = show ? (actions.find((a) => a.primary) ?? actions[0]) : null;
   const multi = show && actions.length > 1;
-  const btn = "shrink-0 inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full text-fg hover:bg-bg-muted/60 transition-colors";
+  const btn = "shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12 rounded-full text-fg hover:bg-bg-muted/60 transition-colors";
 
   return (
     <motion.div
@@ -313,7 +368,7 @@ function NavActionButton() {
 
 const LENS_SLOTS = ["Home", "Chat", "Search"] as const;
 
-function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void }) {
+function NavLens({ containerRef, onSelect, enabled = true }: { containerRef: RefObject<HTMLDivElement | null>; onSelect: (label: string) => void; enabled?: boolean }) {
   const x = useMotionValue(0);
   const scaleX = useMotionValue(1);
   const scaleY = useMotionValue(1);
@@ -340,7 +395,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
 
   useEffect(() => {
     const c = containerRef.current;
-    if (!c) return;
+    if (!c || !enabled) return;
 
     type Slot = { label: string; center: number; w: number; h: number; top: number };
     const s = { dragging: false, startX: 0, lastX: 0, lastT: 0, pid: -1, left: 0, slots: [] as Slot[] };
@@ -422,7 +477,7 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
     };
     // rawShift is a stable motion value; intentionally not in deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, x, scaleX, scaleY]);
+  }, [containerRef, x, scaleX, scaleY, enabled]);
 
   return (
     <AnimatePresence>
@@ -455,6 +510,146 @@ function NavLens({ containerRef, onSelect }: { containerRef: RefObject<HTMLDivEl
 }
 
 /* --------------------------------------------------------------------- */
+/* Side pill (web) — the SAME liquid-glass capsule, stood vertically on    */
+/* the left edge from `xl` up. All pages fit without scrolling because the  */
+/* ~22 destinations collapse into the 7 Worlds; clicking a world opens a    */
+/* small glass flyout of its pages. No hover-expand. Below `xl` the bottom  */
+/* horizontal pill is used instead.                                         */
+/* --------------------------------------------------------------------- */
+
+/** One round slot in the vertical pill — mirrors NavTab, vertical-friendly. */
+function SideSlot({
+  icon: Icon, label, active, onClick, href, color, selected,
+}: {
+  icon: LucideIcon;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  href?: string;
+  color?: string;
+  selected?: boolean;
+}) {
+  const cls = cn(
+    "relative inline-flex items-center justify-center h-11 w-11 rounded-full shrink-0 transition-colors outline-none",
+    active ? "text-accent" : "text-fg-muted hover:text-fg",
+    selected && !active ? "bg-bg-elev/70" : "hover:bg-bg-muted/60",
+  );
+  const inner = (
+    <>
+      {active && <span className="absolute inset-0 rounded-full bg-accent-soft" />}
+      <Icon size={20} strokeWidth={active ? 2.4 : 2} className="relative" style={!active && color ? { color } : undefined} />
+    </>
+  );
+  return href ? (
+    <Link href={href} aria-label={label} title={label} className={cls}>{inner}</Link>
+  ) : (
+    <button type="button" onClick={onClick} aria-label={label} title={label} className={cls}>{inner}</button>
+  );
+}
+
+/** A world button + its click-to-open flyout of pages, anchored to the right. */
+function SideWorld({ slug, reduce }: { slug: string; reduce: boolean }) {
+  const world = WORLDS.find((w) => w.slug === slug)!;
+  const router = useRouter();
+  const pathname = usePathname() || "/";
+  const [open, setOpen] = useState(false);
+  const Icon = resolveIcon(world.icon);
+  const active = worldForPath(pathname)?.slug === world.slug;
+
+  function go(href: string) { setOpen(false); router.push(href); }
+
+  return (
+    <div className="relative">
+      <SideSlot
+        icon={Icon}
+        label={world.name}
+        color={world.color}
+        active={active}
+        selected={open}
+        onClick={() => setOpen((o) => !o)}
+      />
+      {open && (
+        <>
+          <button type="button" aria-label="Close" className="fixed inset-0 z-[55] cursor-default" onClick={() => setOpen(false)} />
+          <div
+            className={cn(
+              "absolute z-[56] left-full ml-3 top-1/2 -translate-y-1/2 w-56 glass glass-menu elevated rounded-2xl p-1.5 shadow-lg",
+              reduce ? "" : "data-[open]:animate-in",
+            )}
+            data-open
+          >
+            <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-fg-muted">{world.name}</div>
+            {world.pages.map((p) => {
+              const PIcon = resolveIcon(p.icon);
+              const base = p.href.split("?")[0];
+              const isActive = base !== "/" && (pathname === base || pathname.startsWith(base + "/"));
+              return (
+                <button
+                  key={p.href}
+                  type="button"
+                  onClick={() => go(p.href)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-colors",
+                    isActive ? "text-accent bg-accent-soft" : "text-fg hover:bg-bg-muted/60",
+                  )}
+                >
+                  <PIcon size={15} className="shrink-0" style={{ color: isActive ? undefined : world.color }} />
+                  <span className="truncate">{p.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const SIDE_WORLD_ORDER = ["people", "companies", "work", "compliance", "assets", "money", "comms"] as const;
+
+function SidePill({ reduce }: { reduce: boolean }) {
+  const pathname = usePathname() || "/";
+  const router = useRouter();
+  const { open: openPalette } = useCommandPalette();
+
+  const homeActive = pathname === "/";
+  const chatActive = pathname.startsWith("/chat");
+
+  // Anchor to the centred content column, not the viewport edge — the pill sits
+  // in the gutter just left of the work, a steady ~24px off the column, and the
+  // gap tracks the viewport so it stays balanced (never lonely at the far edge,
+  // never touching the content). Clamped so it can't crowd a narrow xl window.
+  return (
+    <div className="hidden xl:flex fixed left-[max(0.75rem,calc((100vw_-_1100px)/2_-_86px))] top-1/2 -translate-y-1/2 z-40 pointer-events-none">
+      <motion.div
+        data-nav-pill
+        initial={reduce ? false : { x: -20, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
+        className="pointer-events-auto glass elevated rounded-full shadow-pill flex flex-col items-center gap-1 px-1.5 py-2"
+      >
+        <SideSlot icon={Home} label="Home" href="/" active={homeActive} />
+        <SideSlot icon={MessageCircle} label="Chat" href="/chat" active={chatActive} onClick={() => router.push("/chat")} />
+        <SideSlot icon={Search} label="Search (⌘K)" onClick={openPalette} />
+
+        <span className="h-px w-6 bg-border my-0.5 shrink-0" aria-hidden />
+
+        {SIDE_WORLD_ORDER.map((slug) => (
+          <SideWorld key={slug} slug={slug} reduce={reduce} />
+        ))}
+
+        <span className="h-px w-6 bg-border my-0.5 shrink-0" aria-hidden />
+
+        <div className="flex flex-col items-center">
+          <NavActionButton />
+        </div>
+        <SideSlot icon={SettingsIcon} label="Settings" href="/settings" active={pathname.startsWith("/settings")} />
+      </motion.div>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------------- */
 /* The bottom-floating pill                                               */
 /* --------------------------------------------------------------------- */
 
@@ -470,6 +665,15 @@ export function TopPill() {
   const [manualReduced, setManualReduced] = useState(false);
   useEffect(() => { setManualReduced(document.documentElement.getAttribute("data-motion") === "reduced"); }, [pathname]);
   const reduce = !!prefersReduced || manualReduced;
+
+  // The drag-lens is a tablet+ flourish (see NavLens usage below).
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const mm = window.matchMedia("(min-width: 768px)");
+    const u = () => setWide(mm.matches);
+    u(); mm.addEventListener("change", u);
+    return () => mm.removeEventListener("change", u);
+  }, []);
 
   function selectSlot(label: string) {
     if (label === "Home") router.push("/");
@@ -492,9 +696,12 @@ export function TopPill() {
 
   return (
     <>
-    {/* On mobile, chat is a full-screen app of its own — the pill steps aside. */}
+    {/* Web (xl+): the same liquid-glass pill, stood vertically on the left. */}
+    <SidePill reduce={reduce} />
+    {/* On mobile, chat is a full-screen app of its own — the pill steps aside.
+        From xl up the vertical SidePill takes over, so the bottom pill hides. */}
     <div className={cn(
-      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none",
+      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none xl:hidden",
       chatActive ? "hidden md:flex" : "flex"
     )}>
       <motion.div
@@ -506,9 +713,11 @@ export function TopPill() {
         style={{ touchAction: "pan-y" }}
         className="relative pointer-events-auto max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 md:gap-1 px-1 md:px-2.5 h-[3.25rem] md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
-        <NavLens containerRef={pillRef} onSelect={selectSlot} />
+        {/* The drag-lens is a tablet+ flourish — on phones it competes with taps
+            and is undiscoverable, so it's disabled there (plain taps still work). */}
+        <NavLens containerRef={pillRef} onSelect={selectSlot} enabled={wide} />
         <NavTab href="/" icon={Home} label="Home" active={homeActive} reduce={reduce} />
-        <HrmsLauncher active={hrmsActive} reduce={reduce} worldColor={currentWorld?.color} />
+        <HrmsLauncher active={hrmsActive} reduce={reduce} worldColor={currentWorld?.color} worldName={currentWorld?.name} />
         <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} reduce={reduce} />
 
         <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
@@ -517,12 +726,19 @@ export function TopPill() {
 
         <button
           onClick={openPalette}
-          className="shrink-0 inline-flex items-center justify-center h-9 w-9 md:h-12 md:w-12 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
+          className="shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
           aria-label="Search"
           title="Search (⌘K)"
         >
           <Search size={18} />
         </button>
+
+        {/* Notification bell lives IN the pill below xl, so the bell isn't a lonely
+            corner button on phones. At xl+ the vertical SidePill takes over and the
+            bell returns to the top-right (see below). */}
+        <div className="shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12">
+          <NotificationBell to="/task" align="right" />
+        </div>
 
         {/* Theme toggle on the bar (desktop only — the dense mobile bar keeps it in the menu). */}
         <div className="hidden md:flex shrink-0 items-center">
@@ -530,10 +746,10 @@ export function TopPill() {
         </div>
       </motion.div>
     </div>
-    {/* Notifications now live at the TOP of the page (off the nav pill). Fixed
-        top-right; nothing else sits there on the admin side. */}
+    {/* At xl+ the bottom pill is gone (vertical SidePill instead), so the bell
+        sits top-right. Below xl it lives in the pill above, so hide it here. */}
     {!chatActive && (
-      <div className="fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 md:right-5 z-40 glass elevated rounded-full p-1 shadow-pill">
+      <div className="hidden xl:block fixed top-[calc(0.5rem+env(safe-area-inset-top))] right-3 md:right-5 z-40 glass elevated rounded-full p-1 shadow-pill">
         <NotificationBell to="/task" align="right" />
       </div>
     )}

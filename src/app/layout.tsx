@@ -88,7 +88,10 @@ export default async function RootLayout({ children, modal }: { children: React.
             <CommandPaletteProvider operatorName={operatorName} voiceLanguage={voiceLanguage}>
               <RecentsTracker />
               <ContextActionsProvider>
-                <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-32">
+                {/* Bottom padding clears the floating bottom pill on mobile/tablet.
+                    From xl up the pill moves to the vertical SidePill on the left, so
+                    there's nothing at the bottom to clear — reclaim that space. */}
+                <main className="pt-6 px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12">
                   <div className="mx-auto max-w-[1100px]">
                     <PageTransition>{children}</PageTransition>
                   </div>
