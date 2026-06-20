@@ -221,7 +221,18 @@ Built on the principle **reuse, don't duplicate** (Documents→compliance, tasks
 
 ## Smart Intake (V3)
 
-One extraction brain across Inbox/People/Documents. Dropping text or files anywhere can fill the person profile (**blanks-only, always reviewed — never overwrites**), file the document(s) to the right owner (person OR company), and recompute compliance. Bulk multi-file upload on `/documents` ("Add several") reviews each file in the full doc form. Recency-aware duplicate detection (Keep both / Replace+archive). See `memory/v3_plan.md` and `memory/v3_plan.md`.
+One extraction brain across Inbox/People/Documents. Dropping text or files anywhere can fill the person profile (**blanks-only, always reviewed — never overwrites**), file the document(s) to the right owner (person OR company), and recompute compliance. Bulk multi-file upload on `/documents` ("Add several") reviews each file in the full doc form. Recency-aware duplicate detection (Keep both / Replace+archive). See `memory/v3_plan.md`.
+
+## Document Intelligence (Jun 2026) — see `memory/document_intelligence.md` for the full reference
+
+The intake is **self-learning, correlating and self-healing**, all deterministic on the free Groq models (a stronger model is an optional later upgrade behind the `aiHighQuality` toggle). Owner-resolution order in `autoFileDocumentAction` (each falls through to the next, quarantine is the LAST resort):
+1. **ID match** — TIN/VRN/email-domain (`matchCompanyByIdentifiers`).
+2. **AI read with RAG context** — `extractPrompt` is fed the KNOWN RECORDS (companies with aliases + legal name + TIN/VRN/code/email-domain; people with role + company) so it resolves from sparse docs and never invents an owner.
+3. **Fuzzy/legal-name match** — `resolveEntity` (alias + legal_name folded in + suffix-agnostic token overlap, so "PINNACLE ENGINEERING SOLUTIONS LTD" → "PES Ltd").
+4. **Learned owners** — `owner_corrections` (a manual owner assignment teaches the next similar doc; `lib/owner-corrections.ts`).
+5. **Cross-document correlation** — a TIN/VRN/reference with no name inherits the owner of another filed doc/fact that shares it (`correlateOwnerByIdentifiers`).
+
+Other intelligence: **consistent naming** `buildDocTitle` ("Owner · Type · Ref/Year") on every path + a one-time **rename sweep**; **content-based duplicate detection** (Jaccard ≥0.7 of body words, any name/format → quarantine "duplicate of #X"); **auto-expiry renewal chaining** (`findRenewalTarget`: a renewal supersedes the older same-type doc → `-EXP` to Trash for review); **CamScanner/scanner-watermark detection** (`usableTextLayer` → OCR the real scan); **self-heal** (`selfHealDocuments`, nightly via morning-run, re-reads watermark/never-read docs); **relationship inference** (`lib/relationships.ts` — directors/shareholders from facts → people); **entity knowledge graph** (`lib/entity-graph.ts`, `/graph?type=&id=`, traversable, links companies sharing a director); **learning loops** `routing_corrections` (category) + dismissal suppression. New tables: `profile_suggestions`, `routing_corrections`, `custom_shelves`, `owner_corrections` (migrations 0090–0092).
 
 ## Letters (V3)
 
