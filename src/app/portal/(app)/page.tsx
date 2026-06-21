@@ -346,30 +346,32 @@ export default async function PortalHome() {
           </Panel>
         </Reveal>
 
-        {(myMeetings.length > 0 || me.portalRole === "manager") && (
-          <Reveal delay={0.05} className="flex flex-col gap-2.5">
-            <SectionLabel
-              icon={<Video size={13} />}
-              action={
-                me.portalRole === "manager" ? (
-                  <DirectorEventForm
-                    people={schedulePeople}
-                    companies={scheduleCompanies}
-                    action={portalManagerCreateEvent}
-                    triggerLabel="Schedule"
-                  />
-                ) : undefined
-              }
-            >
-              Your meetings
-            </SectionLabel>
-            {myMeetings.length > 0 ? (
-              <PortalMeetings meetings={myMeetings} />
-            ) : (
-              <Panel className="p-4 text-xs text-fg-muted">No meetings scheduled yet. Tap Schedule to set one up — invites and a Meet link go out automatically.</Panel>
-            )}
-          </Reveal>
-        )}
+        <Reveal delay={0.05} className="flex flex-col gap-2.5">
+          <SectionLabel
+            icon={<Video size={13} />}
+            action={
+              me.portalRole === "manager" ? (
+                <DirectorEventForm
+                  people={schedulePeople}
+                  companies={scheduleCompanies}
+                  action={portalManagerCreateEvent}
+                  triggerLabel="Schedule"
+                />
+              ) : undefined
+            }
+          >
+            Your meetings
+          </SectionLabel>
+          {myMeetings.length > 0 ? (
+            <PortalMeetings meetings={myMeetings} />
+          ) : (
+            <Panel className="p-4 text-xs text-fg-muted">
+              {me.portalRole === "manager"
+                ? "No meetings scheduled yet. Tap Schedule to set one up — invites and a Meet link go out automatically."
+                : "No meetings scheduled yet. When you're invited to one, it'll appear here with a Join link."}
+            </Panel>
+          )}
+        </Reveal>
 
         {announcements.length > 0 && (
           <Reveal delay={0.045} className="flex flex-col gap-2.5">
