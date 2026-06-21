@@ -325,10 +325,12 @@ function WaitingOnYou({ requests }: { requests: PendingRequest[] }) {
 
 /* ---- week ahead ---- */
 function WeekAhead({ events }: { events: BoardEvent[] }) {
-  if (!events.length) return null;
   return (
     <div className="flex flex-col gap-2.5">
       <SectionLabel icon={<CalendarClock size={13} />}>Week ahead</SectionLabel>
+      {events.length === 0 ? (
+        <Panel className="p-4 text-xs text-fg-muted">No meetings in the next 7 days. Anything scheduled — here or from the command centre — appears here with a Join link.</Panel>
+      ) : (
       <Panel className="divide-y divide-border/60 overflow-hidden">
         {events.slice(0, 5).map((e) => {
           const d = new Date(e.startAt);
@@ -358,6 +360,7 @@ function WeekAhead({ events }: { events: BoardEvent[] }) {
           );
         })}
       </Panel>
+      )}
     </div>
   );
 }
