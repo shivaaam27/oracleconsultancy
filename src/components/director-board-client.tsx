@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronRight, Check, Loader2, Send, ExternalLink,
-  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Inbox,
+  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Inbox, Video,
 } from "lucide-react";
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
@@ -25,7 +25,7 @@ import { useToast } from "@/components/toast";
 
 export type BoardPerson = { id: number; name: string; companyId: number | null };
 export type BoardCompany = { id: number; name: string };
-export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null };
+export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null; meetLink: string | null; location: string | null };
 export type CompanyHealth = { id: number; name: string; risk: string; score: number | null; detail: string };
 export type PendingRequest = { id: number; code: string; title: string; from: string; category: string | null; ageDays: number };
 export type WatchItem = {
@@ -333,6 +333,7 @@ function WeekAhead({ events }: { events: BoardEvent[] }) {
         {events.slice(0, 5).map((e) => {
           const d = new Date(e.startAt);
           const valid = !Number.isNaN(d.getTime());
+          const join = e.meetLink || (e.location && /^https?:\/\//i.test(e.location) ? e.location : null);
           return (
             <div key={e.id} className="flex items-center gap-3 p-3">
               <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-accent-soft/60 text-accent">
@@ -343,6 +344,16 @@ function WeekAhead({ events }: { events: BoardEvent[] }) {
                 <p className="truncate text-sm font-medium">{e.title}</p>
                 <p className="truncate text-[11px] text-fg-subtle">{fmtEvent(e)}{e.companyName ? ` · ${e.companyName}` : ""}</p>
               </div>
+              {join && (
+                <a
+                  href={join}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
+                >
+                  <Video size={13} /> Join
+                </a>
+              )}
             </div>
           );
         })}

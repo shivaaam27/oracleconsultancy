@@ -156,6 +156,8 @@ export type BriefWeekEvent = {
   startAt: string;
   allDay: boolean;
   companyName: string | null;
+  meetLink: string | null;
+  location: string | null;
 };
 
 /**
@@ -429,6 +431,8 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
       startAt: e.startAt,
       allDay: e.allDay,
       companyName: e.companyId ? companyNameById.get(e.companyId) ?? null : null,
+      meetLink: e.meetLink ?? null,
+      location: e.location ?? null,
     }));
 
   return {

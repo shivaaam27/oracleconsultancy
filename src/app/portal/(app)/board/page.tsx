@@ -211,7 +211,7 @@ async function Board({ personName, personId }: { personName: string; personId: n
         companyHealth={companyHealth}
         watch={watch}
         pendingRequests={pendingRequests}
-        upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName }))}
+        upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName, meetLink: e.meetLink, location: e.location }))}
         suggestions={suggestions}
       />
       <AutoRefresh seconds={60} />
