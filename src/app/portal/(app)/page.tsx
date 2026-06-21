@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, CheckCircle2, ListTodo, Users, Plane, Clock, MessageSquareText } from "lucide-react";
+import { CalendarDays, CheckCircle2, ListTodo, Users, Plane, Clock, MessageSquareText, Video } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -23,6 +23,10 @@ import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo } from "@/app/
 import { RequestComposer } from "@/components/request-composer";
 import { requestRecipientsFor, getRequestCategories } from "@/lib/requests";
 import { portalRaiseRequest } from "./requests/actions";
+import { upcomingEventsForPerson } from "@/lib/calendar";
+import { PortalMeetings, type PortalMeeting } from "@/components/portal-meetings";
+import { DirectorEventForm } from "@/components/director-event-form";
+import { portalManagerCreateEvent } from "@/app/portal/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +86,23 @@ export default async function PortalHome() {
     requestRecipientsFor(me.id),
     getRequestCategories(),
   ]);
+
+  // Upcoming meetings this person is invited to (read-only "Your meetings").
+  const myMeetings: PortalMeeting[] = (await upcomingEventsForPerson(me.id, { limit: 6 })).map((e) => ({
+    id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, meetLink: e.meetLink, location: e.location,
+  }));
+
+  // Managers can schedule meetings group-wide — load the picker lists.
+  let schedulePeople: Array<{ id: number; name: string }> = [];
+  let scheduleCompanies: Array<{ id: number; name: string }> = [];
+  if (me.portalRole === "manager") {
+    const [{ data: peopleRaw }, { data: companiesRaw }] = await Promise.all([
+      sb.from("people").select("id,name").eq("active", true).order("name"),
+      sb.from("companies").select("id,name").order("name"),
+    ]);
+    schedulePeople = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
+    scheduleCompanies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+  }
 
   // Announcements that target this person (pinned + newest, with their read state).
   const audienceAttrs = await getPersonAudienceAttrs(me.id);
@@ -324,6 +345,31 @@ export default async function PortalHome() {
             <RequestComposer recipients={requestPeople} action={portalRaiseRequest} allowOwner categories={requestCategories} />
           </Panel>
         </Reveal>
+
+        {(myMeetings.length > 0 || me.portalRole === "manager") && (
+          <Reveal delay={0.05} className="flex flex-col gap-2.5">
+            <SectionLabel
+              icon={<Video size={13} />}
+              action={
+                me.portalRole === "manager" ? (
+                  <DirectorEventForm
+                    people={schedulePeople}
+                    companies={scheduleCompanies}
+                    action={portalManagerCreateEvent}
+                    triggerLabel="Schedule"
+                  />
+                ) : undefined
+              }
+            >
+              Your meetings
+            </SectionLabel>
+            {myMeetings.length > 0 ? (
+              <PortalMeetings meetings={myMeetings} />
+            ) : (
+              <Panel className="p-4 text-xs text-fg-muted">No meetings scheduled yet. Tap Schedule to set one up — invites and a Meet link go out automatically.</Panel>
+            )}
+          </Reveal>
+        )}
 
         {announcements.length > 0 && (
           <Reveal delay={0.045} className="flex flex-col gap-2.5">

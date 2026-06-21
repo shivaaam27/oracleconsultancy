@@ -88,7 +88,7 @@ function invalidate() {
   revalidatePath("/calendar");
 }
 
-export async function createEventAction(fd: FormData): Promise<Result> {
+export async function createEventAction(fd: FormData, createdBy?: string): Promise<Result> {
   const title = str(fd, "title");
   if (!title) return { ok: false, error: "Give the event a title." };
   const allDay = fd.get("allDay") === "1" || fd.get("allDay") === "on";
@@ -109,6 +109,7 @@ export async function createEventAction(fd: FormData): Promise<Result> {
       reminders: parseReminders(str(fd, "reminders")),
       ...parseRecurrence(fd),
       attendees: parseAttendees(str(fd, "attendees")),
+      createdBy,
     });
     invalidate();
     return { ok: true, id: ev.id };

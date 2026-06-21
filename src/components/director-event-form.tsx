@@ -12,6 +12,9 @@ import { portalDirectorCreateEvent } from "@/app/portal/actions";
 
 type Person = { id: number; name: string };
 type Company = { id: number; name: string };
+type EventResult =
+  | { ok: true; id?: number; meetLink?: string | null; sentCount?: number; sentVia?: "google" | "email"; sendNote?: string }
+  | { ok: false; error: string };
 
 const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
 const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
@@ -23,9 +26,12 @@ const FORM_ID = "director-event-form";
  *  `seedTitle`) by the board's smart capture bar. */
 export function DirectorEventForm({
   people, companies, open: controlledOpen, onOpenChange, seedTitle,
+  action = portalDirectorCreateEvent, triggerLabel = "New event / meeting",
 }: {
   people: Person[]; companies: Company[];
   open?: boolean; onOpenChange?: (v: boolean) => void; seedTitle?: string;
+  action?: (fd: FormData) => Promise<EventResult>;
+  triggerLabel?: string;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -48,10 +54,15 @@ export function DirectorEventForm({
     fd.set("allDay", allDay ? "1" : "0");
     setBusy(true);
     startTransition(async () => {
-      const res = await portalDirectorCreateEvent(fd);
+      const res = await action(fd);
       setBusy(false);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      toast("Event scheduled.", { tone: "success" });
+      const msg = res.sendNote
+        ? res.sendNote
+        : res.sentCount
+          ? `Meeting scheduled — ${res.sentCount} invite${res.sentCount === 1 ? "" : "s"} sent${res.meetLink ? " with a Meet link" : ""}.`
+          : "Event scheduled.";
+      toast(msg, { tone: "success" });
       setOpen(false);
       setAttendees([]);
       router.refresh();
@@ -66,7 +77,7 @@ export function DirectorEventForm({
           onClick={() => setOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev px-4 py-2 text-sm font-medium text-fg ring-1 ring-border transition-[background-color,transform] hover:bg-bg-muted active:scale-95"
         >
-          <CalendarPlus size={15} /> New event / meeting
+          <CalendarPlus size={15} /> {triggerLabel}
         </button>
       )}
 

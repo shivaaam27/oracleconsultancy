@@ -130,6 +130,28 @@ export async function listCalendarEvents(opts?: {
   return (data ?? []).map(mapRow);
 }
 
+/** Upcoming events a person is an attendee of (or organiser via created_by),
+ *  from `now` forward. Read-only helper for the staff portal "Your meetings"
+ *  panel. Attendees are stored as a JSON string, so we filter in JS. */
+export async function upcomingEventsForPerson(
+  personId: number,
+  opts?: { limit?: number; daysAhead?: number }
+): Promise<CalendarEvent[]> {
+  const now = new Date();
+  const from = now.toISOString();
+  const to = new Date(now.getTime() + (opts?.daysAhead ?? 60) * 86400000).toISOString();
+  const { data, error } = await sb
+    .from("calendar_events")
+    .select("*")
+    .gte("start_at", from)
+    .lt("start_at", to)
+    .order("start_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  const mapped = (data ?? []).map(mapRow);
+  const mine = mapped.filter((ev) => ev.attendees.some((a) => a.personId === personId));
+  return opts?.limit ? mine.slice(0, opts.limit) : mine;
+}
+
 export async function getCalendarEvent(id: number): Promise<CalendarEvent | null> {
   const { data, error } = await sb.from("calendar_events").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);

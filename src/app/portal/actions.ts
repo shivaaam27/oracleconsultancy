@@ -11,7 +11,7 @@ import { extractDocumentFromFile } from "@/app/documents/actions";
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
 import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
-import { createEventAction } from "@/app/calendar/actions";
+import { createEventAction, sendEventInviteAction } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import { broadcastPulse } from "@/lib/cos-pulse";
@@ -483,14 +483,74 @@ export async function portalSendTaskSummaryWhatsApp(
 
 /** Director: schedule a calendar event / meeting (any company). Reuses the
  *  calendar engine (attendees, .ics invites, reminders, recurrence). */
-export async function portalDirectorCreateEvent(
-  formData: FormData
-): Promise<{ ok: true; id?: number } | { ok: false; error: string }> {
+type PortalEventResult =
+  | { ok: true; id?: number; meetLink?: string | null; sentCount?: number; sentVia?: "google" | "email"; sendNote?: string }
+  | { ok: false; error: string };
+
+/** Enrich the picker's `[{personId, name}]` attendees with each person's email
+ *  (so Google can deliver native invites). People with no email are kept but
+ *  simply won't receive an invite — same as the admin calendar. */
+async function enrichAttendeeEmails(formData: FormData): Promise<void> {
+  let picked: Array<{ personId?: number; name?: string; email?: string }>;
+  try {
+    picked = JSON.parse(String(formData.get("attendees") ?? "[]"));
+  } catch {
+    return;
+  }
+  if (!Array.isArray(picked) || picked.length === 0) return;
+  const ids = picked.map((a) => a.personId).filter((x): x is number => typeof x === "number");
+  if (ids.length === 0) return;
+  const { data } = await sb.from("people").select("id,email").in("id", ids);
+  const emailById = new Map((data ?? []).map((r) => [r.id as number, (r.email as string | null) ?? undefined]));
+  formData.set(
+    "attendees",
+    JSON.stringify(picked.map((a) => ({ ...a, email: a.email || (a.personId != null ? emailById.get(a.personId) : undefined) })))
+  );
+}
+
+/** Shared create-then-auto-send for the portal event sheet (director + manager).
+ *  Creates the event, then mints the Google Meet link + sends invites to every
+ *  attendee with an email — unless the owner has paused director/manager
+ *  outreach. Falls back to the .ics email path when Google isn't connected. */
+async function portalCreateAndSendEvent(formData: FormData, createdBy: string): Promise<PortalEventResult> {
+  await enrichAttendeeEmails(formData);
+  const res = await createEventAction(formData, createdBy);
+  if (!res.ok || !res.id) return res;
+
+  // Honour the global kill switch — if outreach is paused, the event is still
+  // created (and shows on calendars), but no invite is auto-sent.
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  const paused = killRow?.value === "true" || killRow?.value === true;
+  if (paused) {
+    return { ok: true, id: res.id, sendNote: "Event created. Invites are paused by the owner — send them from the calendar when ready." };
+  }
+
+  const send = await sendEventInviteAction(res.id);
+  if (send.ok) {
+    return { ok: true, id: res.id, meetLink: send.meetLink ?? null, sentCount: send.count, sentVia: send.via };
+  }
+  // The event exists; only the invite couldn't go out (e.g. no attendee emails,
+  // email provider off). Surface a gentle note rather than failing the create.
+  return { ok: true, id: res.id, sendNote: send.error };
+}
+
+export async function portalDirectorCreateEvent(formData: FormData): Promise<PortalEventResult> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
-  const res = await createEventAction(formData);
+  const res = await portalCreateAndSendEvent(formData, `portal-dir:${me.name}`);
   if (res.ok) revalidatePath("/portal/board");
+  return res;
+}
+
+/** Managers schedule meetings group-wide (same reach as directors), with the
+ *  same auto-send Google Meet behaviour. */
+export async function portalManagerCreateEvent(formData: FormData): Promise<PortalEventResult> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "manager") return { ok: false, error: "Only managers can do this." };
+  const res = await portalCreateAndSendEvent(formData, `portal-mgr:${me.name}`);
+  if (res.ok) revalidatePath("/portal");
   return res;
 }
 
