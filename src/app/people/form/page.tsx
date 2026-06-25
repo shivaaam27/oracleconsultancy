@@ -1,7 +1,8 @@
 import QRCode from "qrcode";
 import { PrintButton } from "@/components/print-button";
+import { FormCompanyPicker } from "@/components/form-company-picker";
 import { sb } from "@/db/supabase";
-import { BRAND_NAME } from "@/lib/brand";
+import { BRAND_NAME, fullCompanyName } from "@/lib/brand";
 import { appBaseUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +21,21 @@ const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
  *   ?deadline=...  show a submission deadline
  * Outsider person-type hides the employment + payroll sections automatically.
  */
-export default async function StaffDataFormPage({ searchParams }: { searchParams: Promise<{ person?: string; deadline?: string; missing?: string }> }) {
+export default async function StaffDataFormPage({ searchParams }: { searchParams: Promise<{ person?: string; deadline?: string; missing?: string; company?: string }> }) {
   const sp = await searchParams;
   const personId = sp.person && /^\d+$/.test(sp.person) ? Number(sp.person) : null;
   const missingOnly = sp.missing === "1";
+  // Explicit company override from the picker — brands a blank form for one of
+  // the portfolio companies instead of falling back to the parent Oracle brand.
+  const pickedCompanyId = sp.company && /^\d+$/.test(sp.company) ? Number(sp.company) : null;
+
+  // Companies for the picker (print-hidden), ordered by their task-code prefix.
+  // Each carries its FULL/registered name so the form prints the proper name.
+  const { data: companyList } = await sb.from("companies").select("id,name,legal_name").order("code_prefix");
+  const companies = (companyList ?? []).map((c) => ({
+    id: c.id as number,
+    name: fullCompanyName(c.name as string, c.legal_name as string | null),
+  }));
 
   let person: Record<string, unknown> | null = null;
   let companyName: string | null = null;
@@ -32,12 +44,16 @@ export default async function StaffDataFormPage({ searchParams }: { searchParams
     const { data } = await sb.from("people").select("*").eq("id", personId).maybeSingle();
     person = data ?? null;
     if (person?.company_id) {
-      const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id as number).maybeSingle();
-      companyName = (c?.name as string | null) ?? null;
+      companyName = companies.find((c) => c.id === person!.company_id)?.name ?? null;
     }
     // QR encodes a link straight to this person's record, so a returned form can
     // be matched to the right profile by scanning instead of by name.
     try { qrDataUrl = await QRCode.toDataURL(`${appBaseUrl()}/people?person=${personId}`, { margin: 1, width: 120 }); } catch { qrDataUrl = null; }
+  }
+  // The picker wins when set, so a form can be branded for any company even when
+  // a person from a different one is pre-filled; otherwise the person's company.
+  if (pickedCompanyId) {
+    companyName = companies.find((c) => c.id === pickedCompanyId)?.name ?? companyName;
   }
   const isOutsider = (person?.person_type as string | null) === "outsider";
   const v = (k: string) => (person ? (person[k] as string | null) ?? "" : "");
@@ -60,7 +76,10 @@ export default async function StaffDataFormPage({ searchParams }: { searchParams
           Hand this to the staff member, <strong>or a supervisor fills it on their behalf</strong> (see “filled on behalf by” at the foot). Once returned, upload a photo/scan via <strong>Documents → Add</strong> and the profile fills in.
           {personId && <> · <a className="text-accent hover:underline" href={`/people/form?person=${personId}${sp.deadline ? `&deadline=${encodeURIComponent(sp.deadline)}` : ""}${missingOnly ? "" : "&missing=1"}`}>{missingOnly ? "Show full form" : "Only missing fields"}</a></>}
         </p>
-        <PrintButton label="Print form" />
+        <div className="flex items-center gap-3">
+          <FormCompanyPicker companies={companies} selected={pickedCompanyId} />
+          <PrintButton label="Print form" />
+        </div>
       </div>
 
       <div className="data-form rounded-xl border border-border bg-bg p-6 text-[12px] leading-relaxed text-fg print:border-0 print:p-0">
