@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Search, Plus, Sparkles, ArrowUp, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User, ClipboardCheck,
-  MessageSquarePlus, Bell, Check, CheckCircle2,
+  MessageSquarePlus, Bell, Check, CheckCircle2, Building2,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { BottomSheet } from "@/components/bottom-sheet";
@@ -104,31 +104,15 @@ export function PortalTasksCommand({
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>(initialFilter);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
+  // "Company wise" view: group the list by company instead of by status.
+  const [groupByCompany, setGroupByCompany] = useState(false);
 
-  // People who belong to the selected company (primary OR an extra link) — so a
-  // task counts for a company when its owner/assignee works there, matching the
-  // multi-company roll-up elsewhere.
-  const companyMembers = useMemo(() => {
-    if (companyFilter === "all") return null;
+  // Strict company filter: only tasks tagged to the chosen company.
+  const byCompany = useMemo(() => {
+    if (companyFilter === "all") return tasks;
     const cid = Number(companyFilter);
-    const set = new Set<number>();
-    for (const p of people) {
-      const ids = p.companyIds?.length ? p.companyIds : p.companyId != null ? [p.companyId] : [];
-      if (ids.includes(cid)) set.add(p.id);
-    }
-    return set;
-  }, [companyFilter, people]);
-
-  const inCompany = (t: CommandTask): boolean => {
-    if (companyFilter === "all") return true;
-    const cid = Number(companyFilter);
-    if (t.companyId === cid) return true;
-    if (!companyMembers) return false;
-    if (t.accountableId != null && companyMembers.has(t.accountableId)) return true;
-    return t.assigneeIds.some((id) => companyMembers.has(id));
-  };
-
-  const byCompany = useMemo(() => tasks.filter(inCompany), [tasks, companyFilter, companyMembers]); // eslint-disable-line react-hooks/exhaustive-deps
+    return tasks.filter((t) => t.companyId === cid);
+  }, [tasks, companyFilter]);
 
   const counts = useMemo(() => ({
     all: byCompany.length,
@@ -158,7 +142,26 @@ export function PortalTasksCommand({
     ...companies.map((c) => ({ value: String(c.id), label: c.name })),
   ];
 
-  const groups = useMemo(() => {
+  type Group = { key: string; label: string; dot?: string; dotColor?: string | null; items: CommandTask[] };
+  const groups = useMemo<Group[]>(() => {
+    if (groupByCompany) {
+      // One section per company (alphabetical); open/overdue first within each so
+      // the rows that need attention sit at the top of every company block.
+      const byCo = new Map<string, CommandTask[]>();
+      for (const t of filtered) {
+        const key = t.companyName || "No company";
+        (byCo.get(key) ?? byCo.set(key, []).get(key)!).push(t);
+      }
+      const rank = (t: CommandTask) => (t.overdue && !t.isDone ? 0 : t.isDone ? 2 : 1);
+      return [...byCo.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([name, items]) => ({
+          key: `co:${name}`,
+          label: name,
+          dotColor: items[0]?.companyAccent ?? null,
+          items: items.slice().sort((x, y) => rank(x) - rank(y)),
+        }));
+    }
     const overdue = filtered.filter((t) => t.overdue && !t.isDone);
     const soon = filtered.filter((t) => t.withinSoon && !t.overdue && !t.isDone);
     const open = filtered.filter((t) => !t.isDone && !t.overdue && !t.withinSoon);
@@ -169,7 +172,7 @@ export function PortalTasksCommand({
       { key: "open", label: "In progress", dot: "bg-success", items: open },
       { key: "done", label: "Done", dot: "bg-fg-subtle", items: done },
     ].filter((g) => g.items.length > 0);
-  }, [filtered]);
+  }, [filtered, groupByCompany]);
 
   const FILTERS: Array<{ key: Filter; label: string; n?: number; danger?: boolean }> = [
     { key: "all", label: "All", n: counts.all },
@@ -222,6 +225,18 @@ export function PortalTasksCommand({
             </button>
           );
         })}
+
+        {/* Grouping toggle: lay the list out company-by-company instead of by status. */}
+        <span className="mx-0.5 my-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
+        <button
+          type="button"
+          aria-pressed={groupByCompany}
+          onClick={() => setGroupByCompany((v) => !v)}
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${groupByCompany ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+        >
+          <Building2 size={14} />
+          <span className="text-[12.5px]">Company wise</span>
+        </button>
       </div>
 
       {canCreate && <QuickAdd people={people} companies={companies} role={role} />}
@@ -234,7 +249,10 @@ export function PortalTasksCommand({
         groups.map((g) => (
           <div key={g.key} className="flex flex-col gap-2">
             <div className="flex items-center gap-2 px-1 text-xs font-medium text-fg-muted">
-              <span className={`h-2 w-2 rounded-full ${g.dot}`} /> {g.label}
+              {g.dotColor != null
+                ? <span className="h-2 w-2 rounded-full" style={{ backgroundColor: g.dotColor || "hsl(var(--accent))" }} />
+                : <span className={`h-2 w-2 rounded-full ${g.dot}`} />}
+              {g.label}
               <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-[10px] text-fg-subtle">{g.items.length}</span>
             </div>
             {/* desktop column header */}
