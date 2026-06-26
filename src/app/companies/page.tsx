@@ -1,4 +1,5 @@
-import { getAllTasks, computeCompanyKpis } from "@/lib/queries";
+import { getAllTasks, computeCompanyKpis, type CompanyKpi } from "@/lib/queries";
+import { sb } from "@/db/supabase";
 import { Hero, TONE } from "@/components/surface-kit";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CompanyDrawerLink } from "@/components/company-drawer-link";
@@ -8,6 +9,7 @@ import { getDepartmentsAdmin } from "@/lib/departments";
 import { getSitesAdmin } from "@/lib/sites";
 import { getRolesAdmin } from "@/lib/roles";
 import { CompaniesHubTabs } from "@/components/companies-hub-tabs";
+import { AddCompanyCard } from "@/components/add-company-card";
 import { AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +26,23 @@ export default async function CompaniesPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [rows, logoMap, departments, sites, roles] = await Promise.all([getAllTasks(), getCompanyLogoMap(), getDepartmentsAdmin(), getSitesAdmin(), getRolesAdmin()]);
-  const companies = computeCompanyKpis(rows);
+  const [rows, logoMap, departments, sites, roles, allCompanies] = await Promise.all([
+    getAllTasks(), getCompanyLogoMap(), getDepartmentsAdmin(), getSitesAdmin(), getRolesAdmin(),
+    sb.from("companies").select("id,name,accent_color").eq("active", true),
+  ]);
+  const kpis = computeCompanyKpis(rows);
+  // The KPI list is derived from tasks, so a company with no tasks yet would be
+  // invisible. Fold in every active company with a zero-stat card so newly
+  // added ones show up immediately.
+  const seen = new Set(kpis.map((c) => c.id));
+  const empties: CompanyKpi[] = (allCompanies.data ?? [])
+    .filter((c) => !seen.has(c.id as number))
+    .map((c) => ({
+      id: c.id as number, name: c.name as string, total: 0, open: 0, inProgress: 0,
+      overdue: 0, dueSoon: 0, blocked: 0, critical: 0, escalated: 0, completed: 0,
+      closed: 0, aging: 0, riskScore: 0, accent: (c.accent_color as string | null) ?? null,
+    }));
+  const companies = [...kpis, ...empties];
   const totals = companies.reduce(
     (a, c) => ({ open: a.open + c.open, overdue: a.overdue + c.overdue, completed: a.completed + c.completed }),
     { open: 0, overdue: 0, completed: 0 }
@@ -101,6 +118,7 @@ export default async function CompaniesPage({
             </CompanyDrawerLink>
           );
         })}
+        <AddCompanyCard />
       </div>
         }
       />

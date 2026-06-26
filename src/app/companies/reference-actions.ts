@@ -5,6 +5,8 @@ import { db } from "@/db";
 import { people, sites, jobTitles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { reindexEntity } from "@/lib/index-hooks";
+import { ensureCompanyRequirements } from "@/lib/company-requirements";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -21,6 +23,39 @@ function revalidate() {
   revalidatePath("/people");
   revalidatePath("/hrms/org");
   revalidatePath("/hrms/assets");
+}
+
+/* ------------------------------------------------------------------ */
+/* Companies                                                          */
+/* ------------------------------------------------------------------ */
+/** Add a new portfolio company. Needs a name + a 2-letter task-code prefix
+ *  (e.g. "DS" → DS-001). `code` mirrors the prefix and must be unique.
+ *  Seeds the default compliance requirements and indexes it for search. */
+export async function createCompany(name: string, prefix: string, accentColor?: string): Promise<Result> {
+  const cleanName = name.trim();
+  const cleanPrefix = prefix.trim().toUpperCase();
+  if (!cleanName) return { ok: false, error: "Enter a company name." };
+  if (!/^[A-Z0-9]{2,4}$/.test(cleanPrefix)) return { ok: false, error: "Prefix must be 2–4 letters/numbers (e.g. DS)." };
+
+  const { data: nameClash } = await sb.from("companies").select("id").ilike("name", cleanName).maybeSingle();
+  if (nameClash) return { ok: false, error: "A company with that name already exists." };
+  const { data: codeClash } = await sb.from("companies").select("id").eq("code", cleanPrefix).maybeSingle();
+  if (codeClash) return { ok: false, error: `The code “${cleanPrefix}” is already in use — pick another prefix.` };
+
+  const { data, error } = await sb.from("companies").insert({
+    name: cleanName,
+    code: cleanPrefix,
+    code_prefix: cleanPrefix,
+    accent_color: accentColor?.trim() || null,
+    active: true,
+  }).select("id").single();
+  if (error) return { ok: false, error: error.message };
+
+  const id = data.id as number;
+  try { await ensureCompanyRequirements(id); } catch { /* best-effort: don't block creation on compliance seeding */ }
+  void reindexEntity("company", id); // best-effort search indexing
+  revalidate();
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
