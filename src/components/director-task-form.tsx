@@ -8,8 +8,14 @@ import { NotifyPerson } from "@/components/notify-person";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { portalDirectorCreateTask } from "@/app/portal/actions";
 
-type Person = { id: number; name: string; companyId: number | null };
+type Person = { id: number; name: string; companyId: number | null; companyIds?: number[] };
 type Company = { id: number; name: string };
+
+/** Companies a person belongs to — their primary company plus any extra links. */
+function personCompanyIds(p: Person): number[] {
+  if (p.companyIds && p.companyIds.length) return p.companyIds;
+  return p.companyId != null ? [p.companyId] : [];
+}
 
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const PRIORITY_OPTIONS: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p }));
@@ -60,7 +66,7 @@ export function DirectorTaskForm({
     setPriority("Medium");
   }
 
-  const scoped = companyId ? people.filter((p) => String(p.companyId) === companyId) : people;
+  const scoped = companyId ? people.filter((p) => personCompanyIds(p).includes(Number(companyId))) : people;
   const peopleForPicker = scoped.length ? scoped : people;
 
   return (

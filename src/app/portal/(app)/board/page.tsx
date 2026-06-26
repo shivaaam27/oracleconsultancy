@@ -7,6 +7,7 @@ import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getBrief } from "@/lib/director-brief";
+import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { listRequestsForPortal } from "@/lib/requests";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
@@ -81,18 +82,25 @@ async function Board({ personName, personId }: { personName: string; personId: n
 
   // Fast lookups for the composer pickers.
   let companies: Array<{ id: number; name: string }> = [];
-  let people: Array<{ id: number; name: string; companyId: number | null }> = [];
+  let people: Array<{ id: number; name: string; companyId: number | null; companyIds: number[] }> = [];
   try {
-    const [{ data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+    const [{ data: companiesRaw }, { data: peopleRaw }, personCompanies] = await Promise.all([
       sb.from("companies").select("id,name").order("name"),
       sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+      getPersonCompaniesMap(),
     ]);
     companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-    people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }));
+    people = (peopleRaw ?? []).map((p) => {
+      const id = p.id as number;
+      const primary = (p.company_id as number | null) ?? null;
+      return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
+    });
   } catch { /* leave empty — re-populates next refresh */ }
 
   // Resolve the responsible person for each watch task (for inline reassign + remind).
-  const watchRaw = brief.watch.slice(0, 12);
+  // Generous slice so the board's company filter has items per company; the client
+  // caps how many it shows at once.
+  const watchRaw = brief.watch.slice(0, 40);
   const ownerByTask = new Map<number, { id: number | null; name: string | null }>();
   if (watchRaw.length) {
     const watchIds = watchRaw.map((w) => w.id);
@@ -138,6 +146,7 @@ async function Board({ personName, personId }: { personName: string; personId: n
       taskId: w.id,
       code: w.code,
       actionItem: w.actionItem,
+      companyId: w.companyId,
       companyName: w.companyName,
       overdue: w.overdue,
       priority: w.priority,
@@ -198,7 +207,7 @@ async function Board({ personName, personId }: { personName: string; personId: n
         firstName={personName.split(" ")[0]}
         initials={initials}
         liveStamp={liveStamp}
-        needsYou={brief.directorActions.length || watch.length}
+        needsYou={brief.directorActions.length || Math.min(watch.length, 12)}
         dueToday={dueToday}
         groupScore={groupScore}
         onTrack={onTrack}

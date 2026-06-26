@@ -430,7 +430,7 @@ export function PersonForm({
         </div>
 
         <div>
-          <FieldLabel>Company</FieldLabel>
+          <FieldLabel>Main company</FieldLabel>
           <Select
             name="companyId"
             defaultValue={defaults?.companyId ? String(defaults.companyId) : ""}
@@ -440,6 +440,7 @@ export function PersonForm({
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </Select>
+          <p className="text-[11px] text-fg-subtle mt-1">Their home company (used for their staff ID). Add any others below.</p>
         </div>
 
         <div>
@@ -561,13 +562,15 @@ export function PersonForm({
           </Select>
         </div>
 
-        {/* Associated companies — extra company links with a relationship label */}
+        {/* Also works for — additional companies this person belongs to/serves.
+            Feeds person_companies, so they appear under each company in pickers,
+            company task lists and KPIs. Relationship label is optional. */}
         <div className="col-span-2">
-          <FieldLabel>Associated companies</FieldLabel>
+          <FieldLabel>Also works for</FieldLabel>
           <div className="space-y-2">
             {associations.length === 0 && (
               <p className="text-xs text-fg-subtle italic">
-                None. Use this to link external contacts to the companies they serve.
+                None. Add other companies this person works for or serves — their tasks and records show under each one.
               </p>
             )}
             {associations.map((row, i) => (
@@ -586,7 +589,7 @@ export function PersonForm({
                   value={row.relationship}
                   onChange={(e) => updateAssociation(i, { relationship: e.target.value })}
                   className={cn(inputCls, "flex-1")}
-                  placeholder="e.g. Insurance broker"
+                  placeholder="role / relationship (optional)"
                 />
                 <button
                   type="button"
@@ -603,7 +606,7 @@ export function PersonForm({
               onClick={addAssociation}
               className="inline-flex items-center gap-1 text-xs text-accent hover:opacity-80 transition-opacity"
             >
-              <Plus size={13} /> Add company link
+              <Plus size={13} /> Add company
             </button>
           </div>
         </div>

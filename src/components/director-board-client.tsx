@@ -23,7 +23,7 @@ import { useToast } from "@/components/toast";
  * (a centred two-column command-wall).
  * ------------------------------------------------------------------ */
 
-export type BoardPerson = { id: number; name: string; companyId: number | null };
+export type BoardPerson = { id: number; name: string; companyId: number | null; companyIds?: number[] };
 export type BoardCompany = { id: number; name: string };
 export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null; meetLink: string | null; location: string | null };
 export type CompanyHealth = { id: number; name: string; risk: string; score: number | null; detail: string };
@@ -32,6 +32,7 @@ export type WatchItem = {
   taskId: number;
   code: string;
   actionItem: string;
+  companyId: number;
   companyName: string;
   overdue: boolean;
   priority: string;
@@ -107,10 +108,37 @@ export function DirectorBoardClient(p: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // Company filter: "all" (portfolio) or a single company id (as string).
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+  const selectedCompany = companyFilter === "all" ? null : Number(companyFilter);
+  const selectedName = selectedCompany != null ? p.companies.find((c) => c.id === selectedCompany)?.name ?? null : null;
+  const companyOptions: FluidOption[] = [
+    { value: "all", label: "All companies" },
+    ...p.companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ];
+
+  const watch = selectedCompany != null ? p.watch.filter((w) => w.companyId === selectedCompany) : p.watch;
+  const companyHealth = selectedCompany != null ? p.companyHealth.filter((c) => c.id === selectedCompany) : p.companyHealth;
+  const events = selectedName != null ? p.upcomingEvents.filter((e) => e.companyName === selectedName) : p.upcomingEvents;
+
   return (
     <div className="flex flex-col gap-5">
       <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} />
       <SmartCaptureBar people={p.people} companies={p.companies} suggestions={p.suggestions} />
+
+      {/* Company filter — narrow the whole board to one company, or see them all. */}
+      <div className="flex items-center gap-2">
+        <Building2 size={14} className="shrink-0 text-fg-subtle" />
+        <FluidSelect
+          value={companyFilter}
+          options={companyOptions}
+          onSelect={setCompanyFilter}
+          buttonClassName="bare-field inline-flex items-center justify-between gap-2 rounded-full ring-1 ring-border px-3.5 py-1.5 text-sm min-w-[10rem]"
+        />
+        {selectedCompany != null && (
+          <span className="text-[11px] text-fg-subtle">Showing {selectedName}</span>
+        )}
+      </div>
 
       {/* Centred command-wall: one calm scroll on mobile, two columns on the web. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr] lg:items-start">
@@ -119,12 +147,12 @@ export function DirectorBoardClient(p: Props) {
             score={p.groupScore} onTrack={p.onTrack} watch={p.watchCount} risk={p.riskCount}
             needsYou={p.needsYou} dueToday={p.dueToday} onLeave={p.onLeaveToday} run={mounted}
           />
-          <CompanyHealthList items={p.companyHealth} />
+          <CompanyHealthList items={companyHealth} />
         </div>
         <div className="flex flex-col gap-5">
           <WaitingOnYou requests={p.pendingRequests} />
-          <AttentionStack watch={p.watch} people={p.people} />
-          <WeekAhead events={p.upcomingEvents} />
+          <AttentionStack watch={watch.slice(0, 12)} people={p.people} />
+          <WeekAhead events={events} />
         </div>
       </div>
     </div>

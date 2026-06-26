@@ -1,4 +1,5 @@
-import { getAllTasks, computeCompanyKpis, type CompanyKpi } from "@/lib/queries";
+import { getAllTasks, computeCompanyKpisByMembership, computeGlobalKpis } from "@/lib/queries";
+import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { sb } from "@/db/supabase";
 import { Hero, TONE } from "@/components/surface-kit";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
@@ -26,27 +27,21 @@ export default async function CompaniesPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const { from } = await searchParams;
-  const [rows, logoMap, departments, sites, roles, allCompanies] = await Promise.all([
+  const [rows, logoMap, departments, sites, roles, allCompanies, personCompanies] = await Promise.all([
     getAllTasks(), getCompanyLogoMap(), getDepartmentsAdmin(), getSitesAdmin(), getRolesAdmin(),
-    sb.from("companies").select("id,name,accent_color").eq("active", true),
+    sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
+    getPersonCompaniesMap(),
   ]);
-  const kpis = computeCompanyKpis(rows);
-  // The KPI list is derived from tasks, so a company with no tasks yet would be
-  // invisible. Fold in every active company with a zero-stat card so newly
-  // added ones show up immediately.
-  const seen = new Set(kpis.map((c) => c.id));
-  const empties: CompanyKpi[] = (allCompanies.data ?? [])
-    .filter((c) => !seen.has(c.id as number))
-    .map((c) => ({
-      id: c.id as number, name: c.name as string, total: 0, open: 0, inProgress: 0,
-      overdue: 0, dueSoon: 0, blocked: 0, critical: 0, escalated: 0, completed: 0,
-      closed: 0, aging: 0, riskScore: 0, accent: (c.accent_color as string | null) ?? null,
-    }));
-  const companies = [...kpis, ...empties];
-  const totals = companies.reduce(
-    (a, c) => ({ open: a.open + c.open, overdue: a.overdue + c.overdue, completed: a.completed + c.completed }),
-    { open: 0, overdue: 0, completed: 0 }
-  );
+  // Count each task toward every company it touches (its own + its people's
+  // companies), and include every active company so a task-less one still shows.
+  const companyList = (allCompanies.data ?? []).map((c) => ({
+    id: c.id as number, name: c.name as string, accent: (c.accent_color as string | null) ?? null,
+  }));
+  const companies = computeCompanyKpisByMembership(rows, companyList, personCompanies);
+  // Portfolio totals are DISTINCT (a shared task counts once) — never the sum of
+  // the per-company cards, which double-count multi-company work.
+  const g = computeGlobalKpis(rows);
+  const totals = { open: g.open, overdue: g.overdue, completed: g.completed };
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />

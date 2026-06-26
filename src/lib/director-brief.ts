@@ -81,7 +81,7 @@ export type BriefCompany = {
   tasks: ReportTask[]; // open tasks (incl. in progress), for the detailed PDF report
 };
 export type BriefDelivered = { company: string; items: { id: number; actionItem: string; status: string; closedDate: Date | null; latestUpdate: string | null }[] };
-export type BriefWatch = { id: number; code: string; actionItem: string; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
+export type BriefWatch = { id: number; code: string; actionItem: string; companyId: number; companyName: string; overdue: boolean; deadline: Date | null; priority: string };
 export type BriefCompliance = {
   companyId: number;
   companyName: string;
@@ -351,8 +351,10 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   const watch: BriefWatch[] = [...openTasks]
     .filter((r) => sev(r) > 0)
     .sort((a, b) => sev(b) - sev(a))
-    .slice(0, 8)
-    .map((r) => ({ id: r.id, code: r.code, actionItem: r.actionItem, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
+    // Keep a generous slice so consumers can filter (e.g. the director board's
+    // company filter) — text/share consumers still take their own smaller slice.
+    .slice(0, 40)
+    .map((r) => ({ id: r.id, code: r.code, actionItem: r.actionItem, companyId: r.companyId, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
   const compliance: BriefCompliance[] = (
     await buildCompanyRequirementScores(kpis.map((k) => ({ id: k.id, name: k.name })))
@@ -482,7 +484,8 @@ export function briefShareText(b: BriefData): string {
   if (b.watch.length) {
     L.push("");
     L.push(`*Needs attention*`);
-    for (const w of b.watch) {
+    // Cap the text/share list (the board keeps the full set for its filter).
+    for (const w of b.watch.slice(0, 8)) {
       const when = w.overdue ? "overdue" : w.deadline ? `due ${fmtDay(w.deadline)}` : "no deadline";
       L.push(`• ${w.actionItem} — ${w.companyName} · ${when} · ${w.priority}`);
     }

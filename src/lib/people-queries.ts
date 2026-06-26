@@ -19,6 +19,30 @@ export type CompanyAssociation = {
   relationship: string | null;
 };
 
+/**
+ * Map every active person to ALL the companies they belong to — their primary
+ * `people.company_id` PLUS any `person_companies` association. This is the single
+ * source of truth for "which companies does this person work for / serve", used
+ * by the task-creation people pickers and the company-wide task/KPI roll-ups so a
+ * multi-company person shows up under each of their companies.
+ */
+export async function getPersonCompaniesMap(): Promise<Map<number, number[]>> {
+  const [{ data: peopleRows }, { data: assocRows }] = await Promise.all([
+    sb.from("people").select("id,company_id").eq("active", true),
+    sb.from("person_companies").select("person_id,company_id"),
+  ]);
+  const map = new Map<number, Set<number>>();
+  const add = (pid: number, cid: number | null) => {
+    if (cid == null) return;
+    const set = map.get(pid) ?? new Set<number>();
+    set.add(cid);
+    map.set(pid, set);
+  };
+  for (const p of peopleRows ?? []) add(p.id as number, (p.company_id as number | null) ?? null);
+  for (const a of assocRows ?? []) add(a.person_id as number, (a.company_id as number | null) ?? null);
+  return new Map([...map].map(([pid, set]) => [pid, [...set]]));
+}
+
 export type Person = {
   id: number;
   name: string;

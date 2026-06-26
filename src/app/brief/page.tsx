@@ -173,10 +173,10 @@ export default async function DirectorBriefPage({
       {b.watch.length > 0 && (
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted mb-2 flex items-center gap-1.5">
-            <AlertTriangle size={13} className="text-warn" /> Needs attention · {b.watch.length}
+            <AlertTriangle size={13} className="text-warn" /> Needs attention · {Math.min(b.watch.length, 8)}
           </div>
           <Card className="divide-y divide-border/70">
-            {b.watch.map((t) => (
+            {b.watch.slice(0, 8).map((t) => (
               <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{t.actionItem}</div>

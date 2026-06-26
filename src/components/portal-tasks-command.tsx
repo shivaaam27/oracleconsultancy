@@ -541,7 +541,12 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
     setCompanyId(""); setOwnerId(""); setPriority("Medium"); setRequiresProof(false);
   }
 
-  const scoped = companyId ? people.filter((pp) => String(pp.companyId) === companyId) : people;
+  const scoped = companyId
+    ? people.filter((pp) => {
+        const ids = pp.companyIds?.length ? pp.companyIds : pp.companyId != null ? [pp.companyId] : [];
+        return ids.includes(Number(companyId));
+      })
+    : people;
   const peopleForPicker = scoped.length ? scoped : people;
   const companyOptions: FluidOption[] = companies.map((c) => ({ value: String(c.id), label: c.name }));
   const ownerOptions: FluidOption[] = peopleForPicker.map((pp) => ({ value: String(pp.id), label: pp.name }));

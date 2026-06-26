@@ -378,6 +378,59 @@ export function computeCompanyKpis(rows: TaskRow[]): CompanyKpi[] {
   return out.sort((a, b) => b.riskScore - a.riskScore);
 }
 
+/**
+ * KPI per company counting a task toward EVERY company it touches — its own
+ * `companyId` plus the companies of its owner and assignees (via the supplied
+ * person→companies map). A task assigned to someone who works for two companies
+ * counts for both, so a multi-company person's work shows up under each company.
+ * Returns a card for every company in `companies` (zero-task ones included).
+ * Portfolio-wide distinct totals must use computeGlobalKpis(rows), not the sum
+ * of these, to avoid double-counting shared tasks.
+ */
+export function computeCompanyKpisByMembership(
+  rows: TaskRow[],
+  companies: Array<{ id: number; name: string; accent: string | null }>,
+  personCompanies: Map<number, number[]>
+): CompanyKpi[] {
+  const byCompany = new Map<number, TaskRow[]>();
+  for (const c of companies) byCompany.set(c.id, []);
+  for (const r of rows) {
+    const cids = new Set<number>([r.companyId]);
+    const involved = [r.ownerId, ...r.assigneeIds].filter((x): x is number => x != null);
+    for (const pid of involved) for (const cid of personCompanies.get(pid) ?? []) cids.add(cid);
+    for (const cid of cids) {
+      const list = byCompany.get(cid);
+      if (list) list.push(r); // ignore tasks pointing at an unknown/inactive company
+    }
+  }
+  return companies
+    .map((c) => {
+      const list = byCompany.get(c.id) ?? [];
+      const total = list.length;
+      const overdue = list.filter((r) => r.flag === "overdue" || r.flag === "escalate-now").length;
+      const blocked = list.filter((r) => r.status === "Blocked").length;
+      const aging = list.filter((r) => r.flag === "aging").length;
+      return {
+        id: c.id,
+        name: c.name,
+        total,
+        open: list.filter((r) => isOpen(r.status)).length,
+        inProgress: list.filter((r) => r.status === "In Progress").length,
+        overdue,
+        dueSoon: list.filter((r) => r.flag === "due-soon").length,
+        blocked,
+        critical: list.filter((r) => r.priority === "Critical" && isOpen(r.status)).length,
+        escalated: list.filter((r) => r.status === "Escalated").length,
+        completed: list.filter((r) => r.status === "Completed").length,
+        closed: list.filter((r) => r.status === "Closed").length,
+        aging,
+        riskScore: total === 0 ? 0 : Math.round(((overdue * 3 + blocked * 2 + aging) / total) * 100),
+        accent: c.accent,
+      } satisfies CompanyKpi;
+    })
+    .sort((a, b) => b.riskScore - a.riskScore);
+}
+
 export function computeGlobalKpis(rows: TaskRow[]) {
   return {
     open: rows.filter((r) => isOpen(r.status)).length,

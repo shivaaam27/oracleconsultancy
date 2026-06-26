@@ -16,7 +16,7 @@ import { DirectorMessage } from "./director-message";
  * required fields (company / who / when) are confirmed in one place.
  * ------------------------------------------------------------------ */
 
-type Person = { id: number; name: string; companyId: number | null };
+type Person = { id: number; name: string; companyId: number | null; companyIds?: number[] };
 type Company = { id: number; name: string };
 type Mode = "Task" | "Event" | "Message";
 

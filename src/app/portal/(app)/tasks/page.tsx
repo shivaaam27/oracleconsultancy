@@ -6,6 +6,7 @@ import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
+import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { PortalTasksTable, type PortalTaskRow } from "@/components/portal-tasks-table";
 import { PortalTasksCommand, type CommandTask, type Filter } from "@/components/portal-tasks-command";
 
@@ -41,10 +42,11 @@ async function ManagementTasks({
 }) {
   const groupWide = me.portalRole === "director" || me.portalRole === "hr";
 
-  const [allRows, { data: companiesRaw }, { data: peopleRaw }] = await Promise.all([
+  const [allRows, { data: companiesRaw }, { data: peopleRaw }, personCompanies] = await Promise.all([
     getAllTasks(),
     sb.from("companies").select("id,name").order("name"),
     sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+    getPersonCompaniesMap(),
   ]);
 
   const idSet = new Set(ids);
@@ -99,7 +101,11 @@ async function ManagementTasks({
   // Scope the create pickers: group-wide for director/HR; a manager creates only
   // in their own company, for themselves or their direct reports.
   let companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  let people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }));
+  let people = (peopleRaw ?? []).map((p) => {
+    const id = p.id as number;
+    const primary = (p.company_id as number | null) ?? null;
+    return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
+  });
   if (!groupWide) {
     const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
     people = people.filter((p) => reportSet.has(p.id));
