@@ -76,6 +76,7 @@ async function ManagementTasks({
       taskId: r.id,
       code: r.code,
       actionItem: r.actionItem,
+      companyId: r.companyId,
       companyName: r.companyName,
       companyAccent: r.companyAccent,
       overdue,

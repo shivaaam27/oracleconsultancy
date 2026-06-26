@@ -38,7 +38,7 @@ export function FluidSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; minWidth: number; maxHeight: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const optsRef = useRef<(HTMLButtonElement | null)[]>([]);
@@ -72,7 +72,19 @@ export function FluidSelect({
     const menuW = Math.max(r.width, 200);
     let left = align === "right" ? r.right - menuW : r.left;
     left = Math.max(8, Math.min(left, window.innerWidth - menuW - 8));
-    setPos({ top: r.bottom + 6, left, minWidth: r.width });
+    // Open below by default; flip above when there isn't enough room below and
+    // there's more above. Either way the menu height is clamped to the available
+    // space so it can never run off-screen — it just scrolls inside.
+    const margin = 8;
+    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(140, Math.min(window.innerHeight * 0.6, openUp ? spaceAbove : spaceBelow));
+    setPos(
+      openUp
+        ? { bottom: window.innerHeight - r.top + 6, left, minWidth: r.width, maxHeight }
+        : { top: r.bottom + 6, left, minWidth: r.width, maxHeight }
+    );
   };
 
   useLayoutEffect(() => { if (open) place(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open]);
@@ -134,12 +146,15 @@ export function FluidSelect({
               style={{
                 position: "fixed",
                 top: pos.top,
+                bottom: pos.bottom,
                 left: pos.left,
                 minWidth: Math.max(pos.minWidth, 200),
+                maxHeight: pos.maxHeight,
                 zIndex: 1000,
-                transformOrigin: align === "right" ? "top right" : "top left",
+                transformOrigin:
+                  (pos.bottom != null ? "bottom" : "top") + (align === "right" ? " right" : " left"),
               }}
-              className="max-h-[60vh] overflow-y-auto p-1.5 glass glass-menu rounded-xl shadow-lg"
+              className="overflow-y-auto overscroll-contain p-1.5 glass glass-menu rounded-xl shadow-lg"
             >
               {options.map((opt, i) => {
                 const active = opt.value === value;

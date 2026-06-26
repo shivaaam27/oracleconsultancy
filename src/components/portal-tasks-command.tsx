@@ -31,6 +31,7 @@ export type CommandTask = {
   taskId: number;
   code: string;
   actionItem: string;
+  companyId: number | null;
   companyName: string;
   companyAccent: string | null;
   overdue: boolean;
@@ -102,18 +103,44 @@ export function PortalTasksCommand({
 }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>(initialFilter);
+  const [companyFilter, setCompanyFilter] = useState<string>("all");
+
+  // People who belong to the selected company (primary OR an extra link) — so a
+  // task counts for a company when its owner/assignee works there, matching the
+  // multi-company roll-up elsewhere.
+  const companyMembers = useMemo(() => {
+    if (companyFilter === "all") return null;
+    const cid = Number(companyFilter);
+    const set = new Set<number>();
+    for (const p of people) {
+      const ids = p.companyIds?.length ? p.companyIds : p.companyId != null ? [p.companyId] : [];
+      if (ids.includes(cid)) set.add(p.id);
+    }
+    return set;
+  }, [companyFilter, people]);
+
+  const inCompany = (t: CommandTask): boolean => {
+    if (companyFilter === "all") return true;
+    const cid = Number(companyFilter);
+    if (t.companyId === cid) return true;
+    if (!companyMembers) return false;
+    if (t.accountableId != null && companyMembers.has(t.accountableId)) return true;
+    return t.assigneeIds.some((id) => companyMembers.has(id));
+  };
+
+  const byCompany = useMemo(() => tasks.filter(inCompany), [tasks, companyFilter, companyMembers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => ({
-    all: tasks.length,
-    overdue: tasks.filter((t) => t.overdue && !t.isDone).length,
-    soon: tasks.filter((t) => t.withinSoon && !t.overdue && !t.isDone).length,
-    mine: tasks.filter((t) => t.raisedByMe).length,
-    done: tasks.filter((t) => t.isDone).length,
-  }), [tasks]);
+    all: byCompany.length,
+    overdue: byCompany.filter((t) => t.overdue && !t.isDone).length,
+    soon: byCompany.filter((t) => t.withinSoon && !t.overdue && !t.isDone).length,
+    mine: byCompany.filter((t) => t.raisedByMe).length,
+    done: byCompany.filter((t) => t.isDone).length,
+  }), [byCompany]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return tasks.filter((t) => {
+    return byCompany.filter((t) => {
       if (needle) {
         const hay = `${t.actionItem} ${t.code} ${t.companyName} ${t.accountableName ?? ""} ${t.assignees.join(" ")}`.toLowerCase();
         if (!hay.includes(needle)) return false;
@@ -124,7 +151,12 @@ export function PortalTasksCommand({
       if (filter === "done") return t.isDone;
       return true;
     });
-  }, [tasks, q, filter]);
+  }, [byCompany, q, filter]);
+
+  const companyFilterOptions: FluidOption[] = [
+    { value: "all", label: "All companies" },
+    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ];
 
   const groups = useMemo(() => {
     const overdue = filtered.filter((t) => t.overdue && !t.isDone);
@@ -153,14 +185,25 @@ export function PortalTasksCommand({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2.5 rounded-2xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
-        <Search size={16} className="shrink-0 text-fg-subtle" />
-        <CaretInput
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search tasks, people, companies…"
-          className="py-3 text-sm"
-        />
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <div className="flex flex-1 items-center gap-2.5 rounded-2xl bg-bg-elev px-3 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
+          <Search size={16} className="shrink-0 text-fg-subtle" />
+          <CaretInput
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search tasks, people, companies…"
+            className="py-3 text-sm"
+          />
+        </div>
+        {companies.length > 1 && (
+          <FluidSelect
+            value={companyFilter}
+            options={companyFilterOptions}
+            onSelect={setCompanyFilter}
+            align="right"
+            buttonClassName="w-full justify-between rounded-2xl bg-bg-elev px-3.5 py-3 text-sm ring-1 ring-border sm:w-auto sm:min-w-[11rem]"
+          />
+        )}
       </div>
 
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
