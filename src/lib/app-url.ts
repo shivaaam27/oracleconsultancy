@@ -5,7 +5,7 @@
 //  1. NEXT_PUBLIC_APP_URL  — explicit override (set this to a custom domain if you
 //     ever point one at the app, e.g. https://app.oracle.co.tz).
 //  2. VERCEL_PROJECT_PRODUCTION_URL — Vercel's STABLE production host (e.g.
-//     cos-system.vercel.app). Best default: it doesn't change between deployments,
+//     oracleconsultancy.vercel.app). Best default: it doesn't change between deployments,
 //     unlike VERCEL_URL, and it's the public production deployment.
 //  3. VERCEL_URL — the per-deployment hostname (changes every deploy; last resort).
 //  4. A hardcoded fallback for local/dev only.

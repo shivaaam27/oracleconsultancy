@@ -6,7 +6,7 @@ below just sends content to that address. Items then appear on the **Inbox**
 page; tapping **File it** opens the Capture Wizard to turn them into a task or
 a note.
 
-- **Production endpoint:** `https://cos-system-one.vercel.app/api/inbox`
+- **Production endpoint:** `https://oracleconsultancy.vercel.app/api/inbox`
 - **Auth:** header `Authorization: Bearer <INBOX_SECRET>` (or `?token=<INBOX_SECRET>`)
 
 > ⚠️ Before any bridge works in production, `INBOX_SECRET` must be set in the
@@ -28,7 +28,7 @@ you tap Share.
    *Share Sheet Types*, keep **Text** ticked (you can add Images/Files later).
 4. Add an action: search for **Get Contents of URL** and tap it.
 5. In that action:
-   - **URL:** `https://cos-system-one.vercel.app/api/inbox`
+   - **URL:** `https://oracleconsultancy.vercel.app/api/inbox`
    - Tap **Show More** to reveal the options.
    - **Method:** `POST`
    - **Headers:** tap *Add header* →
