@@ -147,8 +147,11 @@ export function PortalTasksCommand({
     if (groupByCompany) {
       // One section per company (alphabetical); open/overdue first within each so
       // the rows that need attention sit at the top of every company block.
+      // Completed/closed tasks are hidden here (clutter) UNLESS the Done filter
+      // is on — then the director is explicitly looking at finished work.
+      const source = filter === "done" ? filtered : filtered.filter((t) => !t.isDone);
       const byCo = new Map<string, CommandTask[]>();
-      for (const t of filtered) {
+      for (const t of source) {
         const key = t.companyName || "No company";
         (byCo.get(key) ?? byCo.set(key, []).get(key)!).push(t);
       }
@@ -172,7 +175,7 @@ export function PortalTasksCommand({
       { key: "open", label: "In progress", dot: "bg-success", items: open },
       { key: "done", label: "Done", dot: "bg-fg-subtle", items: done },
     ].filter((g) => g.items.length > 0);
-  }, [filtered, groupByCompany]);
+  }, [filtered, groupByCompany, filter]);
 
   const FILTERS: Array<{ key: Filter; label: string; n?: number; danger?: boolean }> = [
     { key: "all", label: "All", n: counts.all },
