@@ -110,13 +110,24 @@ async function Board({ personName, personId }: { personName: string; personId: n
       // command-centre's owner resolution — otherwise these read "Unassigned").
       sb.from("task_assignees").select("task_id,person_id,role").in("task_id", watchIds),
     ]);
+    // Resolve the responsible person the same way the command centre does:
+    // prefer an explicit "accountable" assignee, but fall back to the FIRST
+    // assignee of any role. Web-UI assignments write task_assignees with the
+    // default role ("working") and leave owner_id null, so without this fallback
+    // every assigned task would read "Unassigned" here.
     const accountableByTask = new Map<number, number>();
+    const firstAssigneeByTask = new Map<number, number>();
     for (const r of assigneeRows ?? []) {
-      if ((r.role as string | null) === "accountable") accountableByTask.set(r.task_id as number, r.person_id as number);
+      const taskId = r.task_id as number;
+      if ((r.role as string | null) === "accountable") accountableByTask.set(taskId, r.person_id as number);
+      if (!firstAssigneeByTask.has(taskId)) firstAssigneeByTask.set(taskId, r.person_id as number);
     }
     const resolved = new Map<number, number | null>();
     for (const t of taskRows ?? []) {
-      resolved.set(t.id as number, (t.owner_id as number | null) ?? accountableByTask.get(t.id as number) ?? null);
+      resolved.set(
+        t.id as number,
+        (t.owner_id as number | null) ?? accountableByTask.get(t.id as number) ?? firstAssigneeByTask.get(t.id as number) ?? null,
+      );
     }
     const ownerIds = [...new Set([...resolved.values()].filter((x): x is number => x != null))];
     const nameById = new Map<number, string>();
