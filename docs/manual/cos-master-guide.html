@@ -91,7 +91,7 @@
 <tr><td>App</td><td>Next.js 16 (App Router), React 19, TypeScript 5 — one codebase serves admin + portal</td></tr>
 <tr><td>Data</td><td>Supabase Postgres via the pooler (port 6543); Drizzle ORM + postgres.js; <code>supabase-js</code> for newer write paths</td></tr>
 <tr><td>Styling</td><td>Tailwind v4 tokens (<code>globals.css</code>) + the Aurora component kit</td></tr>
-<tr><td>AI</td><td>Groq Cloud (<code>llama-3.1-8b-instant</code>) for language; pgvector + an embedding Edge Function for semantic search</td></tr>
+<tr><td>AI</td><td>Groq Cloud (<code>openai/gpt-oss-20b</code> / <code>openai/gpt-oss-120b</code>) for language; pgvector + an embedding Edge Function for semantic search</td></tr>
 <tr><td>Hosting</td><td>Vercel, functions pinned to the EU region to sit beside the database (kills transatlantic latency)</td></tr>
 </table>
 

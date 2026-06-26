@@ -56,7 +56,7 @@ Do not remove these unless switching away from PgBouncer transaction mode.
 ## AI
 
 - Groq Cloud OpenAI-compatible chat completions endpoint.
-- Model: `llama-3.1-8b-instant`.
+- Models: `openai/gpt-oss-20b` (fast) / `openai/gpt-oss-120b` (smart), env-overridable ladders in `src/lib/ai-models.ts`. Migrated 2026-06 from `llama-3.1-8b-instant` + `llama-3.3-70b-versatile` (Groq deprecated both; shutdown 2026-08-16). Vision still `meta-llama/llama-4-scout-17b-16e-instruct` (shutdown 2026-07-17, replacement TBC).
 - `GROQ_API_KEY` unlocks AI features.
 - `getGroqKey()` applies the Settings AI master switch.
 - AI surfaces include polish, draft email, digest narrative, Ask COS, AI commands, company summaries, Meeting Workspace intelligence, and shared voice dictation polish.

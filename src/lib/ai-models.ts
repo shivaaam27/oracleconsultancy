@@ -24,20 +24,24 @@ function ladder(envName: string, defaults: string[]): string[] {
 }
 
 // Fast: default chat / extraction. Override with GROQ_FAST_MODELS (comma-sep).
+// Migrated off llama-3.1-8b-instant (Groq deprecated it 2026-06-17, shutdown
+// 2026-08-16) to Groq's recommended replacement openai/gpt-oss-20b. The 120B
+// model backs it up; the old llama models stay LAST as a stop-gap until they're
+// switched off (then the ladder self-heals straight past them).
 export const GROQ_FAST_MODELS: string[] = ladder("GROQ_FAST_MODELS", [
-  "llama-3.1-8b-instant",
-  // Sensible same-tier stand-in if the instant model is retired. The 70B model
-  // also answers the fast prompts (slower, pricier) — better than a hard failure.
-  "llama-3.3-70b-versatile",
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-120b",
+  "llama-3.1-8b-instant", // deprecated — shuts down 2026-08-16, kept as last resort
 ]);
 export const GROQ_FAST = GROQ_FAST_MODELS[0]; // primary; existing imports keep working
 
 // Smart: higher-quality dictation polish / minutes. Override with GROQ_SMART_MODELS.
+// Migrated off llama-3.3-70b-versatile (also deprecated 2026-06-17, shutdown
+// 2026-08-16) to openai/gpt-oss-120b; the 20B model is a lighter stand-in.
 export const GROQ_SMART_MODELS: string[] = ladder("GROQ_SMART_MODELS", [
-  "llama-3.3-70b-versatile",
-  // If the 70B model is retired, the instant model still produces usable prose —
-  // a graceful degrade beats no answer.
-  "llama-3.1-8b-instant",
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "llama-3.3-70b-versatile", // deprecated — shuts down 2026-08-16, kept as last resort
 ]);
 export const GROQ_SMART = GROQ_SMART_MODELS[0]; // primary; existing imports keep working
 
@@ -47,6 +51,10 @@ export const GROQ_SMART = GROQ_SMART_MODELS[0]; // primary; existing imports kee
 // model in order and fall through when one is decommissioned. If Scout retires,
 // set GROQ_VISION_MODELS in the environment (comma-separated, best first) and the
 // whole app follows — no code change / redeploy of source needed.
+// ⚠️ scout itself is now deprecated (shutdown 2026-07-17). A vision-capable Groq
+// replacement still needs confirming (Groq's stated replacements are text-only),
+// so it's left as primary for now — document reading falls back to "rules" if it
+// goes. When confirmed, prepend the new model here or via GROQ_VISION_MODELS.
 export const GROQ_VISION_MODELS: string[] = ladder("GROQ_VISION_MODELS", [
   "meta-llama/llama-4-scout-17b-16e-instruct",
 ]);

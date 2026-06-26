@@ -33,7 +33,7 @@ The system replaces an Excel workbook with:
 - Drizzle ORM 0.45 plus postgres.js
 - Supabase Postgres through the pooler on port `6543`
 - Tailwind v4 tokens from `globals.css`
-- Groq Cloud `llama-3.1-8b-instant`
+- Groq Cloud `openai/gpt-oss-20b` (fast) / `openai/gpt-oss-120b` (smart) — migrated from `llama-3.1-8b-instant` + `llama-3.3-70b-versatile`, which Groq deprecated 2026-06-17 (shutdown 2026-08-16). Models are env-overridable ladders in `src/lib/ai-models.ts`.
 - next-themes, framer-motion, lucide-react, cmdk, Radix primitives
 
 ## Critical Config
@@ -298,9 +298,13 @@ auto without explicit opt-in**).
 - Use `getGroqKey()` so the AI master switch works. **Precedence (Jun 2026):** in-app Settings key
   (`groqApiKey`) → `GROQ_API_KEY` env → (`aiEnabled` + spend cap). The owner can rotate the key
   in-app (Settings → AI key) without a redeploy; it's stored in the shared settings table so prod
-  picks it up too. `GROQ_FAST`/`GROQ_SMART` have env ladders (`GROQ_FAST_MODELS`/`GROQ_SMART_MODELS`);
-  text calls fall through a decommissioned model like the vision ladder. Provider-fallback beyond
-  Groq is a scaffold only.
+  picks it up too. `GROQ_FAST` (`openai/gpt-oss-20b`) / `GROQ_SMART` (`openai/gpt-oss-120b`) have env
+  ladders (`GROQ_FAST_MODELS`/`GROQ_SMART_MODELS`); text calls fall through a decommissioned model like
+  the vision ladder. **Model migration (Jun 2026):** Groq deprecated `llama-3.1-8b-instant` +
+  `llama-3.3-70b-versatile` (shutdown 2026-08-16) → moved to the `openai/gpt-oss-*` models; the old
+  llama names remain as last-resort ladder entries until shutdown. Vision (`GROQ_VISION` =
+  `meta-llama/llama-4-scout-17b-16e-instruct`) also shuts down 2026-07-17 — replacement still to be
+  confirmed; OCR falls back to "rules" meanwhile. Provider-fallback beyond Groq is a scaffold only.
 - AI-off must degrade gracefully unless the endpoint explicitly documents 503.
 - Preserve `source` discriminators where routes/components rely on them.
 - British English in prompts.

@@ -33,7 +33,7 @@ The system replaces an Excel workbook with:
 - Drizzle ORM 0.45 plus postgres.js
 - Supabase Postgres through the pooler on port `6543`
 - Tailwind v4 tokens from `globals.css`
-- Groq Cloud `llama-3.1-8b-instant`
+- Groq Cloud `openai/gpt-oss-20b` (fast) / `openai/gpt-oss-120b` (smart) — migrated from `llama-3.1-8b-instant` + `llama-3.3-70b-versatile`, which Groq deprecated 2026-06-17 (shutdown 2026-08-16). Models are env-overridable ladders in `src/lib/ai-models.ts`.
 - next-themes, framer-motion, lucide-react, cmdk, Radix primitives
 
 ## Critical Config
