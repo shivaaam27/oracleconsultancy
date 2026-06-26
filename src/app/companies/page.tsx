@@ -11,7 +11,7 @@ import { getSitesAdmin } from "@/lib/sites";
 import { getRolesAdmin } from "@/lib/roles";
 import { CompaniesHubTabs } from "@/components/companies-hub-tabs";
 import { AddCompanyCard } from "@/components/add-company-card";
-import { AlertOctagon, CheckCircle2, Clock, ChevronRight } from "lucide-react";
+import { AlertOctagon, CheckCircle2, Clock, ChevronRight, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +38,12 @@ export default async function CompaniesPage({
     id: c.id as number, name: c.name as string, accent: (c.accent_color as string | null) ?? null,
   }));
   const companies = computeCompanyKpisByMembership(rows, companyList, personCompanies);
+  // Active staff per company = anyone whose primary company OR an extra link
+  // points at it (same membership the task roll-up uses).
+  const staffByCompany = new Map<number, number>();
+  for (const cids of personCompanies.values()) {
+    for (const cid of cids) staffByCompany.set(cid, (staffByCompany.get(cid) ?? 0) + 1);
+  }
   // Portfolio totals are DISTINCT (a shared task counts once) — never the sum of
   // the per-company cards, which double-count multi-company work.
   const g = computeGlobalKpis(rows);
@@ -95,7 +101,11 @@ export default async function CompaniesPage({
                 </div>
 
                 {/* Mini stat strip */}
-                <div className="relative grid grid-cols-3 gap-2 mt-3.5 pt-3.5 border-t border-border/60 text-xs">
+                <div className="relative grid grid-cols-4 gap-2 mt-3.5 pt-3.5 border-t border-border/60 text-xs">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-fg-subtle inline-flex items-center gap-1"><Users size={11} /> Staff</span>
+                    <span className="font-semibold tabular text-sm">{staffByCompany.get(c.id) ?? 0}</span>
+                  </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-fg-subtle inline-flex items-center gap-1"><Clock size={11} /> Open</span>
                     <span className="font-semibold tabular text-sm">{c.open}</span>
