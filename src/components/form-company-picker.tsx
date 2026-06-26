@@ -4,10 +4,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 /**
  * Print-hidden picker that chooses which company brands the Staff Data
- * Collection Form (`/people/form`). Selecting a company sets `?company=<id>`
- * (the header + Employment "Company" box then show that company instead of the
+ * Collection Form (`/people/form`). Selecting a company sets `?co=<id>` (the
+ * header + Employment "Company" box then show that company instead of the
  * parent Oracle brand). The current person/deadline/missing params are kept.
  * "Generic (Oracle)" clears the override.
+ *
+ * NB: the param is `co`, NOT `company` — `?company=<id>` is a global deep-link
+ * that opens the company drawer overlay (see company-drawer.tsx), which would
+ * cover the form.
  */
 export function FormCompanyPicker({
   companies,
@@ -21,8 +25,8 @@ export function FormCompanyPicker({
 
   function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const params = new URLSearchParams(searchParams.toString());
-    if (e.target.value) params.set("company", e.target.value);
-    else params.delete("company");
+    if (e.target.value) params.set("co", e.target.value);
+    else params.delete("co");
     router.push(`/people/form?${params.toString()}`);
   }
 

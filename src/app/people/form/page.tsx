@@ -21,13 +21,14 @@ const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
  *   ?deadline=...  show a submission deadline
  * Outsider person-type hides the employment + payroll sections automatically.
  */
-export default async function StaffDataFormPage({ searchParams }: { searchParams: Promise<{ person?: string; deadline?: string; missing?: string; company?: string }> }) {
+export default async function StaffDataFormPage({ searchParams }: { searchParams: Promise<{ person?: string; deadline?: string; missing?: string; co?: string }> }) {
   const sp = await searchParams;
   const personId = sp.person && /^\d+$/.test(sp.person) ? Number(sp.person) : null;
   const missingOnly = sp.missing === "1";
   // Explicit company override from the picker — brands a blank form for one of
   // the portfolio companies instead of falling back to the parent Oracle brand.
-  const pickedCompanyId = sp.company && /^\d+$/.test(sp.company) ? Number(sp.company) : null;
+  // NB: `co`, not `company` — `?company=` opens the global company drawer overlay.
+  const pickedCompanyId = sp.co && /^\d+$/.test(sp.co) ? Number(sp.co) : null;
 
   // Companies for the picker (print-hidden), ordered by their task-code prefix.
   // Each carries its FULL/registered name so the form prints the proper name.
