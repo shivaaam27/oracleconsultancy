@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson, isGroupWide } from "@/lib/portal-auth";
+import { getPortalPerson, isGroupWide, myCompanyIds } from "@/lib/portal-auth";
+import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
@@ -15,8 +16,11 @@ const isOverdueFlag = (f: string) => f === "overdue" || f === "escalate-now";
 /** Directory — a READ-ONLY contact book: a searchable list of active people with
  *  quick call/WhatsApp/email links, plus a list of companies. Simpler than the
  *  admin /people. Group-wide roles (director/HR) see the whole portfolio; managers
- *  AND staff are scoped to their own company only — for staff this is a colleague
- *  contact book (call/WhatsApp/email; no profile links, those page-guard them out).
+ *  AND staff are scoped to ALL the companies THEY belong to (a person may work for
+ *  more than one — primary company ∪ person_companies) — for staff this is a
+ *  colleague contact book (call/WhatsApp/email; no profile links, those page-guard
+ *  them out). A multi-company colleague appears in the directory of EVERY company
+ *  they work in, not just their primary one.
  *
  *  Deliberately omits pay, national IDs, passports and emergency contacts — those
  *  stay admin-only. Each row links to the existing per-person / per-company portal
@@ -26,22 +30,44 @@ export default async function PortalDirectoryPage() {
   if (!me) redirect("/portal/login");
 
   const groupWide = isGroupWide(me.portalRole);
-  // Non-group-wide viewers (managers/staff) are scoped to their own company. An
-  // unscoped person (no company on file) must NOT fall through to group-wide data,
-  // so we deliberately show them an empty set rather than the whole portfolio.
-  const scopedUnscoped = !groupWide && me.companyId == null;
+  // Non-group-wide viewers (managers/staff) are scoped to ALL the companies THEY
+  // belong to (a person may work for more than one). An unscoped person (no
+  // company at all) must NOT fall through to group-wide data, so we deliberately
+  // show them an empty set rather than the whole portfolio.
+  const cids = groupWide ? [] : await myCompanyIds(me);
+  const scopedUnscoped = !groupWide && cids.length === 0;
 
-  // Active people, ordered by name. Managers/staff see only their own company.
+  // For non-group-wide viewers we must surface multi-company colleagues too: a
+  // person whose primary company differs but who is linked to one of MY companies
+  // via person_companies should still appear. getPersonCompaniesMap maps each
+  // active person -> the full set of companies they belong to, so we keep anyone
+  // whose company set intersects mine.
+  const personCompaniesMap = groupWide ? null : await getPersonCompaniesMap();
+  let visiblePersonIds: number[] | null = null;
+  if (!groupWide) {
+    const cidSet = new Set(cids);
+    visiblePersonIds = scopedUnscoped
+      ? []
+      : [...personCompaniesMap!.entries()]
+          .filter(([, theirCids]) => theirCids.some((c) => cidSet.has(c)))
+          .map(([pid]) => pid);
+  }
+
+  // Active people, ordered by name. Managers/staff see only people who share one
+  // of their companies (the id list above); director/HR see everyone.
   let peopleQuery = sb
     .from("people")
     .select("id,name,role,email,phone,whatsapp,company_id,companies(name)")
     .eq("active", true)
     .order("name");
-  if (!groupWide && me.companyId != null) peopleQuery = peopleQuery.eq("company_id", me.companyId);
+  if (!groupWide) {
+    // .in([]) returns nothing — exactly what an unscoped viewer should see.
+    peopleQuery = peopleQuery.in("id", visiblePersonIds!);
+  }
 
-  // Companies, ordered by name. Managers/staff see only their own.
+  // Companies, ordered by name. Managers/staff see only their own companies.
   let companyQuery = sb.from("companies").select("id,name").order("name");
-  if (!groupWide && me.companyId != null) companyQuery = companyQuery.eq("id", me.companyId);
+  if (!groupWide) companyQuery = companyQuery.in("id", cids);
 
   const [{ data: allPeopleRaw }, { data: allCompaniesRaw }, tasksAll] = await Promise.all([
     peopleQuery,
@@ -49,20 +75,26 @@ export default async function PortalDirectoryPage() {
     getAllTasks(),
   ]);
 
-  // Guard: an unscoped non-group-wide viewer sees nothing (never the whole group).
-  const allPeople = scopedUnscoped ? [] : allPeopleRaw;
-  const allCompanies = scopedUnscoped ? [] : allCompaniesRaw;
+  const allPeople = allPeopleRaw;
+  const allCompanies = allCompaniesRaw;
+
+  // The full company set per person (primary ∪ person_companies) — drives both the
+  // companyIds handed to each row (so a multi-company colleague filters under EVERY
+  // company they work in, not just their primary) and the multi-company headcount.
+  const companiesMap = personCompaniesMap ?? (await getPersonCompaniesMap());
 
   const people: DirectoryPerson[] = (allPeople ?? []).map((p) => {
     const company = (Array.isArray(p.companies) ? p.companies[0] : p.companies) as { name: string } | null;
     const phone = (p.phone as string | null) ?? null;
     const wa = ((p.whatsapp as string | null) || phone) ?? null;
     const email = ((p.email as string | null) ?? "").trim() || null;
+    const primary = (p.company_id as number | null) ?? null;
     return {
       id: p.id as number,
       name: p.name as string,
       role: (p.role as string | null) ?? null,
-      companyId: (p.company_id as number | null) ?? null,
+      companyId: primary,
+      companyIds: companiesMap.get(p.id as number) ?? (primary != null ? [primary] : []),
       company: company?.name ?? null,
       callHref: phone ? `tel:${phone}` : null,
       waHref: waLink(wa, ""),
@@ -79,10 +111,12 @@ export default async function PortalDirectoryPage() {
     if (isOverdueFlag(t.flag)) overdueByCompany.set(t.companyId, (overdueByCompany.get(t.companyId) ?? 0) + 1);
   }
 
-  // Per-company headcount, from the (already-scoped) people list.
+  // Per-company headcount, from the (already-scoped) people list. Multi-company
+  // aware: a person who belongs to several companies counts toward EACH of them,
+  // reusing the companyIds already resolved per row above.
   const headcountByCompany = new Map<number, number>();
   for (const p of people) {
-    if (p.companyId != null) headcountByCompany.set(p.companyId, (headcountByCompany.get(p.companyId) ?? 0) + 1);
+    for (const cid of p.companyIds ?? []) headcountByCompany.set(cid, (headcountByCompany.get(cid) ?? 0) + 1);
   }
 
   const companies: DirectoryCompany[] = (allCompanies ?? []).map((c) => ({

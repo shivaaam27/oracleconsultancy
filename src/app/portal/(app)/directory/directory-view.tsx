@@ -14,6 +14,9 @@ export type DirectoryPerson = {
   name: string;
   role: string | null;
   companyId: number | null;
+  /** Every company this person belongs to (primary ∪ person_companies). A
+   *  multi-company colleague filters under each one, not just their primary. */
+  companyIds?: number[];
   company: string | null;
   callHref: string | null;
   waHref: string | null;
@@ -54,7 +57,12 @@ export function DirectoryView({
 
   const shown = useMemo(() => {
     return people.filter((p) => {
-      if (companyId !== "all" && p.companyId !== companyId) return false;
+      if (companyId !== "all") {
+        // Match on the person's full company set (a multi-company colleague shows
+        // under each of their companies), falling back to the primary company.
+        const cids = p.companyIds ?? (p.companyId != null ? [p.companyId] : []);
+        if (!cids.includes(companyId)) return false;
+      }
       if (!ql) return true;
       return `${p.name} ${p.role ?? ""} ${p.company ?? ""}`.toLowerCase().includes(ql);
     });

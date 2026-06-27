@@ -4,9 +4,11 @@ import { LogOut } from "lucide-react";
 import { PortalPill } from "@/components/portal-pill";
 import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
+import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { portalCapabilities } from "@/lib/portal-capabilities";
 import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
 import { audienceForRole, unseenToursFor } from "@/lib/tours";
 import { TourRunner } from "@/components/tour-guide";
@@ -59,6 +61,7 @@ export default async function PortalLayout({ children }: { children: React.React
             can't be mis-tapped. */}
         <div className="flex min-w-0 items-center gap-2.5">
           <NotificationBell to="/portal/task" align="left" />
+          <PortalSearchTrigger />
           <div className="min-w-0">
             <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
               Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
@@ -77,8 +80,11 @@ export default async function PortalLayout({ children }: { children: React.React
         </form>
       </header>
       <PortalInstallPrompt />
+      {/* Scoped portal search overlay — mounted once so it persists across
+          navigation. Opens on ⌘K / Ctrl+K / Ctrl+Space or the header trigger. */}
+      <PortalSearch />
       <PageTransition>{children}</PageTransition>
-      <PortalPill canCreate={me.portalRole !== "staff"} role={me.portalRole} />
+      <PortalPill canCreate={portalCapabilities(me.portalRole).canCreate} role={me.portalRole} />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
       <TourRunner tours={tours} onSeen={portalMarkTourSeen} fetchReplay={portalGetTour} />
     </div>

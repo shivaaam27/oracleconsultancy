@@ -242,6 +242,27 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   );
 });
 
+/** Every company id this portal person belongs to: their primary
+ *  people.company_id (if any) UNION every person_companies association row.
+ *  A person set up in the command centre to work for more than one company
+ *  belongs to ALL of them, so every portal scope (colleagues, companies,
+ *  tasks) must span this set rather than the single primary company.
+ *  Returns [] when they have no company at all. This is a small, cheap query
+ *  for ONE person — do not pull the whole getPersonCompaniesMap here. */
+export async function myCompanyIds(person: PortalPerson): Promise<number[]> {
+  const { data } = await sb
+    .from("person_companies")
+    .select("company_id")
+    .eq("person_id", person.id);
+  const set = new Set<number>();
+  if (person.companyId != null) set.add(person.companyId);
+  for (const r of data ?? []) {
+    const cid = r.company_id as number | null;
+    if (cid != null) set.add(cid);
+  }
+  return [...set];
+}
+
 /** Direct reports of a manager: primary line (people.manager_id) plus any
  *  dotted lines (reporting_lines). Active people only. */
 export async function directReportIds(managerId: number): Promise<number[]> {
@@ -257,20 +278,22 @@ export async function directReportIds(managerId: number): Promise<number[]> {
   );
 }
 
-/** A manager's team: everyone in their own company (active) PLUS any direct
+/** A manager's team: everyone in ANY of their companies (active) PLUS any direct
  *  report who sits in another company (dotted/primary line), EXCLUDING the
  *  manager themselves. This is the company-wide scope a manager now manages —
- *  create/assign, open colleagues, approve leave. If the manager has no company
- *  set, this is just their direct reports. Only ever called for managers. */
+ *  create/assign, open colleagues, approve leave. A multi-company manager spans
+ *  every company they belong to. If the manager has no company at all, this is
+ *  just their direct reports. Only ever called for managers. */
 export async function managerTeamIds(person: PortalPerson): Promise<number[]> {
   const reports = await directReportIds(person.id);
-  if (person.companyId == null) {
+  const cids = await myCompanyIds(person);
+  if (cids.length === 0) {
     return reports.filter((id) => id !== person.id);
   }
   const { data: colleagues } = await sb
     .from("people")
     .select("id")
-    .eq("company_id", person.companyId)
+    .in("company_id", cids)
     .eq("active", true);
   return Array.from(
     new Set([...(colleagues ?? []).map((r) => r.id as number), ...reports])
@@ -295,15 +318,16 @@ export async function personCanSeePerson(viewer: PortalPerson, targetId: number)
 }
 
 /** May this portal person open a company's (read-only, scoped) detail page?
- *  Director/HR: any company. Manager/Staff: only their own company. */
+ *  Director/HR: any company. Manager/Staff: any of THEIR companies (a person may
+ *  belong to more than one — primary company ∪ person_companies). */
 export async function personCanSeeCompany(viewer: PortalPerson, companyId: number): Promise<boolean> {
   if (isGroupWide(viewer.portalRole)) return true;
-  return viewer.companyId === companyId;
+  return (await myCompanyIds(viewer)).includes(companyId);
 }
 
 /** Every task id this portal person may see. Staff: their own (assignee or
- *  owner). Manager: every (non-archived) task in their own company, plus their
- *  own and any direct report's tasks (reports may sit in other companies).
+ *  owner). Manager: every (non-archived) task in ANY of their companies, plus
+ *  their own and any direct report's tasks (reports may sit in other companies).
  *  Director: every (non-archived) task across the portfolio. */
 export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
   if (isGroupWide(person.portalRole)) {
@@ -312,10 +336,11 @@ export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
   }
   const ids = [person.id];
   if (person.portalRole === "manager") ids.push(...(await directReportIds(person.id)));
-  // Managers also see everything in their own company.
+  // Managers also see everything in any of their companies (multi-company aware).
+  const managerCids = person.portalRole === "manager" ? await myCompanyIds(person) : [];
   const companyTasks =
-    person.portalRole === "manager" && person.companyId != null
-      ? sb.from("tasks").select("id").eq("company_id", person.companyId).eq("archived", false)
+    managerCids.length > 0
+      ? sb.from("tasks").select("id").in("company_id", managerCids).eq("archived", false)
       : Promise.resolve({ data: [] as { id: number }[] });
   const [{ data: assigned }, { data: owned }, { data: company }] = await Promise.all([
     sb.from("task_assignees").select("task_id").in("person_id", ids),
@@ -343,10 +368,10 @@ export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
 }
 
 /** May this portal person see/touch this task? Staff: on the (non-archived)
- *  task. Manager: any non-archived task in their own company, or one a direct
- *  report is on. Director: any non-archived task (they are group-wide operators
- *  — matches visibleTaskIds). Archived (soft-retired) tasks are never visible to
- *  any portal role (ACTTASKS-01). */
+ *  task. Manager: any non-archived task in ANY of their companies, or one a
+ *  direct report is on. Director: any non-archived task (they are group-wide
+ *  operators — matches visibleTaskIds). Archived (soft-retired) tasks are never
+ *  visible to any portal role (ACTTASKS-01). */
 export async function personCanSeeTask(person: PortalPerson, taskId: number): Promise<boolean> {
   if (isGroupWide(person.portalRole)) {
     const { data } = await sb.from("tasks").select("archived").eq("id", taskId).maybeSingle();
@@ -361,8 +386,9 @@ export async function personCanSeeTask(person: PortalPerson, taskId: number): Pr
   if (!task || task.archived === true) return false;
   if (await personOnTask(person.id, taskId)) return true;
   if (person.portalRole !== "manager") return false;
-  // Any non-archived task in the manager's own company.
-  if (person.companyId != null && (task.company_id as number | null) === person.companyId) return true;
+  // Any non-archived task in any of the manager's companies (multi-company aware).
+  const cids = await myCompanyIds(person);
+  if (cids.includes((task.company_id as number | null) ?? -1)) return true;
   // Or a task a direct report owns / is assigned to (reports may be cross-company).
   const reports = await directReportIds(person.id);
   if (reports.length === 0) return false;

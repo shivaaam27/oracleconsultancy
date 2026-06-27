@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Send, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
 
 /* The staff portal's own bottom-floating pill. Same liquid-glass language
@@ -92,14 +93,14 @@ function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce,
 
 export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; role?: string }) {
   const pathname = usePathname() || "/portal";
-  const isDirector = role === "director";
-  // Managers, HR and directors get a dedicated filterable Tasks list (group-wide
-  // for HR/directors, company-wide for managers). Staff manage few — the Home
-  // page lists those — so they don't need the tab.
-  const showTasks = role === "manager" || role === "hr" || role === "director";
-  // Outbox (drafted messages/announcements) is a management surface — same
-  // audience as the Tasks tab. Staff never see it.
-  const showOutbox = showTasks;
+  // Role capabilities come from the single registry (src/lib/portal-capabilities.ts)
+  // so the same rules drive every surface. Directors are board-first; managers,
+  // HR and directors get the Tasks + Outbox tabs (group-wide for HR/directors,
+  // company-wide for managers); staff get neither.
+  const caps = portalCapabilities(role);
+  const isDirector = caps.isDirector;
+  const showTasks = caps.tabs.tasks;
+  const showOutbox = caps.tabs.outbox;
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");
   const onDirectory = pathname.startsWith("/portal/directory");
