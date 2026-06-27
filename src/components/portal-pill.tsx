@@ -62,7 +62,17 @@ function useCondenseOnScroll(enabled: boolean): boolean {
 
 function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce, tourTag }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean; tourTag?: string }) {
   return (
-    <Link href={href} aria-label={label} title={label} data-tour={tourTag} className="relative shrink-0 outline-none">
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      data-tour={tourTag}
+      className={cn(
+        "relative inline-flex items-center justify-center gap-1.5 h-11 md:h-12 rounded-full shrink-0 transition-colors outline-none",
+        active ? "text-accent px-3 md:px-3.5" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60",
+        showLabel ? (active ? "" : "px-3 md:px-3.5") : "w-11 md:w-12"
+      )}
+    >
       {active && (
         reduce ? (
           <span className="absolute inset-0 rounded-full bg-accent-soft" />
@@ -74,18 +84,8 @@ function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce,
           />
         )
       )}
-      <motion.span
-        layout={!reduce}
-        transition={{ type: "spring", stiffness: 500, damping: 36 }}
-        className={cn(
-          "relative inline-flex h-10 items-center justify-center gap-1.5 rounded-full transition-colors",
-          active ? "text-accent" : "text-fg-muted hover:text-fg hover:bg-bg-muted/60",
-          showLabel ? "px-3.5" : "w-10"
-        )}
-      >
-        <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
-        {showLabel && <span className="relative whitespace-nowrap text-[13px] font-medium">{label}</span>}
-      </motion.span>
+      <Icon size={18} strokeWidth={active ? 2.4 : 2} className="relative shrink-0" />
+      {showLabel && <span className="relative whitespace-nowrap text-[13px] font-medium">{label}</span>}
     </Link>
   );
 }
@@ -139,7 +139,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
         initial={reduce ? false : { y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 30 }}
-        className="pointer-events-auto max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 px-1 sm:px-2 h-14"
+        className="pointer-events-auto max-w-[calc(100vw-1.5rem)] glass elevated rounded-full shadow-pill flex items-center gap-0 md:gap-1 px-1 md:px-2.5 h-[3.25rem] md:h-[4.25rem] md:[&_svg]:w-[22px] md:[&_svg]:h-[22px]"
       >
         {/* Tabs scroll horizontally only if they truly can't fit; the controls
             below stay anchored so the bell + theme are always reachable. */}
@@ -164,13 +164,13 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
             href="/portal/task/new"
             aria-label="New task"
             title="New task"
-            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-fg text-bg shrink-0 hover:opacity-90 transition-opacity mx-0.5"
+            className="shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12 rounded-full text-fg hover:bg-bg-muted/60 transition-colors"
           >
-            <Plus size={19} strokeWidth={2.4} />
+            <Plus size={19} />
           </Link>
         )}
-        <span className="mx-1 h-7 w-px bg-border shrink-0" />
-        <div className="px-1 shrink-0">
+        <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
+        <div className="shrink-0 flex items-center px-1">
           <ThemeToggle />
         </div>
       </motion.div>

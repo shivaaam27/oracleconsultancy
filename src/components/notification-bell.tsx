@@ -10,6 +10,7 @@ import {
   CornerUpLeft,
   Megaphone,
   MessageCircle,
+  MessageSquarePlus,
   MessageSquareText,
   Pin,
   Trash2,
@@ -22,6 +23,7 @@ type NotifKind =
   | "reply"
   | "pinned"
   | "assigned"
+  | "update"
   | "chat"
   | "chat_mention"
   | "leave"
@@ -46,6 +48,7 @@ const ICON: Record<NotifKind, typeof Bell> = {
   reply: CornerUpLeft,
   pinned: Pin,
   assigned: UserPlus,
+  update: MessageSquarePlus,
   chat: MessageCircle,
   chat_mention: AtSign,
   leave: CalendarClock,
@@ -57,7 +60,7 @@ const ICON: Record<NotifKind, typeof Bell> = {
  *  Order here is the display order. */
 const CATEGORIES: { key: string; label: string; kinds: NotifKind[]; icon: typeof Bell }[] = [
   { key: "messages", label: "Messages", kinds: ["chat", "chat_mention", "mention", "reply"], icon: MessageCircle },
-  { key: "tasks", label: "Tasks", kinds: ["assigned", "pinned"], icon: UserPlus },
+  { key: "tasks", label: "Tasks", kinds: ["assigned", "pinned", "update"], icon: UserPlus },
   { key: "requests", label: "Requests & leave", kinds: ["request", "leave"], icon: MessageSquareText },
   { key: "announcements", label: "Announcements", kinds: ["announcement"], icon: Megaphone },
 ];

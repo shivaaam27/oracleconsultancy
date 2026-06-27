@@ -6,6 +6,7 @@ import { sb } from "@/db/supabase";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { getGivenName } from "@/lib/names";
 import { getBrief } from "@/lib/director-brief";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { listRequestsForPortal } from "@/lib/requests";
@@ -38,7 +39,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
         </Reveal>
       )}
 
-      <Suspense fallback={<BoardSkeleton name={me.name.split(" ")[0]} />}>
+      <Suspense fallback={<BoardSkeleton name={getGivenName(me.name)} />}>
         <Board personName={me.name} personId={me.id} />
       </Suspense>
 
@@ -215,7 +216,7 @@ async function Board({ personName, personId }: { personName: string; personId: n
   return (
     <Reveal delay={0}>
       <DirectorBoardClient
-        firstName={personName.split(" ")[0]}
+        firstName={getGivenName(personName)}
         initials={initials}
         liveStamp={liveStamp}
         needsYou={brief.directorActions.length || Math.min(watch.length, 12)}

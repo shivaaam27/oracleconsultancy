@@ -39,7 +39,11 @@ function catIcon(cat: string | null): LucideIcon {
   return Inbox;
 }
 
-type Tab = "to_me" | "raised" | "all";
+type Tab = "waiting" | "to_me" | "raised" | "all";
+
+/** Management roles get "Waiting on me" as the default landing tab. */
+type ViewerRole = "staff" | "manager" | "hr" | "director";
+const MANAGEMENT_ROLES: ViewerRole[] = ["manager", "hr", "director"];
 
 /** Shared request list. Portal passes meId (enables To-me / I-raised tabs);
  *  the owner inbox passes scope="admin" (status filter + "awaiting you"). */
@@ -48,22 +52,29 @@ export function RequestList({
   base,
   meId,
   scope = "portal",
+  viewerRole = "staff",
 }: {
   rows: RequestRow[];
   base: string;
   meId?: number;
   scope?: "portal" | "admin";
+  viewerRole?: ViewerRole;
 }) {
-  const [tab, setTab] = useState<Tab>(scope === "admin" ? "all" : "to_me");
+  const isManagement = scope === "portal" && MANAGEMENT_ROLES.includes(viewerRole);
+  const [tab, setTab] = useState<Tab>(scope === "admin" ? "all" : isManagement ? "waiting" : "to_me");
   const [openOnly, setOpenOnly] = useState(false);
   const [q, setQ] = useState("");
 
   const isToMe = (r: RequestRow) =>
     scope === "admin" ? r.recipients.some((p) => p.isOwner) : r.recipients.some((p) => p.id === meId);
+  // "Waiting on me" — addressed to me, raised by someone else, still open.
+  const isWaitingOnMe = (r: RequestRow) =>
+    r.recipients.some((p) => p.id === meId) && r.requesterId !== meId && isRequestOpen(r.status);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return rows.filter((r) => {
+      if (tab === "waiting" && !isWaitingOnMe(r)) return false;
       if (tab === "to_me" && !isToMe(r)) return false;
       if (tab === "raised" && r.requesterId !== meId) return false;
       if (openOnly && !isRequestOpen(r.status)) return false;
@@ -77,6 +88,7 @@ export function RequestList({
   }, [rows, q, tab, openOnly, scope, meId]);
 
   const toMeOpen = useMemo(() => rows.filter((r) => isToMe(r) && isRequestOpen(r.status)).length, [rows, scope, meId]);
+  const waitingCount = useMemo(() => rows.filter(isWaitingOnMe).length, [rows, meId]);
 
   const tabs: { id: Tab; label: string; badge?: number }[] =
     scope === "admin"
@@ -84,11 +96,17 @@ export function RequestList({
           { id: "all", label: "All" },
           { id: "to_me", label: "Awaiting you", badge: toMeOpen },
         ]
-      : [
-          { id: "to_me", label: "To me", badge: toMeOpen },
-          { id: "raised", label: "I raised" },
-          { id: "all", label: "All" },
-        ];
+      : isManagement
+        ? [
+            { id: "waiting", label: "Waiting on me", badge: waitingCount },
+            { id: "raised", label: "I raised" },
+            { id: "all", label: "All" },
+          ]
+        : [
+            { id: "to_me", label: "To me", badge: toMeOpen },
+            { id: "raised", label: "I raised" },
+            { id: "all", label: "All" },
+          ];
   const activeIdx = Math.max(0, tabs.findIndex((t) => t.id === tab));
 
   return (

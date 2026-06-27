@@ -89,11 +89,11 @@ export function Hero({
       </div>
       <div className="relative flex flex-col gap-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight leading-tight">{title}</h1>
+          <div className="min-w-0 lg:flex-1">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight leading-tight break-words">{title}</h1>
             {subtitle && <p className="mt-1 text-sm text-fg-muted">{subtitle}</p>}
           </div>
-          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+          {actions && <div className="flex flex-wrap items-center gap-2 lg:shrink-0">{actions}</div>}
         </div>
         {children}
       </div>

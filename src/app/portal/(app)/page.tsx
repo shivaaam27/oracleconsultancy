@@ -10,6 +10,8 @@ import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team
 import { PortalHomeTasks } from "@/components/portal-home-tasks";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, managerTeamIds } from "@/lib/portal-auth";
+import { getGivenName } from "@/lib/names";
+import { listRequestsForPortal } from "@/lib/requests";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { Megaphone } from "lucide-react";
@@ -195,6 +197,16 @@ export default async function PortalHome() {
     });
   }
 
+  // Managers: requests addressed to them that are still open — a small glance
+  // mirroring the director board's approvals inbox (raised-by-me excluded).
+  let pendingDecisions = 0;
+  if (me.portalRole === "manager") {
+    try {
+      const reqRows = await listRequestsForPortal(me.id);
+      pendingDecisions = reqRows.filter((r) => r.requesterId !== me.id && r.status === "open").length;
+    } catch { /* leave 0 — re-populates next refresh */ }
+  }
+
   const open = tasks.filter((t) => !OPEN_EXCLUDED.includes(t.status));
   const done = tasks.filter((t) => OPEN_EXCLUDED.includes(t.status));
   const myOpen = open.filter((t) => t.mine);
@@ -236,10 +248,10 @@ export default async function PortalHome() {
   return (
     <div className="flex flex-col gap-5">
       <AutoRefresh seconds={25} />
-      <AttendanceCheckin firstName={me.name.split(" ")[0]} status={today.status} editable={today.editable} />
+      <AttendanceCheckin firstName={getGivenName(me.name)} status={today.status} editable={today.editable} />
       <Reveal delay={0}>
         <Hero
-          title={`Hello, ${me.name.split(" ")[0]}`}
+          title={`Hello, ${getGivenName(me.name)}`}
           subtitle={
             overdue.length > 0
               ? `${overdue.length} task${overdue.length === 1 ? " is" : "s are"} overdue — worth a look first.`
@@ -389,6 +401,20 @@ export default async function PortalHome() {
               Announcements
             </SectionLabel>
             <AnnouncementFeed items={announcements.slice(0, 3)} />
+          </Reveal>
+        )}
+
+        {me.portalRole === "manager" && pendingDecisions > 0 && (
+          <Reveal delay={0.078}>
+            <Link href="/portal/requests" className="block group">
+              <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
+                <div>
+                  <p className="text-sm font-medium">Pending decisions ({pendingDecisions})</p>
+                  <p className="text-xs text-fg-muted">Requests addressed to you and still open — open Requests to respond.</p>
+                </div>
+                <MessageSquareText size={18} className="shrink-0 text-accent" />
+              </Panel>
+            </Link>
           </Reveal>
         )}
 

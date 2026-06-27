@@ -8,6 +8,7 @@ import {
   Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Inbox, Video,
 } from "lucide-react";
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
+import { getGivenName } from "@/lib/names";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { SmartCaptureBar } from "@/components/smart-capture-bar";
 import { portalEditTask, portalRemindTask } from "@/app/portal/actions";
@@ -183,7 +184,7 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday }: { first: 
             </span>
             <span className="normal-case tracking-normal text-success/90">live</span>
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{greeting}, {first}</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{greeting}, {getGivenName(first)}</h1>
           <p className="mt-1.5 text-sm text-fg-muted">{liveStamp} · across 7 companies</p>
         </div>
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent ring-1 ring-accent/25">{initials}</span>

@@ -14,6 +14,7 @@ import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
 import { createEventAction, sendEventInviteAction } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
+import type { NotifKind } from "@/lib/notifications";
 import { broadcastPulse } from "@/lib/cos-pulse";
 import {
   clearSessionCookie,
@@ -133,6 +134,66 @@ export async function portalChangePassword(
   // in here — only the other devices are dropped.
   await setSessionCookie(me.id);
 
+  return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Self-service contact details. Any portal person may keep their OWN contact
+ * columns up to date from their profile — phone, WhatsApp, address and next-of-
+ * kin. Strictly self-scoped (WHERE id = me.id) and limited to these columns:
+ * pay, IDs, role and company are never touched here. Undefined fields are left
+ * as-is; only genuinely changed values are written + audited.
+ * ---------------------------------------------------------------------- */
+export async function portalStaffUpdateContact(input: {
+  phone?: string;
+  whatsapp?: string;
+  address?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) return { ok: false, error: "Please sign in again." };
+
+  // Normalise: trim, and treat an emptied field as a cleared value (null).
+  // `undefined` means "not provided" — leave that column untouched.
+  const norm = (v: string | undefined): string | null | undefined =>
+    v === undefined ? undefined : v.trim() || null;
+  const fields: Array<{ key: string; col: string; value: string | null | undefined }> = [
+    { key: "phone", col: "phone", value: norm(input.phone) },
+    { key: "whatsapp", col: "whatsapp", value: norm(input.whatsapp) },
+    { key: "address", col: "address", value: norm(input.address) },
+    { key: "emergencyContactName", col: "emergency_contact_name", value: norm(input.emergencyContactName) },
+    { key: "emergencyContactPhone", col: "emergency_contact_phone", value: norm(input.emergencyContactPhone) },
+  ].filter((f) => f.value !== undefined);
+  if (fields.length === 0) return { ok: true };
+
+  // Read the current values so we only write (and audit) what actually changed.
+  const { data: current } = await sb
+    .from("people")
+    .select("phone,whatsapp,address,emergency_contact_name,emergency_contact_phone")
+    .eq("id", me.id)
+    .maybeSingle();
+  const before = (current ?? {}) as Record<string, string | null>;
+
+  const patch: Record<string, string | null> = {};
+  const changes: { field: string; oldValue: string | null; newValue: string | null }[] = [];
+  for (const f of fields) {
+    const old = (before[f.col] ?? null) || null;
+    const next = (f.value as string | null) ?? null;
+    if (old === next) continue;
+    patch[f.col] = next;
+    changes.push({ field: f.key, oldValue: old, newValue: next });
+  }
+  if (Object.keys(patch).length === 0) return { ok: true };
+
+  const { error } = await sb.from("people").update(patch).eq("id", me.id);
+  if (error) return { ok: false, error: "Could not save your details. Try again." };
+
+  // Append-only audit (best-effort, never blocks the save).
+  const { logPersonFieldChanges } = await import("@/lib/person-audit");
+  await logPersonFieldChanges(me.id, changes, `portal:${me.name}`);
+
+  revalidatePath("/portal/profile");
   return { ok: true };
 }
 
@@ -1233,7 +1294,7 @@ export async function portalAddUpdate(formData: FormData) {
 
   const { data: t, error: tErr } = await sb
     .from("tasks")
-    .select("id,status,company_id,code")
+    .select("id,status,company_id,code,owner_id")
     .eq("id", taskId)
     .maybeSingle();
   if (tErr || !t) return;
@@ -1301,11 +1362,12 @@ export async function portalAddUpdate(formData: FormData) {
     body,
     actor: me.name,
   });
+  let replyTarget: string | null = null;
   if (parentUpdateId) {
-    const target = await recipientForCreatedBy(parentCreatedBy);
-    if (target && target !== personRecipient(me.id)) {
+    replyTarget = await recipientForCreatedBy(parentCreatedBy);
+    if (replyTarget && replyTarget !== personRecipient(me.id)) {
       await createNotification({
-        recipient: target,
+        recipient: replyTarget,
         kind: "reply",
         taskId,
         taskCode: code2,
@@ -1315,6 +1377,27 @@ export async function portalAddUpdate(formData: FormData) {
       });
     }
   }
+
+  // A plain update should reach EVERYONE involved — not just the people it
+  // @mentions or replies to. Notify the task's other assignees + its owner +
+  // the admin owner, skipping the author and anyone already pinged above
+  // (mentioned people, the reply target) so nobody is notified twice.
+  const already = new Set<string>([personRecipient(me.id), ...mentionIds.map(personRecipient)]);
+  if (replyTarget) already.add(replyTarget);
+  const involved = new Set<number>(candidates.map((p) => p.id));
+  if (t.owner_id) involved.add(t.owner_id as number);
+  const updateRecipients = [...involved].map(personRecipient).filter((r) => !already.has(r));
+  updateRecipients.push("admin");
+  await notifyMany(updateRecipients, {
+    kind: "update" as NotifKind,
+    taskId,
+    taskCode: code2,
+    title: `${me.name} updated ${code2}`,
+    // messageBody carries a "📎 file" fallback for file-only posts;
+    // createNotification clamps the body to 200 chars.
+    body: messageBody,
+    actor: me.name,
+  });
 
   const patch: Record<string, unknown> = { latest_update: messageBody, last_updated_at: now };
 

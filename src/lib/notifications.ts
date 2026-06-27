@@ -10,7 +10,7 @@ import { isQuietHoursNow, getAppSettings } from "./settings";
  * the bell in each pill.
  * ------------------------------------------------------------------ */
 
-export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "chat" | "chat_mention" | "leave" | "announcement" | "request";
+export type NotifKind = "mention" | "reply" | "pinned" | "assigned" | "update" | "chat" | "chat_mention" | "leave" | "announcement" | "request";
 
 export type Notification = {
   id: number;

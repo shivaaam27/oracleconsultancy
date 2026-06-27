@@ -93,6 +93,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
         <CommandBar />
         <CockpitHero
           greeting={greeting(now.getHours())}
+          name={settings.operatorName}
           health={health}
           healthTone={healthTone}
           healthSub={healthSub}

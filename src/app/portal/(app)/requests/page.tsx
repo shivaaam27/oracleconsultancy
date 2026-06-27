@@ -37,7 +37,7 @@ export default async function PortalRequestsPage() {
         <RequestComposer recipients={people} action={portalRaiseRequest} allowOwner categories={categories} fab />
       </Reveal>
       <Reveal delay={0.1}>
-        <RequestList rows={rows} base="/portal/requests" meId={me.id} scope="portal" />
+        <RequestList rows={rows} base="/portal/requests" meId={me.id} scope="portal" viewerRole={me.portalRole} />
       </Reveal>
     </div>
   );

@@ -28,6 +28,8 @@ import { assetsForPerson } from "@/lib/assets";
 import { staffIdFor } from "@/lib/staff-id";
 import { portalLogout } from "../../actions";
 import { BriefPdfButton } from "@/components/brief-pdf-button";
+import { Contact } from "lucide-react";
+import { PortalContactDetails, type ContactDetails } from "./portal-contact-details";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,22 @@ export default async function PortalProfile() {
     companyName = (data?.name as string | null) ?? null;
   }
   const staffId = await staffIdFor(me.id);
+
+  // The signed-in person's OWN editable contact details (pre-fill the form). Read
+  // here, scoped to me.id; the write goes through portalStaffUpdateContact, which
+  // re-scopes to the caller and only ever touches these five contact columns.
+  const { data: contactRow } = await sb
+    .from("people")
+    .select("phone,whatsapp,address,emergency_contact_name,emergency_contact_phone")
+    .eq("id", me.id)
+    .maybeSingle();
+  const contact: ContactDetails = {
+    phone: (contactRow?.phone as string | null) ?? "",
+    whatsapp: (contactRow?.whatsapp as string | null) ?? "",
+    address: (contactRow?.address as string | null) ?? "",
+    emergencyContactName: (contactRow?.emergency_contact_name as string | null) ?? "",
+    emergencyContactPhone: (contactRow?.emergency_contact_phone as string | null) ?? "",
+  };
 
   // The person's document-compliance checklist (auto-links + scores server-side).
   const checklist = await getPersonChecklist(me.id);
@@ -158,6 +176,16 @@ export default async function PortalProfile() {
           Need a detail changed? Ask your administrator — these come from your HR record.
         </p>
       </Reveal>
+
+      {!isDirector && (
+        <Reveal delay={0.065} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<Contact size={13} />}>Your contact details</SectionLabel>
+          <PortalContactDetails initial={contact} />
+          <p className="px-1 text-[11px] text-fg-subtle">
+            Keep these up to date yourself — only you can edit them, and only you see them.
+          </p>
+        </Reveal>
+      )}
 
       {!isDirector && docItems.length > 0 && (
         <Reveal delay={0.08} className="flex flex-col gap-2.5">

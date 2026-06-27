@@ -36,6 +36,7 @@ import { channelLabel } from "@/lib/outbox/links";
 import type { MorningPlanItem } from "@/lib/automation-suggestions";
 import { approveReminderAction, approveRenewalAction } from "@/app/automation/actions";
 import { Hero, Panel, SectionLabel, TrendChip, TONE, type Tone } from "@/components/surface-kit";
+import { getGivenName } from "@/lib/names";
 import { InsightPopover, InsightBody } from "@/components/insight-popover";
 import { WeatherWidget } from "@/components/weather-chip";
 import { CommandControls, type CommandControlsState } from "@/components/command-controls";
@@ -491,6 +492,7 @@ function MorningRun({ items }: { items: MorningPlanItem[] }) {
 
 export function HomeMissionControl({
   greeting,
+  name,
   dateLabel,
   command,
   pulse,
@@ -507,6 +509,7 @@ export function HomeMissionControl({
   controls,
 }: {
   greeting: string;
+  name?: string;
   dateLabel: string;
   command: CommandAction[];
   pulse: PulseMetric[];
@@ -522,6 +525,8 @@ export function HomeMissionControl({
   topTodos?: HomeTodo[];
   controls?: CommandControlsState;
 }) {
+  // Address the operator by their given name (no honorific), wrapping when set.
+  const heroTitle = name ? `${greeting}, ${getGivenName(name)}` : greeting;
   // The Morning Run tray now owns the bulk automation actions, so drop those
   // command cards here to avoid showing both the tray rows and the old button.
   const actionable = command.filter((c) => !c.automationAction);
@@ -569,7 +574,7 @@ export function HomeMissionControl({
     <div className="max-w-full space-y-4 overflow-hidden">
       {/* ============================== HERO ============================== */}
       <Hero
-        title={greeting}
+        title={heroTitle}
         subtitle={dateLabel}
         accentTone={healthTone}
         actions={<WeatherWidget city={weather.city} lat={weather.lat} lon={weather.lon} />}

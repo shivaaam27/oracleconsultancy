@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { getGivenName } from "@/lib/names";
 import { TONE, type Tone } from "@/components/surface-kit";
 import { CockpitLive } from "@/components/cockpit-live";
 
@@ -86,6 +87,7 @@ function Kpi({ k }: { k: HeroKpi }) {
 
 export function CockpitHero({
   greeting,
+  name,
   health,
   healthTone,
   healthSub,
@@ -94,6 +96,7 @@ export function CockpitHero({
   pills,
 }: {
   greeting: string;
+  name?: string;
   health: number;
   healthTone: Tone;
   healthSub: string;
@@ -101,10 +104,11 @@ export function CockpitHero({
   kpis: HeroKpi[];
   pills: HeroPill[];
 }) {
+  const given = name ? getGivenName(name) : "";
   return (
     <div className="rounded-3xl bg-bg-subtle/50 p-6 text-center ring-1 ring-border/50 sm:p-8">
       <CockpitLive />
-      <h1 className="mt-3 text-2xl font-semibold sm:text-[26px]">{greeting}</h1>
+      <h1 className="mt-3 text-2xl font-semibold sm:text-[26px]">{given ? `${greeting}, ${given}` : greeting}</h1>
       <p className="mx-auto mt-2 flex max-w-md items-start justify-center gap-1.5 text-sm leading-relaxed text-accent">
         <Sparkles size={15} className="mt-0.5 shrink-0" />
         <span>{oriLine}</span>
