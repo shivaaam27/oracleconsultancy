@@ -21,4 +21,5 @@
 - [Import Pipeline](import_pipeline.md) - Excel workbook import flow.
 - [Dev Workflow](dev_workflow.md) - local setup, scripts, migrations, and Supabase pooler rules.
 - [UI Conventions](ui_conventions.md) - shell, navigation, Meeting Workspace, assistant, voice, and responsive rules.
+- [Portal unification (Jun 2026)](portal_unification_jun2026.md) - unified DirectorTaskForm (multi-company fan-out, multi-lead, "only I can close it" → new tasks.creator_close_only col applied idempotently), director Chat/group msg+email, /portal/directory, task people panel, manager team=company-wide, short reminder link, portal PWA sliding-refresh.
 - [Open Issues and TODOs](open_issues.md) - current known gaps and follow-ups.

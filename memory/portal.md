@@ -180,3 +180,18 @@ Business data belongs to the **person/company record**, NOT to the portal sessio
 ### Email login (owner's question)
 - **Staff/manager/director portal** at `/login` (Staff tab) or `/portal/login`: sign in with **name OR email** + password (`portalLogin` matches email first, then name; case-insensitive). Email login works.
 - **Command Centre** (owner): password is primary; the name/email is an **optional** second factor — only required if an owner identity is set in Settings → Owner sign-in (blank = password-only, no lockout).
+
+## June 2026 additions (portal unification wave)
+
+Full record: **`portal_unification_jun2026.md`**. Summary of the portal-facing changes + twin deltas:
+
+- **Unified task composer** — `DirectorTaskForm` (`src/components/director-task-form.tsx`) now backs the Board, the portal Tasks page, and the pill New-task action. Multi-company **fan-out** (one task per company), all-active-people searchable "Responsible people" picker, **"Only I can close it"** lock (new `tasks.creator_close_only` col, applied idempotently — no drizzle migration), role-adaptive director/manager. Directors are **no longer auto-defaulted as accountable**.
+- **Multiple leads** — "Who is the lead?" star toggles in the composer; `LeadMultiSelect` in the editor; `leadIds` via `queries.getAllTasks` (`owner_id` = first lead); set via `portalSetTaskLeads`.
+- **Task "On this task" people panel** — Lead/Working badges, per-person WhatsApp/Email/Chat-DM icons, "Message In Chat" group thread (`portalMessageTaskGroup`), 1:1 DM (`portalOpenDm`).
+- **Director message pop-up** (`director-message.tsx`) — added a **Chat** channel + **group** messaging (one group thread / one group email / WhatsApp-each); mobile-safe synchronous open. New actions `portalDirectorChatMessage`, `portalDirectorGroupEmail`. Directors can also **create groups** on the portal chat page.
+- **Directory** — new read-only `/portal/directory` (`directory-view.tsx`): searchable people + companies with mobile-safe `tel:`/`mailto:`/`wa.me` contact anchors.
+- **Manager scope widened** — `managerTeamIds` = **whole company + direct reports**; feeds home roster, attendance, leave approval (now company-wide), `personCanSeePerson`.
+- **Portal Tasks** — hides Completed/Closed by default; task page shows **"Assigned by {name}"**.
+- **Auth** — portal session **sliding-refresh** in `src/proxy.ts` (re-stamps `cos_portal` every portal navigation so the installed PWA stays signed in); login theme-toggle z-index fix. Shorter reminder deep-links (10-char signed token; sender label moved into the message text; old links still verify).
+
+**Twin deltas** (admin ↔ portal): the people panel, multi-lead composer and Directory are portal-first surfaces; the shared task editor's lead/people UI applies on both sides. No new portal-only motion or CSS — reuse `Reveal`/surface-kit per the parity rule.
