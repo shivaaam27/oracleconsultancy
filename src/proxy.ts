@@ -91,7 +91,46 @@ async function isValidAdminToken(token: string | undefined): Promise<boolean> {
   return fresh === null ? true : gen === fresh;
 }
 
+/* Staff-portal sliding refresh. The portal is NOT behind the admin gate — its
+ * pages verify the "cos_portal" cookie themselves (src/lib/portal-auth.ts). But
+ * unlike the admin cookie (re-stamped below), the portal cookie was only set once
+ * at login and never refreshed, so an installed PWA's session could go stale and
+ * get evicted between launches — staff were silently logged out on resume. Here
+ * we re-issue a VALID cos_portal cookie with a fresh 60-day window on every portal
+ * navigation (crypto-only at the edge — no DB). The password-hash fingerprint is
+ * preserved, so a password change still invalidates the cookie in getPortalPerson;
+ * we NEVER redirect (the portal pages own their own auth). */
+async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
+  const res = NextResponse.next();
+  const token = req.cookies.get("cos_portal")?.value;
+  if (!token) return res;
+  const segs = token.split(".");
+  // Bound token: <id>.<exp>.<fp>.<sig>; legacy token: <id>.<exp>.<sig>.
+  let id: string, exp: string, fp: string | null, sig: string;
+  if (segs.length === 4) [id, exp, fp, sig] = segs;
+  else if (segs.length === 3) { [id, exp, sig] = segs; fp = null; }
+  else return res;
+  if (!id || !exp || !sig || !(Number(exp) > Date.now())) return res;
+  const payload = fp === null ? `${id}.${exp}` : `${id}.${exp}.${fp}`;
+  // Same HMAC + secret() as src/lib/portal-auth.ts → a valid signature verifies here.
+  if ((await signAdmin(payload)) !== sig) return res;
+  const newExp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
+  const newPayload = fp === null ? `${id}.${newExp}` : `${id}.${newExp}.${fp}`;
+  res.cookies.set("cos_portal", `${newPayload}.${await signAdmin(newPayload)}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: SESSION_DAYS * 24 * 60 * 60,
+  });
+  return res;
+}
+
 export async function proxy(req: NextRequest) {
+  // Portal routes carry their own auth — never gate them; just slide the session
+  // forward so an installed PWA stays signed in across launches.
+  if (req.nextUrl.pathname.startsWith("/portal")) return refreshPortalSession(req);
+
   const token = req.cookies.get("cos_admin")?.value;
   const ok = await isValidAdminToken(token);
   if (ok) {
@@ -138,5 +177,8 @@ export const config = {
   // api/dropbox/webhook is public (Dropbox's servers call it with no cookie) — it
   // verifies its own X-Dropbox-Signature instead. The auth/callback Dropbox routes
   // stay gated (the owner's browser hits them with the admin cookie).
-  matcher: ["/((?!portal|login|e/|r/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|api/dropbox/webhook|_next|.*\\..*).*)"],
+  // NOTE: /portal is intentionally NOT excluded — the proxy runs on portal routes
+  // ONLY to slide the cos_portal session forward (refreshPortalSession); it never
+  // gates them. api/portal stays excluded (those routes verify their own cookie).
+  matcher: ["/((?!login|e/|r/|api/cron|api/calendar|api/portal|api/notifications|api/push|api/wa-card|api/og-banner|api/dropbox/webhook|_next|.*\\..*).*)"],
 };

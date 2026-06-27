@@ -36,7 +36,9 @@ export function AuthShell({
         />
       </div>
 
-      <div className="absolute right-0 top-4">
+      {/* z-20: the centred heading block below is `relative` and paints over this
+          absolute toggle, swallowing taps — lift the toggle above it so it's clickable. */}
+      <div className="absolute right-0 top-4 z-20">
         <ThemeToggle />
       </div>
 
