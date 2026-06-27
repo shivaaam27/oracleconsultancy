@@ -85,6 +85,7 @@ async function ManagementTasks({
       deadlineInput: toInput(r.deadline),
       accountableId,
       accountableName: ownerName,
+      leadIds: r.leadIds.length ? r.leadIds : (accountableId != null ? [accountableId] : []),
       assignees: r.assignees,
       assigneeIds: r.assigneeIds,
       description: r.comments?.trim() || null,

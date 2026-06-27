@@ -124,7 +124,7 @@ export async function sendTaskReminderWhatsApp(opts: {
   if (rows.length === 0) return { ok: false, reason: "no-tasks" };
 
   const name = person.name as string;
-  const text = buildWhatsAppMessage(name, rows, waReminderLink(person.id as number, opts.from));
+  const text = buildWhatsAppMessage(name, rows, waReminderLink(person.id as number), opts.from);
   const res = await sendWhatsApp({ to, text, mediaUrl: waCardImageUrl(person.id as number, opts.from) });
   if (!res.ok) {
     if (res.reason === "not-configured") return { ok: false, reason: "not-configured" };

@@ -94,7 +94,7 @@ function statusDot(t: TaskRow): string {
  * link LAST (so WhatsApp renders a link-preview card from it). WhatsApp markdown:
  * *bold*, _italic_. Kept terse — no latest-update lines (those live in the email).
  */
-export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: string): string {
+export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: string, from?: string): string {
   const first = name.split(" ")[0] || name;
   const overdueCount = tasks.filter(isOverdue).length;
 
@@ -122,7 +122,8 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: stri
   }
   lines.push(`📊 ${tasks.length} open${overdueCount ? ` · ${overdueCount} overdue` : ""}`);
   lines.push("Please update your tasks when you can. Thank you.");
-  lines.push(link ?? `${appBaseUrl()}/portal`);
+  if (from) lines.push(`— ${from}`); // sender label now in the text (the link no longer carries it)
+  lines.push(link ?? `${appBaseUrl()}/portal`); // link LAST so WhatsApp builds its preview card
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -137,7 +138,7 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: stri
  *   • NO task list — keeping the body tiny means the wa.me URL never grows with the
  *     number of tasks, so WhatsApp Web reliably opens the chat even for heavy people.
  */
-export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?: string): string {
+export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?: string, from?: string): string {
   const first = name.split(" ")[0] || name;
   const n = tasks.length;
   const overdueCount = tasks.filter(isOverdue).length;
@@ -145,8 +146,9 @@ export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?
   return [
     `Hi ${first}, a quick reminder — you have ${count}.`,
     "Tap below to see the full list and update them. Thank you.",
-    link ?? `${appBaseUrl()}/portal`,
-  ].join("\n");
+    from ? `— ${from}` : null, // sender label now in the text (the link no longer carries it)
+    link ?? `${appBaseUrl()}/portal`, // link LAST so WhatsApp builds its preview card
+  ].filter(Boolean).join("\n");
 }
 
 /**
@@ -156,7 +158,7 @@ export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?
  * nudge.) Sent via wa.me (manual tap-send), so the update is one-line-clamped to keep
  * the link usable; the reminder link goes LAST so WhatsApp renders the preview card.
  */
-export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: string): string {
+export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: string, from?: string): string {
   const first = name.split(" ")[0] || name;
   const overdueCount = tasks.filter(isOverdue).length;
 
@@ -185,7 +187,8 @@ export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: 
     }
   }
   lines.push("Please update the tracker when you can. Thank you.");
-  if (link) lines.push(link);
+  if (from) lines.push(`— ${from}`); // sender label now in the text (the link no longer carries it)
+  if (link) lines.push(link); // link LAST so WhatsApp builds its preview card
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -259,11 +262,12 @@ export function buildTaskReminderDoc(
 
 function buildAllMessages(name: string, list: TaskRow[], personId: number | null, from?: string): Record<Channel, string> {
   // Per-person signed link → WhatsApp renders the live Aurora preview card.
-  // `from` adds the "from who" caption (the Command Centre for admin Outbox sends).
+  // `from` is the "from who" sign-off line in the message text (the Command Centre
+  // for admin Outbox sends) — the link itself no longer carries it.
   // Falls back to the plain /portal link for people not in the directory.
-  const link = personId != null ? waReminderLink(personId, from) : undefined;
+  const link = personId != null ? waReminderLink(personId) : undefined;
   return {
-    WHATSAPP: buildWhatsAppManualMessage(name, list, link), // Outbox = copy/wa.me (manual) → clean plain text
+    WHATSAPP: buildWhatsAppManualMessage(name, list, link, from), // Outbox = copy/wa.me (manual) → clean plain text
     EMAIL: buildEmailMessage(name, list),
     SMS: list.map((t) => buildSmsMessage(t)).join("\n"),
   };

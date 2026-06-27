@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
-  Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User,
-  MessageSquarePlus, Bell, Check, Building2,
+  Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
+  MessageSquarePlus, Bell, Check, Building2, MessagesSquare, X,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { CaretInput } from "@/components/ui";
@@ -14,9 +14,8 @@ import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
-import { NotifyPerson } from "@/components/notify-person";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalRemindTask, portalRemindTaskAll, portalAddUpdate } from "@/app/portal/actions";
+import { portalEditTask, portalRemindTask, portalRemindTaskAll, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -40,6 +39,8 @@ export type CommandTask = {
   deadlineInput: string | null;
   accountableId: number | null;
   accountableName: string | null;
+  /** The person ids who lead the task (task_assignees.role "accountable"); ≥1 when set. */
+  leadIds: number[];
   assignees: string[];
   assigneeIds: number[];
   description: string | null;
@@ -66,13 +67,6 @@ const STATUS_COLOR: Record<string, string> = {
   "Waiting External": "hsl(var(--warn))", "Under Review": "hsl(var(--warn))",
   "In Progress": "hsl(var(--info))", "Not Started": "hsl(var(--fg-subtle))",
 };
-function statusIconTone(s: string): string {
-  if (s === "Completed" || s === "Closed") return "text-success";
-  if (s === "Blocked" || s === "Escalated") return "text-danger";
-  if (s === "Waiting External" || s === "Under Review") return "text-warn";
-  if (s === "In Progress") return "text-info";
-  return "text-fg-subtle";
-}
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
 const fieldShell = "rounded-xl bg-bg-elev ring-1 ring-border";
 
@@ -305,7 +299,6 @@ function TaskRow({
   const [updateBody, setUpdateBody] = useState("");
 
   const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
-  const ownerOptions: FluidOption[] = people.map((p) => ({ value: String(p.id), label: p.name }));
 
   function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number }, label: string) {
     startTransition(async () => {
@@ -317,7 +310,6 @@ function TaskRow({
   }
   const changeStatus = (v: string) => { if (v !== t.status) save({ status: v }, `Status → ${v}`); };
   const changePriority = (v: string) => { if (v !== t.priority) save({ priority: v }, `Priority → ${v}`); };
-  const changeOwner = (v: string) => { if (v && v !== String(t.accountableId ?? "")) save({ accountableId: Number(v) }, "Owner updated"); };
   const changeDue = (v: string) => { if (v !== (t.deadlineInput ?? "")) save({ deadline: v || null }, "Due date updated"); };
 
   function remind() {
@@ -359,36 +351,40 @@ function TaskRow({
   // Complete. Axis-locked + finger-following so scrolling never trips it.
   const swipe = useSwipeRow({ leftWidth: 86, rightWidth: involved > 1 ? 156 : 78 });
 
-  // One row of compact icon "property chips" + a quiet actions row. Each chip
-  // auto-saves on change (no Save button). Managers can only move status; the
-  // other chips render as read-only for them.
+  // A row of bordered pill controls — all matching the status dropdown
+  // (FluidSelect with `fieldShell`) — then the "On this task" people panel,
+  // the inline update composer and the quiet actions row. Each pill auto-saves
+  // on change (no Save button). Managers can only move status; the rest render
+  // read-only for them.
   function Editor({ withStatus }: { withStatus: boolean }) {
     return (
-      <div className="space-y-3 border-t border-border/50 px-3.5 py-3.5">
+      <div className="space-y-3.5 border-t border-border/50 px-3.5 py-3.5">
         <div className="flex flex-wrap items-center gap-2">
           {withStatus && (
-            <PropChip icon={<CircleDot size={14} className={statusIconTone(t.status)} />} edit>
-              <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={chipBtn} />
-            </PropChip>
+            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
           )}
           {fullEdit ? (
             <>
-              <PropChip icon={<Flag size={14} style={{ color: PRIORITY_HEX[t.priority] }} />} edit>
-                <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} buttonClassName={chipBtn} />
-              </PropChip>
-              <DueChip valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} />
-              <PropChip icon={<User size={14} className="text-fg-muted" />} edit>
-                <FluidSelect value={t.accountableId ? String(t.accountableId) : ""} options={ownerOptions} placeholder="Assign…" onSelect={changeOwner} buttonClassName={chipBtn} />
-              </PropChip>
+              <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
+              <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} />
             </>
           ) : (
             <>
-              <StaticChip icon={<Flag size={14} style={{ color: PRIORITY_HEX[t.priority] }} />} text={t.priority} />
-              <StaticChip icon={<CalendarClock size={14} className={dueTone} />} text={t.dueLabel ?? "No date"} />
-              <StaticChip icon={<User size={14} className="text-fg-muted" />} text={t.accountableName ?? "Unassigned"} />
+              <StaticPill icon={<Flag size={13} style={{ color: PRIORITY_HEX[t.priority] }} />} text={t.priority} />
+              <StaticPill icon={<CalendarClock size={13} className={dueTone} />} text={t.dueLabel ?? "No date"} />
             </>
           )}
         </div>
+
+        {/* "On this task" — every person involved, the leads as Lead, the rest
+            as Working, each with quick contact actions. Directors/HR can edit the
+            lead set inline. */}
+        <TaskPeoplePanel
+          t={t}
+          people={people}
+          fullEdit={fullEdit}
+          canManage={canManage}
+        />
 
         {/* Post an update without opening the task. */}
         <div className="flex items-center gap-2 rounded-xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
@@ -423,14 +419,6 @@ function TaskRow({
             Open <ExternalLink size={13} />
           </Link>
         </div>
-
-        {/* Send the responsible person a summary of ALL their open tasks. */}
-        {canManage && t.accountableId && (
-          <div className="border-t border-border/50 pt-3">
-            <p className="mb-2 text-[11px] text-fg-muted">Send {(t.accountableName ?? "them").split(" ")[0]} a summary of all their open tasks</p>
-            <NotifyPerson personId={t.accountableId} name={t.accountableName ?? "this person"} size="sm" />
-          </div>
-        )}
       </div>
     );
   }
@@ -528,35 +516,26 @@ function TaskRow({
   );
 }
 
-const chipShell = "inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle/60 px-2.5 py-1.5 text-[12.5px] ring-1 ring-border";
-const chipBtn = "gap-1.5 text-[12.5px]";
-
-/** A compact property chip: a meaning icon + an editable control (FluidSelect). */
-function PropChip({ icon, children, edit }: { icon: React.ReactNode; children: React.ReactNode; edit?: boolean }) {
+/** A read-only property pill — same bordered-pill look as the status dropdown
+ *  (`fieldShell`), shown to managers who can't edit these fields. */
+function StaticPill({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <span className={cn(chipShell, edit && "pr-1.5")}>
-      <span className="shrink-0">{icon}</span>
-      {children}
-    </span>
-  );
-}
-/** A read-only property chip (managers, who can't edit these). */
-function StaticChip({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <span className={chipShell}>
+    <span className={cn(fieldShell, "inline-flex items-center gap-1.5 px-3 py-2 text-[12.5px]")}>
       <span className="shrink-0">{icon}</span>
       <span className="text-fg">{text}</span>
     </span>
   );
 }
-/** Due-date chip: shows the formatted date, reveals a native picker on tap. */
-function DueChip({ valueIso, label, tone, onChange }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void }) {
+
+/** Due-date pill: the same bordered pill as the status dropdown, with a small
+ *  calendar affordance; reveals a native picker on tap and auto-saves. */
+function DuePill({ valueIso, label, tone, onChange }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const text = valueIso ? new Date(valueIso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "No date";
   if (editing) {
     return (
-      <span className={chipShell}>
-        <CalendarClock size={14} className={tone} />
+      <span className={cn(fieldShell, "inline-flex items-center gap-1.5 px-3 py-2 text-[12.5px]")}>
+        <CalendarClock size={13} className={tone} />
         <input
           type="date"
           defaultValue={valueIso ?? ""}
@@ -569,11 +548,328 @@ function DueChip({ valueIso, label, tone, onChange }: { valueIso: string | null;
     );
   }
   return (
-    <button type="button" onClick={() => setEditing(true)} className={cn(chipShell, "hover:bg-bg-subtle")}>
-      <CalendarClock size={14} className={tone} />
+    <button type="button" onClick={() => setEditing(true)} className={cn(fieldShell, "inline-flex items-center gap-1.5 px-3 py-2 text-[12.5px] hover:bg-bg-muted transition-colors")}>
+      <CalendarClock size={13} className={tone} />
       <span className={label && (tone.includes("danger") || tone.includes("warn")) ? tone : "text-fg"}>{label ?? text}</span>
       <ChevronDown size={13} className="text-fg-subtle" />
     </button>
+  );
+}
+
+type Member = { id: number | null; name: string; lead: boolean };
+
+/**
+ * "On this task" — everyone involved, beautifully. The leads show first with a
+ * "Lead" badge; the other assignees follow as "Working", de-duplicated. A task
+ * may have more than one lead. Each row carries quick contact actions
+ * (NotifyPerson: WhatsApp/Email summary of the person's open tasks). A "Message
+ * all · N" button opens the task's group chat (portalMessageTaskGroup) when more
+ * than one person is involved. Directors/HR can edit the lead set inline.
+ */
+function TaskPeoplePanel({
+  t, people, fullEdit, canManage,
+}: {
+  t: CommandTask;
+  people: BoardPerson[];
+  fullEdit: boolean;
+  canManage: boolean;
+}) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [chatBusy, startChat] = useTransition();
+  const [leadBusy, startLeads] = useTransition();
+
+  // The current lead set: the person ids flagged "accountable". Fall back to the
+  // single accountable owner only when no explicit leads are recorded.
+  const leadIds = useMemo<number[]>(() => {
+    if (t.leadIds.length) return t.leadIds;
+    return t.accountableId != null ? [t.accountableId] : [];
+  }, [t.leadIds, t.accountableId]);
+  const leadSet = useMemo(() => new Set(leadIds), [leadIds]);
+
+  // Build the roster: every Lead first, then Working (de-duplicating and pairing
+  // names with ids by position where the arrays line up). A person flagged as a
+  // lead always ranks as Lead even if they also appear among the assignees.
+  const members = useMemo<Member[]>(() => {
+    const out: Member[] = [];
+    const seen = new Set<string>();
+    const keyOf = (id: number | null, name: string) => (id != null ? `id:${id}` : `name:${name.trim().toLowerCase()}`);
+    const nameOf = new Map(people.map((p) => [p.id, p.name] as const));
+    // Leads first, named from the people list (with the accountable name as a hint).
+    for (const id of leadIds) {
+      const name = nameOf.get(id) ?? (id === t.accountableId ? (t.accountableName ?? "Unassigned") : `#${id}`);
+      const k = keyOf(id, name);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ id, name, lead: true });
+    }
+    // The accountable name with no id (legacy / unresolved) still shows as a lead.
+    if (!leadIds.length && (t.accountableName || t.accountableId != null)) {
+      const name = t.accountableName ?? "Unassigned";
+      out.push({ id: t.accountableId, name, lead: true });
+      seen.add(keyOf(t.accountableId, name));
+    }
+    t.assignees.forEach((name, i) => {
+      const id = t.assigneeIds[i] ?? null;
+      const k = keyOf(id, name);
+      if (seen.has(k)) return;
+      seen.add(k);
+      out.push({ id, name, lead: id != null && leadSet.has(id) });
+    });
+    // Lead-ness sorts to the top; original order is otherwise preserved.
+    return out.sort((a, b) => Number(b.lead) - Number(a.lead));
+  }, [leadIds, leadSet, t.accountableId, t.accountableName, t.assignees, t.assigneeIds, people]);
+
+  const total = members.length;
+
+  function messageAll() {
+    startChat(async () => {
+      const res = await portalMessageTaskGroup(t.taskId);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      router.push(`/portal/chat/${res.threadId}`);
+    });
+  }
+
+  function setLeads(next: number[]) {
+    // Never allow clearing to zero — the panel keeps the last lead.
+    if (!next.length) return;
+    const same = next.length === leadIds.length && next.every((id) => leadSet.has(id));
+    if (same) return;
+    startLeads(async () => {
+      const res = await portalSetTaskLeads(t.taskId, next);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast(next.length === 1 ? "Lead updated." : `${next.length} leads set.`, { tone: "success" });
+      router.refresh();
+    });
+  }
+
+  if (total === 0 && !fullEdit) return null;
+
+  return (
+    <Panel className="overflow-hidden p-0">
+      <div className="flex items-center justify-between gap-2 border-b border-border/50 px-3 py-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
+          <Users size={12} /> On this task{total > 0 && <span className="text-fg-muted">· {total}</span>}
+        </span>
+        {total > 1 && (
+          <button
+            type="button"
+            onClick={messageAll}
+            disabled={chatBusy}
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft/70 px-2.5 py-1 text-[12px] font-medium text-accent ring-1 ring-accent/25 transition-transform hover:bg-accent-soft active:scale-95 disabled:opacity-50"
+          >
+            {chatBusy ? <Loader2 size={13} className="animate-spin" /> : <MessagesSquare size={13} />} Message In Chat
+          </button>
+        )}
+      </div>
+
+      <ul className="divide-y divide-border/50">
+        {members.map((m, i) => (
+          <li key={m.id ?? `n:${i}`} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+            <span className={cn(
+              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-bg-elev",
+              m.lead ? "bg-accent-soft text-accent" : "bg-bg-subtle text-fg-muted",
+            )}>
+              {initials(m.name)}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[13px] font-medium leading-tight">{m.name}</span>
+              <span className={cn(
+                "mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-medium",
+                m.lead ? "text-accent" : "text-fg-subtle",
+              )}>
+                <span className={cn("h-1.5 w-1.5 rounded-full", m.lead ? "bg-accent" : "bg-fg-subtle")} />
+                {m.lead ? "Lead" : "Working"}
+              </span>
+            </span>
+            {/* Per-person reachability — minimal icons: WhatsApp / Email a summary
+                of their open tasks (Outbox-backed, mobile-safe) + a direct chat DM.
+                Only the id-backed people. */}
+            {canManage && m.id != null && <MemberActions personId={m.id} name={m.name} />}
+          </li>
+        ))}
+      </ul>
+
+      {/* Edit the lead set — one or more people. Removing the last lead is blocked. */}
+      {fullEdit && (
+        <div className="flex flex-col gap-2 border-t border-border/50 px-3 py-2.5 sm:flex-row sm:items-start">
+          <span className="inline-flex shrink-0 items-center gap-1.5 pt-2 text-[11px] text-fg-muted">
+            <User size={13} className="text-fg-subtle" /> {leadIds.length > 1 ? "Leads" : "Lead"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <LeadMultiSelect people={people} value={leadIds} busy={leadBusy} onChange={setLeads} />
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/**
+ * Searchable multi-select for the task's leads — current leads show as removable
+ * chips, the menu toggles people in/out. Mirrors the CompanyMultiSelect pattern
+ * (app-anchored, click-outside, Esc) but in the compact `fieldShell` pill look.
+ * Removing the final lead is disabled (≥1 lead is required).
+ */
+function LeadMultiSelect({
+  people, value, busy, onChange,
+}: {
+  people: BoardPerson[];
+  value: number[];
+  busy: boolean;
+  onChange: (ids: number[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const byId = useMemo(() => new Map(people.map((p) => [p.id, p.name] as const)), [people]);
+  const selected = value;
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return people;
+    return people.filter((p) => p.name.toLowerCase().includes(term));
+  }, [people, q]);
+
+  function toggle(id: number) {
+    if (value.includes(id)) {
+      if (value.length <= 1) return; // keep at least one lead
+      onChange(value.filter((x) => x !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy}
+        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-3 py-2 text-[12.5px] transition-colors hover:bg-bg-muted disabled:opacity-60")}
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          <User size={14} className="shrink-0 text-fg-muted" />
+          <span className={selected.length ? "truncate text-fg" : "text-fg-muted"}>
+            {selected.length === 0 ? "Assign…" : selected.length === 1 ? (byId.get(selected[0]) ?? `#${selected[0]}`) : `${selected.length} leads`}
+          </span>
+        </span>
+        {busy ? <Loader2 size={14} className="shrink-0 animate-spin text-fg-subtle" /> : <ChevronDown size={14} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />}
+      </button>
+
+      {selected.length > 1 && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {selected.map((id) => (
+            <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-[11px] text-accent ring-1 ring-accent/25">
+              {byId.get(id) ?? `#${id}`}
+              <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${byId.get(id) ?? "lead"}`} className="hover:opacity-70">
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div className="absolute z-30 mt-1.5 w-full min-w-[14rem] overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg">
+          <label className="relative block border-b border-border/60">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
+          </label>
+          <ul className="max-h-60 overflow-y-auto py-1">
+            {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
+            {filtered.map((p) => {
+              const on = value.includes(p.id);
+              const last = on && value.length <= 1;
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(p.id)}
+                    disabled={last}
+                    title={last ? "A task needs at least one lead" : undefined}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50 ${on ? "text-accent" : "text-fg"}`}
+                  >
+                    <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded ring-1 ${on ? "bg-accent text-accent-fg ring-accent" : "ring-border"}`}>
+                      {on && <Check size={11} />}
+                    </span>
+                    {p.name}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Minimal per-person action icons on a task: WhatsApp + Email a summary of that
+ *  person's open tasks (Outbox-backed, mobile-safe), and a direct chat DM. Icon-only
+ *  so the row stays tidy on mobile; meaning carried by title/aria-label. */
+function MemberActions({ personId, name }: { personId: number; name: string }) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const first = name.split(" ")[0] || name;
+
+  const whatsapp = () => {
+    // Blank tab opened synchronously inside the tap so mobile doesn't block it.
+    const win = window.open("", "_blank");
+    start(async () => {
+      const res = await portalSendTaskSummaryWhatsApp(personId);
+      if (!res.ok) { win?.close(); toast(res.error, { tone: "warn" }); return; }
+      if (res.waHref) {
+        if (win) win.location.href = res.waHref;
+        else window.open(res.waHref, "_blank", "noreferrer");
+        toast(`WhatsApp summary ready for ${first}.`, { tone: "success" });
+      } else {
+        win?.close();
+        toast(`No WhatsApp number for ${first}.`, { tone: "warn" });
+      }
+    });
+  };
+  const email = () =>
+    start(async () => {
+      const res = await portalSendReminderEmail(personId);
+      if (res.ok) { toast(`Summary emailed to ${first}.`, { tone: "success" }); return; }
+      const msg =
+        res.reason === "no-email" ? `No email on file for ${first}.`
+        : res.reason === "no-tasks" ? "No open tasks to summarise."
+        : res.reason === "not-configured" ? "Email sending isn't set up yet."
+        : res.error || "Couldn't send the email.";
+      toast(msg, { tone: "warn" });
+    });
+  const chat = () =>
+    start(async () => {
+      const res = await portalOpenDm(personId);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      router.push(`/portal/chat/${res.threadId}`);
+    });
+
+  const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 transition-transform active:scale-90 disabled:opacity-50";
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <button type="button" onClick={whatsapp} disabled={busy} title={`WhatsApp ${first}`} aria-label={`WhatsApp ${first}`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={15} />}
+      </button>
+      <button type="button" onClick={email} disabled={busy} title={`Email ${first}`} aria-label={`Email ${first}`} className={cn(iconBtn, "bg-accent-soft text-accent ring-accent/25")}>
+        <Mail size={15} />
+      </button>
+      <button type="button" onClick={chat} disabled={busy} title={`Message ${first} in chat`} aria-label={`Message ${first} in chat`} className={cn(iconBtn, "bg-bg-subtle text-fg-muted ring-border")}>
+        <MessageSquarePlus size={15} />
+      </button>
+    </div>
   );
 }
 

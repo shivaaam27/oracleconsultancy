@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
   ClipboardCheck, Plus, Loader2, CheckCircle2, Search, ChevronDown, Check,
-  Building2, X,
+  Building2, X, Star,
 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { SwitchRow } from "@/components/ui";
@@ -20,6 +20,28 @@ export type ComposerRole = "director" | "manager";
 function personCompanyIds(p: Person): number[] {
   if (p.companyIds && p.companyIds.length) return p.companyIds;
   return p.companyId != null ? [p.companyId] : [];
+}
+
+// Leading titles to skip so a chip reads the given name ("Pulin"), not "Mr".
+const HONORIFICS = new Set(["mr", "mrs", "ms", "miss", "dr", "prof", "eng", "chef", "capt", "sir", "madam", "mx", "rev", "hon"]);
+/** Name words with any leading honorific dropped. */
+function nameParts(name: string): string[] {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length > 1 && HONORIFICS.has(parts[0].replace(/\.$/, "").toLowerCase())) return parts.slice(1);
+  return parts;
+}
+
+/** First given name (skipping a leading honorific), for the compact lead chips. */
+function firstName(name: string): string {
+  return nameParts(name)[0] || name;
+}
+
+/** Up to two initials for a chip avatar (skipping a leading honorific). */
+function initials(name: string): string {
+  const parts = nameParts(name);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
@@ -62,12 +84,13 @@ export function DirectorTaskForm({
   const createAction = isDirector ? portalDirectorCreateTask : portalCreateTask;
 
   const [companyIds, setCompanyIds] = useState<number[]>([]);
-  const [accountableId, setAccountableId] = useState<string>("");
-  const [workingIds, setWorkingIds] = useState<number[]>([]);
+  const [responsibleIds, setResponsibleIds] = useState<number[]>([]);
+  const [leadIds, setLeadIds] = useState<number[]>([]);
   const [priority, setPriority] = useState("Medium");
   const [requiresProof, setRequiresProof] = useState(false);
   const [creatorCloseOnly, setCreatorCloseOnly] = useState(isDirector); // default ON for directors
   const [assigned, setAssigned] = useState<{ id: number; name: string } | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createAction, null);
 
   // For managers we keep a single company. Default it to their only company.
@@ -78,10 +101,11 @@ export function DirectorTaskForm({
   }, [isDirector, companies.length]);
 
   // On a clean create, swap the form for a "notify them?" step instead of closing.
+  // The notify prompt targets the first lead.
   const prevPending = useRef(false);
   useEffect(() => {
     if (prevPending.current && !pending && !state?.error) {
-      const p = people.find((x) => x.id === Number(accountableId));
+      const p = people.find((x) => x.id === leadIds[0]);
       if (p) setAssigned({ id: p.id, name: p.name });
       else setOpen(false);
     }
@@ -89,15 +113,27 @@ export function DirectorTaskForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, state]);
 
+  // Keep the lead set valid as the responsible people change:
+  //  • drop any lead who's no longer responsible;
+  //  • if nobody's a lead but people are selected, default to the first one.
+  useEffect(() => {
+    setLeadIds((cur) => {
+      const kept = cur.filter((id) => responsibleIds.includes(id));
+      if (kept.length === 0 && responsibleIds.length > 0) return [responsibleIds[0]];
+      return kept.length === cur.length ? cur : kept;
+    });
+  }, [responsibleIds]);
+
   function close() {
     setOpen(false);
     setAssigned(null);
     setCompanyIds(!isDirector && companies.length === 1 ? [companies[0].id] : []);
-    setAccountableId("");
-    setWorkingIds([]);
+    setResponsibleIds([]);
+    setLeadIds([]);
     setPriority("Medium");
     setRequiresProof(false);
     setCreatorCloseOnly(isDirector);
+    setFormError(null);
   }
 
   // Manager people scoping mirrors the old behaviour: limit by the chosen
@@ -110,14 +146,49 @@ export function DirectorTaskForm({
     return scoped.length ? scoped : people;
   }, [isDirector, people, singleCompanyId]);
 
-  // "Also working" excludes whoever is the responsible person.
-  const workingPeople = useMemo(
-    () => peopleForPicker.filter((p) => String(p.id) !== accountableId),
-    [peopleForPicker, accountableId],
+  // The non-lead responsible people post as the "working" set.
+  const workingIds = useMemo(
+    () => responsibleIds.filter((id) => !leadIds.includes(id)),
+    [responsibleIds, leadIds],
   );
 
+  // Selected responsible people, in selection order, for the lead chips.
+  const selectedPeople = useMemo(() => {
+    const byId = new Map(peopleForPicker.map((p) => [p.id, p]));
+    return responsibleIds.map((id) => byId.get(id)).filter((p): p is Person => !!p);
+  }, [peopleForPicker, responsibleIds]);
+
+  const canSubmit = responsibleIds.length > 0 && leadIds.length > 0;
+
+  // Clear the inline guard message as soon as the selection is valid again.
+  useEffect(() => { if (canSubmit) setFormError(null); }, [canSubmit]);
+
+  // Toggle a person's lead flag. Never leave zero leads: turning off the last
+  // lead re-defaults to the first remaining responsible person.
+  function toggleLead(id: number) {
+    setLeadIds((cur) => {
+      if (cur.includes(id)) {
+        const next = cur.filter((x) => x !== id);
+        if (next.length === 0) {
+          const fallback = responsibleIds.find((x) => x !== id);
+          return fallback != null ? [fallback] : cur;
+        }
+        return next;
+      }
+      return [...cur, id];
+    });
+  }
+
   const fields = (
-    <form id={FORM_ID} action={action} className="flex flex-col gap-3.5">
+    <form
+      id={FORM_ID}
+      action={action}
+      onSubmit={(e) => {
+        // Guard the contract: at least one responsible person and one lead.
+        if (!canSubmit) { e.preventDefault(); setFormError("Pick at least one responsible person and a lead."); }
+      }}
+      className="flex flex-col gap-3.5"
+    >
       {/* Fan-out / single-company hidden fields. Directors send companyIds
           (CORE parses + fans out); managers send a single companyId. */}
       {isDirector ? (
@@ -125,7 +196,7 @@ export function DirectorTaskForm({
       ) : (
         <input type="hidden" name="companyId" value={singleCompanyId ?? ""} />
       )}
-      <input type="hidden" name="accountableId" value={accountableId} />
+      <input type="hidden" name="leadIds" value={leadIds.join(",")} />
       <input type="hidden" name="priority" value={priority} />
       {workingIds.map((id) => <input key={id} type="hidden" name="workingIds" value={id} />)}
       <input type="hidden" name="requiresAttachment" value={requiresProof ? "1" : ""} />
@@ -145,7 +216,7 @@ export function DirectorTaskForm({
             value={singleCompanyId != null ? String(singleCompanyId) : ""}
             options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
             placeholder="Choose…"
-            onSelect={(v) => { setCompanyIds(v ? [Number(v)] : []); setAccountableId(""); setWorkingIds([]); }}
+            onSelect={(v) => { setCompanyIds(v ? [Number(v)] : []); setResponsibleIds([]); setLeadIds([]); }}
             buttonClassName={selectBtn}
           />
         ) : (
@@ -157,27 +228,43 @@ export function DirectorTaskForm({
       </div>
 
       <div>
-        <label className={fieldLabel}>Responsible person</label>
-        <PersonSelect
+        <label className={fieldLabel}>Responsible people</label>
+        <PeoplePicker
           people={peopleForPicker}
-          value={accountableId ? Number(accountableId) : null}
-          onChange={(id) => {
-            setAccountableId(id != null ? String(id) : "");
-            if (id != null) setWorkingIds((ids) => ids.filter((x) => x !== id));
-          }}
-          placeholder="Choose someone…"
+          value={responsibleIds}
+          onChange={setResponsibleIds}
+          emptyLabel="Choose who's on it…"
         />
       </div>
 
-      {workingPeople.length > 0 && (
+      {selectedPeople.length > 0 && (
         <div>
-          <label className={fieldLabel}>Also working on it (optional)</label>
-          <PeoplePicker
-            people={workingPeople}
-            value={workingIds.filter((id) => id !== Number(accountableId))}
-            onChange={setWorkingIds}
-            emptyLabel="Add people (optional)"
-          />
+          <label className={fieldLabel}>Who's the lead?</label>
+          <div className="flex flex-wrap gap-1.5">
+            {selectedPeople.map((p) => {
+              const lead = leadIds.includes(p.id);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => toggleLead(p.id)}
+                  aria-pressed={lead}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 transition-colors ${
+                    lead
+                      ? "bg-accent-soft text-accent ring-accent/30"
+                      : "bg-bg-subtle text-fg-muted ring-border hover:ring-accent/40"
+                  }`}
+                >
+                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-medium ${lead ? "bg-accent text-accent-fg" : "bg-bg-muted text-fg-muted"}`}>
+                    {initials(p.name)}
+                  </span>
+                  {firstName(p.name)}
+                  <Star size={12} className={lead ? "fill-accent text-accent" : "text-fg-muted"} />
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[11px] text-fg-muted">Tap a star to set the lead. At least one is required.</p>
         </div>
       )}
 
@@ -202,7 +289,7 @@ export function DirectorTaskForm({
         <SwitchRow label="Only I can close it" hint="Locks completion to you — others can't close it." on={creatorCloseOnly} onChange={setCreatorCloseOnly} />
       )}
 
-      {state?.error && <p className="text-xs text-danger">{state.error}</p>}
+      {(formError || state?.error) && <p className="text-xs text-danger">{formError ?? state?.error}</p>}
     </form>
   );
 
@@ -238,7 +325,7 @@ export function DirectorTaskForm({
             <button
               type="submit"
               form={FORM_ID}
-              disabled={pending}
+              disabled={pending || !canSubmit}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
             >
               {pending ? <Loader2 size={16} className="animate-spin" /> : <ClipboardCheck size={16} />}{" "}
@@ -352,73 +439,3 @@ function CompanyMultiSelect({
   );
 }
 
-/* ── A searchable single-select for the responsible person. Same look as
- *    PeoplePicker but picks exactly one. ──────────────────────────────── */
-function PersonSelect({
-  people, value, onChange, placeholder = "Choose…",
-}: {
-  people: Person[];
-  value: number | null;
-  onChange: (id: number | null) => void;
-  placeholder?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
-  const byId = useMemo(() => new Map(people.map((p) => [p.id, p.name])), [people]);
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return people;
-    return people.filter((p) => p.name.toLowerCase().includes(term));
-  }, [people, q]);
-
-  function pick(id: number) {
-    onChange(id === value ? null : id);
-    setOpen(false);
-    setQ("");
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className={selectBtn}>
-        <span className={value != null ? "text-fg" : "text-fg-muted"}>{value != null ? byId.get(value) ?? placeholder : placeholder}</span>
-        <ChevronDown size={15} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {open && (
-        <div className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg">
-          <label className="relative block border-b border-border/60">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
-          </label>
-          <ul className="max-h-60 overflow-y-auto py-1">
-            {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
-            {filtered.map((p) => {
-              const on = p.id === value;
-              return (
-                <li key={p.id}>
-                  <button type="button" onClick={() => pick(p.id)} className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-bg-muted/60 ${on ? "text-accent" : "text-fg"}`}>
-                    <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full ring-1 ${on ? "bg-accent text-accent-fg ring-accent" : "ring-border"}`}>
-                      {on && <Check size={11} />}
-                    </span>
-                    {p.name}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}

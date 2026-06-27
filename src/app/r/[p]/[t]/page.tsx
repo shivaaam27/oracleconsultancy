@@ -17,6 +17,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic"; // live, per-person counts — never cache
 
 type Params = { p: string; t: string };
+// `from` is now OPTIONAL/back-compat only: new reminder links no longer carry it
+// (the sender label lives in the message text). Already-sent links may still pass it.
 type Search = { from?: string };
 
 /** Validate the signature and resolve { personId, sig } (sig normalised). */

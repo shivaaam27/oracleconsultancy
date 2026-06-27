@@ -27,7 +27,7 @@ import {
 } from "@/lib/portal-auth";
 import { computeClosedDate } from "@/lib/task-status";
 import { reindexEntity } from "@/lib/index-hooks";
-import { createGroup, getOrCreateDm, personParticipant, sendMessage } from "@/lib/chat";
+import { createGroup, getOrCreateDm, personParticipant, sendMessage, threadFromTask } from "@/lib/chat";
 import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
@@ -149,6 +149,25 @@ function idList(formData: FormData, key: string): number[] {
     .filter((n) => Number.isFinite(n) && n > 0);
 }
 
+/** The leads (role "accountable") of a task — now one or more. Reads the
+ *  comma-separated "leadIds" field; if absent/empty, falls back to the single
+ *  "accountableId" field (back-compat). Returns unique, valid, finite ids. */
+function parseLeadIds(formData: FormData): number[] {
+  const leads = Array.from(
+    new Set(
+      String(formData.get("leadIds") ?? "")
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    )
+  );
+  if (leads.length === 0) {
+    const single = Number(formData.get("accountableId"));
+    if (Number.isFinite(single) && single > 0) leads.push(single);
+  }
+  return leads;
+}
+
 export async function portalCreateTask(
   _prev: { error: string } | null,
   formData: FormData
@@ -163,27 +182,36 @@ export async function portalCreateTask(
   const companyId = Number(formData.get("companyId"));
   const priority = String(formData.get("priority") ?? "Medium");
   const deadlineRaw = String(formData.get("deadline") ?? "").trim();
-  const accountableId = Number(formData.get("accountableId"));
-  const workingIds = idList(formData, "workingIds");
+  // Multi-lead: parse the comma-separated leadIds → unique valid ids; fall back
+  // to the single accountableId field for back-compat. At least one lead is required.
+  const leadIds = parseLeadIds(formData);
+  const workingIds = idList(formData, "workingIds").filter((id) => !leadIds.includes(id));
   const instruction = String(formData.get("instruction") ?? "").trim();
   const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
   if (!actionItem) return { error: "Give the task a title." };
   if (!Number.isFinite(companyId)) return { error: "Choose a company." };
+  if (leadIds.length === 0) return { error: "Choose who is responsible." };
 
+  let leads: number[];
   let workings: number[];
   if (me.portalRole === "hr") {
     // HR is group-wide: any active person, any company.
     const { data: activeRows } = await sb
-      .from("people").select("id").eq("active", true).in("id", [accountableId, ...workingIds]);
+      .from("people").select("id").eq("active", true).in("id", [...leadIds, ...workingIds]);
     const activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
-    if (!activeSet.has(accountableId)) return { error: "The responsible person isn't available." };
-    workings = workingIds.filter((id) => activeSet.has(id) && id !== accountableId);
+    leads = leadIds.filter((id) => activeSet.has(id));
+    if (leads.length === 0) return { error: "The responsible person isn't available." };
+    workings = workingIds.filter((id) => activeSet.has(id) && !leads.includes(id));
   } else {
     // Managers: themselves + their whole company team (plus cross-company direct
     // reports), within those people's companies.
     const allowedPeople = new Set([me.id, ...(await managerTeamIds(me))]);
-    if (!allowedPeople.has(accountableId)) return { error: "You can only assign to yourself or your team." };
-    workings = workingIds.filter((id) => allowedPeople.has(id) && id !== accountableId);
+    // Every lead must be within reach — reject the whole request otherwise.
+    if (!leadIds.every((id) => allowedPeople.has(id))) {
+      return { error: "You can only assign to yourself or your team." };
+    }
+    leads = leadIds;
+    workings = workingIds.filter((id) => allowedPeople.has(id) && !leads.includes(id));
     const { data: peopleRows } = await sb.from("people").select("company_id").in("id", [...allowedPeople]);
     const allowedCompanies = new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean));
     if (!allowedCompanies.has(companyId)) return { error: "You can't create tasks for that company." };
@@ -198,7 +226,7 @@ export async function portalCreateTask(
 
   const task = await insertTaskWithUniqueCodeSb(companyId, (company.code_prefix as string | null) || (company.code as string), {
     actionItem,
-    ownerId: accountableId,
+    ownerId: leads[0],
     status: "Not Started",
     priority,
     deadline: deadline && !isNaN(deadline.getTime()) ? deadline : null,
@@ -210,9 +238,9 @@ export async function portalCreateTask(
     requiresAttachment,
   });
 
-  // Assignees: the accountable person + working people.
+  // Assignees: every lead is "accountable", every working person is "working".
   const rows = [
-    { task_id: task.id, person_id: accountableId, role: "accountable" },
+    ...leads.map((id) => ({ task_id: task.id, person_id: id, role: "accountable" })),
     ...workings.map((id) => ({ task_id: task.id, person_id: id, role: "working" })),
   ];
   await sb.from("task_assignees").upsert(rows, { onConflict: "task_id,person_id", ignoreDuplicates: true });
@@ -242,7 +270,7 @@ export async function portalCreateTask(
   });
 
   // Notify the assignees (except the creator) + the owner's bell.
-  const recipients = [accountableId, ...workings].filter((id) => id !== me.id).map(personRecipient);
+  const recipients = [...leads, ...workings].filter((id) => id !== me.id).map(personRecipient);
   recipients.push("admin");
   await notifyMany(recipients, {
     kind: "assigned",
@@ -381,6 +409,59 @@ export async function portalDirectorChatMessage(input: {
   await recordEvent("portal.director.chat", "ok", { by: me.name, recipients: ids.length, group });
   revalidatePath("/portal/chat");
   return { ok: true, threadId, group };
+}
+
+/**
+ * Management (director / HR / manager): open the task's GROUP chat and drop a
+ * short nudge into it. Reuses threadFromTask (deduped per task, seeds owner +
+ * assignees + the admin owner), so everyone working the task can pick it up.
+ * Re-checks the task is in the sender's view — staff get an error. Returns the
+ * threadId so the client can jump straight into /portal/chat/{threadId}.
+ */
+export async function portalMessageTaskGroup(
+  taskId: number
+): Promise<{ ok: true; threadId: number } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
+
+  const { data: t } = await sb.from("tasks").select("code").eq("id", taskId).maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+  const code = t.code as string;
+
+  const createdBy = `portal-${roleTag(me.portalRole)}:${me.name}`;
+  const threadId = await threadFromTask(taskId, code, createdBy);
+  const mine = personParticipant(me.id);
+  await sendMessage({
+    threadId,
+    sender: mine,
+    body: `Quick nudge on ${code} — please share an update when you can. Thank you.`,
+    taskCode: code,
+  });
+
+  await recordEvent("portal.task.chat", "ok", { by: me.name, role: me.portalRole, task: code });
+  revalidatePath("/portal/chat");
+  return { ok: true, threadId };
+}
+
+/**
+ * Open (or continue) a one-to-one chat DM with a person — used by the per-person
+ * "message in chat" action on a task. Returns the threadId so the client jumps to
+ * /portal/chat/{threadId}. Chat is everyone↔everyone, so any signed-in portal
+ * person may DM a colleague (the existing DM is reused, never duplicated).
+ */
+export async function portalOpenDm(
+  personId: number
+): Promise<{ ok: true; threadId: number } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Unknown person." };
+  if (personId === me.id) return { ok: false, error: "You can't message yourself." };
+  const mine = personParticipant(me.id);
+  const threadId = await getOrCreateDm(mine, personParticipant(personId), mine);
+  revalidatePath("/portal/chat");
+  return { ok: true, threadId };
 }
 
 /**
@@ -572,7 +653,7 @@ export async function portalSendTaskSummaryWhatsApp(
   const { waReminderLink, waFromLabel } = await import("@/lib/wa-card");
   const { waLink } = await import("@/lib/outbox/links");
   const from = waFromLabel({ name: me.name, role });
-  const text = buildTaskSummaryWhatsApp(person.name as string, rows, waReminderLink(personId, from));
+  const text = buildTaskSummaryWhatsApp(person.name as string, rows, waReminderLink(personId), from);
   const number = (((person.whatsapp as string | null) || (person.phone as string | null)) ?? "").trim();
   const waHref = waLink(number, text);
 
@@ -679,14 +760,16 @@ export async function portalDirectorCreateTask(
   const actionItem = String(formData.get("actionItem") ?? "").trim();
   const priority = String(formData.get("priority") ?? "Medium");
   const deadlineRaw = String(formData.get("deadline") ?? "").trim();
-  const accountableId = Number(formData.get("accountableId"));
-  const workingIds = idList(formData, "workingIds");
+  // Multi-lead: parse the comma-separated leadIds → unique valid ids; fall back
+  // to the single accountableId field for back-compat. At least one lead is required.
+  const leadIds = parseLeadIds(formData);
+  const workingIds = idList(formData, "workingIds").filter((id) => !leadIds.includes(id));
   const instruction = String(formData.get("instruction") ?? "").trim();
   const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
   // The director composer defaults this ON — only the creator may close the task.
   const creatorCloseOnly = formData.get("creatorCloseOnly") === "on" || formData.get("creatorCloseOnly") === "1";
   if (!actionItem) return { error: "Give the task a title." };
-  if (!Number.isFinite(accountableId)) return { error: "Choose who is responsible." };
+  if (leadIds.length === 0) return { error: "Choose who is responsible." };
 
   // Multi-company fan-out: parse the comma-separated companyIds → unique valid
   // ids; fall back to a single companyId field if companyIds is absent/empty.
@@ -705,10 +788,11 @@ export async function portalDirectorCreateTask(
   if (companyIds.length === 0) return { error: "Choose a company." };
 
   // Group-wide: the only constraint is that the people are real + active.
-  const { data: activeRows } = await sb.from("people").select("id").eq("active", true).in("id", [accountableId, ...workingIds]);
+  const { data: activeRows } = await sb.from("people").select("id").eq("active", true).in("id", [...leadIds, ...workingIds]);
   const activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
-  if (!activeSet.has(accountableId)) return { error: "The responsible person isn't available." };
-  const workings = workingIds.filter((id) => activeSet.has(id) && id !== accountableId);
+  const leads = leadIds.filter((id) => activeSet.has(id));
+  if (leads.length === 0) return { error: "The responsible person isn't available." };
+  const workings = workingIds.filter((id) => activeSet.has(id) && !leads.includes(id));
 
   const now = new Date();
   const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
@@ -720,7 +804,7 @@ export async function portalDirectorCreateTask(
     if (!company) continue; // skip an unknown company id rather than fail the whole fan-out
 
     const task = await insertTaskWithUniqueCodeSb(companyId, (company.code_prefix as string | null) || (company.code as string), {
-      actionItem, ownerId: accountableId, status: "Not Started", priority,
+      actionItem, ownerId: leads[0], status: "Not Started", priority,
       deadline: deadline && !isNaN(deadline.getTime()) ? deadline : null,
       createdDate: now, lastUpdatedAt: now, latestUpdate: instruction || null, archived: false,
       createdByPersonId: me.id,
@@ -733,7 +817,7 @@ export async function portalDirectorCreateTask(
     }
 
     const rows = [
-      { task_id: task.id, person_id: accountableId, role: "accountable" },
+      ...leads.map((id) => ({ task_id: task.id, person_id: id, role: "accountable" })),
       ...workings.map((id) => ({ task_id: task.id, person_id: id, role: "working" })),
     ];
     await sb.from("task_assignees").upsert(rows, { onConflict: "task_id,person_id", ignoreDuplicates: true });
@@ -750,7 +834,7 @@ export async function portalDirectorCreateTask(
       change_reason: "Created by director", created_at: now.toISOString(), created_by: createdBy,
     });
 
-    const recipients = [accountableId, ...workings].map(personRecipient);
+    const recipients = [...leads, ...workings].map(personRecipient);
     recipients.push("admin");
     await notifyMany(recipients, {
       kind: "assigned", taskId: task.id, taskCode: task.code,
@@ -867,6 +951,110 @@ export async function portalEditTask(input: {
 
   if (reassigned) {
     await notifyMany([personRecipient(reassigned), "admin"], {
+      kind: "assigned", taskId: t.id as number, taskCode: t.code as string,
+      title: `${me.name} made you responsible`, body: "You're now responsible for this task.", actor: me.name,
+    });
+  }
+
+  revalidatePath("/portal/board");
+  revalidatePath("/portal/tasks");
+  revalidatePath(`/task/${t.code}`);
+  return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Set a task's LEAD set (role "accountable") — now one or more people.
+ *   • owner_id := leadIds[0] (back-compat: the first lead).
+ *   • every given person becomes "accountable" (added to the task if not
+ *     already on it); any existing "accountable" person NOT in leadIds is
+ *     demoted to "working"; nobody is ever removed from the task.
+ *   • director / HR  → group-wide; manager → limited to their team.
+ * Audit-logged + notifies the newly-added leads.
+ * ---------------------------------------------------------------------- */
+export async function portalSetTaskLeads(
+  taskId: number,
+  leadIds: number[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  if (role === "staff") return { ok: false, error: "You don't have permission to edit tasks." };
+  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
+
+  // Unique, valid lead ids — at least one is required.
+  const wanted = Array.from(new Set(leadIds.filter((n) => Number.isFinite(n) && n > 0)));
+  if (wanted.length === 0) return { ok: false, error: "Choose at least one person to be responsible." };
+
+  const { data: t } = await sb
+    .from("tasks")
+    .select("id,code,company_id,owner_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+
+  // Every lead must be a real, active person within the editor's reach.
+  const { data: people } = await sb
+    .from("people").select("id,name,active").in("id", wanted);
+  const peopleById = new Map((people ?? []).map((p) => [p.id as number, p]));
+  for (const id of wanted) {
+    const p = peopleById.get(id);
+    if (!p || p.active !== true) return { ok: false, error: "That person isn't available." };
+  }
+  if (role === "manager") {
+    const allowed = new Set([me.id, ...(await managerTeamIds(me))]);
+    if (!wanted.every((id) => allowed.has(id))) {
+      return { ok: false, error: "You can only assign to yourself or your team." };
+    }
+  }
+
+  const createdBy = `portal-${roleTag(role)}:${me.name}`;
+  const now = new Date().toISOString();
+
+  // Existing assignees, so we know who is already on the task (don't re-add) and
+  // which current leads must be demoted.
+  const { data: existing } = await sb
+    .from("task_assignees").select("person_id,role").eq("task_id", taskId);
+  const onTask = new Set((existing ?? []).map((a) => a.person_id as number));
+  const currentLeads = (existing ?? []).filter((a) => a.role === "accountable").map((a) => a.person_id as number);
+
+  // Demote any current lead that is no longer wanted → "working".
+  const demote = currentLeads.filter((id) => !wanted.includes(id));
+  if (demote.length > 0) {
+    await sb.from("task_assignees")
+      .update({ role: "working" })
+      .eq("task_id", taskId)
+      .in("person_id", demote);
+  }
+
+  // Promote/insert the wanted leads → "accountable" (added to the task if new).
+  await sb.from("task_assignees").upsert(
+    wanted.map((id) => ({ task_id: taskId, person_id: id, role: "accountable" })),
+    { onConflict: "task_id,person_id" }
+  );
+
+  // owner_id := the first lead (back-compat for board owner / reminders / close-lock).
+  const oldOwner = (t.owner_id as number | null) ?? null;
+  const newOwner = wanted[0];
+  if (newOwner !== oldOwner) {
+    const { error } = await sb.from("tasks").update({ owner_id: newOwner, last_updated_at: now }).eq("id", taskId);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    await sb.from("tasks").update({ last_updated_at: now }).eq("id", taskId);
+  }
+
+  const leadNames = wanted.map((id) => (peopleById.get(id)?.name as string | undefined) ?? String(id));
+  await logChangeSb(
+    t.id as number, t.code as string, t.company_id as number,
+    "owner", String(oldOwner ?? "—"), leadNames.join(", "),
+    `Leads set from portal (${role})`, createdBy
+  );
+
+  void reindexEntity("task", t.id as number); // owner/assignees moved (best-effort)
+
+  // Notify only the newly-added leads (people not previously on the task).
+  const added = wanted.filter((id) => !onTask.has(id) && id !== me.id);
+  if (added.length > 0) {
+    await notifyMany([...added.map(personRecipient), "admin"], {
       kind: "assigned", taskId: t.id as number, taskCode: t.code as string,
       title: `${me.name} made you responsible`, body: "You're now responsible for this task.", actor: me.name,
     });

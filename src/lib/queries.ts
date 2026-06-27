@@ -18,6 +18,10 @@ export type TaskRow = {
   assignees: string[];
   /** Parallel array to `assignees`; same order, same length. Enables PersonDrawerLink rendering. */
   assigneeIds: number[];
+  /** Person ids whose task_assignees.role is "accountable" — the task's LEAD(s),
+   *  now one or more. Falls back to [owner_id] when no accountable rows exist and
+   *  owner_id is set, else []. */
+  leadIds: number[];
   meetingDate: Date | null;
   createdDate: Date | null;
   deadline: Date | null;
@@ -92,7 +96,7 @@ type SbTask = {
 type SbCompany = { id: number; name: string; accent_color: string | null };
 type SbDept = { id: number; name: string };
 type SbPerson = { id: number; name: string };
-type SbAssignee = { task_id: number; person_id: number };
+type SbAssignee = { task_id: number; person_id: number; role: string | null };
 type SbUpdate = {
   id: number;
   task_id: number;
@@ -189,7 +193,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
     sb.from("companies").select("id,name,accent_color"),
     sb.from("departments").select("id,name"),
     sb.from("people").select("id,name"),
-    sb.from("task_assignees").select("task_id,person_id"),
+    sb.from("task_assignees").select("task_id,person_id,role"),
     // One batched read of every live update, newest first, for the rich-row
     // enrichment (latest update + count + pinned). No per-task query (no N+1).
     sb.from("task_updates").select("id,task_id,body,created_at,created_by,pinned_at").is("deleted_at", null).order("created_at", { ascending: false }),
@@ -232,6 +236,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
   const pName = new Map(people.map((p) => [p.id, p.name]));
   const aMap = new Map<number, string[]>();
   const aIdMap = new Map<number, number[]>();
+  const leadIdMap = new Map<number, number[]>();
   for (const a of assignees) {
     const list = aMap.get(a.task_id) || [];
     const idList = aIdMap.get(a.task_id) || [];
@@ -239,6 +244,11 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
     idList.push(a.person_id);
     aMap.set(a.task_id, list);
     aIdMap.set(a.task_id, idList);
+    if (a.role === "accountable") {
+      const leads = leadIdMap.get(a.task_id) || [];
+      leads.push(a.person_id);
+      leadIdMap.set(a.task_id, leads);
+    }
   }
 
   return tasks.map((t): TaskRow => {
@@ -280,6 +290,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
       ownerId: t.owner_id ?? null,
       assignees: aMap.get(t.id) || [],
       assigneeIds: aIdMap.get(t.id) || [],
+      leadIds: leadIdMap.get(t.id) ?? (t.owner_id != null ? [t.owner_id] : []),
       meetingDate: toDate(t.meeting_date),
       createdDate,
       deadline,

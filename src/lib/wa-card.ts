@@ -21,11 +21,25 @@ function token(personId: number): string {
   return createHmac("sha256", secret()).update(`wa-card:${personId}`).digest("base64url");
 }
 
-export function verifyWaCardToken(personId: number, sig: string): boolean {
-  const expected = token(personId);
+/** Truncated token for the URL — keeps links short while staying signed.
+ *  ~10 chars of base64url ≈ 60 bits, ample to stop casual enumeration. */
+function shortToken(personId: number): string {
+  return token(personId).slice(0, 10);
+}
+
+/** Timing-safe equality for two strings of the same length. */
+function safeEqual(expected: string, sig: string): boolean {
   const a = Buffer.from(expected);
   const b = Buffer.from(sig || "");
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Accept EITHER the full HMAC token (back-compat with already-sent links) OR the
+ *  10-char short token. Each is compared against the matching-length expected value. */
+export function verifyWaCardToken(personId: number, sig: string): boolean {
+  const full = token(personId);
+  if ((sig || "").length === full.length) return safeEqual(full, sig);
+  return safeEqual(shortToken(personId), sig);
 }
 
 /** A clean, length-clamped "from" label for the preview image / landing card.
@@ -61,9 +75,11 @@ export function waCardImageUrl(personId: number, from?: string): string {
  * open/overdue counts + top-3 overdue — while real visitors are redirected on to the
  * staff portal. Put this LAST in a WhatsApp message so WhatsApp builds its preview
  * card from it. See src/app/r/[p]/[t]/page.tsx.
+ *
+ * Uses the SHORT token to keep the link tiny; the "from" label now lives in the
+ * message text (a sign-off line), not the URL — so no query string. The `from`
+ * parameter is retained for callers but intentionally unused here.
  */
-export function waReminderLink(personId: number, from?: string): string {
-  const sig = token(personId);
-  const f = from ? `?from=${encodeURIComponent(from)}` : "";
-  return `${appBaseUrl()}/r/${personId}/${encodeURIComponent(sig)}${f}`;
+export function waReminderLink(personId: number, _from?: string): string {
+  return `${appBaseUrl()}/r/${personId}/${shortToken(personId)}`;
 }
