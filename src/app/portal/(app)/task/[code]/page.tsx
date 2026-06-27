@@ -59,7 +59,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   const { data: task } = await sb
     .from("tasks")
-    .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,requires_attachment,companies(name)")
+    .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,created_by_person_id,requires_attachment,companies(name)")
     .eq("code", decodeURIComponent(code))
     .maybeSingle();
   if (!task) notFound();
@@ -81,6 +81,22 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
     getStaffIdMap(),
   ]);
+
+  // Who assigned this task — when a portal user (typically a director) created
+  // it, surface a quiet "Assigned by {Name}" line in the header meta.
+  const assignedById = task.created_by_person_id as number | null;
+  let assignedByName: string | null = null;
+  if (assignedById) {
+    if (assignedById === me.id) assignedByName = "You";
+    else {
+      const { data: assigner } = await sb
+        .from("people")
+        .select("name")
+        .eq("id", assignedById)
+        .maybeSingle();
+      assignedByName = (assigner?.name as string | null) ?? null;
+    }
+  }
 
   // System events (status/deadline/priority/etc.) → thin inline markers.
   const { data: auditRows } = await sb
@@ -234,6 +250,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         <h1 className="mt-2 text-lg font-semibold leading-snug">{task.action_item}</h1>
         <WaitingOnChip task={preview} on={team.find((p) => p.accountable)?.name} className="mt-2" />
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-fg-muted">
+          {assignedByName && <span className="text-fg-subtle">Assigned by {assignedByName}</span>}
           {task.deadline && (
             <span>
               <CalendarDays size={12} className="mr-1 inline -mt-px" />

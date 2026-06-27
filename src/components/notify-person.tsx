@@ -29,17 +29,23 @@ export function NotifyPerson({
   const first = name.split(" ")[0] || name;
   const pad = size === "sm" ? "px-2.5 py-1.5 text-[12px]" : "px-3 py-2 text-sm";
 
-  const whatsapp = () =>
+  const whatsapp = () => {
+    // Open a blank tab synchronously inside the tap so mobile browsers don't block
+    // it; we set its location once the server returns the deep-link.
+    const win = window.open("", "_blank");
     start(async () => {
       const res = await portalSendTaskSummaryWhatsApp(personId);
-      if (!res.ok) { toast(res.error, { tone: "warn" }); return; }
+      if (!res.ok) { win?.close(); toast(res.error, { tone: "warn" }); return; }
       if (res.waHref) {
-        window.open(res.waHref, "_blank", "noreferrer");
+        if (win) win.location.href = res.waHref;
+        else window.open(res.waHref, "_blank", "noreferrer");
         toast(`WhatsApp summary ready for ${first}.`, { tone: "success" });
       } else {
+        win?.close();
         toast(`No WhatsApp number on file for ${first}.`, { tone: "warn" });
       }
     });
+  };
 
   const email = () =>
     start(async () => {

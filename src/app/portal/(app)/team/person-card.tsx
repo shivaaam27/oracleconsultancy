@@ -47,14 +47,19 @@ export function PersonCard({ p }: { p: TeamPerson }) {
 
   const whatsapp = () => {
     if (hasTasks) {
+      // Open a blank tab synchronously inside the tap so mobile browsers don't block
+      // it; we set its location once the server returns the deep-link.
+      const win = window.open("", "_blank");
       start(async () => {
         const res = await portalSendTaskSummaryWhatsApp(p.id);
-        if (!res.ok) { toast(res.error, { tone: "warn" }); return; }
+        if (!res.ok) { win?.close(); toast(res.error, { tone: "warn" }); return; }
         if (res.waHref) {
-          window.open(res.waHref, "_blank", "noreferrer");
+          if (win) win.location.href = res.waHref;
+          else window.open(res.waHref, "_blank", "noreferrer");
           setWaSent(true);
           toast(`WhatsApp summary ready for ${first}.`, { tone: "success" });
         } else {
+          win?.close();
           toast(`No WhatsApp number for ${first}.`, { tone: "warn" });
         }
       });
