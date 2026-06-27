@@ -9,7 +9,7 @@ import { Reveal } from "@/components/reveal";
 import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
 import { PortalHomeTasks } from "@/components/portal-home-tasks";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
-import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
+import { getPortalPerson, visibleTaskIds, managerTeamIds } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { Megaphone } from "lucide-react";
@@ -145,7 +145,10 @@ export default async function PortalHome() {
     }));
   }
 
-  const reportIds = me.portalRole === "manager" ? await directReportIds(me.id) : [];
+  // A manager's "team" is their whole company plus any direct reports (matching
+  // how they already see company tasks) — so a newly-created manager is never
+  // shown an empty team. Director/HR don't use this branch (handled elsewhere).
+  const reportIds = me.portalRole === "manager" ? await managerTeamIds(me) : [];
   const teamToday = reportIds.length > 0 ? await teamAttendanceToday(reportIds) : [];
   const teamPresent = teamToday.filter((m) => m.status === "Present" || m.status === "Remote").length;
   const teamMarked = teamToday.filter((m) => m.status).length;

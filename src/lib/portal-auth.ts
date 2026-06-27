@@ -257,6 +257,26 @@ export async function directReportIds(managerId: number): Promise<number[]> {
   );
 }
 
+/** A manager's team: everyone in their own company (active) PLUS any direct
+ *  report who sits in another company (dotted/primary line), EXCLUDING the
+ *  manager themselves. This is the company-wide scope a manager now manages —
+ *  create/assign, open colleagues, approve leave. If the manager has no company
+ *  set, this is just their direct reports. Only ever called for managers. */
+export async function managerTeamIds(person: PortalPerson): Promise<number[]> {
+  const reports = await directReportIds(person.id);
+  if (person.companyId == null) {
+    return reports.filter((id) => id !== person.id);
+  }
+  const { data: colleagues } = await sb
+    .from("people")
+    .select("id")
+    .eq("company_id", person.companyId)
+    .eq("active", true);
+  return Array.from(
+    new Set([...(colleagues ?? []).map((r) => r.id as number), ...reports])
+  ).filter((id) => id !== person.id);
+}
+
 /** May this portal person open another person's (read-only, scoped) detail page?
  *  Self: always. Director/HR: any active person (group-wide). Manager: their direct
  *  reports only. Staff: only themselves. Never exposes pay or private IDs (the
@@ -268,8 +288,8 @@ export async function personCanSeePerson(viewer: PortalPerson, targetId: number)
     return Boolean(data) && data!.active === true;
   }
   if (viewer.portalRole === "manager") {
-    const reports = await directReportIds(viewer.id);
-    return reports.includes(targetId);
+    const team = await managerTeamIds(viewer);
+    return team.includes(targetId);
   }
   return false;
 }

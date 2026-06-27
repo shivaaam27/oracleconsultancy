@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, managerTeamIds } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
@@ -34,11 +34,17 @@ export default async function PortalTeamPage() {
     }
   }
 
-  const { data: allPeople } = await sb
+  // Director / HR see everyone group-wide; a manager's team is scoped to their
+  // own company plus any direct reports (matching their task visibility), so a
+  // newly-created manager isn't shown the whole portfolio.
+  const teamIds = me.portalRole === "manager" ? await managerTeamIds(me) : null;
+  let peopleQuery = sb
     .from("people")
     .select("id,name,role,email,phone,whatsapp,company_id,companies(name)")
     .eq("active", true)
     .order("name");
+  if (teamIds) peopleQuery = peopleQuery.in("id", teamIds.length > 0 ? teamIds : [-1]);
+  const { data: allPeople } = await peopleQuery;
 
   const people: TeamPerson[] = (allPeople ?? [])
     .map((p) => {

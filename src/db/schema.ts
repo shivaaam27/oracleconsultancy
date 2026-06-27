@@ -571,6 +571,12 @@ export const tasks = pgTable("tasks", {
   // When true, completing or closing this task requires an attachment (proof) —
   // enforced server-side in the portal completion gate.
   requiresAttachment: boolean("requires_attachment").notNull().default(false),
+  // When true, ONLY the person who created the task (createdByPersonId — typically
+  // the director who assigned it) may move it to Completed/Closed. Other portal
+  // roles can still progress/update it but not close it. The owner/admin always
+  // overrides. Default ON for director-created tasks; off elsewhere. Enforced
+  // server-side in the portal completion + edit gates.
+  creatorCloseOnly: boolean("creator_close_only").notNull().default(false),
 }, (t) => [
   index("tasks_company_idx").on(t.companyId),
   index("tasks_owner_idx").on(t.ownerId),

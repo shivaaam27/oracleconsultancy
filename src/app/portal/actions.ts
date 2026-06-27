@@ -17,9 +17,9 @@ import { createNotification, notifyMany, notifyPinned, personRecipient, recipien
 import { broadcastPulse } from "@/lib/cos-pulse";
 import {
   clearSessionCookie,
-  directReportIds,
   findPortalPersonByIdentifier,
   getPortalPerson,
+  managerTeamIds,
   personCanSeePerson,
   personCanSeeTask,
   setSessionCookie,
@@ -27,6 +27,7 @@ import {
 } from "@/lib/portal-auth";
 import { computeClosedDate } from "@/lib/task-status";
 import { reindexEntity } from "@/lib/index-hooks";
+import { createGroup, getOrCreateDm, personParticipant, sendMessage } from "@/lib/chat";
 import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
@@ -178,8 +179,9 @@ export async function portalCreateTask(
     if (!activeSet.has(accountableId)) return { error: "The responsible person isn't available." };
     workings = workingIds.filter((id) => activeSet.has(id) && id !== accountableId);
   } else {
-    // Managers: themselves + direct reports, within those people's companies.
-    const allowedPeople = new Set([me.id, ...(await directReportIds(me.id))]);
+    // Managers: themselves + their whole company team (plus cross-company direct
+    // reports), within those people's companies.
+    const allowedPeople = new Set([me.id, ...(await managerTeamIds(me))]);
     if (!allowedPeople.has(accountableId)) return { error: "You can only assign to yourself or your team." };
     workings = workingIds.filter((id) => allowedPeople.has(id) && id !== accountableId);
     const { data: peopleRows } = await sb.from("people").select("company_id").in("id", [...allowedPeople]);
@@ -326,6 +328,114 @@ export async function portalDirectorDraftMessage(input: {
   await recordEvent("portal.director.message", "ok", { by: me.name, to: person.name, channel, task: input.taskCode ?? null });
   revalidatePath("/outbox");
   return { ok: true, link, contactMissing: !to, channel };
+}
+
+/** Auto-title for an ad-hoc group from recipient first names — editable later
+ *  in chat (e.g. "Ravi & Asha", "Ravi, Asha & 2 others"). */
+function autoGroupTitle(firstNames: string[]): string {
+  const names = firstNames.filter(Boolean);
+  if (names.length === 0) return "Group";
+  if (names.length <= 2) return names.join(" & ");
+  const rest = names.length - 2;
+  return `${names.slice(0, 2).join(", ")} & ${rest} other${rest === 1 ? "" : "s"}`;
+}
+
+/**
+ * Director: message one or more people through the built-in CHAT.
+ * - One recipient  → continues (or opens) the 1:1 DM with that person.
+ * - Many recipients → creates an ad-hoc group (auto-named, renameable in chat).
+ * Returns the threadId so the client can jump straight into the conversation.
+ * Internal messaging, so it is NOT gated by the external outreach pause.
+ */
+export async function portalDirectorChatMessage(input: {
+  personIds: number[];
+  body: string;
+  title?: string | null;
+}): Promise<{ ok: true; threadId: number; group: boolean } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+
+  const body = (input.body ?? "").trim();
+  if (!body) return { ok: false, error: "Write a message." };
+
+  const ids = [...new Set(input.personIds.filter((n) => Number.isFinite(n) && n > 0 && n !== me.id))];
+  if (ids.length === 0) return { ok: false, error: "Choose at least one recipient." };
+
+  const mine = personParticipant(me.id);
+  let threadId: number;
+  const group = ids.length > 1;
+  if (!group) {
+    threadId = await getOrCreateDm(mine, personParticipant(ids[0]), mine);
+  } else {
+    const { data: names } = await sb.from("people").select("id,name").in("id", ids);
+    const order = new Map(ids.map((id, i) => [id, i]));
+    const firstNames = (names ?? [])
+      .sort((a, b) => (order.get(a.id as number) ?? 0) - (order.get(b.id as number) ?? 0))
+      .map((r) => (r.name as string).split(/\s+/)[0]);
+    const title = input.title?.trim() || autoGroupTitle(firstNames);
+    threadId = await createGroup({ title, createdBy: mine, participants: ids.map(personParticipant) });
+  }
+
+  await sendMessage({ threadId, sender: mine, body });
+  await recordEvent("portal.director.chat", "ok", { by: me.name, recipients: ids.length, group });
+  revalidatePath("/portal/chat");
+  return { ok: true, threadId, group };
+}
+
+/**
+ * Director: one EMAIL to several people at once (all addresses in the To field).
+ * Builds a single mailto: deep-link for a one-tap manual send and logs one
+ * owner-visible Outbox record. Honours the external outreach pause.
+ */
+export async function portalDirectorGroupEmail(input: {
+  personIds: number[];
+  subject?: string | null;
+  body: string;
+}): Promise<{ ok: true; link: string | null; missing: string[] } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+
+  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
+  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Director outreach is paused by the administrator." };
+
+  const body = (input.body ?? "").trim();
+  if (!body) return { ok: false, error: "Write a message." };
+
+  const ids = [...new Set(input.personIds.filter((n) => Number.isFinite(n) && n > 0))];
+  if (ids.length === 0) return { ok: false, error: "Choose at least one recipient." };
+
+  const { data: people } = await sb.from("people").select("id,name,email").in("id", ids);
+  const rows = people ?? [];
+  const withEmail = rows.filter((p) => (p.email as string | null)?.trim());
+  const missing = rows.filter((p) => !(p.email as string | null)?.trim()).map((p) => p.name as string);
+  if (withEmail.length === 0) return { ok: false, error: "None of the chosen people have an email on file." };
+
+  const emails = withEmail.map((p) => (p.email as string).trim());
+  const subject = input.subject?.trim() || "A note from the director";
+  // mailto supports comma-separated recipients; build directly so the commas
+  // stay literal (encodeURIComponent would turn them into %2C and break the list).
+  const link = `mailto:${emails.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+  const { error } = await sb.from("outbox").insert({
+    channel: "EMAIL",
+    recipient_name: withEmail.map((p) => p.name as string).join(", "),
+    recipient_contact: emails.join(", "),
+    company: null,
+    subject,
+    body,
+    message_type: "DIRECTOR MESSAGE",
+    status: "Draft",
+    source: `portal-dir:${me.name}`,
+    person_id: withEmail.length === 1 ? (withEmail[0].id as number) : null,
+    created_at: new Date().toISOString(),
+  });
+  if (error) return { ok: false, error: error.message };
+
+  await recordEvent("portal.director.message", "ok", { by: me.name, channel: "EMAIL", recipients: withEmail.length });
+  revalidatePath("/outbox");
+  return { ok: true, link, missing };
 }
 
 /**
@@ -567,16 +677,32 @@ export async function portalDirectorCreateTask(
   if (me.portalRole !== "director") return { error: "Only directors can do this." };
 
   const actionItem = String(formData.get("actionItem") ?? "").trim();
-  const companyId = Number(formData.get("companyId"));
   const priority = String(formData.get("priority") ?? "Medium");
   const deadlineRaw = String(formData.get("deadline") ?? "").trim();
   const accountableId = Number(formData.get("accountableId"));
   const workingIds = idList(formData, "workingIds");
   const instruction = String(formData.get("instruction") ?? "").trim();
   const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
+  // The director composer defaults this ON — only the creator may close the task.
+  const creatorCloseOnly = formData.get("creatorCloseOnly") === "on" || formData.get("creatorCloseOnly") === "1";
   if (!actionItem) return { error: "Give the task a title." };
-  if (!Number.isFinite(companyId)) return { error: "Choose a company." };
   if (!Number.isFinite(accountableId)) return { error: "Choose who is responsible." };
+
+  // Multi-company fan-out: parse the comma-separated companyIds → unique valid
+  // ids; fall back to a single companyId field if companyIds is absent/empty.
+  const companyIds = Array.from(
+    new Set(
+      String(formData.get("companyIds") ?? "")
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    )
+  );
+  if (companyIds.length === 0) {
+    const single = Number(formData.get("companyId"));
+    if (Number.isFinite(single) && single > 0) companyIds.push(single);
+  }
+  if (companyIds.length === 0) return { error: "Choose a company." };
 
   // Group-wide: the only constraint is that the people are real + active.
   const { data: activeRows } = await sb.from("people").select("id").eq("active", true).in("id", [accountableId, ...workingIds]);
@@ -584,47 +710,56 @@ export async function portalDirectorCreateTask(
   if (!activeSet.has(accountableId)) return { error: "The responsible person isn't available." };
   const workings = workingIds.filter((id) => activeSet.has(id) && id !== accountableId);
 
-  const { data: company } = await sb.from("companies").select("code,code_prefix").eq("id", companyId).maybeSingle();
-  if (!company) return { error: "Company not found." };
-
   const now = new Date();
   const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
   const createdBy = `portal-dir:${me.name}`;
 
-  const task = await insertTaskWithUniqueCodeSb(companyId, (company.code_prefix as string | null) || (company.code as string), {
-    actionItem, ownerId: accountableId, status: "Not Started", priority,
-    deadline: deadline && !isNaN(deadline.getTime()) ? deadline : null,
-    createdDate: now, lastUpdatedAt: now, latestUpdate: instruction || null, archived: false,
-    createdByPersonId: me.id,
-    requiresAttachment,
-  });
+  // Create one task per selected company.
+  for (const companyId of companyIds) {
+    const { data: company } = await sb.from("companies").select("code,code_prefix").eq("id", companyId).maybeSingle();
+    if (!company) continue; // skip an unknown company id rather than fail the whole fan-out
 
-  const rows = [
-    { task_id: task.id, person_id: accountableId, role: "accountable" },
-    ...workings.map((id) => ({ task_id: task.id, person_id: id, role: "working" })),
-  ];
-  await sb.from("task_assignees").upsert(rows, { onConflict: "task_id,person_id", ignoreDuplicates: true });
-
-  if (instruction) {
-    await sb.from("task_updates").insert({
-      task_id: task.id, body: instruction, created_at: now.toISOString(), created_by: createdBy, pinned_at: now.toISOString(),
+    const task = await insertTaskWithUniqueCodeSb(companyId, (company.code_prefix as string | null) || (company.code as string), {
+      actionItem, ownerId: accountableId, status: "Not Started", priority,
+      deadline: deadline && !isNaN(deadline.getTime()) ? deadline : null,
+      createdDate: now, lastUpdatedAt: now, latestUpdate: instruction || null, archived: false,
+      createdByPersonId: me.id,
+      requiresAttachment,
     });
+
+    // insertTaskWithUniqueCodeSb doesn't carry creator_close_only — stamp it after.
+    if (creatorCloseOnly) {
+      await sb.from("tasks").update({ creator_close_only: true }).eq("id", task.id);
+    }
+
+    const rows = [
+      { task_id: task.id, person_id: accountableId, role: "accountable" },
+      ...workings.map((id) => ({ task_id: task.id, person_id: id, role: "working" })),
+    ];
+    await sb.from("task_assignees").upsert(rows, { onConflict: "task_id,person_id", ignoreDuplicates: true });
+
+    if (instruction) {
+      await sb.from("task_updates").insert({
+        task_id: task.id, body: instruction, created_at: now.toISOString(), created_by: createdBy, pinned_at: now.toISOString(),
+      });
+    }
+
+    await sb.from("audit_log").insert({
+      task_id: task.id, task_code: task.code, company_id: companyId,
+      entry_type: "CREATE", field: "Task", old_value: null, new_value: actionItem,
+      change_reason: "Created by director", created_at: now.toISOString(), created_by: createdBy,
+    });
+
+    const recipients = [accountableId, ...workings].map(personRecipient);
+    recipients.push("admin");
+    await notifyMany(recipients, {
+      kind: "assigned", taskId: task.id, taskCode: task.code,
+      title: `${me.name} assigned you a task`, body: actionItem, actor: me.name,
+    });
+
+    void reindexEntity("task", task.id); // new task — index it (best-effort)
   }
 
-  await sb.from("audit_log").insert({
-    task_id: task.id, task_code: task.code, company_id: companyId,
-    entry_type: "CREATE", field: "Task", old_value: null, new_value: actionItem,
-    change_reason: "Created by director", created_at: now.toISOString(), created_by: createdBy,
-  });
-
-  const recipients = [accountableId, ...workings].map(personRecipient);
-  recipients.push("admin");
-  await notifyMany(recipients, {
-    kind: "assigned", taskId: task.id, taskCode: task.code,
-    title: `${me.name} assigned you a task`, body: actionItem, actor: me.name,
-  });
-
-  void reindexEntity("task", task.id); // new task — index it (best-effort)
   revalidatePath("/portal/board");
   revalidatePath("/portal/tasks");
   revalidatePath("/");
@@ -667,7 +802,7 @@ export async function portalEditTask(input: {
 
   const { data: t } = await sb
     .from("tasks")
-    .select("id,code,company_id,status,priority,deadline,owner_id,closed_date")
+    .select("id,code,company_id,status,priority,deadline,owner_id,closed_date,created_by_person_id,creator_close_only")
     .eq("id", input.taskId)
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
@@ -678,6 +813,16 @@ export async function portalEditTask(input: {
   const current = t.status as string;
   const allowedStatuses = full ? ALL_STATUSES : MANAGER_STATUSES;
   const lockedDone = current === "Completed" || current === "Closed";
+
+  // Close-lock: when set, only the creator may move the task to Completed/Closed.
+  // Other status moves (and reopening) are unaffected.
+  if (
+    (input.status === "Completed" || input.status === "Closed") &&
+    (t.creator_close_only as boolean) &&
+    me.id !== (t.created_by_person_id as number | null)
+  ) {
+    return { ok: false, error: "Only the person who set this task can close it." };
+  }
 
   if (input.status && allowedStatuses.includes(input.status) && input.status !== current) {
     // Managers can't reopen a Completed/Closed task; directors/HR can.
@@ -1048,13 +1193,17 @@ export async function portalCompleteTask(
 
   const { data: t } = await sb
     .from("tasks")
-    .select("id,status,company_id,code,requires_attachment")
+    .select("id,status,company_id,code,requires_attachment,created_by_person_id,creator_close_only")
     .eq("id", taskId)
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
   const current = t.status as string;
   if (current === "Completed" || current === "Closed") return { ok: false, error: "This task is already finished." };
   if ((t.requires_attachment as boolean) && !file) return { ok: false, error: "This task needs a file attached to complete." };
+  // Close-lock: when set, only the person who created the task may close it.
+  if ((t.creator_close_only as boolean) && me.id !== (t.created_by_person_id as number | null)) {
+    return { ok: false, error: "Only the person who set this task can close it." };
+  }
 
   const isManager = me.portalRole === "manager";
   const isDirector = me.portalRole === "director";
@@ -1235,9 +1384,10 @@ export async function portalDecideLeave(
   if (!req) return { ok: false, error: "Request not found." };
   if ((req.status as string) !== "Pending") return { ok: false, error: "That request was already decided." };
 
-  // Authorise: the requester must be one of this manager's direct reports.
-  const reports = await directReportIds(me.id);
-  if (!reports.includes(req.person_id as number)) return { ok: false, error: "That isn't one of your team members." };
+  // Authorise: the requester must be in this manager's team (company-wide, plus
+  // any cross-company direct report).
+  const team = await managerTeamIds(me);
+  if (!team.includes(req.person_id as number)) return { ok: false, error: "That isn't one of your team members." };
 
   const now = new Date().toISOString();
   const { error } = await sb

@@ -19,7 +19,7 @@ import {
 } from "./actions";
 
 /* Shared body for /portal/chat and /portal/chat/[threadId]. Staff can DM
- * anyone (including the Owner); only managers may create ad-hoc groups. */
+ * anyone (including the Owner); managers and directors may create ad-hoc groups. */
 export async function PortalChat({ initialThreadId }: { initialThreadId: number | null }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
@@ -29,7 +29,7 @@ export async function PortalChat({ initialThreadId }: { initialThreadId: number 
       me={personParticipant(me.id)}
       meName={me.name}
       people={people}
-      canCreateGroup={me.portalRole === "manager"}
+      canCreateGroup={me.portalRole === "manager" || me.portalRole === "director"}
       ownerOption
       initialThreadId={initialThreadId}
       taskBase="/portal/task"

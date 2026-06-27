@@ -30,10 +30,12 @@ function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
 }
 
-async function me(): Promise<{ id: number; participant: string; isManager: boolean } | null> {
+async function me(): Promise<{ id: number; participant: string; canGroup: boolean } | null> {
   const p = await getPortalPerson();
   if (!p) return null;
-  return { id: p.id, participant: personParticipant(p.id), isManager: p.portalRole === "manager" };
+  // Managers AND directors may create ad-hoc groups; everyone else is added by
+  // them or via a task thread.
+  return { id: p.id, participant: personParticipant(p.id), canGroup: p.portalRole === "manager" || p.portalRole === "director" };
 }
 
 export async function listMyThreads() {
@@ -89,15 +91,15 @@ export async function startDm(personId: number): Promise<{ ok: true; threadId: n
   return { ok: true, threadId };
 }
 
-/** Ad-hoc groups: managers only (everyone else gets added by a manager or via
- *  a task thread). */
+/** Ad-hoc groups: managers and directors (everyone else gets added by them or
+ *  via a task thread). */
 export async function newGroup(input: {
   title: string;
   personIds: number[];
 }): Promise<{ ok: true; threadId: number } | { ok: false; error: string }> {
   const m = await me();
   if (!m) return { ok: false, error: "Signed out" };
-  if (!m.isManager) return { ok: false, error: "Only managers can create groups." };
+  if (!m.canGroup) return { ok: false, error: "Only managers and directors can create groups." };
   if (!input.title.trim()) return { ok: false, error: "Give the group a name." };
   if (input.personIds.length === 0) return { ok: false, error: "Add at least one person." };
   const threadId = await createGroup({

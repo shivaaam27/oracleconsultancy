@@ -16,17 +16,17 @@ export default async function PortalNewTaskPage() {
   // ordinary (non-board) action, so it isn't treated as a director here.
   const broad = isDirector || me.portalRole === "hr";
 
-  let people: Array<{ id: number; name: string }>;
+  let people: Array<{ id: number; name: string; companyId: number | null }>;
   let companies: Array<{ id: number; name: string }>;
 
   if (broad) {
     // Group-wide: anyone active, any company.
     const [{ data: peopleRows }, { data: compRows }] = await Promise.all([
-      sb.from("people").select("id,name").eq("active", true).order("name"),
+      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
       sb.from("companies").select("id,name").order("name"),
     ]);
     people = (peopleRows ?? [])
-      .map((p) => ({ id: p.id as number, name: p.name as string }))
+      .map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }))
       .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
     companies = (compRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   } else {
@@ -35,7 +35,7 @@ export default async function PortalNewTaskPage() {
     const ids = Array.from(new Set([me.id, ...reportIds]));
     const { data: peopleRows } = await sb.from("people").select("id,name,company_id").in("id", ids);
     people = (peopleRows ?? [])
-      .map((p) => ({ id: p.id as number, name: p.name as string }))
+      .map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }))
       .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
     const companyIds = Array.from(new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean)));
     companies = [];

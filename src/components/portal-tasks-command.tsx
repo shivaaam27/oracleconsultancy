@@ -1,22 +1,22 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Search, Plus, Sparkles, ArrowUp, Loader2, ListTodo, ChevronRight, ChevronDown,
-  Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User, ClipboardCheck,
-  MessageSquarePlus, Bell, Check, CheckCircle2, Building2,
+  Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
+  Send, Users, ExternalLink, CalendarClock, CircleDot, Flag, User,
+  MessageSquarePlus, Bell, Check, Building2,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
-import { BottomSheet } from "@/components/bottom-sheet";
-import { SwitchRow, CaretInput } from "@/components/ui";
+import { CaretInput } from "@/components/ui";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { NotifyPerson } from "@/components/notify-person";
-import { portalDirectorCreateTask, portalCreateTask, portalEditTask, portalRemindTask, portalRemindTaskAll, portalAddUpdate } from "@/app/portal/actions";
+import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
+import { portalEditTask, portalRemindTask, portalRemindTaskAll, portalAddUpdate } from "@/app/portal/actions";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -75,7 +75,6 @@ function statusIconTone(s: string): string {
 }
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
 const fieldShell = "rounded-xl bg-bg-elev ring-1 ring-border";
-const dateCls = "w-full rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2.5 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-accent/40";
 
 function statusDot(s: string): string {
   if (s === "Completed" || s === "Closed") return "bg-success";
@@ -115,10 +114,10 @@ export function PortalTasksCommand({
   }, [tasks, companyFilter]);
 
   const counts = useMemo(() => ({
-    all: byCompany.length,
+    all: byCompany.filter((t) => !t.isDone).length,
     overdue: byCompany.filter((t) => t.overdue && !t.isDone).length,
     soon: byCompany.filter((t) => t.withinSoon && !t.overdue && !t.isDone).length,
-    mine: byCompany.filter((t) => t.raisedByMe).length,
+    mine: byCompany.filter((t) => t.raisedByMe && !t.isDone).length,
     done: byCompany.filter((t) => t.isDone).length,
   }), [byCompany]);
 
@@ -131,9 +130,11 @@ export function PortalTasksCommand({
       }
       if (filter === "overdue") return t.overdue && !t.isDone;
       if (filter === "soon") return t.withinSoon && !t.overdue && !t.isDone;
-      if (filter === "mine") return t.raisedByMe;
+      if (filter === "mine") return t.raisedByMe && !t.isDone;
       if (filter === "done") return t.isDone;
-      return true;
+      // "all": open work only — finished tasks are hidden from the glance unless
+      // the director explicitly selects the Done chip.
+      return !t.isDone;
     });
   }, [byCompany, q, filter]);
 
@@ -576,45 +577,14 @@ function DueChip({ valueIso, label, tone, onChange }: { valueIso: string | null;
   );
 }
 
-const QUICKADD_FORM = "portal-quickadd-form";
-
+/** Quick-add wrapper: the desktop "Quick add" button + mobile FAB both open the
+ *  ONE shared, role-adaptive composer (DirectorTaskForm). Directors get the
+ *  multi-company fan-out + "Only I can close it"; managers keep their single
+ *  company + team scope. The composer owns the form, the notify step and the
+ *  submit action. */
 function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companies: BoardCompany[]; role: string }) {
   const [open, setOpen] = useState(false);
-  const createAction = role === "director" ? portalDirectorCreateTask : portalCreateTask;
-  const [state, action, pending] = useActionState(createAction, null);
-  const [companyId, setCompanyId] = useState("");
-  const [ownerId, setOwnerId] = useState("");
-  const [priority, setPriority] = useState("Medium");
-  const [requiresProof, setRequiresProof] = useState(false);
-  const [assigned, setAssigned] = useState<{ id: number; name: string } | null>(null);
-
-  // On a clean create, offer to notify the assignee instead of just closing.
-  const prevPending = useRef(false);
-  useEffect(() => {
-    if (prevPending.current && !pending && !state?.error) {
-      const p = people.find((x) => x.id === Number(ownerId));
-      if (p) setAssigned({ id: p.id, name: p.name });
-      else closeAndReset();
-    }
-    prevPending.current = pending;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending, state]);
-
-  function closeAndReset() {
-    setOpen(false); setAssigned(null);
-    setCompanyId(""); setOwnerId(""); setPriority("Medium"); setRequiresProof(false);
-  }
-
-  const scoped = companyId
-    ? people.filter((pp) => {
-        const ids = pp.companyIds?.length ? pp.companyIds : pp.companyId != null ? [pp.companyId] : [];
-        return ids.includes(Number(companyId));
-      })
-    : people;
-  const peopleForPicker = scoped.length ? scoped : people;
-  const companyOptions: FluidOption[] = companies.map((c) => ({ value: String(c.id), label: c.name }));
-  const ownerOptions: FluidOption[] = peopleForPicker.map((pp) => ({ value: String(pp.id), label: pp.name }));
-  const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
+  const composerRole: ComposerRole = role === "director" ? "director" : "manager";
 
   return (
     <>
@@ -635,79 +605,13 @@ function QuickAdd({ people, companies, role }: { people: BoardPerson[]; companie
         <Plus size={24} strokeWidth={2.4} />
       </button>
 
-      <BottomSheet
+      <DirectorTaskForm
+        people={people}
+        companies={companies}
+        role={composerRole}
         open={open}
-        onClose={closeAndReset}
-        title={assigned ? "Task added" : "Quick add a task"}
-        icon={assigned ? <CheckCircle2 size={17} /> : <ClipboardCheck size={17} />}
-        footer={
-          assigned ? (
-            <button
-              type="button"
-              onClick={closeAndReset}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-bg-subtle py-3 text-sm font-medium text-fg ring-1 ring-border transition-transform active:scale-[0.98]"
-            >
-              Done
-            </button>
-          ) : (
-            <button
-              type="submit"
-              form={QUICKADD_FORM}
-              disabled={pending}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
-            >
-              {pending ? <Loader2 size={16} className="animate-spin" /> : <ArrowUp size={16} />} Add task
-            </button>
-          )
-        }
-      >
-        {assigned ? (
-          <div className="flex flex-col items-center gap-3 py-5 text-center">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-success-soft text-success">
-              <CheckCircle2 size={22} />
-            </span>
-            <div>
-              <p className="text-sm font-medium">Assigned to {assigned.name}</p>
-              <p className="mt-0.5 text-xs text-fg-muted">Send {assigned.name.split(" ")[0]} a summary of all their open tasks?</p>
-            </div>
-            <NotifyPerson personId={assigned.id} name={assigned.name} className="justify-center" />
-          </div>
-        ) : (
-        <form id={QUICKADD_FORM} action={action} className="flex flex-col gap-3.5">
-          <input type="hidden" name="companyId" value={companyId} />
-          <input type="hidden" name="accountableId" value={ownerId} />
-          <input type="hidden" name="priority" value={priority} />
-          <div>
-            <label className={fieldLabel}>What needs doing?</label>
-            <div className="flex items-center gap-2 rounded-xl px-3.5 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
-              <Sparkles size={16} className="shrink-0 text-accent" />
-              <CaretInput name="actionItem" required placeholder="e.g. Renew the business licence" className="py-2.5 text-sm" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-            <div>
-              <label className={fieldLabel}>Company</label>
-              <FluidSelect value={companyId} options={companyOptions} placeholder="Choose…" onSelect={(v) => { setCompanyId(v); setOwnerId(""); }} buttonClassName={`${fieldShell} w-full`} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Responsible</label>
-              <FluidSelect value={ownerId} options={ownerOptions} placeholder="Choose…" onSelect={setOwnerId} buttonClassName={`${fieldShell} w-full`} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Priority</label>
-              <FluidSelect value={priority} options={priorityOptions} placeholder="Priority" onSelect={setPriority} buttonClassName={`${fieldShell} w-full`} />
-            </div>
-            <div>
-              <label className={fieldLabel}>Deadline</label>
-              <input name="deadline" type="date" className={dateCls} />
-            </div>
-          </div>
-          <input type="hidden" name="requiresAttachment" value={requiresProof ? "1" : ""} />
-          <SwitchRow label="Require proof to complete" hint="A file must be attached to finish this task" on={requiresProof} onChange={setRequiresProof} />
-          {state?.error && <p className="text-xs text-danger">{state.error}</p>}
-        </form>
-        )}
-      </BottomSheet>
+        onOpenChange={setOpen}
+      />
     </>
   );
 }

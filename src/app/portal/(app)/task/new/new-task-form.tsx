@@ -1,19 +1,15 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { Hero, Panel } from "@/components/surface-kit";
-import { Button } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
-import { PeoplePicker } from "@/components/people-picker";
-import { portalCreateTask, portalDirectorCreateTask } from "../../../actions";
+import { DirectorTaskForm } from "@/components/director-task-form";
 
-type Person = { id: number; name: string };
+type Person = { id: number; name: string; companyId?: number | null; companyIds?: number[] };
 type Company = { id: number; name: string };
-
-const PRIORITIES = ["Critical", "High", "Medium", "Low"];
-const inputCls = "w-full rounded-2xl px-3.5 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none";
 
 export function NewTaskForm({
   me,
@@ -21,19 +17,30 @@ export function NewTaskForm({
   companies,
   isDirector = false,
 }: {
-  me: Person;
+  me: { id: number; name: string };
   people: Person[];
   companies: Company[];
   isDirector?: boolean;
 }) {
-  // Directors assign group-wide (portalDirectorCreateTask); managers assign to
-  // their team (portalCreateTask). Same form fields, same return shape.
-  const [state, action, pending] = useActionState(
-    isDirector ? portalDirectorCreateTask : portalCreateTask,
-    null
-  );
-  const [working, setWorking] = useState<number[]>([]);
+  // The pill "New task" page renders the SAME composer as the board and the
+  // Tasks page — auto-opened. Directors assign group-wide (multi-company
+  // fan-out + "Only I can close it"); managers assign to their team. Closing
+  // the sheet returns to where they came from.
+  const router = useRouter();
+  const [open, setOpen] = useState(true);
   const backHref = isDirector ? "/portal/board" : "/portal";
+
+  const peopleForComposer = people.map((p) => ({
+    id: p.id,
+    name: p.name,
+    companyId: p.companyId ?? null,
+    companyIds: p.companyIds,
+  }));
+
+  function onOpenChange(v: boolean) {
+    setOpen(v);
+    if (!v) router.push(backHref);
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -49,74 +56,25 @@ export function NewTaskForm({
       </Reveal>
 
       <Reveal delay={0.05}>
-      <Panel glass className="p-4 sm:p-5">
-        <form action={action} className="flex flex-col gap-3.5">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Task</span>
-            <input name="actionItem" required placeholder="What needs to be done?" className={inputCls} />
-          </label>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Company</span>
-              <select name="companyId" required defaultValue={companies[0]?.id ?? ""} className={inputCls}>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Priority</span>
-              <select name="priority" defaultValue="Medium" className={inputCls}>
-                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Deadline</span>
-              <input name="deadline" type="date" className={inputCls} />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Accountable</span>
-              <select name="accountableId" defaultValue={me.id} className={inputCls}>
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>{p.id === me.id ? "Me" : p.name}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {people.length > 1 && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Also working on it</span>
-              <PeoplePicker
-                people={people.filter((p) => p.id !== me.id)}
-                value={working}
-                onChange={setWorking}
-                name="workingIds"
-                emptyLabel="Add people (optional)"
-              />
-            </div>
-          )}
-
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">Instruction (pinned)</span>
-            <textarea name="instruction" rows={3} placeholder="Optional — the first instruction, pinned to the top." className={inputCls + " resize-y"} />
-          </label>
-
-          {state?.error && <p className="text-sm text-danger" role="alert">{state.error}</p>}
-
-          <Button
-            type="submit"
-            size="lg"
-            disabled={pending}
-            className="mt-1 gap-2 rounded-2xl font-semibold disabled:opacity-60"
+        <Panel glass className="flex flex-col items-start gap-3 p-4 sm:p-5">
+          <p className="text-sm text-fg-muted">Fill in the task and assign it. The form opens automatically — reopen it below if you closed it.</p>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95"
           >
-            <ClipboardCheck size={16} />
-            {pending ? "Creating…" : "Create task"}
-          </Button>
-        </form>
-      </Panel>
+            <ClipboardCheck size={15} /> New task
+          </button>
+        </Panel>
       </Reveal>
+
+      <DirectorTaskForm
+        people={peopleForComposer}
+        companies={companies}
+        role={isDirector ? "director" : "manager"}
+        open={open}
+        onOpenChange={onOpenChange}
+      />
     </div>
   );
 }
