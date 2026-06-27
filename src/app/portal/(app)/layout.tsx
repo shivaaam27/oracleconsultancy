@@ -47,8 +47,14 @@ export default async function PortalLayout({ children }: { children: React.React
   }
 
   // Unseen guided tours for this person (first-run walkthrough / feature
-  // spotlights). Best-effort — never blocks the page.
-  const tours = await unseenToursFor(audienceForRole(me.portalRole), me.id);
+  // spotlights). Best-effort and NON-essential — a failed lookup here must never
+  // blank the whole portal shell, so guard it (mirrors the takeover guard above).
+  let tours: Awaited<ReturnType<typeof unseenToursFor>> = [];
+  try {
+    tours = await unseenToursFor(audienceForRole(me.portalRole), me.id);
+  } catch {
+    tours = [];
+  }
 
   // Everyone gets the room on a large screen (mobile/tablet keep the focused
   // max-w-3xl). Directors stay widest for their two-column board.

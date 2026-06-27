@@ -7,6 +7,7 @@ import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
+import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
 
 export const dynamic = "force-dynamic";
 
@@ -70,9 +71,14 @@ export default async function PortalPersonPage({ params }: { params: Promise<{ i
 
   return (
     <div className="space-y-4">
-      <Link href="/portal/team" className="inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg">
-        <ArrowLeft size={14} /> Team
-      </Link>
+      <PortalTrace />
+
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/portal/team" className="inline-flex items-center gap-1.5 text-xs text-fg-muted transition-colors hover:text-fg">
+          <ArrowLeft size={14} /> Team
+        </Link>
+        <PortalTraceButton kind="person" id={p.id as number} title={p.name as string} />
+      </div>
 
       <Reveal>
         <Hero title={p.name as string} subtitle={[p.role, companyName].filter(Boolean).join(" · ") || undefined} />

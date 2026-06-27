@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Send, User, type LucideIcon } from "lucide-react";
+import { BarChart3, ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Send, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
@@ -101,10 +101,12 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   const isDirector = caps.isDirector;
   const showTasks = caps.tabs.tasks;
   const showOutbox = caps.tabs.outbox;
+  const showInsights = caps.tabs.insights;
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");
   const onDirectory = pathname.startsWith("/portal/directory");
   const onOutbox = pathname.startsWith("/portal/outbox");
+  const onInsights = pathname.startsWith("/portal/insights");
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");
   const onActivity = pathname.startsWith("/portal/activity");
   const onRequests = pathname.startsWith("/portal/requests");
@@ -159,6 +161,8 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
           <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} />
           {/* Drafted messages/announcements — management only. */}
           {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} />}
+          {/* Glanceable portfolio/team Insights — management only. */}
+          {showInsights && <PillTab href="/portal/insights" icon={BarChart3} label="Insights" active={onInsights} labelled={labelFor(onInsights)} reduce={reduce} />}
           <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} tourTag="nav-requests" />
           <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} />
           <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} tourTag="nav-chat" />

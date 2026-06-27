@@ -3,10 +3,25 @@ import { getPortalPerson, managerTeamIds } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
+import { teamAttendanceToday } from "@/lib/attendance";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { TeamAttendance, type TeamAttendanceRow } from "@/components/team-attendance";
 import { waLink } from "@/lib/outbox/links";
 import { TeamView } from "./team-view";
 import type { TeamPerson } from "./person-card";
+
+/** Today's yyyy-mm-dd as a UTC day. The whole attendance system keys one row
+ *  per person/day at UTC midnight (teamAttendanceToday, the staff self-check-in
+ *  portalMarkAttendance, the admin register), so the correction picker MUST use
+ *  the same UTC day — otherwise, in the hours just after UTC midnight, a manager
+ *  correction would land on a different row than the one the panel reads. */
+function todayStrUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Attendance statuses that are derived from leave/holidays and so can't be
+ *  hand-edited. */
+const DERIVED = new Set(["On leave", "Holiday"]);
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +60,19 @@ export default async function PortalTeamPage() {
     .order("name");
   if (teamIds) peopleQuery = peopleQuery.in("id", teamIds.length > 0 ? teamIds : [-1]);
   const { data: allPeople } = await peopleQuery;
+
+  // Today's attendance for the same set of people the page is already showing
+  // (manager → team; director/HR → everyone). Derived states (on leave / a
+  // holiday) are marked read-only so the picker won't offer to override them.
+  const peopleIds = (allPeople ?? []).map((p) => p.id as number);
+  const todayStr = todayStrUtc();
+  const attendanceRaw = await teamAttendanceToday(peopleIds);
+  const attendanceToday: TeamAttendanceRow[] = attendanceRaw.map((a) => ({
+    id: a.id,
+    name: a.name,
+    status: a.status ?? "",
+    editable: !DERIVED.has(a.status ?? ""),
+  }));
 
   const people: TeamPerson[] = (allPeople ?? [])
     .map((p) => {
@@ -87,7 +115,10 @@ export default async function PortalTeamPage() {
   return (
     <>
       <AutoRefresh seconds={60} />
-      <TeamView people={people} />
+      <div className="space-y-4">
+        <TeamAttendance today={attendanceToday} todayStr={todayStr} />
+        <TeamView people={people} />
+      </div>
     </>
   );
 }

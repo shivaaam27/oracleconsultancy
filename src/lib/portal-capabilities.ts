@@ -44,6 +44,8 @@ export type PortalCapabilities = {
     directory: boolean;
     /** Drafted messages / announcements — management only. */
     outbox: boolean;
+    /** Glanceable portfolio/team Insights — management only. */
+    insights: boolean;
     /** Raise / view requests — everyone. */
     requests: boolean;
     /** Activity feed — everyone. */
@@ -82,6 +84,7 @@ export function portalCapabilities(role: PortalRole | string | undefined): Porta
       tasks: isManagement,
       directory: true,
       outbox: isManagement,
+      insights: isManagement,
       requests: true,
       activity: true,
       chat: true,

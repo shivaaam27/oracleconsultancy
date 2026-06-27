@@ -10,6 +10,7 @@ import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/compon
 import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskQuickActions } from "@/components/task-quick-actions";
 import { PortalTaskMessage } from "@/components/portal-task-message";
+import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
@@ -230,10 +231,14 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   return (
     <div className="flex flex-col gap-4">
       <LiveSync taskId={task.id as number} seconds={5} />
+      <PortalTrace />
 
-      <Link href={isManagement ? "/portal/tasks" : "/portal"} className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
-        <ArrowLeft size={15} /> {isManagement ? "All tasks" : "My tasks"}
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href={isManagement ? "/portal/tasks" : "/portal"} className="inline-flex w-fit items-center gap-1.5 text-sm text-fg-muted hover:text-fg transition-colors">
+          <ArrowLeft size={15} /> {isManagement ? "All tasks" : "My tasks"}
+        </Link>
+        <PortalTraceButton kind="task" id={task.id as number} title={task.code as string} />
+      </div>
 
       <Reveal delay={0}>
       <section className="relative overflow-hidden rounded-3xl glass elevated p-4 sm:p-5">
