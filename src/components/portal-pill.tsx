@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, User, type LucideIcon } from "lucide-react";
+import { ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Send, User, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -97,9 +97,13 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   // for HR/directors, company-wide for managers). Staff manage few — the Home
   // page lists those — so they don't need the tab.
   const showTasks = role === "manager" || role === "hr" || role === "director";
+  // Outbox (drafted messages/announcements) is a management surface — same
+  // audience as the Tasks tab. Staff never see it.
+  const showOutbox = showTasks;
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");
   const onDirectory = pathname.startsWith("/portal/directory");
+  const onOutbox = pathname.startsWith("/portal/outbox");
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");
   const onActivity = pathname.startsWith("/portal/activity");
   const onRequests = pathname.startsWith("/portal/requests");
@@ -149,8 +153,11 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
               so a Home tab is redundant for them — show it for everyone else. */}
           {!isDirector && <PillTab href="/portal" icon={Home} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} tourTag="nav-home" />}
           {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} labelled={labelFor(onTasks)} reduce={reduce} />}
-          {/* Directors get a read-only group-wide contact book / company list. */}
-          {isDirector && <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} />}
+          {/* The contact book / company list — scoped per role server-side
+              (group-wide for HR/directors, own-company for managers/staff). */}
+          <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} />
+          {/* Drafted messages/announcements — management only. */}
+          {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} />}
           <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} tourTag="nav-requests" />
           <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} />
           <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} tourTag="nav-chat" />

@@ -33,10 +33,20 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
 }
 
-/** Read-only contact book for directors/HR (managers see only their own company).
- *  Two tabs: People (searchable, with real call/WhatsApp/email anchors) and
- *  Companies (cards with headcount + open/overdue work). No pay or private IDs. */
-export function DirectoryView({ people, companies }: { people: DirectoryPerson[]; companies: DirectoryCompany[] }) {
+/** Read-only contact book for directors/HR (managers and staff see only their own
+ *  company). Two tabs: People (searchable, with real call/WhatsApp/email anchors)
+ *  and Companies (cards with headcount + open/overdue work). No pay or private IDs.
+ *  `canOpenProfiles` hides the per-person profile arrow for staff, who can't open
+ *  colleague profiles (the profile page guards them out). */
+export function DirectoryView({
+  people,
+  companies,
+  canOpenProfiles = true,
+}: {
+  people: DirectoryPerson[];
+  companies: DirectoryCompany[];
+  canOpenProfiles?: boolean;
+}) {
   const [tab, setTab] = useState<"people" | "companies">("people");
   const [q, setQ] = useState("");
   const [companyId, setCompanyId] = useState<number | "all">("all");
@@ -113,7 +123,7 @@ export function DirectoryView({ people, companies }: { people: DirectoryPerson[]
           ) : (
             <Panel className="divide-y divide-border/40 overflow-hidden p-0">
               {shown.map((p) => (
-                <PersonRow key={p.id} p={p} />
+                <PersonRow key={p.id} p={p} canOpenProfile={canOpenProfiles} />
               ))}
             </Panel>
           )}
@@ -146,7 +156,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-function PersonRow({ p }: { p: DirectoryPerson }) {
+function PersonRow({ p, canOpenProfile }: { p: DirectoryPerson; canOpenProfile: boolean }) {
   const first = p.name.split(" ")[0];
   return (
     <div className="flex items-center gap-3 p-3">
@@ -195,14 +205,16 @@ function PersonRow({ p }: { p: DirectoryPerson }) {
           </span>
         )}
 
-        <Link
-          href={`/portal/people/${p.id}`}
-          title={`Open ${first}'s profile`}
-          aria-label={`Open ${first}'s profile`}
-          className={`${ICON} bg-accent text-accent-fg`}
-        >
-          <ArrowUpRight size={16} />
-        </Link>
+        {canOpenProfile && (
+          <Link
+            href={`/portal/people/${p.id}`}
+            title={`Open ${first}'s profile`}
+            aria-label={`Open ${first}'s profile`}
+            className={`${ICON} bg-accent text-accent-fg`}
+          >
+            <ArrowUpRight size={16} />
+          </Link>
+        )}
       </div>
     </div>
   );

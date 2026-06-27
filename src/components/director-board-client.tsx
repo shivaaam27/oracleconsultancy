@@ -10,8 +10,9 @@ import {
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { getGivenName } from "@/lib/names";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { PeoplePicker } from "@/components/people-picker";
 import { SmartCaptureBar } from "@/components/smart-capture-bar";
-import { portalEditTask, portalRemindTask } from "@/app/portal/actions";
+import { portalEditTask, portalRemindTask, portalSetTaskLeads } from "@/app/portal/actions";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { useToast } from "@/components/toast";
 
@@ -448,7 +449,20 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState(w.priority);
   const [deadline, setDeadline] = useState(w.deadlineInput ?? "");
-  const [owner, setOwner] = useState(w.accountableId ? String(w.accountableId) : "");
+
+  // Responsible (lead) — one OR more people who own the task. Seeded from the
+  // current single lead; routed through portalSetTaskLeads (which promotes them
+  // to accountable, demotes the old lead to working, sets owner_id := first).
+  const initialLeads = w.accountableId ? [w.accountableId] : [];
+  const [leadIds, setLeadIds] = useState<number[]>(initialLeads);
+  const leadsChanged =
+    leadIds.length !== initialLeads.length || leadIds.some((id) => !initialLeads.includes(id));
+
+  // Candidates scoped to this card's company; fall back to everyone if none fit.
+  const companyPeople = people.filter(
+    (pp) => pp.companyId === w.companyId || pp.companyIds?.includes(w.companyId),
+  );
+  const leadCandidates = (companyPeople.length ? companyPeople : people).map((pp) => ({ id: pp.id, name: pp.name }));
 
   // Swipe-left reveals the Remind tray (86px on the right). Axis-locked so a
   // vertical scroll never opens it.
@@ -464,15 +478,25 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
   }
 
   function save() {
+    if (leadsChanged && leadIds.length === 0) return; // at least one lead must remain
+    const fieldsChanged =
+      !!status ||
+      priority !== w.priority ||
+      deadline !== (w.deadlineInput ?? "");
     startTransition(async () => {
-      const res = await portalEditTask({
-        taskId: w.taskId,
-        status: status || undefined,
-        priority: priority !== w.priority ? priority : undefined,
-        deadline: deadline !== (w.deadlineInput ?? "") ? deadline : undefined,
-        accountableId: owner && owner !== String(w.accountableId ?? "") ? Number(owner) : undefined,
-      });
-      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      if (fieldsChanged) {
+        const res = await portalEditTask({
+          taskId: w.taskId,
+          status: status || undefined,
+          priority: priority !== w.priority ? priority : undefined,
+          deadline: deadline !== (w.deadlineInput ?? "") ? deadline : undefined,
+        });
+        if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      }
+      if (leadsChanged) {
+        const res = await portalSetTaskLeads(w.taskId, leadIds);
+        if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      }
       toast("Task updated.", { tone: "success" });
       setOpen(false);
       router.refresh();
@@ -480,7 +504,6 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
   }
 
   const statusOptions: FluidOption[] = [{ value: "", label: "Unchanged" }, ...STATUSES.map((s) => ({ value: s, label: s }))];
-  const ownerOptions: FluidOption[] = [{ value: "", label: "Unchanged" }, ...people.map((pp) => ({ value: String(pp.id), label: pp.name }))];
 
   const pill = w.overdue
     ? { cls: "bg-danger-soft/60 text-danger", label: `Overdue${w.dueLabel ? ` · ${w.dueLabel}` : ""}` }
@@ -527,15 +550,27 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
               <label className="flex flex-col gap-1 text-[11px] text-fg-muted">Priority
                 <FluidSelect value={priority} options={priorityOptions} onSelect={setPriority} buttonClassName={fieldShell} />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] text-fg-muted">Due
+              <label className="col-span-2 flex flex-col gap-1 text-[11px] text-fg-muted">Due
                 <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={dateCls} />
               </label>
-              <label className="flex flex-col gap-1 text-[11px] text-fg-muted">Owner
-                <FluidSelect value={owner} options={ownerOptions} onSelect={setOwner} buttonClassName={fieldShell} />
-              </label>
+            </div>
+            {/* Responsible (lead) — one or more people. Promotes to accountable,
+                demotes the old lead to working; notifies anyone newly added. */}
+            <div className="mt-2.5 flex flex-col gap-1 text-[11px] text-fg-muted">
+              Responsible (lead)
+              <PeoplePicker
+                people={leadCandidates}
+                value={leadIds}
+                onChange={setLeadIds}
+                placeholder="Search people…"
+                emptyLabel="Choose who leads this"
+              />
+              {leadsChanged && leadIds.length === 0 && (
+                <span className="text-[11px] text-danger">Choose at least one person.</span>
+              )}
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <button type="button" onClick={save} disabled={busy} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50">
+              <button type="button" onClick={save} disabled={busy || (leadsChanged && leadIds.length === 0)} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent py-2.5 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50">
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={15} />} Save changes
               </button>
               <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-success-soft/60 px-3 py-2.5 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95">

@@ -12,10 +12,11 @@ export const dynamic = "force-dynamic";
 
 const isOverdueFlag = (f: string) => f === "overdue" || f === "escalate-now";
 
-/** Directory — a READ-ONLY contact book for the DIRECTOR (and HR): a searchable
- *  list of every active person with quick call/WhatsApp/email links, plus a list
- *  of all companies. Simpler than the admin /people. Group-wide roles see the
- *  whole portfolio; a manager is scoped to their own company only.
+/** Directory — a READ-ONLY contact book: a searchable list of active people with
+ *  quick call/WhatsApp/email links, plus a list of companies. Simpler than the
+ *  admin /people. Group-wide roles (director/HR) see the whole portfolio; managers
+ *  AND staff are scoped to their own company only — for staff this is a colleague
+ *  contact book (call/WhatsApp/email; no profile links, those page-guard them out).
  *
  *  Deliberately omits pay, national IDs, passports and emergency contacts — those
  *  stay admin-only. Each row links to the existing per-person / per-company portal
@@ -23,11 +24,14 @@ const isOverdueFlag = (f: string) => f === "overdue" || f === "escalate-now";
 export default async function PortalDirectoryPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole === "staff") redirect("/portal");
 
   const groupWide = isGroupWide(me.portalRole);
+  // Non-group-wide viewers (managers/staff) are scoped to their own company. An
+  // unscoped person (no company on file) must NOT fall through to group-wide data,
+  // so we deliberately show them an empty set rather than the whole portfolio.
+  const scopedUnscoped = !groupWide && me.companyId == null;
 
-  // Active people, ordered by name. Managers see only their own company.
+  // Active people, ordered by name. Managers/staff see only their own company.
   let peopleQuery = sb
     .from("people")
     .select("id,name,role,email,phone,whatsapp,company_id,companies(name)")
@@ -35,15 +39,19 @@ export default async function PortalDirectoryPage() {
     .order("name");
   if (!groupWide && me.companyId != null) peopleQuery = peopleQuery.eq("company_id", me.companyId);
 
-  // Companies, ordered by name. Managers see only their own.
+  // Companies, ordered by name. Managers/staff see only their own.
   let companyQuery = sb.from("companies").select("id,name").order("name");
   if (!groupWide && me.companyId != null) companyQuery = companyQuery.eq("id", me.companyId);
 
-  const [{ data: allPeople }, { data: allCompanies }, tasksAll] = await Promise.all([
+  const [{ data: allPeopleRaw }, { data: allCompaniesRaw }, tasksAll] = await Promise.all([
     peopleQuery,
     companyQuery,
     getAllTasks(),
   ]);
+
+  // Guard: an unscoped non-group-wide viewer sees nothing (never the whole group).
+  const allPeople = scopedUnscoped ? [] : allPeopleRaw;
+  const allCompanies = scopedUnscoped ? [] : allCompaniesRaw;
 
   const people: DirectoryPerson[] = (allPeople ?? []).map((p) => {
     const company = (Array.isArray(p.companies) ? p.companies[0] : p.companies) as { name: string } | null;
@@ -85,14 +93,18 @@ export default async function PortalDirectoryPage() {
     overdue: overdueByCompany.get(c.id as number) ?? 0,
   }));
 
+  const subtitle = groupWide
+    ? "Everyone across the group — search, call, message or open a profile."
+    : "Your colleagues — search, call or message.";
+
   return (
     <div className="space-y-4">
       <Reveal>
-        <Hero title="Directory" subtitle="Everyone across the group — search, call, message or open a profile." />
+        <Hero title="Directory" subtitle={subtitle} />
       </Reveal>
 
       <Reveal delay={0.04}>
-        <DirectoryView people={people} companies={companies} />
+        <DirectoryView people={people} companies={companies} canOpenProfiles={me.portalRole !== "staff"} />
       </Reveal>
     </div>
   );

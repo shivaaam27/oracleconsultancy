@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, Crown, MessageSquare, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Crown, MessageCircle, MessageSquare, Users } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
@@ -9,6 +9,7 @@ import { LiveSync } from "@/components/live-sync";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
 import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskQuickActions } from "@/components/task-quick-actions";
+import { PortalTaskMessage } from "@/components/portal-task-message";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
@@ -150,6 +151,9 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       return p ? { ...p, accountable: a.role === "accountable" || p.id === (task.owner_id as number | null) } : null;
     })
     .filter((p): p is { id: number; name: string; accountable: boolean } => Boolean(p));
+
+  // Teammates I can start a direct chat with (the team minus me).
+  const mates = team.filter((p) => p.id !== me.id).map((p) => ({ id: p.id, name: p.name }));
 
   // Seen indicator — who has viewed since the latest message (excluding me).
   const latest = all[0] ?? null;
@@ -305,6 +309,17 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           requiresAttachment={(task.requires_attachment as boolean) ?? false}
         />
       </Reveal>
+
+      {/* Message a teammate — start (or continue) a direct chat with anyone else
+          on this task. Everyone↔everyone, so offered to every role. */}
+      {mates.length > 0 && (
+        <Reveal delay={0.045}>
+          <div className="flex flex-col gap-2">
+            <SectionLabel icon={<MessageCircle size={13} />}>Message a teammate</SectionLabel>
+            <PortalTaskMessage people={mates} />
+          </div>
+        </Reveal>
+      )}
 
       <Reveal delay={0.05}>
       <div id="conversation" className="scroll-mt-4">
