@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
-  MessageSquarePlus, Bell, Check, Building2, MessagesSquare, X,
+  MessageSquarePlus, Bell, Check, Building2, MessagesSquare, X, Pencil,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { CaretInput } from "@/components/ui";
@@ -17,6 +18,7 @@ import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
 import { portalEditTask, portalRemindTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
 import { getGivenName, getInitials } from "@/lib/names";
+import { useAnchored } from "@/lib/use-anchored";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -294,16 +296,26 @@ function TaskRow({
   const [open, setOpen] = useState(false);
   const [busy, startTransition] = useTransition();
   const [updateBody, setUpdateBody] = useState("");
+  // Inline "edit details" (title + description) for management.
+  const [editDetails, setEditDetails] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(t.actionItem);
+  const [descDraft, setDescDraft] = useState(t.description ?? "");
 
   const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
 
-  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number }, label: string) {
+  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null }, label: string) {
     startTransition(async () => {
       const res = await portalEditTask({ taskId: t.taskId, ...patch });
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
       toast(label, { tone: "success" });
       router.refresh();
     });
+  }
+  function saveDetails() {
+    const title = titleDraft.trim();
+    if (!title) { toast("A task needs a title.", { tone: "danger" }); return; }
+    save({ actionItem: title, description: descDraft.trim() || null }, "Task details updated");
+    setEditDetails(false);
   }
   const changeStatus = (v: string) => { if (v !== t.status) save({ status: v }, `Status → ${v}`); };
   const changePriority = (v: string) => { if (v !== t.priority) save({ priority: v }, `Priority → ${v}`); };
@@ -360,6 +372,40 @@ function TaskRow({
   function Editor({ withStatus }: { withStatus: boolean }) {
     return (
       <div className="space-y-3.5 border-t border-border/50 px-3.5 py-3.5">
+        {/* Edit task title + description — any management role. */}
+        {canManage && (
+          <div>
+            {editDetails ? (
+              <div className="space-y-2 rounded-xl bg-bg-subtle/50 p-3 ring-1 ring-border">
+                <input
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  placeholder="Task title"
+                  className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
+                />
+                <textarea
+                  value={descDraft}
+                  onChange={(e) => setDescDraft(e.target.value)}
+                  placeholder="Description (optional)"
+                  rows={3}
+                  className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
+                />
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
+                    {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
+                  </button>
+                  <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setEditDetails(true)} className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-muted transition-colors hover:text-accent">
+                <Pencil size={13} /> Edit title & description
+              </button>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {withStatus && (
             <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
@@ -723,10 +769,17 @@ function LeadMultiSelect({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const anchor = useAnchored(triggerRef, open);
 
   useEffect(() => {
     if (!open) return;
-    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function onDoc(e: MouseEvent) {
+      const tgt = e.target as Node;
+      if (ref.current?.contains(tgt) || menuRef.current?.contains(tgt)) return;
+      setOpen(false);
+    }
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -753,6 +806,7 @@ function LeadMultiSelect({
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={busy}
@@ -780,13 +834,23 @@ function LeadMultiSelect({
         </div>
       )}
 
-      {open && (
-        <div className="absolute z-30 mt-1.5 w-full min-w-[14rem] overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg">
+      {open && anchor && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[60] min-w-[14rem] overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg"
+          style={{
+            left: anchor.left,
+            width: anchor.width,
+            ...(anchor.openUp
+              ? { bottom: window.innerHeight - anchor.top + 6 }
+              : { top: anchor.top + 6 }),
+          }}
+        >
           <label className="relative block border-b border-border/60">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
           </label>
-          <ul className="max-h-60 overflow-y-auto py-1">
+          <ul className="overflow-y-auto py-1" style={{ maxHeight: anchor.maxHeight }}>
             {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
             {filtered.map((p) => {
               const on = value.includes(p.id);
@@ -809,7 +873,8 @@ function LeadMultiSelect({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

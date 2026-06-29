@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
+import { useAnchored } from "@/lib/use-anchored";
 
 export type PickerPerson = { id: number; name: string };
 
@@ -32,12 +34,18 @@ export function PeoplePicker({
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const anchor = useAnchored(triggerRef, open);
 
-  // Close on outside click / Escape.
+  // Close on outside click / Escape. The menu is portalled out of `ref`, so the
+  // outside-click test must also spare the menu itself.
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const tgt = e.target as Node;
+      if (ref.current?.contains(tgt) || menuRef.current?.contains(tgt)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -70,6 +78,7 @@ export function PeoplePicker({
 
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2 rounded-xl bg-bg-subtle ring-1 ring-border px-3 py-2.5 text-left text-sm hover:ring-accent/40 transition-colors"
@@ -94,9 +103,20 @@ export function PeoplePicker({
         </div>
       )}
 
-      {/* Dropdown panel */}
-      {open && (
-        <div className="absolute z-30 mt-1.5 w-full rounded-xl bg-bg-elev ring-1 ring-border shadow-lg overflow-hidden">
+      {/* Dropdown panel — portalled to <body> with fixed positioning so an
+          `overflow-hidden` ancestor (swipe cards, list panels) can't clip it. */}
+      {open && anchor && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[60] rounded-xl bg-bg-elev ring-1 ring-border shadow-lg overflow-hidden"
+          style={{
+            left: anchor.left,
+            width: anchor.width,
+            ...(anchor.openUp
+              ? { bottom: window.innerHeight - anchor.top + 6 }
+              : { top: anchor.top + 6 }),
+          }}
+        >
           <label className="relative block border-b border-border/60">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
             <input
@@ -107,7 +127,7 @@ export function PeoplePicker({
               className="w-full bg-transparent pl-8 pr-3 py-2.5 text-sm placeholder:text-fg-muted focus:outline-none"
             />
           </label>
-          <ul className="max-h-60 overflow-y-auto py-1">
+          <ul className="overflow-y-auto py-1" style={{ maxHeight: anchor.maxHeight }}>
             {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
             {filtered.map((p) => {
               const on = value.includes(p.id);
@@ -127,7 +147,8 @@ export function PeoplePicker({
               );
             })}
           </ul>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -946,6 +946,8 @@ export async function portalEditTask(input: {
   priority?: string;
   deadline?: string | null; // "yyyy-mm-dd" to set, "" to clear, undefined to leave
   accountableId?: number;
+  actionItem?: string; // task title — management may edit after creation
+  description?: string | null; // task description (tasks.comments); "" clears
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
@@ -957,7 +959,7 @@ export async function portalEditTask(input: {
 
   const { data: t } = await sb
     .from("tasks")
-    .select("id,code,company_id,status,priority,deadline,owner_id,closed_date,created_by_person_id,creator_close_only")
+    .select("id,code,company_id,status,priority,deadline,owner_id,closed_date,created_by_person_id,creator_close_only,action_item,comments")
     .eq("id", input.taskId)
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
@@ -1013,6 +1015,24 @@ export async function portalEditTask(input: {
     );
     reassigned = input.accountableId;
     await logChangeSb(t.id as number, t.code as string, t.company_id as number, "owner", String(t.owner_id ?? "—"), p.name as string, `Reassigned from portal (${role})`, createdBy);
+  }
+
+  // Title + description — any management role (manager/HR/director) may correct
+  // the task content after creation. Empty title is rejected; description clears on "".
+  if (input.actionItem !== undefined) {
+    const next = input.actionItem.trim();
+    if (!next) return { ok: false, error: "A task needs a title." };
+    if (next !== (t.action_item as string)) {
+      patch.action_item = next;
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "action_item", t.action_item as string, next, `Edited from portal (${role})`, createdBy);
+    }
+  }
+  if (input.description !== undefined) {
+    const next = input.description?.trim() || null;
+    if (next !== ((t.comments as string | null) || null)) {
+      patch.comments = next;
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "comments", (t.comments as string | null) ?? null, next, `Edited from portal (${role})`, createdBy);
+    }
   }
 
   const { error } = await sb.from("tasks").update(patch).eq("id", t.id as number);
