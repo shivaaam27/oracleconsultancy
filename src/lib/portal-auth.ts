@@ -4,6 +4,7 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
+import { recordEvent } from "@/lib/system-events";
 
 /* ------------------------------------------------------------------ *
  * Staff-portal authentication.
@@ -241,9 +242,19 @@ export type PortalPerson = {
  *  access in Settings takes effect immediately. */
 export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   const jar = await cookies();
-  const parsed = parseSessionToken(jar.get(COOKIE_NAME)?.value);
+  const raw = jar.get(COOKIE_NAME)?.value;
+  const parsed = parseSessionToken(raw);
   // No / expired / tampered token = genuinely not signed in → caller sends to login.
-  if (!parsed) return null;
+  if (!parsed) {
+    // DIAGNOSTIC (temporary): record WHY, so a real device repro is readable.
+    // "no-cookie" = the cookie was absent (eviction / first launch / wrong store);
+    // "cookie-invalid" = present but failed signature/expiry (secret mismatch etc.).
+    await recordEvent("portal.signout", "ok", {
+      reason: raw ? "cookie-invalid" : "no-cookie",
+      rawLen: raw?.length ?? 0,
+    });
+    return null;
+  }
   const { personId, fp } = parsed;
 
   // The token IS valid. Now look the person up — but a freshly-woken phone (PWA
@@ -265,9 +276,10 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
       // Revocation gate (the ONLY legitimate reasons to sign someone out whose
       // cookie signature is valid + unexpired): access genuinely removed.
       if (!data.active || !data.portal_password_hash) {
-        console.warn(
-          `[portal-auth] sign-out person ${personId}: ${!data.active ? "inactive" : "no portal password"}`,
-        );
+        await recordEvent("portal.signout", "ok", {
+          personId,
+          reason: !data.active ? "inactive" : "no-password-hash",
+        });
         return null;
       }
       // AUTHSEC-02 was a HARD logout on a password-hash fingerprint mismatch — but
@@ -312,7 +324,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   }
   // Every attempt returned cleanly with no row → the person genuinely doesn't
   // exist (deleted). Only NOW do we sign out.
-  console.warn(`[portal-auth] sign-out person ${personId}: not found after retries`);
+  await recordEvent("portal.signout", "ok", { personId, reason: "not-found-after-retries" });
   return null;
 });
 
