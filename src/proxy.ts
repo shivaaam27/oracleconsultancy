@@ -183,9 +183,15 @@ export async function proxy(req: NextRequest) {
     }
     return res;
   }
+  // No valid ADMIN session. A signed-in STAFF member (has a cos_portal cookie)
+  // landing on an admin route is almost always the installed app reopening at its
+  // start_url "/" — there's ONE install for both surfaces and the root manifest
+  // opens "/", which staff can't access. Send them to THEIR portal instead of the
+  // admin login (the portal validates the cookie itself; a bogus cookie just falls
+  // through to /portal/login). This — not cookie eviction — was the "logout".
   const url = req.nextUrl.clone();
-  url.pathname = "/login";
   url.search = "";
+  url.pathname = req.cookies.get("cos_portal")?.value ? "/portal" : "/login";
   return NextResponse.redirect(url);
 }
 

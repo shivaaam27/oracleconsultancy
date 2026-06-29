@@ -32,10 +32,10 @@ export function PortalSessionRestore() {
   useEffect(() => {
     let token: string | null = null;
     try { token = localStorage.getItem(KEY); } catch { /* private mode */ }
-    // Always POST (token may be null) — this runs client-side after the page has
-    // loaded (warm connection), so the reauth route reliably logs hadToken: i.e.
-    // whether localStorage survived the app-kill. With a valid token it also
-    // re-mints the session and bounces back into the portal.
+    if (!token) return;
+    // A durable token survived → silently re-mint the session and bounce back in
+    // (covers genuine cookie eviction). The main app-kill bug was a routing one,
+    // fixed in src/proxy.ts; this stays as a belt-and-braces safety net.
     fetch("/api/portal/reauth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -43,7 +43,7 @@ export function PortalSessionRestore() {
     })
       .then((r) => {
         if (r.ok) window.location.replace("/portal");
-        else if (r.status === 401 && token) { try { localStorage.removeItem(KEY); } catch { /* */ } } // stale/revoked
+        else if (r.status === 401) { try { localStorage.removeItem(KEY); } catch { /* */ } } // stale/revoked
       })
       .catch(() => {});
   }, []);
