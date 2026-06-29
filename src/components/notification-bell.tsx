@@ -336,8 +336,19 @@ export function NotificationBell({
  *  (iPhone-style); on desktop a ✕ appears on hover. */
 function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDismiss: () => void }) {
   const CLEAR_W = 76;
+  const PEEK = 32; // how much of the red Clear action rests revealed as a hint
   const { offset, dragging, bind, reset } = useSwipeRow({ rightWidth: CLEAR_W });
   const Icon = ICON[n.kind] ?? Bell;
+
+  // On a touch device, each row opens RESTING half-swiped so the Clear action
+  // peeks out (a discoverable swipe-to-clear hint). The first touch hands control
+  // back to the normal swipe gesture. Desktop keeps its hover-✕ instead.
+  const [peeked, setPeeked] = useState(true);
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => { setCoarse(window.matchMedia("(pointer: coarse)").matches); }, []);
+  const showPeek = peeked && coarse;
+  const tx = dragging ? offset : offset !== 0 ? offset : showPeek ? -PEEK : 0;
+  const bindPeek = { ...bind, onTouchStart: (e: React.TouchEvent) => { setPeeked(false); bind.onTouchStart(e); } };
 
   return (
     <div className="relative overflow-hidden border-b border-border/50 last:border-b-0">
@@ -355,15 +366,16 @@ function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDi
 
       <button
         type="button"
-        {...bind}
+        {...bindPeek}
         onClick={() => {
           if (offset !== 0) {
             reset();
             return;
           }
+          setPeeked(false);
           onOpen();
         }}
-        style={{ transform: `translateX(${offset}px)`, transition: dragging ? "none" : "transform .2s ease" }}
+        style={{ transform: `translateX(${tx}px)`, transition: dragging ? "none" : "transform .2s ease" }}
         className={`relative flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left bg-[hsl(var(--bg-elev))] hover:bg-bg-muted/60 active:bg-bg-muted/80 transition-colors group ${
           n.readAt ? "" : "bg-accent-soft/25"
         }`}

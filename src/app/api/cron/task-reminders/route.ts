@@ -28,28 +28,61 @@ const isOverdue = (t: TaskRow) => t.flag === "overdue" || t.flag === "escalate-n
 const isDueToday = (t: TaskRow) => t.daysToDeadline === 0;
 const isUrgent = (t: TaskRow) => isOverdue(t) || isDueToday(t);
 
-/** Short, plain-text reminder for the chat thread (chat doesn't render WhatsApp
- *  *markdown*, so keep it clean). Lists up to 6 tasks; links to the portal. */
-function buildChatReminder(name: string, tasks: TaskRow[], urgentOnly: boolean): string {
+const fmtDue = (d: Date | null) =>
+  d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" }) : null;
+const statusDot = (t: TaskRow) => (isOverdue(t) ? "🔴" : isDueToday(t) || t.priority === "High" || t.priority === "Medium" ? "🟠" : "⚪");
+
+/**
+ * Build BOTH surfaces for a reminder:
+ *  • `chat`  — the full, tidy in-chat message (grouped by company, status dots,
+ *    due dates, a clear call-to-action). Chat shows plain text, so no markdown.
+ *  • `push`  — a SHORT one-glance hook (counts + CTA) so the OS notification never
+ *    truncates mid-sentence on Android/iOS.
+ */
+function buildReminder(name: string, allTasks: TaskRow[], urgentOnly: boolean) {
   const first = getGivenName(name);
-  const overdue = tasks.filter(isOverdue).length;
-  const dueToday = tasks.filter(isDueToday).length;
-  const shown = (urgentOnly ? tasks.filter(isUrgent) : tasks).slice(0, 6);
+  const overdue = allTasks.filter(isOverdue).length;
+  const dueToday = allTasks.filter(isDueToday).length;
+  // Urgent slots focus on overdue/due-today; the morning slot shows everything.
+  const tasks = urgentOnly ? allTasks.filter(isUrgent) : allTasks;
+
+  // ── chat body ──────────────────────────────────────────────────────────────
+  const groups = new Map<string, TaskRow[]>();
+  for (const t of tasks) (groups.get(t.companyName) ?? groups.set(t.companyName, []).get(t.companyName)!).push(t);
+  for (const list of groups.values())
+    list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
 
   const head = urgentOnly
-    ? `Hi ${first} — ${overdue ? `${overdue} overdue` : ""}${overdue && dueToday ? " · " : ""}${dueToday ? `${dueToday} due today` : ""}. A quick nudge:`
-    : `Hi ${first}, here are your ${tasks.length} open task${tasks.length === 1 ? "" : "s"}${overdue ? ` (${overdue} overdue)` : ""}:`;
-
-  const lines = [head, ""];
-  for (const t of shown) {
-    const flag = isOverdue(t) ? " ⚠️ overdue" : isDueToday(t) ? " • due today" : "";
-    lines.push(`• ${t.actionItem} — ${t.companyName}${flag}`);
+    ? `Hi ${first} — a quick nudge on what needs attention${overdue ? ` (${overdue} overdue${dueToday ? `, ${dueToday} due today` : ""})` : dueToday ? ` (${dueToday} due today)` : ""}:`
+    : `Hi ${first}, here's where things stand — ${allTasks.length} open task${allTasks.length === 1 ? "" : "s"}${overdue ? `, ${overdue} overdue` : ""}:`;
+  const lines: string[] = [head, ""];
+  for (const [company, list] of groups) {
+    lines.push(company);
+    for (const t of list) {
+      const due = fmtDue(t.deadline);
+      const tail = isOverdue(t) ? "overdue" : isDueToday(t) ? "due today" : due ? `due ${due}` : t.status;
+      lines.push(`${statusDot(t)} ${t.actionItem} · ${tail}`);
+    }
+    lines.push("");
   }
-  const more = (urgentOnly ? tasks.filter(isUrgent).length : tasks.length) - shown.length;
-  if (more > 0) lines.push(`…and ${more} more.`);
-  lines.push("");
-  lines.push(`Open your tasks → ${appBaseUrl()}/portal`);
-  return lines.join("\n");
+  lines.push(`👉 Open & update your tasks: ${appBaseUrl()}/portal`);
+  const chat = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+
+  // ── push (short) ─────────────────────────────────────────────────────────
+  const urgentParts: string[] = [];
+  if (overdue) urgentParts.push(`${overdue} overdue`);
+  if (dueToday) urgentParts.push(`${dueToday} due today`);
+  const push = urgentOnly
+    ? {
+        title: "⚠️ Tasks need attention",
+        body: `Hi ${first} — ${urgentParts.join(", ") || "a few items to chase"}. Tap to catch up →`,
+      }
+    : {
+        title: "Your tasks · Oracle Consultancy",
+        body: `Hi ${first} — ${allTasks.length} open${overdue ? `, ${overdue} overdue` : ""}. Tap to review →`,
+      };
+
+  return { chat, push };
 }
 
 export async function GET(req: NextRequest) {
@@ -72,12 +105,13 @@ export async function GET(req: NextRequest) {
       const relevant = urgentOnly ? d.tasks.some(isUrgent) : true;
       if (!relevant) continue;
       recipients++;
-      const body = buildChatReminder(d.recipientName, d.tasks, urgentOnly);
+      const { chat, push } = buildReminder(d.recipientName, d.tasks, urgentOnly);
       await postSystemMessage({
         personId: d.personId,
         kind: "reminders",
         title: "Task reminders",
-        body,
+        body: chat,
+        push,
       });
       posted++;
     }

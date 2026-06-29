@@ -141,12 +141,18 @@ export async function setSessionCookie(personId: number) {
     .maybeSingle();
   const hash = (data?.portal_password_hash as string | null) ?? "";
   const jar = await cookies();
+  const maxAge = SESSION_DAYS * 24 * 60 * 60;
   jar.set(COOKIE_NAME, makeSessionToken(personId, hash), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
+    maxAge,
+    // Set an explicit Expires date too — installed iOS PWAs (and some Android
+    // WebViews) drop Max-Age-only cookies as "session" cookies when the app is
+    // swiped out of recents, logging the staff member out. A dated Expires is
+    // persisted reliably across app termination.
+    expires: new Date(Date.now() + maxAge * 1000),
   });
 }
 

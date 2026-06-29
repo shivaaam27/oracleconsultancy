@@ -116,12 +116,14 @@ export async function setAdminCookie() {
   const gen = await getAdminSessionGen();
   const payload = `admin.${gen}.${exp}`;
   const jar = await cookies();
+  const maxAge = SESSION_DAYS * 24 * 60 * 60;
   jar.set(COOKIE_NAME, `${payload}.${sign(payload)}`, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
+    maxAge,
+    expires: new Date(Date.now() + maxAge * 1000),
   });
 }
 

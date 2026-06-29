@@ -248,10 +248,12 @@ export async function postSystemMessage(input: {
   taskCode?: string | null;
   /** Skip the chat push (e.g. announcements that already pushed via the bell). */
   silent?: boolean;
+  /** Short one-glance push override (title/body) — see sendMessage.push. */
+  push?: { title?: string; body?: string };
 }): Promise<number> {
   const threadId = await getOrCreateSystemThread(input.personId, input.kind, input.title);
   const sender = input.kind === "reminders" ? SYSTEM_REMINDERS : SYSTEM_ANNOUNCE;
-  return sendMessage({ threadId, sender, body: input.body, taskCode: input.taskCode ?? null, silent: input.silent });
+  return sendMessage({ threadId, sender, body: input.body, taskCode: input.taskCode ?? null, silent: input.silent, push: input.push });
 }
 
 /* --------------------------- read --------------------------- */
@@ -420,6 +422,10 @@ export async function sendMessage(input: {
    *  announcement that pushed via the notification bell). The message still
    *  lands in the thread + bumps unread. */
   silent?: boolean;
+  /** Override the push + bell title/body with a SHORT one-glance hook, instead of
+   *  the (often long) message body sliced to 140 chars. Used by task reminders so
+   *  the OS notification stays tight & tappable while the chat keeps the full list. */
+  push?: { title?: string; body?: string };
 }): Promise<number> {
   const now = new Date().toISOString();
   const { data: msg } = await sb
@@ -456,7 +462,7 @@ export async function sendMessage(input: {
   // Notifications + push are NOT on the critical path — defer them so the
   // composer gets its response immediately. Live delivery to open clients is
   // handled by a peer broadcast from the sender's browser (no server echo).
-  if (!input.silent) after(() => notifyParticipants(input.threadId, input.sender, input.body, mentionIds));
+  if (!input.silent) after(() => notifyParticipants(input.threadId, input.sender, input.body, mentionIds, input.push));
   return messageId;
 }
 
@@ -464,7 +470,8 @@ async function notifyParticipants(
   threadId: number,
   sender: string,
   body: string,
-  mentionIds: number[]
+  mentionIds: number[],
+  push?: { title?: string; body?: string }
 ): Promise<void> {
   try {
     const [{ data: parts }, detail] = await Promise.all([
@@ -472,7 +479,9 @@ async function notifyParticipants(
       getThreadDetail(threadId),
     ]);
     const senderName = await participantName(sender);
-    const title = detail?.kind === "group" ? `${senderName} in ${detail.title}` : senderName;
+    // A SHORT push override wins; otherwise the sender + a clamped body.
+    const title = push?.title ?? (detail?.kind === "group" ? `${senderName} in ${detail.title}` : senderName);
+    const notifyBody = push?.body ?? body.slice(0, 140);
     const mentioned = new Set(mentionIds.map(personParticipant));
     for (const p of parts ?? []) {
       const recipient = p.participant as string;
@@ -483,7 +492,7 @@ async function notifyParticipants(
         threadId,
         kind: mentioned.has(recipient) ? "chat_mention" : "chat",
         title,
-        body: body.slice(0, 140),
+        body: notifyBody,
         actor: senderName,
       });
     }

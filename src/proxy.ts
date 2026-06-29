@@ -112,12 +112,16 @@ async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
   else return res;
   if (!id || !exp || !sig || !(Number(exp) > Date.now())) return res;
 
+  const maxAgePortal = SESSION_DAYS * 24 * 60 * 60;
   const cookieOpts = {
     httpOnly: true,
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: SESSION_DAYS * 24 * 60 * 60,
+    maxAge: maxAgePortal,
+    // Explicit Expires so an installed PWA persists it across an app-kill (a
+    // Max-Age-only cookie can be treated as a session cookie and dropped).
+    expires: new Date(Date.now() + maxAgePortal * 1000),
   };
 
   const payload = fp === null ? `${id}.${exp}` : `${id}.${exp}.${fp}`;
@@ -164,12 +168,14 @@ export async function proxy(req: NextRequest) {
         const newExp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
         const payload = `admin.${gen}.${newExp}`;
         const fresh = `${payload}.${await signAdmin(payload)}`;
+        const maxAgeAdmin = SESSION_DAYS * 24 * 60 * 60;
         res.cookies.set("cos_admin", fresh, {
           httpOnly: true,
           sameSite: "lax",
           secure: process.env.NODE_ENV === "production",
           path: "/",
-          maxAge: SESSION_DAYS * 24 * 60 * 60,
+          maxAge: maxAgeAdmin,
+          expires: new Date(Date.now() + maxAgeAdmin * 1000),
         });
       }
     } catch {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -59,6 +59,46 @@ function useCondenseOnScroll(enabled: boolean): boolean {
     return () => { window.removeEventListener("scroll", onScroll, { capture: true }); clearTimeout(idle); };
   }, [enabled]);
   return compact;
+}
+
+/** Make the horizontal tab row navigable with a MOUSE on the web: a vertical
+ *  wheel scrolls it sideways, and click-and-drag pans it (a real drag suppresses
+ *  the click so you don't accidentally open a tab). Touch already pans natively. */
+function useDragScroll() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return; // nothing to scroll
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { el.scrollLeft += e.deltaY; e.preventDefault(); }
+    };
+    let down = false, startX = 0, startLeft = 0, moved = false;
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return; // touch scrolls natively
+      down = true; moved = false; startX = e.clientX; startLeft = el.scrollLeft;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!down) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) { moved = true; el.scrollLeft = startLeft - dx; }
+    };
+    const onUp = () => { down = false; };
+    const onClickCapture = (e: MouseEvent) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    el.addEventListener("click", onClickCapture, true);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      el.removeEventListener("click", onClickCapture, true);
+    };
+  }, []);
+  return ref;
 }
 
 function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce, tourTag }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean; tourTag?: string }) {
@@ -127,11 +167,13 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   // scroll. Tablet (md) has room for every label when expanded; a phone keeps
   // only the active label when expanded, all icons when condensed.
   const lg = useMediaQuery("(min-width: 1024px)");
-  const md = useMediaQuery("(min-width: 768px)");
   const compact = useCondenseOnScroll(!lg && !reduce);
-  const showAllLabels = lg || (md && !compact);
+  // Compact like the command-centre pill: ONLY the active tab is labelled (every
+  // other tab is icon-only), so the pill stays short instead of spanning the
+  // whole width. The row scrolls (wheel/drag on web, swipe on touch) for the rest.
   const showActiveLabel = lg || !compact;
-  const labelFor = (active: boolean) => (active ? showActiveLabel : showAllLabels);
+  const labelFor = (active: boolean) => active && showActiveLabel;
+  const scrollRef = useDragScroll();
 
   return (
     <>
@@ -150,7 +192,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
       >
         {/* Tabs scroll horizontally only if they truly can't fit; the controls
             below stay anchored so the bell + theme are always reachable. */}
-        <div className="no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto">
+        <div ref={scrollRef} className="no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto select-none touch-pan-x [@media(pointer:fine)]:cursor-grab [@media(pointer:fine)]:active:cursor-grabbing">
           {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} />}
           {/* Directors are board-first (/portal redirects them to /portal/board),
               so a Home tab is redundant for them — show it for everyone else. */}
