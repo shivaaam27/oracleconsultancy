@@ -6,6 +6,7 @@ import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
 import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
+import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { portalCapabilities } from "@/lib/portal-capabilities";
@@ -86,6 +87,7 @@ export default async function PortalLayout({ children }: { children: React.React
         </form>
       </header>
       <PortalInstallPrompt />
+      <PortalNotifyPrompt />
       {/* Scoped portal search overlay — mounted once so it persists across
           navigation. Opens on ⌘K / Ctrl+K / Ctrl+Space or the header trigger. */}
       <PortalSearch />

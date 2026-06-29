@@ -1,5 +1,11 @@
 # Chat System (`/chat` + `/portal/chat`)
 
+> **Jun 2026 addition:** per-person read-only `kind="system"` channels — **Task
+> reminders** (daily 9am cron + push) and **Announcements** (published
+> announcements mirror in, silent). `getOrCreateSystemThread`/`postSystemMessage`
+> in `lib/chat.ts`; `sendMessage` takes a `push:{title,body}` override + `silent`.
+> Full detail: `memory/reminders_outbox_chat_jun2026.md`.
+
 Free-standing messaging, separate from task `task_updates`. Built June 2026.
 
 ## Decisions (locked)

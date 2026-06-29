@@ -1,5 +1,13 @@
 # Staff Portal (`/portal`)
 
+> **Jun 2026:** Outbox is now **live per-person** (no stored drafts); per-task vs
+> all-tasks reminder toggle under each task; read-only Task-reminders +
+> Announcements chat channels; compact mouse-friendly nav pill (icon tabs, active
+> label only); push-enable prompt (`portal-notify-prompt.tsx`); session cookies
+> carry an explicit `Expires` (PWA app-kill logout fix). Detail:
+> `memory/reminders_outbox_chat_jun2026.md`. Role-parity audit + gaps (HR
+> organogram/leave-register/people-admin) noted there too.
+
 A standalone, locked-down view for staff members — see only your own tasks, post updates, nothing else. Built June 2026; first user: Shivam Alpeshkumar Parmar.
 
 > **June 2026 Aurora iPhone redesign:** the whole director portal was rebuilt
