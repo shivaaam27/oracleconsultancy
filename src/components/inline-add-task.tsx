@@ -11,14 +11,8 @@ import { deleteTaskQuick } from "@/app/task/actions";
 import { useToast } from "./toast";
 import { spring } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import { getInitials as initials } from "@/lib/names";
 import type { QuickTaskCompany } from "./quick-task-popover";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 /* ------------------------------------------------------------------ *
  * InlineAddTask — one-step task create, right in the list (no popup).

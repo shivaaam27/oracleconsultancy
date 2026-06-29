@@ -10,7 +10,7 @@ import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team
 import { PortalHomeTasks } from "@/components/portal-home-tasks";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, managerTeamIds } from "@/lib/portal-auth";
-import { getGivenName } from "@/lib/names";
+import { getGivenName, getInitials } from "@/lib/names";
 import { listRequestsForPortal } from "@/lib/requests";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
@@ -467,7 +467,7 @@ export default async function PortalHome() {
                 <Link key={m.id} href={`/portal/chat?dm=${m.id}`} className="block group">
                   <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-accent/40">
                     <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft/60 text-accent text-xs font-semibold ring-1 ring-accent/20">
-                      {m.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                      {getInitials(m.name)}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{m.name}</p>

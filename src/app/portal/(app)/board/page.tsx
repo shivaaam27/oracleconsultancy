@@ -6,7 +6,8 @@ import { sb } from "@/db/supabase";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { getPortalPerson } from "@/lib/portal-auth";
-import { getGivenName } from "@/lib/names";
+import { getGivenName, getInitials } from "@/lib/names";
+import { getCompanyLogoMap } from "@/lib/company-brand";
 import { getBrief } from "@/lib/director-brief";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { listRequestsForPortal } from "@/lib/requests";
@@ -192,6 +193,7 @@ async function Board({ personName, personId }: { personName: string; personId: n
   // a one-line "why" (overdue tasks / expired / expiring / missing docs). Sorted
   // worst-first so the row that needs the board sits at the top.
   const compById = new Map(brief.compliance.map((c) => [c.companyId, c] as const));
+  const logoMap = await getCompanyLogoMap();
   const rank = (r: string) => (riskTone(r) === "danger" ? 0 : riskTone(r) === "warn" ? 1 : 2);
   const companyHealth: CompanyHealth[] = brief.companies
     .map((c) => {
@@ -207,11 +209,12 @@ async function Board({ personName, personId }: { personName: string; personId: n
         risk: c.risk,
         score: comp?.score ?? null,
         detail: bits.slice(0, 2).join(" · ") || "All clear",
+        logoUrl: logoMap.get(c.id) ?? null,
       };
     })
     .sort((a, b) => rank(a.risk) - rank(b.risk) || (a.score ?? 100) - (b.score ?? 100));
 
-  const initials = personName.split(" ").map((s) => s[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+  const initials = getInitials(personName);
 
   return (
     <Reveal delay={0}>

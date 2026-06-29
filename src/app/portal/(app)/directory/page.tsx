@@ -8,6 +8,7 @@ import { waLink, mailtoLink } from "@/lib/outbox/links";
 import { Hero } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { DirectoryView, type DirectoryPerson, type DirectoryCompany } from "./directory-view";
+import { getCompanyLogoMap } from "@/lib/company-brand";
 
 export const dynamic = "force-dynamic";
 
@@ -119,12 +120,14 @@ export default async function PortalDirectoryPage() {
     for (const cid of p.companyIds ?? []) headcountByCompany.set(cid, (headcountByCompany.get(cid) ?? 0) + 1);
   }
 
+  const logoMap = await getCompanyLogoMap();
   const companies: DirectoryCompany[] = (allCompanies ?? []).map((c) => ({
     id: c.id as number,
     name: c.name as string,
     headcount: headcountByCompany.get(c.id as number) ?? 0,
     open: openByCompany.get(c.id as number) ?? 0,
     overdue: overdueByCompany.get(c.id as number) ?? 0,
+    logoUrl: logoMap.get(c.id as number) ?? null,
   }));
 
   const subtitle = groupWide

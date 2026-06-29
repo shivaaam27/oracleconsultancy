@@ -8,6 +8,7 @@ import { Phone, MessageCircle, Mail, ArrowUpRight, Loader2, Check } from "lucide
 import { useToast } from "@/components/toast";
 import { TeamTaskList, type TeamTask } from "./team-task-list";
 import { portalSendReminderEmail, portalSendTaskSummaryWhatsApp } from "@/app/portal/actions";
+import { getInitials as initials } from "@/lib/names";
 
 const ICON = "grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full transition-transform active:scale-90";
 const ICON_OFF = `${ICON} bg-bg-subtle/50 text-fg-subtle/40`;
@@ -25,11 +26,6 @@ export type TeamPerson = {
   contactWaHref: string | null;
   details: TeamTask[];
 };
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
-}
 
 /** One person, merged: identity + contact/reminder icons + profile on top, their
  *  open tasks below (no chevron — always shown). The WhatsApp/email icons send the

@@ -1,12 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Building2, ClipboardCheck, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, AlertTriangle } from "lucide-react";
 import { getPortalPerson, personCanSeeCompany } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
+import { CompanyAvatar } from "@/components/company-avatar";
+import { getCompanyLogoUrl } from "@/lib/company-brand";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +30,11 @@ export default async function PortalCompanyPage({ params }: { params: Promise<{ 
   const companyId = Number((await params).id);
   if (!Number.isFinite(companyId) || !(await personCanSeeCompany(me, companyId))) notFound();
 
-  const [companyRes, headcountRes, tasksAll] = await Promise.all([
+  const [companyRes, headcountRes, tasksAll, logoUrl] = await Promise.all([
     sb.from("companies").select("id,name").eq("id", companyId).maybeSingle(),
     sb.from("people").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("active", true),
     getAllTasks(),
+    getCompanyLogoUrl(companyId),
   ]);
   const company = companyRes.data as { id: number; name: string } | null;
   if (!company) notFound();
@@ -56,7 +59,7 @@ export default async function PortalCompanyPage({ params }: { params: Promise<{ 
         <Hero
           title={
             <span className="flex items-center gap-2.5">
-              <Building2 size={24} strokeWidth={1.75} className="text-accent" />
+              <CompanyAvatar name={company.name} logoUrl={logoUrl} size={36} rounded="rounded-xl" iconSize={20} />
               {company.name}
             </span>
           }

@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/surface-kit";
 import { cn } from "@/lib/cn";
-import { Phone, MessageCircle, Mail, ArrowUpRight, Search, X, Building2, AlertTriangle } from "lucide-react";
+import { getInitials as initials } from "@/lib/names";
+import { CompanyAvatar } from "@/components/company-avatar";
+import { Phone, MessageCircle, Mail, ArrowUpRight, Search, X, AlertTriangle } from "lucide-react";
 
 const ICON = "grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full transition-transform active:scale-90";
 const ICON_OFF = `${ICON} bg-bg-subtle/50 text-fg-subtle/40`;
@@ -29,12 +31,8 @@ export type DirectoryCompany = {
   headcount: number;
   open: number;
   overdue: number;
+  logoUrl: string | null;
 };
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
-}
 
 /** Read-only contact book for directors/HR (managers and staff see only their own
  *  company). Two tabs: People (searchable, with real call/WhatsApp/email anchors)
@@ -232,9 +230,7 @@ function CompanyCard({ c }: { c: DirectoryCompany }) {
   return (
     <Link href={`/portal/companies/${c.id}`} className="group block">
       <Panel className="flex items-center gap-3 p-3.5 transition-shadow group-hover:ring-2 group-hover:ring-accent/30">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
-          <Building2 size={18} strokeWidth={1.9} />
-        </span>
+        <CompanyAvatar name={c.name} logoUrl={c.logoUrl} size={40} rounded="rounded-full" iconSize={18} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium group-hover:text-accent">{c.name}</p>
           <p className="truncate text-[11px] text-fg-muted">

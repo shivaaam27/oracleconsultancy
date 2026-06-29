@@ -12,6 +12,7 @@ import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { archiveDocumentAction, renameDocumentAction } from "@/app/documents/actions";
 import { deriveDocStatus, expiryLabel, pickShelf, allShelves, type CustomShelf, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 import { useToast } from "@/components/toast";
+import { getInitials as initials } from "@/lib/names";
 
 const STATUS_BADGE: Record<DocStatus, string> = {
   Valid: "bg-success-soft text-success",
@@ -35,13 +36,6 @@ export type StaffFileGroup = {
 
 function fmtUpdated(d: Date): string {
   return `Updated ${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 // Severity for ordering staff cards: people with issues first.

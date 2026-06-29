@@ -47,3 +47,27 @@ export function getGivenName(name: string): string {
   // All tokens were honorifics — fall back to the first token.
   return tokens[0];
 }
+
+/**
+ * Up to two initials for an avatar, IGNORING a leading honorific so the mark
+ * reflects the real name — not the title.
+ *
+ *   "Mr Vishal Pragji"  → "VP"   (not "MV")
+ *   "Mrs Jane Doe"      → "JD"
+ *   "Vishal Pragji"     → "VP"   (first + last)
+ *   "Vishal"            → "VI"   (single name — first two letters)
+ *   ""                  → "?"
+ *
+ * First + last initials (matches "first name and last name initials"). Safe for
+ * company names too — they never lead with an honorific, so nothing is stripped.
+ */
+export function getInitials(name: string): string {
+  let parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  // Drop any leading honorific tokens ("Mr", "Mrs", "Ms", "Dr"…).
+  while (parts.length > 1 && HONORIFICS.has(parts[0].replace(/\.$/, "").toLowerCase())) {
+    parts = parts.slice(1);
+  }
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return ((parts[0][0] ?? "") + (parts[parts.length - 1][0] ?? "")).toUpperCase();
+}

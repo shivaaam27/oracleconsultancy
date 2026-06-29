@@ -18,6 +18,7 @@ import { staffBeginPasskey, staffFinishPasskey, staffRemovePasskey } from "@/app
 import { Clock, ScanFace, KeyRound } from "lucide-react";
 import { Sparkles } from "lucide-react";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { getInitials } from "@/lib/names";
 import { audienceForRole, firstRunTourFor, spotlightsFor } from "@/lib/tours";
 import { TourReplay } from "@/components/tour-replay";
 import { portalRestartTour } from "../../tour-actions";
@@ -97,7 +98,7 @@ export default async function PortalProfile() {
     ...(companyName ? [{ label: "Company", value: companyName }] : []),
   ];
 
-  const initials = me.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const initials = getInitials(me.name);
   const accessLabel =
     me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access";
 

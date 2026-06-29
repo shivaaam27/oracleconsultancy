@@ -11,6 +11,7 @@ import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { getGivenName } from "@/lib/names";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { PeoplePicker } from "@/components/people-picker";
+import { CompanyAvatar } from "@/components/company-avatar";
 import { SmartCaptureBar } from "@/components/smart-capture-bar";
 import { portalEditTask, portalRemindTask, portalSetTaskLeads } from "@/app/portal/actions";
 import { useSwipeRow } from "@/lib/use-swipe-row";
@@ -28,7 +29,7 @@ import { useToast } from "@/components/toast";
 export type BoardPerson = { id: number; name: string; companyId: number | null; companyIds?: number[] };
 export type BoardCompany = { id: number; name: string };
 export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null; meetLink: string | null; location: string | null };
-export type CompanyHealth = { id: number; name: string; risk: string; score: number | null; detail: string };
+export type CompanyHealth = { id: number; name: string; risk: string; score: number | null; detail: string; logoUrl: string | null };
 export type PendingRequest = { id: number; code: string; title: string; from: string; category: string | null; ageDays: number };
 export type WatchItem = {
   taskId: number;
@@ -309,6 +310,7 @@ function CompanyRow({ c }: { c: CompanyHealth }) {
       className="group flex items-center gap-3 rounded-2xl bg-bg-elev p-3 ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
     >
       <span className={`h-9 w-1 shrink-0 rounded-full ${TONE[tone].bar}`} />
+      <CompanyAvatar name={c.name} logoUrl={c.logoUrl} size={34} rounded="rounded-xl" iconSize={15} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{c.name}</p>
         <p className="truncate text-[11px] text-fg-subtle">{c.detail}</p>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getInitials as initials } from "@/lib/names";
 import {
   ArrowLeft,
   Bell,
@@ -74,10 +75,6 @@ function dayKey(iso: string): string {
   if (d.toDateString() === today.toDateString()) return "Today";
   if (d.toDateString() === y.toDateString()) return "Yesterday";
   return d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
-}
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 const AVATAR_GRADIENTS = [
   "from-[#5b8def] to-[#3b5bdb]",
