@@ -95,6 +95,60 @@ export function parseSessionToken(
   return Number.isFinite(personId) ? { personId, fp } : null;
 }
 
+/* ------------------------------------------------------------------ *
+ * Durable "remember" token (PWA app-kill resilience).
+ *
+ * Installed PWAs (esp. iOS) can drop the httpOnly session cookie when the app is
+ * swiped from recents, dumping staff back to the login screen. localStorage is a
+ * separate, stickier store, so we ALSO hand the client a long-lived, signed
+ * remember token; on relaunch the login page silently POSTs it to /api/portal/
+ * reauth to re-mint the session cookie. It's bound to the password-hash
+ * fingerprint (a password change invalidates it) and only ever mints a session —
+ * same power as the cookie it restores.
+ * ------------------------------------------------------------------ */
+const REMEMBER_DAYS = 90;
+
+export function makeRememberToken(personId: number, passwordHash: string): string {
+  const exp = Date.now() + REMEMBER_DAYS * 24 * 60 * 60 * 1000;
+  const fp = sessionFingerprint(passwordHash);
+  const payload = `r.${personId}.${exp}.${fp}`;
+  return `${payload}.${sign(payload)}`;
+}
+
+/** Verify a remember token's signature + expiry (NOT yet the live password hash —
+ *  the reauth route re-checks the fingerprint against the current hash). */
+export function parseRememberToken(token: string | undefined): { personId: number; fp: string } | null {
+  if (!token) return null;
+  const segs = token.split(".");
+  if (segs.length !== 5 || segs[0] !== "r") return null;
+  const [, id, exp, fp, sig] = segs;
+  if (!id || !exp || !fp || !sig) return null;
+  const payload = `r.${id}.${exp}.${fp}`;
+  const good = sign(payload);
+  const a = Buffer.from(sig);
+  const b = Buffer.from(good);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  if (Number(exp) < Date.now()) return null;
+  const personId = Number(id);
+  return Number.isFinite(personId) ? { personId, fp } : null;
+}
+
+/** Full server-side check of a remember token: signature + expiry + the person is
+ *  still active with a password whose fingerprint matches. Returns the personId to
+ *  re-mint a session for, or null. */
+export async function verifyRememberToken(token: string | undefined): Promise<number | null> {
+  const parsed = parseRememberToken(token);
+  if (!parsed) return null;
+  const { data } = await sb
+    .from("people")
+    .select("active,portal_password_hash")
+    .eq("id", parsed.personId)
+    .maybeSingle();
+  if (!data || !data.active || !data.portal_password_hash) return null;
+  if (parsed.fp !== sessionFingerprint(data.portal_password_hash as string)) return null;
+  return parsed.personId;
+}
+
 /** Row shape for a portal-login candidate. */
 export type PortalLoginCandidate = {
   id: number;

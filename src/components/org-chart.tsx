@@ -13,6 +13,7 @@ import {
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { Badge } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { getInitials } from "@/lib/names";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import { countNodes, type CompanyTree, type OrgNode } from "@/lib/org-chart";
 import type { OrgPersonExtras } from "@/lib/org-extras";
@@ -34,11 +35,7 @@ const TYPE_TINT: Record<string, string> = {
   candidate: "bg-warn-soft text-warn ring-warn/25",
 };
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 0 || !parts[0]) return "?";
-  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-}
+const initials = getInitials; // honorific-stripped
 
 function deptHue(name: string): number {
   let h = 0;

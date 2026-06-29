@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Search, X, ShieldCheck, UserRound, Building2, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { getInitials } from "@/lib/names";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import type { OrgPersonExtras } from "@/lib/org-extras";
 
@@ -41,11 +42,7 @@ const LINK_META: Record<EdgeKind, { label: string; color: string; dash?: string;
   associated: { label: "Associated with", color: "hsl(var(--warn))", dash: "4 4", width: 1.2 },
 };
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (!parts[0]) return "?";
-  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-}
+const initials = getInitials; // honorific-stripped
 
 /**
  * Settle a force-directed layout ONCE (synchronous, capped iterations) and

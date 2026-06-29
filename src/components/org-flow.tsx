@@ -6,6 +6,7 @@ import ELK from "elkjs/lib/elk.bundled.js";
 import { ZoomIn, ZoomOut, Maximize2, Minimize2, Scaling, Loader2, ShieldCheck, Plane, Printer, Network } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { cn } from "@/lib/cn";
+import { getInitials } from "@/lib/names";
 import { PERSON_TYPE_LABELS } from "@/lib/person-types";
 import type { OrgPersonExtras } from "@/lib/org-extras";
 import { personTier, managerIdSet, TIER_LABELS, type FlowPerson, type Tier } from "@/lib/org-flow";
@@ -22,11 +23,7 @@ const TYPE_TINT: Record<string, string> = {
   candidate: "bg-warn-soft text-warn ring-warn/25",
 };
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (!parts[0]) return "?";
-  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-}
+const initials = getInitials; // honorific-stripped
 
 type LaidNode = { id: number; x: number; y: number };
 type LaidEdge = { id: string; kind: "primary" | "secondary"; d: string; from: number; to: number };

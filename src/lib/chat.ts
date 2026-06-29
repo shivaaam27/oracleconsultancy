@@ -523,11 +523,19 @@ async function createChatNotification(input: {
     });
     const { sendToRecipient } = await import("./push");
     const base = input.recipient === ADMIN ? "/chat" : "/portal/chat";
+    // The recipient's total unread (incl. this one) so the SW badges the installed
+    // app icon accurately, instead of always showing "1".
+    const { count } = await sb
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient", input.recipient)
+      .is("read_at", null);
     await sendToRecipient(input.recipient, {
       title: input.title,
       body: input.body,
       url: `${base}/${input.threadId}`,
       tag: `chat-${input.threadId}`,
+      count: count ?? undefined,
     });
   } catch {
     /* best effort */

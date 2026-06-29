@@ -1,5 +1,5 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v8";
+const CACHE_VERSION = "cos-v9";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const OFFLINE_URL = "/offline.html";
@@ -114,6 +114,10 @@ self.addEventListener("push", (event) => {
     icon: "/icon-192.png",
     badge: "/icon-192.png",
     tag: data.tag || "cos",
+    // Re-alert (sound + heads-up) even when a notification with the same tag is
+    // already showing — otherwise a 2nd message in the same chat silently replaces
+    // the first with no sound. requireInteraction keeps it until tapped on Android.
+    renotify: true,
     // Carry everything the click handler needs to act offline (no window open).
     data: {
       url: data.url || "/",

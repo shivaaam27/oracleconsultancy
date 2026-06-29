@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { LogOut } from "lucide-react";
 import { PortalPill } from "@/components/portal-pill";
+import { PortalSessionKeeper, PortalSignOut } from "@/components/portal-session";
 import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
 import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
@@ -13,7 +13,6 @@ import { portalCapabilities } from "@/lib/portal-capabilities";
 import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
 import { audienceForRole, unseenToursFor } from "@/lib/tours";
 import { TourRunner } from "@/components/tour-guide";
-import { portalLogout } from "../actions";
 import { portalMarkTourSeen, portalGetTour } from "../tour-actions";
 
 // Staff who install from the portal get a portal-scoped app: portal start_url
@@ -76,16 +75,10 @@ export default async function PortalLayout({ children }: { children: React.React
             <p className="truncate text-sm font-semibold">{me.name}</p>
           </div>
         </div>
-        <form action={portalLogout}>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 rounded-full bg-bg-elev ring-1 ring-border px-3 py-1.5 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
-          >
-            <LogOut size={13} />
-            Sign out
-          </button>
-        </form>
+        <PortalSignOut />
       </header>
+      {/* Cache a durable remember token so an installed PWA survives app-kill. */}
+      <PortalSessionKeeper />
       <PortalInstallPrompt />
       <PortalNotifyPrompt />
       {/* Scoped portal search overlay — mounted once so it persists across

@@ -2,6 +2,7 @@
 
 import { ArrowRight, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { getInitials } from "@/lib/names";
 import type { TaskRow } from "@/lib/queries";
 
 /* ------------------------------------------------------------------ *
@@ -21,12 +22,7 @@ import type { TaskRow } from "@/lib/queries";
  * ------------------------------------------------------------------ */
 
 /** Initials from a display name (e.g. "Aisha Khan" → "AK", "You" → "Y"). */
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+const initials = getInitials; // honorific-stripped
 
 /** Compact relative time. Re-evaluated on render, so it stays fresh on refresh. */
 function ago(iso: string): string {
