@@ -116,6 +116,16 @@ async function notifyAudience(id: number) {
     ids.map((pid) => personRecipient(pid)),
     { kind: "announcement", title: `📣 ${a.title}`, body: a.body.slice(0, 160), actor: a.createdBy }
   );
+  // Mirror into each person's read-only "Announcements" chat thread. SILENT — the
+  // notifyMany call above already pushed via the notification bell, so we don't
+  // double-buzz; the message just lands in their Announcements thread.
+  const { postSystemMessage } = await import("@/lib/chat");
+  const chatBody = a.body?.trim() ? `${a.title}\n\n${a.body}` : a.title;
+  for (const pid of ids) {
+    try {
+      await postSystemMessage({ personId: pid, kind: "announce", title: "Announcements", body: chatBody, silent: true });
+    } catch { /* best-effort: one person's chat copy failing must not block publish */ }
+  }
   // Extra channels (email / WhatsApp) land as Outbox drafts for the owner to send.
   await createDeliveryDrafts(a);
 }

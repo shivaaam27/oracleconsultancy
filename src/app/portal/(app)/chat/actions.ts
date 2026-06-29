@@ -12,6 +12,7 @@ import {
   editMessage,
   getOrCreateDm,
   getThreadDetail,
+  isSystemThread,
   listThreadsFor,
   markRead,
   personParticipant,
@@ -131,6 +132,7 @@ export async function postMessage(
   if (!m) return { ok: false, error: "Signed out" };
   const threadId = Number(fd.get("threadId"));
   if (!threadId || !(await viewerInThread(threadId, m.participant))) return { ok: false, error: "Not allowed." };
+  if (await isSystemThread(threadId)) return { ok: false, error: "This channel is read-only." };
   const body = (fd.get("body")?.toString() ?? "").trim();
   const taskCode = (fd.get("taskCode")?.toString() ?? "").trim() || null;
   const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);

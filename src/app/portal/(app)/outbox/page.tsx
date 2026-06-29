@@ -40,6 +40,7 @@ export default async function PortalOutboxPage() {
         overdue,
         companies,
         tasks: d.tasks.map((t) => ({
+          code: t.code,
           title: t.actionItem,
           company: t.companyName,
           status: t.status,

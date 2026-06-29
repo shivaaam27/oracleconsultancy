@@ -12,6 +12,11 @@ import { sb } from "@/db/supabase";
  * ------------------------------------------------------------------ */
 
 export const ADMIN = "admin";
+// One-way "system" senders for the per-person Task reminders / Announcements
+// threads. They are message SENDERS only, never participants, so the recipient
+// (the only participant) always gets the push.
+export const SYSTEM_REMINDERS = "system:reminders";
+export const SYSTEM_ANNOUNCE = "system:announce";
 export function personParticipant(personId: number): string {
   return `person:${personId}`;
 }
@@ -39,9 +44,11 @@ export type ChatMessage = {
   deletedAt: string | null;
 };
 
+export type ChatKind = "dm" | "group" | "system";
+
 export type ThreadSummary = {
   id: number;
-  kind: "dm" | "group";
+  kind: ChatKind;
   title: string; // resolved display title (other person for DMs)
   companyId: number | null;
   lastMessageAt: string | null;
@@ -52,7 +59,7 @@ export type ThreadSummary = {
 
 export type ThreadDetail = {
   id: number;
-  kind: "dm" | "group";
+  kind: ChatKind;
   title: string;
   companyId: number | null;
   participants: { participant: string; name: string; lastReadAt: string | null }[];
@@ -63,6 +70,8 @@ export type ThreadDetail = {
 /** Display name for a participant string. */
 export async function participantName(p: string): Promise<string> {
   if (p === ADMIN) return "Owner";
+  if (p === SYSTEM_REMINDERS) return "Task reminders";
+  if (p === SYSTEM_ANNOUNCE) return "Announcements";
   const id = participantPersonId(p);
   if (id == null) return p;
   const { data } = await sb.from("people").select("name").eq("id", id).maybeSingle();
@@ -75,6 +84,8 @@ async function nameMap(participants: string[]): Promise<Map<string, string>> {
   const ids: number[] = [];
   for (const p of participants) {
     if (p === ADMIN) map.set(p, "Owner");
+    else if (p === SYSTEM_REMINDERS) map.set(p, "Task reminders");
+    else if (p === SYSTEM_ANNOUNCE) map.set(p, "Announcements");
     else {
       const id = participantPersonId(p);
       if (id != null) ids.push(id);
@@ -99,6 +110,13 @@ export async function viewerInThread(threadId: number, viewer: string): Promise<
     .eq("participant", viewer)
     .maybeSingle();
   return Boolean(data);
+}
+
+/** True if the thread is a one-way SYSTEM channel (Task reminders / Announcements),
+ *  which are read-only — nobody posts into them from the UI. */
+export async function isSystemThread(threadId: number): Promise<boolean> {
+  const { data } = await sb.from("chat_threads").select("kind").eq("id", threadId).maybeSingle();
+  return (data?.kind as string | null) === "system";
 }
 
 /* --------------------------- create / find --------------------------- */
@@ -194,6 +212,48 @@ export async function threadFromTask(taskId: number, code: string, createdBy: st
   return threadId;
 }
 
+/** Find or create a person's one-way SYSTEM thread (Task reminders / Announcements).
+ *  Deduped per person via dm_key "sys:<kind>:person:<id>". The person is the ONLY
+ *  participant; messages are posted by a system sender, so the person always gets
+ *  the push and these threads never clutter anyone else's chat list. */
+export async function getOrCreateSystemThread(
+  personId: number,
+  kind: "reminders" | "announce",
+  title: string,
+): Promise<number> {
+  const key = `sys:${kind}:person:${personId}`;
+  const { data: existing } = await sb.from("chat_threads").select("id").eq("dm_key", key).maybeSingle();
+  if (existing) return existing.id as number;
+  const now = new Date().toISOString();
+  const sender = kind === "reminders" ? SYSTEM_REMINDERS : SYSTEM_ANNOUNCE;
+  const { data: thread } = await sb
+    .from("chat_threads")
+    .insert({ kind: "system", title, dm_key: key, created_by: sender, created_at: now })
+    .select("id")
+    .single();
+  const threadId = thread!.id as number;
+  await sb
+    .from("chat_participants")
+    .insert([{ thread_id: threadId, participant: personParticipant(personId), role: "member", joined_at: now }]);
+  return threadId;
+}
+
+/** Post a one-way system message to a person (auto-creates their system thread).
+ *  Reuses sendMessage, so notifications + push fire exactly like a normal chat. */
+export async function postSystemMessage(input: {
+  personId: number;
+  kind: "reminders" | "announce";
+  title: string;
+  body: string;
+  taskCode?: string | null;
+  /** Skip the chat push (e.g. announcements that already pushed via the bell). */
+  silent?: boolean;
+}): Promise<number> {
+  const threadId = await getOrCreateSystemThread(input.personId, input.kind, input.title);
+  const sender = input.kind === "reminders" ? SYSTEM_REMINDERS : SYSTEM_ANNOUNCE;
+  return sendMessage({ threadId, sender, body: input.body, taskCode: input.taskCode ?? null, silent: input.silent });
+}
+
 /* --------------------------- read --------------------------- */
 
 /** All threads a participant belongs to, newest activity first, with unread
@@ -262,7 +322,7 @@ export async function listThreadsFor(viewer: string): Promise<ThreadSummary[]> {
 
     summaries.push({
       id,
-      kind: t.kind as "dm" | "group",
+      kind: t.kind as ChatKind,
       title,
       companyId: (t.company_id as number | null) ?? null,
       lastMessageAt: (t.last_message_at as string | null) ?? null,
@@ -294,7 +354,7 @@ export async function getThreadDetail(threadId: number, viewer?: string): Promis
   const rows = parts ?? [];
   const ps = rows.map((p) => p.participant as string);
   const names = await nameMap(ps);
-  const kind = t.kind as "dm" | "group";
+  const kind = t.kind as ChatKind;
   // DMs store no title — show the *other* person's name (from the viewer's seat).
   let title = (t.title as string) ?? "";
   if (kind === "dm") {
@@ -356,6 +416,10 @@ export async function sendMessage(input: {
   attachments?: Attachment[];
   taskCode?: string | null;
   mentionPersonIds?: number[];
+  /** Skip the notify/push fan-out (the caller already notified — e.g. an
+   *  announcement that pushed via the notification bell). The message still
+   *  lands in the thread + bumps unread. */
+  silent?: boolean;
 }): Promise<number> {
   const now = new Date().toISOString();
   const { data: msg } = await sb
@@ -392,7 +456,7 @@ export async function sendMessage(input: {
   // Notifications + push are NOT on the critical path — defer them so the
   // composer gets its response immediately. Live delivery to open clients is
   // handled by a peer broadcast from the sender's browser (no server echo).
-  after(() => notifyParticipants(input.threadId, input.sender, input.body, mentionIds));
+  if (!input.silent) after(() => notifyParticipants(input.threadId, input.sender, input.body, mentionIds));
   return messageId;
 }
 

@@ -224,9 +224,10 @@ export async function adminRemindTask(
   const channel = pickChannel(contact);
   const to = contactForChannel(contact, channel);
 
-  // A full summary keeps the signed preview-card link; a single-task reminder
-  // carries the plain message only.
-  const cardLink = allTasks && channel === "WHATSAPP" ? waReminderLink(person.id as number) : undefined;
+  // Always attach the signed preview-card link on WhatsApp (single task or full
+  // summary) so the recipient can see their whole open/overdue list, not just the
+  // one task being nudged about.
+  const cardLink = channel === "WHATSAPP" ? waReminderLink(person.id as number) : undefined;
   const body = buildTaskSummaryWhatsApp(name, rows, cardLink, "Command Centre");
   const subject = allTasks ? "Your open tasks" : "Task reminder";
   const link = linkFor(channel, to, subject, body);

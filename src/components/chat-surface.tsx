@@ -8,6 +8,7 @@ import { getInitials as initials } from "@/lib/names";
 import {
   ArrowLeft,
   Bell,
+  Megaphone,
   BellOff,
   Check,
   CheckCheck,
@@ -95,13 +96,16 @@ function isImage(type?: string): boolean {
   return !!type && type.startsWith("image/");
 }
 
-function Avatar({ name, group, size = 40 }: { name: string; group?: boolean; size?: number }) {
+function Avatar({ name, group, system, size = 40 }: { name: string; group?: boolean; system?: boolean; size?: number }) {
+  // System channels get a fixed accent tile + an icon (bell for reminders,
+  // megaphone for announcements) so they read as "not a person".
+  const SystemIcon = system ? (/reminder/i.test(name) ? Bell : Megaphone) : null;
   return (
     <span
       style={{ width: size, height: size }}
-      className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradientFor(name)} font-semibold text-white shadow-sm`}
+      className={`flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${system ? "from-[#5b8def] to-[#3b5bdb]" : gradientFor(name)} font-semibold text-white shadow-sm`}
     >
-      {group ? <Users size={size * 0.45} /> : <span style={{ fontSize: size * 0.36 }}>{initials(name)}</span>}
+      {SystemIcon ? <SystemIcon size={size * 0.45} /> : group ? <Users size={size * 0.45} /> : <span style={{ fontSize: size * 0.36 }}>{initials(name)}</span>}
     </span>
   );
 }
@@ -249,7 +253,11 @@ export function ChatSurface(props: Props) {
     [selected, me, meName, actions, notify, reloadList]
   );
 
-  const shown = threads.filter((t) => t.title.toLowerCase().includes(filter.toLowerCase()));
+  const shown = threads
+    .filter((t) => t.title.toLowerCase().includes(filter.toLowerCase()))
+    // Pin the read-only system channels (Task reminders / Announcements) to the top.
+    .slice()
+    .sort((a, b) => (a.kind === "system" ? 0 : 1) - (b.kind === "system" ? 0 : 1));
   const otherReaders = (detail?.participants ?? []).filter((p) => p.participant !== me);
   const selectedThread = threads.find((t) => t.id === selected) ?? null;
 
@@ -331,7 +339,7 @@ export function ChatSurface(props: Props) {
                     active ? "md:bg-accent-soft" : "active:bg-bg-subtle md:hover:bg-bg-subtle"
                   }`}
                 >
-                  <Avatar name={t.title} group={t.kind === "group"} size={50} />
+                  <Avatar name={t.title} group={t.kind === "group"} system={t.kind === "system"} size={50} />
                   <span className="min-w-0 flex-1 border-b border-border/40 pb-2.5">
                     <span className="flex items-baseline justify-between gap-2">
                       <span className={`truncate text-[15px] ${t.unread > 0 ? "font-bold" : "font-semibold"}`}>
@@ -384,15 +392,17 @@ export function ChatSurface(props: Props) {
               >
                 <ArrowLeft size={20} />
               </button>
-              <Avatar name={detail?.title ?? "?"} group={detail?.kind === "group"} size={40} />
+              <Avatar name={detail?.title ?? "?"} group={detail?.kind === "group"} system={detail?.kind === "system"} size={40} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-semibold">{detail?.title ?? "Conversation"}</p>
                 <p className="truncate text-[12px] text-fg-muted">
                   {typing.length > 0
                     ? `${typing.join(", ")} ${typing.length === 1 ? "is" : "are"} typing…`
-                    : detail?.kind === "group"
-                      ? `${detail.participants.length} members`
-                      : "Direct message"}
+                    : detail?.kind === "system"
+                      ? "Read-only channel"
+                      : detail?.kind === "group"
+                        ? `${detail.participants.length} members`
+                        : "Direct message"}
                 </p>
               </div>
               <button
@@ -448,7 +458,13 @@ export function ChatSurface(props: Props) {
               />
             </div>
 
-            <Composer voiceLang={voiceLang} onSend={send} onTyping={sendTyping} />
+            {detail?.kind === "system" ? (
+              <div className="border-t border-border/60 px-4 py-3 text-center text-[13px] text-fg-muted">
+                {/reminder/i.test(detail.title ?? "") ? "Task reminders appear here automatically." : "Announcements appear here."} This channel is read-only.
+              </div>
+            ) : (
+              <Composer voiceLang={voiceLang} onSend={send} onTyping={sendTyping} />
+            )}
           </>
         )}
       </section>

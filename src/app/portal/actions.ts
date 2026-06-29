@@ -723,9 +723,10 @@ export async function portalSendTaskSummaryWhatsApp(
   const { waReminderLink, waFromLabel } = await import("@/lib/wa-card");
   const { waLink } = await import("@/lib/outbox/links");
   const from = waFromLabel({ name: me.name, role });
-  // A single-task reminder carries the plain wa.me text only (no all-tasks preview
-  // card); a full summary keeps the signed link so WhatsApp renders the card.
-  const link = taskId != null ? undefined : waReminderLink(personId);
+  // Always attach the signed per-person link — even for a single-task reminder —
+  // so WhatsApp renders the preview card showing the person's FULL open/overdue
+  // counts (they may have more tasks than the one being nudged about).
+  const link = waReminderLink(personId);
   const text = buildTaskSummaryWhatsApp(person.name as string, rows, link, from);
   const number = (((person.whatsapp as string | null) || (person.phone as string | null)) ?? "").trim();
   const waHref = waLink(number, text);

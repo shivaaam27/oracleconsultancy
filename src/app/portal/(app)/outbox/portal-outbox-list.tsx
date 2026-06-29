@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Send, Building2, ChevronDown, Search, X, AlertTriangle } from "lucide-react";
+import Link from "next/link";
+import { Send, ChevronDown, ChevronRight, Search, X, AlertTriangle } from "lucide-react";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { NotifyPerson } from "@/components/notify-person";
 import { getInitials } from "@/lib/names";
 import { cn } from "@/lib/cn";
 
 export type OutboxTask = {
+  code: string;
   title: string;
   company: string;
   status: string;
@@ -58,17 +60,23 @@ function PersonCard({ p, defaultOpen }: { p: OutboxPerson; defaultOpen: boolean 
       </button>
       {open && (
         <div className="border-t border-border/50 bg-bg-subtle/20 px-3.5 py-3">
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {p.tasks.map((t, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dot(t))} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium leading-tight text-fg">{t.title}</span>
-                  <span className="text-[11px] text-fg-subtle">
-                    {[t.company, t.status, t.due ? `due ${t.due}` : null].filter(Boolean).join(" · ")}
-                    {t.accountable.length > 1 && ` · ${t.accountable.join(", ")}`}
+              <li key={i}>
+                <Link
+                  href={`/portal/task/${t.code}`}
+                  className="group flex items-start gap-2 rounded-lg px-1.5 py-1 -mx-1.5 transition-colors hover:bg-bg-elev/70"
+                >
+                  <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dot(t))} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13px] font-medium leading-tight text-fg group-hover:text-accent transition-colors">{t.title}</span>
+                    <span className="text-[11px] text-fg-subtle">
+                      {[t.company, t.status, t.due ? `due ${t.due}` : null].filter(Boolean).join(" · ")}
+                      {t.accountable.length > 1 && ` · ${t.accountable.join(", ")}`}
+                    </span>
                   </span>
-                </span>
+                  <ChevronRight size={14} className="mt-1 shrink-0 text-fg-subtle/50 group-hover:text-accent transition-colors" />
+                </Link>
               </li>
             ))}
           </ul>
