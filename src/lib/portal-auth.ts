@@ -254,21 +254,30 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   // only after they persist do we give up. A DB *error* is never a logout — it's
   // "try again"; only a missing/inactive person (no error) means sign out.
   let lastError: unknown = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     const { data, error } = await sb
       .from("people")
       .select("id,name,email,role,company_id,active,portal_password_hash,portal_role")
       .eq("id", personId)
       .maybeSingle();
 
-    if (!error) {
-      // Genuine "no longer has access": person gone, archived, or access revoked.
-      if (!data || !data.active || !data.portal_password_hash) return null;
-      // AUTHSEC-02: a bound token (fp present) must still match the live password
-      // hash — a password change rotates the hash and invalidates other devices.
-      // Legacy tokens (fp === null) predate binding and are grandfathered.
-      if (fp !== null && fp !== sessionFingerprint(data.portal_password_hash as string)) {
+    if (!error && data) {
+      // Revocation gate (the ONLY legitimate reasons to sign someone out whose
+      // cookie signature is valid + unexpired): access genuinely removed.
+      if (!data.active || !data.portal_password_hash) {
+        console.warn(
+          `[portal-auth] sign-out person ${personId}: ${!data.active ? "inactive" : "no portal password"}`,
+        );
         return null;
+      }
+      // AUTHSEC-02 was a HARD logout on a password-hash fingerprint mismatch — but
+      // that was the suspected cause of installed-PWA relaunch sign-outs (the
+      // command centre has no such DB check and never logs out). The signed,
+      // unexpired cookie already proves authenticity, so we DOWNGRADE this to a
+      // warning and keep the session. (Access revocation still works via `active`,
+      // and changing a password no longer force-logs-out other devices.)
+      if (fp !== null && fp !== sessionFingerprint(data.portal_password_hash as string)) {
+        console.warn(`[portal-auth] fingerprint mismatch person ${personId} — keeping session (cookie valid)`);
       }
       return {
         id: data.id as number,
@@ -287,19 +296,24 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
       };
     }
 
-    lastError = error;
-    // Small backoff before retrying (150ms, 300ms) — enough for a cold pooler
-    // connection to come up without making the page feel slow.
-    if (attempt < 2) await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+    // No error but NO row can be a cold/transient empty read on a freshly-woken
+    // serverless + PgBouncer connection — NOT proof the person is gone. Retry
+    // before concluding anything; a DB error is likewise transient.
+    if (error) lastError = error;
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
   }
 
-  // Valid session, but the database stayed unreachable across retries. Do NOT
-  // return null here — that would force a false logout. Throw so the portal
-  // error boundary shows a transient "couldn't load, try again" state with the
-  // session cookie intact, instead of dumping the user back to the login screen.
-  throw new Error(
-    `getPortalPerson: people lookup failed for valid session (person ${personId}): ${String(lastError)}`
-  );
+  if (lastError) {
+    // DB stayed unreachable for a VALID session — throw so the error boundary
+    // shows "couldn't load, try again" with the cookie intact, NEVER a logout.
+    throw new Error(
+      `getPortalPerson: people lookup failed for valid session (person ${personId}): ${String(lastError)}`,
+    );
+  }
+  // Every attempt returned cleanly with no row → the person genuinely doesn't
+  // exist (deleted). Only NOW do we sign out.
+  console.warn(`[portal-auth] sign-out person ${personId}: not found after retries`);
+  return null;
 });
 
 /** Every company id this portal person belongs to: their primary

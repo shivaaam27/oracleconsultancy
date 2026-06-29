@@ -297,6 +297,9 @@ export function ChatSurface(props: Props) {
       for (const f of files) fd.append("file", f);
       const res = await actions.postMessage(fd);
       if (res.ok) {
+        // Flip the optimistic bubble to "sent" IMMEDIATELY (drop the pending clock)
+        // — don't make the user watch it spin through the canonical refetch below.
+        setPending((p) => p.map((m) => (m.id === tempId ? { ...m, pending: false } : m)));
         // Atomic swap: fetch canonical messages and drop the optimistic copy in
         // the SAME render so the bubble never appears twice.
         const fresh = await actions.refreshThread(selected);
