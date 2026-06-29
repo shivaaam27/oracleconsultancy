@@ -48,7 +48,7 @@ export type ChatActions = {
   markThreadRead: (id: number) => Promise<{ ok: boolean }>;
   startDm: (personId: number) => Promise<{ ok: boolean; threadId?: number; error?: string }>;
   newGroup: (input: { title: string; personIds: number[] }) => Promise<{ ok: boolean; threadId?: number; error?: string }>;
-  postMessage: (fd: FormData) => Promise<{ ok: boolean; error?: string }>;
+  postMessage: (fd: FormData) => Promise<{ ok: boolean; error?: string; messageId?: number }>;
   editChatMessage: (id: number, body: string) => Promise<{ ok: boolean }>;
   deleteChatMessage: (id: number) => Promise<{ ok: boolean }>;
   muteThread: (id: number, muted: boolean) => Promise<{ ok: boolean }>;
@@ -193,11 +193,21 @@ export function ChatSurface(props: Props) {
   // must NOT mark read — that's what would ping-pong. For content events we
   // refresh and, since the thread is on screen, clear our own unread badge.
   const onRealtime = useCallback(
-    (type: string) => {
+    (type: string, message?: ChatMessage) => {
       if (selected == null) {
         reloadList();
         return;
       }
+      // Fast path: a new message arrived WITH its payload → append one bubble
+      // (deduped by id) instead of refetching the whole thread. Feels instant.
+      if (type === "message" && message) {
+        setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+        reloadList();
+        actions.markThreadRead(selected);
+        notifyRef.current("read");
+        return;
+      }
+      // Edits / deletes / read-receipts / polling-fallback (no payload) → refetch.
       refresh(selected);
       reloadList();
       if (type !== "read") {
@@ -290,12 +300,16 @@ export function ChatSurface(props: Props) {
         // Atomic swap: fetch canonical messages and drop the optimistic copy in
         // the SAME render so the bubble never appears twice.
         const fresh = await actions.refreshThread(selected);
+        let canonical: ChatMessage | undefined;
         if (fresh.ok) {
           setMessages(fresh.messages ?? []);
           setDetail(fresh.detail ?? null);
+          canonical = (fresh.messages ?? []).find((m) => m.id === res.messageId);
         }
         setPending((p) => p.filter((m) => m.id !== tempId));
-        notify("message"); // instant peer delivery (self:false → no echo to us)
+        // Ship the canonical message to peers so they append one bubble instantly
+        // (self:false → no echo to us); they refetch only if the payload is missing.
+        notify("message", canonical);
         reloadList();
         return null;
       }

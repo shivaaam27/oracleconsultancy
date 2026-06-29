@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import type { ChatMessage } from "@/lib/chat";
 
 /* Realtime layer for a chat thread.
  *
@@ -22,13 +23,13 @@ type ChannelLike = {
 
 export function useThreadChannel(
   threadId: number | null,
-  opts: { onChange: (type: string) => void; meName: string; seconds?: number }
+  opts: { onChange: (type: string, message?: ChatMessage) => void; meName: string; seconds?: number }
 ) {
   const { meName, seconds = 5 } = opts;
   const router = useRouter();
   const onChangeRef = useRef(opts.onChange);
   onChangeRef.current = opts.onChange;
-  const fire = useCallback((type: string) => onChangeRef.current(type), []);
+  const fire = useCallback((type: string, message?: ChatMessage) => onChangeRef.current(type, message), []);
 
   const [typing, setTyping] = useState<string[]>([]);
   const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -90,8 +91,8 @@ export function useThreadChannel(
             config: { broadcast: { self: false } },
           });
           channel
-            .on("broadcast", { event: "thread" }, (msg: { payload?: { type?: string } }) =>
-              fire(msg.payload?.type ?? "message")
+            .on("broadcast", { event: "thread" }, (msg: { payload?: { type?: string; message?: ChatMessage } }) =>
+              fire(msg.payload?.type ?? "message", msg.payload?.message)
             )
             .on("broadcast", { event: "typing" }, (msg: { payload?: { name?: string } }) =>
               noteTyping(msg.payload?.name ?? "")
@@ -134,13 +135,15 @@ export function useThreadChannel(
     }
   }, [meName]);
 
-  // Tell peers something changed (a new message, or that we've read). self:false
-  // means we never receive our own — so no echo/refetch loop on the sender.
-  const notify = useCallback((type: "message" | "read") => {
+  // Tell peers something changed. For a new message we ALSO ship the message
+  // itself so peers can append one bubble instead of refetching the whole thread
+  // (edits/deletes/reads carry no payload → peers refetch). self:false means we
+  // never receive our own — so no echo/refetch loop on the sender.
+  const notify = useCallback((type: "message" | "read", message?: ChatMessage) => {
     const ch = channelRef.current;
     if (!ch) return;
     try {
-      ch.send({ type: "broadcast", event: "thread", payload: { type } });
+      ch.send({ type: "broadcast", event: "thread", payload: { type, message } });
     } catch {
       /* best effort — polling fallback covers delivery */
     }
