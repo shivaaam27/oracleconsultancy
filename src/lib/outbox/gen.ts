@@ -3,6 +3,7 @@ import { getAllTasks, type TaskRow } from "../queries";
 import { isOpen } from "../derive";
 import { appBaseUrl } from "../app-url";
 import { waReminderLink, waFromLabel } from "../wa-card";
+import { getGivenName } from "../names";
 import type { EmailDoc, EmailTone, EmailOffice } from "../email/layout";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
@@ -180,7 +181,7 @@ export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: 
       const meta = [`Status: ${t.status}`, `Priority: ${t.priority}`];
       if (t.deadline) meta.push(`Due: ${fmtDate(t.deadline)}`);
       lines.push(meta.join(" · "));
-      const who = t.assignees.filter(Boolean).map((a) => a.split(" ")[0]);
+      const who = t.assignees.filter(Boolean).map((a) => getGivenName(a));
       if (who.length) lines.push(`Responsible: ${who.join(", ")}`);
       if (t.latestUpdate && t.latestUpdate.trim()) lines.push(`Latest: ${oneLine(t.latestUpdate, 100)}`);
       lines.push("");

@@ -417,7 +417,11 @@ function AttentionStack({ watch, people }: { watch: WatchItem[]; people: BoardPe
   return (
     <div className="flex flex-col gap-2.5">
       <Label hint />
-      <div className="flex flex-col gap-2.5">
+      {/* Capped + scrolls within (like the staff portal task list) so the board
+          stays glanceable — height holds ~7 cards before the inner scroll.
+          NB: a plain block with space-y (NOT flex) — flex would give each
+          overflow-hidden card min-height:0 and shrink/clip it to fit the cap. */}
+      <div className="max-h-[44rem] space-y-2.5 overflow-y-auto overscroll-contain pr-0.5">
         {watch.map((w) => <AttentionCard key={w.taskId} w={w} people={people} />)}
       </div>
     </div>
