@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { getInitials as initials } from "@/lib/names";
 import { EntityDrawer, type DrawerTab } from "./entity-drawer";
 import { HrmsDialog } from "./hrms/hrms-dialog";
 import { IconButton, EmptyState, SectionCard, DefGrid, GroupLabel, CollapsibleSection } from "./drawer-kit";
@@ -198,13 +199,6 @@ function buildPersonReminder(name: string, tasks: { code: string; actionItem: st
 
 function parsePackPurpose(value: string | null): PersonPackPurpose | undefined {
   return isPersonPackPurpose(value) ? value : undefined;
-}
-
-function initials(name: string): string {
-  const p = name.trim().split(/\s+/).filter(Boolean);
-  if (!p.length) return "?";
-  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
-  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 
 function AlertCircleMini() {

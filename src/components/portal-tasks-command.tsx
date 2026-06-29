@@ -15,7 +15,8 @@ import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalRemindTask, portalRemindTaskAll, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
+import { portalEditTask, portalRemindTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
+import { getGivenName } from "@/lib/names";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -316,14 +317,18 @@ function TaskRow({
     startTransition(async () => {
       const res = await portalRemindTask(t.taskId);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      toast(`Reminder for ${res.name.split(" ")[0]} saved to Outbox.`, { tone: "success", action: res.link ? { label: "Send now", onClick: () => { window.open(res.link!, "_blank"); } } : undefined });
+      // Per-task reminder for ONE person — opens WhatsApp/email directly (nothing stored).
+      if (res.link) window.open(res.link, "_blank");
+      else toast(`No contact on file for ${getGivenName(res.name)}.`, { tone: "warn" });
     });
   }
+  // "Remind all" on a task = remind the GROUP in the in-built chat (one message to
+  // everyone on the task), not a pile of individual drafts.
   function remindAll() {
     startTransition(async () => {
-      const res = await portalRemindTaskAll(t.taskId);
+      const res = await portalMessageTaskGroup(t.taskId);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      toast(`Reminders drafted for ${res.count} ${res.count === 1 ? "person" : "people"}${res.names.length ? ` (${res.names.join(", ")})` : ""}.`, { tone: "success" });
+      router.push(`/portal/chat/${res.threadId}`);
     });
   }
   function postUpdate() {
@@ -685,7 +690,7 @@ function TaskPeoplePanel({
             {/* Per-person reachability — minimal icons: WhatsApp / Email a summary
                 of their open tasks (Outbox-backed, mobile-safe) + a direct chat DM.
                 Only the id-backed people. */}
-            {canManage && m.id != null && <MemberActions personId={m.id} name={m.name} />}
+            {canManage && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
           </li>
         ))}
       </ul>
@@ -817,22 +822,24 @@ function LeadMultiSelect({
 /** Minimal per-person action icons on a task: WhatsApp + Email a summary of that
  *  person's open tasks (Outbox-backed, mobile-safe), and a direct chat DM. Icon-only
  *  so the row stays tidy on mobile; meaning carried by title/aria-label. */
-function MemberActions({ personId, name }: { personId: number; name: string }) {
+function MemberActions({ personId, name, taskId }: { personId: number; name: string; taskId?: number }) {
   const { toast } = useToast();
   const router = useRouter();
   const [busy, start] = useTransition();
-  const first = name.split(" ")[0] || name;
+  const [scope, setScope] = useState<"task" | "all">(taskId != null ? "task" : "all");
+  const first = getGivenName(name);
+  const tid = scope === "task" ? taskId : undefined;
 
   const whatsapp = () => {
     // Blank tab opened synchronously inside the tap so mobile doesn't block it.
     const win = window.open("", "_blank");
     start(async () => {
-      const res = await portalSendTaskSummaryWhatsApp(personId);
+      const res = await portalSendTaskSummaryWhatsApp(personId, tid);
       if (!res.ok) { win?.close(); toast(res.error, { tone: "warn" }); return; }
       if (res.waHref) {
         if (win) win.location.href = res.waHref;
         else window.open(res.waHref, "_blank", "noreferrer");
-        toast(`WhatsApp summary ready for ${first}.`, { tone: "success" });
+        toast(`WhatsApp ${scope === "task" ? "reminder" : "summary"} ready for ${first}.`, { tone: "success" });
       } else {
         win?.close();
         toast(`No WhatsApp number for ${first}.`, { tone: "warn" });
@@ -841,8 +848,8 @@ function MemberActions({ personId, name }: { personId: number; name: string }) {
   };
   const email = () =>
     start(async () => {
-      const res = await portalSendReminderEmail(personId);
-      if (res.ok) { toast(`Summary emailed to ${first}.`, { tone: "success" }); return; }
+      const res = await portalSendReminderEmail(personId, tid);
+      if (res.ok) { toast(`${scope === "task" ? "Reminder" : "Summary"} emailed to ${first}.`, { tone: "success" }); return; }
       const msg =
         res.reason === "no-email" ? `No email on file for ${first}.`
         : res.reason === "no-tasks" ? "No open tasks to summarise."
@@ -858,12 +865,28 @@ function MemberActions({ personId, name }: { personId: number; name: string }) {
     });
 
   const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 transition-transform active:scale-90 disabled:opacity-50";
+  const scopeNoun = scope === "task" ? "this task" : "all tasks";
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <button type="button" onClick={whatsapp} disabled={busy} title={`WhatsApp ${first}`} aria-label={`WhatsApp ${first}`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
+      {taskId != null && (
+        <div className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border text-[10px]">
+          {(["task", "all"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setScope(s)}
+              title={s === "task" ? "Remind about this task" : "Remind about all their open tasks"}
+              className={cn("rounded-full px-1.5 py-0.5 font-medium transition-colors", scope === s ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg")}
+            >
+              {s === "task" ? "Task" : "All"}
+            </button>
+          ))}
+        </div>
+      )}
+      <button type="button" onClick={whatsapp} disabled={busy} title={`WhatsApp ${first} · ${scopeNoun}`} aria-label={`WhatsApp ${first} · ${scopeNoun}`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
         {busy ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={15} />}
       </button>
-      <button type="button" onClick={email} disabled={busy} title={`Email ${first}`} aria-label={`Email ${first}`} className={cn(iconBtn, "bg-accent-soft text-accent ring-accent/25")}>
+      <button type="button" onClick={email} disabled={busy} title={`Email ${first} · ${scopeNoun}`} aria-label={`Email ${first} · ${scopeNoun}`} className={cn(iconBtn, "bg-accent-soft text-accent ring-accent/25")}>
         <Mail size={15} />
       </button>
       <button type="button" onClick={chat} disabled={busy} title={`Message ${first} in chat`} aria-label={`Message ${first} in chat`} className={cn(iconBtn, "bg-bg-subtle text-fg-muted ring-border")}>

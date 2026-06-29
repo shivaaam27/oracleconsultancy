@@ -479,7 +479,7 @@ export function AttentionCard({ w, people }: { w: WatchItem; people: BoardPerson
       const res = await portalRemindTask(w.taskId);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
       setLink(res.link);
-      toast(`Reminder for ${res.name.split(" ")[0]} saved to Outbox.`, { tone: "success" });
+      toast(`Reminder ready for ${getGivenName(res.name)} — tap Send on WhatsApp.`, { tone: "success" });
     });
   }
 

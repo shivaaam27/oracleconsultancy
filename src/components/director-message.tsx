@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MessageSquarePlus, Loader2, Send, Bell, Search, Check, X } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { channelLabel } from "@/lib/outbox/links";
+import { getGivenName } from "@/lib/names";
 import { useToast } from "./toast";
 import {
   portalDirectorChatMessage,
@@ -88,7 +89,7 @@ export function DirectorMessage({
   function openFor(r?: Reminder) {
     if (r) {
       setPicked([r.personId]);
-      setBody(`Hi ${r.personName.split(" ")[0]}, a reminder on "${r.title}" (${r.taskCode}) — please update when you can. Thank you.`);
+      setBody(`Hi ${getGivenName(r.personName)}, a reminder on "${r.title}" (${r.taskCode}) — please update when you can. Thank you.`);
     }
     setOpen(true);
   }
@@ -141,7 +142,7 @@ export function DirectorMessage({
 
       // ---- Single recipient: WhatsApp / SMS / Email(1) / Auto ----
       const pid = picked[0];
-      const name = (people.find((p) => p.id === pid)?.name ?? "the recipient").split(" ")[0];
+      const name = getGivenName(people.find((p) => p.id === pid)?.name ?? "the recipient");
       const res = await portalDirectorDraftMessage({ personId: pid, channel: (channel || undefined) as "WHATSAPP" | "EMAIL" | "SMS" | undefined, body });
       setBusy(false);
       if (!res.ok) { win?.close(); toast(res.error, { tone: "danger" }); return; }
@@ -183,7 +184,7 @@ export function DirectorMessage({
               onClick={() => openFor(r)}
               className="inline-flex items-center gap-1 rounded-full bg-warn-soft/50 px-2.5 py-1 text-[11px] text-warn ring-1 ring-warn/25 transition-[background-color,transform] hover:bg-warn-soft active:scale-95"
             >
-              <Bell size={11} /> Remind {r.personName.split(" ")[0]} · {r.taskCode}
+              <Bell size={11} /> Remind {getGivenName(r.personName)} · {r.taskCode}
             </button>
           ))}
         </div>

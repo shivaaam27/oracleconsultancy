@@ -20,6 +20,7 @@ import { createTaskAttachment } from "@/lib/documents";
 import { parseMentionIds } from "@/lib/mentions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import { broadcastPulse } from "@/lib/cos-pulse";
+import { getGivenName } from "@/lib/names";
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
@@ -160,6 +161,79 @@ async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: str
     const m = await import("@/lib/automation-reactions");
     await m.reactToTaskStatusChange(taskId, wasStatus, nowStatus);
   } catch { /* best-effort */ }
+}
+
+/** Per-task reminder (Command Centre): draft a SINGLE-task WhatsApp/Email/SMS
+ *  message to the task's accountable person and return a ready-to-send deep link.
+ *  Unlike the Outbox bundle (every open task per person), this is scoped to ONE
+ *  task — mirrors the portal's portalRemindTask. The greeting uses the given name
+ *  (honorific stripped), and the WhatsApp link carries the single-task text, not
+ *  the all-tasks preview card. */
+export async function adminRemindTask(
+  taskId: number,
+  allTasks = false,
+): Promise<
+  | { ok: true; link: string | null; name: string; channel: string; contactMissing: boolean }
+  | { ok: false; error: string }
+> {
+  const { data: t } = await sb
+    .from("tasks")
+    .select("id,code,action_item,owner_id,company_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+
+  let personId = (t.owner_id as number | null) ?? null;
+  if (!personId) {
+    const { data: a } = await sb
+      .from("task_assignees")
+      .select("person_id")
+      .eq("task_id", taskId)
+      .eq("role", "accountable")
+      .maybeSingle();
+    personId = (a?.person_id as number | null) ?? null;
+  }
+  if (!personId) return { ok: false, error: "No one is responsible for this task yet." };
+
+  const { data: person } = await sb
+    .from("people")
+    .select("id,name,email,phone,whatsapp,preferred_channel,company_id")
+    .eq("id", personId)
+    .maybeSingle();
+  if (!person) return { ok: false, error: "Recipient not found." };
+
+  const name = person.name as string;
+
+  // Scope: this one task, or every open task the person is on.
+  const { getAllTasks } = await import("@/lib/queries");
+  const { isOpen } = await import("@/lib/derive");
+  let rows = (await getAllTasks()).filter((x) => isOpen(x.status) && x.assigneeIds.includes(personId as number));
+  if (!allTasks) rows = rows.filter((x) => x.id === taskId);
+  if (rows.length === 0) return { ok: false, error: "No open tasks to remind about." };
+
+  const { buildTaskSummaryWhatsApp } = await import("@/lib/outbox/gen");
+  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
+  const { waReminderLink } = await import("@/lib/wa-card");
+
+  const contact = {
+    email: (person.email as string | null) ?? null,
+    phone: (person.phone as string | null) ?? null,
+    whatsapp: (person.whatsapp as string | null) ?? null,
+    preferredChannel: (person.preferred_channel as string | null) ?? null,
+  };
+  const channel = pickChannel(contact);
+  const to = contactForChannel(contact, channel);
+
+  // A full summary keeps the signed preview-card link; a single-task reminder
+  // carries the plain message only.
+  const cardLink = allTasks && channel === "WHATSAPP" ? waReminderLink(person.id as number) : undefined;
+  const body = buildTaskSummaryWhatsApp(name, rows, cardLink, "Command Centre");
+  const subject = allTasks ? "Your open tasks" : "Task reminder";
+  const link = linkFor(channel, to, subject, body);
+
+  // No Outbox draft stored — the Outbox is generated live per person; this send
+  // just opens WhatsApp/email via the returned link.
+  return { ok: true, link, name, channel, contactMissing: !to };
 }
 
 export async function updateTask(code: string, formData: FormData) {

@@ -167,7 +167,13 @@ export async function threadFromTask(taskId: number, code: string, createdBy: st
   const personIds = new Set<number>();
   if (task?.owner_id != null) personIds.add(task.owner_id as number);
   for (const a of assignees ?? []) personIds.add(a.person_id as number);
-  const participants = [ADMIN, ...[...personIds].map(personParticipant)];
+  // ALWAYS include the sender (createdBy) — a director/manager messaging a task's
+  // group isn't necessarily an assignee, and if they're not a participant the
+  // thread never shows in THEIR chat list (the recipients still see it). Dedupe
+  // so admin/an assignee who also created it isn't added twice.
+  const participants = Array.from(
+    new Set([ADMIN, createdBy, ...[...personIds].map(personParticipant)]),
+  );
   const now = new Date().toISOString();
   const { data: thread } = await sb
     .from("chat_threads")

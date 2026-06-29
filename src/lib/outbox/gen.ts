@@ -63,7 +63,7 @@ function buildReminder(name: string, tasks: TaskRow[], bold: (s: string) => stri
   for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
 
   const overdueCount = tasks.filter(isOverdue).length;
-  const head = `Hi ${name}, a quick reminder on your ${tasks.length} open item${tasks.length === 1 ? "" : "s"}${overdueCount ? ` (${overdueCount} overdue)` : ""}:`;
+  const head = `Hi ${getGivenName(name)}, a quick reminder on your ${tasks.length} open item${tasks.length === 1 ? "" : "s"}${overdueCount ? ` (${overdueCount} overdue)` : ""}:`;
   const lines = [head, ""];
   for (const [company, list] of groups) {
     lines.push(bold(company)); // company always heads its block — the breakdown lives in the message
@@ -96,7 +96,7 @@ function statusDot(t: TaskRow): string {
  * *bold*, _italic_. Kept terse — no latest-update lines (those live in the email).
  */
 export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: string, from?: string): string {
-  const first = name.split(" ")[0] || name;
+  const first = getGivenName(name);
   const overdueCount = tasks.filter(isOverdue).length;
 
   // Group by company, first-seen order; soonest deadline first within a company.
@@ -140,7 +140,7 @@ export function buildWhatsAppMessage(name: string, tasks: TaskRow[], link?: stri
  *     number of tasks, so WhatsApp Web reliably opens the chat even for heavy people.
  */
 export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?: string, from?: string): string {
-  const first = name.split(" ")[0] || name;
+  const first = getGivenName(name);
   const n = tasks.length;
   const overdueCount = tasks.filter(isOverdue).length;
   const count = `${n} open task${n === 1 ? "" : "s"}${overdueCount ? `, ${overdueCount} overdue` : ""}`;
@@ -160,7 +160,7 @@ export function buildWhatsAppManualMessage(name: string, tasks: TaskRow[], link?
  * the link usable; the reminder link goes LAST so WhatsApp renders the preview card.
  */
 export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: string, from?: string): string {
-  const first = name.split(" ")[0] || name;
+  const first = getGivenName(name);
   const overdueCount = tasks.filter(isOverdue).length;
 
   const groups = new Map<string, TaskRow[]>();
@@ -170,20 +170,26 @@ export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: 
   }
   for (const list of groups.values()) list.sort((a, b) => (a.deadline?.getTime() ?? Infinity) - (b.deadline?.getTime() ?? Infinity));
 
+  // Single task → a focused reminder; many → a grouped summary.
+  const single = tasks.length === 1;
   const lines: string[] = [
-    `Hi ${first}, here's a summary of your ${tasks.length} open task${tasks.length === 1 ? "" : "s"}${overdueCount ? ` (${overdueCount} overdue)` : ""}:`,
+    single ? "🔔 *Task reminder · Oracle Consultancy*" : "🔔 *Your open tasks · Oracle Consultancy*",
+    single
+      ? `Hi ${first}, a quick reminder on this task:`
+      : `Hi ${first}, here's where your ${tasks.length} open tasks stand${overdueCount ? ` (${overdueCount} overdue)` : ""}:`,
     "",
   ];
   for (const [company, list] of groups) {
     lines.push(`*${company}*`);
     for (const t of list) {
-      lines.push(`*${t.actionItem}*`);
-      const meta = [`Status: ${t.status}`, `Priority: ${t.priority}`];
-      if (t.deadline) meta.push(`Due: ${fmtDate(t.deadline)}`);
-      lines.push(meta.join(" · "));
-      const who = t.assignees.filter(Boolean).map((a) => getGivenName(a));
-      if (who.length) lines.push(`Responsible: ${who.join(", ")}`);
-      if (t.latestUpdate && t.latestUpdate.trim()) lines.push(`Latest: ${oneLine(t.latestUpdate, 100)}`);
+      lines.push(`${statusDot(t)} *${t.actionItem}*`);
+      const meta = [t.status, t.priority];
+      if (t.deadline) meta.push(`due ${fmtDate(t.deadline)}`);
+      lines.push(`   ${meta.join(" · ")}`);
+      // The recipient IS the assignee, so only name OTHER responsible people.
+      const others = t.assignees.filter(Boolean).map((a) => getGivenName(a)).filter((n) => n !== first);
+      if (others.length) lines.push(`   👥 with ${others.join(", ")}`);
+      if (t.latestUpdate && t.latestUpdate.trim()) lines.push(`   📝 ${oneLine(t.latestUpdate, 100)}`);
       lines.push("");
     }
   }
@@ -216,7 +222,7 @@ export function buildTaskReminderDoc(
   tasks: TaskRow[],
   opts?: { office?: EmailOffice; signoffName?: string; note?: string },
 ): EmailDoc {
-  const first = name.split(" ")[0];
+  const first = getGivenName(name);
   const overdueCount = tasks.filter(isOverdue).length;
 
   // Group by company, first-seen order; soonest deadline first within a company.

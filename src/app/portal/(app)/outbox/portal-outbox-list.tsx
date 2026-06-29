@@ -1,162 +1,134 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MessageCircle, Mail, Phone, Send, Building2, Check } from "lucide-react";
+import { Send, Building2, ChevronDown, Search, X, AlertTriangle } from "lucide-react";
 import { Panel, SectionLabel } from "@/components/surface-kit";
-import { Badge } from "@/components/ui";
+import { NotifyPerson } from "@/components/notify-person";
+import { getInitials } from "@/lib/names";
 import { cn } from "@/lib/cn";
 
-/** One outbox row, already scoped + shaped on the server. */
-export type OutboxRow = {
-  id: number;
-  channel: string; // "WHATSAPP" | "EMAIL" | "SMS" | other (upper-cased)
-  recipientName: string;
-  company: string | null;
-  subject: string | null;
-  body: string;
-  messageType: string | null;
-  status: string | null;
-  sentAt: string | null;
-  createdAt: string;
+export type OutboxTask = {
+  title: string;
+  company: string;
+  status: string;
+  priority: string;
+  due: string | null;
+  overdue: boolean;
+  accountable: string[];
 };
 
-const channelIcon: Record<string, typeof MessageCircle> = {
-  WHATSAPP: MessageCircle,
-  EMAIL: Mail,
-  SMS: Phone,
+export type OutboxPerson = {
+  personId: number;
+  name: string;
+  total: number;
+  overdue: number;
+  companies: string[];
+  tasks: OutboxTask[];
 };
 
-function channelLabel(c: string): string {
-  return c === "WHATSAPP" ? "WhatsApp" : c === "EMAIL" ? "Email" : c === "SMS" ? "SMS" : "Message";
+function dot(t: OutboxTask): string {
+  if (t.overdue || t.priority === "Critical") return "bg-danger";
+  if (t.priority === "High" || t.priority === "Medium") return "bg-warn";
+  return "bg-border-strong";
 }
 
-/** A short, human timestamp in the operator's zone (Dar es Salaam, UTC+3).
- *  "Just now" / "12 min ago" / "3 h ago" within the day, else "13 Jun" / with year. */
-function shortWhen(iso: string): string {
-  const then = new Date(iso);
-  const now = Date.now();
-  const diffMin = Math.round((now - then.getTime()) / 60000);
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin} min ago`;
-  const diffH = Math.round(diffMin / 60);
-  if (diffH < 24) return `${diffH} h ago`;
-  const sameYear = then.getFullYear() === new Date().getFullYear();
-  return then.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: sameYear ? undefined : "numeric",
-    timeZone: "Africa/Nairobi",
-  });
+/** One person: avatar + counts; expands to their full task list + send actions. */
+function PersonCard({ p, defaultOpen }: { p: OutboxPerson; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-bg-subtle/40"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">
+          {getInitials(p.name)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-fg">{p.name}</span>
+          <span className="text-[11px] text-fg-subtle">
+            {p.total} open task{p.total === 1 ? "" : "s"}
+            {p.overdue > 0 && <span className="text-danger"> · {p.overdue} overdue</span>}
+            {p.companies.length > 0 && <> · {p.companies.slice(0, 2).join(", ")}{p.companies.length > 2 ? "…" : ""}</>}
+          </span>
+        </span>
+        {p.overdue > 0 && <AlertTriangle size={14} className="shrink-0 text-danger" />}
+        <ChevronDown size={16} className={cn("shrink-0 text-fg-subtle transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="border-t border-border/50 bg-bg-subtle/20 px-3.5 py-3">
+          <ul className="space-y-2">
+            {p.tasks.map((t, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dot(t))} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-medium leading-tight text-fg">{t.title}</span>
+                  <span className="text-[11px] text-fg-subtle">
+                    {[t.company, t.status, t.due ? `due ${t.due}` : null].filter(Boolean).join(" · ")}
+                    {t.accountable.length > 1 && ` · ${t.accountable.join(", ")}`}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {/* Send the whole list (group-wise, as normal) or scope per task from the task page. */}
+          <div className="mt-3">
+            <NotifyPerson personId={p.personId} name={p.name} size="sm" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
-/** Collapse the body to a single readable line for the snippet. */
-function snippet(body: string): string {
-  return body.replace(/\s+/g, " ").trim();
-}
-
-type FilterKey = "all" | "draft" | "sent";
-
-export function PortalOutboxList({ rows }: { rows: OutboxRow[] }) {
-  const [filter, setFilter] = useState<FilterKey>("all");
-
-  const counts = useMemo(() => {
-    const sent = rows.filter((r) => r.sentAt).length;
-    return { all: rows.length, sent, draft: rows.length - sent };
-  }, [rows]);
+export function PortalOutboxLive({ people }: { people: OutboxPerson[] }) {
+  const [q, setQ] = useState("");
 
   const shown = useMemo(() => {
-    if (filter === "sent") return rows.filter((r) => r.sentAt);
-    if (filter === "draft") return rows.filter((r) => !r.sentAt);
-    return rows;
-  }, [rows, filter]);
+    const query = q.trim().toLowerCase();
+    if (!query) return people;
+    return people.filter((p) => p.name.toLowerCase().includes(query) || p.companies.some((c) => c.toLowerCase().includes(query)));
+  }, [people, q]);
 
-  if (rows.length === 0) {
+  if (people.length === 0) {
     return (
       <Panel className="p-8 text-center">
         <Send size={20} className="mx-auto mb-2 text-fg-subtle" />
-        <p className="text-sm text-fg-muted">Nothing has gone out yet.</p>
+        <p className="text-sm text-fg-muted">Everyone's clear — no open tasks to chase.</p>
       </Panel>
     );
   }
-
-  const filters: Array<{ key: FilterKey; label: string; n: number }> = [
-    { key: "all", label: "All", n: counts.all },
-    { key: "sent", label: "Sent", n: counts.sent },
-    { key: "draft", label: "Drafted", n: counts.draft },
-  ];
 
   return (
     <div className="flex flex-col gap-3">
       <SectionLabel
         icon={<Send size={13} />}
         action={
-          <div className="inline-flex items-center gap-1 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border">
-            {filters.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setFilter(f.key)}
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  filter === f.key ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg",
-                )}
-              >
-                {f.label} <span className="tabular text-fg-subtle">{f.n}</span>
+          <div className="relative w-40">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Find a person…"
+              className="w-full rounded-full border border-border bg-bg-subtle/60 py-1 pl-7 pr-6 text-[11px] focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+            {q && (
+              <button type="button" onClick={() => setQ("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg" aria-label="Clear">
+                <X size={10} />
               </button>
-            ))}
+            )}
           </div>
         }
       >
-        Outreach
+        Outreach — by person
       </SectionLabel>
 
       <Panel className="divide-y divide-border/70 overflow-hidden">
         {shown.length === 0 ? (
-          <p className="p-6 text-center text-sm text-fg-muted">
-            {filter === "sent" ? "Nothing sent yet." : "No drafts in view."}
-          </p>
+          <p className="p-6 text-center text-sm text-fg-muted">No one matches “{q}”.</p>
         ) : (
-          shown.map((r) => {
-            const Icon = channelIcon[r.channel] ?? Send;
-            const isSent = !!r.sentAt;
-            const body = snippet(r.subject ? `${r.subject} — ${r.body}` : r.body);
-            return (
-              <div key={r.id} className="flex items-start gap-3 p-3.5">
-                <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
-                  <Icon size={15} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="truncate text-sm font-medium text-fg">{r.recipientName}</span>
-                    <Badge tone="info">{channelLabel(r.channel)}</Badge>
-                    {r.messageType && (
-                      <span className="text-[11px] text-fg-subtle">{r.messageType}</span>
-                    )}
-                    {r.company && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle">
-                        <Building2 size={11} /> {r.company}
-                      </span>
-                    )}
-                  </div>
-                  {body && (
-                    <p className="mt-0.5 truncate text-xs text-fg-muted">{body}</p>
-                  )}
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1 pl-1">
-                  {isSent ? (
-                    <Badge tone="success">
-                      <Check size={11} /> Sent
-                    </Badge>
-                  ) : (
-                    <Badge tone="default">{r.status?.trim() || "Draft"}</Badge>
-                  )}
-                  <span className="text-[11px] text-fg-subtle">
-                    {shortWhen(r.sentAt ?? r.createdAt)}
-                  </span>
-                </div>
-              </div>
-            );
-          })
+          shown.map((p, i) => <PersonCard key={p.personId} p={p} defaultOpen={i === 0} />)
         )}
       </Panel>
     </div>

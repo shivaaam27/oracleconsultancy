@@ -487,17 +487,19 @@ export async function portalMessageTaskGroup(
   if (me.portalRole === "staff") return { ok: false, error: "You don't have permission to do this." };
   if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
 
-  const { data: t } = await sb.from("tasks").select("code").eq("id", taskId).maybeSingle();
+  const { data: t } = await sb.from("tasks").select("code,action_item").eq("id", taskId).maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
   const code = t.code as string;
+  const title = (t.action_item as string | null)?.trim();
 
-  const createdBy = `portal-${roleTag(me.portalRole)}:${me.name}`;
+  // The sender (createdBy) is added as a participant by threadFromTask, so the
+  // group thread also appears in the sender's own chat list.
+  const createdBy = personParticipant(me.id);
   const threadId = await threadFromTask(taskId, code, createdBy);
-  const mine = personParticipant(me.id);
   await sendMessage({
     threadId,
-    sender: mine,
-    body: `Quick nudge on ${code} — please share an update when you can. Thank you.`,
+    sender: createdBy,
+    body: `🔔 Reminder on *${code}*${title ? ` — "${title}"` : ""}. Please share an update when you can. Thank you.`,
     taskCode: code,
   });
 
@@ -588,6 +590,7 @@ export async function portalDirectorGroupEmail(input: {
  */
 export async function portalSendReminderEmail(
   personId: number,
+  taskId?: number,
   note?: string,
 ): Promise<{ ok: boolean; reason?: "no-email" | "no-tasks" | "not-configured" | "not-found" | "error"; error?: string }> {
   const me = await getPortalPerson();
@@ -614,6 +617,7 @@ export async function portalSendReminderEmail(
   const { sendTaskReminderEmail } = await import("@/lib/reminders");
   const res = await sendTaskReminderEmail({
     personId,
+    taskId,
     note,
     // Reply-To = the sender's own email so a staff reply reaches them, not admin.
     // fromAddress = the same address so the mail genuinely comes FROM them — this
@@ -686,6 +690,7 @@ export async function portalSendReminderWhatsApp(
  */
 export async function portalSendTaskSummaryWhatsApp(
   personId: number,
+  taskId?: number,
 ): Promise<{ ok: true; name: string; waHref: string | null; missing: boolean } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) return { ok: false, error: "Please sign in again." };
@@ -707,27 +712,26 @@ export async function portalSendTaskSummaryWhatsApp(
 
   const { getAllTasks } = await import("@/lib/queries");
   const { isOpen } = await import("@/lib/derive");
-  const rows = (await getAllTasks()).filter((t) => isOpen(t.status) && t.assigneeIds.includes(personId));
-  if (rows.length === 0) return { ok: false, error: "No open tasks to summarise." };
+  let rows = (await getAllTasks()).filter((t) => isOpen(t.status) && t.assigneeIds.includes(personId));
+  // Per-task scope: when a taskId is supplied, remind about that ONE task only.
+  if (taskId != null) rows = rows.filter((t) => t.id === taskId);
+  if (rows.length === 0) {
+    return { ok: false, error: taskId != null ? "That task isn't open for this person." : "No open tasks to summarise." };
+  }
 
   const { buildTaskSummaryWhatsApp } = await import("@/lib/outbox/gen");
   const { waReminderLink, waFromLabel } = await import("@/lib/wa-card");
   const { waLink } = await import("@/lib/outbox/links");
   const from = waFromLabel({ name: me.name, role });
-  const text = buildTaskSummaryWhatsApp(person.name as string, rows, waReminderLink(personId), from);
+  // A single-task reminder carries the plain wa.me text only (no all-tasks preview
+  // card); a full summary keeps the signed link so WhatsApp renders the card.
+  const link = taskId != null ? undefined : waReminderLink(personId);
+  const text = buildTaskSummaryWhatsApp(person.name as string, rows, link, from);
   const number = (((person.whatsapp as string | null) || (person.phone as string | null)) ?? "").trim();
   const waHref = waLink(number, text);
 
-  let companyName: string | null = null;
-  if (person.company_id) {
-    const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
-    companyName = (c?.name as string | null) ?? null;
-  }
-  await sb.from("outbox").insert({
-    channel: "WHATSAPP", recipient_name: person.name as string, recipient_contact: number || null, company: companyName,
-    body: text, message_type: "TASK SUMMARY", status: "Draft",
-    source: `portal-${roleTag(role)}:${me.name}`, person_id: person.id as number, created_at: new Date().toISOString(),
-  });
+  // No Outbox draft is stored — the Outbox is generated live per person, and a
+  // send simply opens WhatsApp. We only log the event for the activity trail.
   await recordEvent("portal.task.summary", "ok", { by: me.name, role, to: person.name, count: rows.length });
   revalidatePath("/outbox");
   return { ok: true, name: person.name as string, waHref, missing: !number };
@@ -1174,22 +1178,9 @@ export async function portalRemindTask(
   const subject = "Task reminder";
   const link = linkFor(channel, to, subject, body);
 
-  let companyName: string | null = null;
-  if (person.company_id) {
-    const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
-    companyName = (c?.name as string | null) ?? null;
-  }
-
-  const { error } = await sb.from("outbox").insert({
-    channel, recipient_name: name, recipient_contact: to, company: companyName,
-    subject: channel === "EMAIL" ? subject : null, body,
-    message_type: "TASK REMINDER", status: "Draft",
-    source: `portal-${roleTag(role)}:${me.name}`, person_id: person.id, created_at: new Date().toISOString(),
-  });
-  if (error) return { ok: false, error: error.message };
-
+  // No Outbox draft stored — a per-task reminder simply opens WhatsApp/email via
+  // the returned link. We only log the event for the activity trail.
   await recordEvent("portal.reminder.draft", "ok", { by: me.name, role, to: name, channel, task: t.code });
-  revalidatePath("/outbox");
   return { ok: true, link, contactMissing: !to, name };
 }
 

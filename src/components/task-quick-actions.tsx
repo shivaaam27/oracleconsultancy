@@ -6,6 +6,7 @@ import { useToast } from "./toast";
 import { CompleteTaskSheet } from "./complete-task-sheet";
 import { NotifyPerson } from "./notify-person";
 import { portalRemindTask } from "@/app/portal/actions";
+import { getGivenName } from "@/lib/names";
 
 /* The per-task page quick-action bar: jump to posting an update, complete the
  * task through the secure gate (note required + proof if the task needs it),
@@ -29,7 +30,7 @@ export function TaskQuickActions({
     start(async () => {
       const res = await portalRemindTask(taskId);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      toast(`Reminder for ${res.name.split(" ")[0]} saved to Outbox.`, {
+      toast(`Reminder ready for ${getGivenName(res.name)}.`, {
         tone: "success",
         action: res.link ? { label: "Send now", onClick: () => { window.open(res.link!, "_blank"); } } : undefined,
       });
@@ -61,7 +62,7 @@ export function TaskQuickActions({
           className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-bg-elev px-4 py-3 text-sm font-medium text-fg ring-1 ring-border transition-transform hover:bg-bg-muted active:scale-95 disabled:opacity-50"
         >
           {busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
-          Remind{ownerName ? ` ${ownerName.split(" ")[0]}` : ""}
+          Remind{ownerName ? ` ${getGivenName(ownerName)}` : ""}
         </button>
       )}
 
@@ -69,8 +70,8 @@ export function TaskQuickActions({
 
       {canRemind && ownerId != null && (
         <div className="w-full border-t border-border/50 pt-3">
-          <p className="mb-2 text-[11px] text-fg-muted">Send {(ownerName ?? "them").split(" ")[0]} a summary of all their open tasks</p>
-          <NotifyPerson personId={ownerId} name={ownerName ?? "this person"} size="sm" />
+          <p className="mb-2 text-[11px] text-fg-muted">Remind {getGivenName(ownerName ?? "them")} — this task or their whole list</p>
+          <NotifyPerson personId={ownerId} name={ownerName ?? "this person"} taskId={taskId} size="sm" />
         </div>
       )}
     </div>

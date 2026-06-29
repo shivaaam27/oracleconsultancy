@@ -10,7 +10,7 @@ import { TimelineEntry } from "./timeline-entry";
 import {
   ExternalLink, FileText, History, LayoutDashboard, MessageSquare, Pencil, Save,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
-  ChevronLeft, ChevronRight, Send, Link as LinkIcon,
+  ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell,
 } from "lucide-react";
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
@@ -27,7 +27,8 @@ import { SimilarTasks } from "./similar-tasks";
 import { DraftEmailButton } from "./draft-email-button";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
-import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask } from "@/app/task/actions";
+import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask } from "@/app/task/actions";
+import { getGivenName, getInitials } from "@/lib/names";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
 import {
   sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
@@ -161,6 +162,8 @@ export function TaskDrawer() {
   const [activeTab, setActiveTab] = useState("overview");
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const [posting, setPosting] = useState(false);
+  const [reminding, setReminding] = useState(false);
+  const [remindScope, setRemindScope] = useState<"task" | "all">("task");
   // Controlled values for the Edit tab's FluidSelects (kit dropdowns don't emit a
   // form field, so each is mirrored into a hidden input). Re-seeded when data loads.
   const [editCompany, setEditCompany] = useState("");
@@ -219,6 +222,21 @@ export function TaskDrawer() {
     } else {
       toast(res.error || "Could not update", { tone: "warn", duration: 3000 });
     }
+  }
+
+  // Per-task reminder (single task, not the all-tasks Outbox bundle): drafts a
+  // WhatsApp/Email message to the accountable person and offers a one-tap send.
+  async function remindOwner() {
+    if (!data) return;
+    setReminding(true);
+    const res = await adminRemindTask(data.task.id, remindScope === "all");
+    setReminding(false);
+    if (!res.ok) { toast(res.error, { tone: "warn", duration: 3500 }); return; }
+    toast(`${remindScope === "all" ? "Summary" : "Reminder"} ready for ${getGivenName(res.name)}.`, {
+      tone: "success",
+      duration: 6000,
+      action: res.link ? { label: "Send now", onClick: () => { window.open(res.link!, "_blank"); } } : undefined,
+    });
   }
 
   async function handleDelete() {
@@ -411,7 +429,7 @@ export function TaskDrawer() {
           </div>
           <div className="flex items-start gap-2.5">
             <span className="mt-0.5 shrink-0 inline-flex items-center justify-center h-7 w-7 rounded-full bg-accent-soft text-accent text-[10px] font-semibold leading-none" aria-hidden>
-              {t.latestActivity.author.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase() || "?"}
+              {getInitials(t.latestActivity.author)}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 text-xs">
@@ -468,7 +486,27 @@ export function TaskDrawer() {
 
       <SimilarTasks query={t.actionItem} excludeId={t.id} />
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {t.assignees.length > 0 && !done && (
+          <>
+            <div className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border text-[11px]">
+              {(["task", "all"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setRemindScope(s)}
+                  title={s === "task" ? "Remind about this task" : "Remind about all their open tasks"}
+                  className={cn("rounded-full px-2 py-0.5 font-medium transition-colors", remindScope === s ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg")}
+                >
+                  {s === "task" ? "This task" : "All tasks"}
+                </button>
+              ))}
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={remindOwner} loading={reminding} disabled={reminding}>
+              {!reminding && <Bell size={13} />} Remind {getGivenName(t.assignees[0])}
+            </Button>
+          </>
+        )}
         <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={copyLink}>
           <LinkIcon size={13} /> Copy link
         </Button>

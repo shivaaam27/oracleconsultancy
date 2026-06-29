@@ -6,16 +6,10 @@ import { displayNote } from "@/lib/notes-display";
 import { StaffIdChip } from "./staff-id-chip";
 import { EntityCard } from "./entity-card";
 import type { PersonRow } from "@/lib/people-queries";
+import { getInitials as initials } from "@/lib/names";
 
 function whatsappHref(num: string) {
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 const PORTAL_ROLE_LABEL: Record<string, string> = { manager: "Manager", director: "Director", hr: "Admin", staff: "Staff" };

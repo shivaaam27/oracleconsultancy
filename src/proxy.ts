@@ -111,18 +111,37 @@ async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
   else if (segs.length === 3) { [id, exp, sig] = segs; fp = null; }
   else return res;
   if (!id || !exp || !sig || !(Number(exp) > Date.now())) return res;
-  const payload = fp === null ? `${id}.${exp}` : `${id}.${exp}.${fp}`;
-  // Same HMAC + secret() as src/lib/portal-auth.ts → a valid signature verifies here.
-  if ((await signAdmin(payload)) !== sig) return res;
-  const newExp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
-  const newPayload = fp === null ? `${id}.${newExp}` : `${id}.${newExp}.${fp}`;
-  res.cookies.set("cos_portal", `${newPayload}.${await signAdmin(newPayload)}`, {
+
+  const cookieOpts = {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_DAYS * 24 * 60 * 60,
-  });
+  };
+
+  const payload = fp === null ? `${id}.${exp}` : `${id}.${exp}.${fp}`;
+  // Same HMAC + secret() as src/lib/portal-auth.ts. When this edge runtime shares
+  // that secret we can VERIFY the cookie and slide its INTERNAL expiry forward, so
+  // an actively-used session never hits the 60-day hard wall.
+  if ((await signAdmin(payload)) === sig) {
+    const newExp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
+    const newPayload = fp === null ? `${id}.${newExp}` : `${id}.${newExp}.${fp}`;
+    res.cookies.set("cos_portal", `${newPayload}.${await signAdmin(newPayload)}`, cookieOpts);
+    return res;
+  }
+
+  // The edge secret differs from the one that SIGNED this cookie (e.g.
+  // PORTAL_SESSION_SECRET is exposed to Node but not to the edge runtime, so the
+  // login-time Node signature can't be reproduced here). We must NOT re-sign — but
+  // we MUST still re-issue the cookie with a fresh max-age. Otherwise the portal
+  // cookie is the ONLY one never refreshed (the admin cookie IS re-stamped above
+  // because its authority check lives at the edge and is self-consistent), so an
+  // installed iOS PWA evicts the portal cookie between launches and the
+  // staff/director gets bounced to the login screen. Re-setting the SAME value
+  // never corrupts anything — getPortalPerson (Node, real secret) still validates
+  // it — it only extends the browser's eviction window.
+  res.cookies.set("cos_portal", token, cookieOpts);
   return res;
 }
 

@@ -36,6 +36,8 @@ export type SendReminderResult = {
 /** Send one person their branded task-reminder email. */
 export async function sendTaskReminderEmail(opts: {
   personId: number;
+  /** When set, the email covers ONLY this task (per-task reminder); else all open tasks. */
+  taskId?: number;
   note?: string | null;
   sender?: ReminderSender;
 }): Promise<SendReminderResult> {
@@ -49,9 +51,10 @@ export async function sendTaskReminderEmail(opts: {
   const email = ((person.email as string | null) ?? "").trim();
   if (!email) return { ok: false, reason: "no-email" };
 
-  const rows = (await getAllTasks()).filter(
+  let rows = (await getAllTasks()).filter(
     (t) => isOpen(t.status) && t.assigneeIds.includes(person.id as number),
   );
+  if (opts.taskId != null) rows = rows.filter((t) => t.id === opts.taskId);
   if (rows.length === 0) return { ok: false, reason: "no-tasks" };
 
   const name = person.name as string;

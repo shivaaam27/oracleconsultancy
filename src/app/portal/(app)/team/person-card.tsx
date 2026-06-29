@@ -68,7 +68,7 @@ export function PersonCard({ p }: { p: TeamPerson }) {
 
   const sendEmail = () =>
     start(async () => {
-      const res = await portalSendReminderEmail(p.id, note.trim() || undefined);
+      const res = await portalSendReminderEmail(p.id, undefined, note.trim() || undefined);
       if (res.ok) {
         setEmailSent(true);
         setEmailOpen(false);

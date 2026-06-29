@@ -4,6 +4,7 @@ import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { feedForPerson, getPersonAudienceAttrs } from "@/lib/announcements";
+import { getGivenName } from "@/lib/names";
 
 // The live summary behind a person's reminder link — shared by the landing page
 // (src/app/r/[p]/[t]), its refresh endpoint (/api/wa-card/data) and the preview
@@ -33,7 +34,7 @@ function sourceLabel(createdBy: string): string {
 
 export const loadWaSummary = cache(async (personId: number, withNotices = true): Promise<WaSummary> => {
   const { data: person } = await sb.from("people").select("id,name").eq("id", personId).maybeSingle();
-  const first = (person?.name as string | undefined)?.split(" ")[0] ?? "You";
+  const first = getGivenName((person?.name as string | undefined) ?? "") || "You";
 
   const mine = (await getAllTasks()).filter((t) => isOpen(t.status) && t.assigneeIds.includes(personId));
   const overdue = mine.filter((t) => t.daysToDeadline != null && Number(t.daysToDeadline) < 0);

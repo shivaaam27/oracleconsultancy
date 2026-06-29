@@ -1,63 +1,66 @@
 import { redirect } from "next/navigation";
 import { getPortalPerson, isGroupWide, managerTeamIds } from "@/lib/portal-auth";
-import { sb } from "@/db/supabase";
-import { Hero } from "@/components/surface-kit";
+import { generateDrafts } from "@/lib/outbox/gen";
+import { getGivenName } from "@/lib/names";
+import { Hero, TONE, type Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { PortalOutboxList, type OutboxRow } from "./portal-outbox-list";
+import { PortalOutboxLive, type OutboxPerson } from "./portal-outbox-list";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Outbox — Oracle Consultancy" };
 
-/** Portal Outbox — a READ-ONLY view of outreach (reminders and messages) that has
- *  gone out or sits drafted. Management-only: a director/HR sees every row across
- *  the group; a manager sees only rows tied to a person on their own team. There
- *  are deliberately NO send / resend / delete actions here — this is a visibility
- *  surface so management can see at a glance what's been sent and what's still a
- *  draft. (Composing/sending stays on the admin side.) */
+/** Portal Outbox — a LIVE, per-person reminder view. Every person with open tasks
+ *  is listed once; their card holds the full open-task list and the send actions
+ *  (WhatsApp / Email a summary, group-wise). Nothing is stored: it regenerates from
+ *  current data on every load, so there are no duplicate or stale drafts. Per-task
+ *  reminders live under each task (this task → WhatsApp, or the group → Chat).
+ *  Director/HR see everyone; a manager sees only their team. */
 export default async function PortalOutboxPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   if (me.portalRole === "staff") redirect("/portal"); // management only
 
   const groupWide = isGroupWide(me.portalRole);
-
-  let rows: OutboxRow[] = [];
-  // A manager is scoped to their own team. With an empty team we must NOT fall
-  // through to "all rows" — show nothing instead. Group-wide roles see everything.
-  let team: number[] | null = null;
+  let drafts = await generateDrafts();
   if (!groupWide) {
-    team = await managerTeamIds(me);
+    const team = new Set(await managerTeamIds(me));
+    drafts = drafts.filter((d) => d.personId != null && team.has(d.personId));
   }
 
-  if (groupWide || (team && team.length > 0)) {
-    let q = sb
-      .from("outbox")
-      // Only the columns the list actually renders — recipient_contact (a personal
-      // phone/email) and source are deliberately not fetched on this read-only screen.
-      .select(
-        "id,channel,recipient_name,company,subject,body,message_type,status,person_id,created_at,sent_at",
-      )
-      .order("created_at", { ascending: false })
-      .limit(100);
-    if (team) q = q.in("person_id", team); // rows with a null person_id are intentionally excluded for managers
-    const { data } = await q;
-    rows = (data ?? []).map((r) => ({
-      id: r.id as number,
-      channel: ((r.channel as string | null) ?? "").toUpperCase(),
-      recipientName: (r.recipient_name as string | null) ?? "Someone",
-      company: (r.company as string | null) ?? null,
-      subject: (r.subject as string | null) ?? null,
-      body: (r.body as string | null) ?? "",
-      messageType: (r.message_type as string | null) ?? null,
-      status: (r.status as string | null) ?? null,
-      sentAt: (r.sent_at as string | null) ?? null,
-      createdAt: r.created_at as string,
-    }));
-  }
+  const people: OutboxPerson[] = drafts
+    .filter((d) => d.personId != null)
+    .map((d) => {
+      const overdue = d.tasks.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length;
+      const companies = [...new Set(d.tasks.map((t) => t.companyName).filter(Boolean))];
+      return {
+        personId: d.personId as number,
+        name: d.recipientName,
+        total: d.tasks.length,
+        overdue,
+        companies,
+        tasks: d.tasks.map((t) => ({
+          title: t.actionItem,
+          company: t.companyName,
+          status: t.status,
+          priority: t.priority,
+          due: t.deadline
+            ? t.deadline.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Nairobi" })
+            : null,
+          overdue: t.flag === "overdue" || t.flag === "escalate-now",
+          accountable: t.assignees.map(getGivenName),
+        })),
+      };
+    })
+    .sort((a, b) => b.overdue - a.overdue || b.total - a.total || a.name.localeCompare(b.name));
 
-  const sent = rows.filter((r) => r.sentAt).length;
-  const drafts = rows.length - sent;
+  const totalTasks = people.reduce((s, p) => s + p.total, 0);
+  const totalOverdue = people.reduce((s, p) => s + p.overdue, 0);
+  const metrics: { label: string; value: number; tone: Tone }[] = [
+    { label: people.length === 1 ? "person" : "people", value: people.length, tone: people.length ? "accent" : "muted" },
+    { label: "open tasks", value: totalTasks, tone: totalTasks ? "accent" : "muted" },
+    { label: "overdue", value: totalOverdue, tone: totalOverdue ? "danger" : "muted" },
+  ];
 
   return (
     <div className="flex flex-col gap-5">
@@ -65,23 +68,21 @@ export default async function PortalOutboxPage() {
       <Reveal delay={0}>
         <Hero
           title="Outbox"
-          subtitle="Reminders and messages — what's gone out and what's still drafted."
+          subtitle="Live per-person reminders — everyone with open tasks, ready to send."
         >
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-baseline gap-1.5 rounded-2xl bg-bg-elev/60 px-3 py-1.5 ring-1 ring-border">
-              <span className="text-xl font-semibold tabular leading-none text-success">{sent}</span>
-              <span className="text-xs text-fg-muted">sent</span>
-            </span>
-            <span className="inline-flex items-baseline gap-1.5 rounded-2xl bg-bg-elev/60 px-3 py-1.5 ring-1 ring-border">
-              <span className="text-xl font-semibold tabular leading-none text-fg">{drafts}</span>
-              <span className="text-xs text-fg-muted">drafted</span>
-            </span>
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+            {metrics.map((m) => (
+              <div key={m.label} className="flex items-baseline gap-1.5">
+                <span className={`text-2xl font-semibold tabular ${TONE[m.tone].text}`}>{m.value}</span>
+                <span className="text-[11px] text-fg-muted">{m.label}</span>
+              </div>
+            ))}
           </div>
         </Hero>
       </Reveal>
 
       <Reveal delay={0.05}>
-        <PortalOutboxList rows={rows} />
+        <PortalOutboxLive people={people} />
       </Reveal>
     </div>
   );
