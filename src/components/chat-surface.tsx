@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+/* Signed attachment URLs are stable for an hour — cache them per path so the
+ * (frequent) full-thread refetch doesn't re-sign + reload every image, which
+ * caused a visible flicker. Module-level so it survives re-renders. */
+const signedUrlCache = new Map<string, string>();
+const ARROW_DOWN = "M12 5v14M5 12l7 7 7-7"; // chevron-down path for the jump pill
 import { getInitials as initials } from "@/lib/names";
 import {
   ArrowLeft,
@@ -125,7 +131,11 @@ export function ChatSurface(props: Props) {
   const [filter, setFilter] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<null | "dm" | "group">(null);
+  const [showJump, setShowJump] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true);
+  const prevLenRef = useRef(0);
+  const prevSelRef = useRef<number | null>(props.initialThreadId);
   // Assigned from the realtime hook below; used by callbacks defined before it.
   const notifyRef = useRef<(t: "message" | "read") => void>(() => {});
 
@@ -205,11 +215,53 @@ export function ChatSurface(props: Props) {
 
   const display: DisplayMessage[] = [...messages, ...pending];
 
-  // Stick to the bottom on new messages / typing.
+  // WhatsApp-style autoscroll: jump instantly when opening a thread; smooth-scroll
+  // on a new message ONLY if you're already near the bottom or it's your own send —
+  // otherwise leave your scroll position and surface a "new messages" pill, so a
+  // reply never yanks you down while you're reading history.
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    atBottomRef.current = near;
+    if (near) setShowJump(false);
+  }, []);
+  const jumpToLatest = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setShowJump(false);
+  }, []);
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [display.length, typing.length]);
+    if (!el) return;
+    const opened = selected !== prevSelRef.current;
+    const grew = display.length > prevLenRef.current;
+    const last = display[display.length - 1];
+    const mineLast = !!last && last.sender === me;
+    prevLenRef.current = display.length;
+    prevSelRef.current = selected;
+    if (opened || atBottomRef.current || mineLast) {
+      el.scrollTo({ top: el.scrollHeight, behavior: opened ? "auto" : "smooth" });
+      setShowJump(false);
+    } else if (grew) {
+      setShowJump(true);
+    }
+  }, [display.length, typing.length, selected, me]);
+
+  const onEditMessage = useCallback(
+    async (id: number, body: string) => {
+      await actions.editChatMessage(id, body);
+      if (selected != null) reloadThread(selected);
+    },
+    [actions, selected, reloadThread],
+  );
+  const onDeleteMessage = useCallback(
+    async (id: number) => {
+      await actions.deleteChatMessage(id);
+      if (selected != null) reloadThread(selected);
+    },
+    [actions, selected, reloadThread],
+  );
 
   const send = useCallback(
     async (body: string, files: File[]): Promise<string | null> => {
@@ -418,6 +470,7 @@ export function ChatSurface(props: Props) {
 
             <div
               ref={scrollRef}
+              onScroll={onScroll}
               className="relative flex-1 overflow-y-auto px-3 py-4 md:px-4"
               style={{
                 backgroundImage:
@@ -447,16 +500,25 @@ export function ChatSurface(props: Props) {
                 people={people}
                 taskBase={taskBase}
                 signAttachment={actions.signChatAttachment}
-                onEdit={async (id, body) => {
-                  await actions.editChatMessage(id, body);
-                  if (selected != null) reloadThread(selected);
-                }}
-                onDelete={async (id) => {
-                  await actions.deleteChatMessage(id);
-                  if (selected != null) reloadThread(selected);
-                }}
+                onEdit={onEditMessage}
+                onDelete={onDeleteMessage}
               />
             </div>
+
+            {/* "New messages" pill — appears when a reply lands while you're
+                scrolled up; tap to glide to the latest. */}
+            {showJump && (
+              <button
+                type="button"
+                onClick={jumpToLatest}
+                className="absolute bottom-[5.25rem] left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-accent px-3.5 py-1.5 text-[12px] font-semibold text-accent-fg shadow-pill transition-transform hover:scale-105 active:scale-95"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d={ARROW_DOWN} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                New messages
+              </button>
+            )}
 
             {detail?.kind === "system" ? (
               <div className="border-t border-border/60 px-4 py-3 text-center text-[13px] text-fg-muted">
@@ -603,7 +665,7 @@ function TypingBubble() {
   );
 }
 
-function Bubble({
+const Bubble = memo(function Bubble({
   m,
   mine,
   isGroup,
@@ -777,7 +839,7 @@ function Bubble({
       </div>
     </div>
   );
-}
+});
 
 function ImageThumb({
   path,
@@ -790,11 +852,14 @@ function ImageThumb({
   signAttachment: (path: string) => Promise<{ url: string | null }>;
   pending?: boolean;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(() => (path ? signedUrlCache.get(path) ?? null : null));
   useEffect(() => {
-    let live = true;
     if (!path) return;
+    const cached = signedUrlCache.get(path);
+    if (cached) { setUrl(cached); return; } // no re-sign / reload on refetch
+    let live = true;
     signAttachment(path).then(({ url }) => {
+      if (url) signedUrlCache.set(path, url);
       if (live) setUrl(url);
     });
     return () => {
