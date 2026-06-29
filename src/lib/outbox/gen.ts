@@ -199,6 +199,31 @@ export function buildTaskSummaryWhatsApp(name: string, tasks: TaskRow[], link?: 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/**
+ * Clean, emoji-free PORTAL task reminder (director/manager → staff). Deliberately
+ * minimal per the owner's brief: a header, a greeting (the greeting NAME carries
+ * accountability, so no assignee list), the Company + task Title only (no progress,
+ * priority or status), a gentle nudge, the sender sign-off, then the link LAST.
+ *
+ * `from` is the sender label, e.g. "Mr Pulin - Director". `link` should be the
+ * direct portal task link (`/portal/task/<code>`) for a single task, or `/portal`
+ * for a multi-task reminder — it opens the task in the recipient's signed-in portal.
+ */
+type ReminderTask = Pick<TaskRow, "companyName" | "actionItem">;
+export function buildPortalTaskReminder(name: string, tasks: ReminderTask[], link: string, from?: string): string {
+  const first = getGivenName(name);
+
+  const lines: string[] = [
+    `Hello ${first}, this is your task reminder - Oracle Consultancy Limited.`,
+    "",
+  ];
+  for (const t of tasks) lines.push(`${t.companyName} - ${t.actionItem}`);
+  lines.push("");
+  if (from) lines.push(`From ${from}`);
+  lines.push(link);
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function buildEmailMessage(name: string, tasks: TaskRow[]): string {
   return buildReminder(name, tasks, (s) => s); // email shows literal asterisks — keep plain
 }

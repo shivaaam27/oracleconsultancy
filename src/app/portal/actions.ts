@@ -719,15 +719,20 @@ export async function portalSendTaskSummaryWhatsApp(
     return { ok: false, error: taskId != null ? "That task isn't open for this person." : "No open tasks to summarise." };
   }
 
-  const { buildTaskSummaryWhatsApp } = await import("@/lib/outbox/gen");
-  const { waReminderLink, waFromLabel } = await import("@/lib/wa-card");
+  const { buildPortalTaskReminder } = await import("@/lib/outbox/gen");
   const { waLink } = await import("@/lib/outbox/links");
-  const from = waFromLabel({ name: me.name, role });
-  // Always attach the signed per-person link — even for a single-task reminder —
-  // so WhatsApp renders the preview card showing the person's FULL open/overdue
-  // counts (they may have more tasks than the one being nudged about).
-  const link = waReminderLink(personId);
-  const text = buildTaskSummaryWhatsApp(person.name as string, rows, link, from);
+  const { appBaseUrl } = await import("@/lib/app-url");
+  // Sender sign-off, e.g. "Mr Pulin - Director" (greeting name carries accountability).
+  const roleLabel = role === "director" ? "Director" : role === "manager" ? "Manager" : "Admin";
+  const from = me.name ? `${me.name} - ${roleLabel}` : roleLabel;
+  // Link straight to the recipient's signed-in portal — the ONE task for a single-task
+  // reminder (opens that task directly), or their task list for a multi-task nudge.
+  // No public preview-card link.
+  const base = appBaseUrl();
+  const link = taskId != null && rows.length === 1
+    ? `${base}/portal/task/${rows[0].code}`
+    : `${base}/portal`;
+  const text = buildPortalTaskReminder(person.name as string, rows, link, from);
   const number = (((person.whatsapp as string | null) || (person.phone as string | null)) ?? "").trim();
   const waHref = waLink(number, text);
 
@@ -1149,6 +1154,8 @@ export async function portalRemindTask(
 
   const { data: t } = await sb.from("tasks").select("id,code,action_item,owner_id,company_id").eq("id", taskId).maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
+  const { data: co } = await sb.from("companies").select("name").eq("id", t.company_id as number).maybeSingle();
+  const companyName = (co?.name as string | null) ?? "";
   let personId = (t.owner_id as number | null) ?? null;
   if (!personId) {
     const { data: a } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId).eq("role", "accountable").maybeSingle();
@@ -1164,10 +1171,21 @@ export async function portalRemindTask(
   if (!person) return { ok: false, error: "Recipient not found." };
 
   const name = person.name as string;
-  const first = name.split(" ")[0];
-  const body = `Hi ${first}, a reminder on "${t.action_item}" (${t.code}) — please update when you can. Thank you.`;
 
+  const { buildPortalTaskReminder } = await import("@/lib/outbox/gen");
   const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
+  const { appBaseUrl } = await import("@/lib/app-url");
+  const roleLabel = role === "director" ? "Director" : role === "manager" ? "Manager" : "Admin";
+  const from = me.name ? `${me.name} - ${roleLabel}` : roleLabel;
+  // Direct portal link — opens the task in the recipient's signed-in portal.
+  const portalLink = `${appBaseUrl()}/portal/task/${t.code}`;
+  const body = buildPortalTaskReminder(
+    name,
+    [{ companyName, actionItem: t.action_item as string }],
+    portalLink,
+    from,
+  );
+
   const contact = {
     email: (person.email as string | null) ?? null,
     phone: (person.phone as string | null) ?? null,
@@ -1176,7 +1194,7 @@ export async function portalRemindTask(
   };
   const channel = pickChannel(contact);
   const to = contactForChannel(contact, channel);
-  const subject = "Task reminder";
+  const subject = "Task Reminder - Oracle Consultancy Limited";
   const link = linkFor(channel, to, subject, body);
 
   // No Outbox draft stored — a per-task reminder simply opens WhatsApp/email via
