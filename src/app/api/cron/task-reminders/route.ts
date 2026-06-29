@@ -13,11 +13,13 @@ export const dynamic = "force-dynamic";
 /* ------------------------------------------------------------------ *
  * Daily task reminders, delivered into each person's in-built "Task
  * reminders" chat thread (which also pushes to anyone with notifications
- * enabled). Scheduled at 09:00 / 14:00 / 19:00 EAT (= 06/11/16 UTC).
+ * enabled). Scheduled once daily at 09:00 EAT (= 06:00 UTC) — the Vercel
+ * Hobby plan allows only daily crons. (On Pro this can move to
+ * "0 6,11,16 * * *" for 9am/2pm/7pm; the slot logic below already adapts.)
  *
- *   • Morning (≈09:00) → everyone with ANY open task.
- *   • Midday/evening   → only people with OVERDUE or DUE-TODAY work, so the
- *     extra pings stay useful and never nag people who are on track.
+ *   • Morning (≈09:00, hour < 09:00 EAT) → everyone with ANY open task.
+ *   • Later slots (Pro only) → only people with OVERDUE or DUE-TODAY work, so
+ *     the extra pings stay useful and never nag people who are on track.
  *
  * Nothing is stored beyond the chat message itself — the open-task list is
  * computed live. Posting reuses the chat send pipeline, so notifications +
