@@ -39,7 +39,7 @@ export async function listPeople(): Promise<MentionCandidate[]> {
 
 export async function openThread(threadId: number) {
   if (!(await viewerInThread(threadId, ADMIN))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN, "owner"), threadMessages(threadId)]);
   await markRead(threadId, ADMIN);
   return { ok: true as const, detail, messages };
 }
@@ -48,7 +48,7 @@ export async function openThread(threadId: number) {
  *  read-receipt loop). Used by the live channel + polling. */
 export async function refreshThread(threadId: number) {
   if (!(await viewerInThread(threadId, ADMIN))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN, "owner"), threadMessages(threadId)]);
   return { ok: true as const, detail, messages };
 }
 
@@ -121,12 +121,13 @@ export async function postMessage(
 }
 
 export async function editChatMessage(messageId: number, body: string) {
-  const ok = await editMessage(messageId, ADMIN, body.trim());
+  // Command Centre (owner) has full edit/delete access (bar system channels).
+  const ok = await editMessage(messageId, { participant: ADMIN, role: "owner" }, body.trim());
   return { ok };
 }
 
 export async function deleteChatMessage(messageId: number) {
-  const ok = await softDeleteMessage(messageId, ADMIN);
+  const ok = await softDeleteMessage(messageId, { participant: ADMIN, role: "owner" });
   return { ok };
 }
 

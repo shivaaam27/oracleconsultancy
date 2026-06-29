@@ -15,7 +15,9 @@ import { useToast } from "@/components/toast";
 import { TaskMetaLine, WaitingOnChip, PinnedMarker } from "@/components/task-meta-line";
 import { TaskUpdateLine } from "@/components/task-update-line";
 import { PortalTaskDetailPane } from "@/components/portal-task-detail-pane";
+import { CompleteTaskSheet } from "@/components/complete-task-sheet";
 import { portalAddUpdate } from "@/app/portal/actions";
+import { canCompleteTask } from "@/lib/task-permissions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import { spring } from "@/lib/motion";
 import type { TaskRow } from "@/lib/queries";
@@ -63,6 +65,8 @@ export type PortalTaskRow = {
   lastActivityISO?: string | null;
   /** When set, completing this task requires a file (the secure gate). */
   requiresAttachment?: boolean;
+  /** Who created the task — drives the creator-only Complete rule. */
+  createdByPersonId?: number | null;
 };
 
 /** A portal viewer's role. Drives the in-row status set offered. */
@@ -188,10 +192,9 @@ function PortalInlineStatus({
  * the role regardless of what we offer here.
  * ------------------------------------------------------------------ */
 function PortalRowMenu({ row, canComplete }: { row: PortalTaskRow; canComplete: boolean }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [pending, start] = useTransition();
+  const [pending] = useTransition();
   const [open, setOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -236,22 +239,12 @@ function PortalRowMenu({ row, canComplete }: { row: PortalTaskRow; canComplete: 
     };
   }, [open]);
 
+  // Completion goes through the secure gate (note + any required proof), like
+  // every other surface — the old portalAddUpdate("Completed") path never worked
+  // (that action only accepts open statuses).
   function complete() {
     setOpen(false);
-    start(async () => {
-      const fd = new FormData();
-      fd.set("taskId", String(row.id));
-      fd.set("code", row.code);
-      fd.set("body", "Moved to Completed.");
-      fd.set("newStatus", "Completed");
-      try {
-        await portalAddUpdate(fd);
-        toast(`${row.code} completed.`, { tone: "success" });
-        router.refresh();
-      } catch {
-        toast("Couldn't complete the task. Try again.", { tone: "danger" });
-      }
-    });
+    setCompleteOpen(true);
   }
 
   return (
@@ -300,6 +293,8 @@ function PortalRowMenu({ row, canComplete }: { row: PortalTaskRow; canComplete: 
         </AnimatePresence>,
         document.body,
       )}
+
+      <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={row.id} code={row.code} requiresAttachment={row.requiresAttachment} />
     </div>
   );
 }
@@ -336,12 +331,15 @@ export function PortalTasksTable({
   rows,
   canRaise,
   viewerRole = "staff",
+  viewerId = 0,
 }: {
   rows: PortalTaskRow[];
   canRaise: boolean;
   /** The signed-in person's role — gates the in-row status set. Defaults to the
    *  most restrictive (staff); the server enforces the real limit regardless. */
   viewerRole?: PortalViewerRole;
+  /** The signed-in person's id — for the creator-only Complete rule. */
+  viewerId?: number;
 }) {
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("all");
@@ -355,9 +353,10 @@ export function PortalTasksTable({
   const [selId, setSelId] = useState<number | null>(null);
 
   const allowedStatuses = viewerRole === "staff" ? STAFF_STATUSES : MANAGER_STATUSES;
-  // Managers / HR / directors may complete a task outright (the server is the
-  // hard gate). Staff never get a Complete shortcut anywhere.
-  const canComplete = viewerRole !== "staff";
+  // Per-row: only a director/HR or the task's creator may complete (the server is
+  // the hard gate; this just decides whether to OFFER the shortcut).
+  const mayComplete = (r: PortalTaskRow) =>
+    canCompleteTask({ id: viewerId, portalRole: viewerRole }, { createdByPersonId: r.createdByPersonId ?? null });
 
   const companies = useMemo(
     () => Array.from(new Set(rows.map((r) => r.companyName).filter(Boolean) as string[])).sort(),
@@ -547,12 +546,14 @@ export function PortalTasksTable({
             {selected && (
               <PortalTaskDetailPane
                 viewerRole={viewerRole}
+                viewerId={viewerId}
                 task={{
                   id: selected.id, code: selected.code, actionItem: selected.actionItem, status: selected.status,
                   priority: selected.priority, deadline: selected.deadline, companyName: selected.companyName,
                   ownerName: selected.ownerName, teamSize: selected.teamSize, description: selected.description ?? null,
                   latestUpdate: selected.latestActivity?.body ?? null, latestUpdateAuthor: selected.latestActivity?.author ?? null,
                   requiresAttachment: selected.requiresAttachment,
+                  createdByPersonId: selected.createdByPersonId ?? null,
                 }}
               />
             )}
@@ -587,7 +588,7 @@ export function PortalTasksTable({
                     <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
                     {/* Portal-safe trailing menu — Open / conversation, plus a
                         Complete shortcut for managers+ (never delete/escalate). */}
-                    <PortalRowMenu row={t} canComplete={canComplete} />
+                    <PortalRowMenu row={t} canComplete={mayComplete(t)} />
                   </div>
 
                   {/* Line 2: the task title — taps through to the detail page */}

@@ -8,6 +8,7 @@ import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
 import {
   ADMIN,
   type Attachment,
+  type ChatRole,
   createGroup,
   editMessage,
   getOrCreateDm,
@@ -31,12 +32,17 @@ function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
 }
 
-async function me(): Promise<{ id: number; participant: string; canGroup: boolean } | null> {
+async function me(): Promise<{ id: number; participant: string; canGroup: boolean; role: ChatRole } | null> {
   const p = await getPortalPerson();
   if (!p) return null;
   // Managers AND directors may create ad-hoc groups; everyone else is added by
   // them or via a task thread.
-  return { id: p.id, participant: personParticipant(p.id), canGroup: p.portalRole === "manager" || p.portalRole === "director" };
+  return {
+    id: p.id,
+    participant: personParticipant(p.id),
+    canGroup: p.portalRole === "manager" || p.portalRole === "director",
+    role: (p.portalRole as ChatRole) ?? "staff",
+  };
 }
 
 export async function listMyThreads() {
@@ -56,7 +62,7 @@ export async function openThread(threadId: number) {
   const m = await me();
   if (!m) return { ok: false as const, error: "Signed out" };
   if (!(await viewerInThread(threadId, m.participant))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant, m.role), threadMessages(threadId)]);
   await markRead(threadId, m.participant);
   return { ok: true as const, detail, messages, me: m.participant };
 }
@@ -67,7 +73,7 @@ export async function refreshThread(threadId: number) {
   const m = await me();
   if (!m) return { ok: false as const, error: "Signed out" };
   if (!(await viewerInThread(threadId, m.participant))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant, m.role), threadMessages(threadId)]);
   return { ok: true as const, detail, messages };
 }
 
@@ -168,13 +174,13 @@ export async function postMessage(
 export async function editChatMessage(messageId: number, body: string) {
   const m = await me();
   if (!m) return { ok: false };
-  return { ok: await editMessage(messageId, m.participant, body.trim()) };
+  return { ok: await editMessage(messageId, { participant: m.participant, role: m.role }, body.trim()) };
 }
 
 export async function deleteChatMessage(messageId: number) {
   const m = await me();
   if (!m) return { ok: false };
-  return { ok: await softDeleteMessage(messageId, m.participant) };
+  return { ok: await softDeleteMessage(messageId, { participant: m.participant, role: m.role }) };
 }
 
 export async function muteThread(threadId: number, muted: boolean) {

@@ -76,6 +76,7 @@ async function ManagementTasks({
       taskId: r.id,
       code: r.code,
       actionItem: r.actionItem,
+      createdByPersonId: r.createdByPersonId,
       companyId: r.companyId,
       companyName: r.companyName,
       companyAccent: r.companyAccent,
@@ -114,7 +115,7 @@ async function ManagementTasks({
     if (me.companyId != null) companies = companies.filter((c) => c.id === me.companyId);
   }
 
-  return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} canCreate initialFilter={initialFilter} />;
+  return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} viewerId={me.id} canCreate initialFilter={initialFilter} />;
 }
 
 export const dynamic = "force-dynamic";
@@ -268,6 +269,7 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
         pinned: pinnedByTask.has(tid),
         lastActivityISO,
         requiresAttachment: (t.requires_attachment as boolean) ?? false,
+        createdByPersonId: (t.created_by_person_id as number | null) ?? null,
       };
     });
   }
@@ -285,7 +287,7 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
         </Hero>
       </Reveal>
       <Reveal delay={0.05}>
-        <PortalTasksTable rows={rows} canRaise={false} viewerRole={me.portalRole} />
+        <PortalTasksTable rows={rows} canRaise={false} viewerRole={me.portalRole} viewerId={me.id} />
       </Reveal>
     </div>
   );

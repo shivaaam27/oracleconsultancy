@@ -26,7 +26,8 @@ import {
   setSessionCookie,
   verifyPassword,
 } from "@/lib/portal-auth";
-import { computeClosedDate } from "@/lib/task-status";
+import { computeClosedDate, isClosedStatus } from "@/lib/task-status";
+import { canManageTask } from "@/lib/task-permissions";
 import { reindexEntity } from "@/lib/index-hooks";
 import { createGroup, getOrCreateDm, personParticipant, sendMessage, threadFromTask } from "@/lib/chat";
 import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
@@ -37,8 +38,6 @@ import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginS
 // Statuses a staff member may set themselves: Completed/Closed need a
 // manager or the owner — staff signal "done" via Under Review.
 const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
-// Managers may additionally complete a task outright.
-const MANAGER_STATUSES = [...STAFF_STATUSES, "Completed"];
 
 export async function portalLogin(
   _prev: { error: string } | null,
@@ -934,6 +933,9 @@ export async function portalDirectorCreateTask(
 const ALL_STATUSES = [
   "Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed",
 ];
+// The non-terminal statuses (everything except Completed/Closed). Used to keep
+// "move an open task between open statuses" separate from the gated completion.
+const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
 const ALL_PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
 function roleTag(role: string): string {
@@ -955,8 +957,6 @@ export async function portalEditTask(input: {
   if (role === "staff") return { ok: false, error: "You don't have permission to edit tasks." };
   if (!(await personCanSeeTask(me, input.taskId))) return { ok: false, error: "That task isn't in your view." };
 
-  const full = role === "director" || role === "hr"; // may edit priority/due/owner + any status
-
   const { data: t } = await sb
     .from("tasks")
     .select("id,code,company_id,status,priority,deadline,owner_id,closed_date,created_by_person_id,creator_close_only,action_item,comments")
@@ -964,38 +964,46 @@ export async function portalEditTask(input: {
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
 
+  // Unified permission (task-permissions.ts): directors/HR may edit + complete any
+  // task; everyone else only a task they created. Replaces the old `full` +
+  // ad-hoc creator_close_only checks so every surface obeys one rule.
+  const canManage = canManageTask(
+    { id: me.id, portalRole: role },
+    { createdByPersonId: (t.created_by_person_id as number | null) ?? null },
+  );
+
   const createdBy = `portal-${roleTag(role)}:${me.name}`;
   const now = new Date().toISOString();
   const patch: Record<string, unknown> = { last_updated_at: now };
   const current = t.status as string;
-  const allowedStatuses = full ? ALL_STATUSES : MANAGER_STATUSES;
   const lockedDone = current === "Completed" || current === "Closed";
 
-  // Close-lock: when set, only the creator may move the task to Completed/Closed.
-  // Other status moves (and reopening) are unaffected.
-  if (
-    (input.status === "Completed" || input.status === "Closed") &&
-    (t.creator_close_only as boolean) &&
-    me.id !== (t.created_by_person_id as number | null)
-  ) {
-    return { ok: false, error: "Only the person who set this task can close it." };
-  }
-
-  if (input.status && allowedStatuses.includes(input.status) && input.status !== current) {
-    // Managers can't reopen a Completed/Closed task; directors/HR can.
-    if (!(lockedDone && !full)) {
+  if (input.status && input.status !== current) {
+    const goingTerminal = isClosedStatus(input.status);
+    if (goingTerminal) {
+      // Completing / closing — only a director/HR or the task's creator.
+      if (!canManage) return { ok: false, error: "Only the task's creator or a director can complete this." };
       patch.status = input.status;
-      // Route closed_date through the one helper (DUP-05): stamps on close,
-      // clears on reopen, never moves an existing close time.
       patch.closed_date = computeClosedDate(input.status, (t.closed_date as string | null) ?? null, now);
       await logChangeSb(t.id as number, t.code as string, t.company_id as number, "status", current, input.status, `Edited from portal (${role})`, createdBy);
+    } else {
+      // Open-status move. Reopening a finished task needs manage rights; routine
+      // open→open moves are allowed for any manager in view (their limited set),
+      // and the full open set for those who can manage the task.
+      const allowedOpen = canManage ? OPEN_STATUSES : STAFF_STATUSES;
+      const reopening = lockedDone;
+      if ((!reopening || canManage) && allowedOpen.includes(input.status)) {
+        patch.status = input.status;
+        patch.closed_date = computeClosedDate(input.status, (t.closed_date as string | null) ?? null, now);
+        await logChangeSb(t.id as number, t.code as string, t.company_id as number, "status", current, input.status, `Edited from portal (${role})`, createdBy);
+      }
     }
   }
-  if (full && input.priority && ALL_PRIORITIES.includes(input.priority) && input.priority !== t.priority) {
+  if (canManage && input.priority && ALL_PRIORITIES.includes(input.priority) && input.priority !== t.priority) {
     patch.priority = input.priority;
     await logChangeSb(t.id as number, t.code as string, t.company_id as number, "priority", t.priority as string, input.priority, `Edited from portal (${role})`, createdBy);
   }
-  if (full && input.deadline !== undefined) {
+  if (canManage && input.deadline !== undefined) {
     const newIso = input.deadline ? new Date(input.deadline).toISOString() : null;
     const oldIso = t.deadline ? new Date(t.deadline as string).toISOString() : null;
     if (newIso !== oldIso) {
@@ -1004,7 +1012,7 @@ export async function portalEditTask(input: {
     }
   }
   let reassigned: number | null = null;
-  if (full && input.accountableId && input.accountableId !== (t.owner_id as number | null)) {
+  if (canManage && input.accountableId && input.accountableId !== (t.owner_id as number | null)) {
     const { data: p } = await sb.from("people").select("id,name,active").eq("id", input.accountableId).maybeSingle();
     if (!p || !p.active) return { ok: false, error: "That person isn't available." };
     patch.owner_id = input.accountableId;
@@ -1017,9 +1025,9 @@ export async function portalEditTask(input: {
     await logChangeSb(t.id as number, t.code as string, t.company_id as number, "owner", String(t.owner_id ?? "—"), p.name as string, `Reassigned from portal (${role})`, createdBy);
   }
 
-  // Title + description — any management role (manager/HR/director) may correct
-  // the task content after creation. Empty title is rejected; description clears on "".
-  if (input.actionItem !== undefined) {
+  // Title + description — only those who may manage the task (director/HR or the
+  // creator). Empty title is rejected; description clears on "".
+  if (canManage && input.actionItem !== undefined) {
     const next = input.actionItem.trim();
     if (!next) return { ok: false, error: "A task needs a title." };
     if (next !== (t.action_item as string)) {
@@ -1027,7 +1035,7 @@ export async function portalEditTask(input: {
       await logChangeSb(t.id as number, t.code as string, t.company_id as number, "action_item", t.action_item as string, next, `Edited from portal (${role})`, createdBy);
     }
   }
-  if (input.description !== undefined) {
+  if (canManage && input.description !== undefined) {
     const next = input.description?.trim() || null;
     if (next !== ((t.comments as string | null) || null)) {
       patch.comments = next;
@@ -1501,9 +1509,9 @@ export async function portalCompleteTask(
   const current = t.status as string;
   if (current === "Completed" || current === "Closed") return { ok: false, error: "This task is already finished." };
   if ((t.requires_attachment as boolean) && !file) return { ok: false, error: "This task needs a file attached to complete." };
-  // Close-lock: when set, only the person who created the task may close it.
-  if ((t.creator_close_only as boolean) && me.id !== (t.created_by_person_id as number | null)) {
-    return { ok: false, error: "Only the person who set this task can close it." };
+  // Only a director/HR or the task's creator may complete it (task-permissions.ts).
+  if (!canManageTask({ id: me.id, portalRole: me.portalRole }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) {
+    return { ok: false, error: "Only the person who set this task can complete it." };
   }
 
   const isManager = me.portalRole === "manager";

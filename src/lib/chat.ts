@@ -63,6 +63,10 @@ export type ThreadDetail = {
   title: string;
   companyId: number | null;
   participants: { participant: string; name: string; lastReadAt: string | null }[];
+  /** Edit/delete capability for the viewing role (threadModeration). Drives which
+   *  message controls the UI shows; the server re-checks on every edit/delete. */
+  canModifyAny: boolean;
+  canModifyOwn: boolean;
 };
 
 /* --------------------------- name resolution --------------------------- */
@@ -117,6 +121,47 @@ export async function viewerInThread(threadId: number, viewer: string): Promise<
 export async function isSystemThread(threadId: number): Promise<boolean> {
   const { data } = await sb.from("chat_threads").select("kind").eq("id", threadId).maybeSingle();
   return (data?.kind as string | null) === "system";
+}
+
+/* --------------------------- edit/delete permissions --------------------------- */
+
+export type ChatRole = "owner" | "director" | "manager" | "hr" | "staff";
+
+/** True for a group seeded from a task (the task-reminder group chat). */
+function isTaskGroup(kind: ChatKind, dmKey: string | null): boolean {
+  return kind === "group" && (dmKey ?? "").startsWith("task:");
+}
+
+/**
+ * Who may edit/delete messages in a thread (owner's brief, Jun 2026):
+ *   • Command Centre (owner) — anything, anywhere (bar system channels).
+ *   • System channels (Task reminders / Announcements) — locked for everyone.
+ *   • Task-reminder GROUP chats — a director/manager may edit/delete ANY message;
+ *     staff cannot touch even their own.
+ *   • DMs and ad-hoc groups — each person edits/deletes only their OWN message.
+ * Returns two thread-level flags: `canModifyAny` (moderate every message) and
+ * `canModifyOwn` (act on your own messages).
+ */
+export function threadModeration(kind: ChatKind, dmKey: string | null, role: ChatRole): { canModifyAny: boolean; canModifyOwn: boolean } {
+  if (kind === "system") return { canModifyAny: false, canModifyOwn: false };
+  if (role === "owner") return { canModifyAny: true, canModifyOwn: true };
+  if (isTaskGroup(kind, dmKey)) {
+    const mod = role === "director" || role === "manager";
+    return { canModifyAny: mod, canModifyOwn: mod };
+  }
+  return { canModifyAny: false, canModifyOwn: true };
+}
+
+/** Server gate: may `viewer` edit/delete this specific message? Loads the message
+ *  + its thread and applies threadModeration. */
+async function canModifyMessage(messageId: number, viewer: { participant: string; role: ChatRole }): Promise<boolean> {
+  const { data: msg } = await sb.from("chat_messages").select("sender,thread_id").eq("id", messageId).maybeSingle();
+  if (!msg) return false;
+  const { data: thread } = await sb.from("chat_threads").select("kind,dm_key").eq("id", msg.thread_id as number).maybeSingle();
+  if (!thread) return false;
+  const { canModifyAny, canModifyOwn } = threadModeration(thread.kind as ChatKind, (thread.dm_key as string | null) ?? null, viewer.role);
+  if (canModifyAny) return true;
+  return canModifyOwn && (msg.sender as string) === viewer.participant;
 }
 
 /* --------------------------- create / find --------------------------- */
@@ -342,10 +387,10 @@ export async function unreadTotalFor(viewer: string): Promise<number> {
   return threads.filter((t) => !t.muted).reduce((sum, t) => sum + t.unread, 0);
 }
 
-export async function getThreadDetail(threadId: number, viewer?: string): Promise<ThreadDetail | null> {
+export async function getThreadDetail(threadId: number, viewer?: string, viewerRole: ChatRole = "staff"): Promise<ThreadDetail | null> {
   const { data: t } = await sb
     .from("chat_threads")
-    .select("id,kind,title,company_id")
+    .select("id,kind,title,company_id,dm_key")
     .eq("id", threadId)
     .maybeSingle();
   if (!t) return null;
@@ -363,6 +408,7 @@ export async function getThreadDetail(threadId: number, viewer?: string): Promis
     const other = ps.find((p) => p !== viewer) ?? ps[0];
     title = (other && names.get(other)) || "Direct message";
   }
+  const mod = threadModeration(kind, (t.dm_key as string | null) ?? null, viewerRole);
   return {
     id: t.id as number,
     kind,
@@ -373,6 +419,8 @@ export async function getThreadDetail(threadId: number, viewer?: string): Promis
       name: names.get(p.participant as string) ?? (p.participant as string),
       lastReadAt: (p.last_read_at as string | null) ?? null,
     })),
+    canModifyAny: mod.canModifyAny,
+    canModifyOwn: mod.canModifyOwn,
   };
 }
 
@@ -552,13 +600,14 @@ export async function markRead(threadId: number, viewer: string): Promise<void> 
   // client (chat-surface) after this returns — keeps it off the server path.
 }
 
-export async function editMessage(messageId: number, sender: string, body: string): Promise<boolean> {
+export async function editMessage(messageId: number, viewer: { participant: string; role: ChatRole }, body: string): Promise<boolean> {
+  if (!(await canModifyMessage(messageId, viewer))) return false;
   const { data: msg } = await sb
     .from("chat_messages")
-    .select("sender,body,original_body")
+    .select("body,original_body")
     .eq("id", messageId)
     .maybeSingle();
-  if (!msg || msg.sender !== sender) return false;
+  if (!msg) return false;
   await sb
     .from("chat_messages")
     .update({
@@ -570,9 +619,8 @@ export async function editMessage(messageId: number, sender: string, body: strin
   return true;
 }
 
-export async function softDeleteMessage(messageId: number, sender: string): Promise<boolean> {
-  const { data: msg } = await sb.from("chat_messages").select("sender,thread_id").eq("id", messageId).maybeSingle();
-  if (!msg || msg.sender !== sender) return false;
+export async function softDeleteMessage(messageId: number, viewer: { participant: string; role: ChatRole }): Promise<boolean> {
+  if (!(await canModifyMessage(messageId, viewer))) return false;
   await sb.from("chat_messages").update({ deleted_at: new Date().toISOString() }).eq("id", messageId);
   return true;
 }

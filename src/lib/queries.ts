@@ -15,6 +15,9 @@ export type TaskRow = {
   actionItem: string;
   owner: string | null;
   ownerId: number | null;
+  /** The person who created the task (portal creator); null for admin/web-ui
+   *  tasks. Drives the creator-only edit/complete rule (task-permissions.ts). */
+  createdByPersonId: number | null;
   assignees: string[];
   /** Parallel array to `assignees`; same order, same length. Enables PersonDrawerLink rendering. */
   assigneeIds: number[];
@@ -80,6 +83,7 @@ type SbTask = {
   meeting_date: string | null;
   action_item: string;
   owner_id: number | null;
+  created_by_person_id: number | null;
   created_date: string | null;
   deadline: string | null;
   status: string;
@@ -187,7 +191,7 @@ export const getRecentActivity = cache(async (limit = 160): Promise<RawActivity>
  *  tasks never inflate lists, KPIs or the Director Brief (ACTTASKS-01). */
 async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
   // Exclude archived rows at the source unless explicitly opted in.
-  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived");
+  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_by_person_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived");
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, updatesRes, settings] = await Promise.all([
     includeArchived ? tasksQuery : tasksQuery.eq("archived", false),
     sb.from("companies").select("id,name,accent_color"),
@@ -288,6 +292,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
       actionItem: t.action_item,
       owner: t.owner_id ? pName.get(t.owner_id) || null : null,
       ownerId: t.owner_id ?? null,
+      createdByPersonId: t.created_by_person_id ?? null,
       assignees: aMap.get(t.id) || [],
       assigneeIds: aIdMap.get(t.id) || [],
       leadIds: leadIdMap.get(t.id) ?? (t.owner_id != null ? [t.owner_id] : []),

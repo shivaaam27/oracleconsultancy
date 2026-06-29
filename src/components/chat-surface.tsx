@@ -512,6 +512,8 @@ export function ChatSurface(props: Props) {
                 messages={display}
                 me={me}
                 isGroup={detail?.kind === "group"}
+                canModifyAny={!!detail?.canModifyAny}
+                canModifyOwn={detail?.canModifyOwn ?? true}
                 otherReaders={otherReaders}
                 typing={typing}
                 people={people}
@@ -587,6 +589,8 @@ function MessageList({
   messages,
   me,
   isGroup,
+  canModifyAny,
+  canModifyOwn,
   otherReaders,
   typing,
   people,
@@ -598,6 +602,11 @@ function MessageList({
   messages: DisplayMessage[];
   me: string;
   isGroup?: boolean;
+  /** May moderate (edit/delete) ANY message in this thread (e.g. director/manager
+   *  in a task group, or the owner). */
+  canModifyAny: boolean;
+  /** May edit/delete one's OWN messages in this thread. */
+  canModifyOwn: boolean;
   otherReaders: Reader[];
   typing: string[];
   people: MentionCandidate[];
@@ -648,6 +657,7 @@ function MessageList({
             <Bubble
               m={m}
               mine={mine}
+              canModify={canModifyAny || (mine && canModifyOwn)}
               isGroup={isGroup}
               firstInGroup={firstInGroup}
               lastInGroup={lastInGroup}
@@ -685,6 +695,7 @@ function TypingBubble() {
 const Bubble = memo(function Bubble({
   m,
   mine,
+  canModify,
   isGroup,
   firstInGroup,
   lastInGroup,
@@ -697,6 +708,8 @@ const Bubble = memo(function Bubble({
 }: {
   m: DisplayMessage;
   mine: boolean;
+  /** Whether the viewer may edit/delete THIS message (own message, or moderating). */
+  canModify: boolean;
   isGroup?: boolean;
   firstInGroup: boolean;
   lastInGroup: boolean;
@@ -841,7 +854,7 @@ const Bubble = memo(function Bubble({
               ) : (
                 <Check size={14} className="text-fg-subtle" />
               ))}
-            {mine && !editing && !m.pending && (
+            {canModify && !editing && !m.pending && (
               <span className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                 <button type="button" onClick={() => setEditing(true)} className="text-fg-subtle hover:text-fg">
                   <Pencil size={12} />

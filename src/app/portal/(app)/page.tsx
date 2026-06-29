@@ -53,6 +53,7 @@ type Row = {
   teamSize: number;
   mine: boolean;
   requiresAttachment: boolean;
+  createdByPersonId: number | null;
 };
 
 /** Map a Home task Row into the iPhone task-card shape. */
@@ -68,6 +69,7 @@ function toCardTask(t: Row) {
     teamSize: t.teamSize,
     latestUpdate: t.latest_update,
     requiresAttachment: t.requiresAttachment,
+    createdByPersonId: t.createdByPersonId,
   };
 }
 
@@ -119,7 +121,7 @@ export default async function PortalHome() {
     const [{ data }, { data: teams }] = await Promise.all([
       sb
         .from("tasks")
-        .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,archived,requires_attachment,companies(name)")
+        .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,created_by_person_id,archived,requires_attachment,companies(name)")
         .in("id", ids)
         .eq("archived", false)
         .order("deadline", { ascending: true, nullsFirst: false }),
@@ -144,6 +146,7 @@ export default async function PortalHome() {
       teamSize: teamCount.get(t.id as number) ?? 1,
       mine: onTask.has(t.id as number) || (t.owner_id as number | null) === me.id,
       requiresAttachment: (t.requires_attachment as boolean) ?? false,
+      createdByPersonId: (t.created_by_person_id as number | null) ?? null,
     }));
   }
 
@@ -305,7 +308,7 @@ export default async function PortalHome() {
       {/* My tasks — filter row + master-detail (web) / card list (mobile). The
           "Closed" filter shows past completed tasks (so no separate section). */}
       <Reveal delay={0.05}>
-        <PortalHomeTasks title="My tasks" tasks={[...myOpen, ...done].map(toCardTask)} viewerRole={me.portalRole} />
+        <PortalHomeTasks title="My tasks" tasks={[...myOpen, ...done].map(toCardTask)} viewerRole={me.portalRole} viewerId={me.id} />
       </Reveal>
 
       {/* Managers get the wider list inline; HR use the dedicated Tasks tab. */}
@@ -328,6 +331,7 @@ export default async function PortalHome() {
               title={me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
               tasks={teamOpen.map(toCardTask)}
               viewerRole={me.portalRole}
+              viewerId={me.id}
             />
           </Reveal>
         )

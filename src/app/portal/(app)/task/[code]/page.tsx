@@ -12,6 +12,8 @@ import { TaskQuickActions } from "@/components/task-quick-actions";
 import { PortalTaskMessage } from "@/components/portal-task-message";
 import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
 import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
+import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
+import { PortalTaskEdit } from "@/components/portal-task-edit";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge } from "../../../actions";
@@ -203,6 +205,12 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   });
 
   const closed = task.status === "Completed" || task.status === "Closed";
+  // Per-task permissions (task-permissions.ts): a director/HR or the creator may
+  // edit content + complete; everyone else cannot.
+  const permViewer = { id: me.id, portalRole: me.portalRole };
+  const permTask = { createdByPersonId: (task.created_by_person_id as number | null) ?? null };
+  const canEdit = canEditTask(permViewer, permTask);
+  const canComplete = !closed && canCompleteTask(permViewer, permTask);
   const company = task.companies as unknown as { name: string } | null;
   // The header's aurora wash + leading dot take the task's status colour, so the
   // whole sheet reads "blocked" (red) / "in progress" (blue) at a glance.
@@ -256,7 +264,17 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           <Badge tone={statusTone(task.status as string)}>{task.status}</Badge>
           <Badge tone={priorityTone(task.priority as string)}>{task.priority}</Badge>
         </div>
-        <h1 className="mt-2 text-lg font-semibold leading-snug">{task.action_item}</h1>
+        <div className="mt-2 flex items-start justify-between gap-2">
+          <h1 className="text-lg font-semibold leading-snug">{task.action_item}</h1>
+          {canEdit && (
+            <PortalTaskEdit
+              taskId={task.id as number}
+              code={task.code as string}
+              actionItem={task.action_item as string}
+              description={(task.comments as string | null) ?? ""}
+            />
+          )}
+        </div>
         <WaitingOnChip task={preview} on={team.find((p) => p.accountable)?.name} className="mt-2" />
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-fg-muted">
           {assignedByName && <span className="text-fg-subtle">Assigned by {assignedByName}</span>}
@@ -310,7 +328,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
           ownerName={team.find((p) => p.accountable)?.name ?? null}
           ownerId={team.find((p) => p.accountable)?.id ?? null}
           canRemind={isManagement}
-          canComplete={!closed}
+          canComplete={canComplete}
           requiresAttachment={(task.requires_attachment as boolean) ?? false}
         />
       </Reveal>

@@ -10,6 +10,7 @@ import { CompleteTaskSheet } from "./complete-task-sheet";
 import { useToast } from "./toast";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import { portalAddUpdate } from "@/app/portal/actions";
+import { canCompleteTask } from "@/lib/task-permissions";
 
 /* The master-detail pane: the selected task's summary + the quick actions a
  * portal user is allowed (role-scoped status move, inline update, secure
@@ -33,6 +34,8 @@ export type PaneTask = {
   latestUpdate?: string | null;
   latestUpdateAuthor?: string | null;
   requiresAttachment?: boolean;
+  /** Who created the task — drives the creator-only Complete rule. */
+  createdByPersonId?: number | null;
 };
 
 const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
@@ -49,7 +52,7 @@ const STATUS_DOT: Record<string, string> = {
 };
 const OPEN_EXCLUDED = ["Completed", "Closed"];
 
-export function PortalTaskDetailPane({ task, viewerRole, bare = false }: { task: PaneTask; viewerRole: string; bare?: boolean }) {
+export function PortalTaskDetailPane({ task, viewerRole, viewerId, bare = false }: { task: PaneTask; viewerRole: string; viewerId: number; bare?: boolean }) {
   const { toast } = useToast();
   const router = useRouter();
   const [updateBody, setUpdateBody] = useState("");
@@ -58,6 +61,11 @@ export function PortalTaskDetailPane({ task, viewerRole, bare = false }: { task:
 
   const closed = OPEN_EXCLUDED.includes(task.status);
   const allowed = viewerRole === "staff" ? STAFF_STATUSES : MANAGER_STATUSES;
+  // Only a director/HR or the task's creator may complete it (task-permissions.ts).
+  const canComplete = canCompleteTask(
+    { id: viewerId, portalRole: viewerRole },
+    { createdByPersonId: task.createdByPersonId ?? null },
+  );
   const overdue = !!task.deadline && new Date(task.deadline) < new Date() && !closed;
 
   const statusOptions: FluidOption[] = [
@@ -137,13 +145,15 @@ export function PortalTaskDetailPane({ task, viewerRole, bare = false }: { task:
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCompleteOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-success-soft px-3.5 py-2 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
-            >
-              <CheckCircle2 size={15} /> Complete
-            </button>
+            {canComplete && (
+              <button
+                type="button"
+                onClick={() => setCompleteOpen(true)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-success-soft px-3.5 py-2 text-sm font-medium text-success ring-1 ring-success/25 transition-transform active:scale-95"
+              >
+                <CheckCircle2 size={15} /> Complete
+              </button>
+            )}
             <Link href={`/portal/task/${task.code}`} className="ml-auto inline-flex items-center gap-1.5 text-sm text-accent hover:underline">
               Open full task <ExternalLink size={13} />
             </Link>

@@ -19,6 +19,7 @@ import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-
 import { portalEditTask, portalRemindTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
 import { getGivenName, getInitials } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
+import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -33,6 +34,8 @@ export type CommandTask = {
   taskId: number;
   code: string;
   actionItem: string;
+  /** Who created the task — drives the creator-only edit/complete rule. */
+  createdByPersonId: number | null;
   companyId: number | null;
   companyName: string;
   companyAccent: string | null;
@@ -83,12 +86,14 @@ function statusDot(s: string): string {
 const initials = getInitials; // honorific-stripped (Mr Pulin Manek → PM)
 
 export function PortalTasksCommand({
-  tasks, people, companies, role, canCreate, initialFilter = "all",
+  tasks, people, companies, role, viewerId, canCreate, initialFilter = "all",
 }: {
   tasks: CommandTask[];
   people: BoardPerson[];
   companies: BoardCompany[];
   role: string;
+  /** The signed-in person's id — for the creator-only edit/complete rule. */
+  viewerId: number;
   canCreate: boolean;
   /** Pre-select a filter (the board's KPI tiles deep-link here, e.g. ?filter=overdue). */
   initialFilter?: Filter;
@@ -179,9 +184,9 @@ export function PortalTasksCommand({
     { key: "done", label: "Done", n: counts.done },
   ];
 
-  const fullEdit = role === "director" || role === "hr";
-  const canManage = role !== "staff"; // director / manager / hr may remind + send summaries
-  const statusChoices = fullEdit ? ALL_STATUSES : MANAGER_STATUSES;
+  // Outreach (remind / message a person) stays role-based — any management role
+  // may nudge. Edit/complete is decided per-task inside TaskRow (creator/director).
+  const canRemind = role !== "staff";
 
   return (
     <div className="flex flex-col gap-4">
@@ -258,12 +263,12 @@ export function PortalTasksCommand({
                 <span>Task</span><span>Status</span><span>Deadline</span><span className="text-right">Who</span>
               </div>
               <ul className="divide-y divide-border/50">
-                {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} statusChoices={statusChoices} fullEdit={fullEdit} canManage={canManage} desktop />)}
+                {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} desktop />)}
               </ul>
             </Panel>
             {/* mobile cards */}
             <div className="flex flex-col gap-2 sm:hidden">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} statusChoices={statusChoices} fullEdit={fullEdit} canManage={canManage} />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} />)}
             </div>
           </div>
         ))
@@ -287,20 +292,28 @@ function Avatars({ names }: { names: string[] }) {
 }
 
 function TaskRow({
-  t, people, statusChoices, fullEdit, canManage, desktop = false,
+  t, people, role, viewerId, canRemind, desktop = false,
 }: {
-  t: CommandTask; people: BoardPerson[]; statusChoices: string[]; fullEdit: boolean; canManage: boolean; desktop?: boolean;
+  t: CommandTask; people: BoardPerson[]; role: string; viewerId: number; canRemind: boolean; desktop?: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, startTransition] = useTransition();
   const [updateBody, setUpdateBody] = useState("");
-  // Inline "edit details" (title + description) for management.
+  // Inline "edit details" (title + description) for those who may edit.
   const [editDetails, setEditDetails] = useState(false);
   const [titleDraft, setTitleDraft] = useState(t.actionItem);
   const [descDraft, setDescDraft] = useState(t.description ?? "");
 
+  // Per-task permissions (task-permissions.ts): a director/HR or the creator may
+  // edit content + complete; managers limited to open-status moves on others'.
+  const viewer = { id: viewerId, portalRole: role };
+  const perm = { createdByPersonId: t.createdByPersonId };
+  const canEdit = canEditTask(viewer, perm);
+  const canComplete = canCompleteTask(viewer, perm);
+  // Status set offered: full when you may edit; otherwise just the open moves.
+  const statusChoices = canEdit ? ALL_STATUSES : ["In Progress", "Under Review", "Blocked"];
   const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
 
   function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null }, label: string) {
@@ -361,8 +374,8 @@ function TaskRow({
   const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
   const involved = t.assignees.length || (t.accountableName ? 1 : 0);
   // Swipe-left reveals Update (+ Remind-all when shared); swipe-right reveals
-  // Complete. Axis-locked + finger-following so scrolling never trips it.
-  const swipe = useSwipeRow({ leftWidth: 86, rightWidth: involved > 1 ? 156 : 78 });
+  // Complete (only when this viewer may complete). Axis-locked + finger-following.
+  const swipe = useSwipeRow({ leftWidth: canComplete ? 86 : 0, rightWidth: involved > 1 ? 156 : 78 });
 
   // A row of bordered pill controls — all matching the status dropdown
   // (FluidSelect with `fieldShell`) — then the "On this task" people panel,
@@ -372,8 +385,8 @@ function TaskRow({
   function Editor({ withStatus }: { withStatus: boolean }) {
     return (
       <div className="space-y-3.5 border-t border-border/50 px-3.5 py-3.5">
-        {/* Edit task title + description — any management role. */}
-        {canManage && (
+        {/* Edit task title + description — a director/HR or the task's creator. */}
+        {canEdit && (
           <div>
             {editDetails ? (
               <div className="space-y-2 rounded-xl bg-bg-subtle/50 p-3 ring-1 ring-border">
@@ -410,7 +423,7 @@ function TaskRow({
           {withStatus && (
             <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
           )}
-          {fullEdit ? (
+          {canEdit ? (
             <>
               <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
               <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} />
@@ -424,13 +437,13 @@ function TaskRow({
         </div>
 
         {/* "On this task" — every person involved, the leads as Lead, the rest
-            as Working, each with quick contact actions. Directors/HR can edit the
-            lead set inline. */}
+            as Working, each with quick contact actions. Those who may edit the
+            task can change the lead set inline. */}
         <TaskPeoplePanel
           t={t}
           people={people}
-          fullEdit={fullEdit}
-          canManage={canManage}
+          canEditLeads={canEdit}
+          canRemind={canRemind}
         />
 
         {/* Post an update without opening the task. */}
@@ -449,7 +462,7 @@ function TaskRow({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {canManage && (
+          {canRemind && (
             <>
               <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-accent">
                 <Send size={14} /> Remind owner
@@ -526,10 +539,12 @@ function TaskRow({
           </button>
         )}
       </div>
-      {/* Revealed on swipe-right */}
-      <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
-        <Check size={18} /> Complete
-      </button>
+      {/* Revealed on swipe-right — only when this viewer may complete the task. */}
+      {canComplete && (
+        <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
+          <Check size={18} /> Complete
+        </button>
+      )}
 
       <div
         {...swipe.bind}
@@ -614,12 +629,14 @@ type Member = { id: number | null; name: string; lead: boolean };
  * than one person is involved. Directors/HR can edit the lead set inline.
  */
 function TaskPeoplePanel({
-  t, people, fullEdit, canManage,
+  t, people, canEditLeads, canRemind,
 }: {
   t: CommandTask;
   people: BoardPerson[];
-  fullEdit: boolean;
-  canManage: boolean;
+  /** May change the task's lead set (director/HR or the creator). */
+  canEditLeads: boolean;
+  /** May send per-person reminders/messages (any management role). */
+  canRemind: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -690,7 +707,7 @@ function TaskPeoplePanel({
     });
   }
 
-  if (total === 0 && !fullEdit) return null;
+  if (total === 0 && !canEditLeads) return null;
 
   return (
     <Panel className="overflow-hidden p-0">
@@ -732,13 +749,13 @@ function TaskPeoplePanel({
             {/* Per-person reachability — minimal icons: WhatsApp / Email a summary
                 of their open tasks (Outbox-backed, mobile-safe) + a direct chat DM.
                 Only the id-backed people. */}
-            {canManage && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
+            {canRemind && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
           </li>
         ))}
       </ul>
 
       {/* Edit the lead set — one or more people. Removing the last lead is blocked. */}
-      {fullEdit && (
+      {canEditLeads && (
         <div className="flex flex-col gap-2 border-t border-border/50 px-3 py-2.5 sm:flex-row sm:items-start">
           <span className="inline-flex shrink-0 items-center gap-1.5 pt-2 text-[11px] text-fg-muted">
             <User size={13} className="text-fg-subtle" /> {leadIds.length > 1 ? "Leads" : "Lead"}

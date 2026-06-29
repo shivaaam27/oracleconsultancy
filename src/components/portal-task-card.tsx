@@ -10,6 +10,7 @@ import { CaretInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { CompleteTaskSheet } from "@/components/complete-task-sheet";
 import { portalAddUpdate } from "@/app/portal/actions";
+import { canCompleteTask } from "@/lib/task-permissions";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -36,6 +37,8 @@ export type PortalCardTask = {
   teamSize: number;
   latestUpdate?: string | null;
   requiresAttachment?: boolean;
+  /** Who created the task — drives the creator-only Complete rule. */
+  createdByPersonId?: number | null;
 };
 
 const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
@@ -58,16 +61,22 @@ function statusDotClass(s: string): string {
   return "bg-fg-subtle";
 }
 
-export function PortalTaskCard({ task: t, viewerRole }: { task: PortalCardTask; viewerRole: string }) {
+export function PortalTaskCard({ task: t, viewerRole, viewerId }: { task: PortalCardTask; viewerRole: string; viewerId: number }) {
   const { toast } = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [updateBody, setUpdateBody] = useState("");
   const [busy, start] = useTransition();
-  // Swipe-left → Update (82px right tray); swipe-right → Complete (86px left tray).
-  // Axis-locked + finger-following so a vertical scroll never opens a tray.
-  const swipe = useSwipeRow({ leftWidth: 86, rightWidth: 82 });
+  // Who may complete: a director/HR, or the task's creator (task-permissions.ts).
+  const done = t.status === "Completed" || t.status === "Closed";
+  const canComplete = !done && canCompleteTask(
+    { id: viewerId, portalRole: viewerRole },
+    { createdByPersonId: t.createdByPersonId ?? null },
+  );
+  // Swipe-left → Update (82px right tray); swipe-right → Complete (86px left tray,
+  // only when the viewer may complete). Axis-locked + finger-following.
+  const swipe = useSwipeRow({ leftWidth: canComplete ? 86 : 0, rightWidth: 82 });
 
   const now = new Date();
   const overdue = !!t.deadline && new Date(t.deadline) < now;
@@ -114,14 +123,17 @@ export function PortalTaskCard({ task: t, viewerRole }: { task: PortalCardTask; 
       >
         <MessageSquarePlus size={17} /> Update
       </button>
-      {/* Swipe-right → secure Complete (opens the gated sheet) */}
-      <button
-        type="button"
-        onClick={() => { swipe.reset(); setCompleteOpen(true); }}
-        className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success"
-      >
-        <CheckCircle2 size={18} /> Complete
-      </button>
+      {/* Swipe-right → secure Complete (opens the gated sheet) — only for those
+          who may complete (a director/HR, or the task's creator). */}
+      {canComplete && (
+        <button
+          type="button"
+          onClick={() => { swipe.reset(); setCompleteOpen(true); }}
+          className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success"
+        >
+          <CheckCircle2 size={18} /> Complete
+        </button>
+      )}
 
       <div
         {...swipe.bind}

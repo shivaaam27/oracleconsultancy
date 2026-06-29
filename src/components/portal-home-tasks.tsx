@@ -32,11 +32,12 @@ const isOverdue = (t: PortalCardTask, now: number) =>
   !!t.deadline && new Date(t.deadline).getTime() < now && !CLOSED.includes(t.status);
 
 export function PortalHomeTasks({
-  title, tasks, viewerRole,
+  title, tasks, viewerRole, viewerId,
 }: {
   title: string;
   tasks: PortalCardTask[];
   viewerRole: string;
+  viewerId: number;
 }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [company, setCompany] = useState("");
@@ -84,6 +85,7 @@ export function PortalHomeTasks({
     id: t.id, code: t.code, actionItem: t.actionItem, status: t.status, priority: t.priority,
     deadline: t.deadline, companyName: t.companyName, teamSize: t.teamSize,
     latestUpdate: t.latestUpdate ?? null, requiresAttachment: t.requiresAttachment,
+    createdByPersonId: t.createdByPersonId ?? null,
   });
 
   return (
@@ -107,7 +109,7 @@ export function PortalHomeTasks({
               height — a flex column would shrink them and the cards' overflow-hidden
               (for the swipe trays) then clips the titles. */}
           <div className="max-h-[26rem] space-y-2.5 overflow-y-auto overscroll-contain pr-0.5 lg:hidden">
-            {filtered.map((t) => <PortalTaskCard key={t.id} task={t} viewerRole={viewerRole} />)}
+            {filtered.map((t) => <PortalTaskCard key={t.id} task={t} viewerRole={viewerRole} viewerId={viewerId} />)}
           </div>
 
           {/* Web: one aligned master-detail panel. */}
@@ -137,7 +139,7 @@ export function PortalHomeTasks({
               })}
             </div>
             <div className="min-w-0">
-              {selected && <PortalTaskDetailPane bare viewerRole={viewerRole} task={toPane(selected)} />}
+              {selected && <PortalTaskDetailPane bare viewerRole={viewerRole} viewerId={viewerId} task={toPane(selected)} />}
             </div>
           </div>
         </>
