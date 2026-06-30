@@ -77,7 +77,7 @@ const STATUS_COLOR: Record<string, string> = {
   "In Progress": "hsl(var(--info))", "Not Started": "hsl(var(--fg-subtle))",
 };
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
-const fieldShell = "rounded-xl bg-bg-elev ring-1 ring-border";
+const fieldShell = "rounded-lg bg-bg-elev ring-1 ring-border";
 
 /** Honour BOTH the OS reduced-motion setting and the portal's manual data-motion
  *  toggle — framer's JS animations ignore the latter, so we check it ourselves. */
@@ -232,7 +232,7 @@ export function PortalTasksCommand({
         )}
       </div>
 
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => {
           const active = filter === f.key;
           const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : f.key === "inprogress" ? "text-info" : "text-accent";
@@ -295,40 +295,27 @@ export function PortalTasksCommand({
   );
 }
 
-function Avatars({ names }: { names: string[] }) {
-  if (!names.length) return <span className="text-[11px] italic text-fg-subtle">—</span>;
-  const shown = names.slice(0, 3);
-  const extra = names.length - shown.length;
-  return (
-    <span className="inline-flex items-center -space-x-1.5" title={names.join(", ")}>
-      {shown.map((n, i) => (
-        <span key={i} className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-subtle text-[9px] font-semibold text-fg-muted ring-2 ring-bg-elev">{initials(n)}</span>
-      ))}
-      {extra > 0 && <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-muted text-[9px] font-semibold text-fg-subtle ring-2 ring-bg-elev">+{extra}</span>}
-    </span>
-  );
-}
-
-/** Avatar cluster where the LEAD(s) carry an accent ring (and sit on top). */
+/** Avatar cluster where the LEAD(s) carry a thin accent ring. The circles overlap
+ *  slightly (a tidy stack, not spread out); initials are grid-centred (leading-none)
+ *  so they sit dead-centre, and the lead's ring is softened so it doesn't shout. */
 function LeadAvatars({ people }: { people: { name: string; lead: boolean }[] }) {
   if (!people.length) return <span className="text-[11px] italic text-fg-subtle">—</span>;
-  const shown = people.slice(0, 3);
+  // Keep at most three rendered items: show 3 plain, else 2 + a "+N" badge.
+  const shown = people.slice(0, people.length > 3 ? 2 : 3);
   const extra = people.length - shown.length;
+  const dot = "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9.5px] font-semibold leading-none ring-2 ring-bg-elev";
   return (
     <span className="inline-flex items-center -space-x-1.5">
       {shown.map((p, i) => (
         <span
           key={i}
           title={`${p.name}${p.lead ? " · Lead" : ""}`}
-          className={cn(
-            "inline-flex h-6 w-6 items-center justify-center rounded-full text-[9.5px] font-semibold ring-2",
-            p.lead ? "relative z-10 bg-accent-soft text-accent ring-accent" : "bg-bg-subtle text-fg-muted ring-bg-elev",
-          )}
+          className={cn(dot, p.lead ? "bg-accent-soft text-accent ring-accent/70" : "bg-bg-subtle text-fg-muted")}
         >
           {initials(p.name)}
         </span>
       ))}
-      {extra > 0 && <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-muted text-[9.5px] font-semibold text-fg-subtle ring-2 ring-bg-elev">+{extra}</span>}
+      {extra > 0 && <span className={cn(dot, "bg-bg-muted text-[9px] text-fg-subtle")}>+{extra}</span>}
     </span>
   );
 }
@@ -432,6 +419,12 @@ function TaskRow({
 
   const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
   const involved = t.assignees.length || (t.accountableName ? 1 : 0);
+  // Collapsed cards show ONE short preview (clamped to 2 lines): the description if
+  // there is one, otherwise the latest update. Company + owner and the full text
+  // are revealed on expand to keep the glance clean.
+  const collapsedPreview = t.description
+    ? t.description
+    : t.note ? `${t.updateAuthor ? `${t.updateAuthor}: ` : ""}${t.note}` : null;
   // Swipe-left reveals Update (+ Remind-all when shared); swipe-right reveals
   // Complete (only when this viewer may complete). Trays kept narrow so they don't
   // eat a small phone's width; thresholds below stay in sync (64px per action).
@@ -445,53 +438,66 @@ function TaskRow({
   // read-only for them.
   function Editor({ withStatus }: { withStatus: boolean }) {
     return (
-      <div className="space-y-3.5 border-t border-border/50 px-3.5 py-3.5">
-        {/* Edit form (pencil) OR the full description + latest update, read-only —
-            so opening a task reveals everything without a hover tooltip. */}
-        {canEdit && editDetails ? (
-          <div className="space-y-2 rounded-xl bg-bg-subtle/50 p-3 ring-1 ring-border">
-            <input
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              placeholder="Task title"
-              className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-            <textarea
-              value={descDraft}
-              onChange={(e) => setDescDraft(e.target.value)}
-              placeholder="Description (optional)"
-              rows={3}
-              className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
-            />
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
-              </button>
-              <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
-                Cancel
-              </button>
+      <div className="space-y-4 border-t border-border/50 px-3.5 py-4">
+        {/* Company + owner — kept off the collapsed card (clean glance), shown here
+            on expand. Hidden in the company-grouped view where the header has it. */}
+        {!groupByCompany && (
+          <div className="flex items-center gap-1.5 text-[12px]">
+            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
+            <span className="font-medium text-fg">{t.companyName}</span>
+            <span className="text-fg-subtle">· {t.accountableName ?? "Unassigned"}</span>
+          </div>
+        )}
+        {/* Description + latest update — full width, clean. The action buttons sit
+            at the very bottom (after "On this task") so the text stays uncluttered. */}
+        <div className="min-w-0">
+          {canEdit && editDetails ? (
+            <div className="space-y-2 rounded-lg bg-bg-subtle/50 p-3 ring-1 ring-border">
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                placeholder="Task title"
+                className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+              <textarea
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                placeholder="Description (optional)"
+                rows={3}
+                className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
+              />
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
+                  {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
+                </button>
+                <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
+                  Cancel
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (t.description || t.note) ? (
-          <div className="space-y-2.5">
-            {t.description && (
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Description</p>
-                <p className="mt-0.5 text-[13.5px] leading-relaxed text-fg">{t.description}</p>
-              </div>
-            )}
-            {t.note && (
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Latest update</p>
-                <p className="mt-0.5 text-[13px] leading-relaxed text-fg-muted">
-                  {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
-                  {t.note}
-                  {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
-                </p>
-              </div>
-            )}
-          </div>
-        ) : null}
+          ) : (t.description || t.note) ? (
+            <div className="space-y-3">
+              {t.description && (
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Description</p>
+                  <p className="mt-1 text-[13.5px] leading-relaxed text-fg">{t.description}</p>
+                </div>
+              )}
+              {t.note && (
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Latest update</p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">
+                    {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
+                    {t.note}
+                    {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-[12.5px] italic text-fg-subtle">No description yet.</p>
+          )}
+        </div>
 
         {/* Post an update — kept at the top so it's the first thing you reach. */}
         <div className="flex items-center gap-2 rounded-xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
@@ -517,25 +523,29 @@ function TaskRow({
           canRemind={canRemind}
         />
 
-        {/* Priority always; Status + Date only on mobile (desktop shows them in the
-            row's right panel). */}
-        <div className="flex flex-wrap items-center gap-2">
-          {withStatus && (
-            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
-          )}
-          {canEdit ? (
-            <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
-          ) : (
-            <StaticPill icon={<Flag size={13} style={{ color: PRIORITY_HEX[t.priority] }} />} text={t.priority} />
-          )}
-          {withStatus && (canEdit
-            ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} />
-            : <StaticPill icon={<CalendarClock size={13} className={dueTone} />} text={t.dueLabel ?? "No date"} />
-          )}
-          {busy && <Loader2 size={14} className="animate-spin text-fg-subtle" />}
-          <Link href={`/portal/task/${t.code}`} className="ml-auto inline-flex items-center gap-1.5 px-2 py-2 text-sm text-accent hover:underline">
+        {/* Actions — Open, priority (and status + date on mobile). Sit at the very
+            bottom so the text above stays clean. Roomy rectangular pills: 2×2 on a
+            phone, inline on the web. */}
+        <div className="grid grid-cols-2 gap-2 border-t border-border/50 pt-4 sm:flex sm:flex-wrap">
+          <Link href={`/portal/task/${t.code}`} className={cn(fieldShell, "inline-flex w-full items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-medium text-accent transition-colors hover:bg-bg-muted sm:w-[136px]")}>
             Open <ExternalLink size={13} />
           </Link>
+          {canEdit ? (
+            <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
+          ) : (
+            <span className={cn(fieldShell, "inline-flex w-full items-center gap-1.5 px-3 py-2 text-[12px] sm:w-[136px]")}><Flag size={13} className="shrink-0" style={{ color: PRIORITY_HEX[t.priority] }} /> <span className="text-fg">{t.priority}</span></span>
+          )}
+          {withStatus && (
+            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
+          )}
+          {withStatus && (
+            <span className="w-full sm:w-[136px]">
+              {canEdit
+                ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} block />
+                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1.5 px-3 py-2 text-[12px] ${dueTone}`)}><CalendarClock size={13} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
+            </span>
+          )}
+          {busy && <span className="inline-flex items-center px-1"><Loader2 size={14} className="animate-spin text-fg-subtle" /></span>}
         </div>
       </div>
     );
@@ -546,29 +556,16 @@ function TaskRow({
       <div className={cn("overflow-hidden rounded-2xl glass elevated transition-shadow hover:ring-1 hover:ring-accent/30", t.isDone && "opacity-60")}>
         <div
           onClick={() => setOpen((o) => !o)}
-          className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-subtle/30"
+          className="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition-colors hover:bg-bg-subtle/30"
         >
-          {/* LEFT — title row (with status + date inline), then the description and
-              latest update, which slide away when the card is expanded. */}
+          {/* LEFT — title row, then the description and latest update, which slide
+              away when the card is expanded. Edit pencil, status + date all live in
+              the fixed control track on the right so they line up as columns. */}
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-2">
               <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[t.priority]}`} title={`${t.priority} priority`} />
               <span className="shrink-0 rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[11px] font-medium text-fg-muted ring-1 ring-border/50">{t.code}</span>
-              <span className="truncate text-[15px] font-medium leading-snug group-hover:text-accent">{t.actionItem}</span>
-              {canEdit && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(true); setEditDetails(true); }} title="Edit title & description" aria-label="Edit title & description" className="shrink-0 text-fg-subtle transition-colors hover:text-accent">
-                  <Pencil size={13} />
-                </button>
-              )}
-              {/* Status + date sit right after the title — compact, same height as the avatars. */}
-              <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} text-[11px] px-2 py-0.5`} />
-              </span>
-              <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                {canEdit
-                  ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} compact />
-                  : <span className={cn(fieldShell, `inline-flex items-center gap-1 px-2 py-0.5 text-[11px] ${dueTone}`)}><CalendarClock size={12} /> {t.dueLabel ?? "No date"}</span>}
-              </span>
+              <span className="min-w-0 truncate text-[15px] font-medium leading-snug group-hover:text-accent">{t.actionItem}</span>
             </div>
             <AnimatePresence initial={false}>
               {!open && hasMeta && (
@@ -603,8 +600,32 @@ function TaskRow({
             </AnimatePresence>
           </div>
 
-          {/* Accountable — at the end of the row, vertically centred. */}
-          <LeadAvatars people={rowPeople} />
+          {/* CONTROLS — edit pencil, status + date in a fixed-width track so they
+              form clean columns across every row (same x, height, vertically centred).
+              The pencil keeps its slot even when not editable so the columns hold. */}
+          <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <span className="flex w-4 shrink-0 justify-center">
+              {canEdit && (
+                <button type="button" onClick={() => { setOpen(true); setEditDetails(true); }} title="Edit title & description" aria-label="Edit title & description" className="text-fg-subtle transition-colors hover:text-accent">
+                  <Pencil size={13} />
+                </button>
+              )}
+            </span>
+            <span className="w-[126px]">
+              <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full" buttonClassName={`${fieldShell} w-full text-[11px] px-2.5 py-1.5`} />
+            </span>
+            <span className="w-[118px]">
+              {canEdit
+                ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} compact block />
+                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1 px-2.5 py-1.5 text-[11px] ${dueTone}`)}><CalendarClock size={12} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
+            </span>
+          </div>
+
+          {/* Accountable — own fixed slot, right-aligned, so the control track to its
+              left lines up no matter how many people are on the task. */}
+          <div className="flex w-[84px] shrink-0 justify-end">
+            <LeadAvatars people={rowPeople} />
+          </div>
           <ChevronRight size={18} className={`shrink-0 text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
         </div>
         <AnimatePresence initial={false}>
@@ -648,33 +669,28 @@ function TaskRow({
 
       <div
         {...swipe.bind}
-        className="relative touch-pan-y rounded-2xl glass elevated transition-transform duration-300"
+        className="relative touch-pan-y rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
         style={{ transform: `translateX(${swipe.offset}px)`, transition: swipe.dragging ? "none" : undefined }}
       >
         <button type="button" onClick={() => { if (swipe.swiped) { swipe.reset(); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
           <span className={`w-1 shrink-0 rounded-l-2xl ${t.overdue ? "bg-danger" : t.withinSoon ? "bg-warn" : statusDot(t.status)}`} />
-          <span className="min-w-0 flex-1 py-3">
-            <span className="mb-1 flex flex-wrap items-center gap-1.5">
+          <span className="min-w-0 flex-1 py-3.5">
+            <span className="mb-1.5 flex flex-wrap items-center gap-1.5">
               <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted ring-1 ring-border/50">{t.code}</span>
               <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
               {t.dueLabel && <span className={`text-[11px] ${dueTone}`}>· {t.dueLabel}</span>}
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="min-w-0 truncate text-sm font-medium">{t.actionItem}</span>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 truncate text-sm font-medium leading-snug">{t.actionItem}</span>
               {canEdit && (
-                <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setOpen(true); setEditDetails(true); }} title="Edit title & description" className="inline-flex shrink-0 text-fg-subtle transition-colors hover:text-accent">
+                <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setOpen(true); setEditDetails(true); }} title="Edit title & description" className="mt-0.5 inline-flex shrink-0 text-fg-subtle transition-colors hover:text-accent">
                   <Pencil size={12} />
                 </span>
               )}
             </span>
-            {!open && t.description && <span className="mt-0.5 block line-clamp-2 text-[12.5px] leading-snug text-fg-muted">{t.description}</span>}
-            <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-fg-subtle">
-              {!groupByCompany && <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />}
-              {!groupByCompany ? `${t.companyName} · ` : ""}{t.accountableName ?? "Unassigned"}
-            </span>
-            {!open && t.note && <span className="mt-1 block line-clamp-2 text-[12px] leading-snug text-fg-muted">{t.updateAuthor ? `${t.updateAuthor}: ` : ""}{t.note}</span>}
+            {!open && collapsedPreview && <span className="mt-1.5 block line-clamp-2 text-[12.5px] leading-relaxed text-fg-muted">{collapsedPreview}</span>}
           </span>
-          <span className="mr-2.5 flex shrink-0 flex-col items-center justify-center gap-1.5">
+          <span className="flex shrink-0 flex-col items-end justify-center gap-2 pl-1 pr-3.5">
             <LeadAvatars people={rowPeople} />
             <ChevronRight size={16} className={`text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
           </span>
@@ -691,43 +707,33 @@ function TaskRow({
   );
 }
 
-/** A read-only property pill — same bordered-pill look as the status dropdown
- *  (`fieldShell`), shown to managers who can't edit these fields. */
-function StaticPill({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <span className={cn(fieldShell, "inline-flex items-center gap-1.5 px-3 py-2 text-[12.5px]")}>
-      <span className="shrink-0">{icon}</span>
-      <span className="text-fg">{text}</span>
-    </span>
-  );
-}
-
 /** Due-date pill: the same bordered pill as the status dropdown, with a small
  *  calendar affordance; reveals a native picker on tap and auto-saves. */
-function DuePill({ valueIso, label, tone, onChange, compact = false }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void; compact?: boolean }) {
+function DuePill({ valueIso, label, tone, onChange, compact = false, block = false }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void; compact?: boolean; block?: boolean }) {
   const [editing, setEditing] = useState(false);
-  const sz = compact ? "px-2 py-0.5 text-[11px]" : "px-3 py-2 text-[12.5px]";
+  const sz = compact ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-2 text-[12px]";
+  const fill = block ? "w-full" : "";
   const text = valueIso ? new Date(valueIso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "No date";
   if (editing) {
     return (
-      <span className={cn(fieldShell, "inline-flex items-center gap-1.5", sz)}>
-        <CalendarClock size={compact ? 12 : 13} className={tone} />
+      <span className={cn(fieldShell, "inline-flex items-center gap-1.5", fill, sz)}>
+        <CalendarClock size={compact ? 12 : 13} className={cn("shrink-0", tone)} />
         <input
           type="date"
           defaultValue={valueIso ?? ""}
           autoFocus
           onChange={(e) => { onChange(e.target.value); setEditing(false); }}
           onBlur={() => setEditing(false)}
-          className="bg-transparent text-inherit text-fg focus:outline-none"
+          className={cn("bg-transparent text-inherit text-fg focus:outline-none", block && "min-w-0 flex-1")}
         />
       </span>
     );
   }
   return (
-    <button type="button" onClick={() => setEditing(true)} className={cn(fieldShell, "inline-flex items-center gap-1.5 hover:bg-bg-muted transition-colors", sz)}>
-      <CalendarClock size={compact ? 12 : 13} className={tone} />
-      <span className={label && (tone.includes("danger") || tone.includes("warn")) ? tone : "text-fg"}>{label ?? text}</span>
-      <ChevronDown size={compact ? 12 : 13} className="text-fg-subtle" />
+    <button type="button" onClick={() => setEditing(true)} className={cn(fieldShell, "inline-flex items-center gap-1.5 hover:bg-bg-muted transition-colors", fill, sz)}>
+      <CalendarClock size={compact ? 12 : 13} className={cn("shrink-0", tone)} />
+      <span className={cn(block && "min-w-0 flex-1 truncate text-left", label && (tone.includes("danger") || tone.includes("warn")) ? tone : "text-fg")}>{label ?? text}</span>
+      <ChevronDown size={compact ? 12 : 13} className="shrink-0 text-fg-subtle" />
     </button>
   );
 }

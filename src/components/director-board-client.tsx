@@ -112,7 +112,7 @@ export function DirectorBoardClient(p: Props) {
   return (
     <div className="flex flex-col gap-5">
       <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} companyCount={p.companies.length} />
-      <SmartCaptureBar people={p.people} companies={p.companies} suggestions={p.suggestions} />
+      <SmartCaptureBar people={p.people} companies={p.companies} />
 
       {/* Outbox — your team's open work, per person (chase / remind). Contacts live
           on the Directory tab; the standalone Team page was folded into these. */}
@@ -126,6 +126,9 @@ export function DirectorBoardClient(p: Props) {
         <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
       </Link>
 
+      {/* Week ahead (meetings + Join links) sits up top, right under Outbox. */}
+      <WeekAhead events={p.upcomingEvents} />
+
       {/* Centred command-wall: one calm scroll on mobile, two columns on the web. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr] lg:items-start">
         <div className="flex flex-col gap-5">
@@ -137,7 +140,6 @@ export function DirectorBoardClient(p: Props) {
         </div>
         <div className="flex flex-col gap-5">
           <AttentionStack watch={p.watch.slice(0, 12)} people={p.people} />
-          <WeekAhead events={p.upcomingEvents} />
         </div>
       </div>
     </div>
@@ -195,7 +197,7 @@ function Ring({ score, run }: { score: number; run: boolean }) {
   const tone = score >= 80 ? "hsl(var(--success))" : score >= 55 ? "hsl(var(--warn))" : "hsl(var(--danger))";
   const offset = C - (C * score) / 100;
   return (
-    <div className="relative h-[104px] w-[104px] shrink-0">
+    <div className="relative h-[84px] w-[84px] shrink-0">
       <svg viewBox="0 0 132 132" className="h-full w-full -rotate-90">
         <circle cx="66" cy="66" r="54" fill="none" stroke="hsl(var(--border))" strokeWidth="9" />
         <circle
@@ -205,8 +207,8 @@ function Ring({ score, run }: { score: number; run: boolean }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[27px] font-semibold leading-none tracking-tight tabular">{shown}</span>
-        <span className="mt-0.5 text-[9px] uppercase tracking-[0.08em] text-fg-subtle">health</span>
+        <span className="text-[21px] font-semibold leading-none tracking-tight tabular">{shown}</span>
+        <span className="mt-0.5 text-[8px] uppercase tracking-[0.08em] text-fg-subtle">health</span>
       </div>
     </div>
   );
@@ -223,22 +225,22 @@ function VitalsPanel({
       <SectionLabel icon={<ShieldCheck size={13} />}>
         Portfolio health
       </SectionLabel>
-      <Panel className="flex flex-col gap-4 p-4 sm:p-5">
-        <div className="flex items-center gap-4 sm:gap-6">
+      <Panel className="flex flex-col gap-3 p-3.5 sm:p-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Ring score={score} run={run} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-fg-muted">Open work on track &amp; risk</p>
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <p className="text-[13px] text-fg-muted">Open work on track &amp; risk</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
               <RiskPill tone="success" label={`${onTrack} on track`} />
               <RiskPill tone="warn" label={`${watch} watch`} />
               <RiskPill tone="danger" label={`${risk} at risk`} />
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2.5">
-          <KpiTile href="/portal/tasks?filter=overdue" tone="danger" icon={<Target size={16} />} value={needsYou} label="Need you" run={run} />
-          <KpiTile href="/portal/tasks?filter=soon" tone="warn" icon={<Flame size={16} />} value={dueToday} label="Due today" run={run} />
-          <KpiTile href="/portal/outbox" tone="accent" icon={<Plane size={16} />} value={onLeave} label="On leave" run={run} />
+        <div className="grid grid-cols-3 gap-2">
+          <KpiTile href="/portal/tasks?filter=overdue" tone="danger" icon={<Target size={14} />} value={needsYou} label="Need you" run={run} />
+          <KpiTile href="/portal/tasks?filter=soon" tone="warn" icon={<Flame size={14} />} value={dueToday} label="Due today" run={run} />
+          <KpiTile href="/portal/outbox" tone="accent" icon={<Plane size={14} />} value={onLeave} label="On leave" run={run} />
         </div>
       </Panel>
     </div>
@@ -247,7 +249,7 @@ function VitalsPanel({
 
 function RiskPill({ tone, label }: { tone: Tone; label: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${TONE[tone].bg} ${TONE[tone].text} ring-1 ${TONE[tone].ring}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10.5px] font-medium ${TONE[tone].bg} ${TONE[tone].text} ring-1 ${TONE[tone].ring}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${TONE[tone].bar}`} />
       {label}
     </span>
@@ -259,11 +261,11 @@ function KpiTile({ href, tone, icon, value, label, run }: { href: string; tone: 
   return (
     <Link
       href={href}
-      className={`flex flex-col gap-1.5 rounded-2xl p-3 ring-1 transition-all active:scale-[0.97] ${TONE[tone].bg} ${TONE[tone].ring} hover:ring-2`}
+      className={`flex flex-col gap-1 rounded-xl p-2.5 ring-1 transition-all active:scale-[0.97] ${TONE[tone].bg} ${TONE[tone].ring} hover:ring-2`}
     >
-      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-xl bg-bg-elev/60 ${TONE[tone].text}`}>{icon}</span>
-      <span className={`text-2xl font-semibold leading-none tabular ${TONE[tone].text}`}>{n}</span>
-      <span className="text-[11px] text-fg-muted">{label}</span>
+      <span className={`inline-flex h-6 w-6 items-center justify-center rounded-lg bg-bg-elev/60 ${TONE[tone].text}`}>{icon}</span>
+      <span className={`text-xl font-semibold leading-none tabular ${TONE[tone].text}`}>{n}</span>
+      <span className="text-[10.5px] text-fg-muted">{label}</span>
     </Link>
   );
 }

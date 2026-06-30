@@ -127,8 +127,8 @@ export function FluidSelect({
           buttonClassName
         )}
       >
-        {current?.dot && <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: current.dot }} />}
-        <span className={cn(!current && "text-fg-muted")}>{current ? current.label : placeholder}</span>
+        {current?.dot && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: current.dot }} />}
+        <span className={cn("min-w-0 flex-1 truncate text-left", !current && "text-fg-muted")}>{current ? current.label : placeholder}</span>
         <ChevronDown size={13} className={cn("opacity-50 transition-transform", open && "rotate-180")} />
       </button>
 
