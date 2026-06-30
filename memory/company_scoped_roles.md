@@ -162,4 +162,7 @@ text shows in the expanded section's Description/Latest-update blocks. tsc clean
 verified collapsed + expanded. STILL TODO: staff task view (PortalTasksTable/PortalTaskDetailPane) +
 board AttentionCard alignment.
 
-## Status — FULL BUILD DONE + VERIFIED (uncommitted, NOT pushed; awaiting owner review)
+## Status — SHIPPED 2026-06-30 (commit ef49bd8, pushed to master → deploys; migration 0097 idempotent)
+Everything below is LIVE on master. Remaining work: align the STAFF task view
+(PortalTasksTable/PortalTaskDetailPane) + the board "Needs you" AttentionCard to the new glass/
+inline-controls task design (the management view is done). Original build/verify notes follow.
