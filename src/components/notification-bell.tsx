@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import {
   AtSign,
@@ -17,6 +18,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useSwipeRow } from "@/lib/use-swipe-row";
+import { useAnchored } from "@/lib/use-anchored";
 
 type NotifKind =
   | "mention"
@@ -115,6 +117,10 @@ export function NotificationBell({
   const [items, setItems] = useState<Notif[]>([]);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const ref = useRef<HTMLDivElement>(null);
+  // Viewport-aware placement: the panel is portalled to <body> as a fixed box so
+  // it never clips below the screen (it flips ABOVE the bell when room is tight —
+  // crucial for the admin bottom pill, where downward = off-screen).
+  const anchor = useAnchored(ref, open, 420);
 
   async function refresh() {
     try {
@@ -230,6 +236,25 @@ export function NotificationBell({
     })).filter((g) => g.items.length > 0);
   }, [items]);
 
+  // Turn the anchor box into a fixed-position style: align the panel's left/right
+  // edge to the matching trigger edge (clamped into the viewport), and anchor by
+  // `top` when opening down or `bottom` when flipping up.
+  const anchorStyle: React.CSSProperties = (() => {
+    if (!anchor) return { top: "-9999px", left: "-9999px" };
+    const GAP = 8;
+    const margin = 12;
+    const vw = typeof window !== "undefined" ? window.innerWidth : 0;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 0;
+    const panelW = Math.min(336, vw - margin * 2); // 21rem, capped to the viewport
+    // Anchor the chosen edge to the bell, then clamp so the panel stays on-screen.
+    let left = align === "left" ? anchor.left : anchor.left + anchor.width - panelW;
+    left = Math.max(margin, Math.min(left, vw - panelW - margin));
+    const style: React.CSSProperties = { left };
+    if (anchor.openUp) style.bottom = Math.max(margin, vh - anchor.top + GAP);
+    else style.top = anchor.top + GAP;
+    return style;
+  })();
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -247,29 +272,28 @@ export function NotificationBell({
         )}
       </button>
 
-      {open && (
-        <>
-          {/* Mobile scrim — makes the panel feel like a proper sheet and gives a clear tap-to-close target. */}
-          <button
-            type="button"
-            aria-label="Close notifications"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-[55] bg-black/30 backdrop-blur-[1px] md:hidden"
-          />
-          <div
-            role="dialog"
-            aria-label="Notifications"
-            className={
-              // Mobile: a centred sheet dropping just under the top bar.
-              "fixed left-1/2 -translate-x-1/2 top-[calc(env(safe-area-inset-top)+3.5rem)] " +
-              "w-[calc(100vw-1.5rem)] max-w-[21rem] " +
-              // Desktop: a tidy dropdown hanging below the bell, anchored to its edge.
-              "md:absolute md:translate-x-0 md:top-full md:bottom-auto md:mt-2 md:w-[21rem] md:max-w-[calc(100vw-1.5rem)] " +
-              (align === "left" ? "md:left-0 md:right-auto " : "md:right-0 md:left-auto ") +
-              // glass-menu = firmer (less see-through) fill than chrome glass.
-              "rounded-3xl glass-menu elevated ring-1 ring-border shadow-pill overflow-hidden z-[60]"
-            }
-          >
+      {open &&
+        createPortal(
+          <>
+            {/* Scrim — tap-to-close target; also dims behind the floating panel. */}
+            <button
+              type="button"
+              aria-label="Close notifications"
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-[55] bg-black/30 backdrop-blur-[1px]"
+            />
+            <div
+              role="dialog"
+              aria-label="Notifications"
+              style={anchorStyle}
+              className={
+                // Portalled, viewport-aware fixed box (never clips below the screen;
+                // flips above the bell when there isn't room below — see useAnchored).
+                "fixed w-[21rem] max-w-[calc(100vw-1.5rem)] " +
+                // glass-menu = firmer (less see-through) fill than chrome glass.
+                "rounded-3xl glass-menu elevated ring-1 ring-border shadow-pill overflow-hidden z-[60]"
+              }
+            >
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
               <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">Notifications</span>
               {items.length > 0 && (
@@ -283,7 +307,10 @@ export function NotificationBell({
               )}
             </div>
 
-            <div className="max-h-[min(60vh,26rem)] overflow-y-auto overscroll-contain">
+            <div
+              className="overflow-y-auto overscroll-contain"
+              style={{ maxHeight: anchor ? Math.max(160, anchor.maxHeight - 44) : undefined }}
+            >
               {groups.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                   <span className="h-10 w-10 rounded-full bg-bg-muted flex items-center justify-center text-fg-subtle">
@@ -325,9 +352,10 @@ export function NotificationBell({
                 })
               )}
             </div>
-          </div>
-        </>
-      )}
+            </div>
+          </>,
+          document.body
+        )}
     </div>
   );
 }
@@ -336,19 +364,12 @@ export function NotificationBell({
  *  (iPhone-style); on desktop a ✕ appears on hover. */
 function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDismiss: () => void }) {
   const CLEAR_W = 76;
-  const PEEK = 32; // how much of the red Clear action rests revealed as a hint
   const { offset, dragging, bind, reset } = useSwipeRow({ rightWidth: CLEAR_W });
   const Icon = ICON[n.kind] ?? Bell;
 
-  // On a touch device, each row opens RESTING half-swiped so the Clear action
-  // peeks out (a discoverable swipe-to-clear hint). The first touch hands control
-  // back to the normal swipe gesture. Desktop keeps its hover-✕ instead.
-  const [peeked, setPeeked] = useState(true);
-  const [coarse, setCoarse] = useState(false);
-  useEffect(() => { setCoarse(window.matchMedia("(pointer: coarse)").matches); }, []);
-  const showPeek = peeked && coarse;
-  const tx = dragging ? offset : offset !== 0 ? offset : showPeek ? -PEEK : 0;
-  const bindPeek = { ...bind, onTouchStart: (e: React.TouchEvent) => { setPeeked(false); bind.onTouchStart(e); } };
+  // Rows rest at translate 0 (no half-open peek). The Clear action is revealed
+  // only by an actual finger swipe; desktop keeps its hover-✕ instead.
+  const tx = offset;
 
   return (
     <div className="relative overflow-hidden border-b border-border/50 last:border-b-0">
@@ -366,18 +387,17 @@ function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDi
 
       <button
         type="button"
-        {...bindPeek}
+        {...bind}
         onClick={() => {
           if (offset !== 0) {
             reset();
             return;
           }
-          setPeeked(false);
           onOpen();
         }}
         style={{ transform: `translateX(${tx}px)`, transition: dragging ? "none" : "transform .2s ease" }}
-        className={`relative flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left bg-[hsl(var(--bg-elev))] hover:bg-bg-muted/60 active:bg-bg-muted/80 transition-colors group ${
-          n.readAt ? "" : "bg-accent-soft/25"
+        className={`relative flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left bg-[hsl(var(--bg-elev))] hover:bg-bg-muted active:bg-bg-muted transition-colors group ${
+          n.readAt ? "" : "bg-accent-soft/40"
         }`}
       >
         {!n.readAt && (

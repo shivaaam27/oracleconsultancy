@@ -21,6 +21,9 @@ export function PortalAttendance({ days, todayEditable, lockReason }: { days: Po
   const todayStatus = days.find((d) => d.isToday)?.status ?? null;
 
   function mark(status: AttendanceStatus) {
+    // Ignore a second tap while a mark is already in flight — the buttons dim via
+    // `pending`, but guard here too so rapid taps can't queue duplicate requests.
+    if (pending) return;
     start(async () => {
       const res = await portalMarkAttendance(status);
       toast(res.ok ? `Marked ${status} for today` : (res.error || "Couldn't save"), { tone: res.ok ? "success" : "warn" });

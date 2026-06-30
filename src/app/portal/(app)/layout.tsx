@@ -34,27 +34,29 @@ export default async function PortalLayout({ children }: { children: React.React
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
-  // Urgent "takeover" announcements block the portal until acknowledged.
-  // This runs on every portal navigation and sits ABOVE the page error
-  // boundary, so a transient DB hiccup here would blank the whole portal. Guard
-  // it: a failed lookup just means "no takeovers right now", never a crash.
-  let takeovers: Awaited<ReturnType<typeof takeoverFeedForPerson>> = [];
-  try {
-    const attrs = await getPersonAudienceAttrs(me.id);
-    takeovers = attrs ? await takeoverFeedForPerson(attrs) : [];
-  } catch {
-    takeovers = [];
-  }
-
-  // Unseen guided tours for this person (first-run walkthrough / feature
-  // spotlights). Best-effort and NON-essential — a failed lookup here must never
-  // blank the whole portal shell, so guard it (mirrors the takeover guard above).
-  let tours: Awaited<ReturnType<typeof unseenToursFor>> = [];
-  try {
-    tours = await unseenToursFor(audienceForRole(me.portalRole), me.id);
-  } catch {
-    tours = [];
-  }
+  // Urgent "takeover" announcements block the portal until acknowledged, and the
+  // unseen guided tours, are both best-effort and NON-essential — and independent
+  // of each other, so run them together rather than one-after-another. Each sits
+  // ABOVE the page error boundary, so a transient DB hiccup here would blank the
+  // whole portal; guard each one independently so a failed lookup just means
+  // "nothing right now", never a crash.
+  const [takeovers, tours] = await Promise.all([
+    (async (): Promise<Awaited<ReturnType<typeof takeoverFeedForPerson>>> => {
+      try {
+        const attrs = await getPersonAudienceAttrs(me.id);
+        return attrs ? await takeoverFeedForPerson(attrs) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    (async (): Promise<Awaited<ReturnType<typeof unseenToursFor>>> => {
+      try {
+        return await unseenToursFor(audienceForRole(me.portalRole), me.id);
+      } catch {
+        return [];
+      }
+    })(),
+  ]);
 
   // Everyone gets the room on a large screen (mobile/tablet keep the focused
   // max-w-3xl). Directors stay widest for their two-column board.

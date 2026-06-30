@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Sparkles, ArrowUp, Bolt, CalendarPlus, MessageSquarePlus, Users, Wand2, CornerDownLeft, type LucideIcon } from "lucide-react";
+import { Sparkles, ArrowUp, Bolt, CalendarPlus, MessageSquarePlus, Wand2, CornerDownLeft, type LucideIcon } from "lucide-react";
 import { CaretInput } from "./ui";
 import { DirectorTaskForm } from "./director-task-form";
 import { DirectorEventForm } from "./director-event-form";
@@ -124,14 +123,6 @@ export function SmartCaptureBar({
             </button>
           );
         })}
-        {/* Team isn't a compose mode — it jumps to the people directory + reminders. */}
-        <Link
-          href="/portal/team"
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] text-fg-muted ring-1 ring-border transition-colors hover:text-fg"
-          title="Team directory & reminders"
-        >
-          <Users size={13} /> Team
-        </Link>
         <span className="ml-auto hidden pr-1 text-[10px] text-fg-subtle lg:inline">↵ opens a quick form</span>
       </div>
 

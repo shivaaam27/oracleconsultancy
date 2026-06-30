@@ -3,20 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Search, X, ClipboardList, User, ArrowUpRight } from "lucide-react";
-import {
-  portalSearch,
-  type PortalSearchResult,
-  type PortalSearchTask,
-  type PortalSearchPerson,
-} from "@/app/portal/search-actions";
+import type {
+  PortalSearchResult,
+  PortalSearchTask,
+  PortalSearchPerson,
+} from "@/lib/portal-search";
 
 /* ------------------------------------------------------------------ *
  * Scoped staff-portal search overlay (Ctrl+K / ⌘K / Ctrl+Space).
  *
- * Strictly scoped: every result comes from the server action portalSearch,
- * which re-checks the signed-in person's permissions. The client holds no
- * unscoped data and makes no other fetch. The admin command palette
- * deliberately bails on /portal, so this owns the ⌘K hotkey here.
+ * Strictly scoped: every result comes from the /api/portal/search route
+ * handler, which re-checks the signed-in person's permissions. We fetch
+ * a plain Route Handler (NOT a server action) so a keystroke never
+ * re-renders the force-dynamic portal page. The client holds no unscoped
+ * data and makes no other fetch. The admin command palette deliberately
+ * bails on /portal, so this owns the ⌘K hotkey here.
  *
  * Aurora: a centred liquid-glass card, calm states, reduced-motion safe
  * (no framer — entrance is a CSS class that respects the portal's manual
@@ -92,7 +93,9 @@ export function PortalSearch() {
     };
   }, [open]);
 
-  // Debounced scoped search via the server action.
+  // Debounced scoped search via the /api/portal/search route handler. Fetching a
+  // plain Route Handler (not a server action) is what keeps a keystroke from
+  // re-rendering the force-dynamic portal page.
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
@@ -103,14 +106,29 @@ export function PortalSearch() {
     }
     setLoading(true);
     const seq = ++reqSeq.current;
+    // Cancel the in-flight request as soon as a newer keystroke supersedes it.
+    const ac = new AbortController();
     const t = setTimeout(async () => {
-      const data = await portalSearch(q).catch(() => EMPTY);
-      // Drop stale responses.
+      let data: PortalSearchResult = EMPTY;
+      try {
+        const res = await fetch(`/api/portal/search?q=${encodeURIComponent(q)}`, {
+          credentials: "same-origin",
+          signal: ac.signal,
+        });
+        if (res.ok) data = (await res.json()) as PortalSearchResult;
+      } catch {
+        // Aborted or network blip → fall back to EMPTY (never throw).
+        data = EMPTY;
+      }
+      // Drop stale responses (also skips the result of an aborted fetch).
       if (seq !== reqSeq.current) return;
       setResults(data);
       setLoading(false);
     }, 180);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      ac.abort();
+    };
   }, [query, open]);
 
   if (!open) return null;

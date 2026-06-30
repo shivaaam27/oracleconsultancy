@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { Users, Search, X } from "lucide-react";
@@ -11,11 +11,18 @@ import { PersonCard, type TeamPerson } from "./person-card";
 export function TeamView({ people }: { people: TeamPerson[] }) {
   const [q, setQ] = useState("");
   const ql = q.trim().toLowerCase();
+  // Render the first slice only; "Show all" reveals the rest. Each PersonCard
+  // renders that person's open tasks, so capping a big team avoids a heavy first
+  // paint. Resets whenever the search changes.
+  const TEAM_CAP = 50;
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => { setShowAll(false); }, [ql]);
 
   const shown = useMemo(
     () => (ql ? people.filter((p) => `${p.name} ${p.role ?? ""} ${p.company ?? ""}`.toLowerCase().includes(ql)) : people),
     [people, ql],
   );
+  const visible = showAll ? shown : shown.slice(0, TEAM_CAP);
 
   return (
     <div className="space-y-4">
@@ -47,11 +54,22 @@ export function TeamView({ people }: { people: TeamPerson[] }) {
       {shown.length === 0 ? (
         <Panel className="p-6 text-center text-sm text-fg-muted">No matches.</Panel>
       ) : (
-        shown.map((p, i) => (
-          <Reveal key={p.id} delay={Math.min(i * 0.015, 0.2)}>
-            <PersonCard p={p} />
-          </Reveal>
-        ))
+        <>
+          {visible.map((p, i) => (
+            <Reveal key={p.id} delay={Math.min(i * 0.015, 0.2)}>
+              <PersonCard p={p} />
+            </Reveal>
+          ))}
+          {!showAll && shown.length > TEAM_CAP && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="w-full rounded-xl bg-bg-elev px-3.5 py-2.5 text-center text-sm font-medium text-accent ring-1 ring-border transition-colors hover:bg-bg-subtle/60"
+            >
+              Show all ({shown.length})
+            </button>
+          )}
+        </>
       )}
     </div>
   );

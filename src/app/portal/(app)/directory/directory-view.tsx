@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/surface-kit";
 import { cn } from "@/lib/cn";
@@ -52,6 +52,11 @@ export function DirectoryView({
   const [q, setQ] = useState("");
   const [companyId, setCompanyId] = useState<number | "all">("all");
   const ql = q.trim().toLowerCase();
+  // Render the first slice of people only; "Show all" reveals the rest. Keeps a
+  // big directory from painting hundreds of rows at once. Resets on search/filter.
+  const PEOPLE_CAP = 50;
+  const [showAllPeople, setShowAllPeople] = useState(false);
+  useEffect(() => { setShowAllPeople(false); }, [ql, companyId]);
 
   const shown = useMemo(() => {
     return people.filter((p) => {
@@ -127,11 +132,22 @@ export function DirectoryView({
           {shown.length === 0 ? (
             <Panel className="p-6 text-center text-sm text-fg-muted">No matches.</Panel>
           ) : (
-            <Panel className="divide-y divide-border/40 overflow-hidden p-0">
-              {shown.map((p) => (
-                <PersonRow key={p.id} p={p} canOpenProfile={canOpenProfiles} />
-              ))}
-            </Panel>
+            <>
+              <Panel className="divide-y divide-border/40 overflow-hidden p-0">
+                {(showAllPeople ? shown : shown.slice(0, PEOPLE_CAP)).map((p) => (
+                  <PersonRow key={p.id} p={p} canOpenProfile={canOpenProfiles} />
+                ))}
+              </Panel>
+              {!showAllPeople && shown.length > PEOPLE_CAP && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllPeople(true)}
+                  className="w-full rounded-xl bg-bg-elev px-3.5 py-2.5 text-center text-sm font-medium text-accent ring-1 ring-border transition-colors hover:bg-bg-subtle/60"
+                >
+                  Show all ({shown.length})
+                </button>
+              )}
+            </>
           )}
         </div>
       ) : (

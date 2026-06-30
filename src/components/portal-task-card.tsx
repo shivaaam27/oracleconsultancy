@@ -74,9 +74,10 @@ export function PortalTaskCard({ task: t, viewerRole, viewerId }: { task: Portal
     { id: viewerId, portalRole: viewerRole },
     { createdByPersonId: t.createdByPersonId ?? null },
   );
-  // Swipe-left → Update (82px right tray); swipe-right → Complete (86px left tray,
-  // only when the viewer may complete). Axis-locked + finger-following.
-  const swipe = useSwipeRow({ leftWidth: canComplete ? 86 : 0, rightWidth: 82 });
+  // Swipe-left → Update (64px right tray); swipe-right → Complete (64px left tray,
+  // only when the viewer may complete). Trays kept narrow so they don't eat a small
+  // phone's width; the swipe thresholds below stay in sync. Axis-locked + finger-following.
+  const swipe = useSwipeRow({ leftWidth: canComplete ? 64 : 0, rightWidth: 64 });
 
   const now = new Date();
   const overdue = !!t.deadline && new Date(t.deadline) < now;
@@ -119,7 +120,7 @@ export function PortalTaskCard({ task: t, viewerRole, viewerId }: { task: Portal
       <button
         type="button"
         onClick={() => { swipe.reset(); setOpen(true); }}
-        className="absolute inset-y-0 right-0 flex w-[82px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent"
+        className="absolute inset-y-0 right-0 flex w-[64px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent"
       >
         <MessageSquarePlus size={17} /> Update
       </button>
@@ -129,7 +130,7 @@ export function PortalTaskCard({ task: t, viewerRole, viewerId }: { task: Portal
         <button
           type="button"
           onClick={() => { swipe.reset(); setCompleteOpen(true); }}
-          className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success"
+          className="absolute inset-y-0 left-0 flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success"
         >
           <CheckCircle2 size={18} /> Complete
         </button>

@@ -1,7 +1,7 @@
 // Server-side: computes the Director Brief and builds its shareable text.
 // One source of truth for both the /brief page and the WhatsApp/email share.
 
-import { getAllTasks, computeCompanyKpis, type TaskRow } from "./queries";
+import { getAllTasks, computeCompanyKpis, type TaskRow, type CompanyKpi } from "./queries";
 import { getCompanyLogoMap } from "./company-brand";
 import { isOpen } from "./derive";
 import { listDocuments, type DocumentRow } from "./documents";
@@ -286,9 +286,31 @@ async function buildHrBrief(
   };
 }
 
-export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | null): Promise<BriefData> {
-  const [allRows, documents] = await Promise.all([getAllTasks(), listDocuments()]);
-  const allKpis = computeCompanyKpis(allRows);
+export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | null, opts?: { skipDocuments?: boolean }): Promise<BriefData> {
+  const [allRows, documents, activeCompaniesRes] = await Promise.all([
+    getAllTasks(),
+    // `documents` only feeds the HR "expiring people documents" signal, which the
+    // director board does NOT render. The board passes skipDocuments to drop this
+    // ~1s read entirely; the /brief report still loads them in full.
+    opts?.skipDocuments ? Promise.resolve([] as DocumentRow[]) : listDocuments(),
+    // Every active company — so the board (and its filters/counts) cover the whole
+    // portfolio, not just companies that happen to already have tasks. A company with
+    // no tasks yet still appears (figures all zero → "On track / All clear") and fills
+    // in the moment it gets its first task. Mirrors the Companies hub's active list.
+    sb.from("companies").select("id,name,accent_color").eq("active", true).order("name"),
+  ]);
+  const taskKpis = computeCompanyKpis(allRows);
+  const presentIds = new Set(taskKpis.map((k) => k.id));
+  const zeroKpis: CompanyKpi[] = (activeCompaniesRes.data ?? [])
+    .filter((c) => !presentIds.has(c.id as number))
+    .map((c) => ({
+      id: c.id as number, name: c.name as string, total: 0, open: 0, inProgress: 0,
+      overdue: 0, dueSoon: 0, blocked: 0, critical: 0, escalated: 0, completed: 0,
+      closed: 0, aging: 0, riskScore: 0, accent: (c.accent_color as string | null) ?? null,
+    }));
+  // Task-bearing companies keep their real (already-verified) figures; the rest are
+  // appended with zero figures. Strict company_id grouping is preserved.
+  const allKpis: CompanyKpi[] = [...taskKpis, ...zeroKpis];
   const companyOptions = allKpis.map((k) => ({ id: k.id, name: k.name })).sort((a, b) => a.name.localeCompare(b.name));
   const selectedCompanyId = companyId && allKpis.some((k) => k.id === companyId) ? companyId : null;
   const selectedCompanyName = selectedCompanyId ? allKpis.find((k) => k.id === selectedCompanyId)?.name ?? null : null;
@@ -299,8 +321,25 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   const monthLabel = range.label;
   const asAt = now.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const companyNameById = new Map(allKpis.map((k) => [k.id, k.name]));
-  const hr = await buildHrBrief(now, range, selectedCompanyId, documents, companyNameById);
-  const notes = await listBriefNotes(range, selectedCompanyId, companyNameById);
+
+  // Next 7 days window (used by the calendar read below).
+  const weekFrom = now.toISOString();
+  const weekTo = new Date(now.getTime() + 7 * 24 * 3600_000).toISOString();
+
+  // These reads are all independent of one another and use the Supabase REST
+  // client (HTTP, not the single pooled pg connection), so fan them out instead
+  // of awaiting one-after-another — this is the brief's biggest wall-clock cost
+  // (it dominates the director board's load + reload-on-back). Total time drops
+  // from the SUM of these reads to the slowest single one.
+  const [hr, notes, logoMap, companyReqScores, appSettings, obligations, calEvents] = await Promise.all([
+    buildHrBrief(now, range, selectedCompanyId, documents, companyNameById),
+    listBriefNotes(range, selectedCompanyId, companyNameById),
+    getCompanyLogoMap(),
+    buildCompanyRequirementScores(kpis.map((k) => ({ id: k.id, name: k.name }))),
+    getAppSettings(),
+    listObligations(),
+    listCalendarEvents({ from: weekFrom, to: weekTo, ...(selectedCompanyId ? { companyId: selectedCompanyId } : {}) }),
+  ]);
 
   const deliveredThisMonth = rows
     .filter((r) => isClosed(r) && r.closedDate && r.closedDate >= range.start && r.closedDate <= range.end)
@@ -331,7 +370,6 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     });
   }
 
-  const logoMap = await getCompanyLogoMap();
   const companies: BriefCompany[] = kpis.map((k) => ({
     id: k.id, name: k.name, accent: k.accent, logoUrl: logoMap.get(k.id) ?? null, riskScore: k.riskScore, risk: riskLabel(k.riskScore),
     done: deliveredByCompany.get(k.id) ?? 0, open: k.open, inProgress: k.inProgress, overdue: k.overdue,
@@ -356,9 +394,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .slice(0, 40)
     .map((r) => ({ id: r.id, code: r.code, actionItem: r.actionItem, companyId: r.companyId, companyName: r.companyName, overdue: isOverdue(r), deadline: r.deadline, priority: r.priority }));
 
-  const compliance: BriefCompliance[] = (
-    await buildCompanyRequirementScores(kpis.map((k) => ({ id: k.id, name: k.name })))
-  )
+  const compliance: BriefCompliance[] = companyReqScores
     .filter((score) => score.status !== "Good")
     .sort((a, b) => a.score - b.score || b.expired - a.expired || b.missing - a.missing)
     .map((score) => ({
@@ -376,10 +412,10 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   // Statutory deadlines coming up — per-company aware: inside the warning window
   // with an applicable company still outstanding this period (see Command Centre).
   // Dropped entirely when the Tax & Legal area is paused (master switch).
-  const { commandCentrePaused } = await getAppSettings();
+  const { commandCentrePaused } = appSettings;
   const statutory: BriefStatutory[] = commandCentrePaused
     ? []
-    : (await outstandingDeadlines(await listObligations(), now))
+    : (await outstandingDeadlines(obligations, now))
         .slice(0, 6)
         .map((d) => ({
           label: d.label, dueDate: d.dueDate, daysLeft: d.daysLeft, flag: d.flag,
@@ -421,10 +457,7 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .sort((a, b) => (a.urgency === b.urgency ? 0 : a.urgency === "High" ? -1 : 1))
     .slice(0, 6);
 
-  // Next 7 days of calendar events (honours the company filter).
-  const weekFrom = now.toISOString();
-  const weekTo = new Date(now.getTime() + 7 * 24 * 3600_000).toISOString();
-  const calEvents = await listCalendarEvents({ from: weekFrom, to: weekTo, ...(selectedCompanyId ? { companyId: selectedCompanyId } : {}) });
+  // Next 7 days of calendar events (fetched above, honours the company filter).
   const weekAhead: BriefWeekEvent[] = calEvents
     .slice(0, 12)
     .map((e) => ({

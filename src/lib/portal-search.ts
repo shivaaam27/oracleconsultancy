@@ -1,18 +1,19 @@
-"use server";
+import "server-only";
 
 import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
 import {
   getPortalPerson,
   isGroupWide,
+  managerTeamIds,
   myCompanyIds,
-  personCanSeePerson,
   visibleTaskIds,
+  type PortalPerson,
 } from "@/lib/portal-auth";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 
 /* ------------------------------------------------------------------ *
- * Scoped portal search (Ctrl+K / ⌘K).
+ * Scoped portal search CORE (Ctrl+K / ⌘K).
  *
  * SECURITY: this is the ONLY data path for the portal search overlay.
  * Every result is re-scoped server-side to what the signed-in person is
@@ -20,6 +21,10 @@ import { getPersonCompaniesMap } from "@/lib/people-queries";
  * portal enforces (visibleTaskIds for tasks, the directory's company-set
  * intersection for people). It can never surface another company's or
  * another person's private data, and it never throws to the client.
+ *
+ * This is a PLAIN server lib (NOT "use server"): it is called from the
+ * lightweight Route Handler /api/portal/search so a keystroke never
+ * re-renders the (force-dynamic) portal page that a server action would.
  *
  * This wave: tasks + people only. No documents, governance, facts,
  * meetings, company detail or anything admin-only.
@@ -61,7 +66,7 @@ function safePattern(q: string): string {
   return `%${escapeLike(stripped)}%`;
 }
 
-export async function portalSearch(query: string): Promise<PortalSearchResult> {
+export async function runPortalSearch(query: string): Promise<PortalSearchResult> {
   // Never throw to the client — a blip just shows "no results".
   try {
     const me = await getPortalPerson();
@@ -88,23 +93,34 @@ export async function portalSearch(query: string): Promise<PortalSearchResult> {
   }
 }
 
-/** TASKS — only ids from visibleTaskIds(me) (already multi-company-aware).
- *  Match the query against task code + action_item (case-insensitive). */
+/** TASKS — scoped to the viewer's visible set, matched against task code +
+ *  action_item (case-insensitive).
+ *
+ *  OPTIMISATION: a group-wide viewer (director/HR) can see EVERY non-archived
+ *  task, so there is no point materialising the full id list with
+ *  visibleTaskIds() and then re-querying `.in("id", [huge list])`. We query the
+ *  tasks table directly, filtered to archived=false + the ilike — same result
+ *  set, one cheap query. Non-group-wide viewers keep the existing
+ *  visibleTaskIds() path (their visible set is genuinely a bounded subset). */
 async function searchTasks(
-  me: NonNullable<Awaited<ReturnType<typeof getPortalPerson>>>,
+  me: PortalPerson,
   pattern: string
 ): Promise<PortalSearchTask[]> {
-  const ids = await visibleTaskIds(me);
-  if (ids.length === 0) return [];
-
-  const { data } = await sb
+  let queryBuilder = sb
     .from("tasks")
     .select("code,action_item,status,companies(name)")
-    .in("id", ids)
     .eq("archived", false)
     .or(`code.ilike.${pattern},action_item.ilike.${pattern}`)
     .order("last_updated_at", { ascending: false, nullsFirst: false })
     .limit(TASK_CAP);
+
+  if (!isGroupWide(me.portalRole)) {
+    const ids = await visibleTaskIds(me);
+    if (ids.length === 0) return [];
+    queryBuilder = queryBuilder.in("id", ids);
+  }
+
+  const { data } = await queryBuilder;
 
   return (data ?? []).map((t) => {
     const company = (Array.isArray(t.companies) ? t.companies[0] : t.companies) as { name: string } | null;
@@ -122,9 +138,9 @@ async function searchTasks(
  *  manager/staff → people whose company set intersects myCompanyIds(me)
  *    (via getPersonCompaniesMap, to include multi-company colleagues —
  *    mirrors the directory).
- *  Match name / role / company. canOpenProfile = personCanSeePerson(me, id). */
+ *  Match name / role / company. canOpenProfile mirrors personCanSeePerson(me, id). */
 async function searchPeople(
-  me: NonNullable<Awaited<ReturnType<typeof getPortalPerson>>>,
+  me: PortalPerson,
   pattern: string,
   ql: string
 ): Promise<PortalSearchPerson[]> {
@@ -148,6 +164,27 @@ async function searchPeople(
     allowedIds.add(me.id);
     if (allowedIds.size === 0) return [];
   }
+
+  // canOpenProfile allow-set — computed ONCE here (no per-row DB query), mirroring
+  // personCanSeePerson exactly:
+  //   • group-wide  → every active person in the result is openable (all result
+  //     rows are active=true, so we can return true without a per-row read).
+  //   • manager     → managerTeamIds(me) (direct reports + company colleagues),
+  //     PLUS self.
+  //   • staff       → self only.
+  // NB: the manager team set is DISTINCT from the people allow-list above (that
+  // one is a company-set intersection for who appears at all); canOpenProfile
+  // must use managerTeamIds to keep the original personCanSeePerson semantics.
+  let openableIds: Set<number> | null = null;
+  if (!groupWide) {
+    openableIds = new Set<number>();
+    if (me.portalRole === "manager") {
+      for (const id of await managerTeamIds(me)) openableIds.add(id);
+    }
+    openableIds.add(me.id); // self is always openable
+  }
+  const canOpen = (id: number): boolean =>
+    groupWide ? true : openableIds!.has(id);
 
   // Match name / role on the DB (case-insensitive, escaped). Company name lives
   // on the join, so we also keep rows whose company name contains the query —
@@ -210,21 +247,17 @@ async function searchPeople(
 
   const top = merged.slice(0, PEOPLE_CAP);
 
-  // canOpenProfile per person — re-checks scope server-side (self/group-wide/
-  // manager-team). Staff get false everywhere but themselves.
-  const out = await Promise.all(
-    top.map(async (r) => {
-      const id = r.id as number;
-      const company = (Array.isArray(r.companies) ? r.companies[0] : r.companies) as { name: string } | null;
-      return {
-        id,
-        name: r.name as string,
-        role: (r.role as string | null) ?? null,
-        company: company?.name ?? null,
-        canOpenProfile: await personCanSeePerson(me, id),
-      };
-    })
-  );
-
-  return out;
+  // canOpenProfile per person — resolved in memory from the pre-computed allow-set
+  // (self / group-wide / manager-team). Staff get false everywhere but themselves.
+  return top.map((r) => {
+    const id = r.id as number;
+    const company = (Array.isArray(r.companies) ? r.companies[0] : r.companies) as { name: string } | null;
+    return {
+      id,
+      name: r.name as string,
+      role: (r.role as string | null) ?? null,
+      company: company?.name ?? null,
+      canOpenProfile: canOpen(id),
+    };
+  });
 }

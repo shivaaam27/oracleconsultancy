@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronRight, Check, Loader2, Send, ExternalLink,
-  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Inbox, Video,
+  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Inbox, Video, Users,
 } from "lucide-react";
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { getGivenName } from "@/lib/names";
@@ -29,7 +29,7 @@ import { useToast } from "@/components/toast";
 export type BoardPerson = { id: number; name: string; companyId: number | null; companyIds?: number[] };
 export type BoardCompany = { id: number; name: string };
 export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null; meetLink: string | null; location: string | null };
-export type CompanyHealth = { id: number; name: string; risk: string; score: number | null; detail: string; logoUrl: string | null };
+export type CompanyHealth = { id: number; name: string; risk: string; open: number; inProgress: number; overdue: number; logoUrl: string | null };
 export type PendingRequest = { id: number; code: string; title: string; from: string; category: string | null; ageDays: number };
 export type WatchItem = {
   taskId: number;
@@ -111,37 +111,21 @@ export function DirectorBoardClient(p: Props) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // Company filter: "all" (portfolio) or a single company id (as string).
-  const [companyFilter, setCompanyFilter] = useState<string>("all");
-  const selectedCompany = companyFilter === "all" ? null : Number(companyFilter);
-  const selectedName = selectedCompany != null ? p.companies.find((c) => c.id === selectedCompany)?.name ?? null : null;
-  const companyOptions: FluidOption[] = [
-    { value: "all", label: "All companies" },
-    ...p.companies.map((c) => ({ value: String(c.id), label: c.name })),
-  ];
-
-  const watch = selectedCompany != null ? p.watch.filter((w) => w.companyId === selectedCompany) : p.watch;
-  const companyHealth = selectedCompany != null ? p.companyHealth.filter((c) => c.id === selectedCompany) : p.companyHealth;
-  const events = selectedName != null ? p.upcomingEvents.filter((e) => e.companyName === selectedName) : p.upcomingEvents;
-
   return (
     <div className="flex flex-col gap-5">
-      <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} />
+      <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} companyCount={p.companies.length} />
       <SmartCaptureBar people={p.people} companies={p.companies} suggestions={p.suggestions} />
 
-      {/* Company filter — narrow the whole board to one company, or see them all. */}
-      <div className="flex items-center gap-2">
-        <Building2 size={14} className="shrink-0 text-fg-subtle" />
-        <FluidSelect
-          value={companyFilter}
-          options={companyOptions}
-          onSelect={setCompanyFilter}
-          buttonClassName="bare-field inline-flex items-center justify-between gap-2 rounded-full ring-1 ring-border px-3.5 py-1.5 text-sm min-w-[10rem]"
-        />
-        {selectedCompany != null && (
-          <span className="text-[11px] text-fg-subtle">Showing {selectedName}</span>
-        )}
-      </div>
+      {/* Team page — the directory + reminders (replaces the old company filter). */}
+      <Link
+        href="/portal/team"
+        className="group flex items-center gap-2.5 rounded-2xl bg-bg-elev px-3.5 py-2.5 text-sm ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
+      >
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/20"><Users size={15} /></span>
+        <span className="min-w-0 flex-1 font-medium">Team page</span>
+        <span className="hidden text-[11px] text-fg-subtle sm:inline">Directory &amp; reminders</span>
+        <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
+      </Link>
 
       {/* Centred command-wall: one calm scroll on mobile, two columns on the web. */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr] lg:items-start">
@@ -150,12 +134,12 @@ export function DirectorBoardClient(p: Props) {
             score={p.groupScore} onTrack={p.onTrack} watch={p.watchCount} risk={p.riskCount}
             needsYou={p.needsYou} dueToday={p.dueToday} onLeave={p.onLeaveToday} run={mounted}
           />
-          <CompanyHealthList items={companyHealth} />
+          <CompanyHealthList items={p.companyHealth} />
         </div>
         <div className="flex flex-col gap-5">
           <WaitingOnYou requests={p.pendingRequests} />
-          <AttentionStack watch={watch.slice(0, 12)} people={p.people} />
-          <WeekAhead events={events} />
+          <AttentionStack watch={p.watch.slice(0, 12)} people={p.people} />
+          <WeekAhead events={p.upcomingEvents} />
         </div>
       </div>
     </div>
@@ -163,7 +147,7 @@ export function DirectorBoardClient(p: Props) {
 }
 
 /* ---- aurora-washed greeting hero ---- */
-function BoardHero({ first, initials, liveStamp, needsYou, dueToday }: { first: string; initials: string; liveStamp: string; needsYou: number; dueToday: number }) {
+function BoardHero({ first, initials, liveStamp, needsYou, dueToday, companyCount }: { first: string; initials: string; liveStamp: string; needsYou: number; dueToday: number; companyCount: number }) {
   const [greeting, setGreeting] = useState("Welcome back");
   useEffect(() => {
     const h = new Date().getHours();
@@ -187,7 +171,7 @@ function BoardHero({ first, initials, liveStamp, needsYou, dueToday }: { first: 
             <span className="normal-case tracking-normal text-success/90">live</span>
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{greeting}, {getGivenName(first)}</h1>
-          <p className="mt-1.5 text-sm text-fg-muted">{liveStamp} · across 7 companies</p>
+          <p className="mt-1.5 text-sm text-fg-muted">{liveStamp} · across {companyCount} {companyCount === 1 ? "company" : "companies"}</p>
         </div>
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent ring-1 ring-accent/25">{initials}</span>
       </div>
@@ -245,7 +229,7 @@ function VitalsPanel({
         <div className="flex items-center gap-4 sm:gap-6">
           <Ring score={score} run={run} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-fg-muted">Group compliance &amp; risk</p>
+            <p className="text-sm text-fg-muted">Open work on track &amp; risk</p>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               <RiskPill tone="success" label={`${onTrack} on track`} />
               <RiskPill tone="warn" label={`${watch} watch`} />
@@ -303,7 +287,6 @@ function CompanyHealthList({ items }: { items: CompanyHealth[] }) {
 
 function CompanyRow({ c }: { c: CompanyHealth }) {
   const tone = riskTone(c.risk);
-  const scoreTint = c.score == null ? "text-fg" : c.score >= 80 ? "text-success" : c.score >= 55 ? "text-warn" : "text-danger";
   return (
     <Link
       href={`/portal/companies/${c.id}`}
@@ -313,10 +296,15 @@ function CompanyRow({ c }: { c: CompanyHealth }) {
       <CompanyAvatar name={c.name} logoUrl={c.logoUrl} size={34} rounded="rounded-xl" iconSize={15} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{c.name}</p>
-        <p className="truncate text-[11px] text-fg-subtle">{c.detail}</p>
+        {/* Task figures — open / in progress / overdue. Overdue is the one that needs
+            the board, so it's emphasised; a company with no tasks reads "0 open". */}
+        <p className="truncate text-[11px] text-fg-subtle">
+          {c.open} open
+          {c.inProgress > 0 && <span> · {c.inProgress} in progress</span>}
+          {c.overdue > 0 && <span> · <span className="font-medium text-danger">{c.overdue} overdue</span></span>}
+        </p>
       </div>
       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${TONE[tone].bg} ${TONE[tone].text}`}>{riskShort(c.risk)}</span>
-      {c.score != null && <span className={`w-10 shrink-0 text-right text-[15px] font-semibold tabular ${scoreTint}`}>{c.score}%</span>}
       <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
     </Link>
   );

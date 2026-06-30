@@ -82,19 +82,32 @@ export default async function PortalHome() {
   // The once-a-day check-in pop-up lives here (home only) so it can't pop over
   // other portal surfaces or run a query on every navigation. Directors never
   // reach this point (redirected above).
-  const today = await personAttendanceToday(me.id);
-  const week = await personAttendanceWeek(me.id);
-  const myTodos = await listSelfTodos(me.id);
-  // Recipients/categories for the compact "Raise a request" card beside the to-dos.
-  const [{ people: requestPeople }, requestCategories] = await Promise.all([
+  // These reads are all independent — run them together rather than one-after-
+  // another so the first paint isn't blocked by serial round-trips. Announcements
+  // genuinely depend on the audience attrs, so that pair stays sequential inside
+  // its own closure; everything else fans out.
+  const [
+    today, week, myTodos, { people: requestPeople }, requestCategories, myMeetings, { announcements }, ids,
+  ] = await Promise.all([
+    personAttendanceToday(me.id),
+    personAttendanceWeek(me.id),
+    listSelfTodos(me.id),
     requestRecipientsFor(me.id),
     getRequestCategories(),
+    // Upcoming meetings this person is invited to (read-only "Your meetings").
+    upcomingEventsForPerson(me.id, { limit: 6 }).then((events): PortalMeeting[] =>
+      events.map((e) => ({
+        id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, meetLink: e.meetLink, location: e.location,
+      })),
+    ),
+    // Announcements that target this person (pinned + newest, with their read state).
+    (async () => {
+      const audienceAttrs = await getPersonAudienceAttrs(me.id);
+      return { announcements: audienceAttrs ? await feedForPerson(audienceAttrs) : [] };
+    })(),
+    // My own tasks; managers also see their direct reports' tasks.
+    visibleTaskIds(me),
   ]);
-
-  // Upcoming meetings this person is invited to (read-only "Your meetings").
-  const myMeetings: PortalMeeting[] = (await upcomingEventsForPerson(me.id, { limit: 6 })).map((e) => ({
-    id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, meetLink: e.meetLink, location: e.location,
-  }));
 
   // Managers can schedule meetings group-wide — load the picker lists.
   let schedulePeople: Array<{ id: number; name: string }> = [];
@@ -107,13 +120,6 @@ export default async function PortalHome() {
     schedulePeople = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
     scheduleCompanies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   }
-
-  // Announcements that target this person (pinned + newest, with their read state).
-  const audienceAttrs = await getPersonAudienceAttrs(me.id);
-  const announcements = audienceAttrs ? await feedForPerson(audienceAttrs) : [];
-
-  // My own tasks; managers also see their direct reports' tasks.
-  const ids = await visibleTaskIds(me);
 
   let tasks: Row[] = [];
   if (ids.length > 0) {

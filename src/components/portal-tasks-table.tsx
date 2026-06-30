@@ -206,7 +206,9 @@ function PortalRowMenu({ row, canComplete }: { row: PortalTaskRow; canComplete: 
     const place = () => {
       const r = btnRef.current?.getBoundingClientRect();
       if (!r) return;
-      const w = 200;
+      // Clamp the menu width to the viewport on tiny phones (matches the CSS
+      // `w-[min(200px,calc(100vw-2rem))]`), so positioning and width stay in sync.
+      const w = Math.min(200, window.innerWidth - 32);
       let left = r.right - w;
       if (left < 8) left = 8;
       if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
@@ -277,7 +279,7 @@ function PortalRowMenu({ row, canComplete }: { row: PortalTaskRow; canComplete: 
               exit={{ opacity: 0, scale: 0.97, y: -2 }}
               transition={spring}
               style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, visibility: pos ? "visible" : "hidden" }}
-              className="fixed z-[120] w-[200px] glass glass-menu elevated rounded-xl shadow-lg p-1.5"
+              className="fixed z-[120] w-[min(200px,calc(100vw-2rem))] glass glass-menu elevated rounded-xl shadow-lg p-1.5"
               onClick={(e) => e.stopPropagation()}
             >
               {canComplete && !closed && (

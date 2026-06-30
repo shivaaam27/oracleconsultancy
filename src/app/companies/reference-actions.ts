@@ -39,8 +39,16 @@ export async function createCompany(name: string, prefix: string, accentColor?: 
 
   const { data: nameClash } = await sb.from("companies").select("id").ilike("name", cleanName).maybeSingle();
   if (nameClash) return { ok: false, error: "A company with that name already exists." };
-  const { data: codeClash } = await sb.from("companies").select("id").eq("code", cleanPrefix).maybeSingle();
-  if (codeClash) return { ok: false, error: `The code “${cleanPrefix}” is already in use — pick another prefix.` };
+  // Reject a clash on EITHER `code` or `code_prefix`. Task codes are generated from
+  // `code_prefix` (`<prefix>-NNN`), so two companies sharing a prefix would collide
+  // their task numbering even if their legacy `code` differs (e.g. one on "CO03").
+  // cleanPrefix is validated to [A-Z0-9]{2,4} above, so it's safe in the .or() filter.
+  const { data: codeClash } = await sb
+    .from("companies")
+    .select("id")
+    .or(`code.eq.${cleanPrefix},code_prefix.eq.${cleanPrefix}`)
+    .limit(1);
+  if (codeClash && codeClash.length) return { ok: false, error: `The code “${cleanPrefix}” is already in use — pick another prefix.` };
 
   const { data, error } = await sb.from("companies").insert({
     name: cleanName,

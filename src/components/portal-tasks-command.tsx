@@ -374,8 +374,10 @@ function TaskRow({
   const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
   const involved = t.assignees.length || (t.accountableName ? 1 : 0);
   // Swipe-left reveals Update (+ Remind-all when shared); swipe-right reveals
-  // Complete (only when this viewer may complete). Axis-locked + finger-following.
-  const swipe = useSwipeRow({ leftWidth: canComplete ? 86 : 0, rightWidth: involved > 1 ? 156 : 78 });
+  // Complete (only when this viewer may complete). Trays kept narrow so they don't
+  // eat a small phone's width; thresholds below stay in sync (64px per action).
+  // Axis-locked + finger-following.
+  const swipe = useSwipeRow({ leftWidth: canComplete ? 64 : 0, rightWidth: involved > 1 ? 128 : 64 });
 
   // A row of bordered pill controls — all matching the status dropdown
   // (FluidSelect with `fieldShell`) — then the "On this task" people panel,
@@ -530,18 +532,18 @@ function TaskRow({
     <div className={cn("relative overflow-hidden rounded-2xl", t.isDone && "opacity-60")}>
       {/* Revealed on swipe-left */}
       <div className="absolute inset-y-0 right-0 flex">
-        <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent">
+        <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent">
           <MessageSquarePlus size={17} /> Update
         </button>
         {involved > 1 && (
-          <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[78px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
+          <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
             <Bell size={17} /> Remind all
           </button>
         )}
       </div>
       {/* Revealed on swipe-right — only when this viewer may complete the task. */}
       {canComplete && (
-        <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[86px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
+        <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft text-[11px] font-medium text-success">
           <Check size={18} /> Complete
         </button>
       )}

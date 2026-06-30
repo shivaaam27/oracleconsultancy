@@ -21,7 +21,9 @@ export const dynamic = "force-dynamic";
 const riskTone = (r: string): "success" | "warn" | "danger" =>
   r === "On track" || r === "Healthy" || r === "Good" ? "success" : r === "At risk" || r === "Risk" || r === "High risk" ? "danger" : "warn";
 
-const boardBrief = cache(async () => getBrief(new Date(), "month", null));
+// The board doesn't render document-derived signals, so skip the ~1s listDocuments
+// read — a meaningful cut to the board's load (and its reload when you navigate back).
+const boardBrief = cache(async () => getBrief(new Date(), "month", null, { skipDocuments: true }));
 
 export default async function DirectorBoard({ searchParams }: { searchParams: Promise<{ created?: string }> }) {
   const me = await getPortalPerson();
@@ -60,44 +62,49 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
 }
 
 async function Board({ personName, personId }: { personName: string; personId: number }) {
-  const brief = await boardBrief();
+  const nowMs = Date.now();
+
+  // The brief, the approvals inbox, and the composer's picker lists are all
+  // independent of one another — fetch them CONCURRENTLY rather than in series.
+  // The board's load (and its reload when you navigate back from a company) is
+  // dominated by these round-trips, so overlapping them is a direct win. Each
+  // falls back to empty on a transient error (re-populates on the next refresh).
+  const [brief, reqRows, pickerData] = await Promise.all([
+    boardBrief(),
+    listRequestsForPortal(personId).catch((): Awaited<ReturnType<typeof listRequestsForPortal>> => []),
+    Promise.all([
+      sb.from("companies").select("id,name").order("name"),
+      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+      getPersonCompaniesMap(),
+    ]).catch(() => null),
+  ]);
 
   // Requests addressed to this director that aren't resolved yet — the operator's
-  // approvals inbox, surfaced on the board (raised-by-me requests are excluded).
-  const nowMs = Date.now();
-  let pendingRequests: PendingRequest[] = [];
-  try {
-    const reqRows = await listRequestsForPortal(personId);
-    pendingRequests = reqRows
-      // Addressed to me (not raised by me) and still awaiting a first decision.
-      .filter((r) => r.requesterId !== personId && r.status === "open")
-      .slice(0, 5)
-      .map((r) => ({
-        id: r.id,
-        code: r.code,
-        title: r.title,
-        from: r.requesterIsOwner ? "Owner" : r.requesterName,
-        category: r.category,
-        ageDays: Math.max(0, Math.floor((nowMs - new Date(r.createdAt).getTime()) / 86400000)),
-      }));
-  } catch { /* leave empty — re-populates next refresh */ }
+  // approvals inbox (raised-by-me requests are excluded).
+  const pendingRequests: PendingRequest[] = reqRows
+    .filter((r) => r.requesterId !== personId && r.status === "open")
+    .slice(0, 5)
+    .map((r) => ({
+      id: r.id,
+      code: r.code,
+      title: r.title,
+      from: r.requesterIsOwner ? "Owner" : r.requesterName,
+      category: r.category,
+      ageDays: Math.max(0, Math.floor((nowMs - new Date(r.createdAt).getTime()) / 86400000)),
+    }));
 
   // Fast lookups for the composer pickers.
   let companies: Array<{ id: number; name: string }> = [];
   let people: Array<{ id: number; name: string; companyId: number | null; companyIds: number[] }> = [];
-  try {
-    const [{ data: companiesRaw }, { data: peopleRaw }, personCompanies] = await Promise.all([
-      sb.from("companies").select("id,name").order("name"),
-      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-      getPersonCompaniesMap(),
-    ]);
+  if (pickerData) {
+    const [{ data: companiesRaw }, { data: peopleRaw }, personCompanies] = pickerData;
     companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
     people = (peopleRaw ?? []).map((p) => {
       const id = p.id as number;
       const primary = (p.company_id as number | null) ?? null;
       return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
     });
-  } catch { /* leave empty — re-populates next refresh */ }
+  }
 
   // Resolve the responsible person for each watch task (for inline reassign + remind).
   // Generous slice so the board's company filter has items per company; the client
@@ -170,9 +177,12 @@ async function Board({ personName, personId }: { personName: string; personId: n
     };
   });
 
-  // Group score = average company compliance (the board's single health number).
-  const compScores = brief.compliance.map((c) => c.score);
-  const groupScore = compScores.length ? Math.round(compScores.reduce((a, b) => a + b, 0) / compScores.length) : 100;
+  // Group health = the share of open work that's on track (i.e. NOT overdue) across
+  // the whole portfolio. Task-based, matching the company-health rows and the risk
+  // pills; 100% when nothing is open or nothing is overdue.
+  const openTotal = brief.companies.reduce((a, c) => a + c.open, 0);
+  const overdueTotal = brief.companies.reduce((a, c) => a + c.overdue, 0);
+  const groupScore = openTotal === 0 ? 100 : Math.round(100 * (1 - overdueTotal / openTotal));
 
   const onTrack = brief.companies.filter((c) => riskTone(c.risk) === "success").length;
   const risk = brief.companies.filter((c) => riskTone(c.risk) === "danger").length;
@@ -192,27 +202,22 @@ async function Board({ personName, personId }: { personName: string; personId: n
   // Per-company health = risk band (from tasks) merged with compliance score +
   // a one-line "why" (overdue tasks / expired / expiring / missing docs). Sorted
   // worst-first so the row that needs the board sits at the top.
-  const compById = new Map(brief.compliance.map((c) => [c.companyId, c] as const));
   const logoMap = await getCompanyLogoMap();
   const rank = (r: string) => (riskTone(r) === "danger" ? 0 : riskTone(r) === "warn" ? 1 : 2);
+  // Company health reads from TASKS — open / in progress / overdue — not document
+  // compliance, so the pill and the figures are the same lens. A company with no
+  // tasks simply shows "0 open". Worst-first: risk band, then overdue, then open.
   const companyHealth: CompanyHealth[] = brief.companies
-    .map((c) => {
-      const comp = compById.get(c.id);
-      const bits: string[] = [];
-      if (c.overdue) bits.push(`${c.overdue} overdue`);
-      if (comp?.expired) bits.push(`${comp.expired} doc${comp.expired > 1 ? "s" : ""} expired`);
-      else if (comp?.expiring) bits.push(`${comp.expiring} expiring`);
-      if (comp?.missing) bits.push(`${comp.missing} missing`);
-      return {
-        id: c.id,
-        name: c.name,
-        risk: c.risk,
-        score: comp?.score ?? null,
-        detail: bits.slice(0, 2).join(" · ") || "All clear",
-        logoUrl: logoMap.get(c.id) ?? null,
-      };
-    })
-    .sort((a, b) => rank(a.risk) - rank(b.risk) || (a.score ?? 100) - (b.score ?? 100));
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      risk: c.risk,
+      open: c.open,
+      inProgress: c.inProgress,
+      overdue: c.overdue,
+      logoUrl: logoMap.get(c.id) ?? null,
+    }))
+    .sort((a, b) => rank(a.risk) - rank(b.risk) || b.overdue - a.overdue || b.open - a.open);
 
   const initials = getInitials(personName);
 
