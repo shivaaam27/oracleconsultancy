@@ -4,7 +4,7 @@ import { Hero } from "@/components/surface-kit";
 import type { Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson, visibleTaskIds, myCompanyIds } from "@/lib/portal-auth";
+import { getPortalPerson, visibleTaskIds, seesAllCompanies, companyScope } from "@/lib/portal-auth";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { getAllTasks, statusBreakdown, priorityBreakdown, type TaskRow } from "@/lib/queries";
 import { PortalInsights, type Segment, type CompanyOpen } from "@/components/portal-insights";
@@ -40,7 +40,7 @@ export default async function PortalInsightsPage() {
   // Management only (manager / HR / director). Staff never see Insights.
   if (!portalCapabilities(me.portalRole).isManagement) redirect("/portal");
 
-  const groupWide = me.portalRole === "director" || me.portalRole === "hr";
+  const groupWide = seesAllCompanies(me);
 
   // Always derive from the SAME source the admin command centre uses, then scope.
   //  - director / HR: the whole portfolio (group-wide).
@@ -53,7 +53,7 @@ export default async function PortalInsightsPage() {
     rows = allRows.filter((r) => !r.archived);
   } else {
     const ids = new Set(await visibleTaskIds(me));
-    companyAllow = new Set(await myCompanyIds(me));
+    companyAllow = new Set((await companyScope(me)) ?? []);
     rows = allRows.filter((r) => ids.has(r.id) && !r.archived);
   }
 

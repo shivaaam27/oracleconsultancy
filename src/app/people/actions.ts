@@ -1027,7 +1027,14 @@ export async function setPortalRoleQuick(personId: number, role: string): Promis
   if (!row?.portal_password_hash) return { ok: false, error: "No portal access yet — enable it first." };
   const prev = (row.portal_role as string | null) ?? "staff";
   if (prev === next) return { ok: true };
-  const { error } = await sb.from("people").update({ portal_role: next }).eq("id", personId);
+  // Demoting out of "director" clears any company-scope (a scoped director becoming a
+  // manager/staff must not keep a stale director_company_id). This quick control
+  // doesn't pick a company, so a director set here is portfolio-wide; scope it in
+  // Settings → Staff portal access.
+  const { error } = await sb
+    .from("people")
+    .update({ portal_role: next, ...(next !== "director" ? { director_company_id: null } : {}) })
+    .eq("id", personId);
   if (error) return { ok: false, error: error.message };
   await recordEvent("portal.role.changed", "ok", { personId, from: prev, to: next });
   invalidate();
@@ -1057,7 +1064,7 @@ export async function enablePortalAccessQuick(personId: number, role: string, pa
 export async function revokePortalAccessQuick(personId: number): Promise<ActionResult> {
   if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
   const { error } = await sb.from("people")
-    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff" })
+    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff", director_company_id: null })
     .eq("id", personId);
   if (error) return { ok: false, error: error.message };
   await recordEvent("portal.access.revoked", "ok", { personId });

@@ -464,7 +464,7 @@ export const ENTITY_DEFS: EntityDef[] = [
     search: {
       // Small, typo-critical table: fetch whole + rank in memory (NO ilike net,
       // NO DB current-filter); archived rows are dropped in-memory below.
-      select: "id,name,role,email,nationality,passport_no,national_id,company_id,active, companies(name)",
+      select: "id,name,role,email,nationality,passport_no,national_id,company_id,active, companies!company_id(name)",
       limit: 500,
       toResult: (r, ctx) => {
         const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;

@@ -213,12 +213,19 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   const RANK: Record<string, number> = { staff: 0, manager: 1, hr: 2, director: 2 };
   const effectiveRole = wasEnabled && (RANK[role] ?? 0) < (RANK[prevRole] ?? 0) ? prevRole : role;
 
+  // Company-scoped director: a "director" with a chosen company → scoped to it;
+  // blank/portfolio → null. Any non-director role clears the scope entirely.
+  const dirCo = Number(fd.get("directorCompanyId"));
+  const directorCompanyId =
+    effectiveRole === "director" && Number.isFinite(dirCo) && dirCo > 0 ? dirCo : null;
+
   const { error } = await sb
     .from("people")
     .update({
       portal_password_hash: hashPassword(password),
       portal_enabled_at: new Date().toISOString(),
       portal_role: effectiveRole,
+      director_company_id: directorCompanyId,
     })
     .eq("id", personId);
   if (error) throw new Error(error.message);
@@ -241,7 +248,14 @@ export async function setPortalRole(fd: FormData): Promise<void> {
   if (!row?.portal_password_hash) redirect("/settings?portal=error");
   const prevRole = (row.portal_role as string | null) ?? "staff";
 
-  const { error } = await sb.from("people").update({ portal_role: role }).eq("id", personId);
+  // Scope a director to one company (or clear it for portfolio / any other role).
+  const dirCo = Number(fd.get("directorCompanyId"));
+  const directorCompanyId = role === "director" && Number.isFinite(dirCo) && dirCo > 0 ? dirCo : null;
+
+  const { error } = await sb
+    .from("people")
+    .update({ portal_role: role, director_company_id: directorCompanyId })
+    .eq("id", personId);
   if (error) throw new Error(error.message);
   await recordEvent("portal.role.changed", "ok", { personId, from: prevRole, to: role });
   revalidatePath("/settings");
@@ -357,7 +371,7 @@ export async function revokePortalAccess(fd: FormData): Promise<void> {
   if (!Number.isFinite(personId) || personId <= 0) redirect("/settings?portal=error");
   const { error } = await sb
     .from("people")
-    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff" })
+    .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff", director_company_id: null })
     .eq("id", personId);
   if (error) throw new Error(error.message);
   await recordEvent("portal.access.revoked", "ok", { personId });

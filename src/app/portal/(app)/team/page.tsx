@@ -38,6 +38,10 @@ export default async function PortalTeamPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   if (me.portalRole === "staff") redirect("/portal");
+  // Directors no longer have a separate Team page — Outbox (per-person tasks +
+  // reminders) plus the Directory (contacts) cover it, and attendance was removed
+  // from the director view. Managers/HR keep this page (it carries team attendance).
+  if (me.portalRole === "director") redirect("/portal/outbox");
 
   const tasks = (await getAllTasks()).filter((t) => isOpen(t.status));
   const byPerson = new Map<number, typeof tasks>();
@@ -49,13 +53,13 @@ export default async function PortalTeamPage() {
     }
   }
 
-  // Director / HR see everyone group-wide; a manager's team is scoped to their
-  // own company plus any direct reports (matching their task visibility), so a
-  // newly-created manager isn't shown the whole portfolio.
+  // HR sees everyone group-wide; a manager's team is scoped to their own company plus
+  // direct reports. (Directors never reach this page — they're redirected to Outbox
+  // above.) teamIds === null means "everyone".
   const teamIds = me.portalRole === "manager" ? await managerTeamIds(me) : null;
   let peopleQuery = sb
     .from("people")
-    .select("id,name,role,email,phone,whatsapp,company_id,companies(name)")
+    .select("id,name,role,email,phone,whatsapp,company_id,companies!company_id(name)")
     .eq("active", true)
     .order("name");
   if (teamIds) peopleQuery = peopleQuery.in("id", teamIds.length > 0 ? teamIds : [-1]);

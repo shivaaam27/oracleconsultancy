@@ -142,6 +142,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
   const showTasks = caps.tabs.tasks;
   const showOutbox = caps.tabs.outbox;
   const showInsights = caps.tabs.insights;
+  const showRequests = caps.tabs.requests;
   const onBoard = pathname.startsWith("/portal/board");
   const onTasks = pathname.startsWith("/portal/tasks");
   const onDirectory = pathname.startsWith("/portal/directory");
@@ -207,7 +208,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
           {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} />}
           {/* Glanceable portfolio/team Insights — management only. */}
           {showInsights && <PillTab href="/portal/insights" icon={BarChart3} label="Insights" active={onInsights} labelled={labelFor(onInsights)} reduce={reduce} />}
-          <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} tourTag="nav-requests" />
+          {showRequests && <PillTab href="/portal/requests" icon={Inbox} label="Requests" active={onRequests} labelled={labelFor(onRequests)} reduce={reduce} tourTag="nav-requests" />}
           <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} />
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} tourTag="nav-profile" />
         </div>

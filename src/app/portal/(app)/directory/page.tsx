@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson, isGroupWide, myCompanyIds } from "@/lib/portal-auth";
+import { getPortalPerson, seesAllCompanies, companyScope } from "@/lib/portal-auth";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
@@ -30,12 +30,12 @@ export default async function PortalDirectoryPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
-  const groupWide = isGroupWide(me.portalRole);
-  // Non-group-wide viewers (managers/staff) are scoped to ALL the companies THEY
-  // belong to (a person may work for more than one). An unscoped person (no
-  // company at all) must NOT fall through to group-wide data, so we deliberately
-  // show them an empty set rather than the whole portfolio.
-  const cids = groupWide ? [] : await myCompanyIds(me);
+  const groupWide = seesAllCompanies(me);
+  // Non-all-companies viewers are scoped to their company set: managers/staff → the
+  // companies THEY belong to; a company-scoped director → their ONE company. An
+  // unscoped person (no company at all) must NOT fall through to group-wide data, so
+  // we deliberately show them an empty set rather than the whole portfolio.
+  const cids = groupWide ? [] : ((await companyScope(me)) ?? []);
   const scopedUnscoped = !groupWide && cids.length === 0;
 
   // For non-group-wide viewers we must surface multi-company colleagues too: a
@@ -58,7 +58,7 @@ export default async function PortalDirectoryPage() {
   // of their companies (the id list above); director/HR see everyone.
   let peopleQuery = sb
     .from("people")
-    .select("id,name,role,email,phone,whatsapp,company_id,companies(name)")
+    .select("id,name,role,email,phone,whatsapp,company_id,companies!company_id(name)")
     .eq("active", true)
     .order("name");
   if (!groupWide) {

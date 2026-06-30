@@ -129,6 +129,12 @@ export const people = pgTable("people", {
   // tasks, may complete/pin), "hr" (admin/HR — every company's tasks) or
   // "director" (group-wide operator board). Only meaningful with access.
   portalRole: text("portal_role").notNull().default("staff"),
+  // Company-scoped director: when portalRole === "director" AND this is set, the
+  // director's powers/board are limited to this ONE company (a "Company Director")
+  // instead of the whole portfolio. NULL on a director = portfolio-wide (default).
+  // Ignored for non-director roles. See lib/portal-auth.ts (scope helpers) +
+  // memory/company_scoped_roles.md.
+  directorCompanyId: integer("director_company_id").references(() => companies.id),
   // Comma-separated former staff IDs, stamped when the person moves company,
   // so old references (e.g. CZ-E04) stay traceable. See lib/staff-id.ts.
   previousStaffIds: text("previous_staff_ids"),

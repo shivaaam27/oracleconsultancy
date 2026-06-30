@@ -54,9 +54,8 @@ export async function requestRecipientsFor(meId: number): Promise<{ people: Requ
     .maybeSingle();
   if (!me) return { people: [] };
 
-  const [{ data: dotted }, { data: directors }, { data: hr }, deptHead] = await Promise.all([
+  const [{ data: dotted }, { data: hr }, deptHead] = await Promise.all([
     sb.from("reporting_lines").select("manager_id").eq("person_id", meId),
-    sb.from("people").select("id").eq("portal_role", "director").eq("active", true),
     sb.from("people").select("id").eq("portal_role", "hr").eq("active", true),
     me.department_id != null && me.company_id != null
       ? sb
@@ -80,7 +79,10 @@ export async function requestRecipientsFor(meId: number): Promise<{ people: Requ
   add(me.manager_id as number | null, "Your manager");
   for (const r of dotted ?? []) add(r.manager_id as number | null, "Also reports to");
   add((deptHead.data?.head_person_id as number | null) ?? null, "Department head");
-  for (const d of directors ?? []) add(d.id as number, "Director");
+  // Directors are intentionally NOT addressable from the staff portal for now —
+  // requests were removed from the director portal, so routing to them would orphan
+  // the request. Staff reach managers / department heads / HR (and the owner sees all
+  // requests in the command centre regardless).
   for (const h of hr ?? []) add(h.id as number, "HR / Admin");
 
   if (order.length === 0) return { people: [] };
@@ -102,7 +104,7 @@ export async function canAddress(meId: number, addresseeId: number): Promise<boo
 export async function allActivePeople(): Promise<RequestRecipient[]> {
   const { data } = await sb
     .from("people")
-    .select("id,name,role,companies(name)")
+    .select("id,name,role,companies!company_id(name)")
     .eq("active", true)
     .order("name", { ascending: true });
   return (data ?? []).map((p) => ({

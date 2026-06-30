@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { getPortalPerson, directReportIds, type PortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, directReportIds, isScopedDirector } from "@/lib/portal-auth";
 import { personRecipient, notifyMany } from "@/lib/notifications";
 import {
   getAnnouncement,
@@ -45,7 +45,7 @@ function parseDateLocal(v: string | null): string | null {
 /** Build the row from a form, applying the author's scope restrictions. */
 type BuiltPayload = { ok: false; error: string } | { ok: true; payload: Record<string, unknown> };
 
-async function buildPayload(fd: FormData, author: { createdBy: string; authorPersonId: number | null; manager: PortalPerson | null }): Promise<BuiltPayload> {
+async function buildPayload(fd: FormData, author: { createdBy: string; authorPersonId: number | null; scope: { companyId: number | null; managerId: number | null } | null }): Promise<BuiltPayload> {
   const title = (fd.get("title")?.toString() ?? "").trim();
   if (!title) return { ok: false, error: "A title is required." };
   const body = (fd.get("body")?.toString() ?? "").trim();
@@ -59,20 +59,25 @@ async function buildPayload(fd: FormData, author: { createdBy: string; authorPer
     ? rawValues.map((v) => Number(v)).filter((n) => Number.isFinite(n))
     : rawValues;
 
-  // Manager scope guard: a manager may only address their own company or their
-  // direct reports. Broad audiences collapse to "their company".
-  if (author.manager) {
-    const m = author.manager;
+  // Scope guard: a MANAGER or a company-scoped DIRECTOR may only address their own
+  // company — broad audiences (everyone / managers / directors / role / type / site /
+  // department) collapse to "their company"; "specific people" is filtered to people
+  // in that company (plus a manager's direct reports). A portfolio director / admin
+  // (scope null) is unrestricted. This is the server-side guarantee — never trust the
+  // composer to have limited the audience.
+  if (author.scope) {
+    const { companyId, managerId } = author.scope;
     if (audienceKind === "all" || audienceKind === "managers" || audienceKind === "directors" || audienceKind === "role" || audienceKind === "person_type" || audienceKind === "site" || audienceKind === "department") {
       audienceKind = "company";
-      audienceValues = m.companyId != null ? [m.companyId] : [];
+      audienceValues = companyId != null ? [companyId] : [];
     } else if (audienceKind === "company") {
-      audienceValues = m.companyId != null ? [m.companyId] : [];
+      audienceValues = companyId != null ? [companyId] : [];
     } else if (audienceKind === "people") {
-      const reports = new Set(await directReportIds(m.id));
-      const { data } = await sb.from("people").select("id").eq("company_id", m.companyId ?? -1);
-      const sameCompany = new Set((data ?? []).map((r) => r.id as number));
-      audienceValues = audienceValues.filter((v) => typeof v === "number" && (reports.has(v) || sameCompany.has(v)));
+      const allowed = new Set<number>();
+      const { data } = await sb.from("people").select("id").eq("company_id", companyId ?? -1);
+      for (const r of data ?? []) allowed.add(r.id as number);
+      if (managerId != null) for (const id of await directReportIds(managerId)) allowed.add(id);
+      audienceValues = audienceValues.filter((v) => typeof v === "number" && allowed.has(v));
     }
   }
 
@@ -135,7 +140,7 @@ async function notifyAudience(id: number) {
 export async function saveAnnouncementAction(fd: FormData): Promise<Result> {
   const idRaw = fd.get("id")?.toString();
   const id = idRaw ? Number(idRaw) : null;
-  const built = await buildPayload(fd, { createdBy: "web-ui", authorPersonId: null, manager: null });
+  const built = await buildPayload(fd, { createdBy: "web-ui", authorPersonId: null, scope: null });
   if (!built.ok) return { ok: false, error: built.error };
 
   const action = fd.get("action")?.toString() ?? "draft"; // draft | publish
@@ -210,7 +215,14 @@ export async function portalCreateAnnouncement(fd: FormData): Promise<Result> {
   const built = await buildPayload(fd, {
     createdBy,
     authorPersonId: me.id,
-    manager: me.portalRole === "manager" ? me : null,
+    // Managers AND company-scoped directors are limited to their own company; a
+    // portfolio director is unrestricted (scope null).
+    scope:
+      me.portalRole === "manager"
+        ? { companyId: me.companyId, managerId: me.id }
+        : isScopedDirector(me)
+          ? { companyId: me.directorCompanyId, managerId: null }
+          : null,
   });
   if (!built.ok) return { ok: false, error: built.error };
 

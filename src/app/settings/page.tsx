@@ -57,17 +57,19 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string; section?: string }>;
 }) {
-  const [s, sp, googleStatus, { data: peopleRows }, ownerIdentity] = await Promise.all([
+  const [s, sp, googleStatus, { data: peopleRows }, { data: companyRows }, ownerIdentity] = await Promise.all([
     getAppSettings(),
     searchParams,
     getGoogleStatus(),
     sb
       .from("people")
-      .select("id,name,portal_password_hash,portal_last_login_at,portal_role")
+      .select("id,name,portal_password_hash,portal_last_login_at,portal_role,director_company_id")
       .eq("active", true)
       .order("name"),
+    sb.from("companies").select("id,name").eq("active", true).order("name"),
     getOwnerIdentity(),
   ]);
+  const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const ownerPasskeys = await listCredentials({ kind: "admin" });
   const groqKey = await getGroqKeyPreview();
   const signatureImageUrl = s.emailSignatureImagePath
@@ -80,6 +82,7 @@ export default async function SettingsPage({
     enabled: Boolean(p.portal_password_hash),
     lastLogin: p.portal_last_login_at as string | null,
     role: ((p.portal_role as string | null) ?? "staff") as "staff" | "manager" | "director",
+    directorCompanyId: (p.director_company_id as number | null) ?? null,
   }));
   const portalEnabled = portalPeople.filter((p) => p.enabled);
   const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -582,6 +585,20 @@ export default async function SettingsPage({
                         <option value="hr">Admin</option>
                         <option value="director">Director</option>
                       </Select>
+                      {/* Director scope: blank = whole portfolio; a company = Company Director.
+                          Ignored server-side unless the role is Director. */}
+                      <Select
+                        name="directorCompanyId"
+                        defaultValue={p.directorCompanyId ? String(p.directorCompanyId) : ""}
+                        className="h-8 text-xs"
+                        aria-label="Director scope"
+                        title="If Director: all companies, or limit to one"
+                      >
+                        <option value="">All companies</option>
+                        {companies.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name} only</option>
+                        ))}
+                      </Select>
                       <Button type="submit" variant="secondary" size="sm">Save</Button>
                     </form>
                     <form action={revokePortalAccess}>
@@ -613,7 +630,16 @@ export default async function SettingsPage({
                   <option value="staff">Staff — own tasks only</option>
                   <option value="manager">Manager — own + direct reports&apos; + own company&apos;s tasks, can complete</option>
                   <option value="hr">Admin — every company&apos;s tasks, can create across all</option>
-                  <option value="director">Director — board view + create tasks/events across all companies</option>
+                  <option value="director">Director — board view + create tasks/events</option>
+                </Select>
+              </div>
+              <div className="sm:col-span-2 lg:col-span-4">
+                <FieldLabel>If Director — scope (optional)</FieldLabel>
+                <Select name="directorCompanyId" defaultValue="" aria-label="Director scope">
+                  <option value="">All companies (portfolio director)</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name} only (company director)</option>
+                  ))}
                 </Select>
               </div>
               <div>

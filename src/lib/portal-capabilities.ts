@@ -46,7 +46,8 @@ export type PortalCapabilities = {
     outbox: boolean;
     /** Glanceable portfolio/team Insights — management only. */
     insights: boolean;
-    /** Raise / view requests — everyone. */
+    /** Raise / view requests — everyone EXCEPT directors (removed from the director
+     *  portal for now; staff/managers/HR keep it). */
     requests: boolean;
     /** Activity feed — everyone. */
     activity: boolean;
@@ -85,7 +86,9 @@ export function portalCapabilities(role: PortalRole | string | undefined): Porta
       directory: true,
       outbox: isManagement,
       insights: isManagement,
-      requests: true,
+      // Requests are hidden from the director portal for now (directors don't triage
+      // requests here); everyone else keeps them.
+      requests: !isDirector,
       activity: true,
       chat: true,
       profile: true,

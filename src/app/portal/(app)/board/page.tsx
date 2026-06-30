@@ -10,10 +10,9 @@ import { getGivenName, getInitials } from "@/lib/names";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { getBrief } from "@/lib/director-brief";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
-import { listRequestsForPortal } from "@/lib/requests";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
-import { DirectorBoardClient, type WatchItem, type CompanyHealth, type PendingRequest } from "@/components/director-board-client";
+import { DirectorBoardClient, type WatchItem, type CompanyHealth } from "@/components/director-board-client";
 import { AutoRefresh } from "@/components/auto-refresh";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +22,8 @@ const riskTone = (r: string): "success" | "warn" | "danger" =>
 
 // The board doesn't render document-derived signals, so skip the ~1s listDocuments
 // read — a meaningful cut to the board's load (and its reload when you navigate back).
-const boardBrief = cache(async () => getBrief(new Date(), "month", null, { skipDocuments: true }));
+// `companyId` scopes a COMPANY DIRECTOR's board to their one company (null = portfolio).
+const boardBrief = cache((companyId: number | null) => getBrief(new Date(), "month", companyId, { skipDocuments: true }));
 
 export default async function DirectorBoard({ searchParams }: { searchParams: Promise<{ created?: string }> }) {
   const me = await getPortalPerson();
@@ -43,7 +43,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
       )}
 
       <Suspense fallback={<BoardSkeleton name={getGivenName(me.name)} />}>
-        <Board personName={me.name} personId={me.id} />
+        <Board personName={me.name} directorCompanyId={me.directorCompanyId} />
       </Suspense>
 
       {announcements.length > 0 && (
@@ -61,37 +61,22 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   );
 }
 
-async function Board({ personName, personId }: { personName: string; personId: number }) {
-  const nowMs = Date.now();
-
-  // The brief, the approvals inbox, and the composer's picker lists are all
-  // independent of one another — fetch them CONCURRENTLY rather than in series.
-  // The board's load (and its reload when you navigate back from a company) is
-  // dominated by these round-trips, so overlapping them is a direct win. Each
-  // falls back to empty on a transient error (re-populates on the next refresh).
-  const [brief, reqRows, pickerData] = await Promise.all([
-    boardBrief(),
-    listRequestsForPortal(personId).catch((): Awaited<ReturnType<typeof listRequestsForPortal>> => []),
+async function Board({ personName, directorCompanyId }: { personName: string; directorCompanyId: number | null }) {
+  // The brief and the composer's picker lists are independent — fetch them
+  // CONCURRENTLY rather than in series. The board's load (and its reload when you
+  // navigate back from a company) is dominated by these round-trips, so overlapping
+  // them is a direct win. Each falls back to empty on a transient error.
+  const [brief, pickerData] = await Promise.all([
+    boardBrief(directorCompanyId),
     Promise.all([
-      sb.from("companies").select("id,name").order("name"),
+      // A company director's composer only offers THEIR company.
+      directorCompanyId != null
+        ? sb.from("companies").select("id,name").eq("id", directorCompanyId)
+        : sb.from("companies").select("id,name").order("name"),
       sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
       getPersonCompaniesMap(),
     ]).catch(() => null),
   ]);
-
-  // Requests addressed to this director that aren't resolved yet — the operator's
-  // approvals inbox (raised-by-me requests are excluded).
-  const pendingRequests: PendingRequest[] = reqRows
-    .filter((r) => r.requesterId !== personId && r.status === "open")
-    .slice(0, 5)
-    .map((r) => ({
-      id: r.id,
-      code: r.code,
-      title: r.title,
-      from: r.requesterIsOwner ? "Owner" : r.requesterName,
-      category: r.category,
-      ageDays: Math.max(0, Math.floor((nowMs - new Date(r.createdAt).getTime()) / 86400000)),
-    }));
 
   // Fast lookups for the composer pickers.
   let companies: Array<{ id: number; name: string }> = [];
@@ -104,6 +89,10 @@ async function Board({ personName, personId }: { personName: string; personId: n
       const primary = (p.company_id as number | null) ?? null;
       return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
     });
+    // A company director assigns only within their company → offer only its people.
+    if (directorCompanyId != null) {
+      people = people.filter((p) => p.companyIds.includes(directorCompanyId));
+    }
   }
 
   // Resolve the responsible person for each watch task (for inline reassign + remind).
@@ -239,7 +228,6 @@ async function Board({ personName, personId }: { personName: string; personId: n
         companies={companies}
         companyHealth={companyHealth}
         watch={watch}
-        pendingRequests={pendingRequests}
         upcomingEvents={brief.weekAhead.map((e) => ({ id: e.id, title: e.title, startAt: e.startAt, allDay: e.allDay, companyName: e.companyName, meetLink: e.meetLink, location: e.location }))}
         suggestions={suggestions}
       />

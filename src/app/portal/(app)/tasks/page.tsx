@@ -4,14 +4,15 @@ import { sb } from "@/db/supabase";
 import { Hero } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson, visibleTaskIds, directReportIds } from "@/lib/portal-auth";
+import { getPortalPerson, visibleTaskIds, directReportIds, seesAllCompanies, isScopedDirector } from "@/lib/portal-auth";
 import { getAllTasks } from "@/lib/queries";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
+import { getCompanyLogoMap } from "@/lib/company-brand";
 import { PortalTasksTable, type PortalTaskRow } from "@/components/portal-tasks-table";
 import { PortalTasksCommand, type CommandTask, type Filter } from "@/components/portal-tasks-command";
 
 const CLOSED = new Set(["Completed", "Closed"]);
-const FILTERS: Filter[] = ["all", "overdue", "soon", "mine", "done"];
+const FILTERS: Filter[] = ["all", "inprogress", "overdue", "soon", "mine", "done"];
 
 /** Short "2d ago" / "5h ago" relative time for the latest-update line. */
 function relTime(iso: string, now: Date): string {
@@ -40,13 +41,14 @@ async function ManagementTasks({
   ids: number[];
   initialFilter: Filter;
 }) {
-  const groupWide = me.portalRole === "director" || me.portalRole === "hr";
+  const groupWide = seesAllCompanies(me);
 
-  const [allRows, { data: companiesRaw }, { data: peopleRaw }, personCompanies] = await Promise.all([
+  const [allRows, { data: companiesRaw }, { data: peopleRaw }, personCompanies, logoMap] = await Promise.all([
     getAllTasks(),
     sb.from("companies").select("id,name").order("name"),
     sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
     getPersonCompaniesMap(),
+    getCompanyLogoMap(),
   ]);
 
   const idSet = new Set(ids);
@@ -80,6 +82,7 @@ async function ManagementTasks({
       companyId: r.companyId,
       companyName: r.companyName,
       companyAccent: r.companyAccent,
+      companyLogoUrl: logoMap.get(r.companyId) ?? null,
       overdue,
       priority: r.priority,
       dueLabel,
@@ -109,7 +112,12 @@ async function ManagementTasks({
     const primary = (p.company_id as number | null) ?? null;
     return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
   });
-  if (!groupWide) {
+  if (isScopedDirector(me)) {
+    // Company director: pickers cover their WHOLE company (not just direct reports).
+    const scope = me.directorCompanyId as number;
+    people = people.filter((p) => p.companyIds.includes(scope));
+    companies = companies.filter((c) => c.id === scope);
+  } else if (!groupWide) {
     const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
     people = people.filter((p) => reportSet.has(p.id));
     if (me.companyId != null) companies = companies.filter((c) => c.id === me.companyId);

@@ -20,6 +20,7 @@ import {
   clearSessionCookie,
   findPortalPersonByIdentifier,
   getPortalPerson,
+  isScopedDirector,
   managerTeamIds,
   personCanSeePerson,
   personCanSeeTask,
@@ -857,11 +858,31 @@ export async function portalDirectorCreateTask(
   }
   if (companyIds.length === 0) return { error: "Choose a company." };
 
-  // Group-wide: the only constraint is that the people are real + active.
+  // A COMPANY DIRECTOR is locked to their one company — both the target
+  // company/companies AND the assignees must sit inside it (re-checked here, never
+  // trusting the scoped picker). A portfolio director (scopeId null) is unrestricted.
+  const scopeId = isScopedDirector(me) ? (me.directorCompanyId as number) : null;
+  if (scopeId != null && !companyIds.every((c) => c === scopeId)) {
+    return { error: "You can only create tasks for your company." };
+  }
+
+  // Group-wide: the only constraint is that the people are real + active. A scoped
+  // director additionally requires each person to belong to their company.
   const { data: activeRows } = await sb.from("people").select("id").eq("active", true).in("id", [...leadIds, ...workingIds]);
-  const activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
+  let activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
+  if (scopeId != null) {
+    const [{ data: pr }, { data: lr }] = await Promise.all([
+      sb.from("people").select("id").eq("company_id", scopeId).in("id", [...leadIds, ...workingIds]),
+      sb.from("person_companies").select("person_id").eq("company_id", scopeId).in("person_id", [...leadIds, ...workingIds]),
+    ]);
+    const inCompany = new Set<number>([
+      ...(pr ?? []).map((r) => r.id as number),
+      ...(lr ?? []).map((r) => r.person_id as number),
+    ]);
+    activeSet = new Set([...activeSet].filter((id) => inCompany.has(id)));
+  }
   const leads = leadIds.filter((id) => activeSet.has(id));
-  if (leads.length === 0) return { error: "The responsible person isn't available." };
+  if (leads.length === 0) return { error: scopeId != null ? "Choose someone in your company." : "The responsible person isn't available." };
   const workings = workingIds.filter((id) => activeSet.has(id) && !leads.includes(id));
 
   const now = new Date();
@@ -1057,6 +1078,7 @@ export async function portalEditTask(input: {
 
   revalidatePath("/portal/board");
   revalidatePath("/portal/tasks");
+  revalidatePath(`/portal/task/${t.code}`);
   revalidatePath(`/task/${t.code}`);
   return { ok: true };
 }
@@ -1161,6 +1183,7 @@ export async function portalSetTaskLeads(
 
   revalidatePath("/portal/board");
   revalidatePath("/portal/tasks");
+  revalidatePath(`/portal/task/${t.code}`);
   revalidatePath(`/task/${t.code}`);
   return { ok: true };
 }

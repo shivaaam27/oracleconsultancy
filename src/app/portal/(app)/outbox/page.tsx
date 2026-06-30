@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson, isGroupWide, managerTeamIds } from "@/lib/portal-auth";
+import { getPortalPerson, seesAllCompanies, isScopedDirector, companyScope, managerTeamIds } from "@/lib/portal-auth";
+import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { generateDrafts } from "@/lib/outbox/gen";
 import { getGivenName } from "@/lib/names";
 import { Hero, TONE, type Tone } from "@/components/surface-kit";
@@ -21,11 +22,21 @@ export default async function PortalOutboxPage() {
   if (!me) redirect("/portal/login");
   if (me.portalRole === "staff") redirect("/portal"); // management only
 
-  const groupWide = isGroupWide(me.portalRole);
+  const groupWide = seesAllCompanies(me);
   let drafts = await generateDrafts();
   if (!groupWide) {
-    const team = new Set(await managerTeamIds(me));
-    drafts = drafts.filter((d) => d.personId != null && team.has(d.personId));
+    // Manager → their team; company-scoped director → everyone in their company.
+    let allowed: Set<number>;
+    if (isScopedDirector(me)) {
+      const scope = new Set((await companyScope(me)) ?? []);
+      const map = await getPersonCompaniesMap();
+      allowed = new Set(
+        [...map.entries()].filter(([, cids]) => cids.some((c) => scope.has(c))).map(([pid]) => pid)
+      );
+    } else {
+      allowed = new Set(await managerTeamIds(me));
+    }
+    drafts = drafts.filter((d) => d.personId != null && allowed.has(d.personId));
   }
 
   const people: OutboxPerson[] = drafts

@@ -4,9 +4,10 @@ import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
 import {
   getPortalPerson,
-  isGroupWide,
+  seesAllCompanies,
+  isScopedDirector,
+  companyScope,
   managerTeamIds,
-  myCompanyIds,
   visibleTaskIds,
   type PortalPerson,
 } from "@/lib/portal-auth";
@@ -114,7 +115,9 @@ async function searchTasks(
     .order("last_updated_at", { ascending: false, nullsFirst: false })
     .limit(TASK_CAP);
 
-  if (!isGroupWide(me.portalRole)) {
+  if (!seesAllCompanies(me)) {
+    // Non-all-companies viewers (managers, staff, AND company-scoped directors) are
+    // bounded by their visible set — for a scoped director that's their one company.
     const ids = await visibleTaskIds(me);
     if (ids.length === 0) return [];
     queryBuilder = queryBuilder.in("id", ids);
@@ -144,13 +147,16 @@ async function searchPeople(
   pattern: string,
   ql: string
 ): Promise<PortalSearchPerson[]> {
-  const groupWide = isGroupWide(me.portalRole);
+  const groupWide = seesAllCompanies(me);
 
-  // Build the id allow-list for non-group-wide viewers BEFORE any read, so we
-  // can never accidentally return a colleague outside the viewer's companies.
+  // Build the id allow-list for non-all-companies viewers BEFORE any read, so we
+  // can never accidentally return a colleague outside the viewer's company scope.
+  // Scope companies come from `companyScope` (scoped director → their one company,
+  // manager → their memberships), NOT the viewer's own membership — a director of
+  // company B who personally sits in company A must still scope to B.
   let allowedIds: Set<number> | null = null;
   if (!groupWide) {
-    const cids = await myCompanyIds(me);
+    const cids = (await companyScope(me)) ?? [];
     // An unscoped viewer (no company at all) sees nobody but themselves.
     const cidSet = new Set(cids);
     const map = await getPersonCompaniesMap();
@@ -178,7 +184,11 @@ async function searchPeople(
   let openableIds: Set<number> | null = null;
   if (!groupWide) {
     openableIds = new Set<number>();
-    if (me.portalRole === "manager") {
+    if (isScopedDirector(me)) {
+      // A company director has full rights over their company → may open any
+      // in-scope profile (mirrors personCanSeePerson for a scoped director).
+      for (const id of allowedIds!) openableIds.add(id);
+    } else if (me.portalRole === "manager") {
       for (const id of await managerTeamIds(me)) openableIds.add(id);
     }
     openableIds.add(me.id); // self is always openable
@@ -191,7 +201,7 @@ async function searchPeople(
   // filtered in memory after the read. We over-fetch a little, then cap.
   let queryBuilder = sb
     .from("people")
-    .select("id,name,role,company_id,companies(name)")
+    .select("id,name,role,company_id,companies!company_id(name)")
     .eq("active", true)
     .or(`name.ilike.${pattern},role.ilike.${pattern}`)
     .order("name")
@@ -220,7 +230,7 @@ async function searchPeople(
     if (matchCompanyIds.length > 0) {
       let cQuery = sb
         .from("people")
-        .select("id,name,role,company_id,companies(name)")
+        .select("id,name,role,company_id,companies!company_id(name)")
         .eq("active", true)
         .in("company_id", matchCompanyIds)
         .order("name")

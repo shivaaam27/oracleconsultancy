@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronRight, Check, Loader2, Send, ExternalLink,
-  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Inbox, Video, Users,
+  Flame, Plane, Target, CalendarClock, Building2, ShieldCheck, Video,
 } from "lucide-react";
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
 import { getGivenName } from "@/lib/names";
@@ -30,7 +30,6 @@ export type BoardPerson = { id: number; name: string; companyId: number | null; 
 export type BoardCompany = { id: number; name: string };
 export type BoardEvent = { id: number; title: string; startAt: string; allDay: boolean; companyName: string | null; meetLink: string | null; location: string | null };
 export type CompanyHealth = { id: number; name: string; risk: string; open: number; inProgress: number; overdue: number; logoUrl: string | null };
-export type PendingRequest = { id: number; code: string; title: string; from: string; category: string | null; ageDays: number };
 export type WatchItem = {
   taskId: number;
   code: string;
@@ -63,7 +62,6 @@ type Props = {
   companies: BoardCompany[];
   companyHealth: CompanyHealth[];
   watch: WatchItem[];
-  pendingRequests: PendingRequest[];
   upcomingEvents: BoardEvent[];
   suggestions: { code: string; actionItem: string; companyName: string }[];
 };
@@ -116,14 +114,15 @@ export function DirectorBoardClient(p: Props) {
       <BoardHero first={p.firstName} initials={p.initials} liveStamp={p.liveStamp} needsYou={p.needsYou} dueToday={p.dueToday} companyCount={p.companies.length} />
       <SmartCaptureBar people={p.people} companies={p.companies} suggestions={p.suggestions} />
 
-      {/* Team page — the directory + reminders (replaces the old company filter). */}
+      {/* Outbox — your team's open work, per person (chase / remind). Contacts live
+          on the Directory tab; the standalone Team page was folded into these. */}
       <Link
-        href="/portal/team"
+        href="/portal/outbox"
         className="group flex items-center gap-2.5 rounded-2xl bg-bg-elev px-3.5 py-2.5 text-sm ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
       >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/20"><Users size={15} /></span>
-        <span className="min-w-0 flex-1 font-medium">Team page</span>
-        <span className="hidden text-[11px] text-fg-subtle sm:inline">Directory &amp; reminders</span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/20"><Send size={15} /></span>
+        <span className="min-w-0 flex-1 font-medium">Outbox</span>
+        <span className="hidden text-[11px] text-fg-subtle sm:inline">Open work, per person</span>
         <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
       </Link>
 
@@ -137,7 +136,6 @@ export function DirectorBoardClient(p: Props) {
           <CompanyHealthList items={p.companyHealth} />
         </div>
         <div className="flex flex-col gap-5">
-          <WaitingOnYou requests={p.pendingRequests} />
           <AttentionStack watch={p.watch.slice(0, 12)} people={p.people} />
           <WeekAhead events={p.upcomingEvents} />
         </div>
@@ -240,7 +238,7 @@ function VitalsPanel({
         <div className="grid grid-cols-3 gap-2.5">
           <KpiTile href="/portal/tasks?filter=overdue" tone="danger" icon={<Target size={16} />} value={needsYou} label="Need you" run={run} />
           <KpiTile href="/portal/tasks?filter=soon" tone="warn" icon={<Flame size={16} />} value={dueToday} label="Due today" run={run} />
-          <KpiTile href="/portal/team" tone="accent" icon={<Plane size={16} />} value={onLeave} label="On leave" run={run} />
+          <KpiTile href="/portal/outbox" tone="accent" icon={<Plane size={16} />} value={onLeave} label="On leave" run={run} />
         </div>
       </Panel>
     </div>
@@ -307,39 +305,6 @@ function CompanyRow({ c }: { c: CompanyHealth }) {
       <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${TONE[tone].bg} ${TONE[tone].text}`}>{riskShort(c.risk)}</span>
       <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
     </Link>
-  );
-}
-
-/* ---- approvals inbox: requests addressed to the director, awaiting action ---- */
-function WaitingOnYou({ requests }: { requests: PendingRequest[] }) {
-  if (!requests.length) return null;
-  return (
-    <div className="flex flex-col gap-2.5">
-      <SectionLabel
-        icon={<Inbox size={13} />}
-        action={<Link href="/portal/requests" className="inline-flex items-center gap-0.5 text-[11px] normal-case tracking-normal text-accent hover:underline">All requests <ChevronRight size={12} /></Link>}
-      >
-        Waiting on you
-      </SectionLabel>
-      <div className="flex flex-col gap-2">
-        {requests.map((r) => (
-          <Link
-            key={r.id}
-            href={`/portal/requests/${r.id}`}
-            className="group flex items-center gap-3 rounded-2xl bg-bg-elev p-3 ring-1 ring-border transition-all hover:ring-2 hover:ring-accent/30 active:scale-[0.99]"
-          >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft/60 text-accent ring-1 ring-accent/20"><Inbox size={15} /></span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{r.title}</p>
-              <p className="truncate text-[11px] text-fg-subtle">
-                {r.from}{r.category ? ` · ${r.category}` : ""} · {r.ageDays === 0 ? "today" : `${r.ageDays}d ago`}
-              </p>
-            </div>
-            <ChevronRight size={16} className="shrink-0 text-fg-subtle transition-colors group-hover:text-accent" />
-          </Link>
-        ))}
-      </div>
-    </div>
   );
 }
 

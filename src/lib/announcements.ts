@@ -241,7 +241,7 @@ export async function createDeliveryDrafts(a: Announcement): Promise<void> {
     if (ids.length === 0) return;
     const { data } = await sb
       .from("people")
-      .select("id,name,email,whatsapp,phone,companies(name)")
+      .select("id,name,email,whatsapp,phone,companies!company_id(name)")
       .in("id", ids);
     const nowIso = new Date().toISOString();
     const rows: Record<string, unknown>[] = [];

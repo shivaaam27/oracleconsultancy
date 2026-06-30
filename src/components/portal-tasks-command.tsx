@@ -2,21 +2,23 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
-  MessageSquarePlus, Bell, Check, Building2, MessagesSquare, X, Pencil,
+  MessageSquarePlus, Check, Building2, MessagesSquare, X, Pencil,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { CaretInput } from "@/components/ui";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { CompanyAvatar } from "@/components/company-avatar";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalRemindTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
+import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
 import { getGivenName, getInitials } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
@@ -39,6 +41,7 @@ export type CommandTask = {
   companyId: number | null;
   companyName: string;
   companyAccent: string | null;
+  companyLogoUrl: string | null;
   overdue: boolean;
   priority: string;
   dueLabel: string | null;
@@ -60,7 +63,7 @@ export type CommandTask = {
   withinSoon: boolean;
 };
 
-export type Filter = "all" | "overdue" | "soon" | "mine" | "done";
+export type Filter = "all" | "inprogress" | "overdue" | "soon" | "mine" | "done";
 
 const ALL_STATUSES = ["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"];
 const MANAGER_STATUSES = ["In Progress", "Under Review", "Blocked", "Completed"];
@@ -75,6 +78,20 @@ const STATUS_COLOR: Record<string, string> = {
 };
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
 const fieldShell = "rounded-xl bg-bg-elev ring-1 ring-border";
+
+/** Honour BOTH the OS reduced-motion setting and the portal's manual data-motion
+ *  toggle — framer's JS animations ignore the latter, so we check it ourselves. */
+function useReducedPref(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(mq.matches || document.documentElement.dataset.motion === "reduced");
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return reduced;
+}
 
 function statusDot(s: string): string {
   if (s === "Completed" || s === "Closed") return "bg-success";
@@ -113,6 +130,7 @@ export function PortalTasksCommand({
 
   const counts = useMemo(() => ({
     all: byCompany.filter((t) => !t.isDone).length,
+    inprogress: byCompany.filter((t) => t.status === "In Progress" && !t.isDone).length,
     overdue: byCompany.filter((t) => t.overdue && !t.isDone).length,
     soon: byCompany.filter((t) => t.withinSoon && !t.overdue && !t.isDone).length,
     mine: byCompany.filter((t) => t.raisedByMe && !t.isDone).length,
@@ -126,6 +144,7 @@ export function PortalTasksCommand({
         const hay = `${t.actionItem} ${t.code} ${t.companyName} ${t.accountableName ?? ""} ${t.assignees.join(" ")}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
+      if (filter === "inprogress") return t.status === "In Progress" && !t.isDone;
       if (filter === "overdue") return t.overdue && !t.isDone;
       if (filter === "soon") return t.withinSoon && !t.overdue && !t.isDone;
       if (filter === "mine") return t.raisedByMe && !t.isDone;
@@ -141,7 +160,7 @@ export function PortalTasksCommand({
     ...companies.map((c) => ({ value: String(c.id), label: c.name })),
   ];
 
-  type Group = { key: string; label: string; dot?: string; dotColor?: string | null; items: CommandTask[] };
+  type Group = { key: string; label: string; dot?: string; dotColor?: string | null; logoUrl?: string | null; items: CommandTask[] };
   const groups = useMemo<Group[]>(() => {
     if (groupByCompany) {
       // One section per company (alphabetical); open/overdue first within each so
@@ -161,6 +180,7 @@ export function PortalTasksCommand({
           key: `co:${name}`,
           label: name,
           dotColor: items[0]?.companyAccent ?? null,
+          logoUrl: items[0]?.companyLogoUrl ?? null,
           items: items.slice().sort((x, y) => rank(x) - rank(y)),
         }));
     }
@@ -171,13 +191,14 @@ export function PortalTasksCommand({
     return [
       { key: "overdue", label: "Overdue", dot: "bg-danger", items: overdue },
       { key: "soon", label: "Due soon", dot: "bg-warn", items: soon },
-      { key: "open", label: "In progress", dot: "bg-success", items: open },
+      { key: "open", label: "In progress", dot: "bg-info", items: open },
       { key: "done", label: "Done", dot: "bg-fg-subtle", items: done },
     ].filter((g) => g.items.length > 0);
   }, [filtered, groupByCompany, filter]);
 
   const FILTERS: Array<{ key: Filter; label: string; n?: number; danger?: boolean }> = [
     { key: "all", label: "All", n: counts.all },
+    { key: "inprogress", label: "In Progress", n: counts.inprogress },
     { key: "overdue", label: "Overdue", n: counts.overdue, danger: true },
     { key: "soon", label: "Due soon", n: counts.soon },
     { key: "mine", label: "Mine", n: counts.mine },
@@ -214,7 +235,7 @@ export function PortalTasksCommand({
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => {
           const active = filter === f.key;
-          const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : "text-accent";
+          const tint = f.key === "overdue" ? "text-danger" : f.key === "soon" ? "text-warn" : f.key === "done" ? "text-success" : f.key === "inprogress" ? "text-info" : "text-accent";
           return (
             <button
               key={f.key}
@@ -250,25 +271,22 @@ export function PortalTasksCommand({
       ) : (
         groups.map((g) => (
           <div key={g.key} className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 px-1 text-xs font-medium text-fg-muted">
-              {g.dotColor != null
-                ? <span className="h-2 w-2 rounded-full" style={{ backgroundColor: g.dotColor || "hsl(var(--accent))" }} />
-                : <span className={`h-2 w-2 rounded-full ${g.dot}`} />}
-              {g.label}
-              <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-[10px] text-fg-subtle">{g.items.length}</span>
+            <div className="flex items-center gap-2 px-1">
+              {groupByCompany
+                ? <CompanyAvatar name={g.label} logoUrl={g.logoUrl ?? null} size={22} rounded="rounded-md" iconSize={12} />
+                : g.dotColor != null
+                  ? <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.dotColor || "hsl(var(--accent))" }} />
+                  : <span className={`h-2.5 w-2.5 rounded-full ${g.dot}`} />}
+              <span className="text-[15px] font-semibold text-fg">{g.label}</span>
+              <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-[11px] font-medium text-fg-subtle">{g.items.length}</span>
             </div>
-            {/* desktop column header */}
-            <Panel className="hidden overflow-hidden p-0 sm:block">
-              <div className="grid grid-cols-[minmax(0,1fr)_150px_116px_84px] items-center gap-x-3 border-b border-border/50 px-4 py-2 text-[10px] font-medium uppercase tracking-[0.09em] text-fg-subtle">
-                <span>Task</span><span>Status</span><span>Deadline</span><span className="text-right">Who</span>
-              </div>
-              <ul className="divide-y divide-border/50">
-                {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} desktop />)}
-              </ul>
-            </Panel>
+            {/* desktop — ONE floating card per task (info left, controls panel right). */}
+            <div className="hidden flex-col gap-2 sm:flex">
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} desktop />)}
+            </div>
             {/* mobile cards */}
             <div className="flex flex-col gap-2 sm:hidden">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} />)}
             </div>
           </div>
         ))
@@ -291,10 +309,37 @@ function Avatars({ names }: { names: string[] }) {
   );
 }
 
+/** Avatar cluster where the LEAD(s) carry an accent ring (and sit on top). */
+function LeadAvatars({ people }: { people: { name: string; lead: boolean }[] }) {
+  if (!people.length) return <span className="text-[11px] italic text-fg-subtle">—</span>;
+  const shown = people.slice(0, 3);
+  const extra = people.length - shown.length;
+  return (
+    <span className="inline-flex items-center -space-x-1.5">
+      {shown.map((p, i) => (
+        <span
+          key={i}
+          title={`${p.name}${p.lead ? " · Lead" : ""}`}
+          className={cn(
+            "inline-flex h-6 w-6 items-center justify-center rounded-full text-[9.5px] font-semibold ring-2",
+            p.lead ? "relative z-10 bg-accent-soft text-accent ring-accent" : "bg-bg-subtle text-fg-muted ring-bg-elev",
+          )}
+        >
+          {initials(p.name)}
+        </span>
+      ))}
+      {extra > 0 && <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-muted text-[9.5px] font-semibold text-fg-subtle ring-2 ring-bg-elev">+{extra}</span>}
+    </span>
+  );
+}
+
 function TaskRow({
-  t, people, role, viewerId, canRemind, desktop = false,
+  t, people, role, viewerId, canRemind, desktop = false, groupByCompany = false,
 }: {
   t: CommandTask; people: BoardPerson[]; role: string; viewerId: number; canRemind: boolean; desktop?: boolean;
+  /** When the list is grouped by company, drop the company name from the row (the
+   *  group header already shows it). */
+  groupByCompany?: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -316,6 +361,29 @@ function TaskRow({
   const statusChoices = canEdit ? ALL_STATUSES : ["In Progress", "Under Review", "Blocked"];
   const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
 
+  // The people shown on the row (lead first, then working) — the lead's avatar gets
+  // the accent ring. Deduped by name; the accountable counts as a lead.
+  const rowPeople = useMemo<{ name: string; lead: boolean }[]>(() => {
+    const leadSet = new Set<number>(t.leadIds.length ? t.leadIds : (t.accountableId != null ? [t.accountableId] : []));
+    const out: { name: string; lead: boolean }[] = [];
+    const seen = new Set<string>();
+    const add = (name: string | null, id: number | null) => {
+      const k = (name ?? "").trim().toLowerCase();
+      if (!name || seen.has(k)) return;
+      seen.add(k);
+      out.push({ name, lead: id != null && leadSet.has(id) });
+    };
+    add(t.accountableName, t.accountableId);
+    t.assignees.forEach((n, i) => add(n, t.assigneeIds[i] ?? null));
+    return out.sort((a, b) => Number(b.lead) - Number(a.lead));
+  }, [t.accountableName, t.accountableId, t.assignees, t.assigneeIds, t.leadIds]);
+
+  // Expand/collapse motion — the row's description + latest update slide away as the
+  // expanded section (with the full text) slides in, so nothing is shown twice.
+  const reduced = useReducedPref();
+  const tr = reduced ? { duration: 0 } : { duration: 0.24, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] };
+  const hasMeta = !!(t.description || t.note);
+
   function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null }, label: string) {
     startTransition(async () => {
       const res = await portalEditTask({ taskId: t.taskId, ...patch });
@@ -334,15 +402,6 @@ function TaskRow({
   const changePriority = (v: string) => { if (v !== t.priority) save({ priority: v }, `Priority → ${v}`); };
   const changeDue = (v: string) => { if (v !== (t.deadlineInput ?? "")) save({ deadline: v || null }, "Due date updated"); };
 
-  function remind() {
-    startTransition(async () => {
-      const res = await portalRemindTask(t.taskId);
-      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      // Per-task reminder for ONE person — opens WhatsApp/email directly (nothing stored).
-      if (res.link) window.open(res.link, "_blank");
-      else toast(`No contact on file for ${getGivenName(res.name)}.`, { tone: "warn" });
-    });
-  }
   // "Remind all" on a task = remind the GROUP in the in-built chat (one message to
   // everyone on the task), not a pile of individual drafts.
   function remindAll() {
@@ -387,68 +446,54 @@ function TaskRow({
   function Editor({ withStatus }: { withStatus: boolean }) {
     return (
       <div className="space-y-3.5 border-t border-border/50 px-3.5 py-3.5">
-        {/* Edit task title + description — a director/HR or the task's creator. */}
-        {canEdit && (
-          <div>
-            {editDetails ? (
-              <div className="space-y-2 rounded-xl bg-bg-subtle/50 p-3 ring-1 ring-border">
-                <input
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  placeholder="Task title"
-                  className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
-                />
-                <textarea
-                  value={descDraft}
-                  onChange={(e) => setDescDraft(e.target.value)}
-                  placeholder="Description (optional)"
-                  rows={3}
-                  className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
-                />
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
-                    {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
-                  </button>
-                  <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setEditDetails(true)} className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-muted transition-colors hover:text-accent">
-                <Pencil size={13} /> Edit title & description
+        {/* Edit form (pencil) OR the full description + latest update, read-only —
+            so opening a task reveals everything without a hover tooltip. */}
+        {canEdit && editDetails ? (
+          <div className="space-y-2 rounded-xl bg-bg-subtle/50 p-3 ring-1 ring-border">
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              placeholder="Task title"
+              className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+            <textarea
+              value={descDraft}
+              onChange={(e) => setDescDraft(e.target.value)}
+              placeholder="Description (optional)"
+              rows={3}
+              className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
+                {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
               </button>
+              <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (t.description || t.note) ? (
+          <div className="space-y-2.5">
+            {t.description && (
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Description</p>
+                <p className="mt-0.5 text-[13.5px] leading-relaxed text-fg">{t.description}</p>
+              </div>
+            )}
+            {t.note && (
+              <div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">Latest update</p>
+                <p className="mt-0.5 text-[13px] leading-relaxed text-fg-muted">
+                  {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
+                  {t.note}
+                  {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
+                </p>
+              </div>
             )}
           </div>
-        )}
-        <div className="flex flex-wrap items-center gap-2">
-          {withStatus && (
-            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
-          )}
-          {canEdit ? (
-            <>
-              <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
-              <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} />
-            </>
-          ) : (
-            <>
-              <StaticPill icon={<Flag size={13} style={{ color: PRIORITY_HEX[t.priority] }} />} text={t.priority} />
-              <StaticPill icon={<CalendarClock size={13} className={dueTone} />} text={t.dueLabel ?? "No date"} />
-            </>
-          )}
-        </div>
+        ) : null}
 
-        {/* "On this task" — every person involved, the leads as Lead, the rest
-            as Working, each with quick contact actions. Those who may edit the
-            task can change the lead set inline. */}
-        <TaskPeoplePanel
-          t={t}
-          people={people}
-          canEditLeads={canEdit}
-          canRemind={canRemind}
-        />
-
-        {/* Post an update without opening the task. */}
+        {/* Post an update — kept at the top so it's the first thing you reach. */}
         <div className="flex items-center gap-2 rounded-xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
           <MessageSquarePlus size={15} className="shrink-0 text-accent" />
           <CaretInput
@@ -463,18 +508,29 @@ function TaskRow({
           </button>
         </div>
 
+        {/* "On this task" — every person involved; the lead toggle assigns the lead
+            inline. Quick contact actions per person. */}
+        <TaskPeoplePanel
+          t={t}
+          people={people}
+          canEditLeads={canEdit}
+          canRemind={canRemind}
+        />
+
+        {/* Priority always; Status + Date only on mobile (desktop shows them in the
+            row's right panel). */}
         <div className="flex flex-wrap items-center gap-2">
-          {canRemind && (
-            <>
-              <button type="button" onClick={remind} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-accent">
-                <Send size={14} /> Remind owner
-              </button>
-              {involved > 1 && (
-                <button type="button" onClick={remindAll} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-fg-muted transition-colors hover:text-success">
-                  <Users size={14} /> Remind all · {involved}
-                </button>
-              )}
-            </>
+          {withStatus && (
+            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
+          )}
+          {canEdit ? (
+            <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} buttonClassName={`${fieldShell} px-3 py-2 text-[12.5px]`} />
+          ) : (
+            <StaticPill icon={<Flag size={13} style={{ color: PRIORITY_HEX[t.priority] }} />} text={t.priority} />
+          )}
+          {withStatus && (canEdit
+            ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} />
+            : <StaticPill icon={<CalendarClock size={13} className={dueTone} />} text={t.dueLabel ?? "No date"} />
           )}
           {busy && <Loader2 size={14} className="animate-spin text-fg-subtle" />}
           <Link href={`/portal/task/${t.code}`} className="ml-auto inline-flex items-center gap-1.5 px-2 py-2 text-sm text-accent hover:underline">
@@ -487,43 +543,85 @@ function TaskRow({
 
   if (desktop) {
     return (
-      <li className={cn(t.isDone && "opacity-60")}>
+      <div className={cn("overflow-hidden rounded-2xl glass elevated transition-shadow hover:ring-1 hover:ring-accent/30", t.isDone && "opacity-60")}>
         <div
           onClick={() => setOpen((o) => !o)}
-          className="group cursor-pointer px-4 py-3 transition-colors hover:bg-bg-subtle/50"
+          className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-subtle/30"
         >
-          <div className="grid grid-cols-[minmax(0,1fr)_150px_116px_84px] items-center gap-x-3">
+          {/* LEFT — title row (with status + date inline), then the description and
+              latest update, which slide away when the card is expanded. */}
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-2">
               <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[t.priority]}`} title={`${t.priority} priority`} />
               <span className="shrink-0 rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[11px] font-medium text-fg-muted ring-1 ring-border/50">{t.code}</span>
               <span className="truncate text-[15px] font-medium leading-snug group-hover:text-accent">{t.actionItem}</span>
-              <ChevronRight size={15} className={`shrink-0 text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
+              {canEdit && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); setOpen(true); setEditDetails(true); }} title="Edit title & description" aria-label="Edit title & description" className="shrink-0 text-fg-subtle transition-colors hover:text-accent">
+                  <Pencil size={13} />
+                </button>
+              )}
+              {/* Status + date sit right after the title — compact, same height as the avatars. */}
+              <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} text-[11px] px-2 py-0.5`} />
+              </span>
+              <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                {canEdit
+                  ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} compact />
+                  : <span className={cn(fieldShell, `inline-flex items-center gap-1 px-2 py-0.5 text-[11px] ${dueTone}`)}><CalendarClock size={12} /> {t.dueLabel ?? "No date"}</span>}
+              </span>
             </div>
-            <span onClick={(e) => e.stopPropagation()}>
-              <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} buttonClassName={`${fieldShell} text-[12px]`} />
-            </span>
-            <span className={`inline-flex items-center gap-1 text-[12px] ${dueTone}`}>
-              {t.dueLabel ? <><CalendarClock size={12} /> {t.dueLabel}</> : <span className="text-fg-subtle">—</span>}
-            </span>
-            <span className="flex justify-end"><Avatars names={t.accountableName && !t.assignees.length ? [t.accountableName] : t.assignees} /></span>
+            <AnimatePresence initial={false}>
+              {!open && hasMeta && (
+                <motion.div
+                  key="meta"
+                  initial={false}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={tr}
+                  className="min-w-0 space-y-0.5 overflow-hidden"
+                >
+                  {(!groupByCompany || t.description) && (
+                    <div className="flex items-center gap-1.5 text-[13px] text-fg-muted">
+                      {!groupByCompany && (
+                        <>
+                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
+                          <span className="shrink-0">{t.companyName}</span>
+                        </>
+                      )}
+                      {t.description && <span className="min-w-0 truncate">{!groupByCompany ? "· " : ""}{t.description}</span>}
+                    </div>
+                  )}
+                  {t.note && (
+                    <p className="line-clamp-2 text-[12.5px] leading-snug">
+                      {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
+                      <span className="text-fg-muted">{t.note}</span>
+                      {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
+                    </p>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <div className="mt-1 space-y-0.5 pl-[1.75rem]">
-            <div className="flex items-center gap-1.5 text-[12px] text-fg-muted">
-              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
-              <span className="shrink-0">{t.companyName}</span>
-              {t.description && <span className="min-w-0 truncate">· {t.description}</span>}
-            </div>
-            {t.note && (
-              <p className="truncate text-[12px]">
-                {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
-                <span className="text-fg-muted">{t.note}</span>
-                {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
-              </p>
-            )}
-          </div>
+
+          {/* Accountable — at the end of the row, vertically centred. */}
+          <LeadAvatars people={rowPeople} />
+          <ChevronRight size={18} className={`shrink-0 text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
         </div>
-        {open && <Editor withStatus={false} />}
-      </li>
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div
+              key="editor"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={tr}
+              className="overflow-hidden"
+            >
+              <Editor withStatus={false} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     );
   }
 
@@ -537,7 +635,7 @@ function TaskRow({
         </button>
         {involved > 1 && (
           <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
-            <Bell size={17} /> Remind all
+            <MessagesSquare size={17} /> Message
           </button>
         )}
       </div>
@@ -550,7 +648,7 @@ function TaskRow({
 
       <div
         {...swipe.bind}
-        className="relative touch-pan-y rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
+        className="relative touch-pan-y rounded-2xl glass elevated transition-transform duration-300"
         style={{ transform: `translateX(${swipe.offset}px)`, transition: swipe.dragging ? "none" : undefined }}
       >
         <button type="button" onClick={() => { if (swipe.swiped) { swipe.reset(); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
@@ -561,20 +659,33 @@ function TaskRow({
               <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
               {t.dueLabel && <span className={`text-[11px] ${dueTone}`}>· {t.dueLabel}</span>}
             </span>
-            <span className="block truncate text-sm font-medium">{t.actionItem}</span>
-            {t.description && <span className="mt-0.5 block line-clamp-2 text-[12px] leading-snug text-fg-muted">{t.description}</span>}
-            <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-fg-subtle">
-              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
-              {t.companyName} · {t.accountableName ?? "Unassigned"}
+            <span className="flex items-center gap-1.5">
+              <span className="min-w-0 truncate text-sm font-medium">{t.actionItem}</span>
+              {canEdit && (
+                <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setOpen(true); setEditDetails(true); }} title="Edit title & description" className="inline-flex shrink-0 text-fg-subtle transition-colors hover:text-accent">
+                  <Pencil size={12} />
+                </span>
+              )}
             </span>
-            {t.note && <span className="mt-1 block truncate text-[11px] text-fg-muted">{t.updateAuthor ? `${t.updateAuthor}: ` : ""}{t.note}</span>}
+            {!open && t.description && <span className="mt-0.5 block line-clamp-2 text-[12.5px] leading-snug text-fg-muted">{t.description}</span>}
+            <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-fg-subtle">
+              {!groupByCompany && <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />}
+              {!groupByCompany ? `${t.companyName} · ` : ""}{t.accountableName ?? "Unassigned"}
+            </span>
+            {!open && t.note && <span className="mt-1 block line-clamp-2 text-[12px] leading-snug text-fg-muted">{t.updateAuthor ? `${t.updateAuthor}: ` : ""}{t.note}</span>}
           </span>
           <span className="mr-2.5 flex shrink-0 flex-col items-center justify-center gap-1.5">
-            <Avatars names={t.accountableName && !t.assignees.length ? [t.accountableName] : t.assignees} />
+            <LeadAvatars people={rowPeople} />
             <ChevronRight size={16} className={`text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
           </span>
         </button>
-        {open && <Editor withStatus />}
+        <AnimatePresence initial={false}>
+          {open && (
+            <motion.div key="editor" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={tr} className="overflow-hidden">
+              <Editor withStatus />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -593,29 +704,30 @@ function StaticPill({ icon, text }: { icon: React.ReactNode; text: string }) {
 
 /** Due-date pill: the same bordered pill as the status dropdown, with a small
  *  calendar affordance; reveals a native picker on tap and auto-saves. */
-function DuePill({ valueIso, label, tone, onChange }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void }) {
+function DuePill({ valueIso, label, tone, onChange, compact = false }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void; compact?: boolean }) {
   const [editing, setEditing] = useState(false);
+  const sz = compact ? "px-2 py-0.5 text-[11px]" : "px-3 py-2 text-[12.5px]";
   const text = valueIso ? new Date(valueIso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "No date";
   if (editing) {
     return (
-      <span className={cn(fieldShell, "inline-flex items-center gap-1.5 px-3 py-2 text-[12.5px]")}>
-        <CalendarClock size={13} className={tone} />
+      <span className={cn(fieldShell, "inline-flex items-center gap-1.5", sz)}>
+        <CalendarClock size={compact ? 12 : 13} className={tone} />
         <input
           type="date"
           defaultValue={valueIso ?? ""}
           autoFocus
           onChange={(e) => { onChange(e.target.value); setEditing(false); }}
           onBlur={() => setEditing(false)}
-          className="bg-transparent text-[12.5px] text-fg focus:outline-none"
+          className="bg-transparent text-inherit text-fg focus:outline-none"
         />
       </span>
     );
   }
   return (
-    <button type="button" onClick={() => setEditing(true)} className={cn(fieldShell, "inline-flex items-center gap-1.5 px-3 py-2 text-[12.5px] hover:bg-bg-muted transition-colors")}>
-      <CalendarClock size={13} className={tone} />
+    <button type="button" onClick={() => setEditing(true)} className={cn(fieldShell, "inline-flex items-center gap-1.5 hover:bg-bg-muted transition-colors", sz)}>
+      <CalendarClock size={compact ? 12 : 13} className={tone} />
       <span className={label && (tone.includes("danger") || tone.includes("warn")) ? tone : "text-fg"}>{label ?? text}</span>
-      <ChevronDown size={13} className="text-fg-subtle" />
+      <ChevronDown size={compact ? 12 : 13} className="text-fg-subtle" />
     </button>
   );
 }
@@ -709,6 +821,13 @@ function TaskPeoplePanel({
     });
   }
 
+  // Flip one person between Lead and Working straight from their row. Turning a
+  // lead off when they're the only lead is blocked by setLeads (keeps ≥1 lead).
+  function toggleLead(m: Member) {
+    if (m.id == null) return;
+    setLeads(m.lead ? leadIds.filter((id) => id !== m.id) : [...leadIds, m.id]);
+  }
+
   if (total === 0 && !canEditLeads) return null;
 
   return (
@@ -724,7 +843,7 @@ function TaskPeoplePanel({
             disabled={chatBusy}
             className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft/70 px-2.5 py-1 text-[12px] font-medium text-accent ring-1 ring-accent/25 transition-transform hover:bg-accent-soft active:scale-95 disabled:opacity-50"
           >
-            {chatBusy ? <Loader2 size={13} className="animate-spin" /> : <MessagesSquare size={13} />} Message In Chat
+            {chatBusy ? <Loader2 size={13} className="animate-spin" /> : <MessagesSquare size={13} />} Message all in chat
           </button>
         )}
       </div>
@@ -740,33 +859,39 @@ function TaskPeoplePanel({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium leading-tight">{m.name}</span>
-              <span className={cn(
-                "mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-medium",
-                m.lead ? "text-accent" : "text-fg-subtle",
-              )}>
-                <span className={cn("h-1.5 w-1.5 rounded-full", m.lead ? "bg-accent" : "bg-fg-subtle")} />
-                {m.lead ? "Lead" : "Working"}
-              </span>
+              {/* Lead toggle: ON = Lead, OFF = Working — assign the lead inline (those
+                  who may edit). Everyone else sees a read-only Lead/Working label. */}
+              {canEditLeads && m.id != null ? (
+                <button
+                  type="button"
+                  onClick={() => toggleLead(m)}
+                  disabled={leadBusy}
+                  role="switch"
+                  aria-checked={m.lead}
+                  title={m.lead ? "Leading — tap to set as Working" : "Working — tap to make Lead"}
+                  className="mt-1 inline-flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <span className={cn("relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors", m.lead ? "bg-accent" : "bg-bg-muted ring-1 ring-border")}>
+                    <span className={cn("inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform", m.lead ? "translate-x-3.5" : "translate-x-0.5")} />
+                  </span>
+                  <span className={cn("text-[10.5px] font-medium", m.lead ? "text-accent" : "text-fg-subtle")}>{m.lead ? "Lead" : "Working"}</span>
+                </button>
+              ) : (
+                <span className={cn(
+                  "mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-medium",
+                  m.lead ? "text-accent" : "text-fg-subtle",
+                )}>
+                  <span className={cn("h-1.5 w-1.5 rounded-full", m.lead ? "bg-accent" : "bg-fg-subtle")} />
+                  {m.lead ? "Lead" : "Working"}
+                </span>
+              )}
             </span>
-            {/* Per-person reachability — minimal icons: WhatsApp / Email a summary
-                of their open tasks (Outbox-backed, mobile-safe) + a direct chat DM.
-                Only the id-backed people. */}
+            {/* Per-person reachability — minimal icons: WhatsApp / Email this task +
+                a direct chat DM. Only the id-backed people. */}
             {canRemind && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
           </li>
         ))}
       </ul>
-
-      {/* Edit the lead set — one or more people. Removing the last lead is blocked. */}
-      {canEditLeads && (
-        <div className="flex flex-col gap-2 border-t border-border/50 px-3 py-2.5 sm:flex-row sm:items-start">
-          <span className="inline-flex shrink-0 items-center gap-1.5 pt-2 text-[11px] text-fg-muted">
-            <User size={13} className="text-fg-subtle" /> {leadIds.length > 1 ? "Leads" : "Lead"}
-          </span>
-          <div className="min-w-0 flex-1">
-            <LeadMultiSelect people={people} value={leadIds} busy={leadBusy} onChange={setLeads} />
-          </div>
-        </div>
-      )}
     </Panel>
   );
 }
@@ -906,20 +1031,19 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
   const { toast } = useToast();
   const router = useRouter();
   const [busy, start] = useTransition();
-  const [scope, setScope] = useState<"task" | "all">(taskId != null ? "task" : "all");
   const first = getGivenName(name);
-  const tid = scope === "task" ? taskId : undefined;
 
+  // Always scoped to THIS task — the "all tasks" reminder lives on the Outbox now.
   const whatsapp = () => {
     // Blank tab opened synchronously inside the tap so mobile doesn't block it.
     const win = window.open("", "_blank");
     start(async () => {
-      const res = await portalSendTaskSummaryWhatsApp(personId, tid);
+      const res = await portalSendTaskSummaryWhatsApp(personId, taskId);
       if (!res.ok) { win?.close(); toast(res.error, { tone: "warn" }); return; }
       if (res.waHref) {
         if (win) win.location.href = res.waHref;
         else window.open(res.waHref, "_blank", "noreferrer");
-        toast(`WhatsApp ${scope === "task" ? "reminder" : "summary"} ready for ${first}.`, { tone: "success" });
+        toast(`WhatsApp reminder ready for ${first}.`, { tone: "success" });
       } else {
         win?.close();
         toast(`No WhatsApp number for ${first}.`, { tone: "warn" });
@@ -928,8 +1052,8 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
   };
   const email = () =>
     start(async () => {
-      const res = await portalSendReminderEmail(personId, tid);
-      if (res.ok) { toast(`${scope === "task" ? "Reminder" : "Summary"} emailed to ${first}.`, { tone: "success" }); return; }
+      const res = await portalSendReminderEmail(personId, taskId);
+      if (res.ok) { toast(`Reminder emailed to ${first}.`, { tone: "success" }); return; }
       const msg =
         res.reason === "no-email" ? `No email on file for ${first}.`
         : res.reason === "no-tasks" ? "No open tasks to summarise."
@@ -945,31 +1069,15 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
     });
 
   const iconBtn = "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 transition-transform active:scale-90 disabled:opacity-50";
-  const scopeNoun = scope === "task" ? "this task" : "all tasks";
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      {taskId != null && (
-        <div className="inline-flex items-center gap-0.5 rounded-full bg-bg-subtle/70 p-0.5 ring-1 ring-border text-[10px]">
-          {(["task", "all"] as const).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setScope(s)}
-              title={s === "task" ? "Remind about this task" : "Remind about all their open tasks"}
-              className={cn("rounded-full px-1.5 py-0.5 font-medium transition-colors", scope === s ? "bg-bg-elev text-fg ring-1 ring-border" : "text-fg-muted hover:text-fg")}
-            >
-              {s === "task" ? "Task" : "All"}
-            </button>
-          ))}
-        </div>
-      )}
-      <button type="button" onClick={whatsapp} disabled={busy} title={`WhatsApp ${first} · ${scopeNoun}`} aria-label={`WhatsApp ${first} · ${scopeNoun}`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
+      <button type="button" onClick={whatsapp} disabled={busy} title="WhatsApp this task" aria-label={`WhatsApp ${first} about this task`} className={cn(iconBtn, "bg-success-soft text-success ring-success/25")}>
         {busy ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={15} />}
       </button>
-      <button type="button" onClick={email} disabled={busy} title={`Email ${first} · ${scopeNoun}`} aria-label={`Email ${first} · ${scopeNoun}`} className={cn(iconBtn, "bg-accent-soft text-accent ring-accent/25")}>
+      <button type="button" onClick={email} disabled={busy} title="Email this task" aria-label={`Email ${first} about this task`} className={cn(iconBtn, "bg-accent-soft text-accent ring-accent/25")}>
         <Mail size={15} />
       </button>
-      <button type="button" onClick={chat} disabled={busy} title={`Message ${first} in chat`} aria-label={`Message ${first} in chat`} className={cn(iconBtn, "bg-bg-subtle text-fg-muted ring-border")}>
+      <button type="button" onClick={chat} disabled={busy} title="Message in chat" aria-label={`Message ${first} in chat`} className={cn(iconBtn, "bg-bg-subtle text-fg-muted ring-border")}>
         <MessageSquarePlus size={15} />
       </button>
     </div>

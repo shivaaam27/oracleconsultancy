@@ -21,6 +21,8 @@ export const metadata = { title: "Request — Oracle Consultancy" };
 export default async function PortalRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // Requests are removed from the director portal for now.
+  if (me.portalRole === "director") redirect("/portal/board");
   const { id } = await params;
   const detail = await getRequestDetail(Number(id));
   if (!detail) redirect("/portal/requests");
@@ -35,7 +37,8 @@ export default async function PortalRequestDetailPage({ params }: { params: Prom
     detail.seenAt = new Date().toISOString();
   }
 
-  const canConvert = recipient && (me.portalRole === "manager" || me.portalRole === "hr" || me.portalRole === "director");
+  // Directors are redirected out above, so only manager / HR reach this.
+  const canConvert = recipient && (me.portalRole === "manager" || me.portalRole === "hr");
   let convertOptions: { companies: { id: number; name: string }[]; people: { id: number; name: string }[] } | undefined;
   if (canConvert) {
     if (me.portalRole === "manager") {
