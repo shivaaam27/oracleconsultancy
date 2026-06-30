@@ -31,6 +31,9 @@ import { portalLogout } from "../../actions";
 import { BriefPdfButton } from "@/components/brief-pdf-button";
 import { Contact } from "lucide-react";
 import { PortalContactDetails, type ContactDetails } from "./portal-contact-details";
+import { getAllTasks } from "@/lib/queries";
+import { computePersonKpi } from "@/lib/kpi";
+import { PortalKpiCard } from "@/components/portal-kpi-card";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +111,22 @@ export default async function PortalProfile() {
   // else.
   const isDirector = me.portalRole === "director";
 
+  // Self-KPI (staff/managers only) — last 4 months of their own scorecard.
+  let kpiMonths: React.ComponentProps<typeof PortalKpiCard>["months"] = [];
+  if (!isDirector) {
+    const allTasks = await getAllTasks();
+    const nowK = new Date();
+    kpiMonths = Array.from({ length: 4 }, (_, i) => {
+      const dt = new Date(nowK.getFullYear(), nowK.getMonth() - i, 1);
+      const k = computePersonKpi(me.id, allTasks, dt.getFullYear(), dt.getMonth() + 1);
+      return {
+        monthLabel: k.monthLabel, involvedDone: k.involvedDone, ledDone: k.ledDone,
+        createdDone: k.createdDone, onTimeRate: k.onTimeRate, openInvolved: k.openInvolved,
+        overdueOpen: k.overdueOpen, score: k.score,
+      };
+    });
+  }
+
   // Glance rail — the three numbers that tell a staff member where they stand
   // before any scrolling. Each tile only appears when there's data behind it.
   const compScore = checklist ? checklist.score : null;
@@ -160,6 +179,12 @@ export default async function PortalProfile() {
               </div>
             ))}
           </div>
+        </Reveal>
+      )}
+
+      {!isDirector && kpiMonths.length > 0 && (
+        <Reveal delay={0.04}>
+          <PortalKpiCard months={kpiMonths} />
         </Reveal>
       )}
 

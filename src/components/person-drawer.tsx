@@ -7,7 +7,7 @@ import {
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
   LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake, Users,
-  Rocket, LogOut, ListPlus, ChevronLeft, Wrench,
+  Rocket, LogOut, ListPlus, ChevronLeft, ChevronRight, Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
@@ -98,6 +98,22 @@ type DrawerData = {
     escalated: number;
     completedThisMonth: number;
   };
+  kpiMonths: Array<{
+    personId: number;
+    year: number;
+    month: number;
+    monthLabel: string;
+    createdDone: number;
+    involvedDone: number;
+    ledDone: number;
+    onTimeCount: number;
+    lateCount: number;
+    onTimeRate: number | null;
+    openInvolved: number;
+    overdueOpen: number;
+    score: number;
+    excluded: boolean;
+  }>;
   assignedTasks: TaskRow[];
   documents: Array<{
     id: number;
@@ -186,6 +202,70 @@ function documentTone(status: string): "default" | "success" | "warn" | "danger"
 function whatsappHref(num: string) {
   // strip non-digits then prefix wa.me
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
+}
+
+/** Monthly task KPI scorecard with a month stepper. Delivery credit (involved)
+ *  and creator credit are kept as separate numbers — see src/lib/kpi.ts. */
+function KpiCard({
+  months,
+  onOpenTasks,
+}: {
+  months: DrawerData["kpiMonths"];
+  onOpenTasks: () => void;
+}) {
+  const [idx, setIdx] = useState(0); // 0 = current month, higher = older
+  const kpi = months[idx];
+  if (!kpi) return null;
+  const ratePct = kpi.onTimeRate == null ? null : Math.round(kpi.onTimeRate * 100);
+  const rateTone =
+    ratePct == null ? "text-fg-subtle" : ratePct >= 80 ? "text-success" : ratePct >= 50 ? "text-warn" : "text-danger";
+  const scoreTone = kpi.score > 0 ? "text-success" : kpi.score < 0 ? "text-danger" : "text-fg-muted";
+  return (
+    <div className="bg-bg-elev rounded-xl ring-1 ring-border/60 overflow-hidden">
+      <div className="px-3 py-2.5 border-b border-border/50 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-fg-muted">
+        <button type="button" onClick={() => setIdx((i) => Math.min(months.length - 1, i + 1))} disabled={idx >= months.length - 1}
+          className="p-0.5 rounded hover:bg-bg-muted/60 disabled:opacity-30 transition-colors" aria-label="Previous month">
+          <ChevronLeft size={15} />
+        </button>
+        <span className="normal-case tabular">KPI · {kpi.monthLabel}</span>
+        <button type="button" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx <= 0}
+          className="p-0.5 rounded hover:bg-bg-muted/60 disabled:opacity-30 transition-colors" aria-label="Next month">
+          <ChevronRight size={15} />
+        </button>
+        <span className={cn("ml-auto text-base font-semibold tabular normal-case", scoreTone)}>{kpi.score}</span>
+      </div>
+      <div className="grid grid-cols-2 divide-x divide-border/50">
+        <div className="px-4 py-3 text-center">
+          <div className="text-lg font-semibold tabular leading-none text-info">{kpi.involvedDone}</div>
+          <div className="mt-1 text-[10px] text-fg-muted leading-tight">
+            Completed{kpi.involvedDone > 0 ? ` · ${kpi.ledDone} led` : ""}
+          </div>
+        </div>
+        <div className="px-4 py-3 text-center">
+          <div className="text-lg font-semibold tabular leading-none text-accent">{kpi.createdDone}</div>
+          <div className="mt-1 text-[10px] text-fg-muted leading-tight">Created &amp; done</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 divide-x divide-border/50 border-t border-border/50">
+        <div className="px-4 py-2.5 text-center">
+          <div className={cn("text-sm font-semibold tabular leading-none", rateTone)}>
+            {ratePct == null ? "—" : `${ratePct}%`}
+          </div>
+          <div className="mt-1 text-[10px] text-fg-subtle leading-tight">
+            On time{kpi.lateCount > 0 ? ` · ${kpi.lateCount} late` : ""}
+          </div>
+        </div>
+        <button type="button" onClick={onOpenTasks} className="px-4 py-2.5 text-center hover:bg-bg-muted/50 transition-colors">
+          <div className={cn("text-sm font-semibold tabular leading-none", kpi.overdueOpen ? "text-danger" : "text-fg-muted")}>
+            {kpi.openInvolved}
+          </div>
+          <div className="mt-1 text-[10px] text-fg-subtle leading-tight">
+            Open now{kpi.overdueOpen > 0 ? ` · ${kpi.overdueOpen} overdue` : ""}
+          </div>
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** Quick reminder text built from a person's open tasks. */
@@ -547,6 +627,10 @@ export function PersonDrawer() {
           </button>
         ))}
       </div>
+
+      {/* KPI scorecard — this month's task performance. Two HONEST counters
+          (created vs accountable), on-time reliability, and the headline score. */}
+      {!(data.kpiMonths[0]?.excluded ?? true) && <KpiCard months={data.kpiMonths} onOpenTasks={() => openView("tasks")} />}
 
       {/* To handle — one ranked list (overdue tasks + doc/compliance gaps +
           pending leave + probation/anniversary), no longer duplicated as tiles. */}

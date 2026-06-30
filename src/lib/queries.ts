@@ -27,6 +27,16 @@ export type TaskRow = {
    *  now one or more. Falls back to [owner_id] when no accountable rows exist and
    *  owner_id is set, else []. */
   leadIds: number[];
+  /** KPI overdue-blame mode: "shared" (all involved share it) or "lead" (only the
+   *  accountable lead carries it). Completion credit is always shared. */
+  accountability: "shared" | "lead";
+  /** When set, a documented blocker ("Waiting on <person>") is active — the
+   *  overdue penalty is SUSPENDED for everyone on the task. */
+  blockedOnPersonId: number | null;
+  /** The recorded reason for the active blocker (null when not blocked). */
+  blockedReason: string | null;
+  /** Person ids who marked "my part is done" — spared this task's overdue blame. */
+  partDoneIds: number[];
   meetingDate: Date | null;
   createdDate: Date | null;
   deadline: Date | null;
@@ -99,11 +109,14 @@ type SbTask = {
   closed_date: string | null;
   archived: boolean;
   requires_attachment: boolean | null;
+  accountability: string | null;
+  blocked_on_person_id: number | null;
+  blocked_reason: string | null;
 };
 type SbCompany = { id: number; name: string; accent_color: string | null };
 type SbDept = { id: number; name: string };
 type SbPerson = { id: number; name: string };
-type SbAssignee = { task_id: number; person_id: number; role: string | null };
+type SbAssignee = { task_id: number; person_id: number; role: string | null; part_done_at: string | null };
 type SbUpdate = {
   id: number;
   task_id: number;
@@ -194,13 +207,13 @@ export const getRecentActivity = cache(async (limit = 160): Promise<RawActivity>
  *  tasks never inflate lists, KPIs or the Director Brief (ACTTASKS-01). */
 async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
   // Exclude archived rows at the source unless explicitly opted in.
-  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_by_person_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived,requires_attachment");
+  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_by_person_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived,requires_attachment,accountability,blocked_on_person_id,blocked_reason");
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, updatesRes, settings] = await Promise.all([
     includeArchived ? tasksQuery : tasksQuery.eq("archived", false),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("departments").select("id,name"),
     sb.from("people").select("id,name"),
-    sb.from("task_assignees").select("task_id,person_id,role"),
+    sb.from("task_assignees").select("task_id,person_id,role,part_done_at"),
     // One batched read of every live update, newest first, for the rich-row
     // enrichment (latest update + count + pinned). No per-task query (no N+1).
     sb.from("task_updates").select("id,task_id,body,created_at,created_by,pinned_at").is("deleted_at", null).order("created_at", { ascending: false }),
@@ -244,6 +257,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
   const aMap = new Map<number, string[]>();
   const aIdMap = new Map<number, number[]>();
   const leadIdMap = new Map<number, number[]>();
+  const partDoneMap = new Map<number, number[]>();
   for (const a of assignees) {
     const list = aMap.get(a.task_id) || [];
     const idList = aIdMap.get(a.task_id) || [];
@@ -255,6 +269,11 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
       const leads = leadIdMap.get(a.task_id) || [];
       leads.push(a.person_id);
       leadIdMap.set(a.task_id, leads);
+    }
+    if (a.part_done_at) {
+      const pd = partDoneMap.get(a.task_id) || [];
+      pd.push(a.person_id);
+      partDoneMap.set(a.task_id, pd);
     }
   }
 
@@ -300,6 +319,10 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
       assignees: aMap.get(t.id) || [],
       assigneeIds: aIdMap.get(t.id) || [],
       leadIds: leadIdMap.get(t.id) ?? (t.owner_id != null ? [t.owner_id] : []),
+      accountability: t.accountability === "lead" ? "lead" : "shared",
+      blockedOnPersonId: t.blocked_on_person_id ?? null,
+      blockedReason: t.blocked_reason ?? null,
+      partDoneIds: partDoneMap.get(t.id) ?? [],
       meetingDate: toDate(t.meeting_date),
       createdDate,
       deadline,

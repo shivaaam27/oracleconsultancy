@@ -9,7 +9,7 @@ import { CompanyDrawerLink } from "./company-drawer-link";
 import { TimelineEntry } from "./timeline-entry";
 import {
   ExternalLink, FileText, History, LayoutDashboard, MessageSquare, Pencil, Save,
-  CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
+  CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin, ShieldCheck, Circle,
   ChevronLeft, ChevronRight, Send, Link as LinkIcon, Bell,
 } from "lucide-react";
 import { DeadlineEditor } from "./deadline-editor";
@@ -27,7 +27,7 @@ import { SimilarTasks } from "./similar-tasks";
 import { DraftEmailButton } from "./draft-email-button";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
-import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask } from "@/app/task/actions";
+import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask, setTaskAccountability, setTaskBlocker, clearTaskBlocker, toggleMyPartDone } from "@/app/task/actions";
 import { getGivenName, getInitials } from "@/lib/names";
 import { STATUSES, PRIORITIES, RISKS } from "@/lib/constants";
 import {
@@ -136,6 +136,94 @@ function SetLink({ onClick, children }: { onClick: () => void; children: React.R
     <button type="button" onClick={onClick} className="text-[13px] text-fg-subtle hover:text-accent transition-colors">
       {children}
     </button>
+  );
+}
+
+/** Overdue-accountability controls: blame mode, documented blocker (Waiting on),
+ *  and per-person "my part is done". Writes feed the KPI (src/lib/kpi.ts). */
+function AccountabilityCard({ task, onChanged }: { task: TaskRow; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [raising, setRaising] = useState(false);
+  const [blockPerson, setBlockPerson] = useState<number | null>(null);
+  const [reason, setReason] = useState("");
+  const blocked = task.blockedOnPersonId != null;
+  const blockerName = blocked ? task.assignees[task.assigneeIds.indexOf(task.blockedOnPersonId!)] ?? "someone" : "";
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    try { await fn(); onChanged(); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="rounded-2xl ring-1 ring-border/60 bg-bg-elev p-3 space-y-3">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+        <ShieldCheck size={13} /> Accountability if late
+      </div>
+
+      {/* Blame mode toggle */}
+      <div className="flex gap-1.5">
+        {(["shared", "lead"] as const).map((m) => (
+          <button key={m} type="button" disabled={busy}
+            onClick={() => task.accountability !== m && run(() => setTaskAccountability(task.id, m))}
+            className={cn("flex-1 rounded-xl px-2.5 py-1.5 text-xs font-medium ring-1 transition-colors disabled:opacity-50",
+              task.accountability === m ? "ring-accent bg-accent-soft text-accent" : "ring-border text-fg-muted hover:bg-bg-muted/50")}>
+            {m === "shared" ? "Shared" : "Lead only"}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-fg-subtle -mt-1">
+        {task.accountability === "shared" ? "Everyone on the task shares an overdue mark." : "Only the accountable lead carries an overdue mark."}
+      </p>
+
+      {/* Documented blocker */}
+      {blocked ? (
+        <div className="rounded-xl ring-1 ring-warn/30 bg-warn-soft/30 p-2.5 space-y-1.5">
+          <div className="text-xs font-medium text-warn flex items-center gap-1.5"><Pin size={11} /> Waiting on {blockerName}</div>
+          {task.blockedReason && <p className="text-[12px] text-fg-muted">{task.blockedReason}</p>}
+          <p className="text-[11px] text-fg-subtle">Overdue marks are paused while this is open.</p>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => clearTaskBlocker(task.id))}>Clear blocker</Button>
+        </div>
+      ) : raising ? (
+        <div className="rounded-xl ring-1 ring-border p-2.5 space-y-2">
+          <Field label="Waiting on">
+            <Select value={blockPerson ?? ""} onChange={(e) => setBlockPerson(e.target.value ? Number(e.target.value) : null)}>
+              <option value="">Choose a person…</option>
+              {task.assigneeIds.map((id, i) => <option key={id} value={id}>{task.assignees[i]}</option>)}
+            </Select>
+          </Field>
+          <Field label="Reason (recorded)">
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. awaiting their documents" />
+          </Field>
+          <div className="flex gap-1.5">
+            <Button size="sm" disabled={busy || !blockPerson || !reason.trim()}
+              onClick={() => run(async () => { await setTaskBlocker(task.id, blockPerson!, reason); setRaising(false); setReason(""); setBlockPerson(null); })}>Raise blocker</Button>
+            <Button size="sm" variant="ghost" onClick={() => setRaising(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" disabled={busy} onClick={() => setRaising(true)}
+          className="text-[12px] text-fg-subtle hover:text-accent transition-colors">+ Raise a blocker (pauses overdue)</button>
+      )}
+
+      {/* Per-person "my part done" */}
+      {task.assigneeIds.length > 0 && (
+        <div className="pt-1 border-t border-border/50 space-y-1">
+          <div className="text-[10px] uppercase tracking-wider text-fg-subtle">Parts done</div>
+          {task.assigneeIds.map((id, i) => {
+            const done = task.partDoneIds.includes(id);
+            return (
+              <button key={id} type="button" disabled={busy}
+                onClick={() => run(() => toggleMyPartDone(task.id, id, !done))}
+                className="w-full flex items-center gap-2 py-1 text-left text-[13px] disabled:opacity-50">
+                {done ? <CheckCircle2 size={15} className="text-success shrink-0" /> : <Circle size={15} className="text-fg-subtle shrink-0" />}
+                <span className={cn("truncate", done ? "text-fg-muted line-through" : "text-fg")}>{task.assignees[i]}</span>
+                {done && <span className="ml-auto text-[10px] text-success">done</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -408,6 +496,9 @@ export function TaskDrawer() {
           {t.department ? <span className="text-[13px] font-medium text-fg">{t.department}</span> : <SetLink onClick={() => setActiveTab("edit")}>Set department</SetLink>}
         </FactRow>
       </div>
+
+      {/* Accountability — overdue-blame mode, documented blocker, per-person done */}
+      <AccountabilityCard task={t} onChanged={() => setRefreshKey((k) => k + 1)} />
 
       {/* About — the full description */}
       {t.comments && t.comments.trim() && (

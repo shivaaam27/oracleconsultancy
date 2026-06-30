@@ -583,6 +583,19 @@ export const tasks = pgTable("tasks", {
   // overrides. Default ON for director-created tasks; off elsewhere. Enforced
   // server-side in the portal completion + edit gates.
   creatorCloseOnly: boolean("creator_close_only").notNull().default(false),
+  // KPI accountability mode for overdue blame (completion credit is ALWAYS shared
+  // across everyone involved — this only governs who carries an OVERDUE penalty):
+  //   "shared" — every assignee/owner/lead shares the overdue hit (default).
+  //   "lead"   — only the accountable lead(s) carry it; helpers are spared.
+  // See src/lib/kpi.ts.
+  accountability: text("accountability").notNull().default("shared"),
+  // Documented blocker ("Waiting on <person>"): while set, the task's overdue
+  // penalty is fully SUSPENDED for everyone (the situation is on record for the
+  // owner to judge). blockedReason is required when raising it; blockedSince
+  // timestamps the handoff for the audit trail.
+  blockedOnPersonId: integer("blocked_on_person_id").references(() => people.id),
+  blockedReason: text("blocked_reason"),
+  blockedSince: timestamp("blocked_since", { mode: "date", withTimezone: true }),
 }, (t) => [
   index("tasks_company_idx").on(t.companyId),
   index("tasks_owner_idx").on(t.ownerId),
@@ -599,6 +612,9 @@ export const taskAssignees = pgTable(
     // tasks.owner_id remains the FIRST accountable person for back-compat;
     // additional accountable people are assignees with this role.
     role: text("role").notNull().default("working"),
+    // Per-person "my part is done" stamp. When set, this person is spared the
+    // task's overdue penalty (they delivered their portion) — see src/lib/kpi.ts.
+    partDoneAt: timestamp("part_done_at", { mode: "date", withTimezone: true }),
   },
   (t) => [
     primaryKey({ columns: [t.taskId, t.personId] }),

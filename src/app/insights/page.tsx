@@ -4,6 +4,35 @@ import { getAllTasks, statusBreakdown, priorityBreakdown, type TaskRow } from "@
 import { PageHeader } from "@/components/ui";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { CompanyDrawerLink } from "@/components/company-drawer-link";
+import { sb } from "@/db/supabase";
+import { computePersonKpi } from "@/lib/kpi";
+import { KpiLeaderboard, type KpiBoardPerson } from "@/components/kpi-leaderboard";
+
+/** Build the monthly KPI leaderboard data (last 4 months) for active, non-director
+ *  staff. Directors are excluded (they set the work, not deliver it). */
+async function buildKpiBoard(rows: TaskRow[]): Promise<KpiBoardPerson[]> {
+  const { data: people } = await sb
+    .from("people")
+    .select("id,name,active,portal_role,director_company_id")
+    .eq("active", true);
+  const now = new Date();
+  const board: KpiBoardPerson[] = [];
+  for (const p of people ?? []) {
+    if (p.portal_role === "director" || p.director_company_id != null) continue; // excluded
+    const months = Array.from({ length: 4 }, (_, i) => {
+      const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const k = computePersonKpi(p.id as number, rows, dt.getFullYear(), dt.getMonth() + 1);
+      return {
+        monthLabel: k.monthLabel, involvedDone: k.involvedDone, ledDone: k.ledDone,
+        createdDone: k.createdDone, onTimeRate: k.onTimeRate, openInvolved: k.openInvolved,
+        overdueOpen: k.overdueOpen, score: k.score,
+      };
+    });
+    const anyActivity = months.some((m) => m.involvedDone || m.createdDone || m.openInvolved);
+    if (anyActivity) board.push({ personId: p.id as number, name: p.name as string, role: (p.portal_role as string | null) ?? null, months });
+  }
+  return board;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +59,7 @@ function statusTone(s: string): "accent" | "danger" | "warn" | "success" | "info
 
 export default async function InsightsPage() {
   const rows = await getAllTasks();
+  const kpiBoard = await buildKpiBoard(rows);
   const isOpenRow = (r: TaskRow) => r.status !== "Completed" && r.status !== "Closed";
 
   const statuses = statusBreakdown(rows);
@@ -52,6 +82,8 @@ export default async function InsightsPage() {
     <div className="space-y-5 max-w-3xl mx-auto">
       <HrmsCrumbs />
       <PageHeader title="Insights" sub="How your tasks are spread across companies, status and priority. (Forecasts — leave, renewals, probations — live on the Director Brief.)" />
+
+      <KpiLeaderboard board={kpiBoard} />
 
       <Link
         href="/brief"

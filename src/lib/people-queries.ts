@@ -10,6 +10,7 @@ import { listPersonEvents, type PersonEvent } from "./person-audit";
 import { personLeaveBalances, listLeaveRequests, personAttendanceThisMonth, type PersonAttendanceSummary } from "./leave";
 import type { PersonLeaveBalance, LeaveRequestRow } from "./leave-shared";
 import { listProfileSuggestions, type ProfileSuggestion } from "./profile-suggestions";
+import { computePersonKpi, type PersonKpi } from "./kpi";
 
 export type { PersonType };
 
@@ -264,6 +265,9 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
 export type PersonDetail = {
   person: Person;
   workload: PersonWorkload;
+  /** Recent monthly KPI scorecards, NEWEST FIRST (current month + 3 prior), so
+   *  the drawer can step back to May/June. Directors get excluded=true on each. */
+  kpiMonths: PersonKpi[];
   assignedTasks: TaskRow[];
   documents: PersonDocument[];
   /** Recent task_updates on tasks this person is involved in. */
@@ -396,6 +400,12 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
 
   const assignedTasks = tasks.filter((t) => isInvolved(person, t));
   const workload = computeWorkload(person, tasks);
+  // Last 4 months, newest first — lets the drawer step back to curated May/June.
+  const nowM = new Date();
+  const kpiMonths = Array.from({ length: 4 }, (_, i) => {
+    const dt = new Date(nowM.getFullYear(), nowM.getMonth() - i, 1);
+    return computePersonKpi(person.id, tasks, dt.getFullYear(), dt.getMonth() + 1);
+  });
   const documents: PersonDocument[] = (rawDocuments ?? []).map((doc) => {
     const expiryDate = doc.expiry_date ? new Date(doc.expiry_date as string) : null;
     const reminderLeadDays = (doc.reminder_lead_days as number | null) ?? 30;
@@ -482,7 +492,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     personLeaveBalances(id),
     listLeaveRequests({ personId: id }),
     personAttendanceThisMonth(id),
-    sb.from("people").select("portal_password_hash,portal_role,portal_last_login_at").eq("id", id).maybeSingle(),
+    sb.from("people").select("portal_password_hash,portal_role,portal_last_login_at,director_company_id").eq("id", id).maybeSingle(),
     listProfileSuggestions({ personId: id, status: "pending" }),
     listProfileSuggestions({ personId: id, status: "applied" }),
   ]);
@@ -491,9 +501,14 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     role: (portalRow?.portal_role as string | null) ?? "staff",
     lastLoginAt: (portalRow?.portal_last_login_at as string | null) ?? null,
   };
+  // Directors are excluded from task KPI — they set the work, they don't earn a
+  // delivery score. Covers full directors and company-scoped directors.
+  const kpiExcluded =
+    portal.role === "director" || (portalRow?.director_company_id as number | null) != null;
+  for (const k of kpiMonths) k.excluded = kpiExcluded;
 
   return {
-    person, workload, assignedTasks, documents, recentUpdates, companies, peopleList, departments, events,
+    person, workload, kpiMonths, assignedTasks, documents, recentUpdates, companies, peopleList, departments, events,
     sites: await listSiteNames(),
     roles: await listRoleNames(),
     leave: { balances: leaveBalances, requests: leaveRequests, attendance },

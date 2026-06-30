@@ -249,6 +249,8 @@ export async function portalCreateTask(
   const workingIds = idList(formData, "workingIds").filter((id) => !leadIds.includes(id));
   const instruction = String(formData.get("instruction") ?? "").trim();
   const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
+  // Overdue-blame mode (completion credit is always shared). Default shared.
+  const accountability = String(formData.get("accountability") ?? "shared") === "lead" ? "lead" : "shared";
   if (!actionItem) return { error: "Give the task a title." };
   if (!Number.isFinite(companyId)) return { error: "Choose a company." };
   if (leadIds.length === 0) return { error: "Choose who is responsible." };
@@ -297,6 +299,7 @@ export async function portalCreateTask(
     archived: false,
     createdByPersonId: me.id,
     requiresAttachment,
+    accountability,
   });
 
   // Assignees: every lead is "accountable", every working person is "working".
@@ -1878,4 +1881,69 @@ export async function portalTogglePin(formData: FormData) {
 
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);
+}
+
+/* ─── Portal KPI accountability (self-scoped) ──────────────────────────────
+ * Staff can mark their OWN part done; anyone involved can raise/clear a blocker
+ * on a task they're on. All post a stamped update for the record. */
+
+function portalStamp(me: { portalRole: string; name: string }): string {
+  const r = me.portalRole;
+  const prefix = r === "director" ? "portal-dir" : r === "hr" ? "portal-hr" : r === "manager" ? "portal-mgr" : "portal";
+  return `${prefix}:${me.name}`;
+}
+
+async function portalInvolved(taskId: number, personId: number): Promise<boolean> {
+  const [{ data: t }, { data: a }] = await Promise.all([
+    sb.from("tasks").select("owner_id").eq("id", taskId).maybeSingle(),
+    sb.from("task_assignees").select("person_id").eq("task_id", taskId).eq("person_id", personId).maybeSingle(),
+  ]);
+  return Boolean(a) || (t?.owner_id as number | null) === personId;
+}
+
+async function portalPostUpdate(taskId: number, body: string, by: string) {
+  const now = new Date().toISOString();
+  await sb.from("task_updates").insert({ task_id: taskId, body, created_at: now, created_by: by });
+  await sb.from("tasks").update({ last_updated_at: now, latest_update: body }).eq("id", taskId);
+}
+
+/** Mark/clear the signed-in person's "my part is done" on a task they're on. */
+export async function portalToggleMyPartDone(taskId: number, done: boolean): Promise<{ error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (!(await portalInvolved(taskId, me.id))) return { error: "You're not on this task." };
+  await sb.from("task_assignees").update({ part_done_at: done ? new Date().toISOString() : null })
+    .eq("task_id", taskId).eq("person_id", me.id);
+  await portalPostUpdate(taskId, done ? `✓ ${me.name} marked their part done` : `↺ ${me.name} reopened their part`, portalStamp(me));
+  revalidatePath("/portal"); revalidatePath("/");
+  return {};
+}
+
+/** Raise a documented blocker (Waiting on <person>) — suspends overdue for all. */
+export async function portalRaiseBlocker(taskId: number, personId: number, reason: string): Promise<{ error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (!(await portalInvolved(taskId, me.id))) return { error: "You're not on this task." };
+  const r = (reason || "").trim();
+  if (!r) return { error: "Add a short reason." };
+  const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
+  await sb.from("tasks").update({
+    blocked_on_person_id: personId, blocked_reason: r, blocked_since: new Date().toISOString(), status: "Blocked",
+  }).eq("id", taskId);
+  await portalPostUpdate(taskId, `⏸ Waiting on ${p?.name ?? "someone"}: ${r}`, portalStamp(me));
+  revalidatePath("/portal"); revalidatePath("/");
+  return {};
+}
+
+/** Clear a blocker the signed-in person can see (must be involved). */
+export async function portalClearBlocker(taskId: number): Promise<{ error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  if (!(await portalInvolved(taskId, me.id))) return { error: "You're not on this task." };
+  await sb.from("tasks").update({
+    blocked_on_person_id: null, blocked_reason: null, blocked_since: null, status: "In Progress",
+  }).eq("id", taskId);
+  await portalPostUpdate(taskId, "▶ Blocker cleared", portalStamp(me));
+  revalidatePath("/portal"); revalidatePath("/");
+  return {};
 }

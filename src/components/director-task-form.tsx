@@ -88,6 +88,7 @@ export function DirectorTaskForm({
   const [leadIds, setLeadIds] = useState<number[]>([]);
   const [priority, setPriority] = useState("Medium");
   const [requiresProof, setRequiresProof] = useState(false);
+  const [sharedBlame, setSharedBlame] = useState(true); // true = shared overdue blame; false = lead-only
   const [creatorCloseOnly, setCreatorCloseOnly] = useState(isDirector); // default ON for directors
   const [assigned, setAssigned] = useState<{ id: number; name: string } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -200,6 +201,7 @@ export function DirectorTaskForm({
       <input type="hidden" name="priority" value={priority} />
       {workingIds.map((id) => <input key={id} type="hidden" name="workingIds" value={id} />)}
       <input type="hidden" name="requiresAttachment" value={requiresProof ? "1" : ""} />
+      <input type="hidden" name="accountability" value={sharedBlame ? "shared" : "lead"} />
       {isDirector && <input type="hidden" name="creatorCloseOnly" value={creatorCloseOnly ? "1" : ""} />}
 
       <div>
@@ -285,6 +287,7 @@ export function DirectorTaskForm({
       </div>
 
       <SwitchRow label="Require proof to complete" hint="A file must be attached to finish this task" on={requiresProof} onChange={setRequiresProof} />
+      <SwitchRow label="Shared responsibility for delays" hint={sharedBlame ? "Everyone on the task shares an overdue mark" : "Only the lead carries an overdue mark — helpers are spared"} on={sharedBlame} onChange={setSharedBlame} />
       {isDirector && (
         <SwitchRow label="Only I can close it" hint="Locks completion to you — others can't close it." on={creatorCloseOnly} onChange={setCreatorCloseOnly} />
       )}

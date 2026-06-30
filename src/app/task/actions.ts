@@ -445,6 +445,9 @@ export async function createTask(formData: FormData) {
   const comments = str(formData.get("comments"));
   const latestUpdate = str(formData.get("latestUpdate"));
   const accountableRaw = str(formData.get("accountable"));
+  // Overdue-blame mode (completion credit is always shared). "lead" marks the
+  // first assignee as the accountable lead so only they carry an overdue hit.
+  const accountability = str(formData.get("accountability")) === "lead" ? "lead" : "shared";
 
   const result = await mutate({
     kind: "task.create",
@@ -514,6 +517,9 @@ export async function createTask(formData: FormData) {
                   lastUpdatedAt: now,
                   closedDate: closedDate ? new Date(closedDate) : null,
                   archived: false,
+                  accountability,
+                  // In "lead" mode the first assignee owns it (carries overdue).
+                  ownerId: accountability === "lead" && assigneeIds.length ? assigneeIds[0] : undefined,
                 })
                 .returning({ id: tasksTable.id, code: tasksTable.code });
               return inserted;
@@ -529,7 +535,12 @@ export async function createTask(formData: FormData) {
         if (assigneeIds.length) {
           await tx
             .insert(taskAssignees)
-            .values(assigneeIds.map((personId) => ({ taskId: created!.id, personId })))
+            .values(assigneeIds.map((personId, i) => ({
+              taskId: created!.id,
+              personId,
+              // In "lead" mode the first assignee is the accountable lead.
+              role: accountability === "lead" && i === 0 ? "accountable" : "working",
+            })))
             .onConflictDoNothing();
         }
 
@@ -1308,4 +1319,58 @@ export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undo
   if (result.undoToken) await setUndoCookie(result.undoToken, "Task deleted.");
   revalidatePath("/"); updateTag("tasks");
   return { ok: true, undoToken: result.undoToken };
+}
+
+/* ─── KPI accountability controls ──────────────────────────────────────────
+ * Overdue-blame mode, documented blockers (Waiting on <person>) and per-person
+ * "my part is done". These feed src/lib/kpi.ts. All post a timestamped update
+ * so the record (not just the score) stays defensible. */
+
+async function postTaskUpdate(taskId: number, body: string, by = "web-ui") {
+  await sb.from("task_updates").insert({ task_id: taskId, body, created_at: new Date().toISOString(), created_by: by });
+  await sb.from("tasks").update({ last_updated_at: new Date().toISOString(), latest_update: body }).eq("id", taskId);
+}
+
+/** Switch a task between "shared" and "lead" overdue-blame modes. */
+export async function setTaskAccountability(taskId: number, mode: "shared" | "lead") {
+  await sb.from("tasks").update({ accountability: mode }).eq("id", taskId);
+  void reindexEntity("task", taskId);
+  revalidatePath("/"); updateTag("tasks");
+  return { ok: true as const };
+}
+
+/** Raise a documented blocker — overdue is SUSPENDED for everyone until cleared. */
+export async function setTaskBlocker(taskId: number, personId: number, reason: string) {
+  const r = (reason || "").trim();
+  if (!r) return { ok: false as const, error: "A reason is required to raise a blocker." };
+  const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
+  await sb.from("tasks").update({
+    blocked_on_person_id: personId, blocked_reason: r, blocked_since: new Date().toISOString(), status: "Blocked",
+  }).eq("id", taskId);
+  await postTaskUpdate(taskId, `⏸ Waiting on ${p?.name ?? "someone"}: ${r}`);
+  void reindexEntity("task", taskId);
+  revalidatePath("/"); updateTag("tasks");
+  return { ok: true as const };
+}
+
+/** Clear the blocker — the task is live again and overdue blame resumes. */
+export async function clearTaskBlocker(taskId: number, note?: string) {
+  await sb.from("tasks").update({
+    blocked_on_person_id: null, blocked_reason: null, blocked_since: null, status: "In Progress",
+  }).eq("id", taskId);
+  await postTaskUpdate(taskId, `▶ Blocker cleared${note ? `: ${note.trim()}` : ""}`);
+  void reindexEntity("task", taskId);
+  revalidatePath("/"); updateTag("tasks");
+  return { ok: true as const };
+}
+
+/** Toggle a person's "my part is done" flag — spares them this task's overdue blame. */
+export async function toggleMyPartDone(taskId: number, personId: number, done: boolean) {
+  const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
+  await sb.from("task_assignees")
+    .update({ part_done_at: done ? new Date().toISOString() : null })
+    .eq("task_id", taskId).eq("person_id", personId);
+  await postTaskUpdate(taskId, done ? `✓ ${p?.name ?? "Someone"} marked their part done` : `↺ ${p?.name ?? "Someone"} reopened their part`);
+  revalidatePath("/"); updateTag("tasks");
+  return { ok: true as const };
 }

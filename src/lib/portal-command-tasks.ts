@@ -77,6 +77,9 @@ export async function buildCommandTasks(ids: number[], viewerId: number): Promis
       raisedByMe: mine,
       isDone,
       withinSoon,
+      myPartDone: r.partDoneIds.includes(viewerId),
+      blockedReason: r.blockedReason,
+      blockedByName: r.blockedOnPersonId != null ? (r.assignees[r.assigneeIds.indexOf(r.blockedOnPersonId)] ?? null) : null,
     };
   });
 }
