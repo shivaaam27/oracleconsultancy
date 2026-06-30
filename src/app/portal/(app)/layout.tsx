@@ -8,8 +8,9 @@ import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
 import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, isScopedDirector } from "@/lib/portal-auth";
 import { portalCapabilities } from "@/lib/portal-capabilities";
+import { sb } from "@/db/supabase";
 import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
 import { audienceForRole, unseenToursFor } from "@/lib/tours";
 import { TourRunner } from "@/components/tour-guide";
@@ -62,6 +63,20 @@ export default async function PortalLayout({ children }: { children: React.React
   // max-w-3xl). Directors stay widest for their two-column board.
   const wide = me.portalRole === "director";
 
+  // A company-scoped director (e.g. MES Ltd) leads THEIR company, not Oracle — so
+  // the header leads with that company (full legal name where set) and credits
+  // Oracle as the platform. Everyone else keeps "Oracle Consultancy · <portal>".
+  const scopedDirector = isScopedDirector(me);
+  let scopedCompanyName: string | null = null;
+  if (scopedDirector && me.directorCompanyId != null) {
+    const { data } = await sb
+      .from("companies")
+      .select("name,legal_name")
+      .eq("id", me.directorCompanyId)
+      .maybeSingle();
+    scopedCompanyName = ((data?.legal_name as string | null)?.trim() || (data?.name as string | null)?.trim()) ?? null;
+  }
+
   return (
     <div className={`flex flex-col gap-5 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl" : "max-w-3xl lg:max-w-5xl"}`}>
       <header className="flex items-center justify-between gap-3 print-hidden">
@@ -71,10 +86,21 @@ export default async function PortalLayout({ children }: { children: React.React
           <NotificationBell to="/portal/task" align="left" />
           <PortalSearchTrigger />
           <div className="min-w-0">
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
-              Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
-            </p>
-            <p className="truncate text-sm font-semibold">{me.name}</p>
+            {scopedDirector && scopedCompanyName ? (
+              <>
+                <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-fg-subtle">By Oracle Consultancy</p>
+                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-muted">{scopedCompanyName}</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-fg-subtle">Directors Board</p>
+                <p className="truncate text-sm font-semibold">{me.name}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
+                  Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
+                </p>
+                <p className="truncate text-sm font-semibold">{me.name}</p>
+              </>
+            )}
           </div>
         </div>
         <PortalSignOut />
