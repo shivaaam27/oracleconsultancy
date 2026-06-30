@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson, seesAllCompanies, companyScope } from "@/lib/portal-auth";
+import { getPortalPerson, seesAllCompanies, colleagueCompanyScope, commandCentrePersonIds } from "@/lib/portal-auth";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
@@ -35,7 +35,7 @@ export default async function PortalDirectoryPage() {
   // companies THEY belong to; a company-scoped director → their ONE company. An
   // unscoped person (no company at all) must NOT fall through to group-wide data, so
   // we deliberately show them an empty set rather than the whole portfolio.
-  const cids = groupWide ? [] : ((await companyScope(me)) ?? []);
+  const cids = groupWide ? [] : ((await colleagueCompanyScope(me)) ?? []);
   const scopedUnscoped = !groupWide && cids.length === 0;
 
   // For non-group-wide viewers we must surface multi-company colleagues too: a
@@ -47,11 +47,14 @@ export default async function PortalDirectoryPage() {
   let visiblePersonIds: number[] | null = null;
   if (!groupWide) {
     const cidSet = new Set(cids);
-    visiblePersonIds = scopedUnscoped
+    const inScope = scopedUnscoped
       ? []
       : [...personCompaniesMap!.entries()]
           .filter(([, theirCids]) => theirCids.some((c) => cidSet.has(c)))
           .map(([pid]) => pid);
+    // The Command Centre is a default support contact for EVERYONE — always
+    // include it even when the viewer shares no company with it.
+    visiblePersonIds = [...new Set([...inScope, ...(await commandCentrePersonIds())])];
   }
 
   // Active people, ordered by name. Managers/staff see only people who share one

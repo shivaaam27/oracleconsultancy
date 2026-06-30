@@ -6,7 +6,8 @@ import {
   getPortalPerson,
   seesAllCompanies,
   isScopedDirector,
-  companyScope,
+  colleagueCompanyScope,
+  commandCentrePersonIds,
   managerTeamIds,
   visibleTaskIds,
   type PortalPerson,
@@ -151,12 +152,13 @@ async function searchPeople(
 
   // Build the id allow-list for non-all-companies viewers BEFORE any read, so we
   // can never accidentally return a colleague outside the viewer's company scope.
-  // Scope companies come from `companyScope` (scoped director → their one company,
-  // manager → their memberships), NOT the viewer's own membership — a director of
-  // company B who personally sits in company A must still scope to B.
+  // Scope = the companies the viewer BELONGS to (colleague contact scope): scoped
+  // director → their one company, manager/staff → their memberships. (NOT plain
+  // `companyScope`, which is governance-only and returns [] for staff — that made
+  // the directory + people search empty for staff.)
   let allowedIds: Set<number> | null = null;
   if (!groupWide) {
-    const cids = (await companyScope(me)) ?? [];
+    const cids = (await colleagueCompanyScope(me)) ?? [];
     // An unscoped viewer (no company at all) sees nobody but themselves.
     const cidSet = new Set(cids);
     const map = await getPersonCompaniesMap();
@@ -166,8 +168,9 @@ async function searchPeople(
         if (theirCids.some((c) => cidSet.has(c))) allowedIds.add(pid);
       }
     }
-    // The viewer can always find themselves.
+    // The viewer can always find themselves + the universal Command Centre contact.
     allowedIds.add(me.id);
+    for (const id of await commandCentrePersonIds()) allowedIds.add(id);
     if (allowedIds.size === 0) return [];
   }
 

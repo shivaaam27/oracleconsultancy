@@ -4,7 +4,7 @@ import { Hero } from "@/components/surface-kit";
 import type { Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson, visibleTaskIds, seesAllCompanies, companyScope } from "@/lib/portal-auth";
+import { getPortalPerson, visibleTaskIds, seesAllCompanies, colleagueCompanyScope } from "@/lib/portal-auth";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { getAllTasks, statusBreakdown, priorityBreakdown, type TaskRow } from "@/lib/queries";
 import { PortalInsights, type Segment, type CompanyOpen } from "@/components/portal-insights";
@@ -53,7 +53,9 @@ export default async function PortalInsightsPage() {
     rows = allRows.filter((r) => !r.archived);
   } else {
     const ids = new Set(await visibleTaskIds(me));
-    companyAllow = new Set((await companyScope(me)) ?? []);
+    // Belonging scope (staff → their own companies) so the by-company chart isn't
+    // empty for staff. Safe: `rows` is already limited to the viewer's visible tasks.
+    companyAllow = new Set((await colleagueCompanyScope(me)) ?? []);
     rows = allRows.filter((r) => ids.has(r.id) && !r.archived);
   }
 

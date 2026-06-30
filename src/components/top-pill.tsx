@@ -636,13 +636,13 @@ function SidePill({ reduce }: { reduce: boolean }) {
         <SideSlot icon={MessageCircle} label="Chat" href="/chat" active={chatActive} onClick={() => router.push("/chat")} />
         <SideSlot icon={Search} label="Search (⌘K)" onClick={openPalette} />
 
-        <span className="h-px w-6 bg-border my-0.5 shrink-0" aria-hidden />
+        <span className="nav-divider h-px w-6 my-0.5 shrink-0" aria-hidden />
 
         {SIDE_WORLD_ORDER.map((slug) => (
           <SideWorld key={slug} slug={slug} reduce={reduce} />
         ))}
 
-        <span className="h-px w-6 bg-border my-0.5 shrink-0" aria-hidden />
+        <span className="nav-divider h-px w-6 my-0.5 shrink-0" aria-hidden />
 
         <div className="flex flex-col items-center">
           <NavActionButton />
@@ -724,7 +724,7 @@ export function TopPill() {
         <HrmsLauncher active={hrmsActive} reduce={reduce} worldColor={currentWorld?.color} worldName={currentWorld?.name} />
         <NavTab href="/chat" icon={MessageCircle} label="Chat" active={chatActive} reduce={reduce} />
 
-        <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
+        <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
 
         <NavActionButton />
 

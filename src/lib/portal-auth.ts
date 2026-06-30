@@ -258,6 +258,30 @@ export async function companyScope(p: PortalPerson): Promise<number[] | null> {
   return [];
 }
 
+/** Companies whose PEOPLE this viewer may see in contact surfaces (the Directory,
+ *  people search) — BELONGING-based, so plain staff get their OWN companies (a
+ *  colleague contact book), unlike `companyScope` which is governance-only and
+ *  returns [] for staff. Scoped director → their one company; manager/staff →
+ *  the companies they belong to; portfolio director / HR → null (everyone). */
+export async function colleagueCompanyScope(p: PortalPerson): Promise<number[] | null> {
+  if (seesAllCompanies(p)) return null;
+  if (isScopedDirector(p)) return [p.directorCompanyId as number];
+  return await myCompanyIds(p);
+}
+
+/** The universal "Command Centre" support contact(s) — ALWAYS reachable to every
+ *  portal user (chat / email / call) regardless of company, for help, feedback &
+ *  bugs. Identified by name so it's available by default to directors/managers/
+ *  staff who have no association with its home company (Oracle Consultancy). */
+export async function commandCentrePersonIds(): Promise<number[]> {
+  const { data } = await sb
+    .from("people")
+    .select("id")
+    .ilike("name", "Command Centre")
+    .eq("active", true);
+  return (data ?? []).map((r) => r.id as number);
+}
+
 /** Every company id a given person (by id) belongs to — primary ∪ person_companies.
  *  Used to test whether a target person sits inside a viewer's company scope. */
 export async function companyIdsForPerson(personId: number): Promise<number[]> {

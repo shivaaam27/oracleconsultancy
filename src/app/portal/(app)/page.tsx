@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
 import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team-leave";
-import { PortalHomeTasks } from "@/components/portal-home-tasks";
+import { PortalTasksCommand } from "@/components/portal-tasks-command";
+import { buildCommandTasks } from "@/lib/portal-command-tasks";
+import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, managerTeamIds } from "@/lib/portal-auth";
 import { getGivenName, getInitials } from "@/lib/names";
@@ -32,45 +34,11 @@ import { portalManagerCreateEvent } from "@/app/portal/actions";
 
 export const dynamic = "force-dynamic";
 
-const OPEN_EXCLUDED = ["Completed", "Closed"];
-
 /** Attendance status → a TONE key for the ambient strip dots (TONE has no
  *  "default", so Holiday/anything neutral folds to muted). */
 function attDot(status: keyof typeof ATTENDANCE_TONE): keyof typeof TONE {
   const t = ATTENDANCE_TONE[status];
   return t === "default" ? "muted" : t;
-}
-
-type Row = {
-  id: number;
-  code: string;
-  action_item: string;
-  status: string;
-  priority: string;
-  deadline: string | null;
-  latest_update: string | null;
-  company: { name: string } | null;
-  teamSize: number;
-  mine: boolean;
-  requiresAttachment: boolean;
-  createdByPersonId: number | null;
-};
-
-/** Map a Home task Row into the iPhone task-card shape. */
-function toCardTask(t: Row) {
-  return {
-    id: t.id,
-    code: t.code,
-    actionItem: t.action_item,
-    status: t.status,
-    priority: t.priority,
-    deadline: t.deadline,
-    companyName: t.company?.name ?? null,
-    teamSize: t.teamSize,
-    latestUpdate: t.latest_update,
-    requiresAttachment: t.requiresAttachment,
-    createdByPersonId: t.createdByPersonId,
-  };
 }
 
 export default async function PortalHome() {
@@ -121,39 +89,26 @@ export default async function PortalHome() {
     scheduleCompanies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   }
 
-  let tasks: Row[] = [];
-  if (ids.length > 0) {
-    // Independent reads — run them together instead of one-after-another.
-    const [{ data }, { data: teams }] = await Promise.all([
-      sb
-        .from("tasks")
-        .select("id,code,action_item,status,priority,deadline,latest_update,owner_id,created_by_person_id,archived,requires_attachment,companies(name)")
-        .in("id", ids)
-        .eq("archived", false)
-        .order("deadline", { ascending: true, nullsFirst: false }),
-      sb.from("task_assignees").select("task_id,person_id").in("task_id", ids),
+  // The person's tasks in the shared Aurora command shape (same as the Tasks tab).
+  const cmd = await buildCommandTasks(ids, me.id);
+
+  // People + companies power the inline command view (expand panel names + filters).
+  // Staff & managers get the list inline; HR keep a link to the full Tasks tab.
+  const inlineTasks = me.portalRole === "staff" || me.portalRole === "manager";
+  let cmdPeople: Array<{ id: number; name: string; companyId: number | null; companyIds: number[] }> = [];
+  let cmdCompanies: Array<{ id: number; name: string }> = [];
+  if (inlineTasks) {
+    const [{ data: pl }, { data: cl }, pcMap] = await Promise.all([
+      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+      sb.from("companies").select("id,name").order("name"),
+      getPersonCompaniesMap(),
     ]);
-    const teamCount = new Map<number, number>();
-    const onTask = new Set<number>();
-    for (const r of teams ?? []) {
-      const tid = r.task_id as number;
-      teamCount.set(tid, (teamCount.get(tid) ?? 0) + 1);
-      if ((r.person_id as number) === me.id) onTask.add(tid);
-    }
-    tasks = (data ?? []).map((t) => ({
-      id: t.id as number,
-      code: t.code as string,
-      action_item: t.action_item as string,
-      status: t.status as string,
-      priority: t.priority as string,
-      deadline: t.deadline as string | null,
-      latest_update: t.latest_update as string | null,
-      company: (t.companies as unknown as { name: string } | null) ?? null,
-      teamSize: teamCount.get(t.id as number) ?? 1,
-      mine: onTask.has(t.id as number) || (t.owner_id as number | null) === me.id,
-      requiresAttachment: (t.requires_attachment as boolean) ?? false,
-      createdByPersonId: (t.created_by_person_id as number | null) ?? null,
-    }));
+    cmdCompanies = (cl ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
+    cmdPeople = (pl ?? []).map((p) => {
+      const id = p.id as number;
+      const primary = (p.company_id as number | null) ?? null;
+      return { id, name: p.name as string, companyId: primary, companyIds: pcMap.get(id) ?? (primary != null ? [primary] : []) };
+    });
   }
 
   // A manager's "team" is their whole company plus any direct reports (matching
@@ -216,16 +171,11 @@ export default async function PortalHome() {
     } catch { /* leave 0 — re-populates next refresh */ }
   }
 
-  const open = tasks.filter((t) => !OPEN_EXCLUDED.includes(t.status));
-  const done = tasks.filter((t) => OPEN_EXCLUDED.includes(t.status));
-  const myOpen = open.filter((t) => t.mine);
-  const teamOpen = open.filter((t) => !t.mine); // managers: direct reports' tasks
+  const open = cmd.filter((t) => !t.isDone);
+  const done = cmd.filter((t) => t.isDone);
+  const overdue = cmd.filter((t) => t.overdue && !t.isDone);
+  const dueSoon = cmd.filter((t) => t.withinSoon);
   const now = new Date();
-  const weekAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const overdue = open.filter((t) => t.deadline && new Date(t.deadline) < now);
-  const dueSoon = open.filter(
-    (t) => t.deadline && new Date(t.deadline) >= now && new Date(t.deadline) <= weekAhead
-  );
 
   const metrics: Array<{ label: string; value: number; tone: keyof typeof TONE; icon: React.ReactNode }> = [
     { label: "Open tasks", value: open.length, tone: "accent", icon: <ListTodo size={15} /> },
@@ -311,15 +261,46 @@ export default async function PortalHome() {
         </div>
       </Reveal>
 
-      {/* My tasks — filter row + master-detail (web) / card list (mobile). The
-          "Closed" filter shows past completed tasks (so no separate section). */}
-      <Reveal delay={0.05}>
-        <PortalHomeTasks title="My tasks" tasks={[...myOpen, ...done].map(toCardTask)} viewerRole={me.portalRole} viewerId={me.id} />
+      {/* Your meetings — sits up top, right below the check-in strip, so the day's
+          Join links are the first actionable thing after attendance. */}
+      <Reveal delay={0.04} className="flex flex-col gap-2.5">
+        <SectionLabel
+          icon={<Video size={13} />}
+          action={
+            me.portalRole === "manager" ? (
+              <DirectorEventForm
+                people={schedulePeople}
+                companies={scheduleCompanies}
+                action={portalManagerCreateEvent}
+                triggerLabel="Schedule"
+              />
+            ) : undefined
+          }
+        >
+          Your meetings
+        </SectionLabel>
+        {myMeetings.length > 0 ? (
+          <PortalMeetings meetings={myMeetings} />
+        ) : (
+          <Panel className="p-4 text-xs text-fg-muted">
+            {me.portalRole === "manager"
+              ? "No meetings scheduled yet. Tap Schedule to set one up — invites and a Meet link go out automatically."
+              : "No meetings scheduled yet. When you're invited to one, it'll appear here with a Join link."}
+          </Panel>
+        )}
       </Reveal>
 
-      {/* Managers get the wider list inline; HR use the dedicated Tasks tab. */}
-      {me.portalRole === "hr" ? (
-        <Reveal delay={0.1}>
+      {/* Tasks — the same Aurora command view as the Tasks tab (portaltaskdesign),
+          inline for staff & managers. HR keep a link (too many to inline). */}
+      {inlineTasks ? (
+        <Reveal delay={0.05} className="flex flex-col gap-2.5">
+          <SectionLabel icon={<ListTodo size={13} />}>
+            {me.portalRole === "manager" ? "Company & team tasks" : "My tasks"}
+          </SectionLabel>
+          <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={false} />
+        </Reveal>
+      ) : (
+        <Reveal delay={0.05}>
           <Link href="/portal/tasks" className="block group">
             <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">
               <div>
@@ -330,17 +311,6 @@ export default async function PortalHome() {
             </Panel>
           </Link>
         </Reveal>
-      ) : (
-        teamOpen.length > 0 && (
-          <Reveal delay={0.1}>
-            <PortalHomeTasks
-              title={me.portalRole === "manager" ? "Company & team tasks" : "My team's tasks"}
-              tasks={teamOpen.map(toCardTask)}
-              viewerRole={me.portalRole}
-              viewerId={me.id}
-            />
-          </Reveal>
-        )
       )}
 
       {/* Secondary — to-dos, announcements + (managers) team signals; two
@@ -369,33 +339,6 @@ export default async function PortalHome() {
             <p className="text-xs text-fg-muted">Need equipment, HR help or admin support? Send a request without leaving home — track replies on the Requests tab.</p>
             <RequestComposer recipients={requestPeople} action={portalRaiseRequest} allowOwner categories={requestCategories} />
           </Panel>
-        </Reveal>
-
-        <Reveal delay={0.05} className="flex flex-col gap-2.5">
-          <SectionLabel
-            icon={<Video size={13} />}
-            action={
-              me.portalRole === "manager" ? (
-                <DirectorEventForm
-                  people={schedulePeople}
-                  companies={scheduleCompanies}
-                  action={portalManagerCreateEvent}
-                  triggerLabel="Schedule"
-                />
-              ) : undefined
-            }
-          >
-            Your meetings
-          </SectionLabel>
-          {myMeetings.length > 0 ? (
-            <PortalMeetings meetings={myMeetings} />
-          ) : (
-            <Panel className="p-4 text-xs text-fg-muted">
-              {me.portalRole === "manager"
-                ? "No meetings scheduled yet. Tap Schedule to set one up — invites and a Meet link go out automatically."
-                : "No meetings scheduled yet. When you're invited to one, it'll appear here with a Join link."}
-            </Panel>
-          )}
         </Reveal>
 
         {announcements.length > 0 && (

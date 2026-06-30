@@ -396,8 +396,11 @@ function NotifRow({ n, onOpen, onDismiss }: { n: Notif; onOpen: () => void; onDi
           onOpen();
         }}
         style={{ transform: `translateX(${tx}px)`, transition: dragging ? "none" : "transform .2s ease" }}
-        className={`relative flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left bg-[hsl(var(--bg-elev))] hover:bg-bg-muted active:bg-bg-muted transition-colors group ${
-          n.readAt ? "" : "bg-accent-soft/40"
+        className={`relative flex w-full touch-pan-y items-start gap-3 px-4 py-2.5 text-left transition-colors group hover:bg-bg-muted active:bg-bg-muted ${
+          // Unread tint MUST be opaque — a translucent row lets the red "Clear"
+          // action behind it bleed through at rest (it looked half-swiped). Use the
+          // solid accent-soft, and make it the row's only base bg (no class clash).
+          n.readAt ? "bg-[hsl(var(--bg-elev))]" : "bg-accent-soft"
         }`}
       >
         {!n.readAt && (

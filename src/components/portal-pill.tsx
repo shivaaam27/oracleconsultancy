@@ -85,16 +85,32 @@ function useDragScroll() {
     };
     const onUp = () => { down = false; };
     const onClickCapture = (e: MouseEvent) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } };
+    // Live "there's more to scroll" cue: fade whichever edge has hidden tabs so the
+    // next icon peeks out (see .nav-scroll in globals.css).
+    const updatePeek = () => {
+      const more = el.scrollWidth - el.clientWidth;
+      if (more <= 2) { delete el.dataset.peekL; delete el.dataset.peekR; return; }
+      if (el.scrollLeft > 2) el.dataset.peekL = "1"; else delete el.dataset.peekL;
+      if (el.scrollLeft < more - 2) el.dataset.peekR = "1"; else delete el.dataset.peekR;
+    };
+    updatePeek();
+    const ro = new ResizeObserver(updatePeek);
+    ro.observe(el);
+    el.addEventListener("scroll", updatePeek, { passive: true });
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("pointerdown", onDown);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("resize", updatePeek);
     el.addEventListener("click", onClickCapture, true);
     return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", updatePeek);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("resize", updatePeek);
       el.removeEventListener("click", onClickCapture, true);
     };
   }, []);
@@ -193,7 +209,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
       >
         {/* Tabs scroll horizontally only if they truly can't fit; the controls
             below stay anchored so the bell + theme are always reachable. */}
-        <div ref={scrollRef} className="no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto select-none touch-pan-x [@media(pointer:fine)]:cursor-grab [@media(pointer:fine)]:active:cursor-grabbing">
+        <div ref={scrollRef} className="nav-scroll no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto select-none touch-pan-x [@media(pointer:fine)]:cursor-grab [@media(pointer:fine)]:active:cursor-grabbing">
           {isDirector && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} />}
           {/* Directors are board-first (/portal redirects them to /portal/board),
               so a Home tab is redundant for them — show it for everyone else. */}
@@ -225,7 +241,7 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
             <Plus size={19} />
           </Link>
         )}
-        <span className="w-px h-6 md:h-7 bg-border mx-0.5 md:mx-1 shrink-0" aria-hidden />
+        <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
         <div className="shrink-0 flex items-center px-1">
           <ThemeToggle />
         </div>

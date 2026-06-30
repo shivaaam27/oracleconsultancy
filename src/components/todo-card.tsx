@@ -6,7 +6,7 @@ import type { TodoCardItem } from "@/lib/todo-reminders";
 import { useToast } from "@/components/toast";
 import { CaretInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { ListChecks, Plus, Check, Trash2, Loader2, Bell, Star, CalendarDays } from "lucide-react";
+import { ListChecks, Plus, Check, Trash2, Loader2, Bell, Star, CalendarDays, X } from "lucide-react";
 
 type CreateInput = { title: string; remindAt: string | null };
 
@@ -60,6 +60,7 @@ export function TodoCard({
   const [busy, setBusy] = useState(false);
   const [text, setText] = useState("");
   const [when, setWhen] = useState(""); // empty = a plain to-do (no ping)
+  const [showWhen, setShowWhen] = useState(false); // reveal the time picker on demand
   // Optimistic overlay over the server list: track adds + removals by id so the
   // UI updates instantly AND survives the slow Home refresh (no flash-back).
   const [added, setAdded] = useState<TodoCardItem[]>([]);
@@ -89,7 +90,7 @@ export function TodoCard({
     const res = await createAction({ title: t, remindAt });
     setBusy(false);
     if (!res.ok) { toast(res.error || "Could not add.", { tone: "danger" }); return; }
-    setText(""); setWhen("");
+    setText(""); setWhen(""); setShowWhen(false);
     if (res.todo) setAdded((a) => [...a, res.todo!]);
     router.refresh();
   }
@@ -131,13 +132,38 @@ export function TodoCard({
             className="text-sm"
           />
         </div>
-        <input
-          type="datetime-local"
-          value={when}
-          onChange={(e) => setWhen(e.target.value)}
-          title="Optional — set a time to get a reminder ping"
-          className="bare-field text-xs rounded-lg ring-1 ring-border px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/40"
-        />
+        {/* Optional reminder time. Hidden behind a clear "Add reminder" button so
+            the faint native date placeholder ("mm/dd/yyyy") never reads as a blank
+            blank gap — it only appears once the person asks for it. */}
+        {showWhen || when ? (
+          <label className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-bg-subtle/40 px-2.5 py-1.5 text-xs ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
+            <Bell size={12} className="shrink-0 text-accent" />
+            <input
+              type="datetime-local"
+              value={when}
+              onChange={(e) => setWhen(e.target.value)}
+              autoFocus
+              aria-label="Reminder date and time"
+              className="bare-field bg-transparent text-xs text-fg focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => { setWhen(""); setShowWhen(false); }}
+              aria-label="Remove reminder time"
+              className="shrink-0 text-fg-subtle transition-colors hover:text-danger"
+            >
+              <X size={12} />
+            </button>
+          </label>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowWhen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-fg-muted ring-1 ring-border transition-colors hover:bg-bg-muted hover:text-fg"
+          >
+            <Bell size={12} className="text-accent" /> Add reminder
+          </button>
+        )}
         <button
           type="button"
           onClick={add}

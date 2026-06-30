@@ -22,6 +22,7 @@ import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTask
 import { getGivenName, getInitials } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
+import { CompleteTaskSheet } from "@/components/complete-task-sheet";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -38,6 +39,9 @@ export type CommandTask = {
   actionItem: string;
   /** Who created the task — drives the creator-only edit/complete rule. */
   createdByPersonId: number | null;
+  /** When set, completing the task requires a file — routes completion through the
+   *  secure CompleteTaskSheet (proof) rather than a silent status flip. */
+  requiresAttachment?: boolean;
   companyId: number | null;
   companyName: string;
   companyAccent: string | null;
@@ -331,6 +335,7 @@ function TaskRow({
   const { toast } = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
   const [busy, startTransition] = useTransition();
   const [updateBody, setUpdateBody] = useState("");
   // Inline "edit details" (title + description) for those who may edit.
@@ -344,8 +349,12 @@ function TaskRow({
   const perm = { createdByPersonId: t.createdByPersonId };
   const canEdit = canEditTask(viewer, perm);
   const canComplete = canCompleteTask(viewer, perm);
-  // Status set offered: full when you may edit; otherwise just the open moves.
-  const statusChoices = canEdit ? ALL_STATUSES : ["In Progress", "Under Review", "Blocked"];
+  // Status set offered: staff are ALWAYS limited to the open moves (they signal
+  // done via Under Review, never set Completed/Closed — even on a task they
+  // raised); managers/HR/directors get the full set when they may edit.
+  const isStaff = role === "staff";
+  const STAFF_MOVES = ["In Progress", "Under Review", "Blocked"];
+  const statusChoices = isStaff ? STAFF_MOVES : canEdit ? ALL_STATUSES : STAFF_MOVES;
   const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
 
   // The people shown on the row (lead first, then working) — the lead's avatar gets
@@ -413,6 +422,10 @@ function TaskRow({
     });
   }
   function complete() {
+    // Staff, and ANY task that needs proof, complete through the secure sheet
+    // (note + required file) — never a silent status flip. Managers/HR/directors
+    // on a no-proof task keep the quick one-tap complete.
+    if (isStaff || t.requiresAttachment) { setCompleteOpen(true); return; }
     save({ status: "Completed" }, "Marked complete");
   }
 
@@ -429,7 +442,10 @@ function TaskRow({
   // Complete (only when this viewer may complete). Trays kept narrow so they don't
   // eat a small phone's width; thresholds below stay in sync (64px per action).
   // Axis-locked + finger-following.
-  const swipe = useSwipeRow({ leftWidth: canComplete ? 64 : 0, rightWidth: involved > 1 ? 128 : 64 });
+  // Bulk "Message everyone on the task" is a management affordance (canRemind) —
+  // staff just post updates / open the conversation, so they never get the tray.
+  const canMessageAll = canRemind && involved > 1;
+  const swipe = useSwipeRow({ leftWidth: canComplete ? 64 : 0, rightWidth: canMessageAll ? 128 : 64 });
 
   // A row of bordered pill controls — all matching the status dropdown
   // (FluidSelect with `fieldShell`) — then the "On this task" people panel,
@@ -654,7 +670,7 @@ function TaskRow({
         <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-accent-soft text-[11px] font-medium text-accent">
           <MessageSquarePlus size={17} /> Update
         </button>
-        {involved > 1 && (
+        {canMessageAll && (
           <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-[11px] font-medium text-success">
             <MessagesSquare size={17} /> Message
           </button>
@@ -703,6 +719,9 @@ function TaskRow({
           )}
         </AnimatePresence>
       </div>
+      {/* Secure completion (note + any required proof) — opened by the swipe-Complete
+          for staff or any task that requires an attachment. */}
+      <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={t.taskId} code={t.code} requiresAttachment={t.requiresAttachment} />
     </div>
   );
 }
@@ -842,7 +861,7 @@ function TaskPeoplePanel({
         <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
           <Users size={12} /> On this task{total > 0 && <span className="text-fg-muted">· {total}</span>}
         </span>
-        {total > 1 && (
+        {total > 1 && canRemind && (
           <button
             type="button"
             onClick={messageAll}

@@ -481,6 +481,29 @@ input:disabled, select:disabled, textarea:disabled {
 @keyframes caret-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 .caret-blink { animation: caret-blink 1.05s step-start infinite; }
 
+/* --- Nav pill: quietly-alive divider + "more to scroll" peek --- */
+/* The divider between the scrolling tabs and the fixed controls glows gently so
+   the eye knows the bar continues. Works for vertical (w-px) + horizontal (h-px)
+   dividers alike; reduced-motion settles it to a calm static hairline. */
+@keyframes navDividerPulse {
+  0%, 100% { opacity: 0.4; box-shadow: 0 0 0 0 hsl(var(--accent) / 0); }
+  50%      { opacity: 0.95; box-shadow: 0 0 5px 0 hsl(var(--accent) / 0.55); }
+}
+.nav-divider {
+  background-color: hsl(var(--accent) / 0.6);
+  border-radius: 9999px;
+  animation: navDividerPulse 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .nav-divider { animation: none; opacity: 0.55; } }
+:where([data-motion="reduced"]) .nav-divider { animation: none; opacity: 0.55; }
+
+/* When the tab row can scroll, fade the overflowing edge so the next icon peeks
+   out (a clear "there's more" cue). Toggled by data-peek-l / data-peek-r set in
+   the pill from the live scroll position. */
+.nav-scroll[data-peek-r]:not([data-peek-l]) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.4rem), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 1.4rem), transparent); }
+.nav-scroll[data-peek-l]:not([data-peek-r]) { -webkit-mask-image: linear-gradient(to right, transparent, #000 1.4rem); mask-image: linear-gradient(to right, transparent, #000 1.4rem); }
+.nav-scroll[data-peek-l][data-peek-r] { -webkit-mask-image: linear-gradient(to right, transparent, #000 1.4rem, #000 calc(100% - 1.4rem), transparent); mask-image: linear-gradient(to right, transparent, #000 1.4rem, #000 calc(100% - 1.4rem), transparent); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
