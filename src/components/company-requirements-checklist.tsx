@@ -6,7 +6,7 @@ import { Badge, Button } from "./ui";
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { CountUp } from "./arc-gauge";
-import { DOC_CATEGORIES } from "@/lib/documents-shared";
+import { DOC_CATEGORIES, DOC_SHELVES, SHELF_CODE, shelfForCategory } from "@/lib/documents-shared";
 import {
   REQUIREMENT_STATUS_LABELS,
   REQUIREMENT_STATUS_TONE,
@@ -242,8 +242,17 @@ export function CompanyRequirementsChecklist({
         <span className="text-[11px] text-fg-subtle">This list is specific to this company — add VRN, extra registrations, leases, or remove anything that doesn&apos;t apply.</span>
       </div>
 
-      <div className="divide-y divide-border/50">
-        {data.items.map((item) => {
+      <div>
+        {DOC_SHELVES.map((shelf) => {
+          const shelfItems = data.items.filter((i) => shelfForCategory(i.category) === shelf);
+          if (shelfItems.length === 0) return null;
+          return (
+            <div key={shelf}>
+              <div className="px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-fg-subtle bg-bg-subtle/40 border-t border-border/50">
+                <span className="text-fg-subtle/70 mr-1.5 tabular">{SHELF_CODE[shelf]}</span>{shelf}
+              </div>
+              <div className="divide-y divide-border/50">
+                {shelfItems.map((item) => {
           const tone = REQUIREMENT_STATUS_TONE[item.effectiveStatus];
           const busy = busyId === item.id;
           const expanded = openItem === item.id;
@@ -347,6 +356,10 @@ export function CompanyRequirementsChecklist({
                   )}
                 </>
               )}
+            </div>
+          );
+                })}
+              </div>
             </div>
           );
         })}
