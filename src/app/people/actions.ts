@@ -1041,6 +1041,19 @@ export async function setPortalRoleQuick(personId: number, role: string): Promis
   return { ok: true };
 }
 
+/** Set (or clear) a person's optional portal designation — the display title
+ *  shown instead of the plain role label (e.g. "Group Admin Manager"). Empty
+ *  string clears it. Cosmetic today; a hook for per-manager tiers later. */
+export async function setPortalDesignationQuick(personId: number, designation: string): Promise<ActionResult> {
+  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };
+  const value = designation.trim().slice(0, 60) || null;
+  const { error } = await sb.from("people").update({ portal_designation: value }).eq("id", personId);
+  if (error) return { ok: false, error: error.message };
+  await recordEvent("portal.designation.changed", "ok", { personId, designation: value });
+  invalidate();
+  return { ok: true };
+}
+
 /** Enable portal access (set password + role) for a person with none. */
 export async function enablePortalAccessQuick(personId: number, role: string, password: string): Promise<ActionResult> {
   if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Invalid person." };

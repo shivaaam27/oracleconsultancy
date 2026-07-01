@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { portalHeaderLabel } from "@/lib/portal-labels";
 import { PortalPill } from "@/components/portal-pill";
 import { PortalSessionKeeper, PortalSignOut } from "@/components/portal-session";
 import { PageTransition } from "@/components/page-transition";
@@ -96,7 +97,7 @@ export default async function PortalLayout({ children }: { children: React.React
             ) : (
               <>
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-muted">
-                  Oracle Consultancy · {me.portalRole === "manager" ? "Manager portal" : me.portalRole === "hr" ? "Admin portal" : me.portalRole === "director" ? "Director board" : "Staff portal"}
+                  Oracle Consultancy · {portalHeaderLabel(me.portalRole, me.portalDesignation)}
                 </p>
                 <p className="truncate text-sm font-semibold">{me.name}</p>
               </>

@@ -123,6 +123,8 @@ export type PersonRow = Person & {
   /** Staff-portal access at-a-glance (so the list can flag who's set up). */
   portalEnabled: boolean;
   portalRole: string | null;
+  /** Optional display title overriding the role label (e.g. "Group Admin Manager"). */
+  portalDesignation: string | null;
 };
 
 const FLAG_RANK = ["escalate-now", "overdue", "stalled", "escalated", "due-soon", "aging", "no-deadline", "on-track"];
@@ -165,7 +167,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     sb
       .from("people")
       .select(
-        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,work_site_id,residence_site_id,portal_password_hash,portal_role"
+        "id,name,email,phone,whatsapp,preferred_channel,role,company_id,department_id,start_date,date_of_birth,nationality,national_id,passport_no,address,emergency_contact_name,emergency_contact_phone,probation_end_date,contact_status,active,notes,snoozed_until,manager_id,person_type,related_person_id,previous_staff_ids,staff_category,work_site_id,residence_site_id,portal_password_hash,portal_role,portal_designation"
       ),
     sb.from("companies").select("id,name"),
     sb.from("person_companies").select("person_id,company_id,relationship"),
@@ -203,10 +205,10 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
 
   // Portal access at-a-glance, keyed by id (the Person mapping below drops the
   // raw auth columns, so capture them here for the PersonRow flags).
-  const portalById = new Map<number, { enabled: boolean; role: string | null }>(
+  const portalById = new Map<number, { enabled: boolean; role: string | null; designation: string | null }>(
     (rawPeople ?? []).map((p) => [
       p.id as number,
-      { enabled: Boolean(p.portal_password_hash as string | null), role: (p.portal_role as string | null) ?? null },
+      { enabled: Boolean(p.portal_password_hash as string | null), role: (p.portal_role as string | null) ?? null, designation: (p.portal_designation as string | null) ?? null },
     ])
   );
 
@@ -259,6 +261,7 @@ export async function getAllPeopleWithWorkload(): Promise<PersonRow[]> {
     topTasks: topTasksFor(p, tasks),
     portalEnabled: portalById.get(p.id)?.enabled ?? false,
     portalRole: portalById.get(p.id)?.role ?? null,
+    portalDesignation: portalById.get(p.id)?.designation ?? null,
   }));
 }
 
@@ -293,7 +296,7 @@ export type PersonDetail = {
   /** Leave entitlement/usage per type + this person's requests (newest first). */
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
   /** Staff-portal access status (read-only here; managed in Settings). */
-  portal: { enabled: boolean; role: string; lastLoginAt: string | null };
+  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
   /** People who report to THIS person — primary (solid) and dotted (secondary) lines. */
   directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
   /** Pending "Suggested additions" read off this person's filed documents. */
@@ -492,13 +495,14 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     personLeaveBalances(id),
     listLeaveRequests({ personId: id }),
     personAttendanceThisMonth(id),
-    sb.from("people").select("portal_password_hash,portal_role,portal_last_login_at,director_company_id").eq("id", id).maybeSingle(),
+    sb.from("people").select("portal_password_hash,portal_role,portal_designation,portal_last_login_at,director_company_id").eq("id", id).maybeSingle(),
     listProfileSuggestions({ personId: id, status: "pending" }),
     listProfileSuggestions({ personId: id, status: "applied" }),
   ]);
   const portal = {
     enabled: !!(portalRow?.portal_password_hash as string | null),
     role: (portalRow?.portal_role as string | null) ?? "staff",
+    designation: (portalRow?.portal_designation as string | null) ?? null,
     lastLoginAt: (portalRow?.portal_last_login_at as string | null) ?? null,
   };
   // Directors are excluded from task KPI — they set the work, they don't earn a

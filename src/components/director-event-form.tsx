@@ -41,6 +41,7 @@ export function DirectorEventForm({
   const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
   const [allDay, setAllDay] = useState(false);
   const [remind1d, setRemind1d] = useState(true);
+  const [addMeet, setAddMeet] = useState(true);
   const [attendees, setAttendees] = useState<number[]>([]);
   const [companyId, setCompanyId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,16 +53,19 @@ export function DirectorEventForm({
     fd.set("attendees", JSON.stringify(picked));
     if (remind1d) fd.set("reminders", JSON.stringify([1440]));
     fd.set("allDay", allDay ? "1" : "0");
+    fd.set("requestMeet", addMeet ? "1" : "0");
     setBusy(true);
     startTransition(async () => {
       const res = await action(fd);
       setBusy(false);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      const msg = res.sendNote
-        ? res.sendNote
-        : res.sentCount
-          ? `Meeting scheduled — ${res.sentCount} invite${res.sentCount === 1 ? "" : "s"} sent${res.meetLink ? " with a Meet link" : ""}.`
-          : "Event scheduled.";
+      const msg = res.meetLink
+        ? `Meeting scheduled — Google Meet link added${res.sentCount ? ` · ${res.sentCount} invite${res.sentCount === 1 ? "" : "s"} sent` : ""}.`
+        : res.sendNote
+          ? res.sendNote
+          : res.sentCount
+            ? `Meeting scheduled — ${res.sentCount} invite${res.sentCount === 1 ? "" : "s"} sent.`
+            : "Event scheduled.";
       toast(msg, { tone: "success" });
       setOpen(false);
       setAttendees([]);
@@ -120,10 +124,17 @@ export function DirectorEventForm({
               <FluidSelect value={companyId} options={companies.map((c) => ({ value: String(c.id), label: c.name }))} placeholder="No company" onSelect={setCompanyId} buttonClassName={selectBtn} />
             </div>
             <div>
-              <label className={fieldLabel}>Location / meet link</label>
-              <input name="location" placeholder="Office or video link" className={inputCls} />
+              <label className={fieldLabel}>Location (optional)</label>
+              <input name="location" placeholder={addMeet ? "Office address (a Meet link is added)" : "Office address or paste a link"} className={inputCls} />
             </div>
           </div>
+
+          <SwitchRow
+            label="Add Google Meet link"
+            hint={addMeet ? "A Google Meet link is generated when you schedule" : "No video link will be added"}
+            on={addMeet}
+            onChange={setAddMeet}
+          />
 
           <div>
             <label className={fieldLabel}>Attendees</label>

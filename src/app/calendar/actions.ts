@@ -118,6 +118,25 @@ export async function createEventAction(fd: FormData, createdBy?: string): Promi
   }
 }
 
+/**
+ * Ensure a Google Meet link exists on an event — mints one via the Google
+ * Calendar API even when there are NO email attendees (so an internal meeting
+ * still gets a room). No-op if a link already exists or Google isn't connected.
+ * Creating the Google event also invites any email guests (sendUpdates="all").
+ */
+export async function ensureEventMeetLink(id: number): Promise<{ meetLink: string | null }> {
+  const ev = await getCalendarEvent(id);
+  if (!ev) return { meetLink: null };
+  if (ev.meetLink) return { meetLink: ev.meetLink };
+  const g = await createGoogleEvent(ev, { requestMeet: true });
+  if (g.ok && g.meetLink) {
+    await sb.from("calendar_events").update({ meet_link: g.meetLink, updated_at: new Date().toISOString() }).eq("id", id);
+    invalidate();
+    return { meetLink: g.meetLink };
+  }
+  return { meetLink: null };
+}
+
 export async function updateEventAction(fd: FormData): Promise<Result> {
   const id = numOrNull(fd, "id");
   if (!id) return { ok: false, error: "Missing event." };

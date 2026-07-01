@@ -136,7 +136,7 @@ type DrawerData = {
   roles: string[];
   events: PersonEvent[];
   leave: { balances: PersonLeaveBalance[]; requests: LeaveRequestRow[]; attendance: PersonAttendanceSummary };
-  portal: { enabled: boolean; role: string; lastLoginAt: string | null };
+  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
   directReports: Array<{ id: number; name: string; role: string | null; companyName: string | null; kind: "primary" | "dotted" }>;
   suggestions: ProfileSuggestion[];
   appliedSuggestions: ProfileSuggestion[];

@@ -11,7 +11,7 @@ import { extractDocumentFromFile } from "@/app/documents/actions";
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
 import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
-import { createEventAction, sendEventInviteAction } from "@/app/calendar/actions";
+import { createEventAction, sendEventInviteAction, ensureEventMeetLink } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import type { NotifKind } from "@/lib/notifications";
@@ -779,6 +779,8 @@ async function enrichAttendeeEmails(formData: FormData): Promise<void> {
  *  outreach. Falls back to the .ics email path when Google isn't connected. */
 async function portalCreateAndSendEvent(formData: FormData, createdBy: string): Promise<PortalEventResult> {
   await enrichAttendeeEmails(formData);
+  // Whether to auto-add a Google Meet link (form toggle; default on). "0" = off.
+  const requestMeet = formData.get("requestMeet") !== "0";
   const res = await createEventAction(formData, createdBy);
   if (!res.ok || !res.id) return res;
 
@@ -794,8 +796,13 @@ async function portalCreateAndSendEvent(formData: FormData, createdBy: string): 
   if (send.ok) {
     return { ok: true, id: res.id, meetLink: send.meetLink ?? null, sentCount: send.count, sentVia: send.via };
   }
-  // The event exists; only the invite couldn't go out (e.g. no attendee emails,
-  // email provider off). Surface a gentle note rather than failing the create.
+  // The invite couldn't go out (e.g. no attendee emails). If a Meet link was
+  // still requested, mint one anyway so an internal meeting has a room —
+  // otherwise just surface the gentle note.
+  if (requestMeet) {
+    const { meetLink } = await ensureEventMeetLink(res.id);
+    if (meetLink) return { ok: true, id: res.id, meetLink };
+  }
   return { ok: true, id: res.id, sendNote: send.error };
 }
 
@@ -1931,6 +1938,24 @@ export async function portalRaiseBlocker(taskId: number, personId: number, reaso
     blocked_on_person_id: personId, blocked_reason: r, blocked_since: new Date().toISOString(), status: "Blocked",
   }).eq("id", taskId);
   await portalPostUpdate(taskId, `⏸ Waiting on ${p?.name ?? "someone"}: ${r}`, portalStamp(me));
+  revalidatePath("/portal"); revalidatePath("/");
+  return {};
+}
+
+/** Delete a task the signed-in person is authorised to manage (its creator, or a
+ *  director/HR). Soft-archives (recoverable) rather than hard-deleting, matching
+ *  the system's reversible-delete philosophy. */
+export async function portalDeleteTask(taskId: number): Promise<{ error?: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const { data: t } = await sb.from("tasks").select("id,code,created_by_person_id,archived").eq("id", taskId).maybeSingle();
+  if (!t) return { error: "Task not found." };
+  if (!canManageTask({ id: me.id, portalRole: me.portalRole }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) {
+    return { error: "You can only delete tasks you created." };
+  }
+  const { error } = await sb.from("tasks").update({ archived: true, last_updated_at: new Date().toISOString() }).eq("id", taskId);
+  if (error) return { error: error.message };
+  void reindexEntity("task", taskId); // lifecycle changed (best-effort)
   revalidatePath("/portal"); revalidatePath("/");
   return {};
 }

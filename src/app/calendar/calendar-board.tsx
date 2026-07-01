@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
-import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, draftEventRemindersAction, draftEventFollowupAction } from "./actions";
+import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction } from "./actions";
 
 const OVERLAY_META: Record<OverlayKind, { icon: LucideIcon; tone: string; dot: string }> = {
   task: { icon: CheckSquare, tone: "text-info", dot: "hsl(var(--info))" },
@@ -908,6 +908,8 @@ function EventForm({
   const [recurrenceUntil, setRecurrenceUntil] = useState<string>(editing?.recurrenceUntil ? editing.recurrenceUntil.slice(0, 10) : "");
   const [startVal, setStartVal] = useState<string>(isoToLocalInput(editing?.startAt ?? null, editing?.allDay ?? false));
   const [endVal, setEndVal] = useState<string>(isoToLocalInput(editing?.endAt ?? null, false));
+  // New events default to auto-adding a Google Meet link (existing events keep theirs).
+  const [addMeet, setAddMeet] = useState(!editing);
 
   function toggleReminder(v: number) {
     setReminders((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => b - a));
@@ -946,7 +948,14 @@ function EventForm({
     start(async () => {
       const r = editing ? await updateEventAction(fd) : await createEventAction(fd);
       if (r.ok) {
-        toast(editing ? "Event updated" : "Event created", { tone: "success" });
+        // New event + Meet requested + no link pasted → mint one now (Google),
+        // so the link exists on creation rather than only after sending invites.
+        if (!editing && addMeet && r.id && !String(fd.get("meetLink") ?? "").trim()) {
+          const m = await ensureEventMeetLink(r.id);
+          toast(m.meetLink ? "Event created — Google Meet link added." : "Event created.", { tone: "success" });
+        } else {
+          toast(editing ? "Event updated" : "Event created", { tone: "success" });
+        }
         onClose();
       } else {
         toast(r.error, { tone: "danger" });
@@ -1031,7 +1040,12 @@ function EventForm({
           <div>
             <FieldLabel>Meeting link</FieldLabel>
             <Input name="meetLink" defaultValue={editing?.meetLink ?? ""} placeholder="Meet / Zoom / Teams URL" />
-            <p className="mt-1 text-[11px] text-fg-subtle">Leave blank and Google creates a Meet link on send.</p>
+            {!editing && (
+              <label className="mt-1.5 flex items-center gap-2 text-[11px] text-fg-muted cursor-pointer">
+                <input type="checkbox" checked={addMeet} onChange={(e) => setAddMeet(e.target.checked)} className="accent-[var(--accent)]" />
+                {addMeet ? "A Google Meet link is added when you create this event" : "No Meet link will be added"}
+              </label>
+            )}
           </div>
           <div>
             <FieldLabel>Location</FieldLabel>

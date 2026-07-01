@@ -129,6 +129,11 @@ export const people = pgTable("people", {
   // tasks, may complete/pin), "hr" (admin/HR — every company's tasks) or
   // "director" (group-wide operator board). Only meaningful with access.
   portalRole: text("portal_role").notNull().default("staff"),
+  // Optional display designation shown INSTEAD of the plain role label (portal
+  // header + admin role badge) — e.g. a "manager" whose title reads "Group Admin
+  // Manager". Cosmetic today; a hook for per-manager feature tiers later. NULL =
+  // fall back to the default role label. See src/lib/portal-labels.ts.
+  portalDesignation: text("portal_designation"),
   // Company-scoped director: when portalRole === "director" AND this is set, the
   // director's powers/board are limited to this ONE company (a "Company Director")
   // instead of the whole portfolio. NULL on a director = portfolio-wide (default).

@@ -8,7 +8,7 @@ import Link from "next/link";
 import {
   Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
-  MessageSquarePlus, Check, Building2, MessagesSquare, X, Pencil,
+  MessageSquarePlus, Check, Building2, MessagesSquare, X, Pencil, Trash2,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { CaretInput } from "@/components/ui";
@@ -18,7 +18,7 @@ import { CompanyAvatar } from "@/components/company-avatar";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
+import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalDeleteTask } from "@/app/portal/actions";
 import { getGivenName, getInitials } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
@@ -342,6 +342,20 @@ function TaskRow({
   const [editDetails, setEditDetails] = useState(false);
   const [titleDraft, setTitleDraft] = useState(t.actionItem);
   const [descDraft, setDescDraft] = useState(t.description ?? "");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Toggle the inline edit panel from the pencil (open the row if collapsed).
+  function toggleEdit() { setOpen(true); setEditDetails((v) => !v); setConfirmDelete(false); }
+
+  function removeTask() {
+    startTransition(async () => {
+      const res = await portalDeleteTask(t.taskId);
+      if (res?.error) { toast(res.error, { tone: "danger" }); return; }
+      toast("Task deleted.", { tone: "success" });
+      setConfirmDelete(false); setEditDetails(false);
+      router.refresh();
+    });
+  }
 
   // Per-task permissions (task-permissions.ts): a director/HR or the creator may
   // edit content + complete; managers limited to open-status moves on others'.
@@ -486,9 +500,23 @@ function TaskRow({
                 <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
                   {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
                 </button>
-                <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
+                <button type="button" onClick={() => { setEditDetails(false); setConfirmDelete(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
                   Cancel
                 </button>
+                {/* Delete — creator or director/HR only; two-step confirm. */}
+                {confirmDelete ? (
+                  <span className="ml-auto inline-flex items-center gap-1.5">
+                    <span className="text-[12px] text-fg-muted">Delete?</span>
+                    <button type="button" onClick={removeTask} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-danger px-2.5 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+                      {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Confirm
+                    </button>
+                    <button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg px-2 py-1.5 text-[12px] text-fg-muted hover:text-fg">Keep</button>
+                  </span>
+                ) : (
+                  <button type="button" onClick={() => setConfirmDelete(true)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-danger transition-colors hover:bg-danger-soft">
+                    <Trash2 size={12} /> Delete
+                  </button>
+                )}
               </div>
             </div>
           ) : (t.description || t.note) ? (
@@ -622,7 +650,7 @@ function TaskRow({
           <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <span className="flex w-4 shrink-0 justify-center">
               {canEdit && (
-                <button type="button" onClick={() => { setOpen(true); setEditDetails(true); }} title="Edit title & description" aria-label="Edit title & description" className="text-fg-subtle transition-colors hover:text-accent">
+                <button type="button" onClick={toggleEdit} title="Edit title & description" aria-label="Edit title & description" className={cn("transition-colors hover:text-accent", editDetails ? "text-accent" : "text-fg-subtle")}>
                   <Pencil size={13} />
                 </button>
               )}
@@ -699,7 +727,7 @@ function TaskRow({
             <span className="flex items-start gap-1.5">
               <span className="min-w-0 truncate text-sm font-medium leading-snug">{t.actionItem}</span>
               {canEdit && (
-                <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setOpen(true); setEditDetails(true); }} title="Edit title & description" className="mt-0.5 inline-flex shrink-0 text-fg-subtle transition-colors hover:text-accent">
+                <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); toggleEdit(); }} title="Edit title & description" className={cn("mt-0.5 inline-flex shrink-0 transition-colors hover:text-accent", editDetails ? "text-accent" : "text-fg-subtle")}>
                   <Pencil size={12} />
                 </span>
               )}

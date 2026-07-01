@@ -306,6 +306,9 @@ export type PortalPerson = {
   role: string | null;
   companyId: number | null;
   portalRole: PortalRole;
+  /** Optional display title shown instead of the plain role label (e.g. "Group
+   *  Admin Manager"). NULL = use the default role label. See portal-labels.ts. */
+  portalDesignation: string | null;
   /** Company-scoped director: when portalRole === "director" AND this is set, the
    *  director's powers + board + visibility are limited to this ONE company (a
    *  "Company Director"). NULL = portfolio-wide (the default for directors). Only
@@ -334,7 +337,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   for (let attempt = 0; attempt < 4; attempt++) {
     const { data, error } = await sb
       .from("people")
-      .select("id,name,email,role,company_id,active,portal_password_hash,portal_role,director_company_id")
+      .select("id,name,email,role,company_id,active,portal_password_hash,portal_role,portal_designation,director_company_id")
       .eq("id", personId)
       .maybeSingle();
 
@@ -357,6 +360,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
         email: (data.email as string | null) ?? null,
         role: (data.role as string | null) ?? null,
         companyId: (data.company_id as number | null) ?? null,
+        portalDesignation: (data.portal_designation as string | null) ?? null,
         portalRole:
           data.portal_role === "manager"
             ? "manager"

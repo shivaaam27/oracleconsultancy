@@ -6,13 +6,13 @@ import { displayNote } from "@/lib/notes-display";
 import { StaffIdChip } from "./staff-id-chip";
 import { EntityCard } from "./entity-card";
 import type { PersonRow } from "@/lib/people-queries";
+import { portalRoleBadge } from "@/lib/portal-labels";
 import { getInitials as initials } from "@/lib/names";
 
 function whatsappHref(num: string) {
   return `https://wa.me/${num.replace(/[^0-9]/g, "")}`;
 }
 
-const PORTAL_ROLE_LABEL: Record<string, string> = { manager: "Manager", director: "Director", hr: "Admin", staff: "Staff" };
 // Role tint for the portal pill. Cool-blue for manager (the common case), the
 // accent for the higher-trust Director/Admin roles, muted for plain Staff.
 const PORTAL_ROLE_PILL: Record<string, string> = {
@@ -137,9 +137,9 @@ export function PersonCard({
           <span className="font-medium text-[14.5px] leading-tight truncate group-hover:text-accent transition-colors">{p.name}</span>
           <StaffIdChip id={p.staffId} className="shrink-0" />
           {p.portalEnabled ? (
-            <span title={`Portal access · ${PORTAL_ROLE_LABEL[role] ?? "Staff"}`}
+            <span title={`Portal access · ${portalRoleBadge(role, p.portalDesignation)}`}
               className={cn("inline-flex items-center gap-1 rounded-full pl-1.5 pr-2 py-px text-[10px] font-medium shrink-0", PORTAL_ROLE_PILL[role] ?? PORTAL_ROLE_PILL.staff)}>
-              <ShieldCheck size={11} /> {PORTAL_ROLE_LABEL[role] ?? "Staff"}
+              <ShieldCheck size={11} /> {portalRoleBadge(role, p.portalDesignation)}
             </span>
           ) : (
             <span title="No portal access" className="inline-flex items-center rounded-full px-2 py-px text-[10px] font-medium text-fg-subtle border border-dashed border-border shrink-0">

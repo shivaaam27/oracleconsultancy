@@ -5,7 +5,7 @@ import { Shield, ShieldOff, User, Users, Briefcase, Eye, EyeOff } from "lucide-r
 import { cn } from "@/lib/cn";
 import { Button } from "./ui";
 import { useToast } from "./toast";
-import { setPortalRoleQuick, enablePortalAccessQuick, revokePortalAccessQuick } from "@/app/people/actions";
+import { setPortalRoleQuick, enablePortalAccessQuick, revokePortalAccessQuick, setPortalDesignationQuick } from "@/app/people/actions";
 
 type QuickRole = "staff" | "manager" | "director";
 const ROLES: { value: QuickRole; label: string; icon: typeof User }[] = [
@@ -26,7 +26,7 @@ export function PersonPortalAccess({
   fmtDate,
 }: {
   personId: number;
-  portal: { enabled: boolean; role: string; lastLoginAt: string | null };
+  portal: { enabled: boolean; role: string; designation: string | null; lastLoginAt: string | null };
   onChanged: () => void;
   fmtDate: (d: Date) => string;
 }) {
@@ -37,6 +37,17 @@ export function PersonPortalAccess({
   const [pw, setPw] = useState("");
   const [pwRole, setPwRole] = useState<QuickRole>("staff");
   const [reveal, setReveal] = useState(false);
+  const [designation, setDesignation] = useState(portal.designation ?? "");
+  const [savingDesig, setSavingDesig] = useState(false);
+
+  async function saveDesignation() {
+    if (savingDesig || designation.trim() === (portal.designation ?? "").trim()) return;
+    setSavingDesig(true);
+    const res = await setPortalDesignationQuick(personId, designation);
+    setSavingDesig(false);
+    if (res.ok) { toast(designation.trim() ? "Designation saved." : "Designation cleared.", { tone: "success" }); onChanged(); }
+    else toast(res.error, { tone: "danger" });
+  }
 
   const role: QuickRole = portal.role === "manager" ? "manager" : portal.role === "director" ? "director" : "staff";
   // "hr"/admin isn't one of the quick toggle options — show it but don't let the
@@ -134,6 +145,21 @@ export function PersonPortalAccess({
               })}
             </div>
           )}
+
+          {/* Optional display designation — overrides the role label in the portal
+              header + role badge (e.g. a manager shown as "Group Admin Manager"). */}
+          <div className="flex items-center gap-2">
+            <input
+              value={designation}
+              onChange={(e) => setDesignation(e.target.value)}
+              onBlur={saveDesignation}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveDesignation(); } }}
+              maxLength={60}
+              placeholder="Designation (optional, e.g. Group Admin Manager)"
+              disabled={pending || savingDesig}
+              className="flex-1 h-9 rounded-lg border border-border bg-bg-subtle px-3 py-1.5 text-sm focus:outline-none focus:border-accent disabled:opacity-50"
+            />
+          </div>
 
           {showReset ? (
             <div className="flex items-center gap-2">
