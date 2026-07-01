@@ -233,6 +233,28 @@ export async function buildContext(question: string, page?: PageCtx) {
     }
   }
 
+  // FULL-TEXT retrieval — instant, Groq-free. Postgres FTS (content_tsv) reads
+  // INSIDE the document body, so a fact that lives only in a scanned/typed file
+  // (e.g. a company's director in its registration PDF, a passport number) is
+  // pulled in with a highlighted snippet ORI can quote — even when the structured
+  // tables don't hold it and semantic search misses it. These IDs are force-
+  // included in documentCtx below.
+  const ftsDocIds = new Set<number>();
+  try {
+    // Pass stopword-cleaned tokens (not the raw question) so the OR-based FTS
+    // isn't flooded by common words like "who/is/the/of".
+    const ftsQuery = tokens.length ? tokens.join(" ") : question;
+    const { data: ftsRows } = await sb.rpc("search_documents", { p_query: ftsQuery, p_limit: 6 });
+    for (const r of (ftsRows ?? []) as Array<Record<string, unknown>>) {
+      const id = r.id as number;
+      ftsDocIds.add(id);
+      const snip = trimPassage(String(r.snippet ?? "").replace(/[«»]/g, ""));
+      if (snip && !docPassageById.has(id) && docPassageById.size < MAX_DOC_PASSAGES + 6) {
+        docPassageById.set(id, snip);
+      }
+    }
+  } catch { /* FTS is best-effort context */ }
+
   // Relevance ranking (semantic hit + token overlap + matched-company bonus) so
   // the slices below keep the MOST relevant rows, not just the first ones.
   const matchedCompanyNames = new Set(matchedCompanies.map((c) => c.name.toLowerCase()));
@@ -522,11 +544,18 @@ export async function buildContext(question: string, page?: PageCtx) {
           (d.docType?.toLowerCase().includes(t) ?? false) || (d.issuer?.toLowerCase().includes(t) ?? false)
       );
       const companyHit = d.companyId != null && matchedCompanyIds.has(d.companyId);
-      return { d, status, include: urgent || semanticDocIds.has(d.id) || (wantsDocuments && (kwHit || companyHit || true)) };
+      return { d, status, include: ftsDocIds.has(d.id) || urgent || semanticDocIds.has(d.id) || (wantsDocuments && (kwHit || companyHit || true)) };
     });
     documentCtx = scored
       .filter((x) => x.include)
-      .sort((a, b) => (daysToExpiry(a.d) ?? Infinity) - (daysToExpiry(b.d) ?? Infinity))
+      // FTS/semantic matches first (the file actually answers the question), then
+      // by soonest expiry — so a query-matched doc is never crowded out by the cap.
+      .sort((a, b) => {
+        const am = ftsDocIds.has(a.d.id) || semanticDocIds.has(a.d.id) ? 0 : 1;
+        const bm = ftsDocIds.has(b.d.id) || semanticDocIds.has(b.d.id) ? 0 : 1;
+        if (am !== bm) return am - bm;
+        return (daysToExpiry(a.d) ?? Infinity) - (daysToExpiry(b.d) ?? Infinity);
+      })
       .slice(0, 12)
       .map(({ d, status }) => ({
         title: d.title,

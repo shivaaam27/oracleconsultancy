@@ -273,7 +273,9 @@ export async function unifiedSearch(
   // only in a scanned PDF now surfaces that document with the matching excerpt.
   // Merge: boost + snippet an existing hit, or add one the column-net missed.
   try {
-    const { data: fts } = await sb.rpc("search_documents", { p_query: query, p_limit: perTypeLimit });
+    // Stopword-cleaned terms so the OR-based FTS isn't flooded by common words.
+    const ftsTerms = tokens.filter((t) => !STOP.has(t));
+    const { data: fts } = await sb.rpc("search_documents", { p_query: (ftsTerms.length ? ftsTerms : tokens).join(" "), p_limit: perTypeLimit });
     for (const r of (fts ?? []) as Array<Record<string, unknown>>) {
       const id = r.id as number;
       const snippet = String(r.snippet ?? "").replace(/\s+/g, " ").trim();

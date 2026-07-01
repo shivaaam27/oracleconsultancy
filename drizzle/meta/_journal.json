@@ -715,6 +715,13 @@
       "when": 1782930925962,
       "tag": "0101_document_fts",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1782931435071,
+      "tag": "0102_document_fts_or",
+      "breakpoints": true
     }
   ]
 }
