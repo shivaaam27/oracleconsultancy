@@ -23,6 +23,9 @@ function safeName(name: string): string {
 export async function saveCompanyProfileAction(companyId: number, fd: FormData): Promise<Result> {
   const incDate = str(fd, "incorporationDate");
   const patch: Record<string, unknown> = {
+    // Brand file prefix for document naming (DarSpices, PES…). Strip spaces/punct
+    // so it stays filename-safe even if typed with spaces.
+    file_prefix: (str(fd, "filePrefix") ?? "").replace(/[^A-Za-z0-9]/g, "") || null,
     legal_name: str(fd, "legalName"),
     registration_no: str(fd, "registrationNo"),
     tin: str(fd, "tin"),

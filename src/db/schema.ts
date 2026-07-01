@@ -8,6 +8,10 @@ export const companies = pgTable("companies", {
   accentColor: text("accent_color"),
   // Two-letter prefix for task codes, e.g. "DS" → DS-001 (see migrate-task-codes).
   codePrefix: text("code_prefix"),
+  // Brand short-name used to NAME documents ("DarSpices", "PES"). The `name` is the
+  // legal name ("DSC Ltd"); this is the file prefix in the house naming format
+  // `Prefix_DocType[_Ref][_EXP-date]`. Editable per company (migration 0103).
+  filePrefix: text("file_prefix"),
   // Letterhead / branding — used by the system-wide letter generator. All optional.
   legalName: text("legal_name"),
   address: text("address"),

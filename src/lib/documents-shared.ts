@@ -136,17 +136,46 @@ export function shelfForCategory(category?: string | null): DocShelf {
  * an empty result falls back to "Document". The AI's free-text read still lives in
  * the document's notes/extracted text for search — this is purely the title.
  */
-export function buildDocTitle(p: { owner?: string | null; type?: string | null; ref?: string | null; date?: string | Date | null }): string {
-  const clean = (s?: string | null) => (s ?? "").toString().trim().replace(/\s+/g, " ");
-  const owner = clean(p.owner);
-  const type = clean(p.type);
-  let tail = clean(p.ref);
-  if (!tail && p.date) {
-    const y = (p.date instanceof Date ? p.date.toISOString() : String(p.date)).slice(0, 4);
-    if (/^\d{4}$/.test(y)) tail = y;
+/**
+ * Build a document title in the owner's house format:
+ *   `Prefix_DocType-Hyphenated[_Ref][_EXP-YYYY-MM-DD]`
+ * e.g. `DarSpices_TIN-Certificate`, `PES_Business-License_EXP-2026-11-06`.
+ * `prefix` is the company brand short-name (companies.file_prefix); if absent it
+ * falls back to the owner name. `expiry` (a date) appends the `_EXP-…` suffix that
+ * documents-with-an-expiry carry. Hyphenates each token so the whole title is a
+ * clean, space-free filename.
+ */
+export function buildDocTitle(p: {
+  prefix?: string | null;
+  owner?: string | null;
+  type?: string | null;
+  ref?: string | null;
+  date?: string | Date | null;
+  expiry?: string | Date | null;
+}): string {
+  // Turn free text into a hyphenated, filename-safe token.
+  const hy = (s?: string | null) =>
+    (s ?? "").toString().trim().replace(/\s+/g, "-").replace(/[^A-Za-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  const iso = (d?: string | Date | null) =>
+    d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10) : "";
+
+  const prefix = hy(p.prefix) || hy(p.owner);
+  const type = hy(p.type);
+  const ref = hy(p.ref);
+  const exp = iso(p.expiry);
+
+  let year = "";
+  if (!ref && p.date) {
+    const y = iso(p.date).slice(0, 4);
+    if (/^\d{4}$/.test(y)) year = y;
   }
-  const parts = [owner, type, tail].filter(Boolean);
-  return (parts.length ? parts.join(" · ") : "Document").slice(0, 120);
+
+  const core = [prefix, type].filter(Boolean).join("_");
+  let title = core || "Document";
+  if (ref) title += `_${ref}`;
+  else if (year && !exp) title += `_${year}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(exp)) title += `_EXP-${exp}`;
+  return title.slice(0, 120);
 }
 
 // A custom shelf the owner has accepted (Part D) — extends the built-in eight.

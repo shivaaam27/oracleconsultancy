@@ -432,9 +432,15 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     // (3) Build + create the document, then route it into its bucket.
     const finalState: IntakeState = needsReview ? "quarantine" : "filed";
     // One consistent name on EVERY auto path (Dropbox + manual auto-sort + quarantine):
-    // Owner · Type · Ref/Year. Falls back to the AI title/filename only if there's
-    // nothing to compose from. The original read stays searchable in extractedText/notes.
-    const composed = buildDocTitle({ owner: ownerName, type: f.docType || f.category, ref: f.referenceNo, date: f.issueDate });
+    // the house format `Prefix_DocType[_Ref][_EXP-date]`. Falls back to the AI
+    // title/filename only if there's nothing to compose from. The original read
+    // stays searchable in extractedText/notes.
+    let filePrefix: string | null = null;
+    if (companyId) {
+      const { data: co } = await supa.from("companies").select("file_prefix").eq("id", companyId).maybeSingle();
+      filePrefix = (co?.file_prefix as string | null) ?? null;
+    }
+    const composed = buildDocTitle({ prefix: filePrefix, owner: ownerName, type: f.docType || f.category, ref: f.referenceNo, date: f.issueDate, expiry: f.expiryDate });
     const title = composed === "Document" ? (f.title || fallbackTitle) : composed;
     const input: DocumentInput = {
       title,
@@ -978,21 +984,23 @@ export type RenameProposal = { id: number; current: string; proposed: string };
 export async function proposeDocumentRenamesAction(): Promise<RenameProposal[]> {
   const { data: docs } = await supa
     .from("documents")
-    .select("id,title,doc_type,category,reference_no,issue_date,company_id,person_id")
+    .select("id,title,doc_type,category,reference_no,issue_date,expiry_date,company_id,person_id")
     .eq("archived", false).eq("intake_state", "filed").limit(3000);
   if (!docs) return [];
   const companyIds = [...new Set(docs.map((d) => d.company_id as number | null).filter((x): x is number => !!x))];
   const personIds = [...new Set(docs.map((d) => d.person_id as number | null).filter((x): x is number => !!x))];
   const [cos, ppl] = await Promise.all([
-    companyIds.length ? supa.from("companies").select("id,name").in("id", companyIds) : Promise.resolve({ data: [] as { id: number; name: string }[] }),
+    companyIds.length ? supa.from("companies").select("id,name,file_prefix").in("id", companyIds) : Promise.resolve({ data: [] as { id: number; name: string; file_prefix: string | null }[] }),
     personIds.length ? supa.from("people").select("id,name").in("id", personIds) : Promise.resolve({ data: [] as { id: number; name: string }[] }),
   ]);
   const cName = new Map((cos.data ?? []).map((c) => [c.id as number, c.name as string]));
+  const cPrefix = new Map((cos.data ?? []).map((c) => [c.id as number, (c.file_prefix as string | null) ?? null]));
   const pName = new Map((ppl.data ?? []).map((p) => [p.id as number, p.name as string]));
   const out: RenameProposal[] = [];
   for (const d of docs) {
     const owner = d.person_id ? pName.get(d.person_id as number) : d.company_id ? cName.get(d.company_id as number) : null;
-    const proposed = buildDocTitle({ owner, type: (d.doc_type as string) || (d.category as string), ref: d.reference_no as string, date: d.issue_date as string });
+    const prefix = d.company_id ? cPrefix.get(d.company_id as number) : null;
+    const proposed = buildDocTitle({ prefix, owner, type: (d.doc_type as string) || (d.category as string), ref: d.reference_no as string, date: d.issue_date as string, expiry: d.expiry_date as string });
     if (proposed && proposed !== "Document" && proposed !== d.title) out.push({ id: d.id as number, current: d.title as string, proposed });
   }
   return out;

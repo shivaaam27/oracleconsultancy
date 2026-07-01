@@ -11,6 +11,7 @@ import { useToast } from "@/components/toast";
 import { CompanyAvatar } from "@/components/company-avatar";
 
 export type CompanyProfile = {
+  filePrefix: string | null;
   legalName: string | null;
   registrationNo: string | null;
   tin: string | null;
@@ -123,6 +124,11 @@ export function CompanyProfile({
         <div>
           <label className={labelCls} htmlFor="legalName">Legal name</label>
           <input id="legalName" name="legalName" defaultValue={profile.legalName ?? ""} placeholder={companyName} className={inputCls} />
+        </div>
+        <div>
+          <label className={labelCls} htmlFor="filePrefix">Document file prefix</label>
+          <input id="filePrefix" name="filePrefix" defaultValue={profile.filePrefix ?? ""} placeholder="DarSpices" className={inputCls} />
+          <p className="text-[11px] text-fg-subtle mt-1">Brand short-name used to name this company&apos;s documents, e.g. <code>DarSpices_TIN-Certificate</code>. Letters/spaces only; no spaces stored.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
