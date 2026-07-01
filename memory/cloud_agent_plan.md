@@ -219,3 +219,17 @@ Owner chose "retire only the vision/OCR path" + asked why a host is needed.
 **Open with owner:** (1) host decision (or accept PC-on/hostless); (2) whether to make
 ORI the PRIMARY scan reader now vs keep Groq primary til 17 Jul; (3) COMMIT/PUSH the
 whole cloud-agent build (Phases 0–6partial) — still all uncommitted.
+
+### LIVE END-TO-END WORKING — 2026-07-01 (fully autonomous, no API)
+CLI installed + owner logged in. Dispatcher running (background, PowerShell-launched).
+Fixes that made it work on Windows: claudeBin() resolves %APPDATA%\npm\claude.cmd;
+spawn via cmd.exe with the WORKER_PROMPT passed on STDIN (claude -p reads stdin) — the
+prompt's quotes/backticks were breaking the shell arg. VERIFIED: queued ask job #7 →
+dispatcher woke a claude worker → worker autonomously ran agent-next → reasoned →
+agent-complete → job done with grounded answer (13 companies / 29 staff). Dispatcher
+idles at 0 tokens between jobs.
+TIMING REALITY: not ~3s — the claude worker session spin-up dominates (~1–2 min per
+first answer). Poll is 3s; the delay is the Claude session, not the queue. Honest.
+Also rewired the ⌘K assistant (command-palette runAsk) to the queue + askOri carries
+history. Dispatcher must be running for ⌘K/deployed asks to be answered (shared DB).
+NOT pushed yet (dispatcher fixes + assistant rewire + askOri history).

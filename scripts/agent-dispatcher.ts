@@ -20,8 +20,22 @@ import { config } from "dotenv";
 config({ path: ".env.local", quiet: true } as never);
 config({ path: ".env", quiet: true } as never);
 import { spawnSync } from "child_process";
+import { existsSync } from "fs";
+import { join } from "path";
 
 const INTERVAL = Number(process.env.DISPATCH_INTERVAL_MS) || 3000;
+
+/** Resolve the claude CLI robustly (npm global shim), else fall back to PATH. */
+function claudeBin(): string {
+  const appdata = process.env.APPDATA;
+  if (appdata) {
+    for (const name of ["claude.cmd", "claude.exe", "claude"]) {
+      const p = join(appdata, "npm", name);
+      if (existsSync(p)) return p;
+    }
+  }
+  return "claude";
+}
 
 const WORKER_PROMPT =
   "You are ORI's worker. Open AGENT_WORKER.md and follow it exactly: drain the " +
@@ -59,11 +73,19 @@ async function main() {
       // Wake a headless Claude Code worker to drain the whole queue in one session.
       // --dangerously-skip-permissions: this host is trusted; the worker only runs
       // the repo's own agent scripts.
-      const res = spawnSync("claude", ["-p", WORKER_PROMPT, "--dangerously-skip-permissions"], {
-        cwd: process.cwd(),
-        stdio: "inherit",
-        env: process.env,
-      });
+      // Make sure the npm global bin (where `claude` installs) is on PATH.
+      const npmBin = process.platform === "win32" ? `${process.env.APPDATA}\\npm` : "/usr/local/bin";
+      const PATH = `${process.env.PATH ?? ""}${process.platform === "win32" ? ";" : ":"}${npmBin}`;
+      const bin = claudeBin();
+      // Pass the prompt via STDIN (claude -p reads it) so quotes/backticks in the
+      // prompt can never break the Windows command line.
+      const res = process.platform === "win32"
+        ? spawnSync("cmd.exe", ["/d", "/s", "/c", bin, "-p", "--dangerously-skip-permissions"], {
+            cwd: process.cwd(), input: WORKER_PROMPT, env: { ...process.env, PATH }, stdio: ["pipe", "inherit", "inherit"],
+          })
+        : spawnSync(bin, ["-p", "--dangerously-skip-permissions"], {
+            cwd: process.cwd(), input: WORKER_PROMPT, env: { ...process.env, PATH }, stdio: ["pipe", "inherit", "inherit"],
+          });
       if (res.error) console.error(`[dispatcher] worker spawn failed: ${res.error.message}`);
       console.log("[dispatcher] worker finished; back to watching.");
     } else if (!idleLogged) {

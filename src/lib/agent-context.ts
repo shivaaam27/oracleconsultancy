@@ -45,18 +45,80 @@ export async function gatherContext(job: AiJob): Promise<AgentContext> {
   }
 }
 
+/** Common required-document keywords → the requirement labels that count as that
+ *  document. Lets "who is missing a passport" match the "Passport" requirement. */
+const DOC_KEYWORDS: { test: RegExp; label: string; matches: RegExp }[] = [
+  { test: /passport/i, label: "passport", matches: /passport(?! photo)/i },
+  { test: /\b(permit|residence)\b/i, label: "work/residence permit", matches: /permit/i },
+  { test: /\bvisa\b/i, label: "visa", matches: /visa/i },
+  { test: /\b(tin|taxpayer)\b/i, label: "TIN", matches: /\btin\b/i },
+  { test: /\bnida|national id\b/i, label: "National ID (NIDA)", matches: /nida|national id/i },
+  { test: /\bcontract\b/i, label: "employment contract", matches: /contract/i },
+  { test: /\bnssf\b/i, label: "NSSF", matches: /nssf/i },
+];
+
+/** When the question names a specific required document, scan ALL people (and the
+ *  worst companies) and return the full list of who is missing it — so ORI can
+ *  answer "who is missing a passport" and "show all" without guessing. */
+async function documentGapNet(question: string): Promise<{ document: string; owners: { name: string; type: string; score: number }[] } | null> {
+  const kw = DOC_KEYWORDS.find((k) => k.test.test(question));
+  if (!kw) return null;
+  try {
+    const { buildPersonRequirementScores } = await import("@/lib/requirements");
+    const scores = await buildPersonRequirementScores();
+    const owners = scores
+      .filter((s) => s.gaps.some((g) => kw.matches.test(g.label)))
+      .map((s) => ({ name: s.ownerName, type: s.ownerType, score: s.score }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (!owners.length) return null;
+    return { document: kw.label, owners };
+  } catch {
+    return null;
+  }
+}
+
 /** ASK — answer a question over the owner's data (read-only). */
 async function gatherAsk(job: AiJob): Promise<AgentContext> {
   const question = String(job.payload.question ?? job.payload.text ?? "").trim();
+  const page = (job.payload.pageContext ?? null) as { label?: string; taskCode?: string; companyId?: number } | null;
   const { unifiedSearch } = await import("@/lib/search");
+  // Full assistant knowledge — the SAME rich context the old in-route Ask had:
+  // compliance (who's missing a passport/permit etc.), documents, governance,
+  // tasks, leave, vendors, assets… so ORI can actually answer these, not just
+  // refuse. Best-effort: if it fails we still fall back to search + known records.
+  let knowledge: Record<string, unknown> = {};
+  try {
+    const { buildContext } = await import("@/app/api/ask/route");
+    knowledge = await buildContext(question, page ?? undefined);
+  } catch {
+    /* fall back to the lean context below */
+  }
+  // Targeted net — when the question names a specific required document (passport,
+  // permit, visa, TIN…), list EVERYONE missing it. KNOWLEDGE.compliance only carries
+  // the 8 worst owners, so a "list all missing a passport" needs the full scan.
+  const specificGap = await documentGapNet(question);
   const hits = question ? await unifiedSearch(question, 8, false) : [];
   return {
     job,
     instruction:
-      "Answer the QUESTION using ONLY the search results and known records below. " +
-      "Cite task codes (e.g. DS-001) and document/meeting titles you rely on. " +
-      "If the answer isn't in the data, say so plainly — never invent facts. British English.",
-    context: { question, searchResults: hits, ...(await knownRecords()) },
+      "Answer the QUESTION using ONLY the KNOWLEDGE, search results and known records " +
+      "below. KNOWLEDGE.compliance lists, per person/company, their score and which " +
+      "required documents are missing. If `specificGap` is present, it is the COMPLETE " +
+      "list of people/companies missing the document the question asked about — use it " +
+      "to answer 'who is missing a passport/permit/…' and to LIST them all by name. If " +
+      "`history` is present, it's the recent conversation — use it to resolve follow-ups " +
+      "like 'show all'. Cite task codes (e.g. DS-001) and document/meeting titles you " +
+      "rely on. If the answer isn't in the data, say so plainly — never invent facts. " +
+      "British English.",
+    context: {
+      question,
+      history: job.payload.history ?? [],
+      pageContext: page,
+      specificGap,
+      knowledge,
+      searchResults: hits,
+      ...(await knownRecords()),
+    },
     resultShape: '{ "answer": "<plain-English answer with citations>", "usedIds": [<entity ids you relied on>] }',
   };
 }

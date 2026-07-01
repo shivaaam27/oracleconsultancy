@@ -97,9 +97,12 @@ function enrich(rows: RawTaskRow[], cMap: Map<number, string>): EnrichedTask[] {
   }));
 }
 
-type PageCtx = { label?: string; taskCode?: string; companyId?: number };
+export type PageCtx = { label?: string; taskCode?: string; companyId?: number };
 
-async function buildContext(question: string, page?: PageCtx) {
+/** Exported so the ORI cloud-agent engine (agent-context.ts) can hand its worker
+ *  the SAME rich knowledge — compliance, documents, governance, tasks — the old
+ *  in-route assistant had, instead of a thin name/role/company sketch. */
+export async function buildContext(question: string, page?: PageCtx) {
   const tokens = question
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")

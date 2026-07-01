@@ -9,10 +9,17 @@ import { enqueueJob, getJob } from "@/lib/ai-jobs";
  * See memory/cloud_agent_plan.md.
  */
 
-export async function askOri(question: string): Promise<{ jobId: number }> {
+export async function askOri(
+  question: string,
+  opts?: { history?: { role: "user" | "assistant"; content: string }[]; pageContext?: Record<string, unknown>; threadId?: number },
+): Promise<{ jobId: number }> {
   const q = (question ?? "").trim();
   if (!q) throw new Error("Type a question first.");
-  const job = await enqueueJob({ kind: "ask", lane: "fast", payload: { question: q }, requestedBy: "web-ui" });
+  const job = await enqueueJob({
+    kind: "ask", lane: "fast",
+    payload: { question: q, history: opts?.history ?? [], pageContext: opts?.pageContext ?? null },
+    threadId: opts?.threadId ?? null, requestedBy: "web-ui",
+  });
   // Best-effort event wake (Phase 4b wires the real remote trigger; until then the
   // ori-worker's short poll picks it up). Never blocks the ask.
   void wake();

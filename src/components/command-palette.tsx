@@ -351,68 +351,41 @@ export function CommandPaletteProvider({
       .map((m) => ({ role: m.role, content: m.text }));
   }
 
+  // Ask goes through the ORI cloud-agent queue (no external AI). Enqueue a fast job,
+  // then poll until the ORI worker (Max plan) answers. Carries recent history so
+  // follow-ups ("list all of them") resolve.
   async function runAsk(text: string) {
     setThinking(true);
-    let streamId: string | null = null;
     try {
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: text,
-          history: aiHistory(),
-          pageContext: { label: pageContext.label, taskCode: pageContext.taskCode, companyId: pageContext.companyId },
-          stream: true,
-        }),
+      const { askOri, pollAsk } = await import("@/app/ask/actions");
+      const { jobId } = await askOri(text, {
+        history: aiHistory(),
+        pageContext: { label: pageContext.label, taskCode: pageContext.taskCode, companyId: pageContext.companyId },
       });
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
-        const fe = friendlyAIError(data.error || `groq-${res.status}`);
-        setThinking(false);
-        append({ id: newId(), role: "error", text: fe.message, retry: fe.retryable ? text : undefined });
-        return;
-      }
-      const taskCount = Number(res.headers.get("X-Task-Count")) || null;
-      const meetingCount = Number(res.headers.get("X-Meeting-Count")) || null;
-      // Server percent-encodes this (the "·" separator is multi-byte UTF-8).
-      const rawSummary = res.headers.get("X-Source-Summary");
-      let sourceSummary: string | null = null;
-      if (rawSummary) { try { sourceSummary = decodeURIComponent(rawSummary); } catch { sourceSummary = rawSummary; } }
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += dec.decode(value, { stream: true });
-        if (!streamId) { streamId = newId(); setThinking(false); append({ id: streamId, role: "assistant", text: acc, streaming: true }); }
-        else updateMsg(streamId, { text: acc });
-      }
-      if (streamId) updateMsg(streamId, { text: tidyOri(acc), streaming: false, taskCount, meetingCount, sourceSummary });
-      else { setThinking(false); append({ id: newId(), role: "assistant", text: "(no answer)" }); }
-      // ORI MEMORY (record), STREAM path. The server can't capture the final
-      // answer mid-stream, so the client POSTs the assembled Q&A to the dedicated
-      // best-effort endpoint once the stream completes. Fire-and-forget: never
-      // block the UI and never surface an error (memory is additive).
-      if (streamId && acc.trim()) {
-        void fetch("/api/ai-memory", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: text, answer: acc.trim() }),
-          keepalive: true,
-        }).catch(() => {});
-      }
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries++;
+        let res: { status: string; answer: string | null; error: string | null };
+        try { res = await pollAsk(jobId); } catch { return; } // transient — keep polling
+        if (res.status === "done") {
+          clearInterval(poll);
+          setThinking(false);
+          append({ id: newId(), role: "assistant", text: tidyOri(res.answer ?? "(no answer)") });
+          if (res.answer?.trim()) {
+            void fetch("/api/ai-memory", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ question: text, answer: res.answer.trim() }), keepalive: true,
+            }).catch(() => {});
+          }
+        } else if (res.status === "error" || tries > 150) {
+          clearInterval(poll);
+          setThinking(false);
+          append({ id: newId(), role: "error", text: res.error ?? "ORI didn't answer in time — is the worker running?", retry: text });
+        }
+      }, 2000);
     } catch {
       setThinking(false);
-      // If the stream failed mid-answer, finalise the partial bubble and flag it
-      // as cut off — never leave a half-answer that looks complete (or a cursor
-      // pulsing forever).
-      if (streamId) {
-        updateMsg(streamId, { streaming: false });
-        append({ id: newId(), role: "error", text: "That answer was cut off before it finished. Tap to try again.", retry: text });
-      } else {
-        append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
-      }
+      append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
     }
   }
 
