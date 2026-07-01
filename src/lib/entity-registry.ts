@@ -374,8 +374,8 @@ export const ENTITY_DEFS: EntityDef[] = [
     type: "task",
     table: "tasks",
     idColumn: "id",
-    selectColumns: ["id", "action_item", "latest_update", "status", "archived"],
-    textFor: (r) => join(str(r.action_item), str(r.latest_update)),
+    selectColumns: ["id", "code", "action_item", "latest_update", "comments", "category", "priority", "status", "archived"],
+    textFor: (r) => join(str(r.code), str(r.action_item), str(r.latest_update), str(r.comments), str(r.category), str(r.priority), str(r.status)),
     lifecycleFor: (r) =>
       (r.archived as boolean) || CLOSED_TASK_STATUSES.has(lc(r.status)) ? "history" : "active",
     // Tasks keep their rich action rows in the palette (served by /api/search's
@@ -455,8 +455,16 @@ export const ENTITY_DEFS: EntityDef[] = [
     type: "person",
     table: "people",
     idColumn: "id",
-    selectColumns: ["id", "name", "role", "staff_category", "notes", "active"],
-    textFor: (r) => join(str(r.name), str(r.role), str(r.staff_category), str(r.notes)),
+    selectColumns: ["id", "name", "role", "staff_category", "notes", "nationality", "national_id", "passport_no", "date_of_birth", "email", "phone", "address", "emergency_contact_name", "emergency_contact_phone", "start_date", "person_type", "active"],
+    // Index EVERY meaningful person detail so ORI/search can find someone by their
+    // passport, national ID, nationality, birthday (the year is in the formatted
+    // date), phone, email, address or emergency contact — not just name/role.
+    textFor: (r) => join(
+      str(r.name), str(r.role), str(r.staff_category), str(r.person_type), str(r.notes),
+      str(r.nationality), str(r.national_id), str(r.passport_no), fmtDate(r.date_of_birth),
+      str(r.email), str(r.phone), str(r.address), str(r.emergency_contact_name), str(r.emergency_contact_phone),
+      fmtDate(r.start_date),
+    ),
     lifecycleFor: (r) => ((r.active as boolean) === false ? "history" : "active"),
     uiLabel: "People",
     searchOrder: 0,
@@ -464,7 +472,7 @@ export const ENTITY_DEFS: EntityDef[] = [
     search: {
       // Small, typo-critical table: fetch whole + rank in memory (NO ilike net,
       // NO DB current-filter); archived rows are dropped in-memory below.
-      select: "id,name,role,email,nationality,passport_no,national_id,company_id,active, companies!company_id(name)",
+      select: "id,name,role,email,phone,nationality,passport_no,national_id,date_of_birth,address,company_id,active, companies!company_id(name)",
       limit: 500,
       toResult: (r, ctx) => {
         const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
@@ -477,7 +485,7 @@ export const ENTITY_DEFS: EntityDef[] = [
           href: `/people?person=${r.id}`,
           badge: archived ? "Archived" : undefined,
           lifecycle: archived ? "history" : "active",
-          scoreParts: [r.name as string, sx(r.role), company, sx(r.email), sx(r.passport_no), sx(r.national_id), sx(r.nationality)],
+          scoreParts: [r.name as string, sx(r.role), company, sx(r.email), sx(r.phone), sx(r.passport_no), sx(r.national_id), sx(r.nationality), fmtDate(r.date_of_birth), sx(r.address)],
         };
       },
     },
@@ -487,14 +495,21 @@ export const ENTITY_DEFS: EntityDef[] = [
     type: "company",
     table: "companies",
     idColumn: "id",
-    selectColumns: ["id", "name", "legal_name", "code", "active"],
-    textFor: (r) => join(str(r.name), str(r.legal_name), str(r.code)),
+    selectColumns: ["id", "name", "legal_name", "code", "code_prefix", "file_prefix", "tin", "vrn", "registration_no", "address", "phone", "email", "aliases", "active"],
+    // Index the company's identifiers + contact so ORI/search finds it by TIN, VRN,
+    // registration number, address, phone, email or brand prefix — not just name.
+    textFor: (r) => join(
+      str(r.name), str(r.legal_name), str(r.code), str(r.file_prefix),
+      str(r.tin), str(r.vrn), str(r.registration_no),
+      str(r.address), str(r.phone), str(r.email),
+      Array.isArray(r.aliases) ? (r.aliases as string[]).join(" ") : str(r.aliases),
+    ),
     lifecycleFor: (r) => ((r.active as boolean) === false ? "history" : "active"),
     uiLabel: "Companies",
     searchOrder: 1,
     trace: { mode: "bespoke" },
     search: {
-      select: "id,name,code,code_prefix,legal_name",
+      select: "id,name,code,code_prefix,file_prefix,legal_name,tin,vrn,registration_no,address,phone,email",
       limit: 100,
       toResult: (r) => ({
         // Companies always surface as live (all 7 are active reference data).
@@ -504,7 +519,7 @@ export const ENTITY_DEFS: EntityDef[] = [
         href: `/companies/${r.id}`,
         badge: sx(r.code_prefix) ?? undefined,
         lifecycle: "active",
-        scoreParts: [r.name as string, sx(r.code), sx(r.code_prefix), sx(r.legal_name)],
+        scoreParts: [r.name as string, sx(r.code), sx(r.code_prefix), sx(r.file_prefix), sx(r.legal_name), sx(r.tin), sx(r.vrn), sx(r.registration_no), sx(r.address), sx(r.phone), sx(r.email)],
       }),
     },
   },
