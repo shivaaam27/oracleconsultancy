@@ -36,7 +36,7 @@ import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
-import { deriveFiling } from "@/lib/doc-catalog";
+import { deriveFiling, catalogType } from "@/lib/doc-catalog";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
 import { learnedOwnerFor, recordOwnerCorrection } from "@/lib/owner-corrections";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
@@ -630,8 +630,37 @@ async function findSameLogicalDoc(
   const refKey = referenceNo && referenceNo.replace(/\s/g, "").length >= 4 ? referenceNo.replace(/\s/g, "").toLowerCase() : null;
   const tKey = norm(fileTitle);
   const incTokens = contentTokenSet(incomingText);
+
+  // A near-duplicate must be the SAME document, not the same TYPE. Two employees'
+  // contracts, two permits with different dates, or an incorporation cert vs a
+  // BRELA search (sharing the registration number) are DIFFERENT documents. Guard
+  // on catalogue type + the filename's own subject/ref/expiry before any content
+  // or title match fires. `subjectTokens` = distinctive filename words beyond the
+  // company prefix + doc-type words (so "Rehema-Filimini" ≠ "Vailet-Peter").
+  const GENERIC = new Set(["exp", "old", "void", "pdf", "docx", "doc", "jpg", "jpeg", "png", "webp", "signed", "unsigned", "copy", "final", "draft", "scan", "the", "and", "ltd", "limited", "needorig", "needid"]);
+  const subjectTokens = (name: string | null, prefix: string | null, typeKey: string | null) => {
+    const aliasWords = new Set((typeKey ? (catalogType(typeKey)?.aliases ?? []) : []).join(" ").split(/\s+/));
+    const pfx = (prefix ?? "").toLowerCase();
+    return new Set(
+      (name ?? "").toLowerCase().replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9]+/g, " ").split(" ")
+        .filter((t) => t.length >= 3 && !GENERIC.has(t) && !aliasWords.has(t) && t !== pfx && !/^\d{4}$/.test(t)),
+    );
+  };
+  const incFiling = deriveFiling(incomingName, fileTitle, "");
+  const incSubject = subjectTokens(incomingName, incFiling.prefix, incFiling.typeKey);
+
   let nearDup: { id: number; title: string } | null = null;
   for (const r of rows) {
+    const rFiling = deriveFiling(r.file_name, r.title, "");
+    // Different catalogue type → never a duplicate.
+    if (incFiling.typeKey && rFiling.typeKey && incFiling.typeKey !== rFiling.typeKey) continue;
+    // Distinguished by a different reference or a different expiry → different doc.
+    if (incFiling.ref && rFiling.ref && incFiling.ref.toLowerCase() !== rFiling.ref.toLowerCase()) continue;
+    if (incFiling.expiry && rFiling.expiry && incFiling.expiry !== rFiling.expiry) continue;
+    // Distinguished by a different filename subject (different person/product) → not a dup.
+    const rSubject = subjectTokens(r.file_name, rFiling.prefix, rFiling.typeKey);
+    if (incSubject.size > 0 && rSubject.size > 0 && ![...incSubject].some((t) => rSubject.has(t))) continue;
+
     const sameRef = refKey && r.reference_no && r.reference_no.replace(/\s/g, "").toLowerCase() === refKey;
     const sameTitle = tKey.length >= 5 && norm(r.title) === tKey;
     // Content match: most of the words are shared → same document, any name/format.
