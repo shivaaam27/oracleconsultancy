@@ -878,6 +878,11 @@ export async function createDocumentAction(fd: FormData): Promise<Result> {
     const id = await createDocument(parsed);
     const file = fileFromForm(fd);
     if (file) await uploadDocumentFile(id, file);
+    // Read the body text now (typed text is instant; scans go through the layered
+    // OCR) + index it, so ORI can search INSIDE this file promptly instead of only
+    // after the nightly sweep. Fire-and-forget — never delays the save; the sweep
+    // is the backstop if a serverless invocation ends before OCR finishes.
+    if (file) void ensureDocumentText(id).catch(() => {});
     // Append any AI-read facts to the ledger, linked to this document + owner.
     await appendDocumentFacts(id, factsFromForm(fd), parsed.companyId ?? null, parsed.personId ?? null, parsed.title);
     if (parsed.companyId) {
