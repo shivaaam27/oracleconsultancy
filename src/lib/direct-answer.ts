@@ -51,9 +51,52 @@ function nameScore(name: string, tokens: string[]): number {
   return s;
 }
 
+/** Document expiry/renewal lookup: "business licence expiry date", "when does the
+ *  lease expire". Finds the document by its KNOWN type + shows its expiry from the
+ *  record — instant, no AI. */
+async function resolveDocExpiry(q: string): Promise<DirectAnswer | null> {
+  if (!/expir|valid\s+(until|till)|renew|\bdue\b/i.test(q)) return null;
+  const { bestDocType, deriveFiling } = await import("./doc-catalog");
+  const cleaned = q
+    .replace(/\b(what|whats|what's|is|the|of|for|show|me|tell|when|does|do|expiry|expires?|expiration|expiring|date|valid|until|till|renew|renewal|due|on)\b/gi, " ")
+    .replace(/[^a-z0-9 ]/gi, " ").trim();
+  const type = bestDocType(cleaned);
+  if (!type || !type.expires) return null;
+
+  const { data } = await sb
+    .from("documents")
+    .select("id,title,file_name,company_id,person_id,expiry_date")
+    .eq("archived", false).eq("intake_state", "filed").not("expiry_date", "is", null);
+  const matches = ((data ?? []) as Record<string, unknown>[])
+    .filter((d) => deriveFiling(d.file_name as string | null, d.title as string, "").typeKey === type.key);
+  if (matches.length === 0) return null;
+  // The current one = the furthest-future expiry.
+  matches.sort((a, b) => new Date(b.expiry_date as string).getTime() - new Date(a.expiry_date as string).getTime());
+  const best = matches[0];
+  const exp = new Date(best.expiry_date as string);
+  const iso = exp.toISOString().slice(0, 10);
+  const days = Math.floor((exp.getTime() - Date.now()) / 86_400_000);
+  const rel = days < 0 ? `expired ${-days} day${-days === 1 ? "" : "s"} ago` : days === 0 ? "expires today" : `in ${days} day${days === 1 ? "" : "s"}`;
+
+  let entity = "";
+  if (best.person_id) { const { data: p } = await sb.from("people").select("name").eq("id", best.person_id as number).maybeSingle(); entity = (p?.name as string) ?? ""; }
+  else if (best.company_id) { const { data: c } = await sb.from("companies").select("name").eq("id", best.company_id as number).maybeSingle(); entity = (c?.name as string) ?? ""; }
+
+  return {
+    label: `${type.label} expiry`,
+    value: `${iso} · ${rel}`,
+    entity,
+    entityType: best.person_id ? "person" : "company",
+    href: best.person_id ? `/documents?person=${best.person_id}` : best.company_id ? `/documents?company=${best.company_id}` : "/documents",
+  };
+}
+
 export async function resolveDirectAnswer(query: string): Promise<DirectAnswer | null> {
   const q = (query ?? "").toLowerCase().trim();
   if (q.length < 3) return null;
+  // Document expiry lookups first (they mention a doc type + "expiry").
+  const docExp = await resolveDocExpiry(q).catch(() => null);
+  if (docExp) return docExp;
   const attr = ATTRS.find((a) => a.test.test(q));
   if (!attr) return null;
 
