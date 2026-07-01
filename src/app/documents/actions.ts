@@ -658,8 +658,15 @@ async function findSameLogicalDoc(
     if (incFiling.ref && rFiling.ref && incFiling.ref.toLowerCase() !== rFiling.ref.toLowerCase()) continue;
     if (incFiling.expiry && rFiling.expiry && incFiling.expiry !== rFiling.expiry) continue;
     // Distinguished by a different filename subject (different person/product) → not a dup.
+    // Both name a subject → they must be COMPATIBLE: every token of the smaller name
+    // set appears in the larger. One shared token (two different people both named
+    // "Juma": "Kasaba-Juma" vs "Juma-Bagomwa") is NOT a match; a subset ("Sanjay-
+    // Kaushik" as a .docx vs the same as a .pdf, or a signed vs unsigned copy) is.
     const rSubject = subjectTokens(r.file_name, rFiling.prefix, rFiling.typeKey);
-    if (incSubject.size > 0 && rSubject.size > 0 && ![...incSubject].some((t) => rSubject.has(t))) continue;
+    if (incSubject.size > 0 && rSubject.size > 0) {
+      const inter = [...incSubject].filter((t) => rSubject.has(t)).length;
+      if (inter < Math.min(incSubject.size, rSubject.size)) continue;
+    }
 
     const sameRef = refKey && r.reference_no && r.reference_no.replace(/\s/g, "").toLowerCase() === refKey;
     const sameTitle = tKey.length >= 5 && norm(r.title) === tKey;
@@ -729,6 +736,63 @@ export async function fileFromQuarantineAction(id: number): Promise<{ ok: boolea
   revalidateDocs();
   revalidatePath("/inbox");
   return { ok: true };
+}
+
+/**
+ * One-off cleanup: re-evaluate every quarantined doc that was held as a "Possible
+ * duplicate" using the current (fixed) near-duplicate logic. The ones that are NOT
+ * genuine duplicates (different person's contract, different-dated permit, a cert
+ * vs a search sharing a registration number) are filed into the library. Genuine
+ * duplicates stay put. Owner-less docs are left for review.
+ */
+export async function reviewFalseDuplicatesAction(opts?: { dryRun?: boolean }): Promise<{ ok: boolean; checked: number; filed: number; kept: number; personDropped: number; decisions: Array<{ id: number; file: string | null; verdict: "file" | "keep"; dropPerson: boolean; matched?: number }> }> {
+  const dryRun = !!opts?.dryRun;
+  const decisions: Array<{ id: number; file: string | null; verdict: "file" | "keep"; dropPerson: boolean; matched?: number }> = [];
+  let rows;
+  try { rows = await listIntakeDocuments("quarantine"); } catch { return { ok: true, checked: 0, filed: 0, kept: 0, personDropped: 0, decisions }; }
+  const { people } = await loadEntities();
+  // A person attribution is only trusted if the person's name is corroborated by
+  // the filename. A contract for "Leila-Chorobi" tagged to the director "Parin
+  // Manek" is a mis-resolution — keep the (correct) company, drop the wrong person.
+  const corroborated = (personId: number | null, fileName: string | null) => {
+    if (!personId) return true;
+    const name = people.find((p) => p.id === personId)?.name ?? "";
+    const fn = (fileName ?? "").toLowerCase();
+    const toks = name.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 4);
+    return toks.length === 0 ? true : toks.some((t) => fn.includes(t));
+  };
+  let checked = 0, filed = 0, kept = 0, personDropped = 0;
+  for (const r of rows) {
+    if (!/^possible duplicate/i.test(r.intakeReason ?? "")) continue;
+    if (!r.companyId && !r.personId) continue; // owner-less → leave for review
+    checked++;
+    const { data } = await supa.from("documents").select("category,reference_no,extracted_text").eq("id", r.id).maybeSingle();
+    const dup = await findSameLogicalDoc(
+      { companyId: r.companyId, personId: r.personId },
+      (data as { category?: string | null } | null)?.category ?? r.category,
+      (data as { reference_no?: string | null } | null)?.reference_no ?? null,
+      r.title,
+      r.fileName ?? r.title ?? "",
+      (data as { extracted_text?: string | null } | null)?.extracted_text ?? null,
+    );
+    if (dup) { kept++; decisions.push({ id: r.id, file: r.fileName, verdict: "keep", dropPerson: false, matched: dup.id }); continue; } // genuine duplicate → leave for review
+    // File it — but first correct a mis-attributed person (keep the company).
+    let personId = r.personId;
+    const wrongPerson = !corroborated(personId, r.fileName) && !!r.companyId;
+    if (wrongPerson) personDropped++;
+    decisions.push({ id: r.id, file: r.fileName, verdict: "file", dropPerson: wrongPerson });
+    if (dryRun) { filed++; continue; }
+    if (wrongPerson) { personId = null; await updateDocument(r.id, { personId: null }); }
+    await setDocumentIntakeState(r.id, "filed", null);
+    await setDocumentVetted(r.id, true);
+    await reconcileOwnerCompliance(personId, r.companyId);
+    await fireDocumentReactions(r.id);
+    filed++;
+  }
+  // revalidate is a no-op / throws outside a request context (e.g. a maintenance
+  // script) — the DB writes above are already committed, so never let it bubble.
+  if (!dryRun) { try { revalidateDocs(); revalidatePath("/inbox"); } catch { /* not in a request */ } }
+  return { ok: true, checked, filed, kept, personDropped, decisions };
 }
 
 /** Bulk: assign an owner to several quarantined docs and file them in one pass. */
