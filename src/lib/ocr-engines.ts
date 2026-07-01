@@ -29,10 +29,12 @@ export async function cloudOcrTranscribe(image: string | Buffer): Promise<string
   if (!key) return null;
   try {
     const buf = toBuffer(image);
-    // OCR.space wants a base64 data URL (assume JPEG/PNG; it sniffs the header).
+    // OCR.space validates the data-URL mime against the bytes, so label it right:
+    // pass through an existing data URL, else sniff PNG vs JPEG from magic bytes.
+    const sniff = buf[0] === 0x89 && buf[1] === 0x50 ? "image/png" : "image/jpeg";
     const dataUrl = typeof image === "string" && image.startsWith("data:")
       ? image
-      : `data:image/jpeg;base64,${buf.toString("base64")}`;
+      : `data:${sniff};base64,${buf.toString("base64")}`;
     const body = new URLSearchParams({
       base64Image: dataUrl,
       language: "eng",           // OCR.space handles Latin-script Swahili under eng
