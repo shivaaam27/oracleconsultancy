@@ -1778,12 +1778,57 @@ export async function ensureDocumentText(id: number, force = false): Promise<"do
   }
   // Typed text first (free, no AI).
   const typed = await extractTypedTextFromFile(file);
-  if (typed && typed.trim()) { await setDocumentText(id, typed, "typed"); return "done"; }
-  // Scan / image → OCR via the vision model.
+  if (typed && typed.trim()) {
+    await setDocumentText(id, typed, "typed");
+    await recordRuleBasedFacts(id, typed, doc.companyId ?? null, doc.personId ?? null, doc.title);
+    return "done";
+  }
+  // Scan / image → OCR (layered: Groq vision → cloud OCR → Tesseract).
   const ocr = await ocrDocumentText(file);
-  if (ocr && ocr.trim()) { await setDocumentText(id, ocr, "ocr"); return "done"; }
+  if (ocr && ocr.trim()) {
+    await setDocumentText(id, ocr, "ocr");
+    await recordRuleBasedFacts(id, ocr, doc.companyId ?? null, doc.personId ?? null, doc.title);
+    return "done";
+  }
   await setDocumentText(id, null, "ocr-empty");
   return "none";
+}
+
+/**
+ * RULE-BASED fact capture (no AI) — the moment a document's text is read, pull the
+ * well-patterned facts (passport no, TIN, VRN, national ID, share capital) into the
+ * ledger AND fill the owner's blank identity columns (blanks-only, never overwrite).
+ * So a re-uploaded passport instantly makes the person's passport number answerable.
+ * Best-effort; never blocks intake.
+ */
+async function recordRuleBasedFacts(
+  documentId: number,
+  text: string,
+  companyId: number | null,
+  personId: number | null,
+  source: string,
+) {
+  try {
+    const { extractFactsFromText } = await import("@/lib/fact-extract");
+    const { facts, identity } = extractFactsFromText(text, { hasPerson: !!personId, hasCompany: !!companyId });
+    if (facts.length) await appendDocumentFacts(documentId, facts, companyId, personId, source);
+
+    // Blanks-only identity fill on the owning person / company.
+    if (personId && (identity.passportNo || identity.nationalId || identity.tin)) {
+      const { data: p } = await supa.from("people").select("passport_no,national_id").eq("id", personId).maybeSingle();
+      const patch: Record<string, string> = {};
+      if (identity.passportNo && !p?.passport_no) patch.passport_no = identity.passportNo;
+      if (identity.nationalId && !p?.national_id) patch.national_id = identity.nationalId;
+      if (Object.keys(patch).length) await supa.from("people").update(patch).eq("id", personId);
+    }
+    if (companyId && (identity.tin || identity.vrn)) {
+      const { data: c } = await supa.from("companies").select("tin,vrn").eq("id", companyId).maybeSingle();
+      const patch: Record<string, string> = {};
+      if (identity.tin && !c?.tin) patch.tin = identity.tin;
+      if (identity.vrn && !c?.vrn) patch.vrn = identity.vrn;
+      if (Object.keys(patch).length) await supa.from("companies").update(patch).eq("id", companyId);
+    }
+  } catch { /* best-effort — facts never block intake */ }
 }
 
 /** Backfill body text across all stored documents (re-runnable; skips done ones). */
