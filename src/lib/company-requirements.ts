@@ -268,7 +268,10 @@ export async function getCompanyChecklist(companyId: number): Promise<CompanyChe
     });
 
   const mandatory = items.filter((it) => it.mandatory && it.effectiveStatus !== "waived");
-  const mandatoryVerified = mandatory.filter((it) => it.effectiveStatus === "verified" || it.effectiveStatus === "expiring").length;
+  // "received" (a compulsory doc auto-linked on upload) counts toward the score —
+  // filing a required document raises company compliance on its own; the manual
+  // "Verify" tick is an optional audit confirmation, not a gate.
+  const mandatoryVerified = mandatory.filter((it) => it.effectiveStatus === "verified" || it.effectiveStatus === "expiring" || it.effectiveStatus === "received").length;
   const missingMandatory = mandatory.filter((it) => it.effectiveStatus === "missing").length;
   const expiredMandatory = mandatory.filter((it) => it.effectiveStatus === "expired").length;
   const score = mandatory.length === 0 ? 100 : Math.round((mandatoryVerified / mandatory.length) * 100);
@@ -439,11 +442,13 @@ export async function buildCompanyRequirementScores(
         ? deriveDocStatus({ expiryDate: reviewDate, reminderLeadDays: (cat && DEFAULT_LEAD_DAYS[cat]) || 30 })
         : null;
       const eff = effectiveStatus(status, worstDocStatus(docStatus, reviewStatus));
-      if (eff === "verified" || eff === "expiring") verified++;
+      // "received" (auto-linked compulsory doc) counts as present — mirrors the
+      // per-company scorer, so filing a required document raises compliance on its own.
+      if (eff === "verified" || eff === "expiring" || eff === "received") verified++;
       if (eff === "expiring") expiring++;
       if (eff === "expired") expired++;
-      if (eff === "requested" || eff === "received") inProgress++;
-      if (eff === "missing" || eff === "requested" || eff === "received" || eff === "expired") {
+      if (eff === "requested") inProgress++;
+      if (eff === "missing" || eff === "requested" || eff === "expired") {
         gaps.push({
           id: `creq-${c.id}-${r.label as string}`,
           label: r.label as string,

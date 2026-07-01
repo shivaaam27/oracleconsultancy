@@ -531,7 +531,10 @@ export async function getPersonChecklist(personId: number): Promise<PersonCheckl
     });
 
   const mandatory = items.filter((it) => it.mandatory && it.effectiveStatus !== "waived");
-  const mandatoryVerified = mandatory.filter((it) => it.effectiveStatus === "verified" || it.effectiveStatus === "expiring").length;
+  // "received" (a compulsory doc auto-linked on upload) counts toward the score
+  // too — so filing a required document raises compliance on its own. The manual
+  // "Verify" tick then becomes an optional audit confirmation, not a gate.
+  const mandatoryVerified = mandatory.filter((it) => it.effectiveStatus === "verified" || it.effectiveStatus === "expiring" || it.effectiveStatus === "received").length;
   const missingMandatory = mandatory.filter((it) => it.effectiveStatus === "missing").length;
   const expiredMandatory = mandatory.filter((it) => it.effectiveStatus === "expired").length;
   const score = mandatory.length === 0 ? 100 : Math.round((mandatoryVerified / mandatory.length) * 100);
@@ -620,11 +623,13 @@ export async function buildPersonRequirementScores(personIds?: number[]): Promis
         ? deriveDocStatus({ expiryDate: reviewDate, reminderLeadDays: (cat && DEFAULT_LEAD_DAYS[cat]) || 30 })
         : null;
       const eff = effectiveStatus(status, worstDocStatus(docStatus, reviewStatus));
-      if (eff === "verified" || eff === "expiring") verified++;
+      // "received" (auto-linked compulsory doc) counts as present — mirrors the
+      // per-person scorer, so filing a required document raises compliance on its own.
+      if (eff === "verified" || eff === "expiring" || eff === "received") verified++;
       if (eff === "expiring") expiring++;
       if (eff === "expired") expired++;
-      if (eff === "requested" || eff === "received") inProgress++;
-      if (eff === "missing" || eff === "requested" || eff === "received" || eff === "expired") {
+      if (eff === "requested") inProgress++;
+      if (eff === "missing" || eff === "requested" || eff === "expired") {
         gaps.push({
           id: `req-${r.person_id}-${(r.label as string)}`,
           label: r.label as string,
