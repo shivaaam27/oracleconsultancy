@@ -534,7 +534,12 @@ export async function buildContext(question: string, page?: PageCtx) {
     missing: number; expired: number; expiring: number; gaps: string[];
   }> = [];
   try {
-    const allDocs = await listDocuments();
+    // Run the three heaviest reads together instead of one-after-another.
+    const [allDocs, companyScores, personScores] = await Promise.all([
+      listDocuments(),
+      buildCompanyRequirementScores(companies),
+      buildPersonRequirementScores(),
+    ]);
     const matchedCompanyIds = new Set(matchedCompanies.map((c) => c.id));
     const scored = allDocs.map((d) => {
       const status = deriveDocStatus(d);
@@ -569,8 +574,6 @@ export async function buildContext(question: string, page?: PageCtx) {
         // Matched excerpt (Capability A) so ORI can quote + cite this doc by name.
         ...(docPassageById.has(d.id) ? { passage: docPassageById.get(d.id) } : {}),
       }));
-    const companyScores = await buildCompanyRequirementScores(companies);
-    const personScores = await buildPersonRequirementScores();
     complianceCtx = worstComplianceScores([...companyScores, ...personScores], 8).map((score) => ({
       owner: score.ownerName,
       ownerType: score.ownerType,
