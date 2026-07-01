@@ -17,6 +17,11 @@ export type MatchDoc = { id: number; title: string; category: string | null; doc
 const STOP = new Set([
   "the", "and", "for", "of", "a", "an", "to", "or", "with", "staff", "member",
   "details", "detail", "document", "documents", "copy", "scan", "form", "letter", "letters",
+  // "certificate" is a generic suffix — almost every statutory doc is an "X
+  // Certificate", so it carries no distinguishing signal and, when both sides had
+  // it, over-inflated the score (TIN Certificate ↔ Tax Clearance Certificate).
+  // Documents still match on their SPECIFIC concept (tin, osha, vat, crb…).
+  "certificate", "certificates",
 ]);
 
 // Concept synonym groups. If a token from a group appears, the whole group is
@@ -34,15 +39,19 @@ const SYNONYMS: string[][] = [
   ["contract", "employment", "agreement", "appointment", "offer", "engagement"],
   ["cv", "resume", "curriculum", "vitae"],
   ["bank", "account", "banking"],
-  ["certificate", "diploma", "degree", "academic", "transcript", "professional", "qualification", "certificates"],
+  ["diploma", "degree", "academic", "transcript", "professional", "qualification"],
   ["medical", "health", "fitness", "fit"],
   ["emergency", "kin"],
   ["photo", "photograph", "picture", "passportphoto"],
   ["reference", "referee", "recommendation", "references"],
-  ["licence", "license", "trading"],
+  ["licence", "license", "trading", "business"],
   ["registration", "brela", "incorporation", "registered"],
+  ["memorandum", "memart", "memarts", "articles"],
   ["vat", "vrn"],
   ["paye", "sdl"],
+  ["contractor", "crb"],
+  ["osha", "occupational", "safety"],
+  ["localcontent", "content"],
   ["insurance", "policy", "cover"],
   ["lease", "tenancy", "rent"],
   ["statutory", "register", "registers"],

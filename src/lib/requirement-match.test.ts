@@ -48,4 +48,36 @@ describe("matchDocumentsToItems", () => {
     const docs = [{ id: 10, title: "Random unrelated note", category: "Other", docType: null }];
     expect(matchDocumentsToItems(items, docs).size).toBe(0);
   });
+
+  it("links a TIN Certificate to TIN, not Tax Clearance (generic 'certificate' carries no signal)", () => {
+    const items = [
+      { id: 1, label: "TIN (Taxpayer ID)", category: "Tax" },
+      { id: 2, label: "Tax Clearance Certificate (TRA)", category: "Tax" },
+    ];
+    const docs = [{ id: 10, title: "PES_TIN-Certificate", category: "Tax", docType: "TIN Certificate" }];
+    expect(matchDocumentsToItems(items, docs).get(1)).toBe(10);
+  });
+
+  it("recognises company statutory doc types (VAT/OSHA/CRB/NSSF/MEMART)", () => {
+    const items = [
+      { id: 1, label: "VAT Certificate", category: "Tax" },
+      { id: 2, label: "OSHA certificate", category: "Certificate" },
+      { id: 3, label: "Contractor registration (CRB)", category: "Permit" },
+      { id: 4, label: "NSSF employer registration", category: "Registration" },
+      { id: 5, label: "Memorandum & Articles (MEMARTS)", category: "Legal" },
+    ];
+    const docs = [
+      { id: 10, title: "PES_VAT-Certificate", category: "Tax", docType: "VAT Certificate" },
+      { id: 11, title: "PES_OSHA-Certificate", category: "Certificate", docType: "OSHA Certificate" },
+      { id: 12, title: "PES_CRB-Building-Contractor-Class-4", category: "Permit", docType: "CRB Building Contractor Class 4" },
+      { id: 13, title: "PES_NSSF-Document", category: "Registration", docType: "NSSF Document" },
+      { id: 14, title: "PES_MEMART-Amended", category: "Legal", docType: "MEMART Amended" },
+    ];
+    const m = matchDocumentsToItems(items, docs);
+    expect(m.get(1)).toBe(10);
+    expect(m.get(2)).toBe(11);
+    expect(m.get(3)).toBe(12);
+    expect(m.get(4)).toBe(13);
+    expect(m.get(5)).toBe(14);
+  });
 });
