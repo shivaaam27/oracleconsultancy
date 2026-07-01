@@ -1821,3 +1821,34 @@ export const numberSeries = pgTable("number_series", {
   seriesKey: text("series_key").primaryKey(),
   nextVal: integer("next_val").notNull().default(0),
 });
+
+// AI job queue — the bridge between the live app and the Claude Code cloud agent
+// ("cloud-agent-as-engine", memory/cloud_agent_plan.md). The app enqueues a job;
+// a cloud routine (running on the owner's Max plan, PC-independent) claims it via
+// claim_next_ai_job(), does the work, and writes back `result`. No API key.
+//   kind:   ping | extract | ask | action (+ future)
+//   status: queued | running | done | error
+//   lane:   fast (interactive, ~real-time) | batch (heavy/scheduled)
+//   tier:   autonomy tier (1 auto · 2 auto-if-safe · 3 confirm send/spend/delete)
+export const aiJobs = pgTable("ai_jobs", {
+  id: serial("id").primaryKey(),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default("queued"),
+  lane: text("lane").notNull().default("batch"),
+  priority: integer("priority").notNull().default(0),
+  payload: jsonb("payload").notNull().default({}),
+  result: jsonb("result"),
+  error: text("error"),
+  requestedBy: text("requested_by"),
+  threadId: integer("thread_id"),
+  tier: integer("tier").notNull().default(1),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  pickedAt: timestamp("picked_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  undoToken: text("undo_token"),
+}, (t) => [
+  index("ai_jobs_queue_idx").on(t.status, t.lane, t.priority, t.createdAt),
+  index("ai_jobs_thread_idx").on(t.threadId),
+]);

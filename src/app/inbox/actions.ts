@@ -197,7 +197,13 @@ export async function autoSortInboxAction(): Promise<AutoSortSummary> {
           if (!r.ok) { failed++; allHandled = false; }
           else if (r.status === "filed") filed++;
           else if (r.status === "duplicate") trashed++;
-          else quarantined++; // needs_review → Quarantine
+          else {
+            quarantined++; // needs_review → Quarantine
+            // Hand the hard ones to ORI: enqueue an extract job so the cloud agent
+            // re-reads and resolves what the rules/vision path couldn't (covers the
+            // Groq-vision gap). Best-effort — never blocks intake.
+            if (r.id) { try { const { enqueueDocExtract } = await import("@/lib/agent-enqueue"); await enqueueDocExtract(r.id); } catch { /* best-effort */ } }
+          }
         } catch {
           failed++; allHandled = false;
         }
