@@ -8,7 +8,7 @@ import Link from "next/link";
 import {
   Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
-  MessageSquarePlus, Check, Building2, MessagesSquare, X, Pencil, CheckCircle2, Circle,
+  MessageSquarePlus, Check, Building2, MessagesSquare, X, Pencil,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { CaretInput } from "@/components/ui";
@@ -18,7 +18,7 @@ import { CompanyAvatar } from "@/components/company-avatar";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalToggleMyPartDone, portalRaiseBlocker, portalClearBlocker } from "@/app/portal/actions";
+import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads } from "@/app/portal/actions";
 import { getGivenName, getInitials } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
@@ -65,11 +65,6 @@ export type CommandTask = {
   raisedByMe: boolean;
   isDone: boolean;
   withinSoon: boolean;
-  /** Has the viewer marked their own part done? (KPI overdue exemption) */
-  myPartDone: boolean;
-  /** Active documented blocker — reason + who it's waiting on (null = none). */
-  blockedReason: string | null;
-  blockedByName: string | null;
 };
 
 export type Filter = "all" | "inprogress" | "overdue" | "soon" | "mine" | "done";
@@ -535,12 +530,6 @@ function TaskRow({
           </button>
         </div>
 
-        {/* Accountability — the viewer's "my part done" + documented blocker. Only
-            shown to people actually on the task (KPI fairness controls). */}
-        {t.assigneeIds.includes(viewerId) && !t.isDone && (
-          <AccountabilityControls t={t} viewerId={viewerId} />
-        )}
-
         {/* "On this task" — every person involved; the lead toggle assigns the lead
             inline. Quick contact actions per person. */}
         <TaskPeoplePanel
@@ -778,64 +767,6 @@ type Member = { id: number | null; name: string; lead: boolean };
  * all · N" button opens the task's group chat (portalMessageTaskGroup) when more
  * than one person is involved. Directors/HR can edit the lead set inline.
  */
-/** The viewer's KPI fairness controls on a task they're on: mark "my part done"
- *  (overdue exemption) and raise/clear a documented blocker (suspends overdue). */
-function AccountabilityControls({ t, viewerId }: { t: CommandTask; viewerId: number }) {
-  const { toast } = useToast();
-  const router = useRouter();
-  const [busy, start] = useTransition();
-  const [raising, setRaising] = useState(false);
-  const [waitOn, setWaitOn] = useState<number | null>(null);
-  const [reason, setReason] = useState("");
-  const blocked = !!t.blockedReason;
-  // Pick who you're waiting on from the others on this task.
-  const others = t.assigneeIds.map((id, i) => ({ id, name: t.assignees[i] })).filter((p) => p.id !== viewerId);
-
-  const run = (fn: () => Promise<{ error?: string }>, ok: string) =>
-    start(async () => {
-      const res = await fn();
-      if (res?.error) toast(res.error, { tone: "danger" });
-      else { toast(ok, { tone: "success" }); router.refresh(); }
-    });
-
-  return (
-    <div className="rounded-xl ring-1 ring-border/70 bg-bg-subtle/40 p-2.5 space-y-2">
-      <div className="flex items-center gap-2">
-        <button type="button" disabled={busy}
-          onClick={() => run(() => portalToggleMyPartDone(t.taskId, !t.myPartDone), t.myPartDone ? "Reopened your part." : "Marked your part done.")}
-          className="inline-flex items-center gap-1.5 text-[13px] font-medium disabled:opacity-50">
-          {t.myPartDone ? <CheckCircle2 size={16} className="text-success" /> : <Circle size={16} className="text-fg-subtle" />}
-          <span className={t.myPartDone ? "text-fg-muted" : "text-fg"}>My part is done</span>
-        </button>
-        {t.myPartDone && <span className="text-[10px] text-success">won't count against you if late</span>}
-      </div>
-
-      {blocked ? (
-        <div className="rounded-lg ring-1 ring-warn/30 bg-warn-soft/30 p-2 space-y-1">
-          <p className="text-[12px] text-warn font-medium">⏸ Waiting on {t.blockedByName ?? "someone"}</p>
-          {t.blockedReason && <p className="text-[11px] text-fg-muted">{t.blockedReason}</p>}
-          <p className="text-[10px] text-fg-subtle">Overdue marks are paused for everyone.</p>
-          <button type="button" disabled={busy} onClick={() => run(() => portalClearBlocker(t.taskId), "Blocker cleared.")}
-            className="text-[12px] text-accent hover:underline disabled:opacity-50">Clear blocker</button>
-        </div>
-      ) : raising ? (
-        <div className="space-y-1.5">
-          <FluidSelect value={waitOn != null ? String(waitOn) : ""} options={[{ value: "", label: "Waiting on…" }, ...others.map((o) => ({ value: String(o.id), label: o.name }))]} onSelect={(v) => setWaitOn(v ? Number(v) : null)} buttonClassName="w-full rounded-lg bg-bg-elev ring-1 ring-border text-[13px]" />
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (recorded)…" className="w-full rounded-lg bg-bg-elev ring-1 ring-border px-2.5 py-1.5 text-[13px] outline-none focus:ring-2 focus:ring-accent/40" />
-          <div className="flex gap-1.5">
-            <button type="button" disabled={busy || !waitOn || !reason.trim()}
-              onClick={() => run(async () => { const r = await portalRaiseBlocker(t.taskId, waitOn!, reason); if (!r.error) { setRaising(false); setReason(""); setWaitOn(null); } return r; }, "Blocker raised.")}
-              className="rounded-lg bg-accent px-2.5 py-1 text-[12px] font-medium text-accent-fg disabled:opacity-50">Raise</button>
-            <button type="button" onClick={() => setRaising(false)} className="px-2.5 py-1 text-[12px] text-fg-muted">Cancel</button>
-          </div>
-        </div>
-      ) : others.length > 0 ? (
-        <button type="button" onClick={() => setRaising(true)} className="text-[12px] text-fg-subtle hover:text-accent">+ Waiting on someone? Raise a blocker</button>
-      ) : null}
-    </div>
-  );
-}
-
 function TaskPeoplePanel({
   t, people, canEditLeads, canRemind,
 }: {

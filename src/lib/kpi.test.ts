@@ -21,34 +21,34 @@ function task(p: Partial<TaskRow>): TaskRow {
 const MAY = { y: 2026, m: 5 };
 const d = (s: string) => new Date(s);
 
-describe("computePersonKpi", () => {
-  it("credits creator separately from delivery on the same task", () => {
-    const tasks = [
-      task({ createdByPersonId: 71, leadIds: [5], assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10") }),
-    ];
-    const creator = computePersonKpi(71, tasks, MAY.y, MAY.m);
-    const doer = computePersonKpi(5, tasks, MAY.y, MAY.m);
-    expect(creator.createdDone).toBe(1);
-    expect(creator.involvedDone).toBe(0);
-    expect(doer.involvedDone).toBe(1);
-    expect(doer.createdDone).toBe(0);
+describe("computePersonKpi (union-count model)", () => {
+  it("credits the creator when their task is completed", () => {
+    const tasks = [task({ createdByPersonId: 71, status: "Completed", closedDate: d("2026-05-10") })];
+    expect(computePersonKpi(71, tasks, MAY.y, MAY.m).completed).toBe(1);
   });
 
-  it("credits BOTH lead and working contributors on a completed task", () => {
+  it("credits an assignee (any role) on completion", () => {
     const tasks = [
-      task({ leadIds: [5], assigneeIds: [5, 8], status: "Completed", closedDate: d("2026-05-10") }),
+      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10") }),
+      task({ leadIds: [8], status: "Closed", closedDate: d("2026-05-11") }),
+      task({ ownerId: 9, status: "Completed", closedDate: d("2026-05-12") }),
     ];
-    const lead = computePersonKpi(5, tasks, MAY.y, MAY.m);
-    const worker = computePersonKpi(8, tasks, MAY.y, MAY.m);
-    expect(lead.involvedDone).toBe(1);
-    expect(lead.ledDone).toBe(1);
-    expect(worker.involvedDone).toBe(1); // working contributor still scores
-    expect(worker.ledDone).toBe(0); // but is not the lead
+    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).completed).toBe(1);
+    expect(computePersonKpi(8, tasks, MAY.y, MAY.m).completed).toBe(1);
+    expect(computePersonKpi(9, tasks, MAY.y, MAY.m).completed).toBe(1);
   });
 
-  it("credits the owner even with no assignee rows", () => {
-    const tasks = [task({ ownerId: 5, status: "Completed", closedDate: d("2026-05-10") })];
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).involvedDone).toBe(1);
+  it("counts creator + assignee as ONE credit each (no duplication)", () => {
+    // M creates and is also accountable; W is a doer.
+    const tasks = [task({ createdByPersonId: 1, assigneeIds: [1, 2], leadIds: [1], status: "Completed", closedDate: d("2026-05-10") })];
+    expect(computePersonKpi(1, tasks, MAY.y, MAY.m).completed).toBe(1); // creator+assignee, once
+    expect(computePersonKpi(2, tasks, MAY.y, MAY.m).completed).toBe(1); // doer
+  });
+
+  it("creator and separate doer each get one credit", () => {
+    const tasks = [task({ createdByPersonId: 1, assigneeIds: [2], status: "Completed", closedDate: d("2026-05-10") })];
+    expect(computePersonKpi(1, tasks, MAY.y, MAY.m).completed).toBe(1); // creator
+    expect(computePersonKpi(2, tasks, MAY.y, MAY.m).completed).toBe(1); // doer
   });
 
   it("counts both Completed and Closed as done", () => {
@@ -56,7 +56,7 @@ describe("computePersonKpi", () => {
       task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-02") }),
       task({ assigneeIds: [5], status: "Closed", closedDate: d("2026-05-03") }),
     ];
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).involvedDone).toBe(2);
+    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).completed).toBe(2);
   });
 
   it("filters by closed month", () => {
@@ -64,86 +64,28 @@ describe("computePersonKpi", () => {
       task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-31") }),
       task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-06-01") }),
     ];
-    expect(computePersonKpi(5, tasks, 2026, 5).involvedDone).toBe(1);
-    expect(computePersonKpi(5, tasks, 2026, 6).involvedDone).toBe(1);
+    expect(computePersonKpi(5, tasks, 2026, 5).completed).toBe(1);
+    expect(computePersonKpi(5, tasks, 2026, 6).completed).toBe(1);
   });
 
-  it("computes on-time rate over deadline-bearing done tasks only", () => {
+  it("does not credit an open (unfinished) task", () => {
+    const tasks = [task({ assigneeIds: [5], status: "In Progress" })];
+    const k = computePersonKpi(5, tasks, MAY.y, MAY.m);
+    expect(k.completed).toBe(0);
+    expect(k.openInvolved).toBe(1);
+  });
+
+  it("score equals the completed count", () => {
     const tasks = [
-      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10"), deadline: d("2026-05-15") }), // on time
-      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-20"), deadline: d("2026-05-15") }), // late
-      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10"), deadline: null }), // no deadline → excluded from rate
+      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10") }),
+      task({ createdByPersonId: 5, status: "Closed", closedDate: d("2026-05-11") }),
     ];
-    const kpi = computePersonKpi(5, tasks, MAY.y, MAY.m);
-    expect(kpi.involvedDone).toBe(3);
-    expect(kpi.onTimeCount).toBe(1);
-    expect(kpi.lateCount).toBe(1);
-    expect(kpi.onTimeRate).toBeCloseTo(0.5);
+    const k = computePersonKpi(5, tasks, MAY.y, MAY.m);
+    expect(k.completed).toBe(2);
+    expect(k.score).toBe(2);
   });
 
-  it("treats closing on the deadline day as on time", () => {
-    const tasks = [
-      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-15T18:00:00"), deadline: d("2026-05-15T00:00:00") }),
-    ];
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).onTimeCount).toBe(1);
-  });
-
-  it("on-time rate is null when no done task has a deadline", () => {
-    const tasks = [task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10") })];
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).onTimeRate).toBeNull();
-  });
-
-  it("counts open involvement + overdue, and penalises score", () => {
-    const tasks = [
-      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10") }), // +1 done (no deadline → rate 1)
-      task({ assigneeIds: [5], status: "In Progress", flag: "overdue" }), // open + overdue
-      task({ assigneeIds: [5], status: "In Progress", flag: "on-track" }), // open only
-    ];
-    const kpi = computePersonKpi(5, tasks, MAY.y, MAY.m);
-    expect(kpi.openInvolved).toBe(2);
-    expect(kpi.overdueOpen).toBe(1);
-    expect(kpi.score).toBe(0); // 1 done * 1.0 - 1 overdue
-  });
-
-  it("score reflects reliability weighting", () => {
-    const tasks = [
-      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10"), deadline: d("2026-05-05") }), // late
-      task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10"), deadline: d("2026-05-15") }), // on time
-    ];
-    // 2 done * 0.5 on-time - 0 overdue = 1
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).score).toBe(1);
-  });
-
-  it("shared mode: overdue blames every assignee", () => {
-    const tasks = [task({ assigneeIds: [5, 8], leadIds: [5], accountability: "shared", status: "In Progress", flag: "overdue" })];
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).overdueOpen).toBe(1);
-    expect(computePersonKpi(8, tasks, MAY.y, MAY.m).overdueOpen).toBe(1);
-  });
-
-  it("lead mode: overdue blames only the lead, not the helper", () => {
-    const tasks = [task({ assigneeIds: [5, 8], leadIds: [5], accountability: "lead", status: "In Progress", flag: "overdue" })];
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).overdueOpen).toBe(1); // lead
-    expect(computePersonKpi(8, tasks, MAY.y, MAY.m).overdueOpen).toBe(0); // helper spared
-  });
-
-  it("lead mode with no named lead falls back to shared blame", () => {
-    const tasks = [task({ assigneeIds: [5, 8], leadIds: [], accountability: "lead", status: "In Progress", flag: "overdue" })];
-    expect(computePersonKpi(8, tasks, MAY.y, MAY.m).overdueOpen).toBe(1);
-  });
-
-  it("documented blocker suspends overdue for everyone", () => {
-    const tasks = [task({ assigneeIds: [5, 8], leadIds: [5], accountability: "shared", blockedOnPersonId: 99, status: "Blocked", flag: "overdue" })];
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).overdueOpen).toBe(0);
-    expect(computePersonKpi(8, tasks, MAY.y, MAY.m).overdueOpen).toBe(0);
-  });
-
-  it("'my part done' spares that person but not the others", () => {
-    const tasks = [task({ assigneeIds: [5, 8], leadIds: [5], accountability: "shared", partDoneIds: [8], status: "In Progress", flag: "overdue" })];
-    expect(computePersonKpi(8, tasks, MAY.y, MAY.m).overdueOpen).toBe(0); // delivered their part
-    expect(computePersonKpi(5, tasks, MAY.y, MAY.m).overdueOpen).toBe(1);
-  });
-
-  it("leaderboard sorts by score descending", () => {
+  it("leaderboard sorts by score (completed) descending", () => {
     const tasks = [
       task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-10") }),
       task({ assigneeIds: [5], status: "Completed", closedDate: d("2026-05-11") }),
@@ -151,6 +93,6 @@ describe("computePersonKpi", () => {
     ];
     const board = computeKpiLeaderboard([5, 9], tasks, MAY.y, MAY.m);
     expect(board.map((k) => k.personId)).toEqual([5, 9]);
-    expect(board[0].involvedDone).toBe(2);
+    expect(board[0].completed).toBe(2);
   });
 });

@@ -119,11 +119,7 @@ export default async function PortalProfile() {
     kpiMonths = Array.from({ length: 4 }, (_, i) => {
       const dt = new Date(nowK.getFullYear(), nowK.getMonth() - i, 1);
       const k = computePersonKpi(me.id, allTasks, dt.getFullYear(), dt.getMonth() + 1);
-      return {
-        monthLabel: k.monthLabel, involvedDone: k.involvedDone, ledDone: k.ledDone,
-        createdDone: k.createdDone, onTimeRate: k.onTimeRate, openInvolved: k.openInvolved,
-        overdueOpen: k.overdueOpen, score: k.score,
-      };
+      return { monthLabel: k.monthLabel, completed: k.completed, openInvolved: k.openInvolved, score: k.score };
     });
   }
 

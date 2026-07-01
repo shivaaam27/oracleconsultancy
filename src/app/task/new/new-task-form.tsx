@@ -87,20 +87,6 @@ export function NewTaskForm({
             <FieldLabel>Accountable</FieldLabel>
             <PersonPicker people={people} defaultNames={defaultAccountable} placeholder="Search people, or type a new name…" />
           </div>
-          <div className="col-span-2">
-            <FieldLabel>If it runs late, who's responsible?</FieldLabel>
-            <div className="flex gap-2 text-sm">
-              <label className="flex-1 flex items-center gap-2 rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2 cursor-pointer has-[:checked]:ring-accent has-[:checked]:bg-accent-soft">
-                <input type="radio" name="accountability" value="shared" defaultChecked className="accent-[var(--accent)]" />
-                <span><span className="font-medium">Shared</span> — everyone on it</span>
-              </label>
-              <label className="flex-1 flex items-center gap-2 rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2 cursor-pointer has-[:checked]:ring-accent has-[:checked]:bg-accent-soft">
-                <input type="radio" name="accountability" value="lead" className="accent-[var(--accent)]" />
-                <span><span className="font-medium">Lead only</span> — first person</span>
-              </label>
-            </div>
-            <p className="mt-1 text-[11px] text-fg-subtle">Everyone who finishes it still gets credit. This only sets who carries an overdue mark.</p>
-          </div>
         </div>
       </div>
 

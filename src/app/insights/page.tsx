@@ -22,13 +22,9 @@ async function buildKpiBoard(rows: TaskRow[]): Promise<KpiBoardPerson[]> {
     const months = Array.from({ length: 4 }, (_, i) => {
       const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const k = computePersonKpi(p.id as number, rows, dt.getFullYear(), dt.getMonth() + 1);
-      return {
-        monthLabel: k.monthLabel, involvedDone: k.involvedDone, ledDone: k.ledDone,
-        createdDone: k.createdDone, onTimeRate: k.onTimeRate, openInvolved: k.openInvolved,
-        overdueOpen: k.overdueOpen, score: k.score,
-      };
+      return { monthLabel: k.monthLabel, completed: k.completed, openInvolved: k.openInvolved, score: k.score };
     });
-    const anyActivity = months.some((m) => m.involvedDone || m.createdDone || m.openInvolved);
+    const anyActivity = months.some((m) => m.completed || m.openInvolved);
     if (anyActivity) board.push({ personId: p.id as number, name: p.name as string, role: (p.portal_role as string | null) ?? null, months });
   }
   return board;
