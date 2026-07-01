@@ -28,6 +28,7 @@ STYLE:
 - British English.
 - Use task codes in brackets, e.g. [DAR-007].
 - If using meeting notes or minutes, name the meeting and date.
+- For a specific person's personal details (passport number, national ID, nationality, date of birth, probation end, or which documents they hold), use CONTEXT.peopleDetail — it lists, per named person, their passportNo/nationalId/nationality/dateOfBirth and their documents (title, type, reference number, expiry). Answer directly and exactly from it (e.g. the passport number is the document's reference where type is Passport, and also passportNo). Only say you don't have it if the field is genuinely null AND no document supplies it.
 - For compliance questions, use CONTEXT.documents: name the document, its company, status (Valid/Expiring/Expired) and expiry date. Flag anything expired or expiring soon first.
 - When a CONTEXT.documents or CONTEXT.meetings entry carries a "passage" (the matched excerpt), and your answer draws on that item's content, QUOTE the passage and cite the source by name, e.g. per <Doc title>: "…the exact words…". Quote only what is in the passage; never paraphrase it as if it were a verbatim quote.
 - For RELATIONAL / multi-hop questions (who depends on whom, exposure, what is linked/connected/related, who reports to whom, who is a director/shareholder of, "if X leaves who is affected"), reason over CONTEXT.graph: each company entry lists its people (with roles), the companies it shares a director with, and key-person concentration; each person entry lists the companies and roles they hold, their manager and direct reports. Trace the chain and name every hop. If a single person concentrates roles across companies, flag the concentration risk. Do not assert a link that is not in CONTEXT.graph.
@@ -161,6 +162,53 @@ export async function buildContext(question: string, page?: PageCtx) {
   const semanticMeetingIds = new Set(semantic.filter((h) => h.sourceType === "meeting").map((h) => h.sourceId));
   const semanticDocIds = new Set(semantic.filter((h) => h.sourceType === "document").map((h) => h.sourceId));
   const semanticPersonIds = new Set(semantic.filter((h) => h.sourceType === "person").map((h) => h.sourceId));
+
+  // PERSON DETAIL — for the people the question names (by name or by meaning),
+  // hand ORI their ACTUAL structured fields (passport no, national ID, nationality,
+  // DOB…) AND their documents (title, type, reference number, expiry). Without this
+  // ORI only sees a bare name and wrongly answers "no record" for "X's passport
+  // number". This is the exact, instant answer path — straight from the record.
+  const detailPersonIds = [...new Set([
+    ...matchedPeople.map((p) => p.id),
+    ...[...semanticPersonIds],
+  ])].slice(0, 6);
+  let peopleDetail: Array<{
+    name: string; role: string | null; passportNo: string | null; nationalId: string | null;
+    nationality: string | null; dateOfBirth: string | null; probationEnd: string | null;
+    documents: Array<{ title: string; type: string | null; reference: string | null; expiry: string | null }>;
+  }> = [];
+  if (detailPersonIds.length) {
+    const [{ data: pd }, { data: pdocs }] = await Promise.all([
+      sb.from("people")
+        .select("id,name,role,passport_no,national_id,nationality,date_of_birth,probation_end_date")
+        .in("id", detailPersonIds),
+      sb.from("documents")
+        .select("id,title,category,doc_type,reference_no,expiry_date,person_id")
+        .in("person_id", detailPersonIds).eq("archived", false),
+    ]);
+    const docsByPerson = new Map<number, Array<{ title: string; type: string | null; reference: string | null; expiry: string | null }>>();
+    for (const d of pdocs ?? []) {
+      const pid = d.person_id as number;
+      const arr = docsByPerson.get(pid) ?? [];
+      arr.push({
+        title: d.title as string,
+        type: (d.doc_type as string | null) ?? (d.category as string | null),
+        reference: (d.reference_no as string | null) ?? null,
+        expiry: d.expiry_date ? new Date(d.expiry_date as string).toISOString().slice(0, 10) : null,
+      });
+      docsByPerson.set(pid, arr);
+    }
+    peopleDetail = (pd ?? []).map((p) => ({
+      name: p.name as string,
+      role: (p.role as string | null) ?? null,
+      passportNo: (p.passport_no as string | null) ?? null,
+      nationalId: (p.national_id as string | null) ?? null,
+      nationality: (p.nationality as string | null) ?? null,
+      dateOfBirth: p.date_of_birth ? new Date(p.date_of_birth as string).toISOString().slice(0, 10) : null,
+      probationEnd: p.probation_end_date ? new Date(p.probation_end_date as string).toISOString().slice(0, 10) : null,
+      documents: docsByPerson.get(p.id as number) ?? [],
+    }));
+  }
 
   // Capability A — PASSAGE CITATIONS. hybridSearch returns the matched chunk
   // `content` per hit; keep the BEST (highest-similarity) passage per document
@@ -846,6 +894,7 @@ export async function buildContext(question: string, page?: PageCtx) {
     people: peopleAll.map(p => p.name),
     matchedCompanies: matchedCompanies.map(c => c.name),
     matchedPeople: [...new Set([...matchedPeople.map(p => p.name), ...peopleAll.filter(p => semanticPersonIds.has(p.id)).map(p => p.name)])],
+    peopleDetail,
     tasks: filtered.slice(0, 12).map(t => ({
       code: t.code,
       action: t.actionItem,
