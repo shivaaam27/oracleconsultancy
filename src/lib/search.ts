@@ -266,6 +266,38 @@ export async function unifiedSearch(
     }
   }
 
+  // FULL-TEXT augmentation for DOCUMENTS — instant, Groq-free. The registry net
+  // only ilike-matches a few document COLUMNS; the Postgres FTS index (content_tsv)
+  // reads INSIDE the file body (the OCR'd / typed text) with ranking + a highlighted
+  // snippet. So searching a passport number, a reference, or a phrase that lives
+  // only in a scanned PDF now surfaces that document with the matching excerpt.
+  // Merge: boost + snippet an existing hit, or add one the column-net missed.
+  try {
+    const { data: fts } = await sb.rpc("search_documents", { p_query: query, p_limit: perTypeLimit });
+    for (const r of (fts ?? []) as Array<Record<string, unknown>>) {
+      const id = r.id as number;
+      const snippet = String(r.snippet ?? "").replace(/\s+/g, " ").trim();
+      const rankBoost = Math.min(20, Math.round(((r.rank as number) ?? 0) * 20));
+      const existing = out.find((o) => o.type === "document" && o.id === id);
+      if (existing) {
+        if (snippet) existing.subtitle = snippet;
+        existing.score += 6 + rankBoost;
+      } else {
+        const href = r.person_id ? `/documents?person=${r.person_id}` : r.company_id ? `/documents?company=${r.company_id}` : "/documents";
+        out.push({
+          type: "document", id,
+          title: r.title as string,
+          subtitle: snippet || (r.doc_type as string) || (r.category as string) || "Document",
+          href,
+          badge: (r.reference_no as string) || undefined,
+          score: 42 + rankBoost,
+        });
+      }
+    }
+  } catch (e) {
+    console.error("Document FTS augmentation error:", e);
+  }
+
   // Rank globally, then keep at most `perTypeLimit` of each type so no single
   // type floods the list, then sort the survivors by score again.
   out.sort((x, y) => y.score - x.score);

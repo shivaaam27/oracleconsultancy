@@ -708,6 +708,13 @@
       "when": 1782903282518,
       "tag": "0100_ai_jobs_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1782930925962,
+      "tag": "0101_document_fts",
+      "breakpoints": true
     }
   ]
 }
