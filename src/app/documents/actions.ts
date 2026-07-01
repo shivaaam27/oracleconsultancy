@@ -36,6 +36,7 @@ import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
+import { deriveFiling } from "@/lib/doc-catalog";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
 import { learnedOwnerFor, recordOwnerCorrection } from "@/lib/owner-corrections";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
@@ -429,8 +430,22 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       ? `\n\n[Bundle of ${segCount} documents detected]\n` + f.segments!.map((s, i) => `${i + 1}. ${s.title ?? s.category ?? "Document"}${s.pageRange ? ` (p.${s.pageRange})` : ""}`).join("\n")
       : "";
 
-    // (3) Build + create the document, then route it into its bucket.
-    const finalState: IntakeState = needsReview ? "quarantine" : "filed";
+    // CATALOGUE OVERRIDE — identify the KNOWN document type from the filename
+    // (strong signal) + body, then take category/shelf/expiry from the catalogue
+    // rather than the AI's free guess (which mis-shelved NSSF as Immigration, a
+    // BRELA search as a Lease, etc.). The filename's own EXP-date and -OLD marker
+    // are trusted over a re-read internal date.
+    const filing = deriveFiling(fileName, f.title ?? null, res.fullText ?? "");
+    if (filing.typeKey) {
+      if (filing.category) f.category = filing.category as typeof f.category;
+      f.docType = filing.typeLabel ?? f.docType;
+      if (filing.expires) f.expiryKind = "yes";
+      if (filing.expiry) f.expiryDate = filing.expiry; // the owner's reliable date
+    }
+
+    // (3) Build + create the document, then route it into its bucket. A file the
+    // owner tagged `-OLD`/`-VOID` is a superseded copy → straight to Trash.
+    const finalState: IntakeState = filing.isOld ? "trash" : needsReview ? "quarantine" : "filed";
     // One consistent name on EVERY auto path (Dropbox + manual auto-sort + quarantine):
     // the house format `Prefix_DocType[_Ref][_EXP-date]`. Falls back to the AI
     // title/filename only if there's nothing to compose from. The original read
@@ -461,7 +476,12 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     const id = await createDocument(input, "ai-intake");
     if (file instanceof File && file.size > 0) await uploadDocumentFile(id, file);
 
-    if (finalState === "quarantine") {
+    if (finalState === "trash") {
+      // The owner tagged this copy `-OLD`/`-VOID` — a superseded version. Knock it
+      // straight into Trash (recoverable), no compliance side-effects.
+      await setDocumentIntakeState(id, "trash", "Superseded copy — tagged -OLD/-VOID", { markExpired: true });
+      revalidateDocs();
+    } else if (finalState === "quarantine") {
       // Held for a glance — no profile/compliance side-effects until it's filed.
       await setDocumentIntakeState(id, "quarantine", reason ?? "Held for review");
       try { await recordEvent("documents.quarantine", "skip", { docId: id, title: input.title, reason: reason ?? "Held for review" }); } catch { /* best-effort */ }
