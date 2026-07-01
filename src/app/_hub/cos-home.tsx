@@ -12,7 +12,8 @@ import { CockpitNow } from "@/components/cockpit-now";
 import { CockpitActivity } from "@/components/cockpit-activity";
 import { listRecentActivity } from "@/lib/activity";
 import { gatherCockpitNow } from "@/lib/cockpit-now";
-import { listApprovals } from "@/lib/cockpit";
+import { listApprovals, listCockpitActivity } from "@/lib/cockpit";
+import { HomeAutonomyRecap } from "@/components/home-autonomy-recap";
 import type { Tone } from "@/components/surface-kit";
 import { HomeActions } from "./home-actions";
 import { AnnouncementAdminBanner } from "@/components/announcement-admin-banner";
@@ -37,6 +38,9 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
     gatherCockpitNow(),
     listApprovals(),
   ]);
+  // What ORI did on its own (auto-filed / renamed / verified…) — a slim,
+  // trust-building recap; the full undoable feed lives on /inbox.
+  const autonomy = await listCockpitActivity(12);
 
   // The command levers — live state of the operation's automation, outreach and AI.
   const controls: CommandControlsState = {
@@ -102,6 +106,7 @@ export async function CosHome({ rows, todos = [] }: { rows: TaskRow[]; todos?: T
           pills={pills}
         />
         <CommandControls state={controls} />
+        <HomeAutonomyRecap items={autonomy} />
         <CockpitNow now={nowData} dueToday={dueToday} />
         <CockpitActivity items={activity} />
       </div>
