@@ -276,20 +276,35 @@ export async function unifiedSearch(
     // Stopword-cleaned terms so the OR-based FTS isn't flooded by common words.
     const ftsTerms = tokens.filter((t) => !STOP.has(t));
     const { data: fts } = await sb.rpc("search_documents", { p_query: (ftsTerms.length ? ftsTerms : tokens).join(" "), p_limit: perTypeLimit });
-    for (const r of (fts ?? []) as Array<Record<string, unknown>>) {
+    const ftsRows = (fts ?? []) as Array<Record<string, unknown>>;
+    // Resolve owner names so every result shows WHOSE document it is (a bare
+    // "Passport" tells you nothing; "Mr Rakesh Raja · «…AL562003…»" does).
+    const cIds = [...new Set(ftsRows.map((r) => r.company_id as number).filter(Boolean))];
+    const pIds = [...new Set(ftsRows.map((r) => r.person_id as number).filter(Boolean))];
+    const [cRes, pRes] = await Promise.all([
+      cIds.length ? sb.from("companies").select("id,name").in("id", cIds) : Promise.resolve({ data: [] as { id: number; name: string }[] }),
+      pIds.length ? sb.from("people").select("id,name").in("id", pIds) : Promise.resolve({ data: [] as { id: number; name: string }[] }),
+    ]);
+    const cName = new Map((cRes.data ?? []).map((c) => [c.id, c.name]));
+    const pName = new Map((pRes.data ?? []).map((p) => [p.id, p.name]));
+    for (const r of ftsRows) {
       const id = r.id as number;
       const snippet = String(r.snippet ?? "").replace(/\s+/g, " ").trim();
+      const owner = pName.get(r.person_id as number) || cName.get(r.company_id as number) || null;
+      // "Owner · matched excerpt" — owner first so you always know whose file it is.
+      const subtitle = [owner, snippet].filter(Boolean).join(" · ") || (r.doc_type as string) || (r.category as string) || "Document";
       const rankBoost = Math.min(20, Math.round(((r.rank as number) ?? 0) * 20));
       const existing = out.find((o) => o.type === "document" && o.id === id);
       if (existing) {
-        if (snippet) existing.subtitle = snippet;
+        existing.subtitle = subtitle;
+        if (!existing.badge && r.reference_no) existing.badge = r.reference_no as string;
         existing.score += 6 + rankBoost;
       } else {
         const href = r.person_id ? `/documents?person=${r.person_id}` : r.company_id ? `/documents?company=${r.company_id}` : "/documents";
         out.push({
           type: "document", id,
           title: r.title as string,
-          subtitle: snippet || (r.doc_type as string) || (r.category as string) || "Document",
+          subtitle,
           href,
           badge: (r.reference_no as string) || undefined,
           score: 42 + rankBoost,
