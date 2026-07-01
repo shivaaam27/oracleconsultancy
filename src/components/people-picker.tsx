@@ -104,11 +104,13 @@ export function PeoplePicker({
       )}
 
       {/* Dropdown panel — portalled to <body> with fixed positioning so an
-          `overflow-hidden` ancestor (swipe cards, list panels) can't clip it. */}
+          `overflow-hidden` ancestor (swipe cards, list panels) can't clip it.
+          z-[100] keeps it ABOVE the BottomSheet (z-91) it's often opened inside —
+          a lower z left the menu stranded behind the sheet's glass. */}
       {open && anchor && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-[60] rounded-xl bg-bg-elev ring-1 ring-border shadow-lg overflow-hidden"
+          className="fixed z-[100] rounded-xl bg-bg-elev ring-1 ring-border shadow-lg overflow-hidden"
           style={{
             left: anchor.left,
             width: anchor.width,

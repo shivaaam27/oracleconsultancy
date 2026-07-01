@@ -1006,7 +1006,7 @@ function LeadMultiSelect({
       {open && anchor && typeof document !== "undefined" && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-[60] min-w-[14rem] overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg"
+          className="fixed z-[100] min-w-[14rem] overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg"
           style={{
             left: anchor.left,
             width: anchor.width,
