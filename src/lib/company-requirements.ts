@@ -32,17 +32,18 @@ export const COMPANY_DEFAULT_ITEMS: SeedItem[] = [
   { key: "tax-clearance", label: "Tax Clearance Certificate (TRA)", category: "Tax" },
   { key: "ubo-register", label: "Beneficial Ownership (UBO) register — BRELA", category: "Registration" },
   { key: "annual-return", label: "BRELA Annual Return (filed)", category: "Registration" },
-  { key: "paye-sdl-registration", label: "PAYE / SDL employer registration", category: "Registration" },
-  { key: "nssf-registration", label: "NSSF employer registration", category: "Registration" },
-  { key: "wcf-registration", label: "WCF employer registration", category: "Registration" },
-  // Sector-regulated (construction/industrial, e.g. PES) only:
+  // Employer registrations → People & HR shelf.
+  { key: "paye-sdl-registration", label: "PAYE / SDL employer registration", category: "HR" },
+  { key: "nssf-registration", label: "NSSF employer registration", category: "HR" },
+  { key: "wcf-registration", label: "WCF employer registration", category: "HR" },
+  // Sector-regulated (construction/industrial, e.g. PES) only → Licences & Permits.
   { key: "contractor-registration", label: "Contractor registration (CRB)", category: "Permit", applies: "sector" },
   { key: "local-content", label: "Local Content Plan approval", category: "Permit", applies: "sector" },
-  { key: "osha-registration", label: "OSHA certificate", category: "Certificate", applies: "sector" },
-  { key: "fire-certificate", label: "Fire safety certificate", category: "Certificate", applies: "sector" },
-  { key: "audited-accounts", label: "Annual audited accounts + income-tax return", category: "Legal", mandatory: false },
+  { key: "osha-registration", label: "OSHA certificate", category: "Permit", applies: "sector" },
+  { key: "fire-certificate", label: "Fire safety certificate", category: "Permit", applies: "sector" },
+  { key: "audited-accounts", label: "Annual audited accounts + income-tax return", category: "Tax", mandatory: false },
   { key: "premises-lease", label: "Premises lease / title (current)", category: "Lease", mandatory: false },
-  { key: "bank-account", label: "Company bank account & signatories", category: "Registration" },
+  { key: "bank-account", label: "Company bank account & signatories", category: "Banking" },
   { key: "statutory-registers", label: "Statutory registers up to date", category: "Registration" },
 ];
 

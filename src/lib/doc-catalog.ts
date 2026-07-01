@@ -50,8 +50,8 @@ export const DOC_CATALOG: CatalogType[] = [
   { key: "business-licence", label: "Business Licence", aliases: ["business licence", "business license", "trading licence", "trading license", "business licensing act", "b.l. no", "bl no"], shelf: "Licences & Permits", category: "Licence", ownerType: "company", expires: true, companyReqKey: "business-licence", pipeline: "business-licence" },
   { key: "contractor-crb", label: "Contractor Registration (CRB)", aliases: ["crb", "contractors registration board", "contractor registration", "building contractor", "civil works contractor", "mechanical work contractor"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "contractor-registration" },
   { key: "local-content", label: "Local Content Plan Approval", aliases: ["local content", "local-content", "content plan"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "local-content" },
-  { key: "osha-certificate", label: "OSHA Certificate", aliases: ["osha", "occupational safety and health", "occupational health and safety"], shelf: "Licences & Permits", category: "Certificate", ownerType: "company", expires: true, companyReqKey: "osha-registration" },
-  { key: "fire-certificate", label: "Fire Safety Certificate", aliases: ["fire safety", "fire certificate", "fire inspection"], shelf: "Licences & Permits", category: "Certificate", ownerType: "company", expires: true, companyReqKey: "fire-certificate" },
+  { key: "osha-certificate", label: "OSHA Certificate", aliases: ["osha", "occupational safety and health", "occupational health and safety"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "osha-registration" },
+  { key: "fire-certificate", label: "Fire Safety Certificate", aliases: ["fire safety", "fire certificate", "fire inspection"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "fire-certificate" },
   { key: "sector-permit", label: "Sector Permit", aliases: ["tfda", "tbs", "food permit", "sector permit"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "sector-permit" },
 
   // ── Tax ─────────────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ export const DOC_CATALOG: CatalogType[] = [
   { key: "lease", label: "Lease Agreement", aliases: ["lease agreement", "tenancy agreement", "lease", "godown", "premises lease"], shelf: "Contracts & Leases", category: "Lease", ownerType: "company", expires: true, companyReqKey: "premises-lease" },
   { key: "service-contract", label: "Service Contract", aliases: ["service contract", "service agreement", "maintenance contract", "cold room service"], shelf: "Contracts & Leases", category: "Contract", ownerType: "company", expires: true },
   { key: "commercial-contract", label: "Commercial Contract", aliases: ["distribution", "supply contract", "sales contract", "commercial contract", "partner agreement", "authorised distribution"], shelf: "Contracts & Leases", category: "Contract", ownerType: "company", expires: true },
-  { key: "insurance", label: "Insurance Policy", aliases: ["insurance", "policy schedule", "cover note"], shelf: "Contracts & Leases", category: "Insurance", ownerType: "company", expires: true },
+  { key: "insurance", label: "Insurance Policy", aliases: ["insurance", "policy schedule", "cover note"], shelf: "Banking & Finance", category: "Insurance", ownerType: "company", expires: true },
 
   // ── Operations & Branding ───────────────────────────────────────────────
   { key: "letterhead", label: "Letterhead", aliases: ["letterhead", "letter head"], shelf: "Operations & Branding", category: "Operations", ownerType: "company", expires: false },

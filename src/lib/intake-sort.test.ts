@@ -33,9 +33,11 @@ describe("formatSupersede", () => {
   it("never fires for two photos", () => {
     expect(formatSupersede("a.jpg", "b.png")).toBeNull();
   });
-  it("never fires for office files vs anything", () => {
-    expect(formatSupersede("contract.docx", "contract.pdf")).toBeNull();
-    expect(formatSupersede("contract.pdf", "contract.docx")).toBeNull();
+  it("a PDF supersedes its Word twin (keeps the PDF, collapses the .docx/.pdf pair)", () => {
+    expect(formatSupersede("contract.pdf", "contract.docx")).toBe("incoming-wins");
+    expect(formatSupersede("contract.docx", "contract.pdf")).toBe("existing-wins");
+  });
+  it("does not fire for non-Word office files", () => {
     expect(formatSupersede("sheet.xlsx", "sheet.jpg")).toBeNull();
   });
   it("handles missing names safely", () => {

@@ -1887,6 +1887,15 @@ export async function rescanDocumentAction(id: number, force = false): Promise<R
     const res = await reExtractStored(doc, force);
     if (!res || !res.ok) return { ok: false, id, title: doc.title, error: res?.note ?? "Couldn't read the file." };
     const f = res.fields;
+    // Trust the filename's own type + EXP-date over a re-read internal date (mirrors
+    // intake) — so re-scanning never reverts a correct expiry to a mis-read one.
+    const filing = deriveFiling(doc.fileName, doc.title, res.fullText ?? "");
+    if (filing.typeKey) {
+      if (filing.category) f.category = filing.category as typeof f.category;
+      if (filing.typeLabel) f.docType = filing.typeLabel;
+      if (filing.expires) f.expiryKind = "yes";
+      if (filing.expiry) f.expiryDate = filing.expiry;
+    }
     const changes: RescanChange[] = [];
     const patch: Record<string, unknown> = {};
     const blank = (cur: string | null | undefined) => !cur || !cur.toString().trim();

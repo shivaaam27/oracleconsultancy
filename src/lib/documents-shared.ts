@@ -114,7 +114,7 @@ const CATEGORY_SHELF: Partial<Record<DocCategory, DocShelf>> = {
   Permit: "Licences & Permits",
   Tax: "Tax",
   Banking: "Banking & Finance",
-  Insurance: "Contracts & Leases",
+  Insurance: "Banking & Finance",
   HR: "People & HR",
   Immigration: "Immigration",
   Passport: "Immigration",
@@ -318,12 +318,20 @@ export function isImageFile(nameOrType?: string | null): boolean {
  *   "incoming-wins" → the new PDF replaces the old photo (bin the old one).
  *   "existing-wins" → a better PDF is already on file (bin the incoming photo).
  */
+/** A Word document (the editable source; a PDF export is the canonical copy). */
+export function isDocFile(nameOrType?: string | null): boolean {
+  const s = (nameOrType ?? "").toLowerCase();
+  return /\.docx?$/.test(s) || s.includes("msword") || s.includes("officedocument.wordprocessing");
+}
+
 export function formatSupersede(
   incoming: string | null | undefined,
   existing: string | null | undefined
 ): "incoming-wins" | "existing-wins" | null {
-  if (isPdfFile(incoming) && isImageFile(existing)) return "incoming-wins";
-  if (isImageFile(incoming) && isPdfFile(existing)) return "existing-wins";
+  // A PDF is the canonical copy; it supersedes a photo/scan OR a Word source of the
+  // same document (so a .docx + .pdf pair collapse to one, not a quarantined dup).
+  if (isPdfFile(incoming) && (isImageFile(existing) || isDocFile(existing))) return "incoming-wins";
+  if ((isImageFile(incoming) || isDocFile(incoming)) && isPdfFile(existing)) return "existing-wins";
   return null;
 }
 

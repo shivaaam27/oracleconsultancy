@@ -1,5 +1,6 @@
 import { sb } from "@/db/supabase";
 import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
+import { deriveFiling } from "@/lib/doc-catalog";
 
 /* ------------------------------------------------------------------ */
 /* Company profile auto-fill + key-document derivation.                */
@@ -101,14 +102,16 @@ export function buildCompanyKeyDocuments(docs: DocumentRow[], numbers: CompanyPr
     expiryLabel: doc ? expiryLabel(doc) : null,
   });
 
-  const registration = pickDoc(
-    docs,
-    (d) => isCat(d, "registration") || (isCat(d, "certificate") && /incorporat|registration/i.test(d.title ?? "")),
-  );
-  const vrnDoc = pickDoc(docs, (d) => isCat(d, "tax") && VRN_RE.test([d.title, d.referenceNo].filter(Boolean).join(" ")));
-  const tinDoc = pickDoc(docs, (d) => isCat(d, "tax") && !VRN_RE.test([d.title, d.referenceNo].filter(Boolean).join(" ")));
-  const licence = pickDoc(docs, (d) => isCat(d, "licence") || isCat(d, "permit"));
-  const lease = pickDoc(docs, (d) => isCat(d, "lease"));
+  // Match by KNOWN document TYPE (the catalogue), not a fuzzy category guess — so
+  // the TIN row shows the TIN certificate, never a WCF receipt that happened to sit
+  // in the Tax shelf.
+  const byType = (typeKey: string) =>
+    pickDoc(docs, (d) => deriveFiling(d.fileName, d.title, d.docType ?? "").typeKey === typeKey);
+  const registration = byType("certificate-of-incorporation");
+  const vrnDoc = byType("vrn-certificate");
+  const tinDoc = byType("tin-certificate");
+  const licence = byType("business-licence");
+  const lease = byType("lease");
 
   return [
     row("registration", "Registration", registration, numbers.registrationNo),

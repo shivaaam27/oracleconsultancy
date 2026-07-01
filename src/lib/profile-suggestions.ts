@@ -203,31 +203,18 @@ async function shelfAlreadyProposed(name: string): Promise<boolean> {
 /** Propose a brand-new shelf when a company document is genuinely uncategorised
  *  yet names a distinct type the eight built-ins don't cover. Ask-first + global
  *  dedup — the owner accepts once and the shelf appears everywhere. */
-async function maybeProposeShelf(opts: {
+async function maybeProposeShelf(_opts: {
   documentId: number;
   companyId: number;
   category: string | null;
   title: string | null;
   docType: string | null;
 }): Promise<boolean> {
-  // Only for truly uncategorised docs — a known category already has a home.
-  if (opts.category && opts.category !== "Other") return false;
-  if (shelfForCategory(opts.category) !== "Operations & Branding") return false;
-  const basis = opts.docType || opts.title || "";
-  const tokens = distinctiveTokens(basis, 3);
-  if (tokens.length === 0) return false;
-  // Already covered by an existing custom shelf?
-  const custom = await listCustomShelves();
-  const hay = `${opts.category ?? ""} ${opts.title ?? ""} ${opts.docType ?? ""}`.toLowerCase();
-  if (custom.some((c) => c.keywords.some((k) => k && hay.includes(k)))) return false;
-  const name = tokens[0].charAt(0).toUpperCase() + tokens[0].slice(1);
-  if (await shelfAlreadyProposed(name)) return false;
-  await insert({
-    kind: "new-shelf", status: "pending", document_id: opts.documentId, company_id: opts.companyId, person_id: null,
-    field: name, value: { name, keywords: tokens }, display: name,
-    summary: `Add a “${name}” shelf?`, detail: `“${opts.title ?? basis}” doesn’t fit your eight folders`,
-  });
-  return true;
+  // The owner's filing is EIGHT FIXED folders (DOC_SHELVES). Anything without a
+  // specific shelf falls to "Operations & Branding" (the catch-all), so a NEW
+  // shelf is never needed — the old behaviour proposed noise ("Employee", "Pesa",
+  // "Chinese" shelves). Deliberately a no-op; every document already has a home.
+  return false;
 }
 
 async function insert(row: Record<string, unknown>): Promise<void> {
