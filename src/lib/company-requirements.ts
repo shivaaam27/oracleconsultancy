@@ -12,7 +12,11 @@ import { logCompanyRequirementEvent } from "@/lib/compliance-audit";
 /* company — add VRN, extra registrations, remove what doesn't apply.  */
 /* ------------------------------------------------------------------ */
 
-type SeedItem = { key: string; label: string; category: string; mandatory?: boolean };
+// `applies`: undefined = every company; "vat" = only VAT-registered (has a VRN);
+// "sector" = only sector-regulated companies (construction/industrial, e.g. PES).
+// Non-applicable items are simply not on that company's checklist — so a company
+// is never marked short of a document it doesn't need.
+type SeedItem = { key: string; label: string; category: string; mandatory?: boolean; applies?: "vat" | "sector" };
 
 // The statutory registration checklist (per the COS Command Centre handover —
 // one row per authority a Tanzanian company must be current with). VAT and the
@@ -22,17 +26,19 @@ export const COMPANY_DEFAULT_ITEMS: SeedItem[] = [
   { key: "company-registration", label: "Certificate of Incorporation (BRELA)", category: "Registration" },
   { key: "memarts", label: "Memorandum & Articles (MEMARTS)", category: "Legal" },
   { key: "tax-registration", label: "TIN (Taxpayer ID)", category: "Tax" },
-  { key: "vat-registration", label: "VAT registration (if applicable)", category: "Tax", mandatory: false },
+  { key: "vat-registration", label: "VAT Certificate", category: "Tax", applies: "vat" },
   { key: "business-licence", label: "Business / trading licence", category: "Licence" },
   { key: "tax-clearance", label: "Tax Clearance Certificate (TRA)", category: "Tax" },
   { key: "ubo-register", label: "Beneficial Ownership (UBO) register — BRELA", category: "Registration" },
   { key: "annual-return", label: "BRELA Annual Return (filed)", category: "Registration" },
-  { key: "sector-permit", label: "Sector / specific permit (e.g. food, TFDA)", category: "Permit", mandatory: false },
   { key: "paye-sdl-registration", label: "PAYE / SDL employer registration", category: "Registration" },
   { key: "nssf-registration", label: "NSSF employer registration", category: "Registration" },
   { key: "wcf-registration", label: "WCF employer registration", category: "Registration" },
-  { key: "osha-registration", label: "OSHA registration", category: "Registration", mandatory: false },
-  { key: "fire-certificate", label: "Fire safety certificate", category: "Certificate", mandatory: false },
+  // Sector-regulated (construction/industrial, e.g. PES) only:
+  { key: "contractor-registration", label: "Contractor registration (CRB)", category: "Permit", applies: "sector" },
+  { key: "local-content", label: "Local Content Plan approval", category: "Permit", applies: "sector" },
+  { key: "osha-registration", label: "OSHA certificate", category: "Certificate", applies: "sector" },
+  { key: "fire-certificate", label: "Fire safety certificate", category: "Certificate", applies: "sector" },
   { key: "audited-accounts", label: "Annual audited accounts + income-tax return", category: "Legal", mandatory: false },
   { key: "premises-lease", label: "Premises lease / title (current)", category: "Lease", mandatory: false },
   { key: "bank-account", label: "Company bank account & signatories", category: "Registration" },
@@ -46,14 +52,26 @@ export const COMPANY_DEFAULT_ITEMS: SeedItem[] = [
  * Insert any missing seed items for a company. Items the operator removed are
  * kept hidden (status "removed") so they aren't resurrected. Idempotent.
  */
+/** The default items that APPLY to a company given its VAT/sector status — so a
+ *  non-VAT company never carries a VAT requirement, and only sector-regulated
+ *  companies carry the contractor/OSHA/local-content/fire set. */
+export function applicableCompanyItems(company: { vrn?: string | null; sectorRegulated?: boolean | null }): SeedItem[] {
+  const hasVat = !!(company.vrn && String(company.vrn).trim());
+  const isSector = !!company.sectorRegulated;
+  return COMPANY_DEFAULT_ITEMS.filter((it) =>
+    it.applies === "vat" ? hasVat : it.applies === "sector" ? isSector : true,
+  );
+}
+
 export async function ensureCompanyRequirements(companyId: number): Promise<void> {
-  const { data: rows } = await sb
-    .from("company_requirements")
-    .select("source_key")
-    .eq("company_id", companyId);
+  const [{ data: rows }, { data: co }] = await Promise.all([
+    sb.from("company_requirements").select("source_key").eq("company_id", companyId),
+    sb.from("companies").select("vrn,sector_regulated").eq("id", companyId).maybeSingle(),
+  ]);
   const haveKeys = new Set((rows ?? []).map((r) => r.source_key as string | null).filter(Boolean));
   const now = new Date().toISOString();
-  const toInsert = COMPANY_DEFAULT_ITEMS.filter((it) => !haveKeys.has(it.key)).map((it) => ({
+  const items = applicableCompanyItems({ vrn: co?.vrn as string | null, sectorRegulated: co?.sector_regulated as boolean | null });
+  const toInsert = items.filter((it) => !haveKeys.has(it.key)).map((it) => ({
     company_id: companyId,
     source_key: it.key,
     label: it.label,
@@ -80,15 +98,18 @@ export async function ensureAllCompanyRequirements(companyIds: number[]): Promis
   // source_key) — so newly-added statutory items (e.g. UBO register, annual
   // return) appear on existing companies too, not just brand-new ones. A removed
   // item keeps its source_key row, so it is never resurrected. One read + one write.
-  const { data } = await sb
-    .from("company_requirements")
-    .select("company_id,source_key")
-    .in("company_id", companyIds);
+  const [{ data }, { data: cos }] = await Promise.all([
+    sb.from("company_requirements").select("company_id,source_key").in("company_id", companyIds),
+    sb.from("companies").select("id,vrn,sector_regulated").in("id", companyIds),
+  ]);
   const have = new Set((data ?? []).map((r) => `${r.company_id}:${r.source_key ?? ""}`));
+  const coById = new Map((cos ?? []).map((c) => [c.id as number, c]));
   const now = new Date().toISOString();
   const toInsert: Record<string, unknown>[] = [];
   for (const cid of companyIds) {
-    for (const it of COMPANY_DEFAULT_ITEMS) {
+    const co = coById.get(cid);
+    const items = applicableCompanyItems({ vrn: co?.vrn as string | null, sectorRegulated: co?.sector_regulated as boolean | null });
+    for (const it of items) {
       if (have.has(`${cid}:${it.key}`)) continue;
       toInsert.push({
         company_id: cid, source_key: it.key, label: it.label, category: it.category,

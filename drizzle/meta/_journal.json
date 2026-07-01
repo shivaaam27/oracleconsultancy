@@ -729,6 +729,13 @@
       "when": 1782934797263,
       "tag": "0103_company_file_prefix",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1782935528986,
+      "tag": "0104_company_sector_regulated",
+      "breakpoints": true
     }
   ]
 }
