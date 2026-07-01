@@ -360,6 +360,9 @@ export function CommandPaletteProvider({
   async function runAsk(text: string) {
     setThinking(true);
     try {
+      // Stream the answer so words appear as they're written (first tokens in
+      // well under a second) — the data is already indexed, so this is the whole
+      // perceived latency. Falls back to a clear error if the stream never opens.
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -367,16 +370,43 @@ export function CommandPaletteProvider({
           question: text,
           history: aiHistory(),
           pageContext: { label: pageContext.label, taskCode: pageContext.taskCode, companyId: pageContext.companyId },
+          stream: true,
         }),
       });
-      setThinking(false);
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
+        setThinking(false);
         const body = await res.json().catch(() => ({}));
         append({ id: newId(), role: "error", text: friendlyAIError(body?.error ?? `error-${res.status}`).message, retry: text });
         return;
       }
-      const data = await res.json();
-      append({ id: newId(), role: "assistant", text: tidyOri((data?.answer ?? "").toString() || "(no answer)") });
+      // Open a live assistant bubble and append deltas as they arrive.
+      const id = newId();
+      append({ id, role: "assistant", text: "" });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          acc += decoder.decode(value, { stream: true });
+          setThinking(false);
+          updateMsg(id, { text: tidyOri(acc) });
+        }
+      } catch {
+        // Mid-stream failure — keep whatever streamed, mark it truncated.
+        if (!acc.trim()) { updateMsg(id, { text: friendlyAIError("network error").message } as never); }
+      }
+      setThinking(false);
+      if (!acc.trim()) updateMsg(id, { text: "(no answer)" });
+      else {
+        // Record the completed exchange to ORI memory (stream path doesn't do it
+        // server-side). Fire-and-forget.
+        void fetch("/api/ai-memory", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: text, answer: acc.trim() }), keepalive: true,
+        }).catch(() => {});
+      }
     } catch {
       setThinking(false);
       append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
