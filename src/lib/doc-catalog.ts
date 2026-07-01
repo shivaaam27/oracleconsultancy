@@ -98,6 +98,13 @@ export const DOC_CATALOG: CatalogType[] = [
 
 const BY_KEY = new Map(DOC_CATALOG.map((t) => [t.key, t]));
 
+/** Company requirement source_keys that a specific catalogue type satisfies. A
+ *  requirement in this set must be linked by TYPE (deterministic) — never by fuzzy
+ *  label match — so "Annual Return" can't be satisfied by a BRELA search. */
+export const CATALOGUE_COMPANY_REQ_KEYS: Set<string> = new Set(
+  DOC_CATALOG.map((t) => t.companyReqKey).filter((k): k is string => !!k),
+);
+
 export function catalogType(key: string): CatalogType | undefined {
   return BY_KEY.get(key);
 }

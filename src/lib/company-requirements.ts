@@ -3,6 +3,7 @@ import { deriveDocStatus, expiryLabel, worstDocStatus, DEFAULT_LEAD_DAYS, type D
 import { complianceBand, type ComplianceBand, type EffectiveStatus, type RequirementStatus } from "@/lib/requirements-shared";
 import type { ComplianceScore, ComplianceGap, ComplianceDocumentIssue } from "@/lib/compliance";
 import { matchDocumentsToItems } from "@/lib/requirement-match";
+import { deriveFiling, CATALOGUE_COMPANY_REQ_KEYS } from "@/lib/doc-catalog";
 import { logCompanyRequirementEvent } from "@/lib/compliance-audit";
 
 /* ------------------------------------------------------------------ */
@@ -156,6 +157,7 @@ export type CompanyChecklist = {
 type CompanyDocRow = {
   id: number;
   title: string;
+  fileName: string | null;
   category: string | null;
   docType: string | null;
   expiryDate: Date | null;
@@ -166,7 +168,7 @@ type CompanyDocRow = {
 async function loadCompanyDocuments(companyId: number): Promise<CompanyDocRow[]> {
   const { data } = await sb
     .from("documents")
-    .select("id,title,category,doc_type,expiry_date,reminder_lead_days,archived")
+    .select("id,title,file_name,category,doc_type,expiry_date,reminder_lead_days,archived")
     .eq("company_id", companyId)
     .eq("archived", false);
   return (data ?? []).map((d) => {
@@ -175,6 +177,7 @@ async function loadCompanyDocuments(companyId: number): Promise<CompanyDocRow[]>
     return {
       id: d.id as number,
       title: d.title as string,
+      fileName: (d.file_name as string | null) ?? null,
       category: (d.category as string | null) ?? null,
       docType: (d.doc_type as string | null) ?? null,
       expiryDate,
@@ -223,11 +226,36 @@ export async function getCompanyChecklist(companyId: number): Promise<CompanyChe
         (r.auto_link as boolean | null) !== false &&
         (r.status === "missing" || r.status === "requested")
     )
-    .map((r) => ({ id: r.id as number, label: r.label as string, category: (r.category as string | null) ?? null }));
-  const candidateDocs = docs
-    .filter((d) => !linkedDocIds.has(d.id))
+    .map((r) => ({ id: r.id as number, sourceKey: (r.source_key as string | null) ?? null, label: r.label as string, category: (r.category as string | null) ?? null }));
+  const availableDocs = docs.filter((d) => !linkedDocIds.has(d.id));
+
+  // DETERMINISTIC pre-pass — link by KNOWN document type (the catalogue), so a
+  // business licence satisfies "Business / trading licence", never "VAT", and an
+  // expired/-OLD copy never verifies anything. This beats fuzzy label matching.
+  const deterministic = new Map<number, number>();
+  const usedDocs = new Set<number>();
+  for (const item of candidateItems) {
+    if (!item.sourceKey) continue;
+    const hit = availableDocs.find((d) => {
+      if (usedDocs.has(d.id)) return false;
+      const f = deriveFiling(d.fileName, d.title);
+      if (f.companyReqKey !== item.sourceKey || f.isOld) return false;
+      const exp = f.expiry ? new Date(`${f.expiry}T00:00:00Z`) : d.expiryDate;
+      return !exp || exp.getTime() > Date.now();
+    });
+    if (hit) { deterministic.set(item.id, hit.id); usedDocs.add(hit.id); }
+  }
+
+  // Fuzzy fallback — ONLY for requirements the catalogue doesn't own. A catalogue-
+  // owned requirement (business licence, VAT, NSSF, annual return…) with no
+  // matching type stays missing rather than grabbing a loosely-related document.
+  const remainingItems = candidateItems.filter(
+    (i) => !deterministic.has(i.id) && !(i.sourceKey && CATALOGUE_COMPANY_REQ_KEYS.has(i.sourceKey)),
+  );
+  const remainingDocs = availableDocs
+    .filter((d) => !usedDocs.has(d.id))
     .map((d) => ({ id: d.id, title: d.title, category: d.category, docType: d.docType }));
-  const matches = matchDocumentsToItems(candidateItems, candidateDocs);
+  const matches = new Map<number, number>([...deterministic, ...matchDocumentsToItems(remainingItems, remainingDocs)]);
   for (const r of liveRows) {
     const docId = matches.get(r.id as number);
     if (docId == null) continue;

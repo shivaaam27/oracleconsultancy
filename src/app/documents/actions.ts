@@ -437,7 +437,9 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     // are trusted over a re-read internal date.
     const filing = deriveFiling(fileName, f.title ?? null, res.fullText ?? "");
     if (filing.typeKey) {
-      if (filing.category) f.category = filing.category as typeof f.category;
+      // A learned correction (the owner previously re-categorised this kind of doc)
+      // OUTRANKS the catalogue — the learning loop always wins.
+      if (filing.category && !learnedCat) f.category = filing.category as typeof f.category;
       f.docType = filing.typeLabel ?? f.docType;
       if (filing.expires) f.expiryKind = "yes";
       if (filing.expiry) f.expiryDate = filing.expiry; // the owner's reliable date
