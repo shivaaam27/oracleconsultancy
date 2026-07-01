@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/ui";
 import { DocumentsTable } from "@/components/documents-table";
 import { ComplianceScorePanel } from "@/components/compliance-score-panel";
 import { NeedsAttentionPanel } from "@/components/needs-attention-panel";
+import { ExpiryRadar } from "@/components/expiry-radar";
 import { RequirementTemplatesButton } from "@/components/requirement-templates-button";
 import { JourneyTemplatesButton } from "@/components/journey-templates-button";
 import { ComplianceExportButton } from "@/components/compliance-export-button";
@@ -60,6 +61,22 @@ export default async function DocumentsPage({
   const expiring = live.filter((d) => deriveDocStatus(d) === "Expiring").length;
   const sub = `${live.length} tracked · ${expired} expired · ${expiring} expiring soon`;
 
+  // Expiry radar — every live document that has an expiry date, with days-to-go
+  // and its owner's name, so the ribbon shows the wave of renewals coming.
+  const cNameById = new Map(companies.map((c) => [c.id, c.name]));
+  const pNameById = new Map(people.map((p) => [p.id, p.name]));
+  const nowMs = Date.now();
+  const radarItems = live
+    .filter((d) => d.expiryDate)
+    .map((d) => ({
+      id: d.id,
+      title: d.title,
+      owner: d.personId ? pNameById.get(d.personId) ?? null : d.companyId ? cNameById.get(d.companyId) ?? null : null,
+      days: Math.floor((new Date(d.expiryDate as Date).getTime() - nowMs) / 86_400_000),
+      date: new Date(d.expiryDate as Date).toISOString().slice(0, 10),
+      href: d.personId ? `/documents?person=${d.personId}` : d.companyId ? `/documents?company=${d.companyId}` : "/documents",
+    }));
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <HrmsCrumbs from={from} />
@@ -75,6 +92,7 @@ export default async function DocumentsPage({
         }
       />
       <ComplianceScorePanel companyScores={companyScores} personScores={personScores} />
+      <ExpiryRadar items={radarItems} />
       <NeedsAttentionPanel
         documents={documents}
         companies={companies}
