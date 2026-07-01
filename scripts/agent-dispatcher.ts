@@ -47,8 +47,13 @@ const WORKER_PROMPT =
 
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 
+// A worker that hasn't finished within this many ms is assumed hung; we kill it
+// and the reaper re-queues whatever it had claimed. Keeps one bad session from
+// wedging the whole queue (and the live "Thinking…" spinner) forever.
+const WORKER_TIMEOUT_MS = Number(process.env.WORKER_TIMEOUT_MS) || 5 * 60_000;
+
 async function main() {
-  const { pendingCount } = await import("@/lib/ai-jobs");
+  const { pendingCount, reapStaleJobs } = await import("@/lib/ai-jobs");
   console.log(`[dispatcher] up — polling every ${INTERVAL}ms. Waiting for jobs…`);
   let idleLogged = true;
 
@@ -58,6 +63,13 @@ async function main() {
   process.on("SIGTERM", () => { stop = true; });
 
   while (!stop) {
+    // Recover any job a dead/hung worker left stranded in "running" so the live
+    // UI never spins forever. Best-effort; a DB blip just retries next tick.
+    try {
+      const reaped = await reapStaleJobs();
+      if (reaped > 0) console.log(`[dispatcher] recovered ${reaped} stalled job(s).`);
+    } catch { /* transient — try again next tick */ }
+
     let pending = 0;
     try {
       pending = await pendingCount();
@@ -82,11 +94,15 @@ async function main() {
       const res = process.platform === "win32"
         ? spawnSync("cmd.exe", ["/d", "/s", "/c", bin, "-p", "--dangerously-skip-permissions"], {
             cwd: process.cwd(), input: WORKER_PROMPT, env: { ...process.env, PATH }, stdio: ["pipe", "inherit", "inherit"],
+            timeout: WORKER_TIMEOUT_MS, killSignal: "SIGKILL",
           })
         : spawnSync(bin, ["-p", "--dangerously-skip-permissions"], {
             cwd: process.cwd(), input: WORKER_PROMPT, env: { ...process.env, PATH }, stdio: ["pipe", "inherit", "inherit"],
+            timeout: WORKER_TIMEOUT_MS, killSignal: "SIGKILL",
           });
       if (res.error) console.error(`[dispatcher] worker spawn failed: ${res.error.message}`);
+      if ((res as { signal?: string }).signal === "SIGKILL")
+        console.warn(`[dispatcher] worker hit the ${WORKER_TIMEOUT_MS}ms timeout — killed; reaper will retry its job.`);
       console.log("[dispatcher] worker finished; back to watching.");
     } else if (!idleLogged) {
       console.log("[dispatcher] queue empty — idle (0 tokens).");

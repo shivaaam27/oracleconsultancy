@@ -52,3 +52,14 @@ backups/
 
 # Supabase CLI local cache (created by `supabase functions deploy`)
 supabase/.temp/
+
+# ORI dispatcher runtime
+.dispatcher.lock
+dispatcher.log
+
+# Tesseract OCR language models (auto-downloaded to a temp cache at runtime)
+*.traineddata
+# ORI worker scratch artifacts
+result.json
+job.json
+err.log

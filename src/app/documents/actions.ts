@@ -1695,10 +1695,25 @@ async function visionTranscribe(imageUrl: string, apiKey: string): Promise<strin
   return res.ok && res.text ? res.text.trim() : null;
 }
 
-/** OCR a scanned PDF / image to its full text (DR2). null when AI is off or unreadable. */
+/** Transcribe one page image through the LAYERED reader: Groq vision (while it
+ *  lives, most accurate here) → cloud OCR (OCR.space, always-on) → Tesseract
+ *  (offline, in-site floor). Returns the first engine that reads text, so scan
+ *  reading keeps working with NO Groq — future-proofing the vision shutdown. */
+async function transcribePageLayered(img: string, apiKey: string | null | undefined): Promise<string | null> {
+  if (apiKey) {
+    const viaGroq = await visionTranscribe(img, apiKey);
+    if (viaGroq && viaGroq.trim()) return viaGroq;
+  }
+  const { cloudOcrTranscribe, tesseractTranscribe } = await import("@/lib/ocr-engines");
+  const viaCloud = await cloudOcrTranscribe(img);
+  if (viaCloud && viaCloud.trim()) return viaCloud;
+  return await tesseractTranscribe(img);
+}
+
+/** OCR a scanned PDF / image to its full text (DR2). Works even with Groq off —
+ *  falls through to cloud OCR / in-site Tesseract. null only when truly unreadable. */
 async function ocrDocumentText(file: File): Promise<string | null> {
   const apiKey = await getGroqKey();
-  if (!apiKey) return null;
   let images: string[] = [];
   const lower = file.name.toLowerCase();
   const isPdf = file.type === "application/pdf" || lower.endsWith(".pdf");
@@ -1724,10 +1739,19 @@ async function ocrDocumentText(file: File): Promise<string | null> {
     images = [`data:${mime};base64,${buf.toString("base64")}`];
   }
   if (!images.length) return null;
+  // Groq vision handles up to MAX_OCR_PAGES cheaply; the fallback engines (cloud
+  // OCR / Tesseract) are slower and rate-limited, so cap pages when Groq is off
+  // to stay within the serverless budget. Env-overridable (DOC_FALLBACK_OCR_PAGES).
+  const pages = apiKey ? images : images.slice(0, envPageCap("DOC_FALLBACK_OCR_PAGES", 10));
   const parts: string[] = [];
-  for (const img of images) {
-    const txt = await visionTranscribe(img, apiKey);
+  for (const img of pages) {
+    const txt = await transcribePageLayered(img, apiKey);
     if (txt) parts.push(txt);
+  }
+  // Release the shared Tesseract worker so we don't hold ~150MB after a batch.
+  if (!apiKey) {
+    const { disposeOcr } = await import("@/lib/ocr-engines");
+    await disposeOcr();
   }
   const full = parts.join("\n\n").trim();
   return full || null;

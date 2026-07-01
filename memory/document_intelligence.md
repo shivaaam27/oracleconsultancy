@@ -152,3 +152,24 @@ Plus existing: `documents` (supersedes_id, reference_no, extracted_text, intake_
   migrations with `npm run db:backup` first.
 - Scale note: the entity-graph shared-director scan + some in-memory document
   filtering are fine at current size; revisit with indexes at tens of thousands of docs.
+
+## Layered OCR — Groq-free document reading (2026-07-01, built+verified, NOT pushed)
+Owner asked for OCR that works "even without Groq" (Groq vision retires 17 Jul) and
+chose the LAYERED option. Scan-reading now degrades gracefully instead of dying.
+- **New `src/lib/ocr-engines.ts`**: `cloudOcrTranscribe` (OCR.space, env `OCRSPACE_API_KEY`,
+  inert until set — free tier ~25k/mo, always-on, no host) + `tesseractTranscribe`
+  (Tesseract.js, eng+swa, in-site, no key/bill, offline floor) + `disposeOcr`. Both take
+  a data-URL/Buffer page image → text. Lang models cache to `os.tmpdir()`
+  (`TESSERACT_CACHE_PATH` override) — NOT repo root; Vercel-safe (read-only fs except /tmp).
+  `*.traineddata` gitignored.
+- **`documents/actions.ts`**: `ocrDocumentText` no longer early-returns without a Groq key;
+  new `transcribePageLayered(img, apiKey)` = Groq vision (if key, best here) → cloud OCR →
+  Tesseract. Fallback path caps pages via `DOC_FALLBACK_OCR_PAGES` (default 10) since
+  Tesseract/cloud are slower; disposes the Tesseract worker after a keyless batch.
+- Full chain incl. the async ORI worker (Claude vision, PC-on, best) which already reads
+  scans via signed URL in `agent-context.ts` gatherExtract. So: ORI worker → Groq vision →
+  cloud OCR → Tesseract. Tesseract = the guaranteed floor.
+- NOTE: OCR = pixels→text only. The UNDERSTANDING step (owner/dates/type) still uses Groq
+  TEXT (`gpt-oss`, NOT retiring) or the ORI worker/rules. dep added: `tesseract.js`.
+- Verified: tesseract reads EN + Swahili at ~95% on rendered test images; cloud layer
+  correctly inert without a key; tsc clean; dev build clean (only offline Google-Fonts warns).

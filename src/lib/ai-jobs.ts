@@ -124,6 +124,39 @@ export async function failJob(id: number, message: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Recover jobs stuck in "running" — a worker that claimed a job but died/hung
+ * (headless `claude -p` can hang) would otherwise leave it "running" forever, so
+ * the UI polls "Thinking…" with no end. Any job whose pick is older than
+ * `staleMinutes` is either re-queued for another attempt or, once out of
+ * attempts, marked "error" so the caller gets a clear message instead of an
+ * infinite spinner. Safe to call every tick — it only touches genuinely stale rows.
+ * Returns how many jobs it reaped.
+ */
+export async function reapStaleJobs(staleMinutes = 4): Promise<number> {
+  const cutoff = new Date(Date.now() - staleMinutes * 60_000).toISOString();
+  const { data } = await sb
+    .from("ai_jobs")
+    .select("id,attempts,max_attempts")
+    .eq("status", "running")
+    .lt("picked_at", cutoff);
+  const stale = (data as Record<string, unknown>[]) ?? [];
+  for (const j of stale) {
+    const attempts = (j.attempts as number) ?? 0;
+    const max = (j.max_attempts as number) ?? 3;
+    const retryable = attempts < max;
+    await sb
+      .from("ai_jobs")
+      .update(
+        retryable
+          ? { status: "queued", error: "worker stalled — retrying" }
+          : { status: "error", error: "worker stalled and out of attempts", finished_at: new Date().toISOString() },
+      )
+      .eq("id", j.id as number);
+  }
+  return stale.length;
+}
+
 /** Count of jobs waiting, by lane — drives the "wake the agent?" decision. */
 export async function pendingCount(lane?: AiJobLane): Promise<number> {
   let q = sb.from("ai_jobs").select("id", { count: "exact", head: true }).eq("status", "queued");

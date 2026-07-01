@@ -220,6 +220,27 @@ Owner chose "retire only the vision/OCR path" + asked why a host is needed.
 ORI the PRIMARY scan reader now vs keep Groq primary til 17 Jul; (3) COMMIT/PUSH the
 whole cloud-agent build (Phases 0–6partial) — still all uncommitted.
 
+### HYBRID decision + reliability fixes — 2026-07-01 (built, tsc clean, NOT pushed)
+Owner tested on the LIVE site: ⌘K ORI stuck "Thinking…". Diagnosis — the worker
+approach is (a) **1–2 min not "3s"** (claude-session spin-up dominates; I over-promised
+3s — that's only the queue poll), and (b) a job **claimed-but-not-finished stayed
+"running" forever** (worker died mid-job → live UI spins with no end; e.g. job #17).
+- **Owner chose HYBRID:** ⌘K ORI **Ask** → back to the always-on **/api/ask (Groq smart
+  gpt-oss-120b + rich buildContext)** so quick AND detailed questions answer in seconds,
+  no PC dependency. Cloud worker STAYS for heavy/background (document extraction). Owner
+  stressed "detailed questions + background tasks both matter".
+- `command-palette.tsx` `runAsk` reverted from askOri/pollAsk queue → `fetch("/api/ask")`
+  non-stream (returns `{answer}`, records ORI memory server-side). askOri/pollAsk +
+  `/ask` route/page remain for programmatic/queue use but are no longer the ⌘K path.
+- **Reliability (keeps the worker path safe):** `ai-jobs.ts` `reapStaleJobs(4min)` re-queues
+  (or errors out-of-attempts) any job stuck in "running" → no more infinite spinner;
+  dispatcher calls it every tick + logs recoveries; worker `spawnSync` now has a
+  `WORKER_TIMEOUT_MS` (5min, SIGKILL) so a hung claude session can't wedge the queue.
+- Manually reaped stuck #17; restarted dispatcher with the reaper. **SessionStart hook**
+  (`.claude/settings.local.json` → `scripts/dispatcher-guard.sh`, single-instance PID lock)
+  auto-starts the dispatcher when Claude opens; `start-ori.cmd` = manual double-click.
+  `.dispatcher.lock`/`dispatcher.log` gitignored.
+
 ### LIVE END-TO-END WORKING — 2026-07-01 (fully autonomous, no API)
 CLI installed + owner logged in. Dispatcher running (background, PowerShell-launched).
 Fixes that made it work on Windows: claudeBin() resolves %APPDATA%\npm\claude.cmd;

@@ -351,38 +351,32 @@ export function CommandPaletteProvider({
       .map((m) => ({ role: m.role, content: m.text }));
   }
 
-  // Ask goes through the ORI cloud-agent queue (no external AI). Enqueue a fast job,
-  // then poll until the ORI worker (Max plan) answers. Carries recent history so
-  // follow-ups ("list all of them") resolve.
+  // Ask uses the always-on /api/ask engine (Groq smart model + rich context —
+  // tasks, compliance, governance, documents), so quick AND detailed questions
+  // answer in seconds without depending on the owner's PC. The Max-plan cloud
+  // worker stays for heavy/background jobs (document extraction) via the queue.
+  // Carries recent history so follow-ups ("list all of them") resolve; the route
+  // records the exchange to ORI memory server-side.
   async function runAsk(text: string) {
     setThinking(true);
     try {
-      const { askOri, pollAsk } = await import("@/app/ask/actions");
-      const { jobId } = await askOri(text, {
-        history: aiHistory(),
-        pageContext: { label: pageContext.label, taskCode: pageContext.taskCode, companyId: pageContext.companyId },
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: text,
+          history: aiHistory(),
+          pageContext: { label: pageContext.label, taskCode: pageContext.taskCode, companyId: pageContext.companyId },
+        }),
       });
-      let tries = 0;
-      const poll = setInterval(async () => {
-        tries++;
-        let res: { status: string; answer: string | null; error: string | null };
-        try { res = await pollAsk(jobId); } catch { return; } // transient — keep polling
-        if (res.status === "done") {
-          clearInterval(poll);
-          setThinking(false);
-          append({ id: newId(), role: "assistant", text: tidyOri(res.answer ?? "(no answer)") });
-          if (res.answer?.trim()) {
-            void fetch("/api/ai-memory", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ question: text, answer: res.answer.trim() }), keepalive: true,
-            }).catch(() => {});
-          }
-        } else if (res.status === "error" || tries > 150) {
-          clearInterval(poll);
-          setThinking(false);
-          append({ id: newId(), role: "error", text: res.error ?? "ORI didn't answer in time — is the worker running?", retry: text });
-        }
-      }, 2000);
+      setThinking(false);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        append({ id: newId(), role: "error", text: friendlyAIError(body?.error ?? `error-${res.status}`).message, retry: text });
+        return;
+      }
+      const data = await res.json();
+      append({ id: newId(), role: "assistant", text: tidyOri((data?.answer ?? "").toString() || "(no answer)") });
     } catch {
       setThinking(false);
       append({ id: newId(), role: "error", text: friendlyAIError("network error").message, retry: text });
