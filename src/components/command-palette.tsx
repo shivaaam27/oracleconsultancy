@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
+import type { DirectAnswer } from "@/lib/direct-answer";
 import { buildPaletteTypeMeta } from "./entity-ui";
 import { Switch } from "./ui";
 import { cn } from "@/lib/cn";
@@ -161,6 +162,7 @@ export function CommandPaletteProvider({
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SearchItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [directAnswer, setDirectAnswer] = useState<DirectAnswer | null>(null);
   // Search mode: when ON, the deep index also returns archived/closed/expired
   // records (each flagged lifecycle:"history"). Default OFF keeps everyday
   // search to live records only.
@@ -293,6 +295,7 @@ export function CommandPaletteProvider({
         if (!cancelled) {
           setItems(data.items || []);
           setResults(data.results || []);
+          setDirectAnswer(data.directAnswer ?? null);
         }
       } catch {}
     }, 80);
@@ -566,6 +569,34 @@ export function CommandPaletteProvider({
                     <Command.Empty className="py-8 text-center text-sm text-fg-muted">
                       {trimmed ? "Hit ↵ to ask ORI or run this command." : "No results."}
                     </Command.Empty>
+
+                    {/* Direct answer — instant "it just knows" value for an
+                        entity+attribute lookup (e.g. "Gangadhar passport"). */}
+                    {directAnswer && trimmed.length >= 2 && (
+                      <Command.Group
+                        heading="Answer"
+                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                      >
+                        <Command.Item
+                          value={`__answer__ ${directAnswer.entity} ${directAnswer.label}`}
+                          onSelect={() => go(directAnswer.href)}
+                          className="px-2 py-2 rounded-lg flex items-center gap-3 text-sm cursor-pointer aria-selected:bg-accent/10"
+                        >
+                          <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent/10 text-accent shrink-0">
+                            <Sparkles size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[10px] uppercase tracking-wider text-fg-subtle truncate">
+                              {directAnswer.label} · {directAnswer.entity}
+                            </div>
+                            <div className={`font-semibold truncate ${directAnswer.value ? "text-fg" : "text-fg-subtle italic"}`}>
+                              {directAnswer.value ?? "Not on record"}
+                            </div>
+                          </div>
+                          <ArrowRight size={14} className="text-fg-subtle shrink-0" />
+                        </Command.Item>
+                      </Command.Group>
+                    )}
 
                     {/* AI affordance — Enter routes to conversation. */}
                     {trimmed.length >= 2 && (

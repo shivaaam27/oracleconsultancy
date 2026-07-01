@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllTasks } from "@/lib/queries";
 import { unifiedSearch } from "@/lib/search";
+import { resolveDirectAnswer } from "@/lib/direct-answer";
 
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").toLowerCase().trim();
@@ -38,13 +39,19 @@ export async function GET(req: NextRequest) {
 
   // Deep index across the rest of the system — only when there's a query.
   let results: Awaited<ReturnType<typeof unifiedSearch>> = [];
+  // Instant, Groq-free "it just knows" answer for entity+attribute lookups
+  // ("Gangadhar passport", "PES TIN") — shown at the top of the palette.
+  let directAnswer: Awaited<ReturnType<typeof resolveDirectAnswer>> = null;
   if (q) {
     try {
-      results = await unifiedSearch(q, 6, includeHistory);
+      [results, directAnswer] = await Promise.all([
+        unifiedSearch(q, 6, includeHistory),
+        resolveDirectAnswer(q).catch(() => null),
+      ]);
     } catch (e) {
       console.error("Unified search error:", e);
     }
   }
 
-  return NextResponse.json({ items, results });
+  return NextResponse.json({ items, results, directAnswer });
 }
