@@ -261,12 +261,20 @@ export async function getCompanyChecklist(companyId: number): Promise<CompanyChe
     if (docId == null) continue;
     linkedDocIds.add(docId);
     r.document_id = docId;
-    r.status = "received";
+    // A deterministic (exact catalogue-type) match is high-confidence → auto-VERIFY
+    // it (green, no manual tick needed). A fuzzy match only reaches "received", so
+    // it still asks for a human confirmation.
+    const confident = deterministic.has(r.id as number);
+    r.status = confident ? "verified" : "received";
     await sb
       .from("company_requirements")
-      .update({ document_id: docId, status: "received", received_at: now, updated_at: now })
+      .update(
+        confident
+          ? { document_id: docId, status: "verified", received_at: now, verified_at: now, verified_by: "auto-catalogue", updated_at: now }
+          : { document_id: docId, status: "received", received_at: now, updated_at: now },
+      )
       .eq("id", r.id as number);
-    await logCompanyRequirementEvent(r.id as number, "linked", {
+    await logCompanyRequirementEvent(r.id as number, confident ? "verified" : "linked", {
       documentId: docId,
       detail: docById.get(docId)?.title ?? null,
       ownerId: companyId,
