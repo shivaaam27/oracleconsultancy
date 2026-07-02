@@ -1198,6 +1198,87 @@ export async function portalSetTaskLeads(
   return { ok: true };
 }
 
+/* ----------------------------------------------------------------------
+ * Remove a person entirely from a task (the counterpart to adding an
+ * accountable via portalSetTaskLeads). Deletes their task_assignees row;
+ * if they were the task's owner, ownership passes to another remaining
+ * lead (else any remaining person, promoted to accountable so the task
+ * never loses its lead). A task must keep at least one person — removing
+ * the last one is refused.
+ *   • Permission: director / HR (any task) or the task's creator — the same
+ *     canManageTask rule the UI uses to show the edit affordances.
+ * Audit-logged; the removed person is NOT push-notified (avoids noise).
+ * ---------------------------------------------------------------------- */
+export async function portalRemoveTaskPerson(
+  taskId: number,
+  personId: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  if (role === "staff") return { ok: false, error: "You don't have permission to edit tasks." };
+  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
+
+  const { data: t } = await sb
+    .from("tasks")
+    .select("id,code,company_id,owner_id,created_by_person_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!t) return { ok: false, error: "Task not found." };
+
+  // Same rule as editing: director/HR reach any task; everyone else only the
+  // tasks they created (task-permissions.ts).
+  const canManage = canManageTask(
+    { id: me.id, portalRole: role },
+    { createdByPersonId: (t.created_by_person_id as number | null) ?? null },
+  );
+  if (!canManage) return { ok: false, error: "Only the task's creator or a director can change who's on this task." };
+
+  const { data: existing } = await sb
+    .from("task_assignees").select("person_id,role").eq("task_id", taskId);
+  const rows = existing ?? [];
+  const onTask = rows.map((a) => a.person_id as number);
+  if (!onTask.includes(personId)) return { ok: false, error: "That person isn't on this task." };
+  if (onTask.length <= 1) return { ok: false, error: "A task needs at least one person — add someone else first." };
+
+  const createdBy = `portal-${roleTag(role)}:${me.name}`;
+  const now = new Date().toISOString();
+  const { data: person } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
+
+  await sb.from("task_assignees").delete().eq("task_id", taskId).eq("person_id", personId);
+
+  // If the removed person was the owner, hand ownership to a remaining lead (or
+  // any remaining person, promoted to accountable so the task keeps a lead).
+  const patch: Record<string, unknown> = { last_updated_at: now };
+  if ((t.owner_id as number | null) === personId) {
+    const remaining = rows.filter((a) => (a.person_id as number) !== personId);
+    const nextOwner =
+      (remaining.find((a) => a.role === "accountable")?.person_id as number | undefined) ??
+      (remaining[0]?.person_id as number | undefined) ?? null;
+    patch.owner_id = nextOwner;
+    if (nextOwner != null) {
+      await sb.from("task_assignees").update({ role: "accountable" })
+        .eq("task_id", taskId).eq("person_id", nextOwner);
+    }
+  }
+  const { error } = await sb.from("tasks").update(patch).eq("id", taskId);
+  if (error) return { ok: false, error: error.message };
+
+  await logChangeSb(
+    t.id as number, t.code as string, t.company_id as number,
+    "assignee", (person?.name as string | null) ?? String(personId), "removed",
+    `Removed from task (portal ${role})`, createdBy,
+  );
+
+  void reindexEntity("task", t.id as number); // assignees/owner moved (best-effort)
+
+  revalidatePath("/portal/board");
+  revalidatePath("/portal/tasks");
+  revalidatePath(`/portal/task/${t.code}`);
+  revalidatePath(`/task/${t.code}`);
+  return { ok: true };
+}
+
 /** Management one-tap reminder: resolves the responsible person and drafts a
  *  message (Outbox) + returns a deep-link. Director/HR group-wide; managers only
  *  for tasks in their view. Honours the owner's outreach pause. */

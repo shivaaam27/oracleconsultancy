@@ -18,7 +18,7 @@ import { CompanyAvatar } from "@/components/company-avatar";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalDeleteTask } from "@/app/portal/actions";
+import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalRemoveTaskPerson, portalDeleteTask } from "@/app/portal/actions";
 import { getGivenName, getInitials } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
@@ -809,6 +809,7 @@ function TaskPeoplePanel({
   const router = useRouter();
   const [chatBusy, startChat] = useTransition();
   const [leadBusy, startLeads] = useTransition();
+  const [removeBusy, startRemove] = useTransition();
 
   // The current lead set: the person ids flagged "accountable". Fall back to the
   // single accountable owner only when no explicit leads are recorded.
@@ -881,6 +882,30 @@ function TaskPeoplePanel({
     setLeads(m.lead ? leadIds.filter((id) => id !== m.id) : [...leadIds, m.id]);
   }
 
+  // Add a new person to the task as an accountable (lead) — reuses the leads
+  // action, which inserts anyone not already on the task. They can then be
+  // toggled to Working from their row.
+  function addPerson(id: number) {
+    if (memberIds.has(id)) return;
+    setLeads([...leadIds, id]);
+  }
+
+  // Take a person off the task entirely (director/HR or the creator). The last
+  // remaining person can't be removed — the server enforces this too.
+  function removePerson(m: Member) {
+    if (m.id == null || total <= 1) return;
+    startRemove(async () => {
+      const res = await portalRemoveTaskPerson(t.taskId, m.id!);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast(`${getGivenName(m.name)} removed from the task.`, { tone: "success" });
+      router.refresh();
+    });
+  }
+
+  // Ids already on the task — the add picker offers everyone else.
+  const memberIds = useMemo(() => new Set(members.map((m) => m.id).filter((x): x is number => x != null)), [members]);
+  const addable = useMemo(() => people.filter((p) => !memberIds.has(p.id)), [people, memberIds]);
+
   if (total === 0 && !canEditLeads) return null;
 
   return (
@@ -942,10 +967,116 @@ function TaskPeoplePanel({
             {/* Per-person reachability — minimal icons: WhatsApp / Email this task +
                 a direct chat DM. Only the id-backed people. */}
             {canRemind && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
+            {/* Remove from the task — director/HR or the creator; never the last one. */}
+            {canEditLeads && m.id != null && total > 1 && (
+              <button
+                type="button"
+                onClick={() => removePerson(m)}
+                disabled={removeBusy || leadBusy}
+                title={`Remove ${getGivenName(m.name)} from this task`}
+                aria-label={`Remove ${m.name} from this task`}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-fg-subtle ring-1 ring-border transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
+              >
+                {removeBusy ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}
+              </button>
+            )}
           </li>
         ))}
       </ul>
+
+      {/* Add someone to the task (as an accountable/lead). Director/HR or the creator. */}
+      {canEditLeads && (
+        <div className="border-t border-border/50 px-3 py-2.5">
+          <AddPersonPicker people={addable} busy={leadBusy} onAdd={addPerson} />
+        </div>
+      )}
     </Panel>
+  );
+}
+
+/** Compact "add someone to this task" control — a searchable, app-anchored people
+ *  dropdown. Adds the chosen person as an accountable (lead). */
+function AddPersonPicker({
+  people, busy, onAdd,
+}: {
+  people: BoardPerson[];
+  busy: boolean;
+  onAdd: (id: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const anchor = useAnchored(triggerRef, open);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      const tgt = e.target as Node;
+      if (ref.current?.contains(tgt) || menuRef.current?.contains(tgt)) return;
+      setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return people;
+    return people.filter((p) => p.name.toLowerCase().includes(term));
+  }, [people, q]);
+
+  function pick(id: number) {
+    onAdd(id);
+    setOpen(false);
+    setQ("");
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={busy || people.length === 0}
+        className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft/70 px-3 py-1.5 text-[12px] font-medium text-accent ring-1 ring-accent/25 transition-transform hover:bg-accent-soft active:scale-95 disabled:opacity-50"
+      >
+        {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+        {people.length === 0 ? "Everyone's on it" : "Add someone"}
+      </button>
+
+      {open && anchor && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[100] min-w-[14rem] overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg"
+          style={{
+            left: anchor.left,
+            width: Math.max(anchor.width, 224),
+            ...(anchor.openUp ? { bottom: window.innerHeight - anchor.top + 6 } : { top: anchor.top + 6 }),
+          }}
+        >
+          <label className="relative block border-b border-border/60">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
+          </label>
+          <ul className="overflow-y-auto py-1" style={{ maxHeight: anchor.maxHeight }}>
+            {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
+            {filtered.map((p) => (
+              <li key={p.id}>
+                <button type="button" onClick={() => pick(p.id)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-fg transition-colors hover:bg-bg-muted/60">
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-subtle text-[10px] font-semibold text-fg-muted">{initials(p.name)}</span>
+                  {p.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>,
+        document.body,
+      )}
+    </div>
   );
 }
 
