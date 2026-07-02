@@ -84,6 +84,7 @@ export async function buildCommandTasks(ids: number[], viewerId: number, viewerN
       // Recency signal (latest of created / updated / newest activity) — drives
       // "most recent first" ordering within every group.
       sortAt: r.lastActivityISO,
+      closedAt: r.closedDate ? r.closedDate.toISOString() : null,
     };
   });
 }

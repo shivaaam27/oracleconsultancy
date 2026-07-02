@@ -1107,6 +1107,9 @@ export async function portalEditTask(input: {
   if (canManage && input.escalation !== undefined) {
     const next = input.escalation === "Yes" ? "Yes" : "No";
     const cur = (t.escalation as string | null) ?? "No";
+    // A finished task can't be "escalated" — reopen it first. (Clearing the flag
+    // on a done task is still allowed.)
+    if (next === "Yes" && lockedDone) return { ok: false, error: "Reopen the task before escalating it." };
     if (next !== cur) {
       patch.escalation = next;
       await logChangeSb(t.id as number, t.code as string, t.company_id as number, "escalation", cur, next, `Edited from portal (${role})`, createdBy);
@@ -1223,16 +1226,16 @@ export async function portalBulkTaskAction(
 
   const { data: rows } = await sb
     .from("tasks")
-    .select("id,code,company_id,created_by_person_id,deadline,archived")
+    .select("id,code,company_id,created_by_person_id,deadline,archived,status")
     .in("id", ids);
 
   // Keep only tasks the caller may both SEE and MANAGE.
-  const allowed: { id: number; code: string; companyId: number; deadline: string | null }[] = [];
+  const allowed: { id: number; code: string; companyId: number; deadline: string | null; status: string }[] = [];
   for (const t of rows ?? []) {
     const id = t.id as number;
     if (!canManageTask({ id: me.id, portalRole: role }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) continue;
     if (!(await personCanSeeTask(me, id))) continue;
-    allowed.push({ id, code: t.code as string, companyId: t.company_id as number, deadline: (t.deadline as string | null) ?? null });
+    allowed.push({ id, code: t.code as string, companyId: t.company_id as number, deadline: (t.deadline as string | null) ?? null, status: (t.status as string) ?? "" });
   }
   if (allowed.length === 0) return { ok: false, error: "None of the selected tasks are yours to change." };
 
@@ -1254,9 +1257,11 @@ export async function portalBulkTaskAction(
   }
 
   // postpone / set-deadlines — write a new deadline per task, capturing the old
-  // one so postpone can be undone precisely.
+  // one so postpone can be undone precisely. Completed/Closed tasks are skipped
+  // for postpone (re-dating finished work is meaningless).
   const prev: [number, string | null][] = [];
   for (const t of allowed) {
+    if (action.kind === "postpone" && isClosedStatus(t.status)) continue;
     let newIso: string | null;
     if (action.kind === "postpone") {
       const base = t.deadline ? new Date(t.deadline) : new Date();

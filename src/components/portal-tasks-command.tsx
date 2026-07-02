@@ -74,6 +74,8 @@ export type CommandTask = {
   withinSoon: boolean;
   /** Recency signal (ISO) — newest first within every group. */
   sortAt: string;
+  /** When the task was completed/closed (ISO) — the Done group sorts by this. */
+  closedAt: string | null;
 };
 
 export type Filter = "all" | "inprogress" | "overdue" | "soon" | "mine" | "done";
@@ -194,6 +196,9 @@ export function PortalTasksCommand({
   // Newest first everywhere — the most recently created/updated task sits at top.
   const byRecent = (a: CommandTask, b: CommandTask) =>
     new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime();
+  // Done tasks read best "most recently finished first" — sort by close date.
+  const byClosed = (a: CommandTask, b: CommandTask) =>
+    new Date(b.closedAt ?? b.sortAt).getTime() - new Date(a.closedAt ?? a.sortAt).getTime();
   const groups = useMemo<Group[]>(() => {
     if (groupByCompany) {
       // One section per company (alphabetical); within each, most-recent first.
@@ -212,13 +217,13 @@ export function PortalTasksCommand({
           label: name,
           dotColor: items[0]?.companyAccent ?? null,
           logoUrl: items[0]?.companyLogoUrl ?? null,
-          items: items.slice().sort(byRecent),
+          items: items.slice().sort(filter === "done" ? byClosed : byRecent),
         }));
     }
     // A specific filter chip → a single flat list of just those tasks, newest
     // first (no urgency sub-sections). "All" keeps the urgency sections.
     if (filter !== "all") {
-      const items = filtered.slice().sort(byRecent);
+      const items = filtered.slice().sort(filter === "done" ? byClosed : byRecent);
       if (items.length === 0) return [];
       const meta: Record<Exclude<Filter, "all">, { label: string; dot: string }> = {
         inprogress: { label: "In Progress", dot: "bg-info" },
@@ -234,7 +239,7 @@ export function PortalTasksCommand({
     const overdue = filtered.filter((t) => t.overdue && !t.isDone).sort(byRecent);
     const soon = filtered.filter((t) => t.withinSoon && !t.overdue && !t.isDone).sort(byRecent);
     const open = filtered.filter((t) => !t.isDone && !t.overdue && !t.withinSoon).sort(byRecent);
-    const done = filtered.filter((t) => t.isDone).sort(byRecent);
+    const done = filtered.filter((t) => t.isDone).sort(byClosed);
     return [
       { key: "overdue", label: "Overdue", dot: "bg-danger", items: overdue },
       { key: "soon", label: "Due soon", dot: "bg-warn", items: soon },
@@ -1421,19 +1426,22 @@ export function TaskClassifyControls({ t }: { t: CommandTask }) {
       </span>
       <FluidSelect value={t.category ?? ""} options={categoryOptions} onSelect={changeCategory} className="w-full sm:w-[150px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
       <FluidSelect value={t.risk ?? ""} options={riskOptions} onSelect={changeRisk} className="w-full sm:w-[130px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
-      <button
-        type="button"
-        onClick={toggleEscalate}
-        disabled={busy}
-        title={t.escalated ? "Escalated — tap to stand down" : "Escalate this task"}
-        className={cn(
-          "col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium ring-1 transition-colors disabled:opacity-50 sm:col-span-1 sm:w-auto",
-          t.escalated ? "bg-danger-soft text-danger ring-danger/30 hover:bg-danger-soft/70" : "bg-bg-elev text-fg-muted ring-border hover:text-danger",
-        )}
-      >
-        {busy ? <Loader2 size={13} className="animate-spin" /> : t.escalated ? <ShieldAlert size={13} /> : <AlertTriangle size={13} />}
-        {t.escalated ? "Escalated" : "Escalate"}
-      </button>
+      {/* Escalate is meaningless on a finished task — hide it once done. */}
+      {!t.isDone && (
+        <button
+          type="button"
+          onClick={toggleEscalate}
+          disabled={busy}
+          title={t.escalated ? "Escalated — tap to stand down" : "Escalate this task"}
+          className={cn(
+            "col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium ring-1 transition-colors disabled:opacity-50 sm:col-span-1 sm:w-auto",
+            t.escalated ? "bg-danger-soft text-danger ring-danger/30 hover:bg-danger-soft/70" : "bg-bg-elev text-fg-muted ring-border hover:text-danger",
+          )}
+        >
+          {busy ? <Loader2 size={13} className="animate-spin" /> : t.escalated ? <ShieldAlert size={13} /> : <AlertTriangle size={13} />}
+          {t.escalated ? "Escalated" : "Escalate"}
+        </button>
+      )}
     </div>
   );
 }
