@@ -743,6 +743,13 @@
       "when": 1782998573924,
       "tag": "0105_glorious_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1783020000000,
+      "tag": "0106_ai_jobs_claim_kinds",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,15 @@
 import { sb } from "@/db/supabase";
 import type { AiJob } from "./ai-jobs";
+import { recordEvent } from "./system-events";
+import { canAutoSend, type SendChannel } from "./guardrails";
+
+/** Log every AI-applied side-effect to the activity feed so an autonomous action
+ *  is never silent — the audit's "no trail" gap. Best-effort, never throws. */
+async function logApply(job: AiJob, action: string, detail: Record<string, unknown>): Promise<void> {
+  try {
+    await recordEvent("ai.apply", "ok", { jobId: job.id, kind: job.kind, action, ...detail, createdBy: "ai-command" });
+  } catch { /* telemetry never blocks an apply */ }
+}
 
 /**
  * agent-apply.ts — takes the cloud agent's RESULT for a job and performs the real
@@ -59,6 +69,7 @@ async function applyExtract(job: AiJob, result: Record<string, unknown>): Promis
   };
   if (documentId) {
     await sb.from("documents").update(fields).eq("id", documentId);
+    await logApply(job, "extract", { documentId });
     return { applied: true, detail: { updatedDocument: documentId } };
   }
   const { createDocument } = await import("@/lib/documents");
@@ -71,6 +82,7 @@ async function applyExtract(job: AiJob, result: Record<string, unknown>): Promis
     } as Parameters<typeof createDocument>[0],
     "ai-command",
   );
+  await logApply(job, "extract", { createdDocument: id });
   return { applied: true, detail: { createdDocument: id } };
 }
 
@@ -91,6 +103,7 @@ async function applyAction(job: AiJob, result: Record<string, unknown>): Promise
       created_at: now, updated_at: now, created_by: "ai-command", kind: "meeting",
     }).select("id").single();
     if (error) throw new Error(error.message);
+    await logApply(job, "create_meeting", { meetingId: data.id, title: m.title });
     return { applied: true, detail: { createdMeeting: data.id } };
   }
 
@@ -113,22 +126,32 @@ async function applyAction(job: AiJob, result: Record<string, unknown>): Promise
         { onConflict: "task_id,person_id", ignoreDuplicates: true },
       );
     }
+    await logApply(job, "create_task", { taskCode: created.code });
     return { applied: true, detail: { createdTask: created.code } };
   }
 
   if (action === "create_reminder" && result.reminder) {
     const r = result.reminder as Record<string, unknown>;
-    if (!confirmed) {
-      return { applied: false, detail: { proposal: "reminder", reminder: r, needsConfirm: true } };
+    const channel: SendChannel = r.channel === "whatsapp" ? "whatsapp" : "email";
+    // Tier-3 SEND: needs BOTH an explicit confirm on the job AND the global
+    // auto-send guardrail (canAutoSend also honours the automation pause + outreach
+    // pause). Either failing → return a proposal, never send silently.
+    if (!confirmed || !(await canAutoSend(channel))) {
+      return {
+        applied: false,
+        detail: { proposal: "reminder", reminder: r, needsConfirm: true, reason: !confirmed ? "awaiting confirmation" : "auto-send is off / paused for this channel" },
+      };
     }
     const personId = Number(r.personId);
-    if (r.channel === "whatsapp") {
+    if (channel === "whatsapp") {
       const { sendTaskReminderWhatsApp } = await import("@/lib/reminders");
       const res = await sendTaskReminderWhatsApp({ personId, sourceTag: "ai-command" });
+      await logApply(job, "send_reminder", { channel, personId, ok: res.ok });
       return { applied: res.ok, detail: { reminder: "whatsapp", ...res } };
     }
     const { sendTaskReminderEmail } = await import("@/lib/reminders");
     const res = await sendTaskReminderEmail({ personId, taskId: (r.taskId as number) ?? undefined, note: (r.note as string) ?? null });
+    await logApply(job, "send_reminder", { channel, personId, ok: res.ok });
     return { applied: res.ok, detail: { reminder: "email", ...res } };
   }
 
