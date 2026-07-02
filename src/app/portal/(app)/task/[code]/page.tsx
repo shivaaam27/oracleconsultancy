@@ -64,10 +64,13 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const isManager = me.portalRole === "manager";
   const isManagement = isManager || me.portalRole === "director" || me.portalRole === "hr";
 
+  const decodedCode = decodeURIComponent(code);
+  // Match the live code OR a legacy code (so links to a task that was moved to
+  // another company still resolve to its new home).
   const { data: task } = await sb
     .from("tasks")
     .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,created_by_person_id,requires_attachment,companies(name)")
-    .eq("code", decodeURIComponent(code))
+    .or(`code.eq.${decodedCode},legacy_code.eq.${decodedCode}`)
     .maybeSingle();
   if (!task) notFound();
 
@@ -220,13 +223,18 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // due, delete) — built from the shared command-task shape + scoped people list.
   let manageCmd: Awaited<ReturnType<typeof buildCommandTasks>>[number] | null = null;
   let managePeople: { id: number; name: string; companyId: number | null; companyIds: number[] }[] = [];
+  let manageCompanies: { id: number; name: string }[] = [];
   if (isManagement) {
     const groupWide = seesAllCompanies(me);
-    const [cmdArr, { data: peopleRaw }, personCompanies] = await Promise.all([
+    const [cmdArr, { data: peopleRaw }, { data: companiesRaw }, personCompanies] = await Promise.all([
       buildCommandTasks([task.id as number], me.id),
       sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+      sb.from("companies").select("id,name").order("name"),
       getPersonCompaniesMap(),
     ]);
+    // Company move is a group-director/HR power, so only they get the full list;
+    // everyone else sees no company picker (server enforces this too).
+    manageCompanies = groupWide ? (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string })) : [];
     managePeople = (peopleRaw ?? []).map((p) => {
       const id = p.id as number;
       const primary = (p.company_id as number | null) ?? null;
@@ -401,7 +409,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
       {manageCmd && (
         <Reveal delay={0.05}>
-          <PortalTaskManage cmd={manageCmd} people={managePeople} canEdit={canEdit} canRemind={isManagement} />
+          <PortalTaskManage cmd={manageCmd} people={managePeople} companies={manageCompanies} canEdit={canEdit} canRemind={isManagement} />
         </Reveal>
       )}
 

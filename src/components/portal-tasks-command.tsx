@@ -15,6 +15,8 @@ import { Panel } from "@/components/surface-kit";
 import { CaretInput } from "@/components/ui";
 import { useSwipeRow } from "@/lib/use-swipe-row";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { DatePopover } from "@/components/date-popover";
+import { TaskCopyToCompanies } from "@/components/task-copy-companies";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
@@ -70,6 +72,8 @@ export type CommandTask = {
   raisedByMe: boolean;
   isDone: boolean;
   withinSoon: boolean;
+  /** Recency signal (ISO) — newest first within every group. */
+  sortAt: string;
 };
 
 export type Filter = "all" | "inprogress" | "overdue" | "soon" | "mine" | "done";
@@ -187,10 +191,12 @@ export function PortalTasksCommand({
   ];
 
   type Group = { key: string; label: string; dot?: string; dotColor?: string | null; logoUrl?: string | null; items: CommandTask[] };
+  // Newest first everywhere — the most recently created/updated task sits at top.
+  const byRecent = (a: CommandTask, b: CommandTask) =>
+    new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime();
   const groups = useMemo<Group[]>(() => {
     if (groupByCompany) {
-      // One section per company (alphabetical); open/overdue first within each so
-      // the rows that need attention sit at the top of every company block.
+      // One section per company (alphabetical); within each, most-recent first.
       // Completed/closed tasks are hidden here (clutter) UNLESS the Done filter
       // is on — then the director is explicitly looking at finished work.
       const source = filter === "done" ? filtered : filtered.filter((t) => !t.isDone);
@@ -199,7 +205,6 @@ export function PortalTasksCommand({
         const key = t.companyName || "No company";
         (byCo.get(key) ?? byCo.set(key, []).get(key)!).push(t);
       }
-      const rank = (t: CommandTask) => (t.overdue && !t.isDone ? 0 : t.isDone ? 2 : 1);
       return [...byCo.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([name, items]) => ({
@@ -207,13 +212,29 @@ export function PortalTasksCommand({
           label: name,
           dotColor: items[0]?.companyAccent ?? null,
           logoUrl: items[0]?.companyLogoUrl ?? null,
-          items: items.slice().sort((x, y) => rank(x) - rank(y)),
+          items: items.slice().sort(byRecent),
         }));
     }
-    const overdue = filtered.filter((t) => t.overdue && !t.isDone);
-    const soon = filtered.filter((t) => t.withinSoon && !t.overdue && !t.isDone);
-    const open = filtered.filter((t) => !t.isDone && !t.overdue && !t.withinSoon);
-    const done = filtered.filter((t) => t.isDone);
+    // A specific filter chip → a single flat list of just those tasks, newest
+    // first (no urgency sub-sections). "All" keeps the urgency sections.
+    if (filter !== "all") {
+      const items = filtered.slice().sort(byRecent);
+      if (items.length === 0) return [];
+      const meta: Record<Exclude<Filter, "all">, { label: string; dot: string }> = {
+        inprogress: { label: "In Progress", dot: "bg-info" },
+        overdue: { label: "Overdue", dot: "bg-danger" },
+        soon: { label: "Due soon", dot: "bg-warn" },
+        mine: { label: "Raised by me", dot: "bg-accent" },
+        done: { label: "Done", dot: "bg-fg-subtle" },
+      };
+      const m = meta[filter];
+      return [{ key: filter, label: m.label, dot: m.dot, items }];
+    }
+    // "All": urgency sections, each newest-first.
+    const overdue = filtered.filter((t) => t.overdue && !t.isDone).sort(byRecent);
+    const soon = filtered.filter((t) => t.withinSoon && !t.overdue && !t.isDone).sort(byRecent);
+    const open = filtered.filter((t) => !t.isDone && !t.overdue && !t.withinSoon).sort(byRecent);
+    const done = filtered.filter((t) => t.isDone).sort(byRecent);
     return [
       { key: "overdue", label: "Overdue", dot: "bg-danger", items: overdue },
       { key: "soon", label: "Due soon", dot: "bg-warn", items: soon },
@@ -311,22 +332,22 @@ export function PortalTasksCommand({
       ) : (
         groups.map((g) => (
           <div key={g.key} className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 px-1">
+            <div className={cn("flex items-center gap-2 px-1", groupByCompany && "mt-1")}>
               {groupByCompany
-                ? <CompanyAvatar name={g.label} logoUrl={g.logoUrl ?? null} size={22} rounded="rounded-md" iconSize={12} />
+                ? <CompanyAvatar name={g.label} logoUrl={g.logoUrl ?? null} size={28} rounded="rounded-lg" iconSize={15} />
                 : g.dotColor != null
                   ? <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: g.dotColor || "hsl(var(--accent))" }} />
                   : <span className={`h-2.5 w-2.5 rounded-full ${g.dot}`} />}
-              <span className="text-[15px] font-semibold text-fg">{g.label}</span>
+              <span className={cn("font-semibold text-fg", groupByCompany ? "text-lg" : "text-[15px]")}>{g.label}</span>
               <span className="rounded-md bg-bg-subtle px-1.5 py-0.5 text-[11px] font-medium text-fg-subtle">{g.items.length}</span>
             </div>
             {/* desktop — ONE floating card per task (info left, controls panel right). */}
             <div className="hidden flex-col gap-2 sm:flex">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} desktop />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} desktop />)}
             </div>
             {/* mobile cards */}
             <div className="flex flex-col gap-2 sm:hidden">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} />)}
             </div>
           </div>
         ))
@@ -459,10 +480,10 @@ function SelectBox({ checked, onToggle, className }: { checked: boolean; onToggl
 }
 
 function TaskRow({
-  t, people, role, viewerId, canRemind, desktop = false, groupByCompany = false,
+  t, people, companies, role, viewerId, canRemind, desktop = false, groupByCompany = false,
   selectable = false, selected = false, onToggleSelect,
 }: {
-  t: CommandTask; people: BoardPerson[]; role: string; viewerId: number; canRemind: boolean; desktop?: boolean;
+  t: CommandTask; people: BoardPerson[]; companies: BoardCompany[]; role: string; viewerId: number; canRemind: boolean; desktop?: boolean;
   /** When the list is grouped by company, drop the company name from the row (the
    *  group header already shows it). */
   groupByCompany?: boolean;
@@ -522,7 +543,7 @@ function TaskRow({
   const tr = reduced ? { duration: 0 } : { duration: 0.24, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] };
   const hasMeta = !!(t.description || t.note);
 
-  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null; category?: string | null; risk?: string | null; escalation?: string }, label: string) {
+  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null; category?: string | null; risk?: string | null; escalation?: string; companyId?: number }, label: string) {
     startTransition(async () => {
       const res = await portalEditTask({ taskId: t.taskId, ...patch });
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
@@ -624,6 +645,15 @@ function TaskRow({
                 rows={3}
                 className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
               />
+              {/* Companies — the task's own company is locked; tick another to
+                  create a copy there (fan-out). Group director / HR only (shown
+                  when more than one company is in reach). */}
+              {companies.length > 1 && (
+                <label className="flex flex-col gap-1 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle">
+                  Companies
+                  <TaskCopyToCompanies taskId={t.taskId} currentCompanyId={t.companyId} currentCompanyName={t.companyName} companies={companies} />
+                </label>
+              )}
               <div className="flex items-center gap-2">
                 <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
                   {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
@@ -703,7 +733,7 @@ function TaskRow({
           {withStatus && (
             <span className="w-full sm:w-[136px]">
               {canEdit
-                ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} block />
+                ? <DatePopover value={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} block />
                 : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1.5 px-3 py-2 text-[12px] ${dueTone}`)}><CalendarClock size={13} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
             </span>
           )}
@@ -783,7 +813,7 @@ function TaskRow({
             </span>
             <span className="w-[118px]">
               {canEdit
-                ? <DuePill valueIso={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} compact block />
+                ? <DatePopover value={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} compact block />
                 : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1 px-2.5 py-1.5 text-[11px] ${dueTone}`)}><CalendarClock size={12} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
             </span>
           </div>
@@ -875,37 +905,6 @@ function TaskRow({
           for staff or any task that requires an attachment. */}
       <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={t.taskId} code={t.code} requiresAttachment={t.requiresAttachment} />
     </div>
-  );
-}
-
-/** Due-date pill: the same bordered pill as the status dropdown, with a small
- *  calendar affordance; reveals a native picker on tap and auto-saves. */
-function DuePill({ valueIso, label, tone, onChange, compact = false, block = false }: { valueIso: string | null; label: string | null; tone: string; onChange: (v: string) => void; compact?: boolean; block?: boolean }) {
-  const [editing, setEditing] = useState(false);
-  const sz = compact ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-2 text-[12px]";
-  const fill = block ? "w-full" : "";
-  const text = valueIso ? new Date(valueIso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "No date";
-  if (editing) {
-    return (
-      <span className={cn(fieldShell, "inline-flex items-center gap-1.5", fill, sz)}>
-        <CalendarClock size={compact ? 12 : 13} className={cn("shrink-0", tone)} />
-        <input
-          type="date"
-          defaultValue={valueIso ?? ""}
-          autoFocus
-          onChange={(e) => { onChange(e.target.value); setEditing(false); }}
-          onBlur={() => setEditing(false)}
-          className={cn("bg-transparent text-inherit text-fg focus:outline-none", block && "min-w-0 flex-1")}
-        />
-      </span>
-    );
-  }
-  return (
-    <button type="button" onClick={() => setEditing(true)} className={cn(fieldShell, "inline-flex items-center gap-1.5 hover:bg-bg-muted transition-colors", fill, sz)}>
-      <CalendarClock size={compact ? 12 : 13} className={cn("shrink-0", tone)} />
-      <span className={cn(block && "min-w-0 flex-1 truncate text-left", label && (tone.includes("danger") || tone.includes("warn")) ? tone : "text-fg")}>{label ?? text}</span>
-      <ChevronDown size={compact ? 12 : 13} className="shrink-0 text-fg-subtle" />
-    </button>
   );
 }
 

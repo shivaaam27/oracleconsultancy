@@ -46,9 +46,11 @@ function initials(name: string): string {
 
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const PRIORITY_OPTIONS: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p }));
-const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 text-sm placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40 caret-accent";
+// Every field is a defined, filled box (matching the Responsible-people picker)
+// so none of them read as "invisible" on the sheet.
+const inputCls = "w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm text-fg placeholder:text-fg-muted transition-colors hover:ring-accent/40 focus:outline-none focus:ring-2 focus:ring-accent/40";
 const fieldLabel = "mb-1.5 block text-[11px] font-medium text-fg-muted";
-const selectBtn = "bare-field flex w-full items-center justify-between rounded-xl ring-1 ring-border px-3.5 py-3 text-sm";
+const selectBtn = "flex w-full items-center justify-between rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-3 text-sm transition-colors hover:ring-accent/40";
 const FORM_ID = "director-task-form";
 
 /* ------------------------------------------------------------------ *
@@ -158,7 +160,20 @@ export function DirectorTaskForm({
     return responsibleIds.map((id) => byId.get(id)).filter((p): p is Person => !!p);
   }, [peopleForPicker, responsibleIds]);
 
-  const canSubmit = responsibleIds.length > 0 && leadIds.length > 0;
+  // The contract: a task can only exist with at least one company AND at least
+  // one responsible person (with a lead). Managers have a single company.
+  const companySelected = isDirector ? companyIds.length > 0 : singleCompanyId != null;
+  const canSubmit = companySelected && responsibleIds.length > 0 && leadIds.length > 0;
+
+  /** The friendly "what's still missing" line shown when someone taps a greyed
+   *  Assign button. */
+  function missingMessage(): string {
+    const missing: string[] = [];
+    if (!companySelected) missing.push("one company");
+    if (responsibleIds.length === 0) missing.push("one responsible person");
+    else if (leadIds.length === 0) missing.push("a lead");
+    return `Add at least ${missing.join(" and ")} to assign this task.`;
+  }
 
   // Clear the inline guard message as soon as the selection is valid again.
   useEffect(() => { if (canSubmit) setFormError(null); }, [canSubmit]);
@@ -184,8 +199,8 @@ export function DirectorTaskForm({
       id={FORM_ID}
       action={action}
       onSubmit={(e) => {
-        // Guard the contract: at least one responsible person and one lead.
-        if (!canSubmit) { e.preventDefault(); setFormError("Pick at least one responsible person and a lead."); }
+        // Guard the contract: at least one company AND one responsible person + lead.
+        if (!canSubmit) { e.preventDefault(); setFormError(missingMessage()); }
       }}
       className="flex flex-col gap-3.5"
     >
@@ -325,8 +340,9 @@ export function DirectorTaskForm({
             <button
               type="submit"
               form={FORM_ID}
-              disabled={pending || !canSubmit}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-transform hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+              disabled={pending}
+              aria-disabled={!canSubmit}
+              className={`inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-[0.98] disabled:opacity-50 ${!canSubmit ? "opacity-60" : ""}`}
             >
               {pending ? <Loader2 size={16} className="animate-spin" /> : <ClipboardCheck size={16} />}{" "}
               {isDirector && companyIds.length > 1 ? `Assign ${companyIds.length} tasks` : "Assign task"}

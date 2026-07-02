@@ -24,6 +24,7 @@ import {
   managerTeamIds,
   personCanSeePerson,
   personCanSeeTask,
+  seesAllCompanies,
   setSessionCookie,
   verifyPassword,
 } from "@/lib/portal-auth";
@@ -988,7 +989,8 @@ export async function portalEditTask(input: {
   category?: string | null; // Finance/Operations/… ; "" clears; undefined leaves
   risk?: string | null; // Critical/High/Medium/Low ; "" clears; undefined leaves
   escalation?: string; // "Yes" flags + forces status Escalated; "No" clears the flag
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+  companyId?: number; // move the task to another company (re-issues its code)
+}): Promise<{ ok: true } | { ok: false; error: string } | { ok: true; newCode: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
@@ -1116,10 +1118,58 @@ export async function portalEditTask(input: {
     }
   }
 
-  const { error } = await sb.from("tasks").update(patch).eq("id", t.id as number);
-  if (error) return { ok: false, error: error.message };
+  // Company move — re-issues the task code under the new company's prefix (the
+  // old code is kept in legacy_code so saved links still resolve). Only a GROUP
+  // director / HR may move a task across companies; scoped directors/managers are
+  // company-bound. Mirrors the command centre's updateTask.
+  let movedCode: string | null = null;
+  const targetCompany = input.companyId;
+  if (canManage && targetCompany && targetCompany !== (t.company_id as number)) {
+    if (!seesAllCompanies(me)) return { ok: false, error: "Only a group director can move a task between companies." };
+    const [{ data: newComp }, { data: existing }] = await Promise.all([
+      sb.from("companies").select("name,code,code_prefix").eq("id", targetCompany).maybeSingle(),
+      sb.from("tasks").select("code").eq("company_id", targetCompany),
+    ]);
+    if (!newComp) return { ok: false, error: "That company doesn't exist." };
+    const prefix = (newComp.code_prefix as string | null) || (newComp.code as string);
+    let maxNum = 0;
+    for (const row of existing ?? []) {
+      const m = (row.code as string).match(/(\d+)$/);
+      if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+    }
+    let finalCode = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
+    patch.company_id = targetCompany;
+    patch.legacy_code = t.code as string;
+    // Retry on a code collision (a task created in the target company between our
+    // read and write).
+    let applied = false;
+    for (let attempt = 0; attempt < 5 && !applied; attempt++) {
+      const { error: mvErr } = await sb.from("tasks").update({ ...patch, code: finalCode }).eq("id", t.id as number);
+      if (!mvErr) { applied = true; break; }
+      if (!/duplicate key|unique/i.test(mvErr.message || "")) return { ok: false, error: mvErr.message };
+      const mm = finalCode.match(/^(.*-)(\d+)$/);
+      if (!mm) return { ok: false, error: mvErr.message };
+      finalCode = `${mm[1]}${String(parseInt(mm[2], 10) + 1).padStart(3, "0")}`;
+    }
+    if (!applied) return { ok: false, error: "Couldn't allocate a code in the new company." };
+    // History follows the task.
+    await sb.from("audit_log").update({ task_code: finalCode, company_id: targetCompany }).eq("task_id", t.id as number);
+    await logChangeSb(t.id as number, t.code as string, t.company_id as number, "Company", String(t.company_id), newComp.name as string, `Moved from portal (${role})`, createdBy);
+    await logChangeSb(t.id as number, finalCode, targetCompany, "Task code", t.code as string, finalCode, "Re-issued after company move", createdBy);
+    movedCode = finalCode;
+  } else {
+    const { error } = await sb.from("tasks").update(patch).eq("id", t.id as number);
+    if (error) return { ok: false, error: error.message };
+  }
 
-  void reindexEntity("task", t.id as number); // status/lifecycle may have moved (best-effort)
+  void reindexEntity("task", t.id as number); // status/lifecycle/company may have moved (best-effort)
+
+  if (movedCode) {
+    revalidatePath("/portal/board"); revalidatePath("/portal/tasks");
+    revalidatePath(`/portal/task/${movedCode}`); revalidatePath(`/task/${movedCode}`);
+    revalidatePath(`/portal/task/${t.code}`); revalidatePath(`/task/${t.code}`);
+    return { ok: true, newCode: movedCode };
+  }
 
   if (reassigned) {
     await notifyMany([personRecipient(reassigned), "admin"], {
@@ -1224,6 +1274,88 @@ export async function portalBulkTaskAction(
   }
   revalidatePath("/portal/board"); revalidatePath("/portal/tasks"); revalidatePath("/");
   return { ok: true, affected: prev.length, undo: { kind: "set-deadlines", deadlines: prev } };
+}
+
+/* ----------------------------------------------------------------------
+ * Copy a task into ANOTHER company (fan-out, like the multi-company create).
+ * The copy is an INDEPENDENT task (its own code + timeline) carrying over the
+ * title, description, priority, deadline, risk, category, proof/close flags and
+ * the full people set (so the copy also satisfies the "≥1 person" rule). Only a
+ * GROUP director / HR may fan a task out across companies. Returns the new code
+ * + id so the edit UI can archive it again if the company is deselected.
+ * ---------------------------------------------------------------------- */
+export async function portalCopyTaskToCompany(
+  taskId: number,
+  companyId: number,
+): Promise<{ ok: true; code: string; taskId: number } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
+  if (!seesAllCompanies(me)) return { ok: false, error: "Only a group director can copy a task to another company." };
+  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
+
+  const { data: src } = await sb
+    .from("tasks")
+    .select("id,company_id,action_item,comments,priority,deadline,risk,category,requires_attachment,creator_close_only,accountability,owner_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!src) return { ok: false, error: "Task not found." };
+  if ((src.company_id as number) === companyId) return { ok: false, error: "The task is already in that company." };
+
+  const [{ data: comp }, { data: existing }, { data: assignees }] = await Promise.all([
+    sb.from("companies").select("name,code,code_prefix").eq("id", companyId).maybeSingle(),
+    sb.from("tasks").select("code").eq("company_id", companyId),
+    sb.from("task_assignees").select("person_id,role").eq("task_id", taskId),
+  ]);
+  if (!comp) return { ok: false, error: "That company doesn't exist." };
+  const prefix = (comp.code_prefix as string | null) || (comp.code as string);
+  let maxNum = 0;
+  for (const row of existing ?? []) {
+    const m = (row.code as string).match(/(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  const now = new Date().toISOString();
+  const createdBy = `portal-${roleTag(role)}:${me.name}`;
+  const base = {
+    company_id: companyId,
+    action_item: src.action_item as string,
+    comments: (src.comments as string | null) ?? null,
+    priority: (src.priority as string | null) ?? "Medium",
+    deadline: (src.deadline as string | null) ?? null,
+    risk: (src.risk as string | null) ?? null,
+    category: (src.category as string | null) ?? null,
+    requires_attachment: (src.requires_attachment as boolean) ?? false,
+    creator_close_only: (src.creator_close_only as boolean) ?? false,
+    accountability: (src.accountability as string | null) ?? "shared",
+    owner_id: (src.owner_id as number | null) ?? null,
+    status: "Not Started",
+    created_date: now,
+    last_updated_at: now,
+    created_by_person_id: me.id,
+  };
+
+  // Insert with a unique code (retry on collision).
+  let code = `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
+  let newId: number | null = null;
+  for (let attempt = 0; attempt < 5 && newId == null; attempt++) {
+    const { data, error } = await sb.from("tasks").insert({ ...base, code }).select("id").maybeSingle();
+    if (!error && data) { newId = data.id as number; break; }
+    if (error && !/duplicate key|unique/i.test(error.message || "")) return { ok: false, error: error.message };
+    const mm = code.match(/^(.*-)(\d+)$/);
+    if (!mm) return { ok: false, error: "Couldn't allocate a code." };
+    code = `${mm[1]}${String(parseInt(mm[2], 10) + 1).padStart(3, "0")}`;
+  }
+  if (newId == null) return { ok: false, error: "Couldn't create the copy." };
+
+  // Carry the people across (so the copy also has ≥1 responsible person).
+  const rows = (assignees ?? []).map((a) => ({ task_id: newId as number, person_id: a.person_id as number, role: (a.role as string) ?? "working" }));
+  if (rows.length > 0) await sb.from("task_assignees").insert(rows);
+
+  await logChangeSb(newId, code, companyId, "created", null, `Copied from ${(src.company_id as number)}`, `Copied to ${comp.name} from portal (${role})`, createdBy);
+  void reindexEntity("task", newId);
+  revalidatePath("/portal/board"); revalidatePath("/portal/tasks"); revalidatePath("/");
+  return { ok: true, code, taskId: newId };
 }
 
 /* ----------------------------------------------------------------------
@@ -1336,8 +1468,8 @@ export async function portalSetTaskLeads(
  * accountable via portalSetTaskLeads). Deletes their task_assignees row;
  * if they were the task's owner, ownership passes to another remaining
  * lead (else any remaining person, promoted to accountable so the task
- * never loses its lead). Removing the LAST person is allowed — the task
- * simply becomes Unassigned (owner_id → null).
+ * never loses its lead). A task must keep at least one responsible person,
+ * so removing the LAST one is refused (add someone else first).
  *   • Permission: director / HR (any task) or the task's creator — the same
  *     canManageTask rule the UI uses to show the edit affordances.
  * Audit-logged; the removed person is NOT push-notified (avoids noise).
@@ -1372,6 +1504,9 @@ export async function portalRemoveTaskPerson(
   const rows = existing ?? [];
   const onTask = rows.map((a) => a.person_id as number);
   if (!onTask.includes(personId)) return { ok: false, error: "That person isn't on this task." };
+  // A task must always keep at least one responsible person — add someone else
+  // first, then remove this one.
+  if (onTask.length <= 1) return { ok: false, error: "A task needs at least one responsible person — add someone else first." };
 
   const createdBy = `portal-${roleTag(role)}:${me.name}`;
   const now = new Date().toISOString();

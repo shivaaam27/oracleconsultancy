@@ -80,6 +80,9 @@ export async function buildCommandTasks(ids: number[], viewerId: number): Promis
       raisedByMe: mine,
       isDone,
       withinSoon,
+      // Recency signal (latest of created / updated / newest activity) — drives
+      // "most recent first" ordering within every group.
+      sortAt: r.lastActivityISO,
     };
   });
 }

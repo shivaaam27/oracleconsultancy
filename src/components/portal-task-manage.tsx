@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, ChevronDown, Flag, Loader2, SlidersHorizontal } from "lucide-react";
+import { Building2, Flag, SlidersHorizontal } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { DatePopover } from "@/components/date-popover";
+import { TaskCopyToCompanies } from "@/components/task-copy-companies";
 import { SectionLabel } from "@/components/surface-kit";
 import {
   TaskPeoplePanel, TaskClassifyControls, TaskDeleteFooter, type CommandTask,
 } from "@/components/portal-tasks-command";
 import { portalEditTask } from "@/app/portal/actions";
-import type { BoardPerson } from "@/components/director-board-client";
-import { cn } from "@/lib/cn";
+import type { BoardPerson, BoardCompany } from "@/components/director-board-client";
 
 /* Full-task-page management panel — the SAME controls the Tasks command card
  * offers, so a director gets identical power whether they open the card or the
@@ -27,17 +28,17 @@ const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label:
 const fieldShell = "rounded-lg bg-bg-elev ring-1 ring-border";
 
 export function PortalTaskManage({
-  cmd, people, canEdit, canRemind,
+  cmd, people, companies, canEdit, canRemind,
 }: {
   cmd: CommandTask;
   people: BoardPerson[];
+  companies: BoardCompany[];
   canEdit: boolean;
   canRemind: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
-  const [busy, start] = useTransition();
-  const [dueEditing, setDueEditing] = useState(false);
+  const [, start] = useTransition();
 
   function save(patch: { priority?: string; deadline?: string | null }, label: string) {
     start(async () => {
@@ -61,26 +62,22 @@ export function PortalTaskManage({
               <Flag size={12} /> Priority &amp; due
             </span>
             <FluidSelect value={cmd.priority} options={priorityOptions} onSelect={changePriority} className="w-full sm:w-[150px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
-            {dueEditing ? (
-              <span className={cn(fieldShell, "inline-flex w-full items-center gap-1.5 px-3 py-2 text-[12px] sm:w-[160px]")}>
-                <CalendarClock size={13} className="shrink-0 text-fg-muted" />
-                <input
-                  type="date"
-                  defaultValue={cmd.deadlineInput ?? ""}
-                  autoFocus
-                  onChange={(e) => { changeDue(e.target.value); setDueEditing(false); }}
-                  onBlur={() => setDueEditing(false)}
-                  className="min-w-0 flex-1 bg-transparent text-fg focus:outline-none"
-                />
-              </span>
-            ) : (
-              <button type="button" onClick={() => setDueEditing(true)} className={cn(fieldShell, "inline-flex w-full items-center gap-1.5 px-3 py-2 text-[12px] transition-colors hover:bg-bg-muted sm:w-[160px]")}>
-                <CalendarClock size={13} className={cn("shrink-0", cmd.overdue ? "text-danger" : cmd.withinSoon ? "text-warn" : "text-fg-muted")} />
-                <span className="min-w-0 flex-1 truncate text-left text-fg">{cmd.dueLabel ?? "No date"}</span>
-                <ChevronDown size={13} className="shrink-0 text-fg-subtle" />
-                {busy && <Loader2 size={12} className="animate-spin text-fg-subtle" />}
-              </button>
-            )}
+            <span className="w-full sm:w-[160px]">
+              <DatePopover value={cmd.deadlineInput} label={cmd.dueLabel} tone={cmd.overdue ? "text-danger" : cmd.withinSoon ? "text-warn" : "text-fg-muted"} onChange={changeDue} block />
+            </span>
+          </div>
+        )}
+
+        {/* Companies — the task's own company is locked; tick another to create a
+            copy there (fan-out). Group director / HR only. */}
+        {canEdit && companies.length > 1 && (
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <span className="col-span-2 inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle sm:col-span-1">
+              <Building2 size={12} /> Companies
+            </span>
+            <span className="w-full sm:w-[240px]">
+              <TaskCopyToCompanies taskId={cmd.taskId} currentCompanyId={cmd.companyId} currentCompanyName={cmd.companyName} companies={companies} />
+            </span>
           </div>
         )}
 
