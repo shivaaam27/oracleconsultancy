@@ -151,6 +151,18 @@ export async function saveSettings(fd: FormData): Promise<void> {
     patch.groqApiKey = groqKeyInput; // set / rotate
   }
 
+  // AI provider choice (Groq / Gemini) — a plain select, always present in the AI form.
+  if (fd.has("aiProvider")) {
+    patch.aiProvider = fd.get("aiProvider") === "gemini" ? "gemini" : "groq";
+  }
+  // Gemini key: same write-only-when-typed rule as the Groq key.
+  const geminiKeyInput = ((fd.get("geminiApiKey") as string | null) ?? "").trim();
+  if (fd.get("remove_geminiApiKey") === "1") {
+    patch.geminiApiKey = "";
+  } else if (geminiKeyInput) {
+    patch.geminiApiKey = geminiKeyInput;
+  }
+
   // OCR.space scan-reading key: same write-only-when-typed rule as the Groq key.
   const ocrKeyInput = ((fd.get("ocrSpaceApiKey") as string | null) ?? "").trim();
   if (fd.get("remove_ocrSpaceApiKey") === "1") {

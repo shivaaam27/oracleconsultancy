@@ -18,7 +18,7 @@
 // keeps a flaky free-tier model from silently corrupting data. Kept dependency
 // free (no Zod) to match the codebase's existing hand-rolled validators.
 
-import { GROQ_FAST, ladderFor } from "./ai-models";
+import { GROQ_FAST, providerLadder, type AiProvider } from "./ai-models";
 import { recordUsage, isOverSpendCap } from "./ai-spend";
 
 /** Token counts a Groq response carries under `usage` (OpenAI-compatible). */
@@ -180,47 +180,60 @@ export interface AIProvider {
 // --- Guard 4: the retrying call --------------------------------------------
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+// Gemini's OpenAI-COMPATIBLE endpoint — same request/response shape as Groq, so
+// one implementation serves both (native vision + JSON mode supported).
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
-/** The only wired provider today: Groq's OpenAI-compatible chat endpoint. */
-export const groqProvider: AIProvider = {
-  id: "groq",
-  async chat(req: ProviderChatRequest): Promise<ProviderChatResult> {
-    const res = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${req.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: req.model,
-        messages: req.messages,
-        temperature: req.temperature,
-        max_tokens: req.maxTokens,
-        ...(req.jsonMode ? { response_format: { type: "json_object" as const } } : {}),
-      }),
-      signal: AbortSignal.timeout(req.timeoutMs),
-    });
-    // Only parse the body on a 2xx; for non-OK the harness branches on `status`
-    // before touching content, so we avoid a needless (and possibly failing) read.
-    if (!res.ok) return { status: res.status, content: null, ok: false };
-    const body = await res.json();
-    return {
-      status: res.status,
-      content: body?.choices?.[0]?.message?.content ?? null,
-      usage: body?.usage as GroqUsage,
-      ok: true,
-    };
-  },
-};
+/** One implementation for any OpenAI-compatible chat endpoint (Groq, Gemini, …). */
+function openAiCompatProvider(id: string, url: string): AIProvider {
+  return {
+    id,
+    async chat(req: ProviderChatRequest): Promise<ProviderChatResult> {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${req.apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: req.model,
+          messages: req.messages,
+          temperature: req.temperature,
+          max_tokens: req.maxTokens,
+          ...(req.jsonMode ? { response_format: { type: "json_object" as const } } : {}),
+        }),
+        signal: AbortSignal.timeout(req.timeoutMs),
+      });
+      // Only parse the body on a 2xx; for non-OK the harness branches on `status`
+      // before touching content, so we avoid a needless (and possibly failing) read.
+      if (!res.ok) return { status: res.status, content: null, ok: false };
+      const body = await res.json();
+      return {
+        status: res.status,
+        content: body?.choices?.[0]?.message?.content ?? null,
+        usage: body?.usage as GroqUsage,
+        ok: true,
+      };
+    },
+  };
+}
 
-/** Provider registry. Groq only today — the documented extension point above
- *  explains how/when to add a second. Order is not significant yet. */
-export const PROVIDERS: Record<string, AIProvider> = {
+export const groqProvider: AIProvider = openAiCompatProvider("groq", GROQ_URL);
+export const geminiProvider: AIProvider = openAiCompatProvider("gemini", GEMINI_URL);
+
+/** Provider registry, keyed by the AiProvider id from settings. */
+export const PROVIDERS: Record<AiProvider, AIProvider> = {
   groq: groqProvider,
+  gemini: geminiProvider,
 };
 
-/** The active provider. Hard-wired to Groq today (everything is Groq); kept as a
- *  function so a future env/settings selection slots in here without touching any
- *  call site. */
-function activeProvider(): AIProvider {
-  return PROVIDERS.groq;
+/** The active provider id — the owner's Settings choice (defaults to Groq; only
+ *  resolves to Gemini when a Gemini key exists). Dynamic import keeps ai-json
+ *  dependency-light and avoids any load-order cycle with settings. */
+async function activeProviderId(): Promise<AiProvider> {
+  try {
+    const { getActiveProvider } = await import("./settings");
+    return await getActiveProvider();
+  } catch {
+    return "groq";
+  }
 }
 
 /** Default per-attempt request timeout. Without it, a hung Groq request blocks
@@ -295,12 +308,13 @@ export async function callGroqJson(opts: CallGroqJsonOpts): Promise<GroqJsonResu
   // already handle !ok by falling back to rules/manual — same as a missing key.
   if (await isOverSpendCap()) return { ok: false, data: null, confidence: null, error: "spend-cap" };
 
-  const provider = activeProvider();
-  // A single `model` that heads the fast/smart ladder expands to the WHOLE ladder,
-  // so a decommissioned primary self-heals to the next entry with no call-site
-  // change. Any other model (a specific vision id the caller already loops, a
-  // one-off) stays single — behaviour unchanged.
-  const ladder = ladderFor(model);
+  const providerId = await activeProviderId();
+  const provider = PROVIDERS[providerId];
+  // The model the caller passed (a fast/smart head, or a specific vision id) maps
+  // to the ACTIVE provider's equivalent ladder — so a call site that asks for
+  // GROQ_FAST runs on Gemini's fast ladder when Gemini is active, and a
+  // decommissioned primary self-heals to the next entry. No call-site change.
+  const ladder = providerLadder(providerId, model);
   let lastError: GroqJsonError = "network";
 
   for (const m of ladder) {
@@ -413,11 +427,12 @@ export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResu
   // Spend ceiling (default unlimited): refuse gracefully when over budget.
   if (await isOverSpendCap()) return { ok: false, text: null, error: "spend-cap" };
 
-  const provider = activeProvider();
-  // Precedence: an explicit `models` ladder (caller knows best) → else expand a
-  // single `model` to the fast/smart ladder it heads (so a decommissioned primary
-  // self-heals) → else the default fast ladder. A non-ladder model stays single.
-  const ladder = opts.models?.length ? opts.models : ladderFor(opts.model ?? GROQ_FAST);
+  const providerId = await activeProviderId();
+  const provider = PROVIDERS[providerId];
+  // Precedence: an explicit `models` ladder (caller knows best) → else map the
+  // single `model` to the ACTIVE provider's equivalent ladder → else the default
+  // fast ladder. So every prose caller follows the active provider automatically.
+  const ladder = opts.models?.length ? opts.models : providerLadder(providerId, opts.model ?? GROQ_FAST);
   let lastError: GroqTextError = "network";
   let lastStatus: number | undefined;
 

@@ -62,6 +62,62 @@ export const GROQ_VISION = GROQ_VISION_MODELS[0]; // primary; existing imports k
 
 export const GROQ_WHISPER = "whisper-large-v3-turbo"; // speech-to-text
 
+/* ------------------------------------------------------------------------
+ * Google Gemini ladders (the recommended Groq replacement — most generous free
+ * tier + NATIVE vision). Reached through Gemini's OpenAI-compatible endpoint, so
+ * the same harness/request shape works. Env-overridable exactly like the Groq
+ * ladders. Gemini is only USED when the owner selects it + sets a key (Settings);
+ * until then everything stays on Groq, so this is inert by default.
+ * ---------------------------------------------------------------------- */
+export const GEMINI_FAST_MODELS: string[] = ladder("GEMINI_FAST_MODELS", [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+]);
+export const GEMINI_SMART_MODELS: string[] = ladder("GEMINI_SMART_MODELS", [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+]);
+// Gemini reads images/PDF pages natively (the real fix for the Groq-vision death).
+export const GEMINI_VISION_MODELS: string[] = ladder("GEMINI_VISION_MODELS", [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+]);
+
+export type AiProvider = "groq" | "gemini";
+export type ModelTier = "fast" | "smart" | "vision";
+
+/** Which tier a passed model name heads. Call sites pass the Groq head names
+ *  (GROQ_FAST / GROQ_SMART) or a specific vision model; map those to a tier so the
+ *  active provider can substitute its own equivalent ladder. Unknown → null. */
+export function tierOf(model: string): ModelTier | null {
+  if (model === GROQ_FAST) return "fast";
+  if (model === GROQ_SMART) return "smart";
+  if (GROQ_VISION_MODELS.includes(model)) return "vision";
+  return null;
+}
+
+/** The fallback ladder to actually try, for the ACTIVE provider + the tier the
+ *  caller's model belongs to. So a call site that passes GROQ_FAST automatically
+ *  runs on Gemini's fast ladder when Gemini is the active provider — no call-site
+ *  change. A model with no known tier passes through unchanged. */
+export function providerLadder(provider: AiProvider, model: string): string[] {
+  const tier = tierOf(model);
+  if (provider === "gemini") {
+    if (tier === "fast") return GEMINI_FAST_MODELS;
+    if (tier === "smart") return GEMINI_SMART_MODELS;
+    if (tier === "vision") return GEMINI_VISION_MODELS;
+    return [model];
+  }
+  if (tier === "fast") return GROQ_FAST_MODELS;
+  if (tier === "smart") return GROQ_SMART_MODELS;
+  return [model];
+}
+
+/** The vision ladder for the active provider (used by the scan reader). */
+export function providerVisionModels(provider: AiProvider): string[] {
+  return provider === "gemini" ? GEMINI_VISION_MODELS : GROQ_VISION_MODELS;
+}
+
 /**
  * Map a single model name to the ladder it heads, so a call site that passes the
  * primary fast/smart model (`model: GROQ_FAST`) automatically gets the WHOLE

@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { sb } from "@/db/supabase";
 import { DUE_SOON_DAYS, AGING_CRITICAL_DAYS, BLOCKED_STALLED_DAYS } from "./derive";
-import { GROQ_FAST, GROQ_SMART } from "./ai-models";
+import { GROQ_FAST, GROQ_SMART, type AiProvider } from "./ai-models";
 
 /**
  * Canonical V2 app settings. These are the ONLY settings that drive behaviour.
@@ -95,6 +95,20 @@ export type AppSettings = {
    */
   groqApiKey: string;
   /**
+   * Which AI provider powers the everyday (synchronous) AI — reading documents,
+   * Ask ORI, dictation polish, minutes. "groq" (default, today's behaviour) or
+   * "gemini" (Google's free tier — most generous + native vision). Selecting
+   * "gemini" only takes effect once a geminiApiKey is set; otherwise it falls
+   * back to Groq, so switching can never leave the app with no working AI.
+   */
+  aiProvider: AiProvider;
+  /**
+   * In-app Google Gemini API key (free from aistudio.google.com, no card). Used
+   * when aiProvider="gemini". Blank = fall back to process.env.GEMINI_API_KEY.
+   * Same admin-only, never-echoed-back storage as groqApiKey.
+   */
+  geminiApiKey: string;
+  /**
    * In-app OCR.space key — the always-on cloud scan-reader that keeps scanned
    * documents readable + auto-filing when Groq vision is off/retired (shutdown
    * 17 Jul 2026). Blank = fall back to process.env.OCRSPACE_API_KEY; no key
@@ -166,6 +180,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoSendSms: false,
   autoHardDeleteForbidden: true, // automated paths archive, never hard-delete
   groqApiKey: "", // blank = fall back to process.env.GROQ_API_KEY (today's behaviour)
+  aiProvider: "groq", // default keeps today's behaviour until the owner picks Gemini
+  geminiApiKey: "", // blank = fall back to process.env.GEMINI_API_KEY
   ocrSpaceApiKey: "", // blank = fall back to process.env.OCRSPACE_API_KEY
   quietHoursStart: "", // blank = quiet hours OFF (every push goes through)
   quietHoursEnd: "",
@@ -199,6 +215,8 @@ const KEY: Record<keyof AppSettings, string> = {
   autoSendSms: "v2.autoSendSms",
   autoHardDeleteForbidden: "v2.autoHardDeleteForbidden",
   groqApiKey: "ai.groqApiKey",
+  aiProvider: "ai.provider",
+  geminiApiKey: "ai.geminiApiKey",
   ocrSpaceApiKey: "ai.ocrSpaceApiKey",
   quietHoursStart: "v2.quietHoursStart",
   quietHoursEnd: "v2.quietHoursEnd",
@@ -252,6 +270,8 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     autoSendSms: toBool(map.get(KEY.autoSendSms), d.autoSendSms),
     autoHardDeleteForbidden: toBool(map.get(KEY.autoHardDeleteForbidden), d.autoHardDeleteForbidden),
     groqApiKey: map.get(KEY.groqApiKey) ?? d.groqApiKey,
+    aiProvider: ((map.get(KEY.aiProvider) as AiProvider | null) === "gemini" ? "gemini" : "groq"),
+    geminiApiKey: map.get(KEY.geminiApiKey) ?? d.geminiApiKey,
     ocrSpaceApiKey: map.get(KEY.ocrSpaceApiKey) ?? d.ocrSpaceApiKey,
     quietHoursStart: map.get(KEY.quietHoursStart) ?? d.quietHoursStart,
     quietHoursEnd: map.get(KEY.quietHoursEnd) ?? d.quietHoursEnd,
@@ -285,18 +305,42 @@ export async function saveAppSettings(patch: Partial<AppSettings>): Promise<void
  * actually being set (default 0 = unlimited), and isOverSpendCap() fails OPEN on
  * any error — so default behaviour is completely unchanged.
  */
-export async function getGroqKey(): Promise<string | undefined> {
-  const { aiEnabled, groqApiKey } = await getAppSettings();
-  // In-app key (admin-only settings row) wins so it can be rotated without a
-  // redeploy; otherwise use the build-time env var.
-  const key = groqApiKey.trim() || process.env.GROQ_API_KEY;
+/** The AI provider that is ACTUALLY active right now. Honours the `aiProvider`
+ *  setting, but only resolves to "gemini" when a Gemini key is available — so
+ *  selecting Gemini without a key can never leave the app with no working AI (it
+ *  falls back to Groq). Read by the AI harness to pick the endpoint + model ladder. */
+export async function getActiveProvider(): Promise<AiProvider> {
+  const { aiProvider, geminiApiKey } = await getAppSettings();
+  if (aiProvider === "gemini" && (geminiApiKey.trim() || process.env.GEMINI_API_KEY)) return "gemini";
+  return "groq";
+}
+
+/**
+ * The API key for the ACTIVE AI provider (Gemini or Groq). This is the single
+ * gate every AI path uses — returns undefined (→ manual/rules fallback) when AI
+ * is off, no key is set for the active provider, or the monthly spend cap is hit.
+ * The active provider's own key wins (in-app first, env fallback), so switching
+ * provider or rotating a key takes effect instantly with no redeploy.
+ */
+export async function getAiKey(): Promise<string | undefined> {
+  const s = await getAppSettings();
+  if (!s.aiEnabled) return undefined;
+  const provider = await getActiveProvider();
+  const key = provider === "gemini"
+    ? (s.geminiApiKey.trim() || process.env.GEMINI_API_KEY)
+    : (s.groqApiKey.trim() || process.env.GROQ_API_KEY);
   if (!key) return undefined;
-  if (!aiEnabled) return undefined;
   // Local import avoids a settings ⇄ ai-spend cycle at module load; isOverSpendCap
   // is cached (~60s) and only does any work when a cap is set.
   const { isOverSpendCap } = await import("./ai-spend");
   if (await isOverSpendCap()) return undefined;
   return key;
+}
+
+/** Back-compat alias — every existing caller does `getGroqKey()` and now
+ *  transparently receives the ACTIVE provider's key. New code should call getAiKey. */
+export async function getGroqKey(): Promise<string | undefined> {
+  return getAiKey();
 }
 
 /**
@@ -313,6 +357,16 @@ export async function getGroqKeyPreview(): Promise<{ source: "settings" | "env" 
   const inApp = groqApiKey.trim();
   if (inApp) return { source: "settings", last4: inApp.slice(-4) };
   const env = process.env.GROQ_API_KEY?.trim();
+  if (env) return { source: "env", last4: env.slice(-4) };
+  return { source: "none", last4: "" };
+}
+
+/** Masked status of the Google Gemini key (mirror of getGroqKeyPreview). */
+export async function getGeminiKeyPreview(): Promise<{ source: "settings" | "env" | "none"; last4: string }> {
+  const { geminiApiKey } = await getAppSettings();
+  const inApp = geminiApiKey.trim();
+  if (inApp) return { source: "settings", last4: inApp.slice(-4) };
+  const env = process.env.GEMINI_API_KEY?.trim();
   if (env) return { source: "env", last4: env.slice(-4) };
   return { source: "none", last4: "" };
 }

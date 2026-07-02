@@ -5,7 +5,7 @@ import { NavSettings } from "@/components/nav-settings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { SettingsCard } from "@/components/settings-card";
 import { SettingsSections, type SettingsGroup } from "@/components/settings-sections";
-import { getAppSettings, getEmailConfig, getGroqKeyPreview, getOcrSpaceKeyPreview, SWIPE_ACTIONS } from "@/lib/settings";
+import { getAppSettings, getEmailConfig, getGroqKeyPreview, getGeminiKeyPreview, getOcrSpaceKeyPreview, SWIPE_ACTIONS } from "@/lib/settings";
 import { whatsAppConfigured } from "@/lib/whatsapp";
 import { getGoogleStatus } from "@/lib/google";
 import { signDocumentFile } from "@/lib/documents";
@@ -73,6 +73,7 @@ export default async function SettingsPage({
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
   const ownerPasskeys = await listCredentials({ kind: "admin" });
   const groqKey = await getGroqKeyPreview();
+  const geminiKey = await getGeminiKeyPreview();
   const ocrKey = await getOcrSpaceKeyPreview();
   const signatureImageUrl = s.emailSignatureImagePath
     ? await signDocumentFile(s.emailSignatureImagePath, 3600)
@@ -208,7 +209,7 @@ export default async function SettingsPage({
         {/* ───────────────────────── AI & Voice ───────────────────────── */}
         <section data-group="ai" className="space-y-4">
           <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="aiEnabled,aiHighQuality,semanticSearch,groqApiKey,ocrSpaceApiKey,voiceLanguage,voiceDictionary" />
+            <input type="hidden" name="__keys" value="aiEnabled,aiHighQuality,semanticSearch,aiProvider,groqApiKey,geminiApiKey,ocrSpaceApiKey,voiceLanguage,voiceDictionary" />
             <input type="hidden" name="__section" value="ai" />
 
             <SettingsCard id="ai" icon={<Sparkles size={15} />} title="AI assistance" desc="Master switch for all AI features." keywords="ai groq ask polish drafting meeting semantic search key model">
@@ -216,6 +217,56 @@ export default async function SettingsPage({
                 <FormSwitch name="aiEnabled" defaultChecked={s.aiEnabled} label="Enable AI features" hint="Off runs the whole system manually — nothing breaks." />
                 <FormSwitch name="aiHighQuality" defaultChecked={s.aiHighQuality} label="Higher-quality reading" hint="Stronger model for documents & minutes — more accurate, a little slower." />
                 <FormSwitch name="semanticSearch" defaultChecked={s.semanticSearch} label="Semantic search (ORI)" hint="Find by meaning, not just words. Needs the one-time setup (SEMANTIC_SEARCH.md)." />
+              </div>
+
+              {/* AI provider — Groq (default) or Google Gemini (free tier, native
+                  vision — the recommended Groq replacement). Selecting Gemini takes
+                  effect once its key is set below; otherwise it stays on Groq. */}
+              <div className="mt-1 max-w-xl space-y-2 border-t border-border/60 pt-3.5">
+                <FieldLabel>AI provider</FieldLabel>
+                <Select name="aiProvider" defaultValue={s.aiProvider}>
+                  <option value="groq">Groq (fast; models retire often; no vision after 17 Jul)</option>
+                  <option value="gemini">Google Gemini (free tier · reads scans · recommended)</option>
+                </Select>
+                <p className="text-[11px] text-fg-muted">
+                  Powers document reading, Ask ORI, dictation polish and minutes. Gemini needs a free key (below) from aistudio.google.com — no card required.
+                </p>
+              </div>
+
+              {/* In-app Gemini key */}
+              <div className="mt-1 max-w-xl space-y-2">
+                <FieldLabel>Gemini key (Google)</FieldLabel>
+                <div className="flex items-center gap-2 text-xs">
+                  {geminiKey.source === "settings" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 font-medium text-success ring-1 ring-success/30">
+                      <Check size={12} /> Key set here · ends &hellip;{geminiKey.last4}
+                    </span>
+                  )}
+                  {geminiKey.source === "env" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle/70 px-2.5 py-1 font-medium text-fg-muted ring-1 ring-border">
+                      Using built-in key · ends &hellip;{geminiKey.last4}
+                    </span>
+                  )}
+                  {geminiKey.source === "none" && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warn/10 px-2.5 py-1 font-medium text-warn ring-1 ring-warn/30">
+                      No key set — Gemini can&apos;t be used yet
+                    </span>
+                  )}
+                </div>
+                <Input
+                  name="geminiApiKey"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={geminiKey.source === "settings" ? "Enter a new key to rotate it" : "Paste a Gemini API key (AIza…)"}
+                />
+                {geminiKey.source === "settings" && (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-danger">
+                    <input type="checkbox" name="remove_geminiApiKey" value="1" className="h-3.5 w-3.5 accent-[var(--accent)]" /> Remove the key set here
+                  </label>
+                )}
+                <p className="text-[11px] text-fg-muted">
+                  Free at aistudio.google.com/apikey. Never shown again; blank keeps the current key.
+                </p>
               </div>
 
               {/* In-app Groq key — set/rotate without a redeploy */}

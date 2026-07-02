@@ -1,6 +1,6 @@
 "use server";
 
-import { GROQ_VISION, GROQ_VISION_MODELS, GROQ_FAST, GROQ_SMART } from "@/lib/ai-models";
+import { GROQ_VISION, GROQ_VISION_MODELS, GROQ_FAST, GROQ_SMART, providerVisionModels } from "@/lib/ai-models";
 import { callGroqJson, callGroqText, LOW_CONFIDENCE, type GroqJsonResult, type ShapeSpec } from "@/lib/ai-json";
 import { recordFact } from "@/lib/facts";
 import { coerceFactValue } from "@/lib/facts-shared";
@@ -35,7 +35,7 @@ import { extractPhones, extractEmails, extractBankAccounts, extractAddresses, no
 import { recordEvent } from "@/lib/system-events";
 import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
-import { getGroqKey, getQualityTextModel } from "@/lib/settings";
+import { getGroqKey, getQualityTextModel, getActiveProvider } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
 import { deriveFiling, subjectTokensOf, subjectCompatible, sameLogicalDocPair, type LogicalDocLite } from "@/lib/doc-catalog";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
@@ -3053,7 +3053,11 @@ async function groqVision(imageUrls: string[], prompt: string, apiKey: string, s
   // decommissioned model) falls through to the next; rate-limit / bad-json / empty
   // would recur on any model, so those return immediately.
   let last: GroqJsonResult = { ok: false, data: null, confidence: null, error: "http-error" };
-  for (const model of GROQ_VISION_MODELS.slice(startIndex)) {
+  // Read with the ACTIVE provider's vision models — so when Gemini is selected the
+  // scan is read natively by Gemini (the real fix for Groq vision's shutdown),
+  // and when Groq is active it uses the Groq vision ladder as before.
+  const visionModels = providerVisionModels(await getActiveProvider());
+  for (const model of visionModels.slice(startIndex)) {
     last = await groqExtract([{ role: "user", content }], model, apiKey, maxTokens);
     if (last.ok || last.error !== "http-error") return last;
   }

@@ -7,6 +7,12 @@ import {
   GROQ_VISION_MODELS,
   GROQ_VISION,
   ladderFor,
+  GEMINI_FAST_MODELS,
+  GEMINI_SMART_MODELS,
+  GEMINI_VISION_MODELS,
+  tierOf,
+  providerLadder,
+  providerVisionModels,
 } from "@/lib/ai-models";
 
 // Model fallback ladders. A retired Groq model must self-heal to the next entry
@@ -58,5 +64,32 @@ describe("ladderFor", () => {
     const out = ladderFor(GROQ_FAST);
     out.slice(); // touch it
     expect(GROQ_FAST_MODELS).toEqual(before);
+  });
+});
+
+describe("provider swap (Groq → Gemini)", () => {
+  it("tierOf maps the fast/smart heads + a vision model to a tier", () => {
+    expect(tierOf(GROQ_FAST)).toBe("fast");
+    expect(tierOf(GROQ_SMART)).toBe("smart");
+    expect(tierOf(GROQ_VISION_MODELS[0])).toBe("vision");
+    expect(tierOf("something-unknown")).toBeNull();
+  });
+
+  it("a call site's GROQ_FAST/SMART follows the ACTIVE provider's ladder", () => {
+    // Gemini active → the Gemini ladders; Groq active → the Groq ladders (unchanged).
+    expect(providerLadder("gemini", GROQ_FAST)).toEqual(GEMINI_FAST_MODELS);
+    expect(providerLadder("gemini", GROQ_SMART)).toEqual(GEMINI_SMART_MODELS);
+    expect(providerLadder("groq", GROQ_FAST)).toEqual(GROQ_FAST_MODELS);
+    expect(providerLadder("groq", GROQ_SMART)).toEqual(GROQ_SMART_MODELS);
+  });
+
+  it("an unknown model passes through unchanged on either provider", () => {
+    expect(providerLadder("gemini", "one-off")).toEqual(["one-off"]);
+    expect(providerLadder("groq", "one-off")).toEqual(["one-off"]);
+  });
+
+  it("providerVisionModels returns the active provider's vision ladder", () => {
+    expect(providerVisionModels("gemini")).toEqual(GEMINI_VISION_MODELS);
+    expect(providerVisionModels("groq")).toEqual(GROQ_VISION_MODELS);
   });
 });
