@@ -21,6 +21,28 @@ export function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
+/**
+ * Read ALL rows from a Supabase select, in pages — PostgREST caps a single
+ * request at ~1000 rows, so a plain `.select()` silently drops everything past
+ * the first 1000 (a real bug for large tables: nightly reindex, orphan sweep and
+ * the coverage audit each undercounted). Pass a builder that applies the table +
+ * filters + columns; this ranges over it until a short page. Best-effort: stops
+ * on the first error and returns what it has.
+ */
+export async function selectAllPaged<T>(
+  build: () => { range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }> },
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await build().range(from, from + pageSize - 1);
+    if (error || !data || data.length === 0) break;
+    out.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return out;
+}
+
 export async function getOrCreatePersonSb(
   name: string,
   companyId: number | null

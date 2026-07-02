@@ -24,6 +24,7 @@
 import { sb } from "@/db/supabase";
 import { indexEmbedding, type SourceType, type Lifecycle } from "@/lib/embeddings";
 import { ENTITY_DEFS, getGovernanceRows, isGovernance, type EntityRow } from "@/lib/entity-registry";
+import { selectAllPaged } from "@/lib/db-helpers";
 
 type Row = { type: SourceType; id: number; content: string; lifecycle: Lifecycle };
 
@@ -43,8 +44,9 @@ async function allRows(): Promise<Row[]> {
       continue;
     }
 
-    const { data } = await sb.from(def.table).select(def.selectColumns.join(","));
-    for (const r of data ?? []) {
+    // Page past 1000 rows so large tables are FULLY reindexed nightly.
+    const data = await selectAllPaged<unknown>(() => sb.from(def.table).select(def.selectColumns.join(",")));
+    for (const r of data) {
       const row = r as unknown as EntityRow;
       rows.push({
         type: def.type,
@@ -76,8 +78,9 @@ async function removeOrphans(rows: Row[]): Promise<number> {
   let removed = 0;
   for (const type of allTypes) {
     const present = valid.get(type) ?? new Set<number>();
-    const { data } = await sb.from("embeddings").select("source_id").eq("source_type", type);
-    const ids = [...new Set((data ?? []).map((r) => r.source_id as number))];
+    // Page past 1000 so orphans beyond the first page are still swept.
+    const data = await selectAllPaged<{ source_id: number }>(() => sb.from("embeddings").select("source_id").eq("source_type", type));
+    const ids = [...new Set(data.map((r) => r.source_id as number))];
     const orphans = ids.filter((id) => !present.has(id));
     if (orphans.length) {
       await sb.from("embeddings").delete().eq("source_type", type).in("source_id", orphans);

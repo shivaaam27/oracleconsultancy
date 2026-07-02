@@ -8,7 +8,7 @@ import { createHash } from "crypto";
 import { sb } from "@/db/supabase";
 import { indexEmbedding } from "@/lib/embeddings";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
-import { DEFAULT_LEAD_DAYS, type DocumentRow, type IntakeState } from "./documents-shared";
+import { DEFAULT_LEAD_DAYS, safeFileName, type DocumentRow, type IntakeState } from "./documents-shared";
 
 export * from "./documents-shared";
 
@@ -296,10 +296,6 @@ export async function deleteDocumentForever(id: number): Promise<void> {
 /* File storage (private "documents" bucket)                              */
 /* ---------------------------------------------------------------------- */
 
-// Keep only safe filename characters; collapse the rest to underscores.
-function safeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
-}
 
 /**
  * Upload a file for a document into the private bucket and record its path +
@@ -310,7 +306,7 @@ export async function uploadDocumentFile(documentId: number, file: File): Promis
   // Remove an existing stored file so we never orphan objects.
   await removeDocumentFile(documentId);
 
-  const path = `${documentId}/${Date.now()}-${safeName(file.name)}`;
+  const path = `${documentId}/${Date.now()}-${safeFileName(file.name)}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   const hash = hashBuffer(buffer);
   const { error } = await sb.storage

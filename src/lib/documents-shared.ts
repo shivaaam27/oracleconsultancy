@@ -191,6 +191,15 @@ const SHELF_STOPWORDS = new Set([
   "certificate", "certificates", "official", "final", "draft", "signed", "dated",
 ]);
 
+/** Keep only safe filename characters; collapse the rest to underscores. The one
+ *  shared sanitiser (several server files used to each carry a private copy). */
+export function safeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
+}
+
+/** Per-file upload ceiling (20 MB) — shared by the admin, portal and chat paths. */
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 /** Distinctive lowercase tokens from a blob of document text (title + issuer +
  *  type). Used by both the learning loop's signature and new-shelf detection. */
 export function distinctiveTokens(text: string, max = 6): string[] {

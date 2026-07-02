@@ -1,6 +1,7 @@
 import { sb } from "@/db/supabase";
 import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
 import { deriveFiling } from "@/lib/doc-catalog";
+import { reindexEntity } from "@/lib/index-hooks";
 
 /* ------------------------------------------------------------------ */
 /* Company profile auto-fill + key-document derivation.                */
@@ -55,6 +56,9 @@ export async function backfillCompanyProfileFromDocument(companyId: number, doc:
   if (Object.keys(blanks).length === 0) return;
 
   await sb.from("companies").update(blanks).eq("id", companyId);
+  // The company is now searchable by its just-filled TIN/VRN/registration —
+  // reindex immediately instead of waiting for the nightly catch-all. Best-effort.
+  void reindexEntity("company", companyId);
 }
 
 /* ------------------------------------------------------------------ */

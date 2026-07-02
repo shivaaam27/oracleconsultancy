@@ -7,8 +7,6 @@ import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyKpiStrip } from "./_tabs/company-kpis";
 import { CompanyDocuments } from "./_tabs/company-documents";
 import { CompanyProfile } from "./_tabs/company-profile";
-import { CompanyKeyDocuments } from "./_tabs/company-key-documents";
-import { buildCompanyKeyDocuments } from "@/lib/company-profile";
 import { SuggestionTray } from "@/components/suggestion-tray";
 import { listProfileSuggestions } from "@/lib/profile-suggestions";
 import { listCustomShelves } from "@/lib/shelves";
@@ -45,7 +43,6 @@ import {
   Users,
   FileText,
   FileWarning,
-  ShieldCheck,
   Package,
   Truck,
   Network,
@@ -216,17 +213,10 @@ export default async function CompanyPage({
           {/* Publish this company's open tasks so the assistant can bulk-act on "these". */}
           <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />
 
-          {/* At-a-glance tiles — the company file health in one row. */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-            <StatTile
-              label="Compliance"
-              value={complianceScore ? `${complianceScore.score}%` : "—"}
-              Icon={ShieldCheck}
-              tone={
-                !complianceScore ? "muted" : complianceScore.status === "Risk" ? "danger" : complianceScore.status === "Watch" ? "warn" : "success"
-              }
-              href={`/documents?company=${companyId}`}
-            />
+          {/* At-a-glance tiles — the company file health in one row. Compliance is
+              NOT a tile here: the richer ComplianceSummaryCard below owns it (it
+              was shown three times on this page). */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             <StatTile label="Open tasks" value={openRows.length} Icon={Clock} tone="info" href={`/companies/${companyId}?tab=tasks`} />
             <StatTile
               label="Overdue"
@@ -423,13 +413,9 @@ export default async function CompanyPage({
               sectorRegulated: !!(companyRaw?.sector_regulated as boolean | null),
             }}
           />
-          <CompanyKeyDocuments
-            rows={buildCompanyKeyDocuments(companyDocs, {
-              registrationNo: (companyRaw?.registration_no as string | null) ?? null,
-              tin: (companyRaw?.tin as string | null) ?? null,
-              vrn: (companyRaw?.vrn as string | null) ?? null,
-            })}
-          />
+          {/* CompanyKeyDocuments removed: the statutory numbers/expiries it showed
+              are the Statutory checklist's job (they were displayed three times on
+              this tab). The checklist below is the single home for them. */}
           <CompanyDocuments
             companyId={companyId}
             companyName={name}

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+import { safeFileName, MAX_UPLOAD_BYTES } from "@/lib/documents-shared";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds, type MentionCandidate } from "@/lib/mentions";
 import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
@@ -29,9 +30,6 @@ import {
 /* Staff-portal chat actions. The actor is always the signed-in portal person;
  * every thread touch re-checks membership so URLs can't be guessed. */
 
-function safeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
-}
 
 async function me(): Promise<{ id: number; participant: string; canGroup: boolean; role: ChatRole } | null> {
   const p = await getPortalPerson();
@@ -153,6 +151,7 @@ export async function postMessage(
   const taskCode = (fd.get("taskCode")?.toString() ?? "").trim() || null;
   const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (!body && files.length === 0) return { ok: false, error: "Type a message or attach a file." };
+  if (files.some((f) => f.size > MAX_UPLOAD_BYTES)) return { ok: false, error: "That file is too large (max 20 MB)." };
 
   // The thread's company (a task thread carries it) scopes the intake document so
   // it lands in the right company's library once sorted.
@@ -162,7 +161,7 @@ export async function postMessage(
 
   const attachments: Attachment[] = [];
   for (const file of files) {
-    const path = `chat/${threadId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(file.name)}`;
+    const path = `chat/${threadId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeFileName(file.name)}`;
     const buffer = Buffer.from(await file.arrayBuffer());
     const { error } = await sb.storage
       .from(DOCUMENTS_BUCKET)

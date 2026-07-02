@@ -116,6 +116,10 @@ function relTime(iso: string): string {
 
 const bandTone = { Good: "success", Watch: "warn", Risk: "danger" } as const;
 
+// The statuses that still need the owner's attention. Verified & waived items are
+// hidden in the compact default (shown via "Show all requirements").
+const ACTIONABLE_STATUS = new Set<EffectiveStatus>(["missing", "requested", "received", "expired", "expiring"]);
+
 function ScoreRing({ score, band }: { score: number; band: "Good" | "Watch" | "Risk" }) {
   const r = 26;
   const c = 2 * Math.PI * r;
@@ -160,6 +164,10 @@ export function CompanyRequirementsChecklist({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // Compact by default: show only the items that need action (missing / expired /
+  // expiring / requested / awaiting verify). The verified & waived items are the
+  // bulk of a near-empty company's list — hiding them stops the "wall of red".
+  const [showAllItems, setShowAllItems] = useState(false);
   const autoSet = useRef(false);
   const [, startTransition] = useTransition();
 
@@ -244,7 +252,9 @@ export function CompanyRequirementsChecklist({
 
       <div>
         {DOC_SHELVES.map((shelf) => {
-          const shelfItems = data.items.filter((i) => shelfForCategory(i.category) === shelf);
+          const shelfItems = data.items
+            .filter((i) => shelfForCategory(i.category) === shelf)
+            .filter((i) => showAllItems || ACTIONABLE_STATUS.has(i.effectiveStatus));
           if (shelfItems.length === 0) return null;
           return (
             <div key={shelf}>
@@ -363,6 +373,25 @@ export function CompanyRequirementsChecklist({
             </div>
           );
         })}
+
+        {/* Compact mode with nothing outstanding → a calm one-liner, not a blank. */}
+        {!showAllItems && data.items.length > 0 && data.items.every((i) => !ACTIONABLE_STATUS.has(i.effectiveStatus)) && (
+          <div className="flex items-center gap-2 px-3 py-3 text-sm text-success">
+            <Check size={15} /> Everything on the checklist is in order.
+          </div>
+        )}
+
+        {(() => {
+          const hidden = data.items.filter((i) => !ACTIONABLE_STATUS.has(i.effectiveStatus)).length;
+          if (hidden === 0) return null;
+          return (
+            <button type="button" onClick={() => setShowAllItems((v) => !v)}
+              className="w-full flex items-center justify-center gap-1.5 border-t border-border/50 py-2 text-[11px] font-medium text-fg-muted hover:bg-bg-muted/40 transition-colors">
+              {showAllItems ? "Show only what needs action" : `Show all ${data.items.length} requirements`}
+              <ChevronDown size={13} className={cn("transition-transform", showAllItems && "rotate-180")} />
+            </button>
+          );
+        })()}
 
         {adding ? (
           <ReqEditor onSave={doAdd} onCancel={() => setAdding(false)} busy={busyId === -1} />

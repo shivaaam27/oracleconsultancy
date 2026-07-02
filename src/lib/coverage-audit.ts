@@ -20,6 +20,7 @@
 import { sb } from "@/db/supabase";
 import { ENTITY_DEFS, isGovernance, type EntityType } from "@/lib/entity-registry";
 import { getAppSettings } from "@/lib/settings";
+import { selectAllPaged } from "@/lib/db-helpers";
 
 // Below this fraction of rows indexed, a type with content is "materially under-
 // indexed". 0.9 = at least 90% of source rows must have an embedding.
@@ -65,12 +66,10 @@ async function tableCount(table: string): Promise<number | null> {
  *  column and dedupe in memory. Best-effort: 0 on any failure. */
 async function indexedCount(type: EntityType): Promise<number> {
   try {
-    const { data, error } = await sb
-      .from("embeddings")
-      .select("source_id")
-      .eq("source_type", type);
-    if (error || !Array.isArray(data)) return 0;
-    return new Set(data.map((r) => (r as { source_id: unknown }).source_id)).size;
+    // Page past 1000 chunks so a large type isn't undercounted (which used to
+    // raise a false "search blind spot" warning once a type grew past one page).
+    const data = await selectAllPaged<{ source_id: unknown }>(() => sb.from("embeddings").select("source_id").eq("source_type", type));
+    return new Set(data.map((r) => r.source_id)).size;
   } catch {
     return 0;
   }

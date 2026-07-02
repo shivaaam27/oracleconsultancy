@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+import { safeFileName, MAX_UPLOAD_BYTES } from "@/lib/documents-shared";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds, type MentionCandidate } from "@/lib/mentions";
 import {
@@ -25,9 +26,6 @@ import {
 /* Admin (owner) chat actions. Admin routes are gated by middleware, so the
  * actor here is always ADMIN. Every thread touch still re-checks membership. */
 
-function safeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").slice(0, 120) || "file";
-}
 
 export async function listMyThreads() {
   return listThreadsFor(ADMIN);
@@ -93,6 +91,7 @@ export async function postMessage(
   const taskCode = (fd.get("taskCode")?.toString() ?? "").trim() || null;
   const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (!body && files.length === 0) return { ok: false, error: "Type a message or attach a file." };
+  if (files.some((f) => f.size > MAX_UPLOAD_BYTES)) return { ok: false, error: "That file is too large (max 20 MB)." };
 
   // A task thread carries a company; scope any filed attachment to it.
   const { data: thr } = await sb.from("chat_threads").select("company_id").eq("id", threadId).maybeSingle();
@@ -100,7 +99,7 @@ export async function postMessage(
 
   const attachments: Attachment[] = [];
   for (const file of files) {
-    const path = `chat/${threadId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(file.name)}`;
+    const path = `chat/${threadId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeFileName(file.name)}`;
     const buffer = Buffer.from(await file.arrayBuffer());
     const { error } = await sb.storage
       .from(DOCUMENTS_BUCKET)

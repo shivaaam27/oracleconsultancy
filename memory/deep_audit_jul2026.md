@@ -201,12 +201,31 @@ also flow into the command-centre intake. Non-negotiable behaviour:
  expired flag, not-a-document, locked/corrupt detection — intake polish, low severity.
  (Original spec: "Needs you" tab + VAT/sector toggles + kill synthDefaultScore + trust stored
  doc_type + shared match helper + catalogue fixes.)
-**Phase 5 — scale + hygiene:** paginate nightly reindex/orphan-sweep/coverage-audit past
- 1000 rows; reindexEntity on fact-extraction patches; side-effect error telemetry; chat
- 20MB cap; consolidate the 3 safeName copies.
-**UI (parallel track, any phase):** see Appendix B — Documents page 4 panels -> 2
- + table; company page gains a Files tab, compact actionable-only checklist, single
- compliance readout per tab.
+**Phase 5 — scale + hygiene: ✅ DONE 2026-07-02 (local, uncommitted).** tsc+172 tests.
+ - `selectAllPaged` helper (db-helpers.ts) → paginated allRows + removeOrphans
+   (embeddings-reindex.ts) + coverage-audit indexedCount past the 1000-row PostgREST cap.
+ - backfillCompanyProfileFromDocument (company-profile.ts) now reindexEntity("company")
+   after filling TIN/VRN/registration (searchable same-day, not next night).
+ - Chat 20MB per-file cap on both postMessage actions; shared safeFileName +
+   MAX_UPLOAD_BYTES in documents-shared.ts (dropped the 3 audit-flagged copies:
+   documents.ts + both chat actions; 5 other copies left as a later cleanup).
+ DEFERRED: side-effect error telemetry (the swallowed intake catches) — low severity.
+**UI redesign — ✅ CORE DONE 2026-07-02 (local, uncommitted), tsc-verified (NOT pixel-
+ verified — a dev server was already running in-folder so preview tools couldn't drive it;
+ that server DOES serve these changes via HMR).**
+ - Documents page: removed the standalone ExpiryRadar (duplicate + only non-Aurora box);
+   subtitle trimmed to "N tracked" (glance counts live once in the compliance panel hero).
+   Now = ComplianceScorePanel (ring + 4 stats + worst-first owner list + drawer) +
+   NeedsAttentionPanel (expiry Chase/Renew/Send-notice + missing + leave) + DocumentsTable
+   = the approved 3-section mockup.
+ - Company page: dropped the duplicate Compliance StatTile (ComplianceSummaryCard owns it;
+   6→5 tile grid) + removed CompanyKeyDocuments from Profile (statutory numbers were shown
+   3×; the checklist is the single home). Checklist is COMPACT by default — shows only
+   actionable items (missing/expired/expiring/requested/received) with "Show all N
+   requirements" toggle + a calm "everything in order" line; kills the 17-row wall of red.
+ DEFERRED (bigger/nav-risk, do with the owner watching a preview): the dedicated Files tab
+ split; hide-empty-shelves + per-shelf Add-button removal; full merge of the two Documents
+ panels into one. CompanyKeyDocuments component + buildCompanyKeyDocuments now dead (unused).
 
 ## Other confirmed high-value fixes (by area)
 - **Search:** multi-word query + one small typo returns NOTHING (loosen the all-tokens
