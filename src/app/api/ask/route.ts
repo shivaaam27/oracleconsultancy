@@ -534,12 +534,19 @@ export async function buildContext(question: string, page?: PageCtx) {
     owner: string; ownerType: string; score: number; status: string;
     missing: number; expired: number; expiring: number; gaps: string[];
   }> = [];
-  try {
-    // Run the three heaviest reads together instead of one-after-another.
+  // Compliance SCORING (per-company + per-person requirement engines) is the
+  // heaviest work in the whole context build; loading the WHOLE document library
+  // (listDocuments) is the next heaviest. Only touch either when the question is
+  // actually about documents/compliance — or when the full-text / semantic search
+  // already matched a document (then we DO want to surface it). A plain task or
+  // planning question skips all of it. This is the main "ORI feels instant" win.
+  const wantCompliance = wantsDocuments || /\bcomplian|missing (document|doc|paper)|\bgaps?\b|\bscore\b|up to date|shortfall/.test(question.toLowerCase());
+  const wantDocsBlock = wantCompliance || wantsPlanDay || ftsDocIds.size > 0 || semanticDocIds.size > 0;
+  if (wantDocsBlock) try {
     const [allDocs, companyScores, personScores] = await Promise.all([
       listDocuments(),
-      buildCompanyRequirementScores(companies),
-      buildPersonRequirementScores(),
+      wantCompliance ? buildCompanyRequirementScores(companies) : Promise.resolve([]),
+      wantCompliance ? buildPersonRequirementScores() : Promise.resolve([]),
     ]);
     const matchedCompanyIds = new Set(matchedCompanies.map((c) => c.id));
     const scored = allDocs.map((d) => {

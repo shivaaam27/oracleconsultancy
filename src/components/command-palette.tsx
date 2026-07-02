@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, ArrowRight, Pin, PinOff, Search, Clock, Star, Sparkles, Bot, Zap, Loader2, Check, X as XIcon, CheckCircle2, AlertOctagon, MessageSquarePlus, FilePlus2, ArrowLeft, ArrowUp, RotateCw, User, CalendarPlus, GitBranch } from "lucide-react";
 import type { SearchResult } from "@/lib/search";
 import type { DirectAnswer } from "@/lib/direct-answer";
+import type { SmartAnswer } from "@/lib/smart-answer";
 import { buildPaletteTypeMeta } from "./entity-ui";
 import { Switch } from "./ui";
 import { cn } from "@/lib/cn";
@@ -163,6 +164,7 @@ export function CommandPaletteProvider({
   const [items, setItems] = useState<SearchItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [directAnswer, setDirectAnswer] = useState<DirectAnswer | null>(null);
+  const [smartAnswer, setSmartAnswer] = useState<SmartAnswer | null>(null);
   // Search mode: when ON, the deep index also returns archived/closed/expired
   // records (each flagged lifecycle:"history"). Default OFF keeps everyday
   // search to live records only.
@@ -296,6 +298,7 @@ export function CommandPaletteProvider({
           setItems(data.items || []);
           setResults(data.results || []);
           setDirectAnswer(data.directAnswer ?? null);
+          setSmartAnswer(data.smartAnswer ?? null);
         }
       } catch {}
     }, 80);
@@ -569,6 +572,62 @@ export function CommandPaletteProvider({
                     <Command.Empty className="py-8 text-center text-sm text-fg-muted">
                       {trimmed ? "Hit ↵ to ask ORI or run this command." : "No results."}
                     </Command.Empty>
+
+                    {/* Smart answer — instant natural-language LIST answer, no AI
+                        ("who's on leave", "expiring documents", "MES overdue tasks",
+                        "how many staff"). Rendered as a card straight from the index. */}
+                    {smartAnswer && trimmed.length >= 2 && (
+                      <Command.Group
+                        heading="Answer"
+                        className="[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-fg-subtle [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5"
+                      >
+                        <div className="mx-1 mb-1 rounded-xl bg-accent/[0.06] ring-1 ring-accent/15 overflow-hidden">
+                          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+                            <span className="text-sm font-semibold text-fg">{smartAnswer.title}</span>
+                            {smartAnswer.count > 0 && (
+                              <span className="text-[11px] font-semibold tabular rounded-full bg-accent/15 text-accent px-2 py-0.5">{smartAnswer.count}</span>
+                            )}
+                          </div>
+                          {smartAnswer.note && <div className="px-3 pb-2 text-xs text-fg-muted">{smartAnswer.note}</div>}
+                          {smartAnswer.rows.length > 0 && (
+                            <div className="divide-y divide-border/40">
+                              {smartAnswer.rows.map((row, i) => (
+                                <Command.Item
+                                  key={`__smart_${i}`}
+                                  value={`__smart__ ${smartAnswer.title} ${row.label} ${i}`}
+                                  onSelect={() => go(row.href)}
+                                  className="px-3 py-2 flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-accent/10"
+                                >
+                                  <span className="flex-1 min-w-0">
+                                    <span className="block truncate text-fg">{row.label}</span>
+                                    {row.sub && <span className="block truncate text-[11px] text-fg-subtle">{row.sub}</span>}
+                                  </span>
+                                  {row.badge && (
+                                    <span className={cn(
+                                      "shrink-0 text-[10px] font-medium rounded-full px-1.5 py-0.5",
+                                      row.tone === "danger" ? "bg-danger/10 text-danger"
+                                        : row.tone === "warn" ? "bg-warn/10 text-warn"
+                                        : row.tone === "success" ? "bg-success/10 text-success"
+                                        : "bg-bg-muted text-fg-muted",
+                                    )}>{row.badge}</span>
+                                  )}
+                                  <ArrowRight size={13} className="text-fg-subtle shrink-0" />
+                                </Command.Item>
+                              ))}
+                            </div>
+                          )}
+                          {smartAnswer.href && smartAnswer.count > smartAnswer.rows.length && (
+                            <Command.Item
+                              value={`__smart_all__ ${smartAnswer.title}`}
+                              onSelect={() => go(smartAnswer.href!)}
+                              className="px-3 py-2 text-[11px] font-medium text-accent cursor-pointer aria-selected:bg-accent/10 border-t border-border/40"
+                            >
+                              See all {smartAnswer.count} →
+                            </Command.Item>
+                          )}
+                        </div>
+                      </Command.Group>
+                    )}
 
                     {/* Direct answer — instant "it just knows" value for an
                         entity+attribute lookup (e.g. "Gangadhar passport"). */}
