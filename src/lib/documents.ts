@@ -530,3 +530,28 @@ export async function createTaskAttachment(opts: {
   await linkDocumentTask(docId, opts.taskId);
   return docId;
 }
+
+/**
+ * Turn a CHAT attachment into a real Command-Centre document so portal uploads
+ * flow into the intake and can be sorted (mirrors createTaskAttachment). It
+ * starts as an "Attachment" flagged `needs_review`, so it surfaces in the
+ * Command Centre for sorting but stays out of the tidy portal library until the
+ * owner gives it a real category — after which it reflects everywhere.
+ */
+export async function createChatAttachmentDocument(opts: {
+  companyId: number | null;
+  file: File;
+  createdBy: string;
+}): Promise<number> {
+  const docId = await createDocument(
+    {
+      title: opts.file.name,
+      companyId: opts.companyId ?? null,
+      category: "Attachment",
+      reviewStatus: "needs_review",
+    },
+    opts.createdBy
+  );
+  await uploadDocumentFile(docId, opts.file);
+  return docId;
+}

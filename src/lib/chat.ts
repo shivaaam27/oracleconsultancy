@@ -29,7 +29,7 @@ function dmKeyFor(a: string, b: string): string {
   return [a, b].sort().join("|");
 }
 
-export type Attachment = { name: string; path: string; type?: string; size?: number };
+export type Attachment = { name: string; path: string; type?: string; size?: number; documentId?: number };
 
 export type ChatMessage = {
   id: number;

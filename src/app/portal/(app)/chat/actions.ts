@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+import { DOCUMENTS_BUCKET, signDocumentFile, createChatAttachmentDocument } from "@/lib/documents";
 import { parseMentionIds, type MentionCandidate } from "@/lib/mentions";
 import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
 import {
@@ -43,6 +43,15 @@ async function me(): Promise<{ id: number; participant: string; canGroup: boolea
     canGroup: p.portalRole === "manager" || p.portalRole === "director",
     role: (p.portalRole as ChatRole) ?? "staff",
   };
+}
+
+/** created_by stamp for a chat-uploaded document — the sender's portal stamp, so
+ *  the Command Centre attributes it like other portal documents. */
+async function chatDocStamp(): Promise<string> {
+  const p = await getPortalPerson();
+  if (!p) return "portal:chat";
+  const tag = p.portalRole === "director" ? "portal-dir" : p.portalRole === "hr" ? "portal-hr" : p.portalRole === "manager" ? "portal-mgr" : "portal";
+  return `${tag}:${p.name}`;
 }
 
 export async function listMyThreads() {
@@ -144,6 +153,12 @@ export async function postMessage(
   const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (!body && files.length === 0) return { ok: false, error: "Type a message or attach a file." };
 
+  // The thread's company (a task thread carries it) scopes the intake document so
+  // it lands in the right company's library once sorted.
+  const { data: thr } = await sb.from("chat_threads").select("company_id").eq("id", threadId).maybeSingle();
+  const threadCompanyId = (thr?.company_id as number | null) ?? null;
+  const stamp = await chatDocStamp();
+
   const attachments: Attachment[] = [];
   for (const file of files) {
     const path = `chat/${threadId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(file.name)}`;
@@ -152,7 +167,14 @@ export async function postMessage(
       .from(DOCUMENTS_BUCKET)
       .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: true });
     if (error) return { ok: false, error: error.message };
-    attachments.push({ name: file.name, path, type: file.type || "", size: file.size });
+    // Also pull the file into the Command Centre as a real document (needs_review),
+    // so every portal upload flows into the intake for sorting. Best-effort — a
+    // document hiccup must never block sending the message.
+    let documentId: number | undefined;
+    try {
+      documentId = await createChatAttachmentDocument({ companyId: threadCompanyId, file, createdBy: stamp });
+    } catch { /* keep the chat message even if the document copy fails */ }
+    attachments.push({ name: file.name, path, type: file.type || "", size: file.size, documentId });
   }
 
   const candidates = await listPeople();
