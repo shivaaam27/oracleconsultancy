@@ -22,6 +22,7 @@ export type CompanyProfile = {
   email: string | null;
   signatoryName: string | null;
   signatoryTitle: string | null;
+  sectorRegulated: boolean;
 };
 
 const inputCls =
@@ -146,8 +147,18 @@ export function CompanyProfile({
           <div>
             <label className={labelCls} htmlFor="vrn">VRN / VAT</label>
             <input id="vrn" name="vrn" defaultValue={profile.vrn ?? ""} className={inputCls} />
+            <p className="text-[11px] text-fg-subtle mt-1">Enter the VRN if VAT-registered — this adds the VAT Certificate to the checklist.</p>
           </div>
         </div>
+
+        {/* Regulated sector — tailors this company's statutory checklist. */}
+        <label className="flex items-start gap-2.5 rounded-xl bg-bg-elev ring-1 ring-border px-3 py-2.5 cursor-pointer">
+          <input type="checkbox" name="sectorRegulated" defaultChecked={profile.sectorRegulated} className="mt-0.5 h-4 w-4 accent-[var(--accent)]" />
+          <span className="text-sm">
+            Regulated sector (construction / industrial)
+            <span className="block text-[11px] text-fg-subtle">Adds CRB, OSHA, Local Content &amp; Fire safety to this company&apos;s required-documents checklist. Leave off for general trading, food or services.</span>
+          </span>
+        </label>
       </section>
 
       {/* Contact */}

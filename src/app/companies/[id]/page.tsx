@@ -71,7 +71,7 @@ export default async function CompanyPage({
       listDocuments(),
       sb
         .from("companies")
-        .select("id,name,accent_color,file_prefix,legal_name,registration_no,tin,vrn,incorporation_date,address,phone,email,signatory_name,signatory_title")
+        .select("id,name,accent_color,file_prefix,legal_name,registration_no,tin,vrn,incorporation_date,address,phone,email,signatory_name,signatory_title,sector_regulated")
         .eq("id", companyId)
         .maybeSingle(),
       sb.from("person_companies").select("person_id").eq("company_id", companyId),
@@ -420,6 +420,7 @@ export default async function CompanyPage({
               email: (companyRaw?.email as string | null) ?? null,
               signatoryName: (companyRaw?.signatory_name as string | null) ?? null,
               signatoryTitle: (companyRaw?.signatory_title as string | null) ?? null,
+              sectorRegulated: !!(companyRaw?.sector_regulated as boolean | null),
             }}
           />
           <CompanyKeyDocuments

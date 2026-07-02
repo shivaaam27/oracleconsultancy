@@ -35,7 +35,7 @@ export type CatalogType = {
 // Ordered most-specific first so the classifier prefers precise matches.
 export const DOC_CATALOG: CatalogType[] = [
   // ── Legal & Registration ────────────────────────────────────────────────
-  { key: "certificate-of-incorporation", label: "Certificate of Incorporation", aliases: ["certificate of incorporation", "incorporation certificate"], shelf: "Legal & Registration", category: "Registration", ownerType: "company", expires: false, companyReqKey: "company-registration" },
+  { key: "certificate-of-incorporation", label: "Certificate of Incorporation", aliases: ["certificate of incorporation", "incorporation certificate", "hati ya usajili", "cheti cha usajili"], shelf: "Legal & Registration", category: "Registration", ownerType: "company", expires: false, companyReqKey: "company-registration" },
   { key: "memart", label: "Memorandum and Articles (MEMART)", aliases: ["memorandum and articles", "memarts", "memart", "articles of association", "memorandum of association", "memorandum"], shelf: "Legal & Registration", category: "Legal", ownerType: "company", expires: false, companyReqKey: "memarts" },
   { key: "ubo-register", label: "Beneficial Ownership Register (UBO)", aliases: ["beneficial ownership", "beneficial owner", "ultimate beneficial", "ubo register", "ubo"], shelf: "Legal & Registration", category: "Registration", ownerType: "company", expires: false, companyReqKey: "ubo-register" },
   { key: "annual-return", label: "BRELA Annual Return", aliases: ["annual return", "annual returns"], shelf: "Legal & Registration", category: "Registration", ownerType: "company", expires: false, companyReqKey: "annual-return" },
@@ -47,12 +47,15 @@ export const DOC_CATALOG: CatalogType[] = [
   { key: "company-stamp", label: "Company Stamp", aliases: ["company stamp", "rubber stamp", "seal"], shelf: "Legal & Registration", category: "Other", ownerType: "company", expires: false },
 
   // ── Licences & Permits ──────────────────────────────────────────────────
-  { key: "business-licence", label: "Business Licence", aliases: ["business licence", "business license", "trading licence", "trading license", "business licensing act", "b.l. no", "bl no"], shelf: "Licences & Permits", category: "Licence", ownerType: "company", expires: true, companyReqKey: "business-licence", pipeline: "business-licence" },
+  { key: "business-licence", label: "Business Licence", aliases: ["business licence", "business license", "trading licence", "trading license", "business licensing act", "b.l. no", "bl no", "leseni ya biashara"], shelf: "Licences & Permits", category: "Licence", ownerType: "company", expires: true, companyReqKey: "business-licence", pipeline: "business-licence" },
   { key: "contractor-crb", label: "Contractor Registration (CRB)", aliases: ["crb", "contractors registration board", "contractor registration", "building contractor", "civil works contractor", "mechanical work contractor"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "contractor-registration" },
   { key: "local-content", label: "Local Content Plan Approval", aliases: ["local content", "local-content", "content plan"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "local-content" },
   { key: "osha-certificate", label: "OSHA Certificate", aliases: ["osha", "occupational safety and health", "occupational health and safety"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "osha-registration" },
   { key: "fire-certificate", label: "Fire Safety Certificate", aliases: ["fire safety", "fire certificate", "fire inspection"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "fire-certificate" },
-  { key: "sector-permit", label: "Sector Permit", aliases: ["tfda", "tbs", "food permit", "sector permit"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true, companyReqKey: "sector-permit" },
+  // NOTE: no companyReqKey — the construction "sector" requirement set (CRB/OSHA/
+  // Local-Content/Fire) is separate. A food/product (TFDA/TBS) permit files here and
+  // fuzzy-links to a company's own "TFDA / product permit" requirement when added.
+  { key: "sector-permit", label: "Sector Permit", aliases: ["tfda", "tbs", "food permit", "sector permit", "kibali cha chakula"], shelf: "Licences & Permits", category: "Permit", ownerType: "company", expires: true },
 
   // ── Tax ─────────────────────────────────────────────────────────────────
   { key: "tin-certificate", label: "TIN Certificate", aliases: ["tin certificate", "taxpayer identification number", "taxpayer id", "tin"], shelf: "Tax", category: "Tax", ownerType: "either", expires: false, companyReqKey: "tax-registration", personReqLabel: "TIN certificate" },
@@ -63,14 +66,18 @@ export const DOC_CATALOG: CatalogType[] = [
 
   // ── Banking & Finance ───────────────────────────────────────────────────
   { key: "bank-details", label: "Bank Details", aliases: ["bank details", "bank account", "account details", "banking details"], shelf: "Banking & Finance", category: "Banking", ownerType: "either", expires: false, companyReqKey: "bank-account", personReqLabel: "Bank details" },
-  { key: "transaction-receipt", label: "Transaction Receipt", aliases: ["transaction receipt", "payment receipt", "m-pesa", "mpesa", "tigo pesa", "receipt", "payment slip", "bill payment"], shelf: "Banking & Finance", category: "Banking", ownerType: "either", expires: false },
+  // "receipt" alone is DROPPED — a "WCF-Receipt" / "NSSF-Receipt" is a statutory
+  // payment, not a plain banking receipt, and the bare word mis-shelved it here.
+  // ("m-pesa" → "m pesa": the haystack is de-hyphenated, so the hyphenated alias
+  // could never fire.)
+  { key: "transaction-receipt", label: "Transaction Receipt", aliases: ["transaction receipt", "payment receipt", "m pesa", "mpesa", "tigo pesa", "payment slip", "bill payment"], shelf: "Banking & Finance", category: "Banking", ownerType: "either", expires: false },
   { key: "quotation", label: "Quotation", aliases: ["quotation", "proforma", "pro forma", "quote"], shelf: "Banking & Finance", category: "Contract", ownerType: "company", expires: false },
 
   // ── People & HR ─────────────────────────────────────────────────────────
   { key: "nssf", label: "NSSF Registration", aliases: ["nssf", "national social security fund"], shelf: "People & HR", category: "HR", ownerType: "company", expires: false, companyReqKey: "nssf-registration" },
   { key: "wcf", label: "WCF Registration", aliases: ["wcf", "workers compensation", "workers' compensation", "compensation fund"], shelf: "People & HR", category: "HR", ownerType: "company", expires: false, companyReqKey: "wcf-registration" },
   { key: "paye-sdl", label: "PAYE / SDL Registration", aliases: ["paye", "sdl", "skills development levy", "employer registration"], shelf: "People & HR", category: "HR", ownerType: "company", expires: false, companyReqKey: "paye-sdl-registration" },
-  { key: "employment-contract", label: "Employment Contract", aliases: ["employment contract", "contract of employment", "employment agreement", "appointment letter", "labour contract", "staff contract", "contract"], shelf: "People & HR", category: "Contract", ownerType: "person", expires: false, personReqLabel: "Employment contract" },
+  { key: "employment-contract", label: "Employment Contract", aliases: ["employment contract", "contract of employment", "employment agreement", "appointment letter", "labour contract", "staff contract", "mkataba wa ajira", "mkataba wa kazi", "contract"], shelf: "People & HR", category: "Contract", ownerType: "person", expires: false, personReqLabel: "Employment contract" },
   { key: "cv", label: "CV", aliases: ["curriculum vitae", "résumé", "resume", " cv "], shelf: "People & HR", category: "Other", ownerType: "person", expires: false, personReqLabel: "CV / résumé" },
   { key: "academic-certificate", label: "Academic Certificate", aliases: ["degree certificate", "diploma", "academic certificate", "transcript", "bachelor of", "master of"], shelf: "People & HR", category: "Certificate", ownerType: "person", expires: false, personReqLabel: "Academic / professional certificates" },
   { key: "national-id", label: "National ID (NIDA)", aliases: ["national id", "nida", "national identity"], shelf: "People & HR", category: "Other", ownerType: "person", expires: false, personReqLabel: "National ID (NIDA)" },
@@ -78,13 +85,13 @@ export const DOC_CATALOG: CatalogType[] = [
   // ── Immigration ─────────────────────────────────────────────────────────
   { key: "passport", label: "Passport", aliases: ["passport"], shelf: "Immigration", category: "Passport", ownerType: "person", expires: true, personReqLabel: "Passport" },
   { key: "passport-photo", label: "Passport Photo", aliases: ["passport photo", "passport-photo", "photograph"], shelf: "Immigration", category: "Other", ownerType: "person", expires: false, personReqLabel: "Passport photo" },
-  { key: "work-permit", label: "Work Permit", aliases: ["work permit", "work-permit"], shelf: "Immigration", category: "Permit", ownerType: "person", expires: true, personReqLabel: "Work / residence permit", pipeline: "permit" },
+  { key: "work-permit", label: "Work Permit", aliases: ["work permit", "work-permit", "kibali cha kazi"], shelf: "Immigration", category: "Permit", ownerType: "person", expires: true, personReqLabel: "Work / residence permit", pipeline: "permit" },
   { key: "residence-permit", label: "Residence Permit", aliases: ["residence permit", "resident permit", "residence-permit"], shelf: "Immigration", category: "Permit", ownerType: "person", expires: true, personReqLabel: "Work / residence permit", pipeline: "permit" },
   { key: "visa", label: "Visa", aliases: ["business visa", "entry visa", "visa"], shelf: "Immigration", category: "Immigration", ownerType: "person", expires: true, personReqLabel: "Visa" },
   { key: "interim-pass", label: "Interim Pass", aliases: ["interim pass", "interim-pass", "pass endorsement", "passport endorsement"], shelf: "Immigration", category: "Immigration", ownerType: "person", expires: true, pipeline: "permit" },
 
   // ── Contracts & Leases ──────────────────────────────────────────────────
-  { key: "lease", label: "Lease Agreement", aliases: ["lease agreement", "tenancy agreement", "lease", "godown", "premises lease"], shelf: "Contracts & Leases", category: "Lease", ownerType: "company", expires: true, companyReqKey: "premises-lease" },
+  { key: "lease", label: "Lease Agreement", aliases: ["lease agreement", "tenancy agreement", "lease", "godown", "premises lease", "mkataba wa pango", "mkataba wa kupanga"], shelf: "Contracts & Leases", category: "Lease", ownerType: "company", expires: true, companyReqKey: "premises-lease" },
   { key: "service-contract", label: "Service Contract", aliases: ["service contract", "service agreement", "maintenance contract", "cold room service"], shelf: "Contracts & Leases", category: "Contract", ownerType: "company", expires: true },
   { key: "commercial-contract", label: "Commercial Contract", aliases: ["distribution", "supply contract", "sales contract", "commercial contract", "partner agreement", "authorised distribution"], shelf: "Contracts & Leases", category: "Contract", ownerType: "company", expires: true },
   { key: "insurance", label: "Insurance Policy", aliases: ["insurance", "policy schedule", "cover note"], shelf: "Banking & Finance", category: "Insurance", ownerType: "company", expires: true },
@@ -131,7 +138,10 @@ export function classifyDocText(name: string, body = ""): { type: CatalogType; s
     }
     if (score > 0) scored.push({ type, score });
   }
-  return scored.sort((a, b) => b.score - a.score);
+  // Tie-break: on an equal score, prefer a type that satisfies a compliance
+  // requirement (a statutory type beats a generic one — e.g. an "…Receipt" that
+  // scores level should resolve to the statutory doc, not a plain receipt).
+  return scored.sort((a, b) => b.score - a.score || (b.type.companyReqKey ? 1 : 0) - (a.type.companyReqKey ? 1 : 0));
 }
 
 /** The single best type, or null if nothing matched. */
@@ -201,4 +211,54 @@ export function deriveFiling(fileName: string | null, title: string | null, body
     prefix: parsed.prefix,
     ref: parsed.ref,
   };
+}
+
+/* ---------------------------------------------------------------------------
+ * Same-logical-document guards (shared by near-duplicate detection, renewal
+ * chaining and the library dedup sweep so they all agree on what counts as "the
+ * SAME document" vs merely "the same TYPE"). Pure + client-safe.
+ * ------------------------------------------------------------------------- */
+
+// Generic filename words that carry no distinctive "subject" (format/status noise).
+const SUBJECT_GENERIC = new Set(["exp", "old", "void", "pdf", "docx", "doc", "jpg", "jpeg", "png", "webp", "signed", "unsigned", "copy", "final", "draft", "scan", "the", "and", "ltd", "limited", "needorig", "needid"]);
+
+/** Distinctive "subject" tokens of a filename — the words BEYOND the company
+ *  prefix and the doc-type aliases (the person "Sanjay-Kaushik", the premises
+ *  "Godown-A", the product). Two documents about DIFFERENT subjects are never the
+ *  same document, even when they share a type or a reference number. */
+export function subjectTokensOf(name: string | null, prefix: string | null, typeKey: string | null): Set<string> {
+  const aliasWords = new Set((typeKey ? (catalogType(typeKey)?.aliases ?? []) : []).join(" ").split(/\s+/));
+  const pfx = (prefix ?? "").toLowerCase();
+  return new Set(
+    (name ?? "").toLowerCase().replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9]+/g, " ").split(" ")
+      .filter((t) => t.length >= 3 && !SUBJECT_GENERIC.has(t) && !aliasWords.has(t) && t !== pfx && !/^\d{4}$/.test(t)),
+  );
+}
+
+/** Subject-token compatibility: both name a subject AND every token of the smaller
+ *  set appears in the larger ("Sanjay-Kaushik".docx vs .pdf = compatible; two
+ *  people both named "Juma" = NOT). Empty on either side → not decisive (null). */
+export function subjectCompatible(a: Set<string>, b: Set<string>): boolean | null {
+  if (a.size === 0 || b.size === 0) return null;
+  const inter = [...a].filter((t) => b.has(t)).length;
+  return inter >= Math.min(a.size, b.size);
+}
+
+export type LogicalDocLite = { file_name: string | null; title: string | null; reference_no: string | null; expiry_date: string | null };
+
+/** Pure test that two library rows are the SAME logical document (not merely the
+ *  same TYPE): same catalogue type, non-conflicting reference + expiry, and (when
+ *  both filenames carry a subject) compatible subjects. So a shared registration/
+ *  control number can't collapse two distinct documents (an incorporation cert vs
+ *  a BRELA search; two premises' leases). */
+export function sameLogicalDocPair(a: LogicalDocLite, b: LogicalDocLite): boolean {
+  const fa = deriveFiling(a.file_name, a.title, "");
+  const fb = deriveFiling(b.file_name, b.title, "");
+  if (fa.typeKey && fb.typeKey && fa.typeKey !== fb.typeKey) return false;
+  if (fa.ref && fb.ref && fa.ref.toLowerCase() !== fb.ref.toLowerCase()) return false;
+  const ea = (a.expiry_date ?? fa.expiry ?? "").slice(0, 10);
+  const eb = (b.expiry_date ?? fb.expiry ?? "").slice(0, 10);
+  if (ea && eb && ea !== eb) return false; // different validity → different document
+  if (subjectCompatible(subjectTokensOf(a.file_name, fa.prefix, fa.typeKey), subjectTokensOf(b.file_name, fb.prefix, fb.typeKey)) === false) return false;
+  return true;
 }

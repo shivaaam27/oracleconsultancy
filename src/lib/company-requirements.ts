@@ -65,6 +65,36 @@ export function applicableCompanyItems(company: { vrn?: string | null; sectorReg
   );
 }
 
+/**
+ * Sync a company's checklist to its CURRENT VAT/sector status (call after the
+ * profile toggle changes): add any newly-applicable statutory items, hide seeded
+ * items that no longer apply (only when nothing is filed against them), and
+ * re-surface a previously-hidden item that applies again. Custom items and items
+ * with a linked document are never touched. Idempotent.
+ */
+export async function syncCompanyRequirementApplicability(companyId: number): Promise<void> {
+  await ensureCompanyRequirements(companyId); // add any newly-applicable items
+  const { data: co } = await sb.from("companies").select("vrn,sector_regulated").eq("id", companyId).maybeSingle();
+  const applicable = new Set(
+    applicableCompanyItems({ vrn: co?.vrn as string | null, sectorRegulated: co?.sector_regulated as boolean | null }).map((it) => it.key),
+  );
+  const { data: rows } = await sb
+    .from("company_requirements")
+    .select("id,source_key,status,document_id")
+    .eq("company_id", companyId);
+  const now = new Date().toISOString();
+  for (const r of rows ?? []) {
+    const key = r.source_key as string | null;
+    if (!key || r.document_id != null) continue; // custom or already-filed → leave it
+    const status = r.status as string;
+    if (!applicable.has(key) && status !== "removed") {
+      await sb.from("company_requirements").update({ status: "removed", document_id: null, updated_at: now }).eq("id", r.id as number);
+    } else if (applicable.has(key) && status === "removed") {
+      await sb.from("company_requirements").update({ status: "missing", updated_at: now }).eq("id", r.id as number);
+    }
+  }
+}
+
 export async function ensureCompanyRequirements(companyId: number): Promise<void> {
   const [{ data: rows }, { data: co }] = await Promise.all([
     sb.from("company_requirements").select("source_key").eq("company_id", companyId),
@@ -198,6 +228,55 @@ export function effectiveStatus(status: RequirementStatus, docStatus: DocStatus 
   return status;
 }
 
+/** The catalogue company-requirement key a document satisfies (deterministically),
+ *  or null — trying the filename/title first, then the STORED doc_type captured at
+ *  intake, so a correctly-classified but badly-named scan ("Scan_2093.pdf" whose
+ *  type is "Business Licence") still links + auto-verifies. Also reports the
+ *  filename EXP date and whether it's an -OLD copy. */
+function docCatalogueReqKey(doc: { fileName: string | null; title: string; docType: string | null }): { reqKey: string | null; isOld: boolean; expiry: Date | null } {
+  const f = deriveFiling(doc.fileName, doc.title);
+  const expiry = f.expiry ? new Date(`${f.expiry}T00:00:00Z`) : null;
+  if (f.isOld) return { reqKey: null, isOld: true, expiry };
+  if (f.companyReqKey) return { reqKey: f.companyReqKey, isOld: false, expiry };
+  // Filename/title gave no type → trust the catalogue type captured at intake.
+  if (doc.docType) {
+    const byType = deriveFiling(doc.docType, null);
+    if (byType.companyReqKey && !byType.isOld) return { reqKey: byType.companyReqKey, isOld: false, expiry };
+  }
+  return { reqKey: null, isOld: false, expiry };
+}
+
+type LinkItem = { id: number; sourceKey: string | null; label: string; category: string | null };
+type LinkDoc = { id: number; fileName: string | null; title: string; category: string | null; docType: string | null; expiryDate: Date | null };
+
+/** ONE linker shared by the per-company checklist AND the bulk portfolio/Home/Brief
+ *  scores, so the two ALWAYS agree (they used to use different matchers → different
+ *  numbers). DETERMINISTIC catalogue-type pass first (confident → the caller marks
+ *  it verified); then a fuzzy fallback ONLY for requirements the catalogue doesn't
+ *  own (→ received). A catalogue-owned requirement with no matching type stays
+ *  missing rather than grabbing a loosely-related document. Each doc + item used once. */
+function linkDocsToRequirements(items: LinkItem[], docs: LinkDoc[]): Map<number, { docId: number; confident: boolean }> {
+  const out = new Map<number, { docId: number; confident: boolean }>();
+  const used = new Set<number>();
+  for (const item of items) {
+    if (!item.sourceKey) continue;
+    const hit = docs.find((d) => {
+      if (used.has(d.id)) return false;
+      const { reqKey, isOld, expiry } = docCatalogueReqKey(d);
+      if (isOld || reqKey !== item.sourceKey) return false;
+      const exp = expiry ?? d.expiryDate;
+      return !exp || exp.getTime() > Date.now();
+    });
+    if (hit) { out.set(item.id, { docId: hit.id, confident: true }); used.add(hit.id); }
+  }
+  const remainingItems = items.filter((i) => !out.has(i.id) && !(i.sourceKey && CATALOGUE_COMPANY_REQ_KEYS.has(i.sourceKey)));
+  const remainingDocs = docs.filter((d) => !used.has(d.id)).map((d) => ({ id: d.id, title: d.title, category: d.category, docType: d.docType }));
+  for (const [reqId, docId] of matchDocumentsToItems(remainingItems.map((i) => ({ id: i.id, label: i.label, category: i.category })), remainingDocs)) {
+    if (!out.has(reqId) && !used.has(docId)) { out.set(reqId, { docId, confident: false }); used.add(docId); }
+  }
+  return out;
+}
+
 /** Generate (if needed), auto-link saved company documents, derive status, score. */
 export async function getCompanyChecklist(companyId: number): Promise<CompanyChecklist> {
   await ensureCompanyRequirements(companyId);
@@ -230,42 +309,24 @@ export async function getCompanyChecklist(companyId: number): Promise<CompanyChe
     .map((r) => ({ id: r.id as number, sourceKey: (r.source_key as string | null) ?? null, label: r.label as string, category: (r.category as string | null) ?? null }));
   const availableDocs = docs.filter((d) => !linkedDocIds.has(d.id));
 
-  // DETERMINISTIC pre-pass — link by KNOWN document type (the catalogue), so a
-  // business licence satisfies "Business / trading licence", never "VAT", and an
-  // expired/-OLD copy never verifies anything. This beats fuzzy label matching.
-  const deterministic = new Map<number, number>();
-  const usedDocs = new Set<number>();
-  for (const item of candidateItems) {
-    if (!item.sourceKey) continue;
-    const hit = availableDocs.find((d) => {
-      if (usedDocs.has(d.id)) return false;
-      const f = deriveFiling(d.fileName, d.title);
-      if (f.companyReqKey !== item.sourceKey || f.isOld) return false;
-      const exp = f.expiry ? new Date(`${f.expiry}T00:00:00Z`) : d.expiryDate;
-      return !exp || exp.getTime() > Date.now();
-    });
-    if (hit) { deterministic.set(item.id, hit.id); usedDocs.add(hit.id); }
-  }
-
-  // Fuzzy fallback — ONLY for requirements the catalogue doesn't own. A catalogue-
-  // owned requirement (business licence, VAT, NSSF, annual return…) with no
-  // matching type stays missing rather than grabbing a loosely-related document.
-  const remainingItems = candidateItems.filter(
-    (i) => !deterministic.has(i.id) && !(i.sourceKey && CATALOGUE_COMPANY_REQ_KEYS.has(i.sourceKey)),
+  // Link by KNOWN document type (catalogue) first, then a fuzzy fallback for the
+  // non-catalogue items — the one shared linker the portfolio scores use too, so
+  // a business licence satisfies "Business / trading licence" (never "VAT") and an
+  // expired/-OLD copy never verifies anything.
+  const links = linkDocsToRequirements(
+    candidateItems.map((i) => ({ id: i.id, sourceKey: i.sourceKey, label: i.label, category: i.category })),
+    availableDocs.map((d) => ({ id: d.id, fileName: d.fileName, title: d.title, category: d.category, docType: d.docType, expiryDate: d.expiryDate })),
   );
-  const remainingDocs = availableDocs
-    .filter((d) => !usedDocs.has(d.id))
-    .map((d) => ({ id: d.id, title: d.title, category: d.category, docType: d.docType }));
-  const matches = new Map<number, number>([...deterministic, ...matchDocumentsToItems(remainingItems, remainingDocs)]);
   for (const r of liveRows) {
-    const docId = matches.get(r.id as number);
-    if (docId == null) continue;
+    const link = links.get(r.id as number);
+    if (!link) continue;
+    const docId = link.docId;
     linkedDocIds.add(docId);
     r.document_id = docId;
     // A deterministic (exact catalogue-type) match is high-confidence → auto-VERIFY
     // it (green, no manual tick needed). A fuzzy match only reaches "received", so
     // it still asks for a human confirmation.
-    const confident = deterministic.has(r.id as number);
+    const confident = link.confident;
     r.status = confident ? "verified" : "received";
     await sb
       .from("company_requirements")
@@ -352,39 +413,38 @@ export async function getCompanyChecklist(companyId: number): Promise<CompanyChe
 /* writing. Returns ComplianceScore-shaped objects so existing panels  */
 /* (ComplianceSummaryCard, worstComplianceScores, …) work unchanged.   */
 /* ------------------------------------------------------------------ */
-type DocSummary = { id: number; title: string; category: string | null; status: DocStatus; expiryLabel: string | null };
+type DocSummary = { id: number; title: string; fileName: string | null; category: string | null; docType: string | null; status: DocStatus; expiryLabel: string | null; expiryDate: Date | null };
 
-/** Score an unseeded company against the synthesized default checklist. */
+/**
+ * Score a company that has no stored requirement rows yet against its APPLICABLE
+ * default checklist (respecting VAT/sector — not the whole generic list) using the
+ * SAME deterministic catalogue linker as the seeded path. So an unseeded company's
+ * portfolio score matches what it will show once its File tab is opened, and a
+ * filed business licence counts by TYPE (not a broad category guess).
+ */
 function synthDefaultScore(
   c: { id: number; name: string },
-  companyDocs: DocSummary[],
-  _docStatusById: Map<number, DocStatus>
+  meta: { vrn: string | null; sectorRegulated: boolean | null } | undefined,
+  companyDocs: DocSummary[]
 ): ComplianceScore {
+  const items = applicableCompanyItems({ vrn: meta?.vrn ?? null, sectorRegulated: meta?.sectorRegulated ?? null })
+    .map((it, i) => ({ id: i + 1, sourceKey: it.key, label: it.label, category: it.category, mandatory: it.mandatory ?? true }));
+  const links = linkDocsToRequirements(items, companyDocs);
+  const docById = new Map(companyDocs.map((d) => [d.id, d]));
   let mandatoryTotal = 0;
   let verified = 0;
   let expired = 0;
   let expiring = 0;
   const gaps: ComplianceGap[] = [];
-  for (const def of COMPANY_DEFAULT_ITEMS) {
-    if (def.mandatory === false) continue; // optional items don't affect the score
+  const gap = (label: string, category: string) => gaps.push({ id: `creq-${c.id}-${label}`, label, categories: [category], ownerType: "company", appliesTo: "all", weight: 1, ownerId: c.id, ownerName: c.name });
+  for (const it of items) {
+    if (!it.mandatory) continue; // optional items don't affect the score
     mandatoryTotal++;
-    const matches = companyDocs.filter((d) => d.category === def.category);
-    const best =
-      matches.find((d) => d.status === "Valid" || d.status === "No expiry") ??
-      matches.find((d) => d.status === "Expiring") ??
-      matches.find((d) => d.status === "Expired") ??
-      null;
-    if (!best) {
-      gaps.push({ id: `creq-${c.id}-${def.label}`, label: def.label, categories: [def.category], ownerType: "company", appliesTo: "all", weight: 1, ownerId: c.id, ownerName: c.name });
-      continue;
-    }
-    if (best.status === "Expired") {
-      expired++;
-      gaps.push({ id: `creq-${c.id}-${def.label}`, label: def.label, categories: [def.category], ownerType: "company", appliesTo: "all", weight: 1, ownerId: c.id, ownerName: c.name });
-    } else {
-      verified++;
-      if (best.status === "Expiring") expiring++;
-    }
+    const link = links.get(it.id);
+    const doc = link ? docById.get(link.docId) ?? null : null;
+    if (!doc) { gap(it.label, it.category); continue; }
+    if (doc.status === "Expired") { expired++; gap(it.label, it.category); }
+    else { verified++; if (doc.status === "Expiring") expiring++; }
   }
   const documentIssues: ComplianceDocumentIssue[] = companyDocs
     .filter((d) => d.status === "Expired" || d.status === "Expiring")
@@ -402,12 +462,14 @@ export async function buildCompanyRequirementScores(
 ): Promise<ComplianceScore[]> {
   const ids = companies.map((c) => c.id);
   if (ids.length === 0) return [];
-  const [{ data: reqRows }, { data: docRows }] = await Promise.all([
-    sb.from("company_requirements").select("id,company_id,label,category,mandatory,status,document_id,auto_link,review_date").in("company_id", ids),
-    sb.from("documents").select("id,company_id,title,category,doc_type,expiry_date,reminder_lead_days,archived").in("company_id", ids),
+  const [{ data: reqRows }, { data: docRows }, { data: coMeta }] = await Promise.all([
+    sb.from("company_requirements").select("id,company_id,source_key,label,category,mandatory,status,document_id,auto_link,review_date").in("company_id", ids),
+    sb.from("documents").select("id,company_id,title,file_name,category,doc_type,expiry_date,reminder_lead_days,archived").in("company_id", ids),
+    sb.from("companies").select("id,vrn,sector_regulated").in("id", ids),
   ]);
+  const metaById = new Map((coMeta ?? []).map((c) => [c.id as number, { vrn: c.vrn as string | null, sectorRegulated: c.sector_regulated as boolean | null }]));
 
-  type Doc = { id: number; title: string; category: string | null; docType: string | null; status: DocStatus; expiryLabel: string | null };
+  type Doc = { id: number; title: string; fileName: string | null; category: string | null; docType: string | null; status: DocStatus; expiryLabel: string | null; expiryDate: Date | null };
   const docsByCompany = new Map<number, Doc[]>();
   const docStatusById = new Map<number, DocStatus>();
   for (const d of docRows ?? []) {
@@ -417,7 +479,7 @@ export async function buildCompanyRequirementScores(
     const status = deriveDocStatus({ expiryDate, reminderLeadDays, archived: false });
     docStatusById.set(d.id as number, status);
     const list = docsByCompany.get(d.company_id as number) ?? [];
-    list.push({ id: d.id as number, title: d.title as string, category: (d.category as string | null) ?? null, docType: (d.doc_type as string | null) ?? null, status, expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays }) : null });
+    list.push({ id: d.id as number, title: d.title as string, fileName: (d.file_name as string | null) ?? null, category: (d.category as string | null) ?? null, docType: (d.doc_type as string | null) ?? null, status, expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays }) : null, expiryDate });
     docsByCompany.set(d.company_id as number, list);
   }
 
@@ -449,34 +511,34 @@ export async function buildCompanyRequirementScores(
     const linkedDocIds = new Set(
       rows.map((r) => r.document_id as number | null).filter((x): x is number => x != null)
     );
-    const candidateItems = rows
+    const candidateItems: LinkItem[] = rows
       .filter(
         (r) =>
           !r.document_id &&
           (r.auto_link as boolean | null) !== false &&
           (r.status === "missing" || r.status === "requested")
       )
-      .map((r) => ({ id: r.id as number, label: r.label as string, category: (r.category as string | null) ?? null }));
+      .map((r) => ({ id: r.id as number, sourceKey: (r.source_key as string | null) ?? null, label: r.label as string, category: (r.category as string | null) ?? null }));
     if (candidateItems.length === 0) continue;
-    const candidateDocs = companyDocs
+    const candidateDocs: LinkDoc[] = companyDocs
       .filter((d) => !linkedDocIds.has(d.id))
-      .map((d) => ({ id: d.id, title: d.title, category: d.category, docType: d.docType }));
-    const matches = matchDocumentsToItems(candidateItems, candidateDocs);
+      .map((d) => ({ id: d.id, fileName: d.fileName, title: d.title, category: d.category, docType: d.docType, expiryDate: d.expiryDate }));
+    // The SAME linker the detail checklist uses — deterministic (verified) + fuzzy
+    // for non-catalogue (received). No DB write; persistence is at save time.
+    const links = linkDocsToRequirements(candidateItems, candidateDocs);
     for (const r of rows) {
-      const docId = matches.get(r.id as number);
-      if (docId == null) continue;
-      linkedDocIds.add(docId);
-      // Reflect the match in the in-memory rows so this run scores correctly.
-      // No DB write — persistence happens at save time (see comment above).
-      r.document_id = docId;
-      r.status = "received";
+      const link = links.get(r.id as number);
+      if (!link) continue;
+      linkedDocIds.add(link.docId);
+      r.document_id = link.docId;
+      r.status = link.confident ? "verified" : "received";
     }
   }
 
   return companies.map((c) => {
     const companyDocs = docsByCompany.get(c.id) ?? [];
     if (!seededCompanies.has(c.id)) {
-      return synthDefaultScore(c, companyDocs, docStatusById);
+      return synthDefaultScore(c, metaById.get(c.id), companyDocs);
     }
     const rows = reqsByCompany.get(c.id) ?? [];
 

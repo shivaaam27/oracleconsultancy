@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET } from "@/lib/documents";
 import { reindexEntity } from "@/lib/index-hooks";
+import { syncCompanyRequirementApplicability } from "@/lib/company-requirements";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -36,6 +37,10 @@ export async function saveCompanyProfileAction(companyId: number, fd: FormData):
     email: str(fd, "email"),
     signatory_name: str(fd, "signatoryName"),
     signatory_title: str(fd, "signatoryTitle"),
+    // Regulated sector (construction/industrial → needs CRB / OSHA / Local Content
+    // / Fire). Drives which statutory items are on THIS company's checklist, so the
+    // list reflects what the company actually needs (not the same generic set).
+    sector_regulated: fd.get("sectorRegulated") === "on",
   };
 
   // Display name — the `companies.name` every surface reads. Never blank it.
@@ -60,6 +65,9 @@ export async function saveCompanyProfileAction(companyId: number, fd: FormData):
 
   const { error } = await sb.from("companies").update(patch).eq("id", companyId);
   if (error) return { ok: false, error: error.message };
+  // The VAT/sector flags change which statutory items apply — resync the checklist
+  // so it reflects what THIS company actually needs. Best-effort.
+  try { await syncCompanyRequirementApplicability(companyId); } catch { /* best-effort */ }
   // Best-effort semantic re-index (no-op unless semantic search is enabled).
   void reindexEntity("company", companyId);
   revalidatePath(`/companies/${companyId}`);

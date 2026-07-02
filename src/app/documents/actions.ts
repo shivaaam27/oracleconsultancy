@@ -37,7 +37,7 @@ import { sb as supa } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
 import { getGroqKey, getQualityTextModel } from "@/lib/settings";
 import { DOC_CATEGORIES, deriveDocStatus, expiryLabel, formatSupersede, isPdfFile, isImageFile, categoryFromFolder, buildDocTitle, type IntakeState } from "@/lib/documents-shared";
-import { deriveFiling, catalogType } from "@/lib/doc-catalog";
+import { deriveFiling, subjectTokensOf, subjectCompatible, sameLogicalDocPair, type LogicalDocLite } from "@/lib/doc-catalog";
 import { learnedCategoryFor, recordCategoryCorrection } from "@/lib/routing-corrections";
 import { learnedOwnerFor, recordOwnerCorrection } from "@/lib/owner-corrections";
 import { backfillCompanyProfileFromDocument } from "@/lib/company-profile";
@@ -446,6 +446,11 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       if (filing.expiry) f.expiryDate = filing.expiry; // the owner's reliable date
     }
 
+    // (Owner-TYPE mismatch guard considered + deliberately NOT auto-quarantined:
+    // in this deployment staff are often not person-records yet, so a person-owned
+    // contract legitimately files company-only. Quarantining those would add the
+    // very friction we're reducing. Revisit once intake can propose a person.)
+
     // (3) Build + create the document, then route it into its bucket. A file the
     // owner tagged `-OLD`/`-VOID` is a superseded copy → straight to Trash.
     const finalState: IntakeState = filing.isOld ? "trash" : needsReview ? "quarantine" : "filed";
@@ -512,7 +517,7 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       } else if (f.expiryKind === "yes" || f.expiryDate) {
         // Auto-expiry chaining: a renewable document that supersedes an older one of
         // the same type → link it and retire the old one (-EXP → Trash for review).
-        const renew = await findRenewalTarget({ companyId, personId }, f.docType ?? null, f.issueDate ?? null, f.expiryDate ?? null, id);
+        const renew = await findRenewalTarget({ companyId, personId }, f.docType ?? null, f.issueDate ?? null, f.expiryDate ?? null, id, fileName);
         if (renew) {
           await updateDocument(id, { supersedesId: renew.id });
           await setDocumentIntakeState(renew.id, "trash", `Renewed by #${id} ${title}`, { markExpired: true });
@@ -747,7 +752,9 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 
 /**
  * Find the OLDER document this one renews: same owner, same specific type, an
- * earlier expiry/issue date. So a new licence/permit/insurance/passport is chained
+ * earlier expiry/issue date — AND corroborated as the SAME subject (so two
+ * genuinely different same-type docs, e.g. two premises' leases, are never chained
+ * and the wrong one retired). So a new licence/permit/insurance/passport is chained
  * to the one it replaces — the old one is retired ("-EXP" → Trash for review) and
  * the new one becomes the live record. Conservative: needs a specific docType match
  * (never chains two unrelated docs) and only for renewable documents.
@@ -758,25 +765,41 @@ async function findRenewalTarget(
   issueDate: string | null,
   expiryDate: string | null,
   excludeId: number,
+  incomingName?: string | null,
 ): Promise<{ id: number; title: string } | null> {
   if (!owner.companyId && !owner.personId) return null;
   const dt = (docType ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   if (dt.length < 4) return null; // need a specific type to be safe
   const newDate = expiryDate || issueDate;
   if (!newDate) return null; // can't tell it's newer without a date
-  let q = supa.from("documents").select("id,title,doc_type,issue_date,expiry_date").eq("intake_state", "filed").eq("archived", false).neq("id", excludeId);
+  let q = supa.from("documents").select("id,title,file_name,doc_type,issue_date,expiry_date").eq("intake_state", "filed").eq("archived", false).neq("id", excludeId);
   if (owner.personId) q = q.eq("person_id", owner.personId);
   else q = q.eq("company_id", owner.companyId as number);
   const { data } = await q;
+  const incFiling = deriveFiling(incomingName ?? null, null, "");
+  const incSubject = subjectTokensOf(incomingName ?? null, incFiling.prefix, incFiling.typeKey);
+  // Same-type candidates for this owner: gather them so we can tell whether an
+  // un-subjected renewal is unambiguous (exactly one) or too risky to chain.
+  const sameType = ((data ?? []) as Array<{ id: number; title: string; file_name: string | null; doc_type: string | null; issue_date: string | null; expiry_date: string | null }>)
+    .filter((r) => { const rdt = (r.doc_type ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); return rdt && rdt === dt; });
   let best: { id: number; title: string; d: string } | null = null;
-  for (const r of (data ?? []) as Array<{ id: number; title: string; doc_type: string | null; issue_date: string | null; expiry_date: string | null }>) {
-    const rdt = (r.doc_type ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    if (!rdt || rdt !== dt) continue; // same specific type only
+  let olderCount = 0;
+  for (const r of sameType) {
     const rDate = (r.expiry_date || r.issue_date || "").slice(0, 10);
     if (!rDate || rDate >= newDate.slice(0, 10)) continue; // candidate must be OLDER
+    // Corroborate it is the SAME document, not just the same type: when both
+    // filenames carry a subject they must be compatible; a conflicting subject
+    // means a different premises/person/product and must NOT be retired.
+    const compat = subjectCompatible(incSubject, subjectTokensOf(r.file_name, deriveFiling(r.file_name, r.title, "").prefix, incFiling.typeKey));
+    if (compat === false) continue;
+    olderCount++;
     if (!best || rDate > best.d) best = { id: r.id, title: r.title, d: rDate };
   }
-  return best ? { id: best.id, title: best.title } : null;
+  if (!best) return null;
+  // No distinctive subject to corroborate AND more than one older same-type doc →
+  // ambiguous which is being renewed; don't guess (leave both, no auto-retire).
+  if (incSubject.size === 0 && olderCount > 1) return null;
+  return { id: best.id, title: best.title };
 }
 
 async function findSameLogicalDoc(
@@ -804,19 +827,10 @@ async function findSameLogicalDoc(
   // contracts, two permits with different dates, or an incorporation cert vs a
   // BRELA search (sharing the registration number) are DIFFERENT documents. Guard
   // on catalogue type + the filename's own subject/ref/expiry before any content
-  // or title match fires. `subjectTokens` = distinctive filename words beyond the
+  // or title match fires. `subjectTokensOf` = distinctive filename words beyond the
   // company prefix + doc-type words (so "Rehema-Filimini" ≠ "Vailet-Peter").
-  const GENERIC = new Set(["exp", "old", "void", "pdf", "docx", "doc", "jpg", "jpeg", "png", "webp", "signed", "unsigned", "copy", "final", "draft", "scan", "the", "and", "ltd", "limited", "needorig", "needid"]);
-  const subjectTokens = (name: string | null, prefix: string | null, typeKey: string | null) => {
-    const aliasWords = new Set((typeKey ? (catalogType(typeKey)?.aliases ?? []) : []).join(" ").split(/\s+/));
-    const pfx = (prefix ?? "").toLowerCase();
-    return new Set(
-      (name ?? "").toLowerCase().replace(/\.[a-z0-9]+$/i, "").replace(/[^a-z0-9]+/g, " ").split(" ")
-        .filter((t) => t.length >= 3 && !GENERIC.has(t) && !aliasWords.has(t) && t !== pfx && !/^\d{4}$/.test(t)),
-    );
-  };
   const incFiling = deriveFiling(incomingName, fileTitle, "");
-  const incSubject = subjectTokens(incomingName, incFiling.prefix, incFiling.typeKey);
+  const incSubject = subjectTokensOf(incomingName, incFiling.prefix, incFiling.typeKey);
 
   let nearDup: { id: number; title: string } | null = null;
   for (const r of rows) {
@@ -831,11 +845,8 @@ async function findSameLogicalDoc(
     // set appears in the larger. One shared token (two different people both named
     // "Juma": "Kasaba-Juma" vs "Juma-Bagomwa") is NOT a match; a subset ("Sanjay-
     // Kaushik" as a .docx vs the same as a .pdf, or a signed vs unsigned copy) is.
-    const rSubject = subjectTokens(r.file_name, rFiling.prefix, rFiling.typeKey);
-    if (incSubject.size > 0 && rSubject.size > 0) {
-      const inter = [...incSubject].filter((t) => rSubject.has(t)).length;
-      if (inter < Math.min(incSubject.size, rSubject.size)) continue;
-    }
+    const rSubject = subjectTokensOf(r.file_name, rFiling.prefix, rFiling.typeKey);
+    if (subjectCompatible(incSubject, rSubject) === false) continue;
 
     const sameRef = refKey && r.reference_no && r.reference_no.replace(/\s/g, "").toLowerCase() === refKey;
     const sameTitle = tKey.length >= 5 && norm(r.title) === tKey;
@@ -1639,6 +1650,9 @@ export type DuplicateCluster = {
     updatedAt: string;
     needsReview: boolean;
     suggestKeep: boolean; // the copy we suggest keeping (newest / has a file)
+    vetted: boolean; // owner has reviewed & filed it — never auto-quarantine it
+    referenceNo: string | null;
+    expiryDate: string | null;
   }[];
 };
 
@@ -1653,13 +1667,13 @@ export async function findExistingDuplicatesAction(): Promise<DuplicateCluster[]
   try {
     const { data } = await supa
       .from("documents")
-      .select("id,title,category,company_id,person_id,reference_no,file_hash,compilation_id,storage_path,file_name,expiry_date,reminder_lead_days,review_status,updated_at")
+      .select("id,title,category,company_id,person_id,reference_no,file_hash,compilation_id,storage_path,file_name,expiry_date,reminder_lead_days,review_status,updated_at,vetted_at")
       .eq("archived", false);
     const rows = (data ?? []) as Array<{
       id: number; title: string; category: string | null; company_id: number | null; person_id: number | null;
       reference_no: string | null; file_hash: string | null; compilation_id: string | null;
       storage_path: string | null; file_name: string | null;
-      expiry_date: string | null; reminder_lead_days: number | null; review_status: string | null; updated_at: string;
+      expiry_date: string | null; reminder_lead_days: number | null; review_status: string | null; updated_at: string; vetted_at: string | null;
     }>;
     if (rows.length < 2) return [];
 
@@ -1716,6 +1730,7 @@ export async function findExistingDuplicatesAction(): Promise<DuplicateCluster[]
             expiryLabel: expiryDate ? expiryLabel({ expiryDate, reminderLeadDays: r.reminder_lead_days ?? 30 }) : null,
             updatedAt: r.updated_at, needsReview: r.review_status === "needs_review",
             suggestKeep: r.id === keepId,
+            vetted: !!r.vetted_at, referenceNo: r.reference_no, expiryDate: r.expiry_date,
           };
         }),
       });
@@ -1748,8 +1763,17 @@ export async function autoSweepLibraryDuplicatesAction(): Promise<{ trashed: num
       if (c.reason === "same-title") continue; // too weak — leave for manual review
       const keep = c.documents.find((d) => d.suggestKeep) ?? c.documents[0];
       const keepIsPdf = isPdfFile(keep.fileName);
+      const keepLite: LogicalDocLite = { file_name: keep.fileName, title: keep.title, reference_no: keep.referenceNo, expiry_date: keep.expiryDate };
       for (const d of c.documents) {
         if (d.id === keep.id) continue;
+        // Never yank a document the owner has already reviewed & filed (vetted)
+        // back into Quarantine on a machine guess — only manual "Find duplicates".
+        if (d.vetted) continue;
+        // A SHARED reference number is common in Tanzania (an incorporation cert +
+        // its BRELA search, a licence + its receipt). Before treating a same-
+        // reference cluster member as a duplicate, confirm it's the SAME logical
+        // document (type + non-conflicting expiry/subject); otherwise leave it.
+        if (c.reason === "same-reference" && !sameLogicalDocPair(keepLite, { file_name: d.fileName, title: d.title, reference_no: d.referenceNo, expiry_date: d.expiryDate })) continue;
         if (c.reason === "identical-file") {
           await setDocumentIntakeState(d.id, "trash", `Identical file already on record — #${keep.id} ${keep.title}`, { supersedesId: keep.id });
           trashed++;
@@ -2439,41 +2463,54 @@ async function loadEntities(): Promise<{ companies: Entity[]; people: Entity[] }
  * scan links to what it already knows. Deterministic, best-effort, AI-free; the
  * caller falls through to quarantine only when this returns null.
  */
+/** The single owner shared by a set of candidate rows, or null when they name
+ *  zero or MORE THAN ONE distinct owner (ambiguous → resolve nobody). This is the
+ *  shared "unique owner only" rule used across every correlation path. */
+function uniqueOwnerOf(rows: Array<{ company_id: number | null; person_id: number | null }>): { companyId: number | null; personId: number | null } | null {
+  const owners = new Map<string, { companyId: number | null; personId: number | null }>();
+  for (const r of rows) {
+    const companyId = (r.company_id as number | null) ?? null;
+    const personId = (r.person_id as number | null) ?? null;
+    if (companyId || personId) owners.set(`${companyId ?? ""}|${personId ?? ""}`, { companyId, personId });
+  }
+  return owners.size === 1 ? [...owners.values()][0] : null;
+}
+
 async function correlateOwnerByIdentifiers(haystack: string, referenceNo: string | null): Promise<{ companyId: number | null; personId: number | null } | null> {
-  // Distinctive numeric identifiers (TIN/VRN/control/reference style: 6+ digits).
-  const tokens = new Set<string>();
-  for (const t of (haystack.match(/\d[\d-]{5,}\d/g) ?? [])) { const d = t.replace(/\D/g, ""); if (d.length >= 6) tokens.add(d); }
+  // Bare numeric identifiers need to be distinctive: a 6-digit number is easily
+  // SHARED (a control number, an invoice number), so require 7+ digits for a
+  // token pulled out of free text. A LABELLED reference (referenceNo, e.g.
+  // "BL-2024-118") is distinctive enough at 4+.
+  const numeric = new Set<string>();
+  for (const t of (haystack.match(/\d[\d-]{5,}\d/g) ?? [])) { const d = t.replace(/\D/g, ""); if (d.length >= 7) numeric.add(d); }
   const ref = referenceNo?.trim();
-  if (ref && ref.length >= 4) tokens.add(ref);
-  const toks = [...tokens].slice(0, 12);
+  const refTok = ref && ref.length >= 4 ? ref : null;
+  // Reference tokens are the most distinctive → try them first.
+  const toks = [...(refTok ? [refTok] : []), ...numeric].slice(0, 12);
   try {
-    if (toks.length) {
-      // 1) Another FILED document with the same reference number → its owner.
+    // Resolve per token, and ONLY when that token maps to exactly ONE owner. A
+    // number shared across records (a reused control/registration number) is
+    // ambiguous → skip it and try the next, rather than grabbing the first hit
+    // and silently mis-owning the document (mirrors the phone/address rule below).
+    for (const t of toks) {
+      const rows: Array<{ company_id: number | null; person_id: number | null }> = [];
+      // 1) FILED documents with this exact reference number.
       const { data: byRef } = await supa
-        .from("documents")
-        .select("company_id,person_id,reference_no")
-        .eq("archived", false).not("reference_no", "is", null)
-        .in("reference_no", toks).limit(5);
-      for (const r of byRef ?? []) {
-        if (r.company_id || r.person_id) return { companyId: (r.company_id as number | null) ?? null, personId: (r.person_id as number | null) ?? null };
-      }
-      // 2) A recorded FACT whose value is one of these identifiers → its owner.
-      // escapeLike: digit-runs are safe, but a reference_no can carry LIKE
-      // metacharacters — match it literally so it never wildcard-resolves.
-      for (const t of toks) {
-        const { data: f } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${escapeLike(t)}%`).limit(1);
-        const hit = (f ?? [])[0];
-        if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
-      }
-      // 3) Any filed document whose body text contains one of these identifiers.
-      for (const t of toks) {
-        const { data: d } = await supa
-          .from("documents").select("company_id,person_id")
-          .eq("archived", false).ilike("extracted_text", `%${escapeLike(t)}%`)
-          .or("company_id.not.is.null,person_id.not.is.null").limit(1);
-        const hit = (d ?? [])[0];
-        if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
-      }
+        .from("documents").select("company_id,person_id")
+        .eq("archived", false).eq("reference_no", t).limit(8);
+      rows.push(...((byRef ?? []) as typeof rows));
+      // 2) A recorded FACT whose value carries this identifier. escapeLike: a
+      // reference can hold LIKE metacharacters — match it literally.
+      const { data: facts } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${escapeLike(t)}%`).limit(8);
+      rows.push(...((facts ?? []) as typeof rows));
+      // 3) Any filed document whose body text contains this identifier.
+      const { data: byText } = await supa
+        .from("documents").select("company_id,person_id")
+        .eq("archived", false).ilike("extracted_text", `%${escapeLike(t)}%`)
+        .or("company_id.not.is.null,person_id.not.is.null").limit(8);
+      rows.push(...((byText ?? []) as typeof rows));
+      const owner = uniqueOwnerOf(rows);
+      if (owner) return owner;
     }
     // 4) Contact identifiers — phone / email / bank account / address. Each is a
     //    different shape of "the same entity written without its name", so try
@@ -2553,11 +2590,12 @@ async function correlateByContactIdentifiers(haystack: string): Promise<{ compan
     if (pePhoneHits.size === 1 && coPhoneHits.size === 0) return pe([...pePhoneHits][0]);
   }
 
-  // ── Bank accounts: live as facts ("Bank Account") and in document bodies. ──
+  // ── Bank accounts: live as facts ("Bank Account") and in document bodies. A
+  //    joint/shared account resolves nobody — require a unique owner. ──
   for (const acct of accounts.slice(0, 6)) {
-    const { data: f } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${escapeLike(acct)}%`).limit(1);
-    const hit = (f ?? [])[0];
-    if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+    const { data: f } = await supa.from("facts").select("company_id,person_id").ilike("display", `%${escapeLike(acct)}%`).limit(8);
+    const owner = uniqueOwnerOf((f ?? []) as Array<{ company_id: number | null; person_id: number | null }>);
+    if (owner) return owner;
   }
 
   // ── Addresses: companies/people store them free-text — fetch + compare keys. ──
@@ -2590,9 +2628,9 @@ async function correlateByContactIdentifiers(haystack: string): Promise<{ compan
     const { data: d } = await supa
       .from("documents").select("company_id,person_id")
       .eq("archived", false).ilike("extracted_text", `%${escapeLike(t)}%`)
-      .or("company_id.not.is.null,person_id.not.is.null").limit(1);
-    const hit = (d ?? [])[0];
-    if (hit && (hit.company_id || hit.person_id)) return { companyId: (hit.company_id as number | null) ?? null, personId: (hit.person_id as number | null) ?? null };
+      .or("company_id.not.is.null,person_id.not.is.null").limit(8);
+    const owner = uniqueOwnerOf((d ?? []) as Array<{ company_id: number | null; person_id: number | null }>);
+    if (owner) return owner;
   }
   return null;
 }

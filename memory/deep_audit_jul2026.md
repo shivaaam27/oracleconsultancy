@@ -140,14 +140,67 @@ also flow into the command-centre intake. Non-negotiable behaviour:
  (Original spec: extract ingestDocument + resolveOwner unify 3 drifted owner-resolution
  copies + person-vs-company owner-type guard — the resolveOwner unification + owner-type
  guard remain for Phase 3; the attachment seam is done.)
-**Phase 3 — resolution correctness:** unique-owner rule on numeric/reference/fact/bank
- correlation; renewal-chaining corroboration guard; daily-sweep guard + vetted exclusion;
- owner-learning stable-token fingerprints + confirm-to-learn.
-**Phase 4 — one review place + catalogue polish + compliance fix:** "Needs you" tab with
- reason_code groups + wired recovery buttons; VAT/sector toggles + kill synthDefaultScore
- + trust stored doc_type in auto-verify + shared match helper; catalogue fixes (drop bare
- "receipt" + tie-break, sector-permit seed item, _NEEDORIG/-OLD suffix, Swahili aliases,
- already-expired flag, not-a-document, locked/corrupt detection).
+**Phase 3 — resolution correctness: ✅ DONE 2026-07-02 (local, uncommitted).** tsc clean +
+ 168 tests (7 new pure-guard tests in doc-catalog.test.ts). What shipped:
+ - Unique-owner rule on ALL correlation paths (correlateOwnerByIdentifiers +
+   correlateByContactIdentifiers): new uniqueOwnerOf() — a numeric/reference/fact/bank/
+   body-text identifier resolves an owner ONLY when exactly one entity shares it (mirrors
+   the phone/address rule); bare numeric floor raised 6→7 digits (labelled referenceNo
+   still 4+); reference match now exact (.eq) not .in.
+ - Renewal-chaining corroboration (findRenewalTarget, now takes incomingName): same
+   type + older date is no longer enough — a candidate must be subject-COMPATIBLE
+   (same person/premises/product); and when the incoming has no distinctive subject
+   AND >1 older same-type doc exists, it refuses to chain (won't retire the wrong lease).
+ - Daily dedup sweep (autoSweepLibraryDuplicatesAction + findExistingDuplicatesAction now
+   select vetted_at + raw ref/expiry): skips vetted_at IS NOT NULL rows (never yanks a
+   reviewed doc back to quarantine), and a same-reference cluster member is only treated as
+   a duplicate when sameLogicalDocPair(keep,d) holds (shared reg/control number no longer
+   collapses an incorporation cert vs a BRELA search).
+ - Owner-learning (owner-corrections.ts rewritten): signatureTokens() strips 4-digit years
+   (renewals keep the same fingerprint); GENERIC_DOC_WORDS + hasDistinctiveToken() — a
+   signature made only of generic words ("business licence certificate") is NOT learned and
+   NOT matched (kills cross-company misfile); learnedOwnerFor resolves nobody on an owner
+   TIE; recordOwnerCorrection no longer DELETES sibling lessons for other owners.
+ - New shared pure guards moved to doc-catalog.ts (client-safe, unit-tested): subjectTokensOf,
+   subjectCompatible, sameLogicalDocPair, LogicalDocLite — reused by near-dup + renewal + sweep.
+ DEFERRED (deliberate): owner-TYPE auto-quarantine guard — would quarantine person-owned docs
+ (contracts) when the staff member isn't a person-record yet (common here), ADDING friction;
+ revisit once intake can propose a person. resolveOwner unification of the 3 drifted copies
+ (retry/self-heal use a weaker copy) — a simplify, not a correctness bug; left for later.
+ confirm-to-learn (record a low-weight correction on accept) + bulk-assign-thin-metadata skip
+ — low severity, deferred.
+ (Original spec: unique-owner correlation; renewal corroboration; daily-sweep guard + vetted
+ exclusion; owner-learning stable fingerprints + confirm-to-learn.)
+**Phase 4 — compliance fix (image 1) + catalogue polish: ✅ CORE DONE 2026-07-02 (local, uncommitted).**
+ tsc clean + 172 tests (4 new catalogue tests) + behavioural sim PASS (per-company required
+ counts differ 12/13/17 by VAT/sector; a badly-named "Scan_2093.pdf" whose stored doc_type is
+ "Business Licence" auto-verified the licence requirement — the Task-12 fix). What shipped:
+ - ONE shared linker `linkDocsToRequirements` (company-requirements.ts) used by BOTH
+   getCompanyChecklist AND buildCompanyRequirementScores (portfolio/Home/Brief) → the numbers
+   now AGREE (they used different matchers before). Deterministic catalogue-type pass (→verified)
+   then fuzzy for non-catalogue only (→received); catalogue-owned req with no type stays missing.
+ - `docCatalogueReqKey` trusts the STORED doc_type when the filename has no keyword (Task 12) —
+   a correctly-classified but badly-named scan now links + auto-verifies.
+ - synthDefaultScore rewritten: unseeded companies scored against their APPLICABLE items
+   (respects VAT/sector, not the whole generic 18) using the same deterministic linker — so
+   Home/Brief agree with the detail even before a company's File tab is opened.
+ - Regulated-sector TOGGLE on the company Profile form (companies.sector_regulated, col already
+   exists from 0104 — NO migration) → drives applicableCompanyItems; saveCompanyProfileAction
+   calls new syncCompanyRequirementApplicability (adds newly-applicable items, hides no-longer-
+   applicable ones without a filed doc, re-surfaces on re-enable). VAT stays VRN-driven with
+   clearer help text.
+ - Catalogue: dropped bare "receipt" alias + fixed dead "m-pesa"→"m pesa"; classify tie-break
+   prefers a type with companyReqKey; Swahili aliases (leseni ya biashara, mkataba wa ajira,
+   hati ya usajili, kibali cha kazi, mkataba wa pango); removed the ORPHANED sector-permit
+   companyReqKey (pointed at a non-existent seed item — a food/TFDA permit now files clean +
+   fuzzy-links to a company's own "TFDA permit" requirement when added).
+ DEFERRED (need a migration + backup, or are UI/larger scope): explicit vat_registered column
+ (kept VRN-driven for now); per-sector compliance PROFILE (food/TFDA vs construction/CRB — the
+ proper fix so a food company gets TFDA not CRB); the "Needs you" review-tab + wired recovery
+ buttons (retryQuarantine/reviewFalseDuplicates) — UI work; _NEEDORIG/-OLD suffix, already-
+ expired flag, not-a-document, locked/corrupt detection — intake polish, low severity.
+ (Original spec: "Needs you" tab + VAT/sector toggles + kill synthDefaultScore + trust stored
+ doc_type + shared match helper + catalogue fixes.)
 **Phase 5 — scale + hygiene:** paginate nightly reindex/orphan-sweep/coverage-audit past
  1000 rows; reindexEntity on fact-extraction patches; side-effect error telemetry; chat
  20MB cap; consolidate the 3 safeName copies.
