@@ -48,8 +48,32 @@ live verification (commit 46d2387):
    Groq vision ladder → under Gemini it fell to in-site Tesseract (~42s). FIX: it now
    uses `providerVisionModels(await getActiveProvider())` → ~42s dropped to ~8s.
 
-## Notes / possible tweaks
-- If Gemini's compat layer ever rejects `max_tokens`, send `max_completion_tokens` too.
+## Round 2 (2026-07-02 evening, commit 3d396e6) — the live "AI key isn't working"
+⌘K ORI failed on prod: /api/ask's STREAMING path fetched api.groq.com directly with
+the (now Gemini) key → 401 → "ORI's AI key isn't working". Root class: 4 paths
+hardcoded Groq. ALL fixed + the class killed at the harness:
+- callGroqText maps EVERY model (incl. explicit `models:` ladders) through
+  providerLadder — a Groq name can never hit the Gemini endpoint again.
+- ai-json exports PROVIDER_CHAT_URLS + providerRequestExtras for direct-fetch
+  (streaming) callers; /api/ask streaming is provider-aware (live-verified: ~2s).
+- Whisper transcription uses getGroqOnlyKey (Groq-only service; browser-speech
+  fallback if no Groq key). Voice polish moved onto the shared harness.
+- model-watch key-health checks the ACTIVE provider's key against ITS endpoint;
+  Groq-retirement watch silent when Gemini active.
+
+## Cloud agent (same commit) — "turned off" root cause + extract now FILES
+- Dispatcher was dead with a stale .dispatcher.lock; the SessionStart guard's PID
+  check was fooled (bash/Windows PID mismatch) → agent silently off. FIX: the
+  dispatcher heartbeats the lock every ~30s; the guard now checks lock FRESHNESS
+  (<3 min) and clears stale locks. Dispatcher restarted + running.
+- applyExtract: when the Opus worker resolves an owner it now FILES the doc out of
+  quarantine + reconciles compliance + reindexes + logs. LIVE PROOF: doc 648
+  ("unreadable") → identified as a calendar-decline email, owned to Oracle
+  Consultancy, filed automatically. enqueueDocExtract now fires from EVERY
+  quarantine door + shaky attachment reads (was inbox-button only).
+- Division of labour: Gemini = instant everyday AI (site never depends on the
+  agent); Opus agent = background re-reads/heavy jobs, catches up whenever the
+  dispatcher runs (auto-starts with the Claude app; 24/7 needs the SETUP_24_7 host).
 - No cross-provider auto-fallback (Gemini→Groq) — the owner chose Gemini-only; the
   in-provider ladder (flash→flash-lite) gives resilience. Add cross-provider fallback
   later if wanted (needs both keys available to the harness).
