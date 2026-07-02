@@ -36,13 +36,20 @@ existing harness works with a URL change.
   OCR key fields). `getActiveProvider()` returns "gemini" ONLY when a Gemini key
   exists, so selecting it without a key can't leave the app with no AI.
 
-## Verify — tsc + 176 tests (4 new provider-mapping tests in ai-models.test.ts).
-NOT live-verified against real Gemini yet (needs the owner's key). Owner action:
-get a free key at aistudio.google.com/apikey → Settings → AI & Voice → paste "Gemini
-key" + set provider to Gemini → then run a live extraction sim to confirm.
+## LIVE-VERIFIED 2026-07-02 (owner's key, provider=gemini)
+A scanned Tax Clearance Certificate read end-to-end via Gemini (source=vision,
+conf 0.9, classified, TIN→company, ref+expiry) in 8s. Two fixes shipped during
+live verification (commit 46d2387):
+1. **Gemini 2.5 models "think" by default** → the reasoning ate the small answer
+   budget → truncated JSON (finish_reason=length), the "it's failing" symptom.
+   FIX: geminiProvider sends `reasoning_effort:"none"` on every call (via the
+   openAiCompatProvider `extraBody` arg). Confirmed clean JSON after.
+2. **visionTranscribe** (the supplementary OCR transcript) still hardcoded the dead
+   Groq vision ladder → under Gemini it fell to in-site Tesseract (~42s). FIX: it now
+   uses `providerVisionModels(await getActiveProvider())` → ~42s dropped to ~8s.
 
-## Notes / possible tweaks if live test fails
-- If Gemini's compat layer rejects `max_tokens`, send `max_completion_tokens` too.
+## Notes / possible tweaks
+- If Gemini's compat layer ever rejects `max_tokens`, send `max_completion_tokens` too.
 - No cross-provider auto-fallback (Gemini→Groq) — the owner chose Gemini-only; the
   in-provider ladder (flash→flash-lite) gives resilience. Add cross-provider fallback
   later if wanted (needs both keys available to the harness).
