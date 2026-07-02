@@ -184,6 +184,20 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 // one implementation serves both (native vision + JSON mode supported).
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
+/** Chat-completions URL per provider — for the few call sites that must fetch
+ *  directly (SSE streaming; the harness buffers whole responses). */
+export const PROVIDER_CHAT_URLS: Record<AiProvider, string> = {
+  groq: GROQ_URL,
+  gemini: GEMINI_URL,
+};
+
+/** Provider-specific request fields to merge into EVERY chat body. Gemini 2.5
+ *  models "think" by default, which silently eats a small answer budget and
+ *  returns truncated output — reasoning_effort "none" disables it. */
+export function providerRequestExtras(provider: AiProvider): Record<string, unknown> {
+  return provider === "gemini" ? { reasoning_effort: "none" } : {};
+}
+
 /** One implementation for any OpenAI-compatible chat endpoint (Groq, Gemini, …).
  *  `extraBody` merges provider-specific fields into every request. */
 function openAiCompatProvider(id: string, url: string, extraBody?: Record<string, unknown>): AIProvider {
@@ -217,11 +231,8 @@ function openAiCompatProvider(id: string, url: string, extraBody?: Record<string
   };
 }
 
-export const groqProvider: AIProvider = openAiCompatProvider("groq", GROQ_URL);
-// Gemini 2.5 models "think" by default, which silently eats the (small) answer
-// budget and returns truncated JSON — the failure the owner hit. reasoning_effort
-// "none" disables thinking so they behave as fast, direct extractors.
-export const geminiProvider: AIProvider = openAiCompatProvider("gemini", GEMINI_URL, { reasoning_effort: "none" });
+export const groqProvider: AIProvider = openAiCompatProvider("groq", GROQ_URL, providerRequestExtras("groq"));
+export const geminiProvider: AIProvider = openAiCompatProvider("gemini", GEMINI_URL, providerRequestExtras("gemini"));
 
 /** Provider registry, keyed by the AiProvider id from settings. */
 export const PROVIDERS: Record<AiProvider, AIProvider> = {
@@ -434,10 +445,12 @@ export async function callGroqText(opts: CallGroqTextOpts): Promise<GroqTextResu
 
   const providerId = await activeProviderId();
   const provider = PROVIDERS[providerId];
-  // Precedence: an explicit `models` ladder (caller knows best) → else map the
-  // single `model` to the ACTIVE provider's equivalent ladder → else the default
-  // fast ladder. So every prose caller follows the active provider automatically.
-  const ladder = opts.models?.length ? opts.models : providerLadder(providerId, opts.model ?? GROQ_FAST);
+  // EVERY model — from an explicit `models` ladder or a single `model` — is
+  // mapped through the ACTIVE provider's equivalent ladder (a Groq name on the
+  // Gemini endpoint would 404; this was the live "AI key isn't working" bug).
+  // Unknown/one-off names pass through unchanged; duplicates collapse.
+  const requested = opts.models?.length ? opts.models : [opts.model ?? GROQ_FAST];
+  const ladder = [...new Set(requested.flatMap((m) => providerLadder(providerId, m)))];
   let lastError: GroqTextError = "network";
   let lastStatus: number | undefined;
 

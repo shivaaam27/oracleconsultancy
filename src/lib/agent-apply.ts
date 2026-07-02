@@ -51,9 +51,14 @@ async function applyAsk(job: AiJob, result: Record<string, unknown>): Promise<Ap
   return { applied: true, detail: { answer } }; // no thread — answer stored on the job
 }
 
-/** Write the resolved fields onto the document (or create one). */
+/** Write the resolved fields onto the document (or create one). When the agent
+ *  resolved an OWNER, the document is also FILED out of quarantine, its
+ *  compliance reconciled and its index refreshed — a smart re-read that left the
+ *  doc invisible in quarantine was solving nothing. */
 async function applyExtract(job: AiJob, result: Record<string, unknown>): Promise<ApplyOutcome> {
   const documentId = Number(job.payload.documentId ?? 0) || null;
+  const companyId = (result.companyId as number) ?? null;
+  const personId = (result.personId as number) ?? null;
   const fields = {
     title: (result.title as string) ?? null,
     category: (result.category as string) ?? null,
@@ -62,15 +67,35 @@ async function applyExtract(job: AiJob, result: Record<string, unknown>): Promis
     reference_no: (result.referenceNo as string) ?? null,
     issue_date: (result.issueDate as string) ?? null,
     expiry_date: (result.expiryDate as string) ?? null,
-    company_id: (result.companyId as number) ?? null,
-    person_id: (result.personId as number) ?? null,
+    company_id: companyId,
+    person_id: personId,
     notes: (result.notes as string) ?? null,
     review_status: "ok" as const,
   };
   if (documentId) {
     await sb.from("documents").update(fields).eq("id", documentId);
-    await logApply(job, "extract", { documentId });
-    return { applied: true, detail: { updatedDocument: documentId } };
+    let filed = false;
+    if (companyId || personId) {
+      // The agent resolved the owner → release the doc from quarantine and run
+      // the post-file steps the normal intake would (all lib-level, worker-safe).
+      try {
+        const { setDocumentIntakeState } = await import("@/lib/documents");
+        await setDocumentIntakeState(documentId, "filed", null);
+        filed = true;
+      } catch { /* leave in quarantine if the state flip fails */ }
+      try {
+        const { getCompanyChecklist } = await import("@/lib/company-requirements");
+        const { getPersonChecklist } = await import("@/lib/requirements");
+        if (companyId) await getCompanyChecklist(companyId);
+        if (personId) await getPersonChecklist(personId);
+      } catch { /* compliance reconcile is best-effort */ }
+      try {
+        const { reindexEntity } = await import("@/lib/index-hooks");
+        void reindexEntity("document", documentId);
+      } catch { /* index is best-effort */ }
+    }
+    await logApply(job, "extract", { documentId, filed });
+    return { applied: true, detail: { updatedDocument: documentId, filed } };
   }
   const { createDocument } = await import("@/lib/documents");
   const id = await createDocument(

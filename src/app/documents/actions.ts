@@ -502,6 +502,11 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
       // Held for a glance — no profile/compliance side-effects until it's filed.
       await setDocumentIntakeState(id, "quarantine", reason ?? "Held for review");
       try { await recordEvent("documents.quarantine", "skip", { docId: id, title: input.title, reason: reason ?? "Held for review" }); } catch { /* best-effort */ }
+      // Hand the hard ones to ORI (the cloud agent on the owner's Max plan): a
+      // smarter re-read of whatever the rules/vision path couldn't place — from
+      // EVERY door (Dropbox, bulk drop, chat/task/portal attachments), not just
+      // the inbox Process button. Best-effort, never blocks intake.
+      try { const { enqueueDocExtract } = await import("@/lib/agent-enqueue"); await enqueueDocExtract(id); } catch { /* best-effort */ }
       revalidateDocs();
     } else {
       // Store the "why this owner" on the filed doc (shown in the edit form) so an
@@ -711,6 +716,11 @@ async function enrichAttachmentDocument(
 
   // Reconcile the resolved owner's compliance (links a matching requirement).
   try { await reconcileOwnerCompliance(personId, companyId); } catch { /* best-effort */ }
+  // A shaky read → hand to ORI (cloud agent) for a smarter re-read, same as the
+  // main intake's quarantine path. Best-effort.
+  if (reviewStatus === "needs_review") {
+    try { const { enqueueDocExtract } = await import("@/lib/agent-enqueue"); await enqueueDocExtract(documentId); } catch { /* best-effort */ }
+  }
   revalidateDocs();
 }
 

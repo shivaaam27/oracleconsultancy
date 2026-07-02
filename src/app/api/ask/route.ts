@@ -2,8 +2,9 @@
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 
-import { GROQ_FAST } from "@/lib/ai-models";
-import { callGroqText } from "@/lib/ai-json";
+import { GROQ_FAST, providerLadder } from "@/lib/ai-models";
+import { callGroqText, PROVIDER_CHAT_URLS, providerRequestExtras } from "@/lib/ai-json";
+import { getActiveProvider } from "@/lib/settings";
 import { expandQuery, expandTokens } from "@/lib/synonyms";
 import { hybridSearch } from "@/lib/embeddings";
 import { NextRequest, NextResponse } from "next/server";
@@ -1095,15 +1096,22 @@ export async function POST(req: NextRequest) {
     // endpoint the action-route agent is adding, which calls recordQA("admin", …).
     // Do NOT try to recordQA from this handler for the streaming case.
 
-    // Streaming keeps a direct fetch (the harness buffers). Retry a transient
-    // 429/5xx — a busy free-tier minute, or another job using the same account —
-    // with backoff before giving up, mirroring the non-stream path's retries.
+    // Streaming keeps a direct fetch (the harness buffers) — but MUST target the
+    // ACTIVE provider's endpoint with that provider's model names. This path used
+    // to hardcode Groq's URL, so with Gemini active it sent the Gemini key to
+    // Groq → 401 → "ORI's AI key isn't working" on every streamed ask. Retry a
+    // transient 429/5xx with backoff, mirroring the non-stream path's retries.
+    const provider = await getActiveProvider();
+    const chatUrl = PROVIDER_CHAT_URLS[provider];
+    const extras = providerRequestExtras(provider);
+    const streamSmart = providerLadder(provider, smartModel)[0];
+    const streamFast = providerLadder(provider, GROQ_FAST)[0];
     let res: Response | null = null;
-    let currentModel = smartModel;
+    let currentModel = streamSmart;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * 2 ** (attempt - 1)));
       try {
-        res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        res = await fetch(chatUrl, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${apiKey}`,
@@ -1115,6 +1123,7 @@ export async function POST(req: NextRequest) {
             max_tokens: 600,
             temperature: 0.2,
             stream: true,
+            ...extras,
           }),
           signal: AbortSignal.timeout(30000),
         });
@@ -1123,8 +1132,10 @@ export async function POST(req: NextRequest) {
         res = null;
         continue;
       }
-      // Smart model busy → drop to the fast model for the remaining attempts.
-      if (res.status === 429 && canFallback && currentModel === smartModel) { currentModel = GROQ_FAST; res = null; continue; }
+      // Smart model busy/decommissioned → drop to the fast model for the rest.
+      if ((res.status === 429 || res.status === 400 || res.status === 404) && canFallback && currentModel === streamSmart && currentModel !== streamFast) {
+        currentModel = streamFast; res = null; continue;
+      }
       if ((res.status === 429 || res.status >= 500) && attempt < 2) { res = null; continue; }
       break;
     }

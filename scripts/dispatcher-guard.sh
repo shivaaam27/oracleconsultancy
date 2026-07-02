@@ -12,9 +12,18 @@ cd "$ROOT"
 LOCK="$ROOT/.dispatcher.lock"
 LOG="$ROOT/dispatcher.log"
 
-# Already running? (lock holds a live PID → nothing to do.)
-if [ -f "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then
-  exit 0
+# Already running? The dispatcher heartbeats the lock file every ~30s, so a
+# FRESH lock (< 3 minutes old) means a live dispatcher. A PID check alone was
+# fooled by PID reuse / bash-vs-Windows PID mismatch, which silently kept the
+# agent off — freshness is the truth.
+if [ -f "$LOCK" ]; then
+  NOW=$(date +%s)
+  MTIME=$(stat -c %Y "$LOCK" 2>/dev/null || stat -f %m "$LOCK" 2>/dev/null || echo 0)
+  if [ $((NOW - MTIME)) -lt 180 ]; then
+    exit 0
+  fi
+  # Stale lock — a previous dispatcher died. Clear it and start fresh.
+  rm -f "$LOCK"
 fi
 
 # Make sure the npm global bin (where `claude` lives) is on PATH for the daemon.

@@ -20,7 +20,7 @@ import { config } from "dotenv";
 config({ path: ".env.local", quiet: true } as never);
 config({ path: ".env", quiet: true } as never);
 import { spawnSync } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, writeFileSync } from "fs";
 import { join } from "path";
 
 const INTERVAL = Number(process.env.DISPATCH_INTERVAL_MS) || 3000;
@@ -62,7 +62,21 @@ async function main() {
   process.on("SIGINT", () => { stop = true; });
   process.on("SIGTERM", () => { stop = true; });
 
+  // Heartbeat: refresh the lock file's timestamp each tick so the SessionStart
+  // guard can tell a LIVE dispatcher (fresh lock) from a stale one left by a
+  // dead process — a stale lock used to silently keep the agent off. Throttled
+  // to ~30s so the loop isn't writing a file every 3s.
+  const LOCK_PATH = join(process.cwd(), ".dispatcher.lock");
+  let lastBeat = 0;
+  const heartbeat = () => {
+    const now = Date.now();
+    if (now - lastBeat < 30_000) return;
+    lastBeat = now;
+    try { writeFileSync(LOCK_PATH, String(process.pid)); } catch { /* best-effort */ }
+  };
+
   while (!stop) {
+    heartbeat();
     // Recover any job a dead/hung worker left stranded in "running" so the live
     // UI never spins forever. Best-effort; a DB blip just retries next tick.
     try {

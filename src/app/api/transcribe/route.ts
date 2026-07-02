@@ -1,6 +1,6 @@
 import { GROQ_WHISPER } from "@/lib/ai-models";
 import { NextRequest, NextResponse } from "next/server";
-import { getAppSettings, getGroqKey } from "@/lib/settings";
+import { getAppSettings, getGroqOnlyKey } from "@/lib/settings";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,7 +23,10 @@ const LANGUAGE_HINT: Record<string, string> = {
  */
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = await getGroqKey();
+    // Whisper only exists on Groq — use the GROQ key specifically (the active
+    // chat provider may be Gemini, whose key Groq would reject with a 401).
+    // No Groq key → the client falls back to browser speech recognition.
+    const apiKey = await getGroqOnlyKey();
     if (!apiKey) {
       return NextResponse.json({ text: "", source: "no-key" });
     }

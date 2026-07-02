@@ -1,7 +1,7 @@
 "use server";
 
-import { GROQ_FAST, GROQ_SMART } from "@/lib/ai-models";
-import { DEFAULT_TIMEOUT_MS } from "@/lib/ai-json";
+import { GROQ_SMART } from "@/lib/ai-models";
+import { callGroqText } from "@/lib/ai-json";
 import { getAppSettings, getGroqKey, saveAppSettings } from "@/lib/settings";
 import { loadContext } from "@/lib/ai-context";
 
@@ -59,53 +59,24 @@ function stripModelChrome(text: string): string {
   return out.trim();
 }
 
-// Models tried in order for dictation clean-up. The 70b model resolves
-// corrections best, but its per-model rate limit is tighter; when it is
-// throttled (429) we fall through to the faster 8b model — which still does a
-// solid job — before giving up to the raw transcript.
-const DICTATION_MODELS = [GROQ_SMART, GROQ_FAST];
-
-async function groqOnce(
+// Dictation clean-up runs on the shared provider-aware harness: the smart model
+// of whichever provider is active (Gemini or Groq), with the harness's own
+// retry/backoff and fall-through to the faster model. The old private fetch here
+// hardcoded Groq's URL, which broke polish the moment Gemini became the provider.
+async function polishChat(
   apiKey: string,
-  body: Record<string, unknown>,
-): Promise<{ ok: true; content: string } | { ok: false; status: number; transient: boolean }> {
-  let res: Response;
-  try {
-    res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-    });
-  } catch {
-    return { ok: false, status: 0, transient: true }; // network / timeout — transient, retry
-  }
-  if (res.ok) {
-    const data = await res.json();
-    return { ok: true, content: String(data?.choices?.[0]?.message?.content || "").trim() };
-  }
-  return { ok: false, status: res.status, transient: res.status === 429 || res.status >= 500 };
-}
-
-// Try each model in turn. Within a model, retry transient failures briefly;
-// on a persistent transient failure, move to the next (less throttled) model.
-async function groqChat(
-  apiKey: string,
-  body: Omit<Record<string, unknown>, "model">,
-  models: string[],
+  messages: unknown[],
 ): Promise<{ ok: true; content: string } | { ok: false; status: number }> {
-  let lastStatus = 0;
-  for (const model of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await groqOnce(apiKey, { ...body, model });
-      if (res.ok) return res;
-      lastStatus = res.status;
-      if (!res.transient) return { ok: false, status: res.status };
-      // Brief backoff before retrying this model, then fall through to next model.
-      if (attempt === 0) await new Promise((r) => setTimeout(r, 350));
-    }
-  }
-  return { ok: false, status: lastStatus };
+  const res = await callGroqText({
+    apiKey,
+    model: GROQ_SMART, // mapped to the ACTIVE provider's smart ladder by the harness
+    messages,
+    maxTokens: 700,
+    temperature: 0,
+    source: "voice-polish",
+  });
+  if (res.ok && res.text) return { ok: true, content: res.text.trim() };
+  return { ok: false, status: res.status ?? 0 };
 }
 
 export async function polishDictation(input: {
@@ -175,18 +146,10 @@ export async function polishDictation(input: {
   const userPrompt = `Mode: ${input.mode ?? "note"}\n${contextLine}\nClean up this dictation and return only the result:\n\n${raw}`;
 
   try {
-    const result = await groqChat(
-      apiKey,
-      {
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 700,
-        temperature: 0,
-      },
-      DICTATION_MODELS,
-    );
+    const result = await polishChat(apiKey, [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ]);
     if (!result.ok) {
       const polished = basicClean(raw);
       return { raw, polished, source: "error", changes: countChanges(raw, polished), message: `AI returned HTTP ${result.status}` };

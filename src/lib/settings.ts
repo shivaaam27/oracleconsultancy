@@ -343,6 +343,16 @@ export async function getGroqKey(): Promise<string | undefined> {
   return getAiKey();
 }
 
+/** The GROQ key specifically — for services that only exist on Groq (Whisper
+ *  speech-to-text, the Groq model-deprecation watch), regardless of which
+ *  provider powers the chat AI. Without a Groq key those degrade gracefully
+ *  (dictation falls back to browser speech). Gated on the AI master switch. */
+export async function getGroqOnlyKey(): Promise<string | undefined> {
+  const { aiEnabled, groqApiKey } = await getAppSettings();
+  if (!aiEnabled) return undefined;
+  return groqApiKey.trim() || process.env.GROQ_API_KEY || undefined;
+}
+
 /**
  * A SAFE, client-displayable summary of where the Groq key comes from. Never
  * returns the raw secret — only the last 4 characters of whichever key is in

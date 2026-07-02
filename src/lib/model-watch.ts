@@ -1,8 +1,9 @@
-import { getGroqKey, getAppSettings } from "./settings";
+import { getGroqOnlyKey, getAppSettings, getActiveProvider } from "./settings";
 import { GROQ_FAST, GROQ_SMART, GROQ_VISION_MODELS, GROQ_WHISPER } from "./ai-models";
 import { recordEvent } from "./system-events";
 
 const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
+const GEMINI_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/openai/models";
 
 /**
  * Early warning for Groq model deprecations — the vision model especially is at
@@ -15,8 +16,13 @@ const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
  * of missing model ids (empty = all good / could not check).
  */
 export async function checkModelAvailability(): Promise<{ missing: string[]; checked: boolean }> {
-  const apiKey = await getGroqKey();
+  // This watch is about GROQ retirements specifically — it needs the GROQ key
+  // (the active chat provider may be Gemini, whose key Groq would reject).
+  const apiKey = await getGroqOnlyKey();
   if (!apiKey) return { missing: [], checked: false };
+  // With Gemini as the active provider, a retired Groq model no longer breaks
+  // anything user-facing — skip so the log doesn't cry wolf about the fallback.
+  if ((await getActiveProvider()) === "gemini") return { missing: [], checked: false };
 
   let available: Set<string>;
   try {
@@ -96,23 +102,29 @@ export async function checkGroqKeyHealth(opts: { force?: boolean } = {}): Promis
   let status: GroqKeyStatus;
   let source: GroqKeyHealth["source"] = "none";
   try {
-    const { aiEnabled, groqApiKey } = await getAppSettings();
-    const inApp = groqApiKey.trim();
-    const key = inApp || process.env.GROQ_API_KEY?.trim() || "";
-    source = inApp ? "settings" : process.env.GROQ_API_KEY?.trim() ? "env" : "none";
+    // Validate the key of the ACTIVE provider (Gemini or Groq) against THAT
+    // provider's endpoint — checking the Groq key while Gemini answers everything
+    // would report the wrong thing entirely.
+    const s = await getAppSettings();
+    const provider = await getActiveProvider();
+    const inApp = (provider === "gemini" ? s.geminiApiKey : s.groqApiKey).trim();
+    const envKey = (provider === "gemini" ? process.env.GEMINI_API_KEY : process.env.GROQ_API_KEY)?.trim() || "";
+    const key = inApp || envKey;
+    source = inApp ? "settings" : envKey ? "env" : "none";
+    const modelsUrl = provider === "gemini" ? GEMINI_MODELS_URL : GROQ_MODELS_URL;
 
     if (!key) {
       status = "no-key";
-    } else if (!aiEnabled) {
+    } else if (!s.aiEnabled) {
       // A key is present but AI is switched off — not a key problem, so don't
-      // burn a Groq call validating it; just say so.
+      // burn a call validating it; just say so.
       status = "ai-off";
     } else {
       // Auth-only ping: GET /models is the cheapest authenticated call. We only
       // care about the status code — 200 = good, 401/403 = bad key, anything else
       // (5xx / network / timeout) = unknown.
       try {
-        const res = await fetch(GROQ_MODELS_URL, {
+        const res = await fetch(modelsUrl, {
           headers: { Authorization: `Bearer ${key}` },
           signal: AbortSignal.timeout(8_000),
         });
@@ -136,7 +148,7 @@ export async function checkGroqKeyHealth(opts: { force?: boolean } = {}): Promis
   if (status === "invalid") {
     await recordEvent("model.keyhealth", "error", {
       source,
-      hint: "The Groq API key was rejected (expired/revoked). Set a new one in Settings.",
+      hint: "The AI key was rejected (expired/revoked). Set a new one in Settings → AI & Voice.",
     }).catch(() => {});
   }
 
