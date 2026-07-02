@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ClipboardCheck, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, AlertTriangle, FileText } from "lucide-react";
 import { getPortalPerson, personCanSeeCompany } from "@/lib/portal-auth";
+import { portalCapabilities } from "@/lib/portal-capabilities";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { sb } from "@/db/supabase";
@@ -9,6 +10,8 @@ import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { getCompanyLogoUrl } from "@/lib/company-brand";
+import { listCompanyDocuments } from "@/lib/portal-documents";
+import { PortalDocumentsLibrary } from "@/components/portal-documents-library";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +51,11 @@ export default async function PortalCompanyPage({ params }: { params: Promise<{ 
     });
   const overdue = open.filter((t) => t.flag === "overdue" || t.flag === "escalate-now").length;
   const headcount = headcountRes.count ?? 0;
+
+  // Documents for this company (its own + its people's) — management only; staff
+  // don't get document access yet.
+  const isManagement = portalCapabilities(me.portalRole).isManagement;
+  const docs = isManagement ? await listCompanyDocuments(companyId) : [];
 
   return (
     <div className="space-y-4">
@@ -102,6 +110,19 @@ export default async function PortalCompanyPage({ params }: { params: Promise<{ 
           )}
         </Panel>
       </Reveal>
+
+      {/* Company documents — the same command-centre categories/rows, reflected
+          here read-only. Management only. */}
+      {isManagement && (
+        <Reveal delay={0.1}>
+          <div className="flex flex-col gap-2.5">
+            <SectionLabel icon={<FileText size={13} />}>
+              Documents{docs.length > 0 && <span className="ml-1 text-fg-subtle/70">· {docs.length}</span>}
+            </SectionLabel>
+            <PortalDocumentsLibrary docs={docs} />
+          </div>
+        </Reveal>
+      )}
     </div>
   );
 }

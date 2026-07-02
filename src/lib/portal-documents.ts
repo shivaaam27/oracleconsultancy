@@ -67,13 +67,11 @@ function mapRow(d: RawDoc): PortalDocRow {
 const SELECT =
   "id,title,category,doc_type,file_name,storage_path,file_url,expiry_date,review_status,company_id,person_id,companies(name),people(name)";
 
-export async function listPortalDocuments(me: PortalPerson): Promise<PortalDocRow[]> {
-  const scope = await companyScope(me); // null = every company (portfolio director / HR)
-
-  let query = sb
-    .from("documents")
-    .select(SELECT)
-    .eq("archived", false);
+/** Core: documents for a company-id set (null = every company). Includes each
+ *  company's own documents PLUS the documents of the PEOPLE in those companies.
+ *  Archived + task "Attachment" files are excluded. */
+export async function listDocumentsForCompanies(scope: number[] | null): Promise<PortalDocRow[]> {
+  let query = sb.from("documents").select(SELECT).eq("archived", false);
 
   if (scope !== null) {
     if (scope.length === 0) return []; // no company scope → nothing
@@ -87,6 +85,17 @@ export async function listPortalDocuments(me: PortalPerson): Promise<PortalDocRo
   // Drop task-conversation attachments in JS (a `.neq` would also drop the many
   // rows whose category is null).
   return (data as RawDoc[] | null ?? []).filter((d) => d.category !== "Attachment").map(mapRow);
+}
+
+/** Every document a portal viewer may browse (their whole company scope). */
+export async function listPortalDocuments(me: PortalPerson): Promise<PortalDocRow[]> {
+  return listDocumentsForCompanies(await companyScope(me)); // companyScope null = all
+}
+
+/** One company's documents (its own + its people's) — for the portal company page.
+ *  The caller must have already checked `personCanSeeCompany`. */
+export async function listCompanyDocuments(companyId: number): Promise<PortalDocRow[]> {
+  return listDocumentsForCompanies([companyId]);
 }
 
 /** Authorise ONE document for the file-serving route (same rule as the list). */

@@ -212,42 +212,42 @@ export async function portalCreateAnnouncement(fd: FormData): Promise<Result> {
     return { ok: false, error: "You don't have permission to post announcements." };
   }
   const createdBy = me.portalRole === "director" ? `portal-dir:${me.name}` : `portal-mgr:${me.name}`;
-  const built = await buildPayload(fd, {
-    createdBy,
-    authorPersonId: me.id,
-    // Managers AND company-scoped directors are limited to their own company; a
-    // portfolio director is unrestricted (scope null).
-    scope:
-      me.portalRole === "manager"
-        ? { companyId: me.companyId, managerId: me.id }
-        : isScopedDirector(me)
-          // NOTE: the announcement audience is single-company; a multi-company
-          // scoped director currently targets their FIRST company. (Extend the
-          // audience model to post per company later.)
-          ? { companyId: me.directorCompanyIds[0] ?? null, managerId: null }
-          : null,
-  });
-  if (!built.ok) return { ok: false, error: built.error };
 
-  // Portal authors publish straight away (no draft staging for them).
+  // Who this reaches: a manager → their own company; a company-scoped director →
+  // ONE announcement PER company they govern (so a 2-company director reaches
+  // both); a portfolio director → one portfolio-wide post (scope null).
+  const targets: ({ companyId: number | null; managerId: number | null } | null)[] =
+    me.portalRole === "manager"
+      ? [{ companyId: me.companyId, managerId: me.id }]
+      : isScopedDirector(me)
+        ? me.directorCompanyIds.map((c) => ({ companyId: c, managerId: null }))
+        : [null];
+
   const nowIso = new Date().toISOString();
-  const { data, error } = await sb
-    .from("announcements")
-    .insert({
-      ...built.payload,
-      status: "published",
-      published_at: built.payload.publish_at ?? nowIso,
-      created_at: nowIso,
-    })
-    .select("id")
-    .single();
-  if (error || !data) return { ok: false, error: error?.message ?? "Could not post." };
-  const newId = data.id as number;
-  await notifyAudience(newId);
+  let firstId: number | null = null;
+  for (const scope of targets) {
+    const built = await buildPayload(fd, { createdBy, authorPersonId: me.id, scope });
+    if (!built.ok) return { ok: false, error: built.error };
+    // Portal authors publish straight away (no draft staging for them).
+    const { data, error } = await sb
+      .from("announcements")
+      .insert({
+        ...built.payload,
+        status: "published",
+        published_at: built.payload.publish_at ?? nowIso,
+        created_at: nowIso,
+      })
+      .select("id")
+      .single();
+    if (error || !data) return { ok: false, error: error?.message ?? "Could not post." };
+    const newId = data.id as number;
+    await notifyAudience(newId);
+    if (firstId == null) firstId = newId;
+  }
   revalidatePath("/portal");
   revalidatePath("/portal/announcements");
   revalidatePath("/announcements");
-  return { ok: true, id: newId };
+  return { ok: true, id: firstId ?? 0 };
 }
 
 /* --------------------------- receipts (both surfaces) --------------------------- */
