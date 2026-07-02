@@ -202,6 +202,7 @@ export async function updateDocument(id: number, patch: Partial<DocumentInput>):
   if (patch.reminderLeadDays !== undefined) payload.reminder_lead_days = patch.reminderLeadDays;
   if (patch.fileUrl !== undefined) payload.file_url = patch.fileUrl;
   if (patch.notes !== undefined) payload.notes = patch.notes;
+  if (patch.supersedesId !== undefined) payload.supersedes_id = patch.supersedesId;
   if (patch.reviewStatus !== undefined) payload.review_status = patch.reviewStatus;
   if (patch.needsOriginal !== undefined) payload.needs_original = patch.needsOriginal;
   if (patch.fileHash !== undefined) payload.file_hash = patch.fileHash;
@@ -506,52 +507,7 @@ export async function linkDocumentTask(documentId: number, taskId: number): Prom
   if (error) throw new Error(error.message);
 }
 
-/**
- * Store a file dropped into a task conversation as a first-class Document:
- * creates the row (category "Attachment", owned by the task's company),
- * uploads the file to the private bucket, and links it to the task — so it
- * is findable forever in the Documents centre. Returns the document id.
- */
-export async function createTaskAttachment(opts: {
-  taskId: number;
-  companyId: number | null;
-  file: File;
-  createdBy: string;
-}): Promise<number> {
-  const docId = await createDocument(
-    {
-      title: opts.file.name,
-      companyId: opts.companyId ?? null,
-      category: "Attachment",
-    },
-    opts.createdBy
-  );
-  await uploadDocumentFile(docId, opts.file);
-  await linkDocumentTask(docId, opts.taskId);
-  return docId;
-}
-
-/**
- * Turn a CHAT attachment into a real Command-Centre document so portal uploads
- * flow into the intake and can be sorted (mirrors createTaskAttachment). It
- * starts as an "Attachment" flagged `needs_review`, so it surfaces in the
- * Command Centre for sorting but stays out of the tidy portal library until the
- * owner gives it a real category — after which it reflects everywhere.
- */
-export async function createChatAttachmentDocument(opts: {
-  companyId: number | null;
-  file: File;
-  createdBy: string;
-}): Promise<number> {
-  const docId = await createDocument(
-    {
-      title: opts.file.name,
-      companyId: opts.companyId ?? null,
-      category: "Attachment",
-      reviewStatus: "needs_review",
-    },
-    opts.createdBy
-  );
-  await uploadDocumentFile(docId, opts.file);
-  return docId;
-}
+// Task & chat attachment ingestion moved to the shared `ingestAttachmentDocument`
+// seam in src/app/documents/actions.ts (Phase 2): every upload door — chat, task
+// update, completion proof, portal, request — runs the same brain (classify,
+// own, dedup, date, index, compliance) instead of filing a bare "Attachment".

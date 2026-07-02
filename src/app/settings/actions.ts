@@ -151,6 +151,14 @@ export async function saveSettings(fd: FormData): Promise<void> {
     patch.groqApiKey = groqKeyInput; // set / rotate
   }
 
+  // OCR.space scan-reading key: same write-only-when-typed rule as the Groq key.
+  const ocrKeyInput = ((fd.get("ocrSpaceApiKey") as string | null) ?? "").trim();
+  if (fd.get("remove_ocrSpaceApiKey") === "1") {
+    patch.ocrSpaceApiKey = ""; // clear → fall back to the env var
+  } else if (ocrKeyInput) {
+    patch.ocrSpaceApiKey = ocrKeyInput; // set / rotate
+  }
+
   // Signature image: upload a new file, or clear it when "remove" is ticked.
   const sigImg = fd.get("emailSignatureImage");
   if (sigImg instanceof File && sigImg.size > 0) {

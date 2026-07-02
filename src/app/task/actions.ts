@@ -16,7 +16,7 @@ import { computeClosedDate, computeClosedDateFrom } from "@/lib/task-status";
 import { tasks as tasksTable, taskAssignees, auditLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
-import { createTaskAttachment } from "@/lib/documents";
+import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds } from "@/lib/mentions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import { broadcastPulse } from "@/lib/cos-pulse";
@@ -776,12 +776,13 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 
   let attachmentDocumentId: number | null = null;
   if (file) {
-    attachmentDocumentId = await createTaskAttachment({
-      taskId,
-      companyId: t.company_id as number | null,
+    const r = await ingestAttachmentDocument({
       file,
       createdBy: "web-ui",
+      contextCompanyId: t.company_id as number | null,
+      taskId,
     });
+    attachmentDocumentId = r.documentId;
   }
 
   const messageBody = body || `📎 ${file?.name ?? "Attachment"}`;

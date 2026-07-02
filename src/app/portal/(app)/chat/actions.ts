@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { DOCUMENTS_BUCKET, signDocumentFile, createChatAttachmentDocument } from "@/lib/documents";
+import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds, type MentionCandidate } from "@/lib/mentions";
 import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
 import {
@@ -167,12 +168,14 @@ export async function postMessage(
       .from(DOCUMENTS_BUCKET)
       .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: true });
     if (error) return { ok: false, error: error.message };
-    // Also pull the file into the Command Centre as a real document (needs_review),
-    // so every portal upload flows into the intake for sorting. Best-effort — a
+    // Also make it a first-class Command-Centre document (pointing at the SAME
+    // stored object), run through the brain — classified, owned, deduped, dated,
+    // searchable — so every portal upload flows into the intake. Best-effort: a
     // document hiccup must never block sending the message.
     let documentId: number | undefined;
     try {
-      documentId = await createChatAttachmentDocument({ companyId: threadCompanyId, file, createdBy: stamp });
+      const r = await ingestAttachmentDocument({ file, createdBy: stamp, contextCompanyId: threadCompanyId, contextPersonId: m.id, existingStoragePath: path });
+      documentId = r.documentId;
     } catch { /* keep the chat message even if the document copy fails */ }
     attachments.push({ name: file.name, path, type: file.type || "", size: file.size, documentId });
   }

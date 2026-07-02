@@ -112,11 +112,53 @@ company_sector_regulated. (0100 ai_jobs from the cloud-agent arc.)
   email-intake, weekly PDF). KEPT running (owner chose "keep both"). It's where the
   naming convention + 8 folders originate. Reconcile later if migrating fully to the app.
 
+## Near-duplicate detection — SAME doc, not same TYPE (2026-07-02, SHIPPED)
+The near-dup layer (`findSameLogicalDoc` in documents/actions.ts) was quarantining
+DISTINCT documents as "Possible duplicate": different employees' contracts (shared
+offer-letter template → jaccard ≥0.7), permits with different expiry, an
+incorporation cert vs a BRELA search sharing the registration number. Fix: before
+any title/content match, guard on the catalogue **type** + the filename's own
+**ref / expiry / subject**. Subjects (distinctive filename words beyond prefix +
+doc-type aliases + format words) must be **subset-compatible** — every token of the
+smaller name-set appears in the larger. So "Sanjay-Kaushik" .docx vs .pdf still
+pairs, "signed" vs "unsigned" of one contract still pairs, but "Kasaba-Juma" vs
+"Juma-Bagomwa" (one shared token, different people) does NOT. Exact re-uploads are
+still caught upstream by file_hash — this layer only does the fuzzy near-dup.
+- **Cleanup**: `reviewFalseDuplicatesAction({dryRun})` + `scripts/review-false-duplicates.ts`
+  re-checks quarantined "possible duplicate" docs with the fixed logic, files the
+  false ones, and drops a mis-attributed person (a contract tagged to an unrelated
+  director — kept only if the person's name is corroborated by the filename), keeping
+  the company. Ran once: 19 distinct docs filed (Dar Spices + Cocozuri), 5 wrong-
+  director tags cleared, 2 genuine same-person twins (#456 signed/unsigned, #503
+  docx/pdf) left in quarantine for the owner to eyeball.
+
 ## STILL TODO
-- Clear Dar Spices' 9 existing quarantine `.docx`/`.pdf` twins (Fix 5 stops new ones).
+- **Generic person-doc titles**: employment contracts still title as
+  `<Prefix>_Employment-Contract` (no person) and some carry the wrong brand prefix
+  ("FurahaInnovation" on Cocozuri docs — company id 2 is legal "Furaha Innovation
+  Ltd", brand "Cocozuri"; owner to reconcile which is the file_prefix). The filename
+  (e.g. `Cocozuri_Contract_Hermina-Renatus`) already has the person — intake should
+  pass the filename subject as the title `ref` for person/employment docs so titles
+  read `Cocozuri_Employment-Contract_Hermina-Renatus`. Also re-title the 19 just-filed.
+- The 6 Cocozuri employees (Dukhishyam, Hermina, Leila, Rehema, Ruth, Vailet, Violet)
+  and any Dar Spices contract staff aren't people records yet — their contracts are
+  filed company-only. Owner to add the staff (intake never auto-creates people).
 - Staff (person) compulsory-doc list + person-side dossier grouping.
 - Deferred consolidations (owner-resolution helper copy-pasted 3×, single duplicate
   comparator, wire AUTO_HARD_DELETE_FORBIDDEN guardrail, reindex docs to semantic at
   intake not just nightly).
 - Further ORI speed (peopleDetail/governance/graph still sequential).
 - Cloud reader (Google Document AI) for PC-off opaque scans; OCRSPACE_API_KEY set on Vercel.
+
+## Vision-shutdown fallback (2026-07-02, LOCAL — deep-audit Phase 1)
+Scan CLASSIFICATION no longer dies with Groq vision (shutdown 17 Jul 2026):
+`extractFromPageImages` (documents/actions.ts) is the one ladder for scanned PDFs
++ images — vision fields (while alive) + a layered page transcript
+(Groq→OCR.space→Tesseract), and when vision is gone/AI off the OCR text is
+classified by `fieldsFromText` exactly like a typed PDF. Scans now return
+`fullText`/`textSource:"ocr"` → ID-first TIN/VRN owner match, catalogue
+`deriveFiling`, cross-doc correlation and instant search-inside all work at
+intake (autoFileDocumentAction persists the text straight after upload).
+`ocrSpaceApiKey` is a real Setting (Settings → AI & Voice, env fallback,
+`getOcrSpaceKey`). Verified by dead-model simulation. See
+memory/deep_audit_jul2026.md Phase 1.

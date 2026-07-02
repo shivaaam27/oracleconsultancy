@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAdminSession } from "@/lib/admin-auth";
-import { createDocument, uploadDocumentFile } from "@/lib/documents";
+import { ingestAttachmentDocument } from "@/app/documents/actions";
 import {
   addRequestMessage,
   advanceRequest,
@@ -26,9 +26,10 @@ async function uploadAttachment(formData: FormData): Promise<{ id: number; name:
   const entry = formData.get("attachment");
   const file = entry instanceof File && entry.size > 0 ? entry : null;
   if (!file) return null;
-  const id = await createDocument({ title: file.name, companyId: null, category: "Attachment" }, "web-ui");
-  await uploadDocumentFile(id, file);
-  return { id, name: file.name };
+  // Through the brain so a request attachment is classified, owned, deduped,
+  // dated and searchable like any other document (was a bare "Attachment").
+  const { documentId } = await ingestAttachmentDocument({ file, createdBy: "web-ui" });
+  return { id: documentId, name: file.name };
 }
 
 export async function adminRaiseRequest(

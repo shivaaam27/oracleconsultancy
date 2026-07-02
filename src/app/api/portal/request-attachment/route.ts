@@ -3,6 +3,7 @@ import { sb } from "@/db/supabase";
 import { signDocumentFile } from "@/lib/documents";
 import { isAdminSession } from "@/lib/admin-auth";
 import { getPortalPerson } from "@/lib/portal-auth";
+import { isRecipient } from "@/lib/requests";
 
 /* Securely serve a request-message attachment: verify the caller is the owner
  * OR a participant (requester/addressee) of the request the message belongs to,
@@ -24,12 +25,16 @@ export async function GET(req: NextRequest) {
   if (!admin) {
     const me = await getPortalPerson();
     if (!me) return NextResponse.json({ error: "no" }, { status: 403 });
+    // Allow the requester OR any recipient. Multi-recipient requests use the
+    // request_recipients join table (the old single addressee_id column is dead),
+    // so an addressee_id check 403'd legitimate recipients.
     const { data: r } = await sb
       .from("requests")
-      .select("requester_id,addressee_id")
+      .select("requester_id")
       .eq("id", u.request_id as number)
       .maybeSingle();
-    if (!r || ((r.requester_id as number) !== me.id && (r.addressee_id as number | null) !== me.id)) {
+    const allowed = !!r && ((r.requester_id as number) === me.id || (await isRecipient(u.request_id as number, me.id)));
+    if (!allowed) {
       return NextResponse.json({ error: "no" }, { status: 403 });
     }
   }

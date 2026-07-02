@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { directReportIds, getPortalPerson, type PortalPerson } from "@/lib/portal-auth";
 import { personRecipient } from "@/lib/notifications";
-import { createDocument, uploadDocumentFile } from "@/lib/documents";
+import { ingestAttachmentDocument } from "@/app/documents/actions";
 import {
   addRequestMessage,
   advanceRequest,
@@ -38,12 +38,15 @@ async function uploadAttachment(me: PortalPerson, formData: FormData): Promise<{
   const entry = formData.get("attachment");
   const file = entry instanceof File && entry.size > 0 ? entry : null;
   if (!file) return null;
-  const id = await createDocument(
-    { title: file.name, companyId: me.companyId ?? null, category: "Attachment" },
-    stampFor(me)
-  );
-  await uploadDocumentFile(id, file);
-  return { id, name: file.name };
+  // Through the brain so a request attachment is classified, owned, deduped,
+  // dated and searchable like any other document (was a bare "Attachment").
+  const { documentId } = await ingestAttachmentDocument({
+    file,
+    createdBy: stampFor(me),
+    contextCompanyId: me.companyId ?? null,
+    contextPersonId: me.id,
+  });
+  return { id: documentId, name: file.name };
 }
 
 export async function portalRaiseRequest(

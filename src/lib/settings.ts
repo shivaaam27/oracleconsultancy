@@ -95,6 +95,14 @@ export type AppSettings = {
    */
   groqApiKey: string;
   /**
+   * In-app OCR.space key — the always-on cloud scan-reader that keeps scanned
+   * documents readable + auto-filing when Groq vision is off/retired (shutdown
+   * 17 Jul 2026). Blank = fall back to process.env.OCRSPACE_API_KEY; no key
+   * anywhere = the in-site Tesseract floor still reads scans, just slower.
+   * Same security trade-off as groqApiKey (admin-only row, never echoed back).
+   */
+  ocrSpaceApiKey: string;
+  /**
    * Quiet hours — local Dar es Salaam (UTC+3) "HH:MM" window during which
    * non-critical pushes are held (urgent always go through). Empty = OFF (the
    * default, so today's behaviour is unchanged). The window may wrap midnight
@@ -158,6 +166,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoSendSms: false,
   autoHardDeleteForbidden: true, // automated paths archive, never hard-delete
   groqApiKey: "", // blank = fall back to process.env.GROQ_API_KEY (today's behaviour)
+  ocrSpaceApiKey: "", // blank = fall back to process.env.OCRSPACE_API_KEY
   quietHoursStart: "", // blank = quiet hours OFF (every push goes through)
   quietHoursEnd: "",
   notifyDigest: false, // off = each notification buzzes individually (today's behaviour)
@@ -190,6 +199,7 @@ const KEY: Record<keyof AppSettings, string> = {
   autoSendSms: "v2.autoSendSms",
   autoHardDeleteForbidden: "v2.autoHardDeleteForbidden",
   groqApiKey: "ai.groqApiKey",
+  ocrSpaceApiKey: "ai.ocrSpaceApiKey",
   quietHoursStart: "v2.quietHoursStart",
   quietHoursEnd: "v2.quietHoursEnd",
   notifyDigest: "v2.notifyDigest",
@@ -242,6 +252,7 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     autoSendSms: toBool(map.get(KEY.autoSendSms), d.autoSendSms),
     autoHardDeleteForbidden: toBool(map.get(KEY.autoHardDeleteForbidden), d.autoHardDeleteForbidden),
     groqApiKey: map.get(KEY.groqApiKey) ?? d.groqApiKey,
+    ocrSpaceApiKey: map.get(KEY.ocrSpaceApiKey) ?? d.ocrSpaceApiKey,
     quietHoursStart: map.get(KEY.quietHoursStart) ?? d.quietHoursStart,
     quietHoursEnd: map.get(KEY.quietHoursEnd) ?? d.quietHoursEnd,
     notifyDigest: toBool(map.get(KEY.notifyDigest), d.notifyDigest),
@@ -304,6 +315,26 @@ export async function getGroqKeyPreview(): Promise<{ source: "settings" | "env" 
   const env = process.env.GROQ_API_KEY?.trim();
   if (env) return { source: "env", last4: env.slice(-4) };
   return { source: "none", last4: "" };
+}
+
+/** Masked status of the OCR.space scan-reading key (mirror of getGroqKeyPreview).
+ *  "none" is not an error — Tesseract still reads scans — but the cloud reader is
+ *  the recommended safety net for the Groq vision shutdown (17 Jul 2026). */
+export async function getOcrSpaceKeyPreview(): Promise<{ source: "settings" | "env" | "none"; last4: string }> {
+  const { ocrSpaceApiKey } = await getAppSettings();
+  const inApp = ocrSpaceApiKey.trim();
+  if (inApp) return { source: "settings", last4: inApp.slice(-4) };
+  const env = process.env.OCRSPACE_API_KEY?.trim();
+  if (env) return { source: "env", last4: env.slice(-4) };
+  return { source: "none", last4: "" };
+}
+
+/** The effective OCR.space key (in-app first, env fallback) — for the cloud OCR
+ *  engine. Independent of the AI master switch: OCR is a reading floor, not an
+ *  AI feature, so it keeps working when Groq/AI is off. */
+export async function getOcrSpaceKey(): Promise<string | undefined> {
+  const { ocrSpaceApiKey } = await getAppSettings();
+  return ocrSpaceApiKey.trim() || process.env.OCRSPACE_API_KEY?.trim() || undefined;
 }
 
 /** Parse an "HH:MM" string to minutes-since-midnight, or null when invalid/empty. */

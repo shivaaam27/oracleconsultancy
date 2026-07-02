@@ -25,7 +25,16 @@ function toBuffer(image: string | Buffer): Buffer {
 /** OCR.space — always-on cloud OCR. Returns null when no key is configured or the
  *  call fails, so the caller falls through to Tesseract. */
 export async function cloudOcrTranscribe(image: string | Buffer): Promise<string | null> {
-  const key = process.env.OCRSPACE_API_KEY || "";
+  // In-app settings key first (rotatable from Settings → AI, no redeploy), env
+  // fallback. Lazy import keeps this module dependency-light; a settings read
+  // failure must never break the OCR floor, so fall back to env on any error.
+  let key = "";
+  try {
+    const { getOcrSpaceKey } = await import("@/lib/settings");
+    key = (await getOcrSpaceKey()) ?? "";
+  } catch {
+    key = process.env.OCRSPACE_API_KEY || "";
+  }
   if (!key) return null;
   try {
     const buf = toBuffer(image);

@@ -5,6 +5,7 @@ import { callGroqJson, callGroqText, LOW_CONFIDENCE, type GroqJsonResult, type S
 import { recordFact } from "@/lib/facts";
 import { coerceFactValue } from "@/lib/facts-shared";
 import { revalidatePath, updateTag } from "next/cache";
+import { after } from "next/server";
 import { sb } from "@/db/supabase";
 import {
   createDocument,
@@ -478,6 +479,15 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
     const id = await createDocument(input, "ai-intake");
     if (file instanceof File && file.size > 0) await uploadDocumentFile(id, file);
 
+    // Persist the body text captured during the read so the document is
+    // searchable INSIDE from the moment it lands (filed OR quarantined) — not
+    // after the nightly sweep — and correlation/facts see it immediately.
+    // uploadDocumentFile also does this from the extraction cache; this direct
+    // write covers cache misses and older cached reads without a transcript.
+    try {
+      if (res.fullText) await setDocumentText(id, res.fullText, res.textSource ?? "ocr");
+    } catch { /* best-effort — never blocks filing */ }
+
     if (finalState === "trash") {
       // The owner tagged this copy `-OLD`/`-VOID` — a superseded version. Knock it
       // straight into Trash (recoverable), no compliance side-effects.
@@ -538,6 +548,165 @@ export async function autoFileDocumentAction(fd: FormData): Promise<AutoFileResu
   } catch (e) {
     return { ok: false, title: fallbackTitle, status: "needs_review", owner: null, error: e instanceof Error ? e.message : "Could not file the document." };
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Shared attachment-ingest seam — "keep-in-place AND also-file".
+ *
+ * A file uploaded through a non-admin door (chat, task update / completion
+ * proof, portal, request) STAYS where it was posted for that person's
+ * reference; this makes the SAME file a first-class Command-Centre document so
+ * it is classified, owned, de-duplicated, dated, compliance-linked and searched
+ * exactly like an admin upload. One physical file: the caller stores the
+ * returned documentId on its message/update, never a second copy of the bytes.
+ * ------------------------------------------------------------------------- */
+
+export type AttachmentIngestMode = "attachment" | "staff-review-first";
+
+/**
+ * Ingest one uploaded attachment. FAST PATH (awaited): hash-dedup → create the
+ * document → upload the bytes → optional task link → return the id immediately
+ * so the message/update can point at it. SLOW PATH (after the response, via
+ * after(), best-effort): read the file through the brain, apply the catalogue
+ * filing (house title/type/category/expiry), capture body text for search, and
+ * reconcile the owner's compliance — never blocks the caller, never throws into it.
+ */
+export async function ingestAttachmentDocument(opts: {
+  file: File;
+  createdBy: string;
+  contextCompanyId?: number | null;
+  contextPersonId?: number | null;
+  taskId?: number | null;
+  mode?: AttachmentIngestMode;
+  // When the caller ALREADY uploaded the bytes (e.g. a chat bubble stores its own
+  // `chat/<threadId>/...` object in the same bucket), point the document at that
+  // object instead of re-uploading — one physical file, two references.
+  existingStoragePath?: string | null;
+}): Promise<{ documentId: number; deduped: boolean }> {
+  const { file, createdBy } = opts;
+  const contextCompanyId = opts.contextCompanyId ?? null;
+  const contextPersonId = opts.contextPersonId ?? null;
+  const mode = opts.mode ?? "attachment";
+
+  // (1) Dedup across doors — the identical file already on record → point at it,
+  // never pile up a second copy. (A task link is still added so it's reachable
+  // from this task too.)
+  let hash: string | null = null;
+  try { hash = await hashFile(file); } catch { hash = null; }
+  if (hash) {
+    try {
+      const dups = await findDocumentsByHash(hash, undefined, { excludeCompilations: true });
+      const live = dups[0];
+      if (live) {
+        if (opts.taskId) { try { await linkDocumentTask(live.id, opts.taskId); } catch { /* best-effort */ } }
+        return { documentId: live.id, deduped: true };
+      }
+    } catch { /* dedup best-effort — fall through and create it */ }
+  }
+
+  // (2) Create the document NOW with the context owner + a provisional title, so
+  // the message has a stable id. Staff self-uploads start needs_review so they do
+  // not silently count as verified compliance until an admin has had a glance.
+  const documentId = await createDocument({
+    title: file.name,
+    companyId: contextCompanyId,
+    personId: contextPersonId,
+    category: "Attachment",
+    reviewStatus: mode === "staff-review-first" ? "needs_review" : "ok",
+    fileHash: hash,
+  }, createdBy);
+  if (opts.existingStoragePath) {
+    await attachStoredFile(documentId, opts.existingStoragePath, file.name, hash);
+  } else {
+    await uploadDocumentFile(documentId, file);
+  }
+  if (opts.taskId) { try { await linkDocumentTask(documentId, opts.taskId); } catch { /* best-effort */ } }
+
+  // (3) Enrich AFTER the response so sending the message / update is never
+  // slowed. `after` only works inside a request scope; from a script/cron there
+  // is none, so fall back to enriching inline (still best-effort, never throws
+  // into the caller).
+  const enrich = () => enrichAttachmentDocument(documentId, file, { contextCompanyId, contextPersonId, mode })
+    .catch(() => { /* the document still exists, just un-enriched */ });
+  try {
+    after(enrich);
+  } catch {
+    await enrich();
+  }
+
+  return { documentId, deduped: false };
+}
+
+/** Background half of ingestAttachmentDocument: read + classify + date + own +
+ *  index + reconcile compliance, IN PLACE on the already-created document. */
+async function enrichAttachmentDocument(
+  documentId: number,
+  file: File,
+  ctx: { contextCompanyId: number | null; contextPersonId: number | null; mode: AttachmentIngestMode },
+): Promise<void> {
+  const fd = new FormData();
+  fd.set("file", file);
+  const res = await extractDocumentFromFile(fd);
+  const f = res.fields ?? {};
+
+  // Catalogue filing from the filename + read text: house title, type, category, expiry.
+  const filing = deriveFiling(file.name, f.title ?? null, res.fullText ?? "");
+
+  // Owner: a file that self-identifies (read a company/person) wins; otherwise
+  // keep the context owner (whose task/chat this is). Never blank a known owner.
+  let companyId: number | null;
+  let personId: number | null;
+  let ownerName: string | null;
+  if (f.companyId || f.personId) {
+    companyId = f.companyId ?? null;
+    personId = f.personId ?? null;
+    ownerName = f.companyName ?? f.personName ?? null;
+  } else {
+    companyId = ctx.contextCompanyId;
+    personId = ctx.contextPersonId;
+    ownerName = null;
+  }
+
+  const category = (filing.category ?? f.category ?? "Attachment") as string;
+  const docType = filing.typeLabel ?? f.docType ?? null;
+  const expiryKind = filing.expires ? "yes" : (f.expiryKind ?? null);
+  const expiryDate = filing.expiry ?? f.expiryDate ?? null;
+
+  // House title where we can compose one; else keep the original filename.
+  let filePrefix: string | null = null;
+  if (companyId) {
+    const { data: co } = await supa.from("companies").select("file_prefix").eq("id", companyId).maybeSingle();
+    filePrefix = (co?.file_prefix as string | null) ?? null;
+  }
+  if (!ownerName && companyId) { const { data: co } = await supa.from("companies").select("name").eq("id", companyId).maybeSingle(); ownerName = (co?.name as string | null) ?? null; }
+  if (!ownerName && personId) { const { data: pe } = await supa.from("people").select("name").eq("id", personId).maybeSingle(); ownerName = (pe?.name as string | null) ?? null; }
+  const composed = buildDocTitle({ prefix: filePrefix, owner: ownerName, type: docType || category, ref: f.referenceNo, date: f.issueDate, expiry: expiryDate });
+  const title = composed === "Document" ? file.name : composed;
+
+  // An uncertain read (or a staff self-upload) is flagged for a glance in Verify;
+  // a confident read from a trusted door files clean.
+  const reviewStatus = ctx.mode === "staff-review-first" || res.needsReview || !res.ok ? "needs_review" : "ok";
+
+  await updateDocument(documentId, {
+    title,
+    category,
+    docType,
+    issuer: f.issuer ?? null,
+    referenceNo: f.referenceNo ?? null,
+    issueDate: f.issueDate ?? null,
+    expiryDate,
+    expiryKind,
+    companyId,
+    personId,
+    reviewStatus,
+  });
+
+  // Capture body text so the attachment is searchable INSIDE immediately.
+  if (res.fullText) { try { await setDocumentText(documentId, res.fullText, res.textSource ?? "ocr"); } catch { /* best-effort */ } }
+
+  // Reconcile the resolved owner's compliance (links a matching requirement).
+  try { await reconcileOwnerCompliance(personId, companyId); } catch { /* best-effort */ }
+  revalidateDocs();
 }
 
 /** Merge rule-extracted fields with AI-read fields, AI winning wherever it
@@ -2764,7 +2933,7 @@ export async function extractDocumentFields(text: string): Promise<ExtractResult
   const { companies, people } = await loadEntities();
   const apiKey = await getGroqKey();
   if (!apiKey) {
-    return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
+    return { ok: true, fields: await applyIdFirstCompany({ ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, trimmed), source: "rules" };
   }
   const result = await groqExtract(
     [
@@ -2778,7 +2947,7 @@ export async function extractDocumentFields(text: string): Promise<ExtractResult
   // AI failed (rate-limited after retries / bad JSON / off) → fall back to rules
   // rather than crash or store nothing.
   if (!result.ok || !result.data) {
-    return { ok: true, fields: { ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, source: "rules" };
+    return { ok: true, fields: await applyIdFirstCompany({ ...ruleExtract(trimmed), ...scanEntities(trimmed, companies, people) }, trimmed), source: "rules" };
   }
   return {
     ok: true,
@@ -2853,6 +3022,99 @@ async function groqVision(imageUrls: string[], prompt: string, apiKey: string, s
   return last;
 }
 
+// How many pages get OCR-transcribed INLINE at read time. When the vision model
+// read the fields, the transcript is a SUPPLEMENT (ID-first owner match, instant
+// in-file search, cross-doc correlation) — keep it small so intake stays fast.
+// When vision is unavailable (retired/off/failed) the transcript IS the read —
+// allow more pages. Both env-overridable, mirroring the other page caps.
+const INLINE_OCR_PAGES = envPageCap("DOC_INLINE_OCR_PAGES", 6);
+const FALLBACK_CLASSIFY_OCR_PAGES = envPageCap("DOC_FALLBACK_OCR_PAGES", 10);
+
+/**
+ * Read scan page-images (rasterised PDF pages or a photo) with the FULL ladder:
+ *   1. Groq vision (while it lives) reads the structured fields directly;
+ *   2. the layered page transcriber (Groq → OCR.space → Tesseract) captures the
+ *      body text, which gives scans what the typed-text path always had — the
+ *      deterministic ID-first (TIN/VRN) owner match, rule/entity backfill,
+ *      instant in-file search and cross-document correlation;
+ *   3. when vision is unavailable (model retired 17 Jul 2026, AI off, or the
+ *      call failed) the OCR text is classified by the TEXT path instead
+ *      (fieldsFromText), exactly as a typed PDF would be.
+ * So scans keep auto-filing (owner/type/expiry/compliance) with NO vision model,
+ * and even with AI fully off (rule-based extraction on the OCR text).
+ */
+async function extractFromPageImages(
+  images: string[],
+  companies: Entity[],
+  people: Entity[],
+  apiKey: string | undefined,
+  reread?: RereadOpts,
+): Promise<ExtractResult> {
+  // (1) Vision fields — most accurate while the model lives.
+  const vision = apiKey
+    ? await groqVision(images, extractPrompt(companies, people), apiKey, reread?.visionStartIndex ?? 0)
+    : null;
+  const visionOk = Boolean(vision?.ok && vision?.data);
+
+  // (2) Layered transcript (page-capped): a supplement when vision read the
+  // fields, the primary read when it didn't.
+  const cap = visionOk ? INLINE_OCR_PAGES : FALLBACK_CLASSIFY_OCR_PAGES;
+  const parts: string[] = [];
+  for (const img of images.slice(0, cap)) {
+    const txt = await transcribePageLayered(img, apiKey);
+    if (txt) parts.push(txt);
+  }
+  if (!apiKey) {
+    // Release the shared Tesseract worker after a no-AI read (mirrors ocrDocumentText).
+    try { const { disposeOcr } = await import("@/lib/ocr-engines"); await disposeOcr(); } catch { /* best-effort */ }
+  }
+  const transcript = parts.join("\n\n").trim() || null;
+
+  if (vision?.ok && vision.data) {
+    // Vision read the fields; the transcript adds the deterministic layers the
+    // text path always had: rule/entity backfill + the ID-first company override.
+    let fields = coerceFields(vision.data, companies, people, transcript ?? undefined);
+    if (transcript) fields = await applyIdFirstCompany(fields, transcript);
+    return {
+      ok: true,
+      fields,
+      source: "vision",
+      confidence: vision.confidence,
+      needsReview: isLowConfidence(vision.confidence),
+      fullText: transcript,
+      textSource: transcript ? "ocr" : null,
+    };
+  }
+
+  // (3) No vision → classify the OCR text exactly like a typed document (text
+  // model when AI is on, rule-based extraction when off).
+  if (transcript) {
+    const result = await fieldsFromText(transcript, companies, people, apiKey, reread?.textModel);
+    if (result.ok) {
+      return {
+        ...result,
+        // A rules-only read of OCR text (AI off) is a guess on noisy text —
+        // hold it for a human glance rather than silently auto-filing.
+        needsReview: result.source === "rules" ? true : result.needsReview,
+        fullText: transcript,
+        textSource: "ocr",
+        note: result.source === "rules"
+          ? "Read via OCR with rule-based extraction (AI off/unavailable) — held for review."
+          : "Vision model unavailable — read via OCR + the text model.",
+      };
+    }
+  }
+  return {
+    ok: false,
+    fields: {},
+    source: "vision",
+    note: apiKey
+      ? "Couldn't read that scan. Try a clearer copy or a well-lit photo."
+      : "AI is off and the built-in reader couldn't read this scan. Try a clearer copy, or type the details.",
+    failKind: "unreadable",
+  };
+}
+
 // Shared shape for every extraction return: fields + provenance + (when AI ran)
 // the model's confidence and a needs-human-review flag for low-confidence reads.
 type ExtractResult = {
@@ -2888,7 +3150,9 @@ async function fieldsFromText(
 ): Promise<ExtractResult> {
   if (!text.trim()) return { ok: false, fields: {}, source: "rules" };
   if (!apiKey) {
-    return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+    // Rules path still gets the deterministic ID-first (TIN/VRN/email-domain)
+    // owner match — a hard identifier shouldn't need AI to resolve the company.
+    return { ok: true, fields: await applyIdFirstCompany({ ...ruleExtract(text), ...scanEntities(text, companies, people) }, text), source: "rules" };
   }
   const result = await groqExtract(
     [
@@ -2900,7 +3164,7 @@ async function fieldsFromText(
     900
   );
   if (!result.ok || !result.data) {
-    return { ok: true, fields: { ...ruleExtract(text), ...scanEntities(text, companies, people) }, source: "rules" };
+    return { ok: true, fields: await applyIdFirstCompany({ ...ruleExtract(text), ...scanEntities(text, companies, people) }, text), source: "rules" };
   }
   const fields = await applyIdFirstCompany(coerceFields(result.data, companies, people, text), text);
   return {
@@ -3134,31 +3398,22 @@ async function extractDocumentFromFileInner(fd: FormData, reread?: RereadOpts): 
       return { ...result, fullText: usable, textSource: "typed" };
     }
 
-    // Scanned / image-only PDF → rasterise the pages and read with the vision model.
-    if (!apiKey) {
-      return { ok: false, fields: {}, source: "rules", note: "This looks like a scanned PDF and AI is off. Type the details, or paste the document text.", failKind: "no-key" };
-    }
+    // Scanned / image-only PDF → rasterise the pages, then read with the full
+    // ladder: vision fields (while the model lives) + layered OCR transcript,
+    // falling back to OCR → text-model classification — so scans keep auto-filing
+    // after the vision shutdown, and best-effort even with AI off.
     // Read up to MAX_VISION_PAGES (was 2) so multi-page bundles / compilations are
     // seen end-to-end — required for the AI to detect several documents in one file.
     const images = await renderPdfPages(base);
     if (!images.length) {
       return { ok: false, fields: {}, source: "vision", note: "Couldn't render this PDF to read it. Try uploading a clear photo of the document instead.", failKind: "unreadable" };
     }
-    const result = await groqVision(images, extractPrompt(companies, people), apiKey, reread?.visionStartIndex ?? 0);
-    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that scan. Try a clearer copy or a well-lit photo.", failKind: "unreadable" };
-    return {
-      ok: true,
-      fields: coerceFields(result.data, companies, people),
-      source: "vision",
-      confidence: result.confidence,
-      needsReview: isLowConfidence(result.confidence),
-    };
+    return await extractFromPageImages(images, companies, people, apiKey, reread);
   }
 
   const isHeic = lowerName.endsWith(".heic") || lowerName.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
 
   if (file.type.startsWith("image/") || isHeic) {
-    if (!apiKey) return { ok: false, fields: {}, source: "rules", note: "AI is off, so images can't be read automatically. Type the details, or paste the document text.", failKind: "no-key" };
     let buf: Buffer = Buffer.from(await file.arrayBuffer());
     let mime = file.type.startsWith("image/") ? file.type : "image/jpeg";
     // iPhone HEIC → JPEG so the vision model can read it (was previously rejected).
@@ -3176,15 +3431,9 @@ async function extractDocumentFromFileInner(fd: FormData, reread?: RereadOpts): 
       return { ok: false, fields: {}, source: "vision", note: "Image is too large even after shrinking — try a smaller photo.", failKind: "too-big" };
     }
     const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
-    const result = await groqVision([dataUrl], extractPrompt(companies, people), apiKey, reread?.visionStartIndex ?? 0);
-    if (!result.ok || !result.data) return { ok: false, fields: {}, source: "vision", note: "Couldn't read that image. Try a clearer, well-lit photo.", failKind: "unreadable" };
-    return {
-      ok: true,
-      fields: coerceFields(result.data, companies, people),
-      source: "vision",
-      confidence: result.confidence,
-      needsReview: isLowConfidence(result.confidence),
-    };
+    // Full ladder (vision fields + layered OCR, text-model fallback) — same as
+    // scanned PDFs, so photos keep auto-filing after the vision shutdown.
+    return await extractFromPageImages([dataUrl], companies, people, apiKey, reread);
   }
 
   return { ok: false, fields: {}, source: "rules", note: "Unsupported file type. Upload a PDF, Word, Excel/CSV or an image (PNG/JPG).", failKind: "unsupported" };

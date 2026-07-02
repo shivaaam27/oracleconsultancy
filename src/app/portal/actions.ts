@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/mentions";
-import { createTaskAttachment, createDocument, uploadDocumentFile } from "@/lib/documents";
+import { createDocument, uploadDocumentFile, hashFile, findDocumentsByHash } from "@/lib/documents";
+import { ingestAttachmentDocument } from "@/app/documents/actions";
+import { deriveFiling } from "@/lib/doc-catalog";
 import { extractDocumentFromFile } from "@/app/documents/actions";
 import { logPersonRequirementEvent } from "@/lib/compliance-audit";
 import { createLeaveRequestAction } from "@/app/hrms/leave/actions";
@@ -1853,15 +1855,12 @@ export async function portalAddUpdate(formData: FormData) {
   const createdBy = `${isDirector ? "portal-dir" : isHr ? "portal-hr" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
-  // Store an attached file as a real Document (linked to this task).
+  // Store an attached file as a real Document (linked to this task) — run through
+  // the brain so it's classified, owned, deduped, dated and searchable.
   let attachmentDocumentId: number | null = null;
   if (file) {
-    attachmentDocumentId = await createTaskAttachment({
-      taskId,
-      companyId: t.company_id as number | null,
-      file,
-      createdBy,
-    });
+    const r = await ingestAttachmentDocument({ file, createdBy, contextCompanyId: t.company_id as number | null, taskId });
+    attachmentDocumentId = r.documentId;
   }
 
   const messageBody = body || `📎 ${file?.name ?? "Attachment"}`;
@@ -2028,7 +2027,8 @@ export async function portalCompleteTask(
 
   let attachmentDocumentId: number | null = null;
   if (file) {
-    attachmentDocumentId = await createTaskAttachment({ taskId, companyId: t.company_id as number | null, file, createdBy });
+    const r = await ingestAttachmentDocument({ file, createdBy, contextCompanyId: t.company_id as number | null, taskId });
+    attachmentDocumentId = r.documentId;
   }
 
   await sb.from("task_updates").insert({
@@ -2088,43 +2088,62 @@ export async function portalUploadRequirementDocument(
   const category = (req.category as string | null) ?? null;
 
   // Read the file the same way the admin upload does, so a staff passport/permit
-  // gets its expiry/issuer captured — otherwise the renewal radar never sees it.
-  // The checklist already fixes the title + category, so we only take the dates
-  // and issuer/reference; nothing here can overwrite an existing value (blank
-  // record → blanks-only by definition).
-  let expiryDate: string | undefined;
-  let issueDate: string | undefined;
-  let issuer: string | undefined;
-  let referenceNo: string | undefined;
+  // gets its type/expiry/issuer captured — otherwise the renewal radar never sees
+  // it. The checklist already fixes the title + category; we take the dates,
+  // issuer/reference and the catalogue TYPE. Nothing here overwrites an existing
+  // value (blank record → blanks-only by definition).
+  let read: Awaited<ReturnType<typeof extractDocumentFromFile>> | null = null;
   try {
     const extractFd = new FormData();
     extractFd.set("file", file);
-    const read = await extractDocumentFromFile(extractFd);
-    if (read.ok) {
-      expiryDate = read.fields.expiryDate;
-      issueDate = read.fields.issueDate;
-      issuer = read.fields.issuer;
-      referenceNo = read.fields.referenceNo;
-    }
+    read = await extractDocumentFromFile(extractFd);
   } catch {
     /* extraction is best-effort — never block the staff upload on it */
   }
+  const f = read?.fields ?? {};
+  // Catalogue filing: proper document type + expiry behaviour, so it is
+  // classified/searchable and its renewal is tracked like an admin upload.
+  const filing = deriveFiling(file.name, label, read?.fullText ?? "");
+  const docType = filing.typeLabel ?? f.docType ?? null;
+  const expiryKind = filing.expires ? "yes" : (f.expiryKind ?? null);
+  const expiryDate = filing.expiry ?? f.expiryDate;
 
   try {
-    const docId = await createDocument(
-      {
-        title: label,
-        personId: me.id,
-        category,
-        expiryDate,
-        issueDate,
-        issuer,
-        referenceNo,
-        notes: `Uploaded by ${me.name} via the staff portal.`,
-      },
-      createdBy
-    );
-    await uploadDocumentFile(docId, file);
+    // Dedup: the same file already on THIS person's record → reuse it instead of
+    // piling up a duplicate (the admin upload dedups; the portal used not to).
+    let docId: number | null = null;
+    let hash: string | null = null;
+    try { hash = await hashFile(file); } catch { hash = null; }
+    if (hash) {
+      try {
+        const dups = await findDocumentsByHash(hash, undefined, { excludeCompilations: true });
+        const existing = dups.find((d) => d.personId === me.id) ?? dups[0];
+        if (existing) docId = existing.id;
+      } catch { /* dedup best-effort */ }
+    }
+
+    if (docId == null) {
+      docId = await createDocument(
+        {
+          title: label,
+          personId: me.id,
+          category,
+          docType,
+          expiryKind,
+          expiryDate,
+          issueDate: f.issueDate,
+          issuer: f.issuer,
+          referenceNo: f.referenceNo,
+          // A staff self-upload is held for an admin glance (Verify queue) before
+          // it is trusted — it does not silently pass as admin-verified.
+          reviewStatus: "needs_review",
+          fileHash: hash,
+          notes: `Uploaded by ${me.name} via the staff portal.`,
+        },
+        createdBy
+      );
+      await uploadDocumentFile(docId, file);
+    }
 
     // Link to the checklist item as "received" (awaiting admin verification).
     const now = new Date().toISOString();

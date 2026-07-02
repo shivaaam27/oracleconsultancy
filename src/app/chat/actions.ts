@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { DOCUMENTS_BUCKET, signDocumentFile } from "@/lib/documents";
+import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds, type MentionCandidate } from "@/lib/mentions";
 import {
   ADMIN,
@@ -93,6 +94,10 @@ export async function postMessage(
   const files = fd.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (!body && files.length === 0) return { ok: false, error: "Type a message or attach a file." };
 
+  // A task thread carries a company; scope any filed attachment to it.
+  const { data: thr } = await sb.from("chat_threads").select("company_id").eq("id", threadId).maybeSingle();
+  const threadCompanyId = (thr?.company_id as number | null) ?? null;
+
   const attachments: Attachment[] = [];
   for (const file of files) {
     const path = `chat/${threadId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName(file.name)}`;
@@ -101,7 +106,15 @@ export async function postMessage(
       .from(DOCUMENTS_BUCKET)
       .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: true });
     if (error) return { ok: false, error: error.message };
-    attachments.push({ name: file.name, path, type: file.type || "", size: file.size });
+    // Also make it a first-class Command-Centre document (points at the SAME
+    // stored object), so a file shared in chat is classified, owned, deduped and
+    // searchable like any other. Best-effort — a hiccup never blocks the message.
+    let documentId: number | undefined;
+    try {
+      const r = await ingestAttachmentDocument({ file, createdBy: ADMIN, contextCompanyId: threadCompanyId, existingStoragePath: path });
+      documentId = r.documentId;
+    } catch { /* keep the chat message even if the document copy fails */ }
+    attachments.push({ name: file.name, path, type: file.type || "", size: file.size, documentId });
   }
 
   const candidates = await listPeople();
