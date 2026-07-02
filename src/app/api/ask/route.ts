@@ -1150,34 +1150,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "groq-no-body" }, { status: 502 });
     }
 
-    // Proxy Groq's SSE through to the client as plain-text deltas. On a mid-stream
-    // failure we controller.error() rather than close silently, so the client can
-    // tell a truncated half-answer apart from a complete one.
+    // Proxy the provider's SSE to the client as plain-text deltas. We drain the
+    // WHOLE upstream in a single `start` loop — NOT a pull-one-chunk-per-call
+    // handler: providers (esp. Gemini) split an SSE event across arbitrary TCP
+    // chunks (a lone "d", then "ata: {…}", and "[DONE]" byte-by-byte), and the
+    // pull pattern stalled after the first token when a read buffered without
+    // enqueuing. The loop buffers partial lines and only parses complete ones.
     const upstream = res.body.getReader();
     const decoder = new TextDecoder();
     const encoder = new TextEncoder();
-    let buffer = "";
     const stream = new ReadableStream<Uint8Array>({
-      async pull(controller) {
+      async start(controller) {
+        let buffer = "";
         try {
-          const { done, value } = await upstream.read();
-          if (done) { controller.close(); return; }
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            const t = line.trim();
-            if (!t.startsWith("data:")) continue;
-            const payload = t.slice(5).trim();
-            if (payload === "[DONE]") { controller.close(); return; }
-            try {
-              const json = JSON.parse(payload);
-              const delta = json?.choices?.[0]?.delta?.content;
-              if (delta) controller.enqueue(encoder.encode(delta));
-            } catch { /* skip keep-alives / partial frames */ }
+          for (;;) {
+            const { done, value } = await upstream.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            // Split on newlines; keep the trailing partial line for the next read.
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              const t = line.trim();
+              if (!t.startsWith("data:")) continue;
+              const payload = t.slice(5).trim();
+              if (payload === "[DONE]") { controller.close(); return; }
+              try {
+                const json = JSON.parse(payload);
+                const delta = json?.choices?.[0]?.delta?.content;
+                if (delta) controller.enqueue(encoder.encode(delta));
+              } catch { /* partial JSON split across chunks — waits in buffer */ }
+            }
           }
+          controller.close();
         } catch (e) {
-          controller.error(e); // surface mid-stream failure to the client
+          controller.error(e); // surface a genuine mid-stream failure to the client
         }
       },
       cancel() { upstream.cancel().catch(() => {}); },
