@@ -25,7 +25,7 @@ async function CommandTasks({
   const groupWide = seesAllCompanies(me);
 
   const [cmd, { data: companiesRaw }, { data: peopleRaw }, personCompanies] = await Promise.all([
-    buildCommandTasks(ids, me.id),
+    buildCommandTasks(ids, me.id, me.name),
     sb.from("companies").select("id,name").order("name"),
     sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
     getPersonCompaniesMap(),

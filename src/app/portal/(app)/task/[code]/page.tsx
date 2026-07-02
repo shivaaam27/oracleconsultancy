@@ -18,6 +18,7 @@ import { PortalTaskManage } from "@/components/portal-task-manage";
 import { buildCommandTasks } from "@/lib/portal-command-tasks";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { getStaffIdMap } from "@/lib/staff-id";
+import { portalUpdateAuthor } from "@/lib/update-author";
 import { StaffIdChip } from "@/components/staff-id-chip";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalRestoreUpdate } from "../../../actions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
@@ -27,24 +28,17 @@ export const dynamic = "force-dynamic";
 
 const STAFF_STATUSES = ["In Progress", "Under Review", "Blocked"];
 
-/** Maps a created_by stamp to a display name + whether it is "management"
- *  (owner/admin or a portal manager) — management posts get the accent. */
-function authorOf(createdBy: string | null, myName: string): { name: string; management: boolean; me: boolean } {
-  if (!createdBy) return { name: "System", management: false, me: false };
-  if (createdBy.startsWith("portal-dir:")) {
-    const name = createdBy.slice(11);
-    return { name: name === myName ? "You" : name, management: true, me: name === myName };
-  }
-  if (createdBy.startsWith("portal-mgr:")) {
-    const name = createdBy.slice(11);
-    return { name: name === myName ? "You" : name, management: true, me: name === myName };
-  }
-  if (createdBy.startsWith("portal:")) {
-    const name = createdBy.slice(7);
-    return { name: name === myName ? "You" : name, management: false, me: name === myName };
-  }
-  if (createdBy === "ai-command") return { name: "ORI", management: true, me: false };
-  return { name: "Management", management: true, me: false };
+/** Maps a created_by stamp to a viewer-aware display name (first name; "You"
+ *  only for the viewer's own portal post; command-centre → owner name) + whether
+ *  it is "management" (owner/admin or a portal manager/director) — management
+ *  posts get the accent. Uses the shared portal resolver for the name. */
+function authorOf(createdBy: string | null, myName: string, ownerName: string | null): { name: string; management: boolean; me: boolean } {
+  const name = portalUpdateAuthor(createdBy, myName, ownerName);
+  const me = name === "You";
+  // Plain staff posts (portal:Name) read as non-management; everyone else
+  // (director/manager/HR/command-centre/ORI/system) gets the management accent.
+  const management = !!createdBy && !createdBy.startsWith("portal:");
+  return { name, management, me };
 }
 
 type Update = {
@@ -80,7 +74,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // Record my view — powers the "Seen" indicator for everyone else.
   await recordTaskView(task.id as number, `person:${me.id}`);
 
-  const [{ data: assignees }, { data: updates }, { data: views }, staffIds] = await Promise.all([
+  const [{ data: assignees }, { data: updates }, { data: views }, staffIds, { data: ownerRow }] = await Promise.all([
     sb.from("task_assignees").select("role,people(id,name)").eq("task_id", task.id),
     sb
       .from("task_updates")
@@ -90,7 +84,11 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       .order("created_at", { ascending: false }),
     sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
     getStaffIdMap(),
+    sb.from("settings").select("value").eq("key", "v2.ownerName").maybeSingle(),
   ]);
+  // Configured owner name — command-centre (web-ui) updates show this instead of
+  // "You" in the portal.
+  const ownerName = (ownerRow?.value as string | null) ?? null;
 
   // Who assigned this task — when a portal user (typically a director) created
   // it, surface a quiet "Assigned by {Name}" line in the header meta.
@@ -182,7 +180,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const seenLabel = seenBy.filter(Boolean);
 
   // Body lookup for reply previews.
-  const bodyById = new Map(all.map((u) => [u.id, { body: u.body, author: authorOf(u.created_by, me.name).name }]));
+  const bodyById = new Map(all.map((u) => [u.id, { body: u.body, author: authorOf(u.created_by, me.name, ownerName).name }]));
 
   // Attachment file names for messages that carry a document.
   const attachIds = all.map((u) => u.attachment_document_id).filter((x): x is number => x != null);
@@ -193,7 +191,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   }
 
   const messages: ConvoMessage[] = all.map((u) => {
-    const a = authorOf(u.created_by, me.name);
+    const a = authorOf(u.created_by, me.name, ownerName);
     const parentRef = u.parent_update_id ? bodyById.get(u.parent_update_id) : null;
     return {
       id: u.id,
@@ -227,7 +225,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   if (isManagement) {
     const groupWide = seesAllCompanies(me);
     const [cmdArr, { data: peopleRaw }, { data: companiesRaw }, personCompanies] = await Promise.all([
-      buildCommandTasks([task.id as number], me.id),
+      buildCommandTasks([task.id as number], me.id, me.name),
       sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
       sb.from("companies").select("id,name").order("name"),
       getPersonCompaniesMap(),
@@ -276,7 +274,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     deletedUpdates = (del ?? []).map((u) => ({
       id: u.id as number,
       body: (u.body as string) ?? "",
-      author: authorOf(u.created_by as string | null, me.name).name,
+      author: authorOf(u.created_by as string | null, me.name, ownerName).name,
       at: u.deleted_at as string,
     }));
   }
@@ -301,7 +299,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   } as unknown as TaskRow;
   // The freshest update for the "latest activity" glance in Overview.
   const latestUpdate = latest;
-  const latestAuthor = latestUpdate ? authorOf(latestUpdate.created_by, me.name).name : null;
+  const latestAuthor = latestUpdate ? authorOf(latestUpdate.created_by, me.name, ownerName).name : null;
   const fmtWhen = (iso: string) =>
     new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 

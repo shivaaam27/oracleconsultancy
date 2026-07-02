@@ -90,7 +90,7 @@ export default async function PortalHome() {
   }
 
   // The person's tasks in the shared Aurora command shape (same as the Tasks tab).
-  const cmd = await buildCommandTasks(ids, me.id);
+  const cmd = await buildCommandTasks(ids, me.id, me.name);
 
   // People + companies power the inline command view (expand panel names + filters).
   // Staff & managers get the list inline; HR keep a link to the full Tasks tab.

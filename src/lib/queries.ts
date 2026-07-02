@@ -66,6 +66,9 @@ export type TaskRow = {
     id: number;
     body: string;
     author: string;
+    /** Raw created_by stamp — lets the portal re-resolve the author viewer-aware
+     *  ("You" only for the viewer's own portal update; else the person's name). */
+    by: string | null;
     atISO: string;
     kind: "comment" | "status";
   } | null;
@@ -289,6 +292,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
           id: latest.id,
           body: (latest.body ?? "").trim(),
           author: resolveUpdateAuthor(latest.created_by),
+          by: latest.created_by ?? null,
           atISO: latest.created_at,
           kind: detectStatusChange(latest.body ?? "") ? ("status" as const) : ("comment" as const),
         }

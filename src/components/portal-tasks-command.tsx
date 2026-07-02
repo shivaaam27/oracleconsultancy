@@ -330,9 +330,12 @@ export function PortalTasksCommand({
           <ListTodo size={16} className="text-fg-subtle" /> No tasks match. Try a different filter or search.
         </div>
       ) : (
-        groups.map((g) => (
-          <div key={g.key} className="flex flex-col gap-2">
-            <div className={cn("flex items-center gap-2 px-1", groupByCompany && "mt-1")}>
+        // Extra breathing room BETWEEN sections / companies (more than the tight
+        // gap within a section) so each block reads as its own group.
+        <div className={cn("flex flex-col", groupByCompany ? "gap-8" : "gap-7")}>
+        {groups.map((g) => (
+          <div key={g.key} className="flex flex-col gap-2.5">
+            <div className={cn("flex items-center gap-2 px-1", groupByCompany && "mt-0.5")}>
               {groupByCompany
                 ? <CompanyAvatar name={g.label} logoUrl={g.logoUrl ?? null} size={28} rounded="rounded-lg" iconSize={15} />
                 : g.dotColor != null
@@ -350,7 +353,8 @@ export function PortalTasksCommand({
               {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} companies={companies} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} />)}
             </div>
           </div>
-        ))
+        ))}
+        </div>
       )}
 
       {selectable && selected.size > 0 && (
@@ -621,10 +625,11 @@ function TaskRow({
         {/* Company + owner — kept off the collapsed card (clean glance), shown here
             on expand. Hidden in the company-grouped view where the header has it. */}
         {!groupByCompany && (
-          <div className="flex items-center gap-1.5 text-[12px]">
+          <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
             <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
             <span className="font-medium text-fg">{t.companyName}</span>
-            <span className="text-fg-subtle">· {t.accountableName ?? "Unassigned"}</span>
+            {/* All the LEAD names — stays in step as you promote/demote below. */}
+            <span className="text-fg-subtle">· {(() => { const leads = rowPeople.filter((p) => p.lead).map((p) => p.name); return leads.length ? leads.join(", ") : "Unassigned"; })()}</span>
           </div>
         )}
         {/* Description + latest update — full width, clean. The action buttons sit
