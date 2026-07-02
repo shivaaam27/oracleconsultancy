@@ -184,8 +184,9 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 // one implementation serves both (native vision + JSON mode supported).
 const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 
-/** One implementation for any OpenAI-compatible chat endpoint (Groq, Gemini, …). */
-function openAiCompatProvider(id: string, url: string): AIProvider {
+/** One implementation for any OpenAI-compatible chat endpoint (Groq, Gemini, …).
+ *  `extraBody` merges provider-specific fields into every request. */
+function openAiCompatProvider(id: string, url: string, extraBody?: Record<string, unknown>): AIProvider {
   return {
     id,
     async chat(req: ProviderChatRequest): Promise<ProviderChatResult> {
@@ -198,6 +199,7 @@ function openAiCompatProvider(id: string, url: string): AIProvider {
           temperature: req.temperature,
           max_tokens: req.maxTokens,
           ...(req.jsonMode ? { response_format: { type: "json_object" as const } } : {}),
+          ...(extraBody ?? {}),
         }),
         signal: AbortSignal.timeout(req.timeoutMs),
       });
@@ -216,7 +218,10 @@ function openAiCompatProvider(id: string, url: string): AIProvider {
 }
 
 export const groqProvider: AIProvider = openAiCompatProvider("groq", GROQ_URL);
-export const geminiProvider: AIProvider = openAiCompatProvider("gemini", GEMINI_URL);
+// Gemini 2.5 models "think" by default, which silently eats the (small) answer
+// budget and returns truncated JSON — the failure the owner hit. reasoning_effort
+// "none" disables thinking so they behave as fast, direct extractors.
+export const geminiProvider: AIProvider = openAiCompatProvider("gemini", GEMINI_URL, { reasoning_effort: "none" });
 
 /** Provider registry, keyed by the AiProvider id from settings. */
 export const PROVIDERS: Record<AiProvider, AIProvider> = {

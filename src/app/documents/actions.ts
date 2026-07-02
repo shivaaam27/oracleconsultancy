@@ -2002,7 +2002,9 @@ async function extractTypedTextFromFile(file: File): Promise<string | null> {
 async function visionTranscribe(imageUrl: string, apiKey: string): Promise<string | null> {
   const res = await callGroqText({
     apiKey,
-    models: GROQ_VISION_MODELS, // try each vision model in turn — survives a deprecation
+    // The ACTIVE provider's vision models (Gemini reads scans natively + fast);
+    // falls to the layered OCR engines below only when the model can't read it.
+    models: providerVisionModels(await getActiveProvider()),
     maxTokens: 3000,
     temperature: 0,
     messages: [{
