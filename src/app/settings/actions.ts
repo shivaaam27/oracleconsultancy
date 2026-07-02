@@ -213,25 +213,40 @@ export async function setPortalAccess(fd: FormData): Promise<void> {
   const RANK: Record<string, number> = { staff: 0, manager: 1, hr: 2, director: 2 };
   const effectiveRole = wasEnabled && (RANK[role] ?? 0) < (RANK[prevRole] ?? 0) ? prevRole : role;
 
-  // Company-scoped director: a "director" with a chosen company → scoped to it;
-  // blank/portfolio → null. Any non-director role clears the scope entirely.
-  const dirCo = Number(fd.get("directorCompanyId"));
-  const directorCompanyId =
-    effectiveRole === "director" && Number.isFinite(dirCo) && dirCo > 0 ? dirCo : null;
-
   const { error } = await sb
     .from("people")
     .update({
       portal_password_hash: hashPassword(password),
       portal_enabled_at: new Date().toISOString(),
       portal_role: effectiveRole,
-      director_company_id: directorCompanyId,
     })
     .eq("id", personId);
   if (error) throw new Error(error.message);
+  // Company-scoped director: a "director" with chosen companies → scoped to them;
+  // none/portfolio → cleared. Any non-director role clears the scope entirely.
+  await writeDirectorScope(personId, effectiveRole === "director" ? parseDirectorScope(fd) : []);
   await recordEvent(wasEnabled ? "portal.access.reset" : "portal.access.granted", "ok", { personId, role: effectiveRole });
   revalidatePath("/settings");
   redirect("/settings?portal=saved");
+}
+
+/** Parse the chosen director scope companies from the form (repeated
+ *  `directorCompanyIds` inputs). Empty = portfolio-wide. */
+function parseDirectorScope(fd: FormData): number[] {
+  return Array.from(new Set(
+    fd.getAll("directorCompanyIds").map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0),
+  ));
+}
+
+/** Persist a director's company scope: replace the join-table rows AND keep
+ *  people.director_company_id in sync with the FIRST id (back-compat). Empty
+ *  companyIds → cleared (portfolio director, or a non-director role). */
+async function writeDirectorScope(personId: number, companyIds: number[]): Promise<void> {
+  await sb.from("director_companies").delete().eq("person_id", personId);
+  if (companyIds.length > 0) {
+    await sb.from("director_companies").insert(companyIds.map((cid) => ({ person_id: personId, company_id: cid })));
+  }
+  await sb.from("people").update({ director_company_id: companyIds[0] ?? null }).eq("id", personId);
 }
 
 /** Change a portal user's access level WITHOUT resetting their password. Only
@@ -248,15 +263,13 @@ export async function setPortalRole(fd: FormData): Promise<void> {
   if (!row?.portal_password_hash) redirect("/settings?portal=error");
   const prevRole = (row.portal_role as string | null) ?? "staff";
 
-  // Scope a director to one company (or clear it for portfolio / any other role).
-  const dirCo = Number(fd.get("directorCompanyId"));
-  const directorCompanyId = role === "director" && Number.isFinite(dirCo) && dirCo > 0 ? dirCo : null;
-
   const { error } = await sb
     .from("people")
-    .update({ portal_role: role, director_company_id: directorCompanyId })
+    .update({ portal_role: role })
     .eq("id", personId);
   if (error) throw new Error(error.message);
+  // Scope a director to their companies (or clear it for portfolio / any other role).
+  await writeDirectorScope(personId, role === "director" ? parseDirectorScope(fd) : []);
   await recordEvent("portal.role.changed", "ok", { personId, from: prevRole, to: role });
   revalidatePath("/settings");
   // The change is read fresh on the person's next request (getPortalPerson hits
@@ -374,6 +387,7 @@ export async function revokePortalAccess(fd: FormData): Promise<void> {
     .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff", director_company_id: null })
     .eq("id", personId);
   if (error) throw new Error(error.message);
+  await sb.from("director_companies").delete().eq("person_id", personId);
   await recordEvent("portal.access.revoked", "ok", { personId });
   revalidatePath("/settings");
   redirect("/settings?portal=revoked");

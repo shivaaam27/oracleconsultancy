@@ -19,7 +19,7 @@ export type BriefNote = {
  */
 export async function listBriefNotes(
   range: { start: Date; end: Date },
-  selectedCompanyId: number | null,
+  scope: number[] | null,
   companyNameById: Map<number, string>
 ): Promise<BriefNote[]> {
   let q = sb
@@ -28,7 +28,9 @@ export async function listBriefNotes(
     .gte("note_date", range.start.toISOString())
     .lte("note_date", range.end.toISOString())
     .order("note_date", { ascending: false });
-  if (selectedCompanyId) q = q.or(`company_id.eq.${selectedCompanyId},company_id.is.null`);
+  // A scoped brief shows notes tagged to any of its companies, plus portfolio-wide
+  // (untagged) notes.
+  if (scope && scope.length) q = q.or(`company_id.in.(${scope.join(",")}),company_id.is.null`);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {

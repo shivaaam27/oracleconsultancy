@@ -23,7 +23,7 @@ const riskTone = (r: string): "success" | "warn" | "danger" =>
 // The board doesn't render document-derived signals, so skip the ~1s listDocuments
 // read — a meaningful cut to the board's load (and its reload when you navigate back).
 // `companyId` scopes a COMPANY DIRECTOR's board to their one company (null = portfolio).
-const boardBrief = cache((companyId: number | null) => getBrief(new Date(), "month", companyId, { skipDocuments: true }));
+const boardBrief = cache((companyIds: number[] | null) => getBrief(new Date(), "month", companyIds, { skipDocuments: true }));
 
 export default async function DirectorBoard({ searchParams }: { searchParams: Promise<{ created?: string }> }) {
   const me = await getPortalPerson();
@@ -43,7 +43,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
       )}
 
       <Suspense fallback={<BoardSkeleton name={getGivenName(me.name)} />}>
-        <Board personName={me.name} directorCompanyId={me.directorCompanyId} />
+        <Board personName={me.name} directorCompanyIds={me.directorCompanyIds.length ? me.directorCompanyIds : null} />
       </Suspense>
 
       {announcements.length > 0 && (
@@ -61,17 +61,17 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   );
 }
 
-async function Board({ personName, directorCompanyId }: { personName: string; directorCompanyId: number | null }) {
+async function Board({ personName, directorCompanyIds }: { personName: string; directorCompanyIds: number[] | null }) {
   // The brief and the composer's picker lists are independent — fetch them
   // CONCURRENTLY rather than in series. The board's load (and its reload when you
   // navigate back from a company) is dominated by these round-trips, so overlapping
   // them is a direct win. Each falls back to empty on a transient error.
   const [brief, pickerData] = await Promise.all([
-    boardBrief(directorCompanyId),
+    boardBrief(directorCompanyIds),
     Promise.all([
-      // A company director's composer only offers THEIR company.
-      directorCompanyId != null
-        ? sb.from("companies").select("id,name").eq("id", directorCompanyId)
+      // A company director's composer only offers THEIR companies.
+      directorCompanyIds != null
+        ? sb.from("companies").select("id,name").in("id", directorCompanyIds).order("name")
         : sb.from("companies").select("id,name").order("name"),
       sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
       getPersonCompaniesMap(),
@@ -89,9 +89,10 @@ async function Board({ personName, directorCompanyId }: { personName: string; di
       const primary = (p.company_id as number | null) ?? null;
       return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
     });
-    // A company director assigns only within their company → offer only its people.
-    if (directorCompanyId != null) {
-      people = people.filter((p) => p.companyIds.includes(directorCompanyId));
+    // A company director assigns only within their companies → offer only those people.
+    if (directorCompanyIds != null) {
+      const scope = new Set(directorCompanyIds);
+      people = people.filter((p) => p.companyIds.some((c) => scope.has(c)));
     }
   }
 

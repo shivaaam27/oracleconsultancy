@@ -1036,6 +1036,7 @@ export async function setPortalRoleQuick(personId: number, role: string): Promis
     .update({ portal_role: next, ...(next !== "director" ? { director_company_id: null } : {}) })
     .eq("id", personId);
   if (error) return { ok: false, error: error.message };
+  if (next !== "director") await sb.from("director_companies").delete().eq("person_id", personId);
   await recordEvent("portal.role.changed", "ok", { personId, from: prev, to: next });
   invalidate();
   return { ok: true };
@@ -1080,6 +1081,7 @@ export async function revokePortalAccessQuick(personId: number): Promise<ActionR
     .update({ portal_password_hash: null, portal_enabled_at: null, portal_role: "staff", director_company_id: null })
     .eq("id", personId);
   if (error) return { ok: false, error: error.message };
+  await sb.from("director_companies").delete().eq("person_id", personId);
   await recordEvent("portal.access.revoked", "ok", { personId });
   invalidate();
   return { ok: true };

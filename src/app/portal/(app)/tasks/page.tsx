@@ -40,10 +40,10 @@ async function CommandTasks({
     return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
   });
   if (isScopedDirector(me)) {
-    // Company director: pickers cover their WHOLE company (not just direct reports).
-    const scope = me.directorCompanyId as number;
-    people = people.filter((p) => p.companyIds.includes(scope));
-    companies = companies.filter((c) => c.id === scope);
+    // Company director: pickers cover their WHOLE company set (not just direct reports).
+    const scope = new Set(me.directorCompanyIds);
+    people = people.filter((p) => p.companyIds.some((c) => scope.has(c)));
+    companies = companies.filter((c) => scope.has(c.id));
   } else if (!groupWide) {
     const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
     people = people.filter((p) => reportSet.has(p.id));

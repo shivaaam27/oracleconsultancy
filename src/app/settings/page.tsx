@@ -24,6 +24,7 @@ import { adminBeginPasskey, adminFinishPasskey, adminRemovePasskey } from "./pas
 import { getOwnerIdentity } from "@/lib/admin-auth";
 import { listCredentials } from "@/lib/webauthn";
 import { PasskeyManager } from "@/components/passkey-manager";
+import { DirectorScopePicker } from "@/components/director-scope-picker";
 import { FormSwitch } from "@/components/form-switch";
 import Link from "next/link";
 import { Save, SlidersHorizontal, MapPin, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, Hand, Palette, ArrowRight, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, FolderSync, Scale } from "lucide-react";
@@ -63,7 +64,7 @@ export default async function SettingsPage({
     getGoogleStatus(),
     sb
       .from("people")
-      .select("id,name,portal_password_hash,portal_last_login_at,portal_role,director_company_id")
+      .select("id,name,portal_password_hash,portal_last_login_at,portal_role,director_company_id,director_companies(company_id)")
       .eq("active", true)
       .order("name"),
     sb.from("companies").select("id,name").eq("active", true).order("name"),
@@ -82,7 +83,13 @@ export default async function SettingsPage({
     enabled: Boolean(p.portal_password_hash),
     lastLogin: p.portal_last_login_at as string | null,
     role: ((p.portal_role as string | null) ?? "staff") as "staff" | "manager" | "director",
-    directorCompanyId: (p.director_company_id as number | null) ?? null,
+    directorCompanyIds: (() => {
+      const raw = p.director_companies as { company_id: number }[] | { company_id: number } | null | undefined;
+      const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      const ids = rows.map((r) => r.company_id as number);
+      if (ids.length === 0 && p.director_company_id != null) return [p.director_company_id as number];
+      return ids;
+    })(),
   }));
   const portalEnabled = portalPeople.filter((p) => p.enabled);
   const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
@@ -585,20 +592,9 @@ export default async function SettingsPage({
                         <option value="hr">Admin</option>
                         <option value="director">Director</option>
                       </Select>
-                      {/* Director scope: blank = whole portfolio; a company = Company Director.
-                          Ignored server-side unless the role is Director. */}
-                      <Select
-                        name="directorCompanyId"
-                        defaultValue={p.directorCompanyId ? String(p.directorCompanyId) : ""}
-                        className="h-8 text-xs"
-                        aria-label="Director scope"
-                        title="If Director: all companies, or limit to one"
-                      >
-                        <option value="">All companies</option>
-                        {companies.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name} only</option>
-                        ))}
-                      </Select>
+                      {/* Director scope: none = whole portfolio; one or more companies
+                          = Company Director. Ignored server-side unless role Director. */}
+                      <DirectorScopePicker companies={companies} selected={p.directorCompanyIds} />
                       <Button type="submit" variant="secondary" size="sm">Save</Button>
                     </form>
                     <form action={revokePortalAccess}>
@@ -635,12 +631,7 @@ export default async function SettingsPage({
               </div>
               <div className="sm:col-span-2 lg:col-span-4">
                 <FieldLabel>If Director — scope (optional)</FieldLabel>
-                <Select name="directorCompanyId" defaultValue="" aria-label="Director scope">
-                  <option value="">All companies (portfolio director)</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name} only (company director)</option>
-                  ))}
-                </Select>
+                <DirectorScopePicker companies={companies} selected={[]} />
               </div>
               <div>
                 <RevealPassword name="password" minLength={8} required placeholder="Password (min 8 characters)" />

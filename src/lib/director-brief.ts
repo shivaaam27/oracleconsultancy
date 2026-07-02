@@ -167,18 +167,17 @@ export type BriefWeekEvent = {
 async function buildHrBrief(
   now: Date,
   range: { start: Date; end: Date },
-  selectedCompanyId: number | null,
+  scope: number[] | null,
   documents: DocumentRow[],
   companyNameById: Map<number, string>
 ): Promise<BriefHr> {
   const [{ data: pplRows }, scores, leave, pendingReqs] = await Promise.all([
     sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date,date_of_birth").eq("active", true),
     buildPersonRequirementScores(),
-    // When the Brief is filtered to one company, the on-leave-today figure must
-    // scope to that company too (it used to stay portfolio-wide, so a
-    // single-company Brief showed one company's headcount but all 7 companies'
-    // on-leave count).
-    leaveMetrics(selectedCompanyId),
+    // When the Brief is filtered to companies, the on-leave-today figure scopes to
+    // them too (a single company scopes precisely; a multi-company scope keeps the
+    // portfolio aggregate — a count only).
+    leaveMetrics(scope && scope.length === 1 ? scope[0] : null),
     listLeaveRequests({ status: "Pending" }),
   ]);
 
@@ -191,7 +190,7 @@ async function buildHrBrief(
     probationEnd: p.probation_end_date ? new Date(p.probation_end_date as string) : null,
     dateOfBirth: p.date_of_birth ? new Date(p.date_of_birth as string) : null,
   }));
-  if (selectedCompanyId) people = people.filter((p) => p.companyId === selectedCompanyId);
+  if (scope) people = people.filter((p) => p.companyId != null && scope.includes(p.companyId));
   const idSet = new Set(people.map((p) => p.id));
   const nameById = new Map(people.map((p) => [p.id, p.name]));
 
@@ -286,7 +285,7 @@ async function buildHrBrief(
   };
 }
 
-export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | null, opts?: { skipDocuments?: boolean }): Promise<BriefData> {
+export async function getBrief(now: Date = new Date(), period: BriefPeriod = "month", companyId?: number | number[] | null, opts?: { skipDocuments?: boolean }): Promise<BriefData> {
   const [allRows, documents, activeCompaniesRes] = await Promise.all([
     getAllTasks(),
     // `documents` only feeds the HR "expiring people documents" signal, which the
@@ -312,10 +311,19 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   // appended with zero figures. Strict company_id grouping is preserved.
   const allKpis: CompanyKpi[] = [...taskKpis, ...zeroKpis];
   const companyOptions = allKpis.map((k) => ({ id: k.id, name: k.name })).sort((a, b) => a.name.localeCompare(b.name));
-  const selectedCompanyId = companyId && allKpis.some((k) => k.id === companyId) ? companyId : null;
+  // Company scope: undefined/null = whole portfolio; a number or an array limits
+  // the brief to that company set (a multi-company scoped director). Only ids that
+  // actually exist are honoured.
+  const scopeReq = companyId == null ? [] : (Array.isArray(companyId) ? companyId : [companyId]);
+  const scopeIds = scopeReq.filter((id) => allKpis.some((k) => k.id === id));
+  const scope: number[] | null = scopeIds.length ? scopeIds : null;
+  const scopeSet = scope ? new Set(scope) : null;
+  // A single-company id (for the returned field + the single-id calendar filter),
+  // only when the scope is exactly one company.
+  const selectedCompanyId = scope && scope.length === 1 ? scope[0] : null;
   const selectedCompanyName = selectedCompanyId ? allKpis.find((k) => k.id === selectedCompanyId)?.name ?? null : null;
-  const rows = selectedCompanyId ? allRows.filter((r) => r.companyId === selectedCompanyId) : allRows;
-  const kpis = selectedCompanyId ? allKpis.filter((k) => k.id === selectedCompanyId) : allKpis;
+  const rows = scopeSet ? allRows.filter((r) => scopeSet.has(r.companyId)) : allRows;
+  const kpis = scopeSet ? allKpis.filter((k) => scopeSet.has(k.id)) : allKpis;
 
   const range = periodRange(now, period);
   const monthLabel = range.label;
@@ -332,8 +340,8 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
   // (it dominates the director board's load + reload-on-back). Total time drops
   // from the SUM of these reads to the slowest single one.
   const [hr, notes, logoMap, companyReqScores, appSettings, obligations, calEvents] = await Promise.all([
-    buildHrBrief(now, range, selectedCompanyId, documents, companyNameById),
-    listBriefNotes(range, selectedCompanyId, companyNameById),
+    buildHrBrief(now, range, scope, documents, companyNameById),
+    listBriefNotes(range, scope, companyNameById),
     getCompanyLogoMap(),
     buildCompanyRequirementScores(kpis.map((k) => ({ id: k.id, name: k.name }))),
     getAppSettings(),
@@ -457,8 +465,10 @@ export async function getBrief(now: Date = new Date(), period: BriefPeriod = "mo
     .sort((a, b) => (a.urgency === b.urgency ? 0 : a.urgency === "High" ? -1 : 1))
     .slice(0, 6);
 
-  // Next 7 days of calendar events (fetched above, honours the company filter).
+  // Next 7 days of calendar events (fetched above). For a multi-company scope the
+  // fetch isn't company-filtered, so keep only the scoped companies' events.
   const weekAhead: BriefWeekEvent[] = calEvents
+    .filter((e) => !scopeSet || (e.companyId != null && scopeSet.has(e.companyId)))
     .slice(0, 12)
     .map((e) => ({
       id: e.id,

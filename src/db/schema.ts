@@ -171,6 +171,23 @@ export const personCompanies = pgTable(
   ]
 );
 
+// Company-scoped director → the set of companies they govern. A director with
+// one or more rows here is a "company director" limited to those companies; a
+// director with NO rows is portfolio-wide (sees everything). Replaces the single
+// people.director_company_id (which is kept in sync with the FIRST row for
+// back-compat). Mirrors person_companies. See lib/portal-auth.ts.
+export const directorCompanies = pgTable(
+  "director_companies",
+  {
+    personId: integer("person_id").notNull().references(() => people.id, { onDelete: "cascade" }),
+    companyId: integer("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.personId, t.companyId] }),
+    index("director_companies_company_idx").on(t.companyId),
+  ]
+);
+
 // Organogram — secondary / "dotted-line" reporting. The PRIMARY manager stays on
 // people.manager_id (the solid line the org tree is drawn from). This table holds
 // any ADDITIONAL managers a person also reports to (matrix / functional reporting),

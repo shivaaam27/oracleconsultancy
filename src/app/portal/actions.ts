@@ -869,22 +869,22 @@ export async function portalDirectorCreateTask(
   }
   if (companyIds.length === 0) return { error: "Choose a company." };
 
-  // A COMPANY DIRECTOR is locked to their one company — both the target
-  // company/companies AND the assignees must sit inside it (re-checked here, never
-  // trusting the scoped picker). A portfolio director (scopeId null) is unrestricted.
-  const scopeId = isScopedDirector(me) ? (me.directorCompanyId as number) : null;
-  if (scopeId != null && !companyIds.every((c) => c === scopeId)) {
-    return { error: "You can only create tasks for your company." };
+  // A COMPANY DIRECTOR is locked to their companies — both the target
+  // company/companies AND the assignees must sit inside them (re-checked here, never
+  // trusting the scoped picker). A portfolio director (scope null) is unrestricted.
+  const scope = isScopedDirector(me) ? me.directorCompanyIds : null;
+  if (scope != null && !companyIds.every((c) => scope.includes(c))) {
+    return { error: "You can only create tasks for your companies." };
   }
 
   // Group-wide: the only constraint is that the people are real + active. A scoped
-  // director additionally requires each person to belong to their company.
+  // director additionally requires each person to belong to one of their companies.
   const { data: activeRows } = await sb.from("people").select("id").eq("active", true).in("id", [...leadIds, ...workingIds]);
   let activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
-  if (scopeId != null) {
+  if (scope != null) {
     const [{ data: pr }, { data: lr }] = await Promise.all([
-      sb.from("people").select("id").eq("company_id", scopeId).in("id", [...leadIds, ...workingIds]),
-      sb.from("person_companies").select("person_id").eq("company_id", scopeId).in("person_id", [...leadIds, ...workingIds]),
+      sb.from("people").select("id").in("company_id", scope).in("id", [...leadIds, ...workingIds]),
+      sb.from("person_companies").select("person_id").in("company_id", scope).in("person_id", [...leadIds, ...workingIds]),
     ]);
     const inCompany = new Set<number>([
       ...(pr ?? []).map((r) => r.id as number),
@@ -893,7 +893,7 @@ export async function portalDirectorCreateTask(
     activeSet = new Set([...activeSet].filter((id) => inCompany.has(id)));
   }
   const leads = leadIds.filter((id) => activeSet.has(id));
-  if (leads.length === 0) return { error: scopeId != null ? "Choose someone in your company." : "The responsible person isn't available." };
+  if (leads.length === 0) return { error: scope != null ? "Choose someone in your companies." : "The responsible person isn't available." };
   const workings = workingIds.filter((id) => activeSet.has(id) && !leads.includes(id));
 
   const now = new Date();

@@ -221,7 +221,10 @@ export async function portalCreateAnnouncement(fd: FormData): Promise<Result> {
       me.portalRole === "manager"
         ? { companyId: me.companyId, managerId: me.id }
         : isScopedDirector(me)
-          ? { companyId: me.directorCompanyId, managerId: null }
+          // NOTE: the announcement audience is single-company; a multi-company
+          // scoped director currently targets their FIRST company. (Extend the
+          // audience model to post per company later.)
+          ? { companyId: me.directorCompanyIds[0] ?? null, managerId: null }
           : null,
   });
   if (!built.ok) return { ok: false, error: built.error };

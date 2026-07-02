@@ -69,13 +69,16 @@ export default async function PortalLayout({ children }: { children: React.React
   // Oracle as the platform. Everyone else keeps "Oracle Consultancy · <portal>".
   const scopedDirector = isScopedDirector(me);
   let scopedCompanyName: string | null = null;
-  if (scopedDirector && me.directorCompanyId != null) {
+  if (scopedDirector && me.directorCompanyIds.length > 0) {
     const { data } = await sb
       .from("companies")
       .select("name,legal_name")
-      .eq("id", me.directorCompanyId)
-      .maybeSingle();
-    scopedCompanyName = ((data?.legal_name as string | null)?.trim() || (data?.name as string | null)?.trim()) ?? null;
+      .in("id", me.directorCompanyIds)
+      .order("name");
+    const names = (data ?? []).map((c) => ((c.legal_name as string | null)?.trim() || (c.name as string | null)?.trim())).filter(Boolean) as string[];
+    // One company → its (legal) name; several → the list, so the header reads
+    // "By Oracle Consultancy / Dar Spices & PES Ltd / Directors Board".
+    scopedCompanyName = names.length === 0 ? null : names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
   }
 
   return (

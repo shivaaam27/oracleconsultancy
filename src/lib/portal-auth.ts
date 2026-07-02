@@ -235,9 +235,10 @@ export function isGroupWide(role: PortalRole): boolean {
 // visibility decision routes through these so a new scoped role is a small change,
 // not a rewrite. See memory/company_scoped_roles.md.
 
-/** A "Company Director": full director powers + board, but limited to ONE company. */
+/** A "Company Director": full director powers + board, but limited to one OR MORE
+ *  specific companies (not the whole portfolio). */
 export function isScopedDirector(p: PortalPerson): boolean {
-  return p.portalRole === "director" && p.directorCompanyId != null;
+  return p.portalRole === "director" && p.directorCompanyIds.length > 0;
 }
 
 /** Does this person's DATA scope span every company? HR + PORTFOLIO directors only —
@@ -253,7 +254,7 @@ export function seesAllCompanies(p: PortalPerson): boolean {
  *  (all); plain staff → [] (they only ever see their own items, handled by callers). */
 export async function companyScope(p: PortalPerson): Promise<number[] | null> {
   if (seesAllCompanies(p)) return null;
-  if (isScopedDirector(p)) return [p.directorCompanyId as number];
+  if (isScopedDirector(p)) return p.directorCompanyIds;
   if (p.portalRole === "manager") return await myCompanyIds(p);
   return [];
 }
@@ -265,7 +266,7 @@ export async function companyScope(p: PortalPerson): Promise<number[] | null> {
  *  the companies they belong to; portfolio director / HR → null (everyone). */
 export async function colleagueCompanyScope(p: PortalPerson): Promise<number[] | null> {
   if (seesAllCompanies(p)) return null;
-  if (isScopedDirector(p)) return [p.directorCompanyId as number];
+  if (isScopedDirector(p)) return p.directorCompanyIds;
   return await myCompanyIds(p);
 }
 
@@ -309,12 +310,23 @@ export type PortalPerson = {
   /** Optional display title shown instead of the plain role label (e.g. "Group
    *  Admin Manager"). NULL = use the default role label. See portal-labels.ts. */
   portalDesignation: string | null;
-  /** Company-scoped director: when portalRole === "director" AND this is set, the
-   *  director's powers + board + visibility are limited to this ONE company (a
-   *  "Company Director"). NULL = portfolio-wide (the default for directors). Only
+  /** Company-scoped director: when portalRole === "director" AND this is non-empty,
+   *  the director's powers + board + visibility are limited to these companies (a
+   *  "Company Director"). EMPTY = portfolio-wide (the default for directors). Only
    *  meaningful for the "director" role. See the scope helpers below. */
-  directorCompanyId: number | null;
+  directorCompanyIds: number[];
 };
+
+/** Extract a director's scoped company-id set from the people row (join-table
+ *  embed `director_companies(company_id)`), falling back to the legacy single
+ *  `director_company_id` column if the join table hasn't been backfilled. */
+function directorScopeFrom(data: Record<string, unknown>): number[] {
+  const raw = data.director_companies as { company_id: number }[] | { company_id: number } | null | undefined;
+  const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  const ids = rows.map((r) => r.company_id).filter((n): n is number => typeof n === "number");
+  if (ids.length === 0 && data.director_company_id != null) return [data.director_company_id as number];
+  return Array.from(new Set(ids));
+}
 
 /** Returns the signed-in portal person, or null. Re-checks that portal
  *  access is still enabled and the person is still active, so revoking
@@ -337,7 +349,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   for (let attempt = 0; attempt < 4; attempt++) {
     const { data, error } = await sb
       .from("people")
-      .select("id,name,email,role,company_id,active,portal_password_hash,portal_role,portal_designation,director_company_id")
+      .select("id,name,email,role,company_id,active,portal_password_hash,portal_role,portal_designation,director_company_id,director_companies(company_id)")
       .eq("id", personId)
       .maybeSingle();
 
@@ -369,10 +381,11 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
               : data.portal_role === "director"
                 ? "director"
                 : "staff",
-        // Only a director can be company-scoped; ignore the column for other roles
-        // so a stray value can never narrow a non-director's (already-narrow) scope.
-        directorCompanyId:
-          data.portal_role === "director" ? ((data.director_company_id as number | null) ?? null) : null,
+        // Only a director can be company-scoped; ignore for other roles so a stray
+        // value can never narrow a non-director's (already-narrow) scope. Read the
+        // full set from the join table, falling back to the legacy single column
+        // if the backfill hasn't run yet.
+        directorCompanyIds: data.portal_role === "director" ? directorScopeFrom(data) : [],
       };
     }
 
@@ -464,10 +477,11 @@ export async function personCanSeePerson(viewer: PortalPerson, targetId: number)
     return Boolean(data) && data!.active === true;
   }
   if (isScopedDirector(viewer)) {
-    // Strict: the target must be active AND belong to the director's one company.
+    // Strict: the target must be active AND belong to one of the director's companies.
     const { data } = await sb.from("people").select("active").eq("id", targetId).maybeSingle();
     if (!data || data.active !== true) return false;
-    return (await companyIdsForPerson(targetId)).includes(viewer.directorCompanyId as number);
+    const scope = new Set(viewer.directorCompanyIds);
+    return (await companyIdsForPerson(targetId)).some((c) => scope.has(c));
   }
   if (viewer.portalRole === "manager") {
     const team = await managerTeamIds(viewer);
@@ -481,7 +495,7 @@ export async function personCanSeePerson(viewer: PortalPerson, targetId: number)
  *  belong to more than one — primary company ∪ person_companies). */
 export async function personCanSeeCompany(viewer: PortalPerson, companyId: number): Promise<boolean> {
   if (seesAllCompanies(viewer)) return true;
-  if (isScopedDirector(viewer)) return companyId === viewer.directorCompanyId;
+  if (isScopedDirector(viewer)) return viewer.directorCompanyIds.includes(companyId);
   return (await myCompanyIds(viewer)).includes(companyId);
 }
 
@@ -495,12 +509,12 @@ export async function visibleTaskIds(person: PortalPerson): Promise<number[]> {
     return (data ?? []).map((r) => r.id as number);
   }
   if (isScopedDirector(person)) {
-    // Strict: every non-archived task OWNED by their one company (no cross-company,
+    // Strict: every non-archived task OWNED by their companies (no cross-company,
     // even if one of their people is assigned to another company's task).
     const { data } = await sb
       .from("tasks")
       .select("id")
-      .eq("company_id", person.directorCompanyId as number)
+      .in("company_id", person.directorCompanyIds)
       .eq("archived", false);
     return (data ?? []).map((r) => r.id as number);
   }
@@ -549,7 +563,7 @@ export async function personCanSeeTask(person: PortalPerson, taskId: number): Pr
   }
   if (isScopedDirector(person)) {
     const { data } = await sb.from("tasks").select("company_id,archived").eq("id", taskId).maybeSingle();
-    return Boolean(data) && data!.archived !== true && (data!.company_id as number | null) === person.directorCompanyId;
+    return Boolean(data) && data!.archived !== true && person.directorCompanyIds.includes((data!.company_id as number | null) ?? -1);
   }
   const { data: task } = await sb
     .from("tasks")

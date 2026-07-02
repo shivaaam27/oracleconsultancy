@@ -235,8 +235,8 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
     });
     if (isScopedDirector(me)) {
-      const scope = me.directorCompanyId as number;
-      managePeople = managePeople.filter((p) => p.companyIds.includes(scope));
+      const scope = new Set(me.directorCompanyIds);
+      managePeople = managePeople.filter((p) => p.companyIds.some((c) => scope.has(c)));
     } else if (!groupWide) {
       const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
       managePeople = managePeople.filter((p) => reportSet.has(p.id));
