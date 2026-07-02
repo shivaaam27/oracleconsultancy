@@ -332,7 +332,15 @@ export function PortalTasksCommand({
 
       {groups.length === 0 ? (
         <div className="flex items-center gap-3 rounded-2xl bg-bg-elev p-5 text-sm text-fg-muted ring-1 ring-border">
-          <ListTodo size={16} className="text-fg-subtle" /> No tasks match. Try a different filter or search.
+          <ListTodo size={16} className="text-fg-subtle" />
+          {q.trim()
+            ? "No tasks match your search."
+            : filter === "overdue" ? "Nothing overdue — you're on top of it."
+            : filter === "soon" ? "Nothing due in the next week."
+            : filter === "inprogress" ? "Nothing in progress right now."
+            : filter === "mine" ? "You haven't raised any open tasks."
+            : filter === "done" ? "No completed tasks yet."
+            : "No open tasks. Enjoy the calm."}
         </div>
       ) : (
         // Extra breathing room BETWEEN sections / companies (more than the tight
@@ -887,6 +895,14 @@ function TaskRow({
               <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted ring-1 ring-border/50">{t.code}</span>
               <span className="inline-flex items-center gap-1 text-[11px] text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
               {t.dueLabel && <span className={`text-[11px] ${dueTone}`}>· {t.dueLabel}</span>}
+              {/* Company on the collapsed card (unless the list is already grouped by
+                  company) so you can place a task at a glance without expanding. */}
+              {!groupByCompany && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
+                  {t.companyName}
+                </span>
+              )}
             </span>
             <span className="flex items-start gap-1.5">
               <span className="min-w-0 truncate text-sm font-medium leading-snug">{t.actionItem}</span>

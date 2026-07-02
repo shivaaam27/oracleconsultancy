@@ -75,7 +75,7 @@ export async function buildCommandTasks(ids: number[], viewerId: number, viewerN
       escalated: (r.escalation ?? "No") === "Yes",
       status: r.status,
       statusLabel: r.status,
-      note: note ? note.slice(0, 160) : null,
+      note: note ? (note.length > 160 ? note.slice(0, 160).trimEnd() + "…" : note) : null,
       updateAuthor: act ? portalUpdateAuthor(act.by, viewerName) : null,
       updateAgo: act ? relTime(act.atISO, now) : null,
       raisedByMe: mine,
