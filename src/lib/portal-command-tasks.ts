@@ -1,7 +1,6 @@
 import "server-only";
 import { getAllTasks } from "@/lib/queries";
 import { getCompanyLogoMap } from "@/lib/company-brand";
-import { sb } from "@/db/supabase";
 import { portalUpdateAuthor } from "@/lib/update-author";
 import type { CommandTask } from "@/components/portal-tasks-command";
 
@@ -29,12 +28,7 @@ function relTime(iso: string, now: Date): string {
  *  exactly. `viewerId` drives the "mine" flag. */
 export async function buildCommandTasks(ids: number[], viewerId: number, viewerName = ""): Promise<CommandTask[]> {
   const idSet = new Set(ids);
-  const [allRows, logoMap, ownerRow] = await Promise.all([
-    getAllTasks(),
-    getCompanyLogoMap(),
-    sb.from("settings").select("value").eq("key", "v2.ownerName").maybeSingle(),
-  ]);
-  const ownerName = (ownerRow.data?.value as string | null) ?? null;
+  const [allRows, logoMap] = await Promise.all([getAllTasks(), getCompanyLogoMap()]);
   const rows = allRows.filter((r) => idSet.has(r.id));
 
   const now = new Date();
@@ -82,7 +76,7 @@ export async function buildCommandTasks(ids: number[], viewerId: number, viewerN
       status: r.status,
       statusLabel: r.status,
       note: note ? note.slice(0, 160) : null,
-      updateAuthor: act ? portalUpdateAuthor(act.by, viewerName, ownerName) : null,
+      updateAuthor: act ? portalUpdateAuthor(act.by, viewerName) : null,
       updateAgo: act ? relTime(act.atISO, now) : null,
       raisedByMe: mine,
       isDone,
