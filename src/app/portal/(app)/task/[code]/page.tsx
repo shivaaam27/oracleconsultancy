@@ -11,12 +11,15 @@ import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
 import { TaskQuickActions } from "@/components/task-quick-actions";
 import { PortalTaskMessage } from "@/components/portal-task-message";
 import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
-import { getPortalPerson, personCanSeeTask, recordTaskView } from "@/lib/portal-auth";
+import { getPortalPerson, personCanSeeTask, recordTaskView, seesAllCompanies, isScopedDirector, directReportIds } from "@/lib/portal-auth";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
 import { PortalTaskEdit } from "@/components/portal-task-edit";
+import { PortalTaskManage } from "@/components/portal-task-manage";
+import { buildCommandTasks } from "@/lib/portal-command-tasks";
+import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { getStaffIdMap } from "@/lib/staff-id";
 import { StaffIdChip } from "@/components/staff-id-chip";
-import { portalAddUpdate, portalTogglePin, portalAcknowledge } from "../../../actions";
+import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalRestoreUpdate } from "../../../actions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import type { TaskRow } from "@/lib/queries";
 
@@ -211,6 +214,64 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const permTask = { createdByPersonId: (task.created_by_person_id as number | null) ?? null };
   const canEdit = canEditTask(permViewer, permTask);
   const canComplete = !closed && canCompleteTask(permViewer, permTask);
+
+  // Full functionality unification: management roles get the SAME editable panel
+  // as the Tasks command card (people add/remove, classify, escalate, priority/
+  // due, delete) — built from the shared command-task shape + scoped people list.
+  let manageCmd: Awaited<ReturnType<typeof buildCommandTasks>>[number] | null = null;
+  let managePeople: { id: number; name: string; companyId: number | null; companyIds: number[] }[] = [];
+  if (isManagement) {
+    const groupWide = seesAllCompanies(me);
+    const [cmdArr, { data: peopleRaw }, personCompanies] = await Promise.all([
+      buildCommandTasks([task.id as number], me.id),
+      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+      getPersonCompaniesMap(),
+    ]);
+    managePeople = (peopleRaw ?? []).map((p) => {
+      const id = p.id as number;
+      const primary = (p.company_id as number | null) ?? null;
+      return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
+    });
+    if (isScopedDirector(me)) {
+      const scope = me.directorCompanyId as number;
+      managePeople = managePeople.filter((p) => p.companyIds.includes(scope));
+    } else if (!groupWide) {
+      const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
+      managePeople = managePeople.filter((p) => reportSet.has(p.id));
+    }
+    manageCmd = cmdArr[0] ?? null;
+  }
+
+  // Moderators (director/HR) can bring back a wrongly-deleted note. Load the
+  // recently soft-deleted updates so they can be restored.
+  // Related work — the task's OWN source meeting/note (safe provenance; no
+  // cross-task lookup, so nothing outside the viewer's scope is exposed).
+  const { data: srcRow } = await sb
+    .from("meeting_tasks")
+    .select("meetings(title,kind)")
+    .eq("task_id", task.id)
+    .maybeSingle();
+  const srcMeeting = srcRow?.meetings
+    ? (Array.isArray(srcRow.meetings) ? srcRow.meetings[0] : srcRow.meetings) as { title: string; kind: string | null } | null
+    : null;
+
+  const isModerator = me.portalRole === "director" || me.portalRole === "hr";
+  let deletedUpdates: { id: number; body: string; author: string; at: string }[] = [];
+  if (isModerator) {
+    const { data: del } = await sb
+      .from("task_updates")
+      .select("id,body,created_by,deleted_at")
+      .eq("task_id", task.id)
+      .not("deleted_at", "is", null)
+      .order("deleted_at", { ascending: false })
+      .limit(10);
+    deletedUpdates = (del ?? []).map((u) => ({
+      id: u.id as number,
+      body: (u.body as string) ?? "",
+      author: authorOf(u.created_by as string | null, me.name).name,
+      at: u.deleted_at as string,
+    }));
+  }
   const company = task.companies as unknown as { name: string } | null;
   // The header's aurora wash + leading dot take the task's status colour, so the
   // whole sheet reads "blocked" (red) / "in progress" (blue) at a glance.
@@ -278,6 +339,11 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         <WaitingOnChip task={preview} on={team.find((p) => p.accountable)?.name} className="mt-2" />
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-fg-muted">
           {assignedByName && <span className="text-fg-subtle">Assigned by {assignedByName}</span>}
+          {srcMeeting && (
+            <span className="inline-flex items-center gap-1 text-fg-subtle">
+              <MessageSquare size={12} /> From {srcMeeting.kind === "note" ? "note" : "meeting"}: {srcMeeting.title}
+            </span>
+          )}
           {task.deadline && (
             <span>
               <CalendarDays size={12} className="mr-1 inline -mt-px" />
@@ -333,6 +399,12 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         />
       </Reveal>
 
+      {manageCmd && (
+        <Reveal delay={0.05}>
+          <PortalTaskManage cmd={manageCmd} people={managePeople} canEdit={canEdit} canRemind={isManagement} />
+        </Reveal>
+      )}
+
       {/* Message a teammate — start (or continue) a direct chat with anyone else
           on this task. Everyone↔everyone, so offered to every role. */}
       {mates.length > 0 && (
@@ -365,8 +437,11 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         addAction={portalAddUpdate}
         pinAction={portalTogglePin}
         ackAction={portalAcknowledge}
+        editAction={portalEditUpdate}
+        deleteAction={portalDeleteUpdate}
         canPin={isManagement}
         canAck={true}
+        canModerate={me.portalRole === "director" || me.portalRole === "hr"}
         composerHint={
           isManagement
             ? "You can mark this task Completed once you're satisfied."
@@ -374,6 +449,34 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         }
       />
       </Reveal>
+
+      {/* Recently deleted (moderators) — bring a wrongly-removed note back. */}
+      {isModerator && deletedUpdates.length > 0 && (
+        <Reveal delay={0.1}>
+          <details className="rounded-2xl bg-bg-elev/70 ring-1 ring-border p-3">
+            <summary className="cursor-pointer list-none text-[12px] font-medium uppercase tracking-[0.08em] text-fg-subtle hover:text-fg-muted transition-colors">
+              Recently deleted · {deletedUpdates.length} — tap to review
+            </summary>
+            <ul className="mt-2 flex flex-col gap-2">
+              {deletedUpdates.map((d) => (
+                <li key={d.id} className="flex items-start gap-2 rounded-xl bg-bg-subtle/60 ring-1 ring-border/60 p-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] text-fg-subtle">{d.author} · deleted</span>
+                    <span className="block truncate text-[13px] text-fg-muted line-through">{d.body}</span>
+                  </span>
+                  <form action={portalRestoreUpdate}>
+                    <input type="hidden" name="updateId" value={d.id} />
+                    <input type="hidden" name="code" value={task.code as string} />
+                    <button type="submit" className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent ring-1 ring-accent/25 hover:bg-accent-soft/70 transition-colors">
+                      Restore
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </Reveal>
+      )}
     </div>
   );
 }

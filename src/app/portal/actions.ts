@@ -968,6 +968,10 @@ const ALL_STATUSES = [
 // "move an open task between open statuses" separate from the gated completion.
 const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
 const ALL_PRIORITIES = ["Critical", "High", "Medium", "Low"];
+// Risk uses the same four-band scale as priority; category is the fixed list from
+// CLAUDE.md. Both are validated server-side so the portal can never write junk.
+const ALL_RISKS = ["Critical", "High", "Medium", "Low"];
+const ALL_CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 
 function roleTag(role: string): string {
   return role === "director" ? "dir" : role === "hr" ? "hr" : "mgr";
@@ -981,6 +985,9 @@ export async function portalEditTask(input: {
   accountableId?: number;
   actionItem?: string; // task title — management may edit after creation
   description?: string | null; // task description (tasks.comments); "" clears
+  category?: string | null; // Finance/Operations/… ; "" clears; undefined leaves
+  risk?: string | null; // Critical/High/Medium/Low ; "" clears; undefined leaves
+  escalation?: string; // "Yes" flags + forces status Escalated; "No" clears the flag
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
@@ -990,7 +997,7 @@ export async function portalEditTask(input: {
 
   const { data: t } = await sb
     .from("tasks")
-    .select("id,code,company_id,status,priority,deadline,owner_id,closed_date,created_by_person_id,creator_close_only,action_item,comments")
+    .select("id,code,company_id,status,priority,deadline,owner_id,closed_date,created_by_person_id,creator_close_only,action_item,comments,category,risk,escalation")
     .eq("id", input.taskId)
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
@@ -1074,6 +1081,41 @@ export async function portalEditTask(input: {
     }
   }
 
+  // Category — a fixed classification list; "" clears it.
+  if (canManage && input.category !== undefined) {
+    const next = input.category ? input.category.trim() : null;
+    if (next && !ALL_CATEGORIES.includes(next)) return { ok: false, error: "Unknown category." };
+    if (next !== ((t.category as string | null) || null)) {
+      patch.category = next;
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "category", (t.category as string | null) ?? null, next, `Edited from portal (${role})`, createdBy);
+    }
+  }
+  // Risk band — same four-band scale as priority; "" clears it.
+  if (canManage && input.risk !== undefined) {
+    const next = input.risk ? input.risk.trim() : null;
+    if (next && !ALL_RISKS.includes(next)) return { ok: false, error: "Unknown risk level." };
+    if (next !== ((t.risk as string | null) || null)) {
+      patch.risk = next;
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "risk", (t.risk as string | null) ?? null, next, `Edited from portal (${role})`, createdBy);
+    }
+  }
+  // Escalation flag. Setting "Yes" ALSO forces status → Escalated (mirrors the
+  // command centre); "No" clears the flag but leaves the status untouched. Never
+  // overrides a status the caller set explicitly in this same edit.
+  if (canManage && input.escalation !== undefined) {
+    const next = input.escalation === "Yes" ? "Yes" : "No";
+    const cur = (t.escalation as string | null) ?? "No";
+    if (next !== cur) {
+      patch.escalation = next;
+      await logChangeSb(t.id as number, t.code as string, t.company_id as number, "escalation", cur, next, `Edited from portal (${role})`, createdBy);
+      if (next === "Yes" && patch.status === undefined && !lockedDone && current !== "Escalated") {
+        patch.status = "Escalated";
+        patch.closed_date = computeClosedDate("Escalated", (t.closed_date as string | null) ?? null, now);
+        await logChangeSb(t.id as number, t.code as string, t.company_id as number, "status", current, "Escalated", `Escalated from portal (${role})`, createdBy);
+      }
+    }
+  }
+
   const { error } = await sb.from("tasks").update(patch).eq("id", t.id as number);
   if (error) return { ok: false, error: error.message };
 
@@ -1091,6 +1133,97 @@ export async function portalEditTask(input: {
   revalidatePath(`/portal/task/${t.code}`);
   revalidatePath(`/task/${t.code}`);
   return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Bulk action over many tasks at once (the portal's answer to the command
+ * centre's multi-select toolbar). Every task is re-checked individually:
+ * it must be in the caller's view AND manageable by them (director/HR any
+ * task; a manager/creator only their own) — tasks that fail are silently
+ * skipped and reported in `affected`. Returns an `undo` payload the client
+ * can replay through the same action (a longer-lived toast offers "Undo").
+ *   • delete        → soft-archive (recoverable); undo = restore those ids.
+ *   • restore       → un-archive (used as delete's undo).
+ *   • postpone      → push each deadline out by N days (from today if unset);
+ *                     undo = set-deadlines back to the captured previous dates.
+ *   • set-deadlines → write explicit deadlines (used as postpone's undo).
+ * ---------------------------------------------------------------------- */
+type PortalBulkAction =
+  | { kind: "delete" }
+  | { kind: "restore" }
+  | { kind: "postpone"; days: number }
+  | { kind: "set-deadlines"; deadlines: [number, string | null][] };
+type PortalBulkUndo =
+  | { kind: "restore"; taskIds: number[] }
+  | { kind: "delete"; taskIds: number[] }
+  | { kind: "set-deadlines"; deadlines: [number, string | null][] };
+
+export async function portalBulkTaskAction(
+  taskIds: number[],
+  action: PortalBulkAction,
+): Promise<{ ok: true; affected: number; undo?: PortalBulkUndo } | { ok: false; error: string }> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  if (role === "staff") return { ok: false, error: "You don't have permission to do this." };
+
+  const ids = Array.from(new Set(taskIds.filter((n) => Number.isFinite(n) && n > 0)));
+  if (ids.length === 0) return { ok: false, error: "No tasks selected." };
+  if (ids.length > 200) return { ok: false, error: "Too many tasks at once (max 200)." };
+
+  const { data: rows } = await sb
+    .from("tasks")
+    .select("id,code,company_id,created_by_person_id,deadline,archived")
+    .in("id", ids);
+
+  // Keep only tasks the caller may both SEE and MANAGE.
+  const allowed: { id: number; code: string; companyId: number; deadline: string | null }[] = [];
+  for (const t of rows ?? []) {
+    const id = t.id as number;
+    if (!canManageTask({ id: me.id, portalRole: role }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) continue;
+    if (!(await personCanSeeTask(me, id))) continue;
+    allowed.push({ id, code: t.code as string, companyId: t.company_id as number, deadline: (t.deadline as string | null) ?? null });
+  }
+  if (allowed.length === 0) return { ok: false, error: "None of the selected tasks are yours to change." };
+
+  const createdBy = `portal-${roleTag(role)}:${me.name}`;
+  const now = new Date().toISOString();
+  const deadlineMap = new Map((action.kind === "set-deadlines" ? action.deadlines : []).map(([id, d]) => [id, d]));
+
+  if (action.kind === "delete" || action.kind === "restore") {
+    const archived = action.kind === "delete";
+    const affectedIds = allowed.map((t) => t.id);
+    const { error } = await sb.from("tasks").update({ archived, last_updated_at: now }).in("id", affectedIds);
+    if (error) return { ok: false, error: error.message };
+    for (const t of allowed) {
+      await logChangeSb(t.id, t.code, t.companyId, "archived", String(!archived), String(archived), `Bulk ${action.kind} from portal (${role})`, createdBy);
+      void reindexEntity("task", t.id);
+    }
+    revalidatePath("/portal/board"); revalidatePath("/portal/tasks"); revalidatePath("/");
+    return { ok: true, affected: affectedIds.length, undo: { kind: archived ? "restore" : "delete", taskIds: affectedIds } };
+  }
+
+  // postpone / set-deadlines — write a new deadline per task, capturing the old
+  // one so postpone can be undone precisely.
+  const prev: [number, string | null][] = [];
+  for (const t of allowed) {
+    let newIso: string | null;
+    if (action.kind === "postpone") {
+      const base = t.deadline ? new Date(t.deadline) : new Date();
+      base.setDate(base.getDate() + action.days);
+      newIso = base.toISOString();
+    } else {
+      newIso = deadlineMap.get(t.id) ?? null;
+    }
+    const oldIso = t.deadline ? new Date(t.deadline).toISOString() : null;
+    if (newIso === oldIso) continue;
+    prev.push([t.id, oldIso]);
+    await sb.from("tasks").update({ deadline: newIso, last_updated_at: now }).eq("id", t.id);
+    await logChangeSb(t.id, t.code, t.companyId, "deadline", oldIso, newIso, `Bulk ${action.kind} from portal (${role})`, createdBy);
+    void reindexEntity("task", t.id);
+  }
+  revalidatePath("/portal/board"); revalidatePath("/portal/tasks"); revalidatePath("/");
+  return { ok: true, affected: prev.length, undo: { kind: "set-deadlines", deadlines: prev } };
 }
 
 /* ----------------------------------------------------------------------
@@ -1203,8 +1336,8 @@ export async function portalSetTaskLeads(
  * accountable via portalSetTaskLeads). Deletes their task_assignees row;
  * if they were the task's owner, ownership passes to another remaining
  * lead (else any remaining person, promoted to accountable so the task
- * never loses its lead). A task must keep at least one person — removing
- * the last one is refused.
+ * never loses its lead). Removing the LAST person is allowed — the task
+ * simply becomes Unassigned (owner_id → null).
  *   • Permission: director / HR (any task) or the task's creator — the same
  *     canManageTask rule the UI uses to show the edit affordances.
  * Audit-logged; the removed person is NOT push-notified (avoids noise).
@@ -1239,7 +1372,6 @@ export async function portalRemoveTaskPerson(
   const rows = existing ?? [];
   const onTask = rows.map((a) => a.person_id as number);
   if (!onTask.includes(personId)) return { ok: false, error: "That person isn't on this task." };
-  if (onTask.length <= 1) return { ok: false, error: "A task needs at least one person — add someone else first." };
 
   const createdBy = `portal-${roleTag(role)}:${me.name}`;
   const now = new Date().toISOString();
@@ -1277,6 +1409,126 @@ export async function portalRemoveTaskPerson(
   revalidatePath(`/portal/task/${t.code}`);
   revalidatePath(`/task/${t.code}`);
   return { ok: true };
+}
+
+/* ----------------------------------------------------------------------
+ * Moderate a task UPDATE (edit / soft-delete / restore) from the portal.
+ *   • The update's AUTHOR may edit or delete their own note.
+ *   • A director / HR may edit, delete OR restore ANY update (moderators).
+ *   • A manager may edit/delete only their own; never restore.
+ * Soft-delete sets deleted_at (recoverable); the timeline + latest-update
+ * mirror both filter it out. Every action re-checks the task is in view.
+ * FormData-shaped so they slot into the conversation's `<form action>`.
+ * ---------------------------------------------------------------------- */
+function updateAuthoredByMe(createdBy: string | null, meName: string): boolean {
+  if (!createdBy) return false;
+  return (
+    createdBy === `portal:${meName}` ||
+    createdBy === `portal-dir:${meName}` ||
+    createdBy === `portal-mgr:${meName}` ||
+    createdBy === `portal-hr:${meName}`
+  );
+}
+
+async function portalRefreshLatestMirror(taskId: number): Promise<void> {
+  const { data } = await sb
+    .from("task_updates")
+    .select("body")
+    .eq("task_id", taskId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  await sb.from("tasks").update({ latest_update: (data?.body as string | null) ?? null }).eq("id", taskId);
+}
+
+// FormData-shaped (return void) so they slot straight into the conversation's
+// `<form action>` — errors are enforced server-side and simply no-op the write,
+// matching the existing pin/ack form actions.
+export async function portalEditUpdate(formData: FormData): Promise<void> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  const updateId = Number(formData.get("updateId"));
+  const body = String(formData.get("body") ?? "").trim();
+  if (!Number.isFinite(updateId) || !body) return;
+
+  const { data: u } = await sb
+    .from("task_updates")
+    .select("id,task_id,body,original_body,created_by,deleted_at")
+    .eq("id", updateId)
+    .maybeSingle();
+  if (!u || u.deleted_at) return;
+  const taskId = u.task_id as number;
+  if (!(await personCanSeeTask(me, taskId))) return;
+
+  const mine = updateAuthoredByMe(u.created_by as string | null, me.name);
+  const moderator = role === "director" || role === "hr";
+  if (!mine && !moderator) return;
+  if ((u.body as string) === body) return;
+
+  const { data: t } = await sb.from("tasks").select("code,company_id").eq("id", taskId).maybeSingle();
+  const now = new Date().toISOString();
+  await sb.from("task_updates").update({
+    body,
+    original_body: (u.original_body as string | null) ?? (u.body as string),
+    edited_at: now,
+  }).eq("id", updateId);
+  if (t) await logChangeSb(taskId, t.code as string, t.company_id as number, "Update edited", (u.original_body as string | null) ?? (u.body as string), body, `Edited from portal (${role})`, `portal-${roleTag(role)}:${me.name}`);
+
+  await portalRefreshLatestMirror(taskId);
+  void reindexEntity("task", taskId);
+  if (t) { revalidatePath(`/portal/task/${t.code}`); revalidatePath(`/task/${t.code}`); }
+  revalidatePath("/portal/tasks");
+}
+
+export async function portalDeleteUpdate(formData: FormData): Promise<void> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  const updateId = Number(formData.get("updateId"));
+  if (!Number.isFinite(updateId)) return;
+
+  const { data: u } = await sb
+    .from("task_updates")
+    .select("id,task_id,created_by,deleted_at")
+    .eq("id", updateId)
+    .maybeSingle();
+  if (!u || u.deleted_at) return;
+  const taskId = u.task_id as number;
+  if (!(await personCanSeeTask(me, taskId))) return;
+
+  const mine = updateAuthoredByMe(u.created_by as string | null, me.name);
+  const moderator = role === "director" || role === "hr";
+  if (!mine && !moderator) return;
+
+  await sb.from("task_updates").update({ deleted_at: new Date().toISOString() }).eq("id", updateId);
+  await portalRefreshLatestMirror(taskId);
+  void reindexEntity("task", taskId);
+  const { data: t } = await sb.from("tasks").select("code").eq("id", taskId).maybeSingle();
+  if (t) { revalidatePath(`/portal/task/${t.code}`); revalidatePath(`/task/${t.code}`); }
+  revalidatePath("/portal/tasks");
+}
+
+export async function portalRestoreUpdate(formData: FormData): Promise<void> {
+  const me = await getPortalPerson();
+  if (!me) redirect("/portal/login");
+  const role = me.portalRole;
+  if (role !== "director" && role !== "hr") return; // moderators only
+  const updateId = Number(formData.get("updateId"));
+  if (!Number.isFinite(updateId)) return;
+
+  const { data: u } = await sb.from("task_updates").select("id,task_id").eq("id", updateId).maybeSingle();
+  if (!u) return;
+  const taskId = u.task_id as number;
+  if (!(await personCanSeeTask(me, taskId))) return;
+
+  await sb.from("task_updates").update({ deleted_at: null }).eq("id", updateId);
+  await portalRefreshLatestMirror(taskId);
+  void reindexEntity("task", taskId);
+  const { data: t } = await sb.from("tasks").select("code").eq("id", taskId).maybeSingle();
+  if (t) { revalidatePath(`/portal/task/${t.code}`); revalidatePath(`/task/${t.code}`); }
+  revalidatePath("/portal/tasks");
 }
 
 /** Management one-tap reminder: resolves the responsible person and drafts a

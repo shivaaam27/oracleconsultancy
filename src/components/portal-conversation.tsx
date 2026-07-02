@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pin, PinOff, Send, X } from "lucide-react";
+import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pencil, Pin, PinOff, Send, Trash2, X } from "lucide-react";
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
 import { CaretTextarea } from "./ui";
 import { VoiceButton } from "./voice-button";
@@ -51,9 +51,15 @@ type Props = {
   addAction: ServerAction;
   pinAction: ServerAction;
   ackAction?: ServerAction;
+  /** Edit / soft-delete an update. When present, an author (m.me) — or a
+   *  moderator (canModerate) — gets inline edit + delete controls per message. */
+  editAction?: ServerAction;
+  deleteAction?: ServerAction;
   // Capabilities.
   canPin: boolean; // show pin/unpin controls
   canAck: boolean; // show the "Understood" button (staff/managers, not admin)
+  /** Director/HR — may edit + delete ANY update (not only their own). */
+  canModerate?: boolean;
   composerHint?: string;
   /** Fired after an add/pin action resolves — the admin drawer uses it to refetch
    *  exactly on completion instead of guessing with a fixed timer. */
@@ -78,8 +84,11 @@ function time(iso: string): string {
 export function PortalConversation(props: Props) {
   const {
     taskId, code, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team,
-    addAction, pinAction, ackAction, canPin, canAck, composerHint, onPosted,
+    addAction, pinAction, ackAction, editAction, deleteAction, canPin, canAck, canModerate, composerHint, onPosted,
   } = props;
+  // Which message is being edited / confirming deletion (moderation controls).
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   // If a caller wants to know exactly when a post/pin finished (the admin task
   // drawer, to refetch), wrap the server action to fire onPosted after it resolves.
   const runAdd: ServerAction = onPosted ? async (fd) => { await addAction(fd); onPosted(); } : addAction;
@@ -222,6 +231,16 @@ export function PortalConversation(props: Props) {
             </button>
           </form>
         )}
+        {!closed && editAction && (m.me || canModerate) && editingId !== m.id && (
+          <button type="button" onClick={() => { setEditingId(m.id); setDeletingId(null); }} title="Edit this note" className="text-fg-subtle opacity-0 group-hover:opacity-100 hover:text-accent transition-all">
+            <Pencil size={13} />
+          </button>
+        )}
+        {!closed && deleteAction && (m.me || canModerate) && (
+          <button type="button" onClick={() => { setDeletingId(deletingId === m.id ? null : m.id); setEditingId(null); }} title="Delete this note" className="text-fg-subtle opacity-0 group-hover:opacity-100 hover:text-danger transition-all">
+            <Trash2 size={13} />
+          </button>
+        )}
         <span className="text-fg-subtle">{time(m.at)}</span>
       </div>
 
@@ -232,15 +251,38 @@ export function PortalConversation(props: Props) {
         </div>
       )}
 
-      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
-        {segmentMentions(m.body, team).map((seg, i) =>
-          seg.mention ? (
-            <span key={i} className="rounded bg-accent-soft px-0.5 font-medium text-accent">{seg.text}</span>
-          ) : (
-            <span key={i}>{seg.text}</span>
-          )
-        )}
-      </p>
+      {editingId === m.id && editAction ? (
+        <form action={editAction} onSubmit={() => setTimeout(() => setEditingId(null), 0)} className="mt-1.5 flex flex-col gap-2">
+          <input type="hidden" name="updateId" value={m.id} />
+          <input type="hidden" name="code" value={code} />
+          <textarea name="body" defaultValue={m.body} rows={2} required className="w-full resize-y rounded-xl bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40" />
+          <div className="flex items-center gap-2">
+            <button type="submit" className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-fg hover:opacity-90 transition-opacity"><Check size={12} /> Save</button>
+            <button type="button" onClick={() => setEditingId(null)} className="rounded-full px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg">Cancel</button>
+          </div>
+        </form>
+      ) : (
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
+          {segmentMentions(m.body, team).map((seg, i) =>
+            seg.mention ? (
+              <span key={i} className="rounded bg-accent-soft px-0.5 font-medium text-accent">{seg.text}</span>
+            ) : (
+              <span key={i}>{seg.text}</span>
+            )
+          )}
+        </p>
+      )}
+
+      {deletingId === m.id && deleteAction && (
+        <form action={deleteAction} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-2 flex items-center gap-2 rounded-lg bg-danger-soft/40 px-2.5 py-1.5 text-[12px] ring-1 ring-danger/20">
+          <input type="hidden" name="updateId" value={m.id} />
+          <input type="hidden" name="code" value={code} />
+          <span className="text-fg-muted">Delete this note?</span>
+          <span className="grow" />
+          <button type="submit" className="inline-flex items-center gap-1 rounded-md bg-danger px-2 py-1 text-[11px] font-medium text-white hover:opacity-90"><Trash2 size={11} /> Delete</button>
+          <button type="button" onClick={() => setDeletingId(null)} className="rounded-md px-1.5 py-1 text-[11px] text-fg-muted hover:text-fg">Keep</button>
+        </form>
+      )}
 
       {m.attachment && (
         <a

@@ -9,6 +9,7 @@ import {
   Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
   MessageSquarePlus, Check, Building2, MessagesSquare, X, Pencil, Trash2,
+  AlertTriangle, Tag, ShieldAlert, Square, CheckSquare, CalendarPlus,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
 import { CaretInput } from "@/components/ui";
@@ -18,7 +19,7 @@ import { CompanyAvatar } from "@/components/company-avatar";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalRemoveTaskPerson, portalDeleteTask } from "@/app/portal/actions";
+import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalRemoveTaskPerson, portalDeleteTask, portalBulkTaskAction } from "@/app/portal/actions";
 import { getGivenName, getInitials } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
@@ -57,6 +58,10 @@ export type CommandTask = {
   assignees: string[];
   assigneeIds: number[];
   description: string | null;
+  /** Classification (command-centre parity) — editable by director/HR/creator. */
+  category: string | null;
+  risk: string | null;
+  escalated: boolean;
   status: string;
   statusLabel: string;
   note: string | null;
@@ -81,6 +86,11 @@ const STATUS_COLOR: Record<string, string> = {
   "In Progress": "hsl(var(--info))", "Not Started": "hsl(var(--fg-subtle))",
 };
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
+// Classification (command-centre parity). Risk shares the four-band scale;
+// category is the fixed list from CLAUDE.md. Both offer a "clear" option.
+const CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
+const riskOptions: FluidOption[] = [{ value: "", label: "No risk" }, ...PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_HEX[p] }))];
+const categoryOptions: FluidOption[] = [{ value: "", label: "No category" }, ...CATEGORIES.map((c) => ({ value: c, label: c }))];
 const fieldShell = "rounded-lg bg-bg-elev ring-1 ring-border";
 
 /** Honour BOTH the OS reduced-motion setting and the portal's manual data-motion
@@ -124,6 +134,18 @@ export function PortalTasksCommand({
   const [companyFilter, setCompanyFilter] = useState<string>("all");
   // "Company wise" view: group the list by company instead of by status.
   const [groupByCompany, setGroupByCompany] = useState(false);
+  // Bulk multi-select (management only) — the portal's answer to the command
+  // centre's select-many toolbar. The server re-checks each task's permission.
+  const isManagement = role !== "staff";
+  // Bulk select is OFF by default — ticks only appear once "Select" mode is on
+  // (keeps the everyday list clean). Turning it off clears the selection.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const selectable = isManagement && selectMode;
+  const toggleSelect = (id: number) =>
+    setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const clearSelection = () => setSelected(new Set());
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
 
   // Strict company filter: only tasks tagged to the chosen company.
   const byCompany = useMemo(() => {
@@ -264,6 +286,20 @@ export function PortalTasksCommand({
           <Building2 size={14} />
           <span className="text-[12.5px]">Company wise</span>
         </button>
+
+        {/* Bulk-select mode toggle (management). Ticks + the action bar only exist
+            while this is on, so the everyday list stays clean. */}
+        {isManagement && (
+          <button
+            type="button"
+            aria-pressed={selectMode}
+            onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-2 ring-1 transition-[background-color,box-shadow,transform] active:scale-95 ${selectMode ? "bg-accent text-accent-fg ring-transparent" : "bg-bg-elev text-fg-muted ring-border hover:text-fg"}`}
+          >
+            {selectMode ? <CheckSquare size={14} /> : <Square size={14} />}
+            <span className="text-[12.5px]">{selectMode ? "Done" : "Select"}</span>
+          </button>
+        )}
       </div>
 
       {canCreate && <QuickAdd people={people} companies={companies} role={role} />}
@@ -286,15 +322,91 @@ export function PortalTasksCommand({
             </div>
             {/* desktop — ONE floating card per task (info left, controls panel right). */}
             <div className="hidden flex-col gap-2 sm:flex">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} desktop />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} desktop />)}
             </div>
             {/* mobile cards */}
             <div className="flex flex-col gap-2 sm:hidden">
-              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} />)}
+              {g.items.map((t) => <TaskRow key={t.taskId} t={t} people={people} role={role} viewerId={viewerId} canRemind={canRemind} groupByCompany={groupByCompany} selectable={selectable} selected={selected.has(t.taskId)} onToggleSelect={() => toggleSelect(t.taskId)} />)}
             </div>
           </div>
         ))
       )}
+
+      {selectable && selected.size > 0 && (
+        <BulkBar taskIds={[...selected]} onClear={clearSelection} />
+      )}
+    </div>
+  );
+}
+
+/** Sticky action bar shown when tasks are multi-selected — Postpone (a week / a
+ *  month) and Delete, each routed through portalBulkTaskAction with an Undo toast.
+ *  The server re-checks permission per task, so a manager only ever affects their
+ *  own; a director affects any. */
+function BulkBar({ taskIds, onClear }: { taskIds: number[]; onClear: () => void }) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [postponeOpen, setPostponeOpen] = useState(false);
+
+  function run(action: Parameters<typeof portalBulkTaskAction>[1], label: (n: number) => string) {
+    start(async () => {
+      const res = await portalBulkTaskAction(taskIds, action);
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      const undo = res.undo;
+      toast(label(res.affected), {
+        tone: "success",
+        duration: 8000,
+        action: undo ? {
+          label: "Undo",
+          onClick: async () => {
+            const back = await portalBulkTaskAction(
+              undo.kind === "set-deadlines" ? undo.deadlines.map(([id]) => id) : undo.taskIds,
+              undo,
+            );
+            if (!back.ok) { toast(back.error, { tone: "danger" }); return; }
+            router.refresh();
+          },
+        } : undefined,
+      });
+      onClear();
+      setConfirmDelete(false);
+      setPostponeOpen(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-4">
+      <div className="flex items-center gap-2 rounded-2xl bg-bg-elev/95 px-3 py-2 shadow-lg ring-1 ring-border backdrop-blur">
+        <span className="pl-1 pr-1 text-[13px] font-semibold text-fg">{taskIds.length} selected</span>
+        {postponeOpen ? (
+          <>
+            <button type="button" disabled={busy} onClick={() => run({ kind: "postpone", days: 7 }, (n) => `${n} task${n === 1 ? "" : "s"} postponed a week.`)} className="rounded-lg bg-bg-subtle px-2.5 py-1.5 text-[12px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted">+1 week</button>
+            <button type="button" disabled={busy} onClick={() => run({ kind: "postpone", days: 30 }, (n) => `${n} task${n === 1 ? "" : "s"} postponed a month.`)} className="rounded-lg bg-bg-subtle px-2.5 py-1.5 text-[12px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted">+1 month</button>
+            <button type="button" onClick={() => setPostponeOpen(false)} className="px-1.5 text-[12px] text-fg-muted hover:text-fg">Back</button>
+          </>
+        ) : confirmDelete ? (
+          <>
+            <span className="text-[12px] text-fg-muted">Delete?</span>
+            <button type="button" disabled={busy} onClick={() => run({ kind: "delete" }, (n) => `${n} task${n === 1 ? "" : "s"} deleted.`)} className="inline-flex items-center gap-1 rounded-lg bg-danger px-2.5 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50">
+              {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Confirm
+            </button>
+            <button type="button" onClick={() => setConfirmDelete(false)} className="px-1.5 text-[12px] text-fg-muted hover:text-fg">Keep</button>
+          </>
+        ) : (
+          <>
+            <button type="button" disabled={busy} onClick={() => setPostponeOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-bg-subtle px-2.5 py-1.5 text-[12px] font-medium text-fg ring-1 ring-border hover:bg-bg-muted">
+              <CalendarPlus size={13} /> Postpone
+            </button>
+            <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-danger-soft px-2.5 py-1.5 text-[12px] font-medium text-danger ring-1 ring-danger/25 hover:bg-danger-soft/70">
+              <Trash2 size={13} /> Delete
+            </button>
+            <button type="button" onClick={onClear} aria-label="Clear selection" className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-fg-subtle hover:text-fg"><X size={15} /></button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -324,13 +436,40 @@ function LeadAvatars({ people }: { people: { name: string; lead: boolean }[] }) 
   );
 }
 
+/** Bulk-select tick — a span (not a button) so it can live inside the mobile
+ *  card's button without nesting interactive elements. Stops propagation so a
+ *  tick never also expands the row. */
+function SelectBox({ checked, onToggle, className }: { checked: boolean; onToggle: () => void; className?: string }) {
+  return (
+    <span
+      role="checkbox"
+      aria-checked={checked}
+      tabIndex={0}
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); onToggle(); } }}
+      className={cn(
+        "inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md ring-1 transition-colors",
+        checked ? "bg-accent text-accent-fg ring-accent" : "bg-bg-elev text-transparent ring-border hover:ring-accent/50",
+        className,
+      )}
+    >
+      <Check size={13} />
+    </span>
+  );
+}
+
 function TaskRow({
   t, people, role, viewerId, canRemind, desktop = false, groupByCompany = false,
+  selectable = false, selected = false, onToggleSelect,
 }: {
   t: CommandTask; people: BoardPerson[]; role: string; viewerId: number; canRemind: boolean; desktop?: boolean;
   /** When the list is grouped by company, drop the company name from the row (the
    *  group header already shows it). */
   groupByCompany?: boolean;
+  /** Bulk multi-select (management). */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -342,20 +481,9 @@ function TaskRow({
   const [editDetails, setEditDetails] = useState(false);
   const [titleDraft, setTitleDraft] = useState(t.actionItem);
   const [descDraft, setDescDraft] = useState(t.description ?? "");
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Toggle the inline edit panel from the pencil (open the row if collapsed).
-  function toggleEdit() { setOpen(true); setEditDetails((v) => !v); setConfirmDelete(false); }
-
-  function removeTask() {
-    startTransition(async () => {
-      const res = await portalDeleteTask(t.taskId);
-      if (res?.error) { toast(res.error, { tone: "danger" }); return; }
-      toast("Task deleted.", { tone: "success" });
-      setConfirmDelete(false); setEditDetails(false);
-      router.refresh();
-    });
-  }
+  function toggleEdit() { setOpen(true); setEditDetails((v) => !v); }
 
   // Per-task permissions (task-permissions.ts): a director/HR or the creator may
   // edit content + complete; managers limited to open-status moves on others'.
@@ -394,7 +522,7 @@ function TaskRow({
   const tr = reduced ? { duration: 0 } : { duration: 0.24, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] };
   const hasMeta = !!(t.description || t.note);
 
-  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null }, label: string) {
+  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null; category?: string | null; risk?: string | null; escalation?: string }, label: string) {
     startTransition(async () => {
       const res = await portalEditTask({ taskId: t.taskId, ...patch });
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
@@ -500,23 +628,9 @@ function TaskRow({
                 <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
                   {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
                 </button>
-                <button type="button" onClick={() => { setEditDetails(false); setConfirmDelete(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
+                <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-[13px] text-fg-muted transition-colors hover:text-fg">
                   Cancel
                 </button>
-                {/* Delete — creator or director/HR only; two-step confirm. */}
-                {confirmDelete ? (
-                  <span className="ml-auto inline-flex items-center gap-1.5">
-                    <span className="text-[12px] text-fg-muted">Delete?</span>
-                    <button type="button" onClick={removeTask} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-danger px-2.5 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
-                      {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Confirm
-                    </button>
-                    <button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg px-2 py-1.5 text-[12px] text-fg-muted hover:text-fg">Keep</button>
-                  </span>
-                ) : (
-                  <button type="button" onClick={() => setConfirmDelete(true)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-danger transition-colors hover:bg-danger-soft">
-                    <Trash2 size={12} /> Delete
-                  </button>
-                )}
               </div>
             </div>
           ) : (t.description || t.note) ? (
@@ -567,6 +681,10 @@ function TaskRow({
           canRemind={canRemind}
         />
 
+        {/* Classify (command-centre parity) — Category, Risk and a one-tap Escalate.
+            Shared component so the full task page stays identical. */}
+        {canEdit && <TaskClassifyControls t={t} />}
+
         {/* Actions — Open, priority (and status + date on mobile). Sit at the very
             bottom so the text above stays clean. Roomy rectangular pills: 2×2 on a
             phone, inline on the web. */}
@@ -591,6 +709,10 @@ function TaskRow({
           )}
           {busy && <span className="inline-flex items-center px-1"><Loader2 size={14} className="animate-spin text-fg-subtle" /></span>}
         </div>
+
+        {/* Danger zone — appears only while editing (pen toggled). Deletes the
+            ENTIRE task, not an update. Shared with the full task page. */}
+        {canEdit && editDetails && <TaskDeleteFooter taskId={t.taskId} code={t.code} />}
       </div>
     );
   }
@@ -602,6 +724,7 @@ function TaskRow({
           onClick={() => setOpen((o) => !o)}
           className="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition-colors hover:bg-bg-subtle/30"
         >
+          {selectable && onToggleSelect && <SelectBox checked={selected} onToggle={onToggleSelect} />}
           {/* LEFT — title row, then the description and latest update, which slide
               away when the card is expanded. Edit pencil, status + date all live in
               the fixed control track on the right so they line up as columns. */}
@@ -718,6 +841,7 @@ function TaskRow({
       >
         <button type="button" onClick={() => { if (swipe.swiped) { swipe.reset(); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
           <span className={`w-1 shrink-0 rounded-l-2xl ${t.overdue ? "bg-danger" : t.withinSoon ? "bg-warn" : statusDot(t.status)}`} />
+          {selectable && onToggleSelect && <span className="flex shrink-0 items-center pl-2"><SelectBox checked={selected} onToggle={onToggleSelect} /></span>}
           <span className="min-w-0 flex-1 py-3.5">
             <span className="mb-1.5 flex flex-wrap items-center gap-1.5">
               <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted ring-1 ring-border/50">{t.code}</span>
@@ -795,7 +919,7 @@ type Member = { id: number | null; name: string; lead: boolean };
  * all · N" button opens the task's group chat (portalMessageTaskGroup) when more
  * than one person is involved. Directors/HR can edit the lead set inline.
  */
-function TaskPeoplePanel({
+export function TaskPeoplePanel({
   t, people, canEditLeads, canRemind,
 }: {
   t: CommandTask;
@@ -890,10 +1014,10 @@ function TaskPeoplePanel({
     setLeads([...leadIds, id]);
   }
 
-  // Take a person off the task entirely (director/HR or the creator). The last
-  // remaining person can't be removed — the server enforces this too.
+  // Take a person off the task entirely (director/HR or the creator). Even the
+  // last person may be removed — the task simply becomes Unassigned.
   function removePerson(m: Member) {
-    if (m.id == null || total <= 1) return;
+    if (m.id == null) return;
     startRemove(async () => {
       const res = await portalRemoveTaskPerson(t.taskId, m.id!);
       if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
@@ -967,8 +1091,8 @@ function TaskPeoplePanel({
             {/* Per-person reachability — minimal icons: WhatsApp / Email this task +
                 a direct chat DM. Only the id-backed people. */}
             {canRemind && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
-            {/* Remove from the task — director/HR or the creator; never the last one. */}
-            {canEditLeads && m.id != null && total > 1 && (
+            {/* Remove from the task — director/HR or the creator (even the last one). */}
+            {canEditLeads && m.id != null && (
               <button
                 type="button"
                 onClick={() => removePerson(m)}
@@ -1264,6 +1388,87 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
       <button type="button" onClick={chat} disabled={busy} title="Message in chat" aria-label={`Message ${first} in chat`} className={cn(iconBtn, "bg-bg-subtle text-fg-muted ring-border")}>
         <MessageSquarePlus size={15} />
       </button>
+    </div>
+  );
+}
+
+/** Classify controls — Category + Risk (auto-save) and a one-tap Escalate. Shared
+ *  by the Tasks command card AND the full task page so both stay in lock-step.
+ *  Self-contained (own toast/router/transition); only shown to those who may edit. */
+export function TaskClassifyControls({ t }: { t: CommandTask }) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  function save(patch: { category?: string | null; risk?: string | null; escalation?: string }, label: string) {
+    start(async () => {
+      const res = await portalEditTask({ taskId: t.taskId, ...patch });
+      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
+      toast(label, { tone: "success" });
+      router.refresh();
+    });
+  }
+  const changeRisk = (v: string) => { if ((v || null) !== t.risk) save({ risk: v }, v ? `Risk → ${v}` : "Risk cleared"); };
+  const changeCategory = (v: string) => { if ((v || null) !== t.category) save({ category: v }, v ? `Category → ${v}` : "Category cleared"); };
+  const toggleEscalate = () => save({ escalation: t.escalated ? "No" : "Yes" }, t.escalated ? "De-escalated" : "Escalated");
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+      <span className="col-span-2 inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle sm:col-span-1">
+        <Tag size={12} /> Classify
+      </span>
+      <FluidSelect value={t.category ?? ""} options={categoryOptions} onSelect={changeCategory} className="w-full sm:w-[150px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
+      <FluidSelect value={t.risk ?? ""} options={riskOptions} onSelect={changeRisk} className="w-full sm:w-[130px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-[12px]`} />
+      <button
+        type="button"
+        onClick={toggleEscalate}
+        disabled={busy}
+        title={t.escalated ? "Escalated — tap to stand down" : "Escalate this task"}
+        className={cn(
+          "col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[12px] font-medium ring-1 transition-colors disabled:opacity-50 sm:col-span-1 sm:w-auto",
+          t.escalated ? "bg-danger-soft text-danger ring-danger/30 hover:bg-danger-soft/70" : "bg-bg-elev text-fg-muted ring-border hover:text-danger",
+        )}
+      >
+        {busy ? <Loader2 size={13} className="animate-spin" /> : t.escalated ? <ShieldAlert size={13} /> : <AlertTriangle size={13} />}
+        {t.escalated ? "Escalated" : "Escalate"}
+      </button>
+    </div>
+  );
+}
+
+/** Danger-zone footer: deletes the WHOLE task (recoverable soft-archive), with a
+ *  two-step confirm. Shared by the Tasks command card and the full task page.
+ *  `onDeleted` lets a caller navigate away (the full page → back to the list). */
+export function TaskDeleteFooter({ taskId, code, onDeleted }: { taskId: number; code: string; onDeleted?: () => void }) {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const [confirm, setConfirm] = useState(false);
+  function removeTask() {
+    start(async () => {
+      const res = await portalDeleteTask(taskId);
+      if (res?.error) { toast(res.error, { tone: "danger" }); return; }
+      toast("Task deleted.", { tone: "success" });
+      if (onDeleted) onDeleted(); else router.refresh();
+    });
+  }
+  return (
+    <div className="rounded-xl border border-danger/25 bg-danger-soft/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[12px] text-fg-muted">
+          <span className="font-semibold text-danger">Delete this task</span> — removes the whole task <span className="font-mono">{code}</span>, its updates and history (recoverable by the admin).
+        </p>
+        {confirm ? (
+          <span className="inline-flex items-center gap-1.5">
+            <button type="button" onClick={removeTask} disabled={busy} className="inline-flex items-center gap-1 rounded-lg bg-danger px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50">
+              {busy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Delete the whole task
+            </button>
+            <button type="button" onClick={() => setConfirm(false)} className="rounded-lg px-2 py-1.5 text-[12px] text-fg-muted hover:text-fg">Keep it</button>
+          </span>
+        ) : (
+          <button type="button" onClick={() => setConfirm(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-danger-soft px-3 py-1.5 text-[12px] font-medium text-danger ring-1 ring-danger/25 transition-colors hover:bg-danger-soft/70">
+            <Trash2 size={13} /> Delete task
+          </button>
+        )}
+      </div>
     </div>
   );
 }
