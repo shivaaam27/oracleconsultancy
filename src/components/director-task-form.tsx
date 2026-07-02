@@ -10,6 +10,7 @@ import { SwitchRow } from "@/components/ui";
 import { NotifyPerson } from "@/components/notify-person";
 import { PeoplePicker } from "@/components/people-picker";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
+import { DatePopover } from "@/components/date-popover";
 import { portalDirectorCreateTask, portalCreateTask } from "@/app/portal/actions";
 
 type Person = { id: number; name: string; companyId: number | null; companyIds?: number[] };
@@ -89,6 +90,7 @@ export function DirectorTaskForm({
   const [responsibleIds, setResponsibleIds] = useState<number[]>([]);
   const [leadIds, setLeadIds] = useState<number[]>([]);
   const [priority, setPriority] = useState("Medium");
+  const [deadline, setDeadline] = useState(""); // "yyyy-mm-dd" or "" — mirrored to a hidden input
   const [requiresProof, setRequiresProof] = useState(false);
   const [creatorCloseOnly, setCreatorCloseOnly] = useState(isDirector); // default ON for directors
   const [assigned, setAssigned] = useState<{ id: number; name: string } | null>(null);
@@ -133,20 +135,35 @@ export function DirectorTaskForm({
     setResponsibleIds([]);
     setLeadIds([]);
     setPriority("Medium");
+    setDeadline("");
     setRequiresProof(false);
     setCreatorCloseOnly(isDirector);
     setFormError(null);
   }
 
-  // Manager people scoping mirrors the old behaviour: limit by the chosen
-  // company. Directors see EVERYONE (no company-by-company filtering — that's
-  // the hassle being removed).
+  // Responsible-people list is scoped to the SELECTED companies (for BOTH roles)
+  // so the picker stays short and relevant — pick a company, then only its people
+  // show. Before any company is chosen we show the full list (the picker isn't
+  // useful empty). If a selected company has no linked people, fall back to the
+  // full list rather than an empty picker. A person linked to several companies
+  // appears when ANY of their companies is selected.
   const peopleForPicker = useMemo(() => {
-    if (isDirector) return people;
-    if (singleCompanyId == null) return people;
-    const scoped = people.filter((p) => personCompanyIds(p).includes(singleCompanyId));
+    const selected = isDirector ? companyIds : (singleCompanyId != null ? [singleCompanyId] : []);
+    if (selected.length === 0) return people;
+    const scoped = people.filter((p) => personCompanyIds(p).some((cid) => selected.includes(cid)));
     return scoped.length ? scoped : people;
-  }, [isDirector, people, singleCompanyId]);
+  }, [isDirector, people, companyIds, singleCompanyId]);
+
+  // When the selected companies change, drop any already-picked person who no
+  // longer belongs to the remaining companies (the lead-cleanup effect below then
+  // re-defaults the lead).
+  useEffect(() => {
+    const allowed = new Set(peopleForPicker.map((p) => p.id));
+    setResponsibleIds((cur) => {
+      const kept = cur.filter((id) => allowed.has(id));
+      return kept.length === cur.length ? cur : kept;
+    });
+  }, [peopleForPicker]);
 
   // The non-lead responsible people post as the "working" set.
   const workingIds = useMemo(
@@ -227,13 +244,9 @@ export function DirectorTaskForm({
         {isDirector ? (
           <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} />
         ) : companies.length > 1 ? (
-          <FluidSelect
-            value={singleCompanyId != null ? String(singleCompanyId) : ""}
-            options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
-            placeholder="Choose…"
-            onSelect={(v) => { setCompanyIds(v ? [Number(v)] : []); setResponsibleIds([]); setLeadIds([]); }}
-            buttonClassName={selectBtn}
-          />
+          // A manager in several companies gets the SAME searchable chooser, in
+          // single-pick mode (people prune automatically when it changes).
+          <CompanyMultiSelect single companies={companies} value={companyIds} onChange={setCompanyIds} />
         ) : (
           <p className="rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-sm text-fg ring-1 ring-border">{companies[0]?.name ?? "Your company"}</p>
         )}
@@ -290,7 +303,10 @@ export function DirectorTaskForm({
         </div>
         <div>
           <label className={fieldLabel}>Deadline</label>
-          <input name="deadline" type="date" className={inputCls} />
+          {/* Aurora calendar (matches the edit views). It mirrors its value into a
+              hidden input so the existing server action still reads `deadline`. */}
+          <input type="hidden" name="deadline" value={deadline} />
+          <DatePopover value={deadline || null} onChange={setDeadline} block />
         </div>
       </div>
 
@@ -369,13 +385,15 @@ export function DirectorTaskForm({
   );
 }
 
-/* ── A compact, searchable multi-company checklist (chips below). ──────── */
+/* ── A compact, searchable company chooser. Multi-select by default (ticks +
+ *    chips); `single` mode picks exactly one and closes (managers). ─────── */
 function CompanyMultiSelect({
-  companies, value, onChange,
+  companies, value, onChange, single = false,
 }: {
   companies: Company[];
   value: number[];
   onChange: (ids: number[]) => void;
+  single?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -399,6 +417,7 @@ function CompanyMultiSelect({
   }, [companies, q]);
 
   function toggle(id: number) {
+    if (single) { onChange([id]); setOpen(false); return; }
     onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
   }
 
@@ -408,7 +427,7 @@ function CompanyMultiSelect({
         <span className="flex min-w-0 items-center gap-2">
           <Building2 size={15} className="shrink-0 text-fg-muted" />
           <span className={selected.length ? "text-fg" : "text-fg-muted"}>
-            {selected.length === 0 ? "Choose one or more…" : selected.length === 1 ? byId.get(selected[0]) : `${selected.length} companies`}
+            {selected.length === 0 ? (single ? "Choose a company…" : "Choose one or more…") : selected.length === 1 ? byId.get(selected[0]) : `${selected.length} companies`}
           </span>
         </span>
         <ChevronDown size={15} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />
