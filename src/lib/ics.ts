@@ -67,11 +67,15 @@ export function expandRecurrence(opts: {
   windowStart: number;
   windowEnd: number;
   maxOccurrences?: number;
+  /** "yyyy-mm-dd" (UTC) occurrence dates to SKIP (cancelled single occurrences). */
+  excluded?: string[];
 }): Date[] {
+  const skip = opts.excluded && opts.excluded.length ? new Set(opts.excluded) : null;
   const recurrence = normaliseRecurrence(opts.recurrence);
   const start = opts.start;
   if (!recurrence) {
     const t = start.getTime();
+    if (skip && skip.has(start.toISOString().slice(0, 10))) return [];
     return t >= opts.windowStart && t <= opts.windowEnd ? [start] : [];
   }
   // Inclusive last day: anchor any `until` at end-of-day UTC, as the .ics does.
@@ -92,6 +96,7 @@ export function expandRecurrence(opts: {
     n += 1;
     if (t > cap) break;
     if (t < opts.windowStart) continue;
+    if (skip && skip.has(occ.toISOString().slice(0, 10))) continue; // cancelled occurrence
     out.push(occ);
   }
   return out;
@@ -117,6 +122,11 @@ export type IcsEvent = {
   recurrence?: string | null;
   /** Inclusive last day the recurrence repeats. */
   recurrenceUntil?: Date | null;
+  /** "yyyy-mm-dd" (UTC) occurrence dates to exclude from the series (EXDATE). */
+  excludedDates?: string[] | null;
+  /** Identifies the single occurrence this VEVENT overrides/cancels (RECURRENCE-ID).
+   *  Used to cancel ONE date of a series without touching the rest. */
+  recurrenceId?: Date | null;
   attendees?: IcsAttendee[];
   organizerName?: string | null;
   organizerEmail?: string | null;
@@ -218,8 +228,26 @@ export function buildIcs(ev: IcsEvent): string {
     lines.push(`LOCATION:${esc(ev.location || ev.meetLink || "")}`);
   if (ev.meetLink) lines.push(`URL:${esc(ev.meetLink)}`);
 
-  const rrule = recurrenceToRrule(ev.recurrence, ev.recurrenceUntil);
-  if (rrule) lines.push(rrule);
+  // A per-occurrence override/cancellation targets ONE instance (RECURRENCE-ID) and
+  // carries no RRULE; the whole-series form emits the RRULE (+ any EXDATE skips).
+  if (ev.recurrenceId) {
+    lines.push(`RECURRENCE-ID:${dtUtc(ev.recurrenceId)}`);
+  } else {
+    const rrule = recurrenceToRrule(ev.recurrence, ev.recurrenceUntil);
+    if (rrule) lines.push(rrule);
+    // EXDATE must match each excluded occurrence's DTSTART: same time-of-day as the
+    // series start, on the excluded date.
+    for (const d of ev.excludedDates ?? []) {
+      const dt = new Date(`${d}T00:00:00Z`);
+      if (isNaN(dt.getTime())) continue;
+      if (allDay) {
+        lines.push(`EXDATE;VALUE=DATE:${dtDate(dt)}`);
+      } else {
+        dt.setUTCHours(ev.start.getUTCHours(), ev.start.getUTCMinutes(), ev.start.getUTCSeconds(), 0);
+        lines.push(`EXDATE:${dtUtc(dt)}`);
+      }
+    }
+  }
 
   if (ev.organizerEmail)
     lines.push(

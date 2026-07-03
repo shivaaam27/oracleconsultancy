@@ -1091,6 +1091,9 @@ export const calendarEvents = pgTable("calendar_events", {
   googleEventId: text("google_event_id"),
   // Owner-managed category (Board / Site visit / …). NULL = uncategorised.
   categoryId: integer("category_id").references(() => eventCategories.id, { onDelete: "set null" }),
+  // JSON array of "yyyy-mm-dd" (UTC) occurrence dates SKIPPED from a recurring
+  // series (the .ics EXDATE equivalent) — cancel one date, keep the rest.
+  excludedDates: text("excluded_dates"),
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),

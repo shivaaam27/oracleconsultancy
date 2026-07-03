@@ -36,6 +36,8 @@ export type CalendarEvent = {
   status: string;
   googleEventId: string | null;
   categoryId: number | null;
+  /** "yyyy-mm-dd" (UTC) occurrence dates skipped from a recurring series. */
+  excludedDates: string[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +53,16 @@ function parseAttendees(raw: unknown): CalendarAttendee[] {
   } catch {
     return [];
   }
+}
+
+function parseStringArray(raw: unknown): string[] {
+  if (typeof raw === "string" && raw) {
+    try {
+      const v = JSON.parse(raw);
+      if (Array.isArray(v)) return v.filter((s): s is string => typeof s === "string");
+    } catch { /* fall through */ }
+  }
+  return [];
 }
 
 function parseReminders(raw: unknown, fallback: number | null): number[] {
@@ -88,6 +100,7 @@ function mapRow(r: Row): CalendarEvent {
     status: (r.status as string) ?? "confirmed",
     googleEventId: (r.google_event_id as string) ?? null,
     categoryId: (r.category_id as number) ?? null,
+    excludedDates: parseStringArray(r.excluded_dates),
     createdBy: (r.created_by as string) ?? "web-ui",
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
@@ -261,6 +274,15 @@ export async function setGoogleEventId(id: number, googleEventId: string, meetLi
   await sb.from("calendar_events").update(payload).eq("id", id);
 }
 
+/** Replace the set of skipped ("yyyy-mm-dd") occurrence dates on a recurring event. */
+export async function setExcludedDates(id: number, dates: string[]): Promise<void> {
+  const clean = [...new Set(dates.filter(Boolean))].sort();
+  await sb
+    .from("calendar_events")
+    .update({ excluded_dates: clean.length ? JSON.stringify(clean) : null, updated_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
 /** Mark an event cancelled (used after pushing a cancellation to Google, so the
  *  public share page + any re-sent .ics reflect the cancellation). */
 export async function markCalendarEventCancelled(id: number): Promise<void> {
@@ -288,6 +310,7 @@ export function toIcsEvent(
     reminders: ev.reminders,
     recurrence: ev.recurrence,
     recurrenceUntil: ev.recurrenceUntil ? new Date(ev.recurrenceUntil) : null,
+    excludedDates: ev.excludedDates,
     attendees: ev.attendees
       .filter((a): a is CalendarAttendee & { name: string } => !!a.name)
       .map<IcsAttendee>((a) => ({ name: a.name, email: a.email })),

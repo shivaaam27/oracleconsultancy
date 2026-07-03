@@ -8,6 +8,7 @@ import {
   getCalendarEvent,
   markCalendarEventCancelled,
   setGoogleEventId,
+  setExcludedDates,
   toIcsEvent,
   type CalendarAttendee,
   type CalendarEvent,
@@ -17,7 +18,7 @@ import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
 import { createTasksForEvent, shouldCreateMeetingTasks } from "@/lib/meeting-tasks";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
-import { cancelGoogleEvent, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
+import { cancelGoogleEvent, cancelGoogleInstance, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
 import { resolveEventCategoryId } from "@/lib/event-categories";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
@@ -632,4 +633,93 @@ export async function deleteEventCategory(id: number): Promise<RefResult> {
   if (error) return { ok: false, error: error.message };
   invalidate();
   return { ok: true };
+}
+
+/* ------------------------------------------------------------------ *
+ * Per-occurrence SKIP — cancel ONE date of a recurring series, keep the
+ * rest. Stored as an EXDATE-style excluded date; guests are notified for
+ * just that instance (Google instance-cancel, or a RECURRENCE-ID .ics email).
+ * ------------------------------------------------------------------ */
+
+/** The instant of a specific occurrence: the excluded date at the series' time-of-day. */
+function occurrenceIso(startIso: string, dateKey: string): string {
+  const start = new Date(startIso);
+  const occ = new Date(`${dateKey}T00:00:00Z`);
+  occ.setUTCHours(start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds(), 0);
+  return occ.toISOString();
+}
+
+/** Email guests a RECURRENCE-ID cancellation for ONE occurrence (email-invited
+ *  series only; Google-invited series are handled by cancelGoogleInstance). */
+async function emailInstanceCancellation(ev: CalendarEvent, dateKey: string): Promise<void> {
+  try {
+    if (ev.googleEventId) return;
+    const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
+    if (recipients.length === 0) return;
+    const { data: sent } = await sb
+      .from("outbox").select("id").eq("source", `calendar:${ev.id}`).eq("message_type", "calendar-invite").limit(1);
+    if (!sent || sent.length === 0) return;
+
+    const { emailFrom, emailFromName } = await getAppSettings();
+    const occIso = occurrenceIso(ev.startAt, dateKey);
+    const icsEvent = {
+      ...toIcsEvent(ev, { name: emailFromName, email: emailFrom }),
+      status: "cancelled" as const,
+      recurrenceId: new Date(occIso),
+      sequence: ev.sequence + 1,
+    };
+    const ics = buildIcs(icsEvent);
+    const when = fmtEat(occIso, ev.allDay);
+    const safeTitle = ev.title.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"));
+    await sendEmail({
+      to: recipients,
+      subject: `Cancelled: ${ev.title} — ${when}`,
+      html: `<p>Just this occurrence of <strong>${safeTitle}</strong> (${when}) has been <strong>cancelled</strong>. The rest of the series is unchanged.</p>`,
+      text: `Just the ${when} occurrence of "${ev.title}" has been cancelled; the rest of the series is unchanged.`,
+      replyTo: emailFrom,
+      calendar: { content: ics, method: "CANCEL", filename: "cancel.ics" },
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
+export async function skipEventOccurrence(id: number, dateKey: string): Promise<Result> {
+  try {
+    const key = (dateKey ?? "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return { ok: false, error: "Invalid date." };
+    const ev = await getCalendarEvent(id);
+    if (!ev) return { ok: false, error: "Event not found." };
+    if (!ev.recurrence || ev.recurrence === "none") return { ok: false, error: "This isn't a recurring event." };
+    if (ev.excludedDates.includes(key)) return { ok: true }; // already skipped
+
+    await setExcludedDates(id, [...ev.excludedDates, key]);
+
+    // Tell guests this one date is off.
+    if (ev.googleEventId) {
+      await cancelGoogleInstance(ev.googleEventId, occurrenceIso(ev.startAt, key)).catch(() => {});
+    } else {
+      await emailInstanceCancellation(ev, key);
+    }
+    invalidate();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not skip this date." };
+  }
+}
+
+/** Undo a skip locally (restores it on OUR calendar). Note: a guest's calendar
+ *  won't automatically un-cancel a date already retracted in Google — re-send the
+ *  invite if you need it back on their side. */
+export async function restoreEventOccurrence(id: number, dateKey: string): Promise<Result> {
+  try {
+    const key = (dateKey ?? "").slice(0, 10);
+    const ev = await getCalendarEvent(id);
+    if (!ev) return { ok: false, error: "Event not found." };
+    await setExcludedDates(id, ev.excludedDates.filter((d) => d !== key));
+    invalidate();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not restore this date." };
+  }
 }

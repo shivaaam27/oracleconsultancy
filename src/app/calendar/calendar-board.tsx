@@ -5,7 +5,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, Search,
-  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, type LucideIcon,
+  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X, type LucideIcon,
 } from "lucide-react";
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
@@ -21,7 +21,7 @@ import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
-import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction, previewEventInviteAction, createEventCategory, renameEventCategory, mergeEventCategories, deleteEventCategory } from "./actions";
+import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction, previewEventInviteAction, createEventCategory, renameEventCategory, mergeEventCategories, deleteEventCategory, skipEventOccurrence, restoreEventOccurrence } from "./actions";
 
 // Persisted calendar view + filter preferences (localStorage). `disabledLayers`
 // stores the OFF layers (so a newly-added layer defaults ON).
@@ -145,6 +145,7 @@ function expandRecurring(events: CalendarEventView[]): CalendarEventView[] {
       until: e.recurrenceUntil ? new Date(e.recurrenceUntil) : null,
       windowStart: winStart,
       windowEnd: winEnd,
+      excluded: e.excludedDates,
     });
     for (const occ of occurrences) {
       out.push({
@@ -1184,6 +1185,27 @@ function EventForm({
     });
   }, [allDay, startVal, endVal, allEvents, editing]);
 
+  // Per-occurrence skip: `editing` is the clicked OCCURRENCE (base id + this date).
+  const isRecurring = !!editing && !!editing.recurrence && editing.recurrence !== "none";
+  const occDateKey = editing ? new Date(editing.startAt).toISOString().slice(0, 10) : "";
+  const alreadySkipped = editing?.excludedDates.includes(occDateKey) ?? false;
+  function doSkip() {
+    if (!editing) return;
+    start(async () => {
+      const r = await skipEventOccurrence(editing.id, occDateKey);
+      if (r.ok) { toast("This date is cancelled — the rest of the series stays.", { tone: "success" }); onClose(); }
+      else toast(r.error, { tone: "danger" });
+    });
+  }
+  function doRestore(dateKey: string) {
+    if (!editing) return;
+    start(async () => {
+      const r = await restoreEventOccurrence(editing.id, dateKey);
+      if (r.ok) { toast("Date restored on your calendar.", { tone: "success" }); onClose(); }
+      else toast(r.error, { tone: "danger" });
+    });
+  }
+
   function submit(fd: FormData) {
     fd.set("attendees", JSON.stringify(picked));
     fd.set("reminders", JSON.stringify(reminders));
@@ -1351,6 +1373,34 @@ function EventForm({
           <div className="sm:w-1/2">
             <FieldLabel>Repeat until (optional)</FieldLabel>
             <Input type="date" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} />
+          </div>
+        )}
+
+        {/* Per-occurrence skip — cancel JUST this date of a repeating event. Only
+            shown when editing an existing recurring occurrence. */}
+        {isRecurring && (
+          <div className="rounded-xl bg-bg-subtle/60 ring-1 ring-border/70 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[12px] text-fg-muted">This is one date of a repeating event — you can cancel just this one.</span>
+              {alreadySkipped ? (
+                <span className="text-[11px] font-medium text-danger shrink-0">This date is cancelled</span>
+              ) : (
+                <Button type="button" size="sm" variant="ghost" onClick={doSkip} disabled={pending} className="shrink-0">
+                  Skip {new Date(editing!.startAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </Button>
+              )}
+            </div>
+            {editing!.excludedDates.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
+                <span className="text-[11px] text-fg-subtle">Cancelled dates (tap to restore):</span>
+                {editing!.excludedDates.map((d) => (
+                  <button key={d} type="button" onClick={() => doRestore(d)} disabled={pending}
+                    className="inline-flex items-center gap-1 rounded-full bg-danger-soft/40 px-2 py-0.5 text-[11px] text-danger ring-1 ring-danger/20 hover:bg-danger-soft/70 transition-colors">
+                    {new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" })} <X size={10} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

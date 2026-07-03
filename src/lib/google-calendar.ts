@@ -121,6 +121,45 @@ export async function updateGoogleEvent(ev: CalendarEvent): Promise<GoogleWriteR
 }
 
 /**
+ * Cancel ONE occurrence of a recurring Google event (leaving the rest intact) so
+ * guests are told that single date is off. Finds the instance whose start matches
+ * `occurrenceStartIso` (within the same day) and deletes it with sendUpdates="all".
+ */
+export async function cancelGoogleInstance(
+  seriesEventId: string,
+  occurrenceStartIso: string,
+): Promise<GoogleWriteResult> {
+  const auth = await getAuthorizedClient();
+  if (!auth) return { ok: false, reason: "not-connected" };
+  try {
+    const calendar = google.calendar({ version: "v3", auth });
+    const start = new Date(occurrenceStartIso);
+    const dayStart = new Date(start); dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(start); dayEnd.setUTCHours(23, 59, 59, 999);
+    const res = await calendar.events.instances({
+      calendarId: "primary",
+      eventId: seriesEventId,
+      timeMin: dayStart.toISOString(),
+      timeMax: dayEnd.toISOString(),
+      maxResults: 10,
+    });
+    const target = start.getTime();
+    const instance = (res.data.items ?? []).find((it) => {
+      const s = it.start?.dateTime ?? (it.start?.date ? `${it.start.date}T00:00:00Z` : null);
+      if (!s) return false;
+      return Math.abs(new Date(s).getTime() - target) < 60_000; // within a minute
+    });
+    if (!instance?.id) return { ok: true }; // nothing to cancel (already gone / not found)
+    await calendar.events.delete({ calendarId: "primary", eventId: instance.id, sendUpdates: "all" });
+    return { ok: true };
+  } catch (e) {
+    const code = (e as { code?: number })?.code;
+    if (code === 404 || code === 410) return { ok: true };
+    return { ok: false, reason: "error", error: e instanceof Error ? e.message : "Google Calendar error" };
+  }
+}
+
+/**
  * Cancel (delete) the matching Google event so Google emails guests the
  * cancellation and removes it from their calendars. Treats an already-deleted
  * Google event (410 Gone) as success.
