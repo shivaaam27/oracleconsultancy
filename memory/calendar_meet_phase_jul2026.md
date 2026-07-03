@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-# Calendar / Google Meet phase (Jul 2026) — BUILT + VERIFIED, pushed
+# Calendar / Google Meet phase (Jul 2026) — BUILT + VERIFIED, PUSHED (commit d130f44)
 
 Follows the chat delete/edit overhaul ([[chat_system]]). Owner asked to improve
 calendar + Google Meet: auto Meet links (already real), richer descriptions,

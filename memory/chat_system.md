@@ -1,6 +1,6 @@
 # Chat System (`/chat` + `/portal/chat`)
 
-> **Jul 2026 — delete/edit overhaul (Phase 1, built + verified locally, NOT pushed).**
+> **Jul 2026 — delete/edit overhaul (Phase 1, built + verified + PUSHED, commit 3b5dfbe).**
 > The old edit/delete controls were **hover-only + last-of-group-only** (`opacity-0
 > group-hover:opacity-100` in `chat-surface.tsx`) → invisible on touch (all portals)
 > and absent on earlier messages. Replaced with a **tap ⋯ action sheet on every

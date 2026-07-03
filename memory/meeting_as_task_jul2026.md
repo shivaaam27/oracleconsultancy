@@ -7,6 +7,11 @@ metadata:
 
 # Meeting-as-task (Jul 2026)
 
+**Commits (all pushed to master):** Phase A `11ca166` · Phase B `685d4f8` · Phase C `47310d0`.
+Related same-session work: chat delete/edit `3b5dfbe` [[chat_system]], calendar/Meet two-way
+sync + branded emails `d130f44` [[calendar-meet-phase-jul2026]].
+
+
 Director's ask: when a meeting/event is created it should ALSO behave as a task —
 prep + follow-through in the task system, updates posted after the meeting, NO
 deadline, auto-move to In Progress when the meeting starts. Plus richer event form
