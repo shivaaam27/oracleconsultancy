@@ -6,11 +6,13 @@
 
 import { toIcsEvent, type CalendarEvent } from "@/lib/calendar";
 import { googleCalendarUrl, outlookCalendarUrl } from "@/lib/ics";
+import { renderEmail, type EmailOffice } from "@/lib/email/layout";
 
 const EAT_TZ = "Africa/Dar_es_Salaam";
-const ACCENT = "#2f6bff";
+const ACCENT = "#1f7aeb";
+const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
-export type EventEmailKind = "invite" | "reminder" | "followup" | "update";
+export type EventEmailKind = "invite" | "reminder" | "followup" | "update" | "cancel";
 
 export type EventEmailOptions = {
   kind?: EventEmailKind;
@@ -23,6 +25,10 @@ export type EventEmailOptions = {
   publicUrl?: string | null;
   /** Category name (Board / Site visit / …) shown as a "Type" row. */
   categoryName?: string | null;
+  /** Sender identity for the shared shell — masthead office + footer sign-off. */
+  office?: EmailOffice;
+  signoffName?: string | null;
+  signoffTitle?: string | null;
 };
 
 /** "Weekly until 31 December 2026" (shown against a "Repeats" label; null for a
@@ -104,12 +110,14 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
     kind === "reminder" ? `Reminder: ${ev.title} — ${when}`
     : kind === "followup" ? `Follow-up: ${ev.title}`
     : kind === "update" ? `Updated: ${ev.title} — ${when}`
+    : kind === "cancel" ? `Cancelled: ${ev.title} — ${when}`
     : `Invitation: ${ev.title} — ${when}`;
 
   const intro =
     kind === "reminder" ? `A friendly reminder that this is coming up:`
     : kind === "followup" ? `Thank you for joining. Here's a summary for your records:`
     : kind === "update" ? `This event has been updated — here are the new details:`
+    : kind === "cancel" ? `This event has been cancelled. Please remove it from your diary:`
     : `You're invited — here are the details:`;
 
   const repeats = recurrenceLabel(ev);
@@ -128,63 +136,58 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   if (ev.description) rows.push(detailRow("Details", esc(ev.description).replace(/\n/g, "<br>")));
   if (reminders && kind !== "followup") rows.push(detailRow("Reminders", esc(reminders)));
 
-  // --- Right-hand action column (full-width block buttons) ---
+  // --- Right-hand action column (full-width block buttons) — none on a cancel. ---
+  const showButtons = kind !== "followup" && kind !== "cancel";
   const sideButtons: string[] = [];
-  if (ev.meetLink && kind !== "followup") sideButtons.push(blockButton(ev.meetLink, "Join the meeting", true));
-  if (kind !== "followup") {
+  if (ev.meetLink && showButtons) sideButtons.push(blockButton(ev.meetLink, "Join the meeting", true));
+  if (showButtons) {
     sideButtons.push(blockButton(googleUrl, "Add to Google", false));
     sideButtons.push(blockButton(outlookUrl, "Add to Outlook", false));
   }
-  if (opts.publicUrl) sideButtons.push(blockButton(opts.publicUrl, "View details", false));
+  if (opts.publicUrl && kind !== "cancel") sideButtons.push(blockButton(opts.publicUrl, "View details", false));
   const hasSide = sideButtons.length > 0;
 
-  const greeting = opts.recipientName ? `<p style="margin:0 0 12px;font-size:15px;color:#1b2333">Hi ${esc(firstName(opts.recipientName))},</p>` : "";
-  const signoff = opts.organizerName
-    ? `<p style="margin:22px 0 0;font-size:14px;color:#5b6577">— ${esc(opts.organizerName)}${company ? `, ${esc(company)}` : ""}</p>`
-    : "";
-  const footNote = kind === "invite" || kind === "update"
-    ? `<p style="margin:16px 0 0;color:#9aa3b2;font-size:12px">This message includes a calendar invitation — most apps (Gmail, Apple Calendar, Outlook) will offer to add it automatically, or use the buttons.</p>`
-    : "";
+  const greeting = opts.recipientName ? `<p style="margin:0 0 12px;font-size:15px;color:#1b2333;font-family:${FONT}">Hi ${esc(firstName(opts.recipientName))},</p>` : "";
 
   // Two columns on a wide screen (details | actions), stacking to one column on a
-  // phone via the media query. White throughout — no grey card.
+  // phone via the media query.
+  const detailsTable = `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">${rows.join("\n")}</table>`;
   const layout = hasSide
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
         <tr>
-          <td class="cos-stack" style="vertical-align:top;padding-right:28px">
-            <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-              ${rows.join("\n")}
-            </table>
-          </td>
-          <td class="cos-stack cos-side" style="vertical-align:top;width:240px">
-            ${sideButtons.join("")}
-          </td>
+          <td class="cos-stack" style="vertical-align:top;padding-right:28px">${detailsTable}</td>
+          <td class="cos-stack cos-side" style="vertical-align:top;width:240px">${sideButtons.join("")}</td>
         </tr>
       </table>`
-    : `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">
-        ${rows.join("\n")}
-      </table>`;
+    : detailsTable;
 
-  const html = `
-  <style>
-    @media only screen and (max-width:620px){
-      .cos-stack{display:block !important;width:100% !important;padding:0 !important}
-      .cos-side{margin-top:20px !important}
-    }
-  </style>
-  <div style="margin:0;padding:0;background:#ffffff">
-    <div style="max-width:820px;margin:0 auto;padding:28px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f1729">
-      <div style="height:4px;width:56px;background:${ACCENT};border-radius:4px;margin-bottom:20px"></div>
-      <p style="margin:0 0 2px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#9aa3b2;font-weight:600">${esc(company)}</p>
-      <h1 style="margin:0 0 14px;font-size:23px;line-height:1.25;color:#0f1729">${esc(ev.title)}</h1>
-      ${greeting}
-      <p style="margin:0 0 20px;font-size:15px;color:#5b6577">${esc(intro)}</p>
-      ${layout}
-      ${signoff}
-      ${footNote}
-      <p style="color:#aab2c0;font-size:11px;margin:20px 0 0">Times shown in Dar es Salaam (EAT, UTC+3).</p>
-    </div>
-  </div>`.trim();
+  // The bespoke event body lives inside the SHARED shell (masthead office identity
+  // + footer sign-off), so every email in the system shares one design language.
+  const body = `
+    <style>
+      @media only screen and (max-width:620px){
+        .cos-stack{display:block !important;width:100% !important;padding:0 !important}
+        .cos-side{margin-top:20px !important}
+      }
+    </style>
+    ${greeting}
+    <p style="margin:0 0 18px;font-size:15px;color:#5b6577;font-family:${FONT}">${esc(intro)}</p>
+    ${layout}
+    <p style="color:#aab2c0;font-size:11px;margin:18px 0 0;font-family:${FONT}">Times shown in Dar es Salaam (EAT, UTC+3).</p>`;
+
+  const footerNote = (kind === "invite" || kind === "update")
+    ? "This message includes a calendar invitation — most apps (Gmail, Apple Calendar, Outlook) will offer to add it automatically, or use the buttons."
+    : undefined;
+
+  const html = renderEmail({
+    title: ev.title,
+    office: opts.office ?? "command",
+    signoffName: opts.signoffName ?? opts.organizerName ?? undefined,
+    signoffTitle: opts.signoffTitle ?? undefined,
+    footerNote,
+    wide: hasSide,
+    blocks: [{ kind: "html", html: body }],
+  });
 
   // --- Plain-text fallback ---
   const textLines: string[] = [];

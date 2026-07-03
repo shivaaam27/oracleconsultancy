@@ -621,6 +621,16 @@ export async function portalSendReminderEmail(
 
   const office = role === "director" ? "director" : role === "manager" ? "manager" : "admin";
   const tag = role === "director" ? "dir" : role === "manager" ? "mgr" : "admin";
+  // Footer title: "Director - <Company>" / "Manager - <Company>" (their own company).
+  let title: string | null = null;
+  if (office === "director" || office === "manager") {
+    let companyName = "Oracle Consultancy Ltd";
+    if (me.companyId != null) {
+      const { data: co } = await sb.from("companies").select("name,legal_name").eq("id", me.companyId).maybeSingle();
+      companyName = (co?.legal_name as string) || (co?.name as string) || companyName;
+    }
+    title = `${office === "director" ? "Director" : "Manager"} - ${companyName}`;
+  }
   const { sendTaskReminderEmail } = await import("@/lib/reminders");
   const res = await sendTaskReminderEmail({
     personId,
@@ -633,6 +643,7 @@ export async function portalSendReminderEmail(
     sender: {
       office,
       name: me.name,
+      title,
       replyTo: me.email,
       fromAddress: me.email,
       sourceTag: `portal-${tag}:${me.name}`,

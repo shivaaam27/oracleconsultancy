@@ -11,14 +11,17 @@ export type EmailTone = "default" | "danger" | "warn" | "accent" | "success" | "
 
 // Who the email is "from" — drives the footer sign-off ({Office} / Oracle
 // Consultancy Limited). Set per email by its source, NOT a person's job title.
-export type EmailOffice = "director" | "manager" | "admin" | "compliance" | "hr";
+// "command" = the Command Centre / owner — signs plainly as Oracle Consultancy
+// (no "…Office"), used for admin-console-initiated sends.
+export type EmailOffice = "director" | "manager" | "admin" | "compliance" | "hr" | "command";
 
 export const OFFICE_LABELS: Record<EmailOffice, string> = {
   director: "Director's Office",
   manager: "Manager's Office",
-  admin: "Admin's Office",
+  admin: "Admin Office",
   compliance: "Admin Compliance Office",
   hr: "Admin HR Office",
+  command: "Oracle Consultancy",
 };
 
 const COMPANY_LEGAL_NAME = "Oracle Consultancy Limited";
@@ -27,15 +30,16 @@ const COMPANY_SHORT_NAME = "Oracle Consultancy Ltd";
 
 /**
  * The inbox "from" display name for who sent it. Director/Manager portal sends
- * carry their office; everything else (admin + all automations + compliance/HR)
- * sends as the Admin's Office. ("OC" = Oracle Consultancy.)
+ * carry their office; the Command Centre signs as plain Oracle Consultancy;
+ * everything else (automations + compliance/HR) sends as the Admin Office.
  */
 export function senderName(office?: EmailOffice): string {
-  return office === "director"
-    ? "OC Director's Office"
-    : office === "manager"
-      ? "OC Manager's Office"
-      : "OC Admin's Office";
+  switch (office) {
+    case "director": return "OC Director's Office";
+    case "manager": return "OC Manager's Office";
+    case "command": return "Oracle Consultancy";
+    default: return "OC Admin Office";
+  }
 }
 
 export type EmailStat = { value: string | number; label: string; danger?: boolean };
@@ -47,7 +51,10 @@ export type EmailBlock =
   | { kind: "section"; label: string; rows: EmailRow[] }
   | { kind: "items"; label: string; items: EmailItem[] }
   | { kind: "list"; label?: string; bullets: string[] }
-  | { kind: "text"; text: string };
+  | { kind: "text"; text: string }
+  // Raw, trusted HTML body (built by us, e.g. the event invite's two-column
+  // layout) so bespoke emails can still live inside the shared shell.
+  | { kind: "html"; html: string };
 
 export type EmailDoc = {
   /** Hidden preview text shown in the inbox list. */
@@ -63,8 +70,13 @@ export type EmailDoc = {
   office?: EmailOffice;
   /** Optional sender name shown above the office line (e.g. a manager sending). */
   signoffName?: string;
+  /** Optional title under the name, e.g. "Director - Oracle Consultancy Ltd".
+   *  When set it REPLACES the office + legal-name footer lines. */
+  signoffTitle?: string;
   /** Optional personal line shown as a highlighted note above the content. */
   note?: string;
+  /** Wider body for bespoke two-column layouts (event invites). Default 600px. */
+  wide?: boolean;
 };
 
 export type EmailBrand = {
@@ -80,9 +92,11 @@ const SIG_MARKER = "<!--cos-signature-->";
 
 const C = {
   ink: "#0f2742", body: "#334155", muted: "#5b7794", faint: "#9db0c8",
-  hair: "#eef2f7", border: "#e6ebf2", tile: "#f7f9fc", canvas: "#f7f9fc",
+  hair: "#eef2f7", border: "#e6ebf2", tile: "#f7f9fc",
+  // White canvas throughout (no grey) — matches the event-invite look.
+  canvas: "#ffffff",
   // Aurora cool-blue accent (hsl 214 88% 52%) replaces the old teal.
-  teal: "#1f7aeb", wash: "#eef4ff", white: "#ffffff",
+  teal: "#1f7aeb", wash: "#ffffff", white: "#ffffff",
 };
 
 // Status-as-dot colours (Aurora: status is a small dot/text, not a block).
@@ -153,6 +167,7 @@ function renderBlock(b: EmailBlock): string {
     ).join("");
     return `${head}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:2px">${items}</table>`;
   }
+  if (b.kind === "html") return b.html; // trusted, built by us
   // text
   return `<div style="font-size:14px;color:${C.body};line-height:1.6;padding:6px 0;font-family:${FONT};white-space:pre-wrap">${esc(b.text).replace(/\n/g, "<br>")}</div>`;
 }
@@ -168,17 +183,21 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
   const cta = doc.cta
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 4px"><tr><td align="center"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:${C.teal};border-radius:13px"><a href="${doc.cta.url}" style="display:inline-block;color:${C.white};font-size:14px;font-weight:600;text-decoration:none;padding:13px 30px;font-family:${FONT}">${esc(doc.cta.label)} &rarr;</a></td></tr></table></td></tr></table>`
     : "";
-  // Optional sender name sits above the office; when present the office drops to a
-  // muted sub-line (name is the bold lead), otherwise the office leads in bold.
-  const nameLine = doc.signoffName
-    ? `<div style="font-size:13px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(doc.signoffName)}</div>`
-    : "";
-  const officeLine = doc.signoffName
-    ? `<div style="font-size:12px;color:${C.muted};padding-top:1px;font-family:${FONT}">${esc(officeLabel)}</div>`
-    : `<div style="font-size:13px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(officeLabel)}</div>`;
-  const signHtml =
-    nameLine + officeLine +
-    `<div style="font-size:12px;color:${C.muted};padding-top:2px;font-family:${FONT}">${esc(COMPANY_LEGAL_NAME)}</div>`;
+  const isCommand = doc.office === "command";
+  const bold = (s: string) => `<div style="font-size:13px;font-weight:600;color:${C.ink};font-family:${FONT}">${esc(s)}</div>`;
+  const muted = (s: string) => `<div style="font-size:12px;color:${C.muted};padding-top:2px;font-family:${FONT}">${esc(s)}</div>`;
+  // Footer sign-off:
+  //  • person + title  → "Mr Pulin Manek" / "Director - Oracle Consultancy Ltd";
+  //  • person, no title → name / office / legal name;
+  //  • Command Centre   → Oracle Consultancy / legal name;
+  //  • system (no name) → office / legal name.
+  const signHtml = doc.signoffName && doc.signoffTitle
+    ? bold(doc.signoffName) + muted(doc.signoffTitle)
+    : doc.signoffName
+      ? bold(doc.signoffName) + muted(officeLabel) + muted(COMPANY_LEGAL_NAME)
+      : isCommand
+        ? bold(COMPANY_SHORT_NAME) + muted(COMPANY_LEGAL_NAME)
+        : bold(officeLabel) + muted(COMPANY_LEGAL_NAME);
   const note = doc.footerNote
     ? `<div style="font-size:11px;color:#aebccd;padding-top:12px;line-height:1.5;font-family:${FONT}">${esc(doc.footerNote)}</div>`
     : "";
@@ -201,14 +220,21 @@ export function renderEmail(doc: EmailDoc, brand: EmailBrand = {}): string {
     ? `<div style="font-size:14px;color:${C.muted};padding-top:3px;font-family:${FONT}">${esc(doc.subtitle)}</div>`
     : "";
 
-  return `${SIG_MARKER}${preheader}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.canvas};font-family:${FONT}"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:${C.canvas};border:1px solid ${C.border};border-radius:20px;overflow:hidden">
-<tr><td style="background:${C.wash};padding:26px 30px 22px">
+  const width = doc.wide ? 760 : 600;
+  // Masthead identity: Command Centre shows just the org; an office shows "{Office} | {Org}".
+  const identity = isCommand
+    ? `<span style="font-weight:600;color:${C.ink}">${esc(orgName)}</span>`
+    : `<span style="font-weight:600;color:${C.ink}">${esc(officeLabel)}</span><span style="color:${C.faint};padding:0 6px">|</span><span style="color:${C.muted}">${esc(orgName)}</span>`;
+
+  return `${SIG_MARKER}${preheader}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.canvas};font-family:${FONT}"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="${width}" cellpadding="0" cellspacing="0" style="width:${width}px;max-width:${width}px;background:${C.white};border:1px solid ${C.border};border-radius:20px;overflow:hidden">
+<tr><td style="height:4px;background:${C.teal};font-size:0;line-height:0">&nbsp;</td></tr>
+<tr><td style="background:${C.white};padding:24px 30px 20px;border-bottom:1px solid ${C.hair}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td valign="middle">
-<table role="presentation" cellpadding="0" cellspacing="0"><tr><td valign="middle" style="padding-right:11px"><img src="${logoUrl}" width="32" height="32" alt="${esc(orgName)}" style="display:block;width:32px;height:32px;border-radius:9px;border:1px solid ${C.border}"></td><td valign="middle" style="font-size:12.5px;font-family:${FONT}"><span style="font-weight:600;color:${C.ink}">${esc(officeLabel)}</span><span style="color:${C.faint};padding:0 6px">|</span><span style="color:${C.muted}">${esc(orgName)}</span></td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0"><tr><td valign="middle" style="padding-right:11px"><img src="${logoUrl}" width="30" height="30" alt="${esc(orgName)}" style="display:block;width:30px;height:30px;border-radius:9px;border:1px solid ${C.border}"></td><td valign="middle" style="font-size:12.5px;font-family:${FONT}">${identity}</td></tr></table>
 </td>${dateLabel}</tr></table>
-<div style="padding-top:20px"><div style="font-size:23px;font-weight:600;color:${C.ink};letter-spacing:-0.2px;font-family:${FONT}">${esc(doc.title)}</div>${subtitle}</div>
 </td></tr>
-<tr><td style="padding:6px 18px 0">${noteCallout}${blocks}${cta}</td></tr>
-<tr><td style="padding:8px 30px 30px;text-align:center"><div style="border-top:1px solid ${C.hair};padding-top:18px">${signHtml}${note}</div></td></tr>
+<tr><td style="padding:22px 30px 0"><div style="font-size:23px;font-weight:600;color:${C.ink};letter-spacing:-0.2px;font-family:${FONT}">${esc(doc.title)}</div>${subtitle}</td></tr>
+<tr><td style="padding:6px 30px 0">${noteCallout}${blocks}${cta}</td></tr>
+<tr><td style="padding:8px 30px 28px;text-align:center"><div style="border-top:1px solid ${C.hair};padding-top:18px">${signHtml}${note}</div></td></tr>
 </table></td></tr></table>`;
 }

@@ -15,6 +15,7 @@ import {
 } from "@/lib/calendar";
 import { buildIcs } from "@/lib/ics";
 import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
+import { senderName, type EmailOffice } from "@/lib/email/layout";
 import { createTasksForEvent, shouldCreateMeetingTasks } from "@/lib/meeting-tasks";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
@@ -263,6 +264,58 @@ async function eventCategoryName(categoryId: number | null): Promise<string | nu
   return (data?.name as string) ?? null;
 }
 
+export type EventSender = {
+  office: EmailOffice;
+  fromName: string;
+  replyTo: string;
+  signoffName: string | null;
+  signoffTitle: string | null;
+};
+
+/**
+ * Who an event email is "from", derived from the event's `createdBy` stamp:
+ *  • portal-dir:<Name> → OC Director's Office, replies to the director's own email,
+ *    footer "Name / Director - <Company>";
+ *  • portal-mgr:<Name> → OC Manager's Office, likewise;
+ *  • everything else (web-ui / meeting-mode / ai-command) → the Command Centre,
+ *    signing plainly as Oracle Consultancy, replies to the admin address.
+ * Falls back to the Command Centre if the named person can't be resolved.
+ */
+async function resolveEventSender(createdBy: string): Promise<EventSender> {
+  const { emailFrom } = await getAppSettings();
+  const adminReply = emailFrom || "admin@oracle.co.tz";
+  const m = /^portal-(dir|mgr):(.+)$/.exec(createdBy || "");
+  if (m) {
+    const office: EmailOffice = m[1] === "dir" ? "director" : "manager";
+    const roleWord = office === "director" ? "Director" : "Manager";
+    const name = m[2].trim();
+    // ⚠️ people has 2 FKs to companies (company_id + director_company_id) — must
+    // disambiguate the embed or PostgREST errors.
+    const { data } = await sb
+      .from("people")
+      .select("name,email,companies!company_id(name,legal_name)")
+      .eq("active", true)
+      .eq("name", name)
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      const co = (Array.isArray(data.companies) ? data.companies[0] : data.companies) as { name?: string; legal_name?: string } | null;
+      const company = co?.legal_name || co?.name || "Oracle Consultancy Ltd";
+      return {
+        office,
+        fromName: senderName(office),
+        replyTo: (data.email as string | null) || adminReply,
+        signoffName: (data.name as string) || name,
+        signoffTitle: `${roleWord} - ${company}`,
+      };
+    }
+    // Named person not found — still sign as the office, reply to admin.
+    return { office, fromName: senderName(office), replyTo: adminReply, signoffName: name, signoffTitle: `${roleWord} - Oracle Consultancy Ltd` };
+  }
+  // Command Centre (owner / automations).
+  return { office: "command", fromName: senderName("command"), replyTo: adminReply, signoffName: null, signoffTitle: null };
+}
+
 /**
  * Send guests OUR branded Oracle invitation (Option A). Google is used only to
  * mint the Meet link + mirror the event on the owner's calendar — it never emails
@@ -294,9 +347,10 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
 
   // 2. Send OUR branded email to each guest, with the .ics for auto-add / RSVP.
   const { emailFrom, emailFromName } = await getAppSettings();
-  const [companyName, categoryName] = await Promise.all([
+  const [companyName, categoryName, sender] = await Promise.all([
     eventCompanyName(ev.companyId),
     eventCategoryName(ev.categoryId),
+    resolveEventSender(ev.createdBy),
   ]);
   const evForEmail = { ...ev, meetLink };
   const ics = buildIcs(toIcsEvent(evForEmail, { name: emailFromName, email: emailFrom }));
@@ -313,13 +367,17 @@ export async function sendEventInviteAction(id: number): Promise<SendResult> {
       categoryName,
       recipientName: a.name,
       publicUrl: publicEventUrl(ev.publicToken),
+      office: sender.office,
+      signoffName: sender.signoffName,
+      signoffTitle: sender.signoffTitle,
     });
     const r = await sendEmail({
       to: a.email!,
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
-      replyTo: emailFrom,
+      fromName: sender.fromName,
+      replyTo: sender.replyTo,
       calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
     });
     if (r.ok) sent++;
@@ -363,9 +421,10 @@ export async function previewEventInviteAction(
   const ev = await getCalendarEvent(id);
   if (!ev) return { ok: false, error: "Event not found." };
   const { emailFrom, emailFromName } = await getAppSettings();
-  const [companyName, categoryName] = await Promise.all([
+  const [companyName, categoryName, sender] = await Promise.all([
     eventCompanyName(ev.companyId),
     eventCategoryName(ev.categoryId),
+    resolveEventSender(ev.createdBy),
   ]);
   const mail = buildEventEmail(ev, {
     kind,
@@ -376,6 +435,9 @@ export async function previewEventInviteAction(
     // Preview reflects the recipient's greeting using the first attendee's name.
     recipientName: ev.attendees.find((a) => a.name)?.name ?? null,
     publicUrl: publicEventUrl(ev.publicToken),
+    office: sender.office,
+    signoffName: sender.signoffName,
+    signoffTitle: sender.signoffTitle,
   });
   const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
   return { ok: true, subject: mail.subject, html: mail.html, recipients };
@@ -483,18 +545,27 @@ async function emailCancellationIfSent(ev: CalendarEvent): Promise<void> {
     if (!sent || sent.length === 0) return; // never actually emailed → nothing to retract
 
     const { emailFrom, emailFromName } = await getAppSettings();
+    const [companyName, categoryName, sender] = await Promise.all([
+      eventCompanyName(ev.companyId),
+      eventCategoryName(ev.categoryId),
+      resolveEventSender(ev.createdBy),
+    ]);
     // A cancellation .ics MUST share the UID and carry a higher SEQUENCE than the
     // invite so the guest's calendar supersedes (removes) the original.
     const icsEvent = { ...toIcsEvent(ev, { name: emailFromName, email: emailFrom }), status: "cancelled" as const, sequence: ev.sequence + 1 };
     const ics = buildIcs(icsEvent);
-    const when = fmtEat(ev.startAt, ev.allDay);
-    const safeTitle = ev.title.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"));
+    // Send ONE branded cancellation to everyone (no per-guest greeting needed).
+    const mail = buildEventEmail(ev, {
+      kind: "cancel", organizerName: emailFromName, organizerEmail: emailFrom,
+      companyName, categoryName, office: sender.office, signoffName: sender.signoffName, signoffTitle: sender.signoffTitle,
+    });
     const res = await sendEmail({
       to: recipients,
-      subject: `Cancelled: ${ev.title}`,
-      html: `<p>The event <strong>${safeTitle}</strong> scheduled for ${when} has been <strong>cancelled</strong>.</p><p>It will be removed from your calendar automatically. Apologies for any inconvenience.</p>`,
-      text: `The event "${ev.title}" (${when}) has been cancelled and will be removed from your calendar automatically.`,
-      replyTo: emailFrom,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      fromName: sender.fromName,
+      replyTo: sender.replyTo,
       calendar: { content: ics, method: "CANCEL", filename: "cancel.ics" },
     });
     if (res.ok) {
@@ -532,9 +603,10 @@ async function emailUpdateIfSent(ev: CalendarEvent): Promise<boolean> {
     if (!sent || sent.length === 0) return false; // never invited → nothing to update
 
     const { emailFrom, emailFromName } = await getAppSettings();
-    const [companyName, categoryName] = await Promise.all([
+    const [companyName, categoryName, sender] = await Promise.all([
       eventCompanyName(ev.companyId),
       eventCategoryName(ev.categoryId),
+      resolveEventSender(ev.createdBy),
     ]);
     const ics = buildIcs(toIcsEvent(ev, { name: emailFromName, email: emailFrom }));
     let any = false;
@@ -542,10 +614,11 @@ async function emailUpdateIfSent(ev: CalendarEvent): Promise<boolean> {
       const mail = buildEventEmail(ev, {
         kind: "update", organizerName: emailFromName, organizerEmail: emailFrom,
         companyName, categoryName, recipientName: a.name, publicUrl: publicEventUrl(ev.publicToken),
+        office: sender.office, signoffName: sender.signoffName, signoffTitle: sender.signoffTitle,
       });
       const r = await sendEmail({
         to: a.email!, subject: mail.subject, html: mail.html, text: mail.text,
-        replyTo: emailFrom, calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
+        fromName: sender.fromName, replyTo: sender.replyTo, calendar: { content: ics, method: "REQUEST", filename: "invite.ics" },
       });
       if (r.ok) any = true;
     }
@@ -677,22 +750,32 @@ async function emailInstanceCancellation(ev: CalendarEvent, dateKey: string): Pr
     if (!sent || sent.length === 0) return;
 
     const { emailFrom, emailFromName } = await getAppSettings();
+    const [companyName, categoryName, sender] = await Promise.all([
+      eventCompanyName(ev.companyId),
+      eventCategoryName(ev.categoryId),
+      resolveEventSender(ev.createdBy),
+    ]);
     const occIso = occurrenceIso(ev.startAt, dateKey);
+    // The email speaks about THIS occurrence's date; the .ics targets it via RECURRENCE-ID.
+    const evOcc = { ...ev, startAt: occIso, endAt: null };
     const icsEvent = {
-      ...toIcsEvent(ev, { name: emailFromName, email: emailFrom }),
+      ...toIcsEvent(evOcc, { name: emailFromName, email: emailFrom }),
       status: "cancelled" as const,
       recurrenceId: new Date(occIso),
       sequence: ev.sequence + 1,
     };
     const ics = buildIcs(icsEvent);
-    const when = fmtEat(occIso, ev.allDay);
-    const safeTitle = ev.title.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"));
+    const mail = buildEventEmail(evOcc, {
+      kind: "cancel", organizerName: emailFromName, organizerEmail: emailFrom,
+      companyName, categoryName, office: sender.office, signoffName: sender.signoffName, signoffTitle: sender.signoffTitle,
+    });
     await sendEmail({
       to: recipients,
-      subject: `Cancelled: ${ev.title} — ${when}`,
-      html: `<p>Just this occurrence of <strong>${safeTitle}</strong> (${when}) has been <strong>cancelled</strong>. The rest of the series is unchanged.</p>`,
-      text: `Just the ${when} occurrence of "${ev.title}" has been cancelled; the rest of the series is unchanged.`,
-      replyTo: emailFrom,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
+      fromName: sender.fromName,
+      replyTo: sender.replyTo,
       calendar: { content: ics, method: "CANCEL", filename: "cancel.ics" },
     });
   } catch {

@@ -18,6 +18,8 @@ export type ReminderSender = {
   office?: EmailOffice;
   /** Sender's name, shown above the office line (e.g. a manager). */
   name?: string | null;
+  /** Sender's title under the name, e.g. "Director - Oracle Consultancy Ltd". */
+  title?: string | null;
   /** Sender's own email — set as Reply-To so replies reach them (portal sends). */
   replyTo?: string | null;
   /** Sender's own address to send AS (Resend + verified domain only; ignored on
@@ -62,6 +64,7 @@ export async function sendTaskReminderEmail(opts: {
   const doc = buildTaskReminderDoc(name, rows, {
     office: opts.sender?.office ?? "admin",
     signoffName: opts.sender?.name ?? undefined,
+    signoffTitle: opts.sender?.title ?? undefined,
     note,
   });
   const text = (note ? `${note}\n\n` : "") + buildEmailMessage(name, rows);

@@ -17,7 +17,7 @@ describe("renderEmail", () => {
   });
 
   it("signs off with the office, not a job title, defaulting to admin", () => {
-    expect(renderEmail({ title: "x", blocks: [] })).toContain("Admin's Office");
+    expect(renderEmail({ title: "x", blocks: [] })).toContain("Admin Office");
     expect(renderEmail({ title: "x", blocks: [], office: "compliance" })).toContain("Admin Compliance Office");
     expect(renderEmail({ title: "x", blocks: [], office: "director" })).toContain("Director's Office");
     expect(renderEmail({ title: "x", blocks: [] })).toContain("Oracle Consultancy Limited");

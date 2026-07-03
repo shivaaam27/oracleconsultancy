@@ -245,7 +245,7 @@ const priorityTone = (p: string): EmailTone =>
 export function buildTaskReminderDoc(
   name: string,
   tasks: TaskRow[],
-  opts?: { office?: EmailOffice; signoffName?: string; note?: string },
+  opts?: { office?: EmailOffice; signoffName?: string; signoffTitle?: string; note?: string },
 ): EmailDoc {
   const first = getGivenName(name);
   const overdueCount = tasks.filter(isOverdue).length;
@@ -288,6 +288,7 @@ export function buildTaskReminderDoc(
     footerNote: "Please update your tasks in the staff portal when you can. Thank you.",
     office: opts?.office ?? "admin",
     signoffName: opts?.signoffName,
+    signoffTitle: opts?.signoffTitle,
     note: opts?.note,
   };
 }
