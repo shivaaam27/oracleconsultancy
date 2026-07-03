@@ -1,7 +1,7 @@
 import { Hero, TONE, type Tone } from "@/components/surface-kit";
 import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listCalendarEvents, toIcsEvent } from "@/lib/calendar";
-import { advanceDueMeetingTasks } from "@/lib/meeting-tasks";
+import { advanceDueMeetingTasks, postMeetingFollowups } from "@/lib/meeting-tasks";
 import { listOverlayItems } from "@/lib/calendar-overlays";
 import { googleCalendarUrl } from "@/lib/ics";
 import { sb } from "@/db/supabase";
@@ -24,9 +24,10 @@ export default async function CalendarPage({
 }) {
   const { from } = await searchParams;
 
-  // Opportunistic: advance any meeting whose start has passed to In Progress
-  // (throttled, best-effort). Cheap when there's nothing due.
+  // Opportunistic: advance meetings whose start has passed to In Progress, and
+  // prompt for the outcome on meetings that have ended (throttled, best-effort).
   void advanceDueMeetingTasks().catch(() => {});
+  void postMeetingFollowups().catch(() => {});
 
   // Overlay window: ~1 month back to ~13 months ahead, so paging the calendar
   // rarely needs a refetch.

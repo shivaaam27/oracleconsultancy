@@ -3,6 +3,7 @@ import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getAppSettings } from "@/lib/settings";
 import { postSystemMessage } from "@/lib/chat";
+import { expandRecurrence, normaliseRecurrence } from "@/lib/ics";
 import type { CalendarEvent } from "@/lib/calendar";
 
 /* ------------------------------------------------------------------ *
@@ -110,7 +111,7 @@ export async function advanceDueMeetingTasks(opts?: { force?: boolean }): Promis
   // Candidate tasks: still Not Started, spawned from an event.
   const { data: tasks } = await sb
     .from("tasks")
-    .select("id,code,action_item,source_event_id")
+    .select("id,code,action_item,source_event_id,company_id,meeting_date,category")
     .eq("status", "Not Started")
     .not("source_event_id", "is", null)
     .limit(200);
@@ -119,19 +120,23 @@ export async function advanceDueMeetingTasks(opts?: { force?: boolean }): Promis
   const eventIds = [...new Set(tasks.map((t) => t.source_event_id as number))];
   const { data: events } = await sb
     .from("calendar_events")
-    .select("id,start_at,status")
+    .select("id,start_at,end_at,status,recurrence,recurrence_until")
     .in("id", eventIds);
-  const startById = new Map<number, { start: number; cancelled: boolean }>();
+  const eventById = new Map<number, { start: number; cancelled: boolean; recurrence: string | null; until: string | null; startIso: string }>();
   for (const e of events ?? []) {
-    startById.set(e.id as number, {
+    eventById.set(e.id as number, {
       start: new Date(e.start_at as string).getTime(),
       cancelled: (e.status as string) === "cancelled",
+      recurrence: (e.recurrence as string | null) ?? null,
+      until: (e.recurrence_until as string | null) ?? null,
+      startIso: e.start_at as string,
     });
   }
+  const rollMode = settings.recurringMeetingTaskMode;
 
   let advanced = 0;
   for (const t of tasks) {
-    const info = startById.get(t.source_event_id as number);
+    const info = eventById.get(t.source_event_id as number);
     if (!info || info.cancelled) continue;
     if (nowMs < info.start + graceMs) continue; // meeting hasn't started (+grace) yet
 
@@ -170,6 +175,133 @@ export async function advanceDueMeetingTasks(opts?: { force?: boolean }): Promis
         }
       } catch { /* pings are best-effort */ }
     }
+
+    // Rolling recurrence: for a repeating meeting, spawn a fresh task for the NEXT
+    // occurrence now that this one has passed (so there's always one open task for
+    // the upcoming date). Gated by the setting; deduped by (event, occurrence date).
+    if (rollMode === "occurrence" && normaliseRecurrence(info.recurrence)) {
+      try {
+        await spawnNextOccurrenceTask(t, info);
+      } catch { /* rolling is best-effort */ }
+    }
   }
   return advanced;
+}
+
+type SweepTask = {
+  id: number; code: string; action_item: string; source_event_id: number;
+  company_id: number | null; meeting_date: string | null; category: string | null;
+};
+type SweepEvent = { start: number; cancelled: boolean; recurrence: string | null; until: string | null; startIso: string };
+
+/** Create the task for the NEXT occurrence of a recurring meeting after the one
+ *  that just passed. Deduped by (event, occurrence date) so repeated sweeps or a
+ *  concurrent run can't double-create. */
+async function spawnNextOccurrenceTask(task: SweepTask, ev: SweepEvent): Promise<void> {
+  if (task.company_id == null) return;
+  const occStart = task.meeting_date ? new Date(task.meeting_date).getTime() : ev.start;
+  const next = expandRecurrence({
+    start: new Date(ev.startIso),
+    recurrence: ev.recurrence,
+    until: ev.until ? new Date(ev.until) : null,
+    windowStart: occStart + 1000,
+    windowEnd: Date.now() + 400 * 86_400_000,
+    maxOccurrences: 1,
+  })[0];
+  if (!next) return; // series ended
+
+  // Dedup: is there already a task for this event on that date (±1 min)?
+  const lo = new Date(next.getTime() - 60_000).toISOString();
+  const hi = new Date(next.getTime() + 60_000).toISOString();
+  const { data: dup } = await sb
+    .from("tasks")
+    .select("id")
+    .eq("source_event_id", task.source_event_id)
+    .gte("meeting_date", lo)
+    .lte("meeting_date", hi)
+    .limit(1);
+  if (dup && dup.length) return;
+
+  const now = new Date();
+  const created = await insertTaskWithUniqueCodeSb(task.company_id, "", {
+    actionItem: task.action_item,
+    status: "Not Started",
+    priority: "Medium",
+    category: task.category ?? undefined,
+    meetingDate: next,
+    createdDate: now,
+    lastUpdatedAt: now,
+  });
+  await sb.from("tasks").update({ source_event_id: task.source_event_id }).eq("id", created.id);
+  // Carry the same people forward.
+  const { data: assignees } = await sb.from("task_assignees").select("person_id,role").eq("task_id", task.id);
+  if (assignees && assignees.length) {
+    await sb.from("task_assignees").upsert(
+      assignees.map((a) => ({ task_id: created.id, person_id: a.person_id, role: a.role ?? "working" })),
+      { onConflict: "task_id,person_id", ignoreDuplicates: true },
+    );
+  }
+}
+
+// Separate throttle for the follow-up pass.
+let lastFollowupAt = 0;
+
+/**
+ * After a meeting has ended, if its task is still open, post a one-time prompt to
+ * capture the outcome/minutes — so nothing decided in the meeting is forgotten.
+ * Deduped per task via a sentinel update (created_by "meeting-mode").
+ */
+export async function postMeetingFollowups(opts?: { force?: boolean }): Promise<number> {
+  const nowMs = Date.now();
+  if (!opts?.force && nowMs - lastFollowupAt < SWEEP_THROTTLE_MS) return 0;
+  lastFollowupAt = nowMs;
+
+  const settings = await getAppSettings();
+  if (!settings.meetingFollowupPrompt) return 0;
+
+  const { data: tasks } = await sb
+    .from("tasks")
+    .select("id,code,action_item,source_event_id,meeting_date")
+    .not("source_event_id", "is", null)
+    .not("status", "in", "(Completed,Closed)")
+    .limit(200);
+  if (!tasks || tasks.length === 0) return 0;
+
+  const eventIds = [...new Set(tasks.map((t) => t.source_event_id as number))];
+  const { data: events } = await sb.from("calendar_events").select("id,start_at,end_at,status").in("id", eventIds);
+  const durById = new Map<number, { durMs: number; cancelled: boolean; start: number }>();
+  for (const e of events ?? []) {
+    const start = new Date(e.start_at as string).getTime();
+    const end = e.end_at ? new Date(e.end_at as string).getTime() : start + 3_600_000;
+    durById.set(e.id as number, { durMs: Math.max(0, end - start), cancelled: (e.status as string) === "cancelled", start });
+  }
+
+  let posted = 0;
+  for (const t of tasks) {
+    const info = durById.get(t.source_event_id as number);
+    if (!info || info.cancelled) continue;
+    // The occurrence's start = the task's meeting_date (rolling) or the event start.
+    const occStart = t.meeting_date ? new Date(t.meeting_date).getTime() : info.start;
+    const occEnd = occStart + info.durMs;
+    if (nowMs < occEnd) continue; // meeting hasn't ended yet
+
+    // Already prompted?
+    const { data: existing } = await sb
+      .from("task_updates")
+      .select("id")
+      .eq("task_id", t.id)
+      .eq("created_by", "meeting-mode")
+      .ilike("body", "📝 Meeting wrapped%")
+      .limit(1);
+    if (existing && existing.length) continue;
+
+    const { error } = await sb.from("task_updates").insert({
+      task_id: t.id,
+      body: "📝 Meeting wrapped — capture the outcome: what was decided, action points, and any minutes. Then move this on or complete it.",
+      created_by: "meeting-mode",
+      created_at: new Date().toISOString(),
+    });
+    if (!error) posted += 1;
+  }
+  return posted;
 }

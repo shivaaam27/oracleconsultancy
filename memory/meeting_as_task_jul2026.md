@@ -54,11 +54,30 @@ deadline, auto-move to In Progress when the meeting starts. Plus richer event fo
   chip (source_event_id → link to the event). Also consider calling the sweep from admin/
   portal home loads for wider coverage (throttle makes it cheap).
 
-## Phase C — NOT built yet
-- Richer event form: `FluidSelect` **multi-company**, `DatePopover` + time dropdowns
-  (reuse director composer components: date-popover.tsx, fluid-select.tsx, people-picker.tsx).
-- **Recurring meeting → a fresh task per occurrence** (not one eternal task).
-- Optional post-meeting follow-up prompt; minutes↔task link; RSVP→assignees.
+## Phase C — BUILT + VERIFIED (pushed)
+- **Richer event form** (calendar-board.tsx EventForm): raw datetime-local → `DatePopover`
+  (date) + `FluidSelect` time (15-min opts, 12h labels); single company `<select>` →
+  **multi-company toggle chips** (first = "LEAD"). Hidden `companyId` = lead, `companyIds`
+  = JSON array; `trackAsTask` on when ≥1 company. Verified: 2 companies → 2 tasks
+  (V1-001 + DS-011), DatePopover set start, no deadlines. Kept `startVal`/`endVal` as the
+  canonical submitted strings (composed via `composeDT(date,time,allDay)`); hidden startAt/
+  endAt always emit a valid datetime-local even from a bare date.
+- **Recurring meeting → task per occurrence** (rolling): `advanceDueMeetingTasks` now, when
+  it advances a recurring meeting's task and `recurringMeetingTaskMode==="occurrence"`,
+  calls `spawnNextOccurrenceTask` — computes the next occurrence via `expandRecurrence`,
+  dedups by (event, meeting_date ±1min), creates a fresh Not-Started task carrying the same
+  people. So there's always one open task for the upcoming date.
+- **Auto follow-up prompts**: `postMeetingFollowups()` — once a meeting has ended (occurrence
+  start + event duration) and its task is still open, posts a one-time `task_updates` note
+  (created_by "meeting-mode", body "📝 Meeting wrapped — capture the outcome…"), deduped by
+  that sentinel. Gated by `meetingFollowupPrompt`. Wired into calendar load + morning-run.
+- **2 new settings** (Automation → Meetings & scheduling): `recurringMeetingTaskMode`
+  (occurrence|series, default occurrence), `meetingFollowupPrompt` (default true).
+
+## Still open (small)
+- Task drawer **"from meeting" chip** (source_event_id → link to the event) — needs the task
+  read to surface source_event_id. Not built.
+- Daily "today's meetings" ping per attendee; minutes↔task link; RSVP→assignees.
 
 ## Notes
 - Reusable rich components already exist: `date-popover.tsx`, `fluid-select.tsx`,

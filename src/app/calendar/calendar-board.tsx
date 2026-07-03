@@ -10,6 +10,8 @@ import {
 import { Button, Card, EmptyState, FieldLabel, Input, Select, Textarea } from "@/components/ui";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
 import { AttendeePicker } from "@/components/attendee-picker";
+import { DatePopover } from "@/components/date-popover";
+import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
@@ -943,6 +945,21 @@ const REMINDER_OPTS: { v: number; label: string }[] = [
   { v: 10080, label: "1 week" },
 ];
 
+// Time-of-day options every 15 min, e.g. { value: "14:30", label: "2:30 PM" }.
+const TIME_OPTS: { value: string; label: string }[] = Array.from({ length: 96 }, (_, i) => {
+  const h = Math.floor(i / 4);
+  const m = (i % 4) * 15;
+  const hh = String(h).padStart(2, "0");
+  const mm = String(m).padStart(2, "0");
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const ap = h < 12 ? "AM" : "PM";
+  return { value: `${hh}:${mm}`, label: `${h12}:${mm} ${ap}` };
+});
+const dateOf = (v: string) => (v || "").slice(0, 10);
+const timeOf = (v: string) => (v && v.length >= 16 ? v.slice(11, 16) : "");
+const composeDT = (date: string, time: string, allDay: boolean) =>
+  !date ? "" : allDay ? date : `${date}T${time || "09:00"}`;
+
 const TEMPLATES: { label: string; durationMin: number; reminders: number[]; allDay?: boolean }[] = [
   { label: "30-min call", durationMin: 30, reminders: [10] },
   { label: "1-hour meeting", durationMin: 60, reminders: [60, 10] },
@@ -983,8 +1000,10 @@ function EventForm({
   // New events default to auto-adding a Google Meet link (existing events keep theirs).
   const [addMeet, setAddMeet] = useState(!editing);
   // New events: also track the meeting as a task (creates one task per company).
-  const [companyId, setCompanyId] = useState<string>(editing?.companyId ? String(editing.companyId) : "");
+  const [companyIds, setCompanyIds] = useState<number[]>(editing?.companyId ? [editing.companyId] : []);
   const [trackTask, setTrackTask] = useState(!editing);
+  const toggleCompany = (id: number) =>
+    setCompanyIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   function toggleReminder(v: number) {
     setReminders((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => b - a));
@@ -1085,20 +1104,14 @@ function EventForm({
           </div>
 
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-[180px]">
-              <FieldLabel>{allDay ? "Date" : "Start"}</FieldLabel>
-              <Input
-                name="startAt"
-                required
-                type={allDay ? "date" : "datetime-local"}
-                value={allDay ? startVal.slice(0, 10) : startVal}
-                onChange={(e) => setStartVal(e.target.value)}
-              />
+            <div className="flex-1 min-w-[150px]">
+              <FieldLabel>{allDay ? "Date" : "Start date"}</FieldLabel>
+              <DatePopover block value={dateOf(startVal) || null} onChange={(d) => setStartVal(composeDT(d, timeOf(startVal), allDay))} />
             </div>
             {!allDay && (
-              <div className="flex-1 min-w-[180px]">
-                <FieldLabel>End</FieldLabel>
-                <Input name="endAt" type="datetime-local" value={endVal} onChange={(e) => setEndVal(e.target.value)} />
+              <div className="w-[128px]">
+                <FieldLabel>Time</FieldLabel>
+                <FluidSelect value={timeOf(startVal) || "09:00"} options={TIME_OPTS} onSelect={(t) => setStartVal(composeDT(dateOf(startVal), t, false))} />
               </div>
             )}
             <label className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-bg-elev text-sm cursor-pointer select-none hover:border-border-strong transition-colors">
@@ -1106,6 +1119,21 @@ function EventForm({
               All-day
             </label>
           </div>
+          {!allDay && (
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[150px]">
+                <FieldLabel>End date</FieldLabel>
+                <DatePopover block value={dateOf(endVal) || null} onChange={(d) => setEndVal(composeDT(d, timeOf(endVal), false))} />
+              </div>
+              <div className="w-[128px]">
+                <FieldLabel>Time</FieldLabel>
+                <FluidSelect value={timeOf(endVal) || "10:00"} options={TIME_OPTS} onSelect={(t) => setEndVal(composeDT(dateOf(endVal), t, false))} />
+              </div>
+            </div>
+          )}
+          {/* Canonical values the server reads (kept in datetime-local / date shape). */}
+          <input type="hidden" name="startAt" value={allDay ? dateOf(startVal) : (dateOf(startVal) ? composeDT(dateOf(startVal), timeOf(startVal) || "09:00", false) : "")} />
+          {!allDay && <input type="hidden" name="endAt" value={dateOf(endVal) ? composeDT(dateOf(endVal), timeOf(endVal) || "10:00", false) : ""} />}
 
           {conflicts.length > 0 && (
             <div className="flex items-start gap-2 rounded-lg bg-warn-soft/60 ring-1 ring-warn/30 px-3 py-2 text-xs text-warn">
@@ -1133,24 +1161,44 @@ function EventForm({
           </div>
         </div>
 
-        {/* Company + recurrence */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>Company</FieldLabel>
-            <Select name="companyId" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-              <option value="">—</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+        {/* Company (multi-select) — one task per selected company when tracked. */}
+        <div>
+          <FieldLabel>{companyIds.length > 1 ? `Companies · ${companyIds.length}` : "Company"}</FieldLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {companies.map((c) => {
+              const on = companyIds.includes(c.id);
+              const primary = on && companyIds[0] === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleCompany(c.id)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors",
+                    on ? "bg-accent/15 text-accent ring-accent/40" : "ring-border text-fg-muted hover:text-fg bg-bg-subtle",
+                  )}
+                >
+                  {primary && <span className="text-[9px] uppercase tracking-wider opacity-70">lead</span>}
+                  {c.name}
+                </button>
+              );
+            })}
           </div>
-          <div>
-            <FieldLabel>Repeats</FieldLabel>
-            <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
-              <option value="none">Does not repeat</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </Select>
-          </div>
+          {companyIds.length > 1 && (
+            <p className="mt-1 text-[11px] text-fg-subtle">A task is created for each company; the first is the event&apos;s lead company.</p>
+          )}
+        </div>
+        <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
+        <input type="hidden" name="companyIds" value={JSON.stringify(companyIds)} />
+
+        <div className="sm:w-1/2">
+          <FieldLabel>Repeats</FieldLabel>
+          <Select value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
+            <option value="none">Does not repeat</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </Select>
         </div>
 
         {recurrence !== "none" && (
@@ -1170,16 +1218,18 @@ function EventForm({
               className="mt-0.5 h-3.5 w-3.5 accent-[hsl(var(--accent))]"
             />
             <span className="text-sm">
-              <span className="font-medium">Track this meeting as a task</span>
+              <span className="font-medium">
+                {companyIds.length > 1 ? `Track as ${companyIds.length} tasks (one per company)` : "Track this meeting as a task"}
+              </span>
               <span className="block text-[12px] text-fg-muted">
-                {companyId
+                {companyIds.length > 0
                   ? "Creates a task (no deadline) so you can prep and follow it through; it moves to In Progress when the meeting starts."
                   : "Pick a company above to create a follow-through task."}
               </span>
             </span>
           </label>
         )}
-        <input type="hidden" name="trackAsTask" value={trackTask && companyId ? "on" : "off"} />
+        <input type="hidden" name="trackAsTask" value={trackTask && companyIds.length > 0 ? "on" : "off"} />
 
         {/* Reminders */}
         <div>

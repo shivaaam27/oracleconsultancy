@@ -147,6 +147,8 @@ export async function saveSettings(fd: FormData): Promise<void> {
     autoAdvanceMeetingTasks: fd.get("autoAdvanceMeetingTasks") === "on",
     meetingTaskGraceMinutes: num(fd, "meetingTaskGraceMinutes"),
     eventAttendeePings: fd.get("eventAttendeePings") === "on",
+    recurringMeetingTaskMode: fd.get("recurringMeetingTaskMode") === "series" ? "series" : (fd.has("recurringMeetingTaskMode") ? "occurrence" : undefined),
+    meetingFollowupPrompt: fd.get("meetingFollowupPrompt") === "on",
   };
 
   // Groq API key: only WRITE when the owner types a new value (the field renders

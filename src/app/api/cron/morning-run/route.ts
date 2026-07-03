@@ -29,8 +29,9 @@ export async function GET(req: NextRequest) {
 
     // 1a½. Advance meeting-tasks whose start has passed (Not Started → In Progress).
     try {
-      const { advanceDueMeetingTasks } = await import("@/lib/meeting-tasks");
+      const { advanceDueMeetingTasks, postMeetingFollowups } = await import("@/lib/meeting-tasks");
       await advanceDueMeetingTasks({ force: true });
+      await postMeetingFollowups({ force: true });
     } catch (e) {
       await recordEvent("cron.morning", "error", { step: "meeting-tasks", message: e instanceof Error ? e.message : String(e) });
     }

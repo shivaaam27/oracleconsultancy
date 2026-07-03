@@ -378,7 +378,7 @@ export default async function SettingsPage({
 
           <SettingsCard id="meeting-tasks" icon={<CalendarCheck size={15} />} title="Meetings & scheduling" desc="Turn meetings into tasks and tune how they auto-advance and remind." keywords="meeting task schedule calendar event auto in progress reminder ping recurring">
             <form action={saveSettings} className="space-y-4">
-              <input type="hidden" name="__keys" value="meetingTaskMode,meetingTaskCategory,autoAdvanceMeetingTasks,meetingTaskGraceMinutes,eventAttendeePings" />
+              <input type="hidden" name="__keys" value="meetingTaskMode,meetingTaskCategory,autoAdvanceMeetingTasks,meetingTaskGraceMinutes,eventAttendeePings,recurringMeetingTaskMode,meetingFollowupPrompt" />
               <input type="hidden" name="__section" value="automation" />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -409,6 +409,19 @@ export default async function SettingsPage({
                 defaultChecked={s.eventAttendeePings}
                 label="Ping attendees before each meeting"
                 hint="A push + a message in their Reminders channel, on top of the calendar's own alarm."
+              />
+              <div className="sm:w-1/2">
+                <FieldLabel>Recurring meeting tasks</FieldLabel>
+                <Select name="recurringMeetingTaskMode" defaultValue={s.recurringMeetingTaskMode}>
+                  <option value="occurrence">A fresh task each occurrence</option>
+                  <option value="series">One task for the whole series</option>
+                </Select>
+              </div>
+              <FormSwitch
+                name="meetingFollowupPrompt"
+                defaultChecked={s.meetingFollowupPrompt}
+                label="Prompt for the outcome after a meeting"
+                hint="If the task is still open when the meeting ends, drop a 'capture the minutes / outcome' note into it."
               />
               <SaveBar />
             </form>

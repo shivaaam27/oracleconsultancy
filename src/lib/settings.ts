@@ -158,6 +158,13 @@ export type AppSettings = {
   /** Ping attendees (push + chat "Reminders" channel) at each event reminder lead
    *  time, on top of the calendar's own device alarm. */
   eventAttendeePings: boolean;
+  /** A recurring meeting spawns a fresh task per occurrence ("occurrence", rolling —
+   *  a new task appears for the next date each time the last one passes) or a single
+   *  task for the whole series ("series"). */
+  recurringMeetingTaskMode: "occurrence" | "series";
+  /** After a meeting ends, if its task is still open, post a "capture the outcome /
+   *  minutes" prompt into the task so nothing is forgotten. */
+  meetingFollowupPrompt: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -207,6 +214,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoAdvanceMeetingTasks: true,
   meetingTaskGraceMinutes: 0,
   eventAttendeePings: true,
+  recurringMeetingTaskMode: "occurrence",
+  meetingFollowupPrompt: true,
 };
 
 /** Map of canonical setting field → storage key. */
@@ -247,6 +256,8 @@ const KEY: Record<keyof AppSettings, string> = {
   autoAdvanceMeetingTasks: "v2.autoAdvanceMeetingTasks",
   meetingTaskGraceMinutes: "v2.meetingTaskGraceMinutes",
   eventAttendeePings: "v2.eventAttendeePings",
+  recurringMeetingTaskMode: "v2.recurringMeetingTaskMode",
+  meetingFollowupPrompt: "v2.meetingFollowupPrompt",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -310,6 +321,8 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     autoAdvanceMeetingTasks: toBool(map.get(KEY.autoAdvanceMeetingTasks), d.autoAdvanceMeetingTasks),
     meetingTaskGraceMinutes: toNum(map.get(KEY.meetingTaskGraceMinutes), d.meetingTaskGraceMinutes),
     eventAttendeePings: toBool(map.get(KEY.eventAttendeePings), d.eventAttendeePings),
+    recurringMeetingTaskMode: map.get(KEY.recurringMeetingTaskMode) === "series" ? "series" : d.recurringMeetingTaskMode,
+    meetingFollowupPrompt: toBool(map.get(KEY.meetingFollowupPrompt), d.meetingFollowupPrompt),
   };
 });
 
