@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
@@ -20,6 +20,19 @@ import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
 import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction, previewEventInviteAction } from "./actions";
+
+// Persisted calendar view + filter preferences (localStorage). `disabledLayers`
+// stores the OFF layers (so a newly-added layer defaults ON).
+const PREFS_KEY = "cos.calendar.prefs.v1";
+type CalendarPrefs = {
+  view: ViewMode;
+  search: string;
+  companyFilter: string;
+  sourceFilter: string;
+  disabledLayers: OverlayKind[];
+  meetingsOnly: boolean;
+  collapseRecurring: boolean;
+};
 
 const OVERLAY_META: Record<OverlayKind, { icon: LucideIcon; tone: string; dot: string }> = {
   task: { icon: CheckSquare, tone: "text-info", dot: "hsl(var(--info))" },
@@ -148,16 +161,57 @@ export function CalendarBoard({
   useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
   const [view, setView] = useState<ViewMode>("month");
-  // The 7-column month grid is cramped on a phone, so open in the Agenda view
-  // there. Runs once on mount; choosing Month afterwards stays put.
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 640) setView("agenda");
-  }, []);
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [enabledLayers, setEnabledLayers] = useState<Set<OverlayKind>>(() => new Set(OVERLAY_KINDS));
+  // "Meetings only" hides every overlay layer at once; "Hide repeats" collapses a
+  // recurring series to one chip per period (with a ↻ badge) so it stops filling
+  // the grid. Both persist across visits, like the other filters.
+  const [meetingsOnly, setMeetingsOnly] = useState(false);
+  const [collapseRecurring, setCollapseRecurring] = useState(false);
+  const hydrated = useRef(false);
+
+  // Restore the operator's last calendar view + filters (once, on mount). Reading
+  // localStorage in a mount effect (not a useState initialiser) avoids an SSR
+  // hydration mismatch. When nothing is saved, default to the Agenda view on a
+  // phone (the 7-column month grid is cramped there).
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PREFS_KEY);
+      if (raw) {
+        const p = JSON.parse(raw) as Partial<CalendarPrefs>;
+        if (p.view && (["month", "week", "day", "agenda"] as const).includes(p.view)) setView(p.view);
+        else if (window.innerWidth < 640) setView("agenda");
+        if (typeof p.search === "string") setSearch(p.search);
+        if (typeof p.companyFilter === "string") setCompanyFilter(p.companyFilter);
+        if (typeof p.sourceFilter === "string") setSourceFilter(p.sourceFilter);
+        if (Array.isArray(p.disabledLayers)) {
+          setEnabledLayers(new Set(OVERLAY_KINDS.filter((k) => !p.disabledLayers!.includes(k))));
+        }
+        if (typeof p.meetingsOnly === "boolean") setMeetingsOnly(p.meetingsOnly);
+        if (typeof p.collapseRecurring === "boolean") setCollapseRecurring(p.collapseRecurring);
+      } else if (window.innerWidth < 640) {
+        setView("agenda");
+      }
+    } catch { /* corrupt/absent prefs → defaults */ }
+    hydrated.current = true;
+  }, []);
+
+  // Persist filters whenever they change (skip the first render so we never write
+  // defaults over a freshly-restored set).
+  useEffect(() => {
+    if (!hydrated.current) return;
+    try {
+      const prefs: CalendarPrefs = {
+        view, search, companyFilter, sourceFilter,
+        disabledLayers: OVERLAY_KINDS.filter((k) => !enabledLayers.has(k)),
+        meetingsOnly, collapseRecurring,
+      };
+      window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    } catch { /* storage full / disabled → ignore */ }
+  }, [view, search, companyFilter, sourceFilter, enabledLayers, meetingsOnly, collapseRecurring]);
 
   function toggleLayer(k: OverlayKind) {
     setEnabledLayers((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -192,25 +246,51 @@ export function CalendarBoard({
   // delete act on the whole series) but carry their own start/end.
   const expanded = useMemo(() => expandRecurring(filtered), [filtered]);
 
+  // "Hide repeats": collapse a recurring series to ONE occurrence per view period
+  // (month → once that month, week → once that week, day → as-is, agenda → the
+  // next one only) so a weekly meeting stops drawing on every single date. The
+  // ↻ badge on the chip signals it repeats. One-off events pass straight through.
+  const collapsed = useMemo(() => {
+    if (!collapseRecurring) return expanded;
+    const ordered = [...expanded].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+    const seen = new Set<string>();
+    const out: CalendarEventView[] = [];
+    for (const e of ordered) {
+      if (!e.recurrence || e.recurrence === "none") { out.push(e); continue; }
+      const d = new Date(e.startAt);
+      const bucket =
+        view === "month" ? `${d.getUTCFullYear()}-${d.getUTCMonth()}`
+        : view === "week" ? keyOfIso(startOfWeekMon(d).toISOString())
+        : view === "day" ? keyOfIso(e.startAt)
+        : "series"; // agenda → one entry per series (the earliest upcoming)
+      const key = `${e.id}|${bucket}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(e);
+    }
+    return out;
+  }, [expanded, collapseRecurring, view]);
+
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEventView[]>();
-    for (const e of expanded) {
+    for (const e of collapsed) {
       const k = keyOfIso(e.startAt);
       (map.get(k) ?? map.set(k, []).get(k)!).push(e);
     }
     for (const arr of map.values()) arr.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
     return map;
-  }, [expanded]);
+  }, [collapsed]);
 
   const overlayByDay = useMemo(() => {
     const map = new Map<string, OverlayItem[]>();
+    if (meetingsOnly) return map; // hide every overlay layer at once
     for (const o of overlays) {
       if (!enabledLayers.has(o.kind)) continue;
       if (companyFilter !== "all" && o.companyId != null && String(o.companyId) !== companyFilter) continue;
       (map.get(o.dayKey) ?? map.set(o.dayKey, []).get(o.dayKey)!).push(o);
     }
     return map;
-  }, [overlays, enabledLayers, companyFilter]);
+  }, [overlays, enabledLayers, companyFilter, meetingsOnly]);
 
   function step(dir: number) {
     if (view === "month") setCursor((c) => addMonths(c, dir));
@@ -285,8 +365,27 @@ export function CalendarBoard({
           </div>
         </div>
 
-        {/* Overlay layer toggles (also act as a legend) */}
-        {availableLayers.length > 0 && (
+        {/* Noise controls — one-tap ways to calm a busy multi-company calendar. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button type="button" onClick={() => setMeetingsOnly((v) => !v)}
+            aria-pressed={meetingsOnly}
+            title="Hide task deadlines, renewals, birthdays and other overlays — show only real events"
+            className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 transition-colors",
+              meetingsOnly ? "ring-accent/40 bg-accent/15 text-accent" : "ring-border bg-bg-subtle text-fg-muted hover:text-fg")}>
+            <CalendarDays size={11} /> Meetings only
+          </button>
+          <button type="button" onClick={() => setCollapseRecurring((v) => !v)}
+            aria-pressed={collapseRecurring}
+            title="Collapse a recurring series to one entry per period (it still repeats — the ↻ badge shows it)"
+            className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ring-1 transition-colors",
+              collapseRecurring ? "ring-accent/40 bg-accent/15 text-accent" : "ring-border bg-bg-subtle text-fg-muted hover:text-fg")}>
+            <Repeat size={11} /> Hide repeats
+          </button>
+        </div>
+
+        {/* Overlay layer toggles (also act as a legend). Hidden while "Meetings
+            only" is on — the layers do nothing then. */}
+        {!meetingsOnly && availableLayers.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] uppercase tracking-wider text-fg-subtle mr-0.5">Layers</span>
             {availableLayers.map((k) => {
@@ -333,7 +432,7 @@ export function CalendarBoard({
       ) : view === "day" ? (
         <DayView cursor={cursor} byDay={byDay} overlayByDay={overlayByDay} onEdit={openEdit} />
       ) : (
-        <AgendaView events={expanded.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 12 * 3600_000)} onEdit={openEdit} />
+        <AgendaView events={collapsed.filter((e) => new Date(e.startAt).getTime() >= Date.now() - 12 * 3600_000)} onEdit={openEdit} />
       )}
     </div>
   );
@@ -347,6 +446,7 @@ function EventChip({ event, onEdit }: { event: CalendarEventView; onEdit: () => 
       className="w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-tight hover:bg-bg-muted transition-colors"
       style={{ borderLeft: `3px solid ${accentOf(event)}` }}>
       {!event.allDay && <span className="tabular text-fg-muted shrink-0">{fmtTime(event.startAt)}</span>}
+      {event.recurrence && event.recurrence !== "none" && <Repeat size={9} className="shrink-0 text-fg-subtle" />}
       <span className="truncate">{event.title}</span>
     </button>
   );
