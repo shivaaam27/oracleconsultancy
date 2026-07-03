@@ -2,8 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ClipboardCheck, Plus, Loader2, CheckCircle2, Search, ChevronDown, Check,
-  Building2, X, Star,
+  ClipboardCheck, Plus, Loader2, CheckCircle2, Star,
 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { SwitchRow } from "@/components/ui";
@@ -11,7 +10,9 @@ import { NotifyPerson } from "@/components/notify-person";
 import { PeoplePicker } from "@/components/people-picker";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { DatePopover } from "@/components/date-popover";
-import { portalDirectorCreateTask, portalCreateTask } from "@/app/portal/actions";
+import { CompanyMultiSelect } from "@/components/company-multi-select";
+import { FIELD_TRIGGER } from "@/components/date-time-field";
+import { portalDirectorCreateTask } from "@/app/portal/actions";
 
 type Person = { id: number; name: string; companyId: number | null; companyIds?: number[] };
 type Company = { id: number; name: string };
@@ -59,11 +60,12 @@ const FORM_ID = "director-task-form";
  * Tasks page Quick-add, and the pill "New task" page. It's an iPhone
  * bottom-sheet, role-adaptive:
  *
- *  • director → multi-company fan-out, every active person in a
- *    searchable picker, an "Only I can close it" lock (default ON),
- *    posts to portalDirectorCreateTask (companyIds = the picked ids).
- *  • manager  → their single company, people limited as today, no
- *    multi-company / no creator-close toggle, posts to portalCreateTask.
+ *  • director → multi-company fan-out across the portfolio, "Only I can
+ *    close it" lock (default ON).
+ *  • manager  → multi-company fan-out across THEIR companies (no creator-
+ *    close toggle).
+ * Both post to portalDirectorCreateTask, which enforces scope server-side via
+ * companyScope; people are scoped to the selected companies.
  *
  * Kept the export name DirectorTaskForm so existing imports keep working.
  * ------------------------------------------------------------------ */
@@ -84,7 +86,10 @@ export function DirectorTaskForm({
   const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
 
   const isDirector = role === "director";
-  const createAction = isDirector ? portalDirectorCreateTask : portalCreateTask;
+  // Every management role now posts through the ONE fan-out action; server-side
+  // scope (companyScope) decides which companies/people are allowed, so a manager
+  // fans out across THEIR companies just like a director does across the portfolio.
+  const createAction = portalDirectorCreateTask;
 
   const [companyIds, setCompanyIds] = useState<number[]>([]);
   const [responsibleIds, setResponsibleIds] = useState<number[]>([]);
@@ -97,12 +102,12 @@ export function DirectorTaskForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [state, action, pending] = useActionState(createAction, null);
 
-  // For managers we keep a single company. Default it to their only company.
-  const singleCompanyId = companyIds[0];
+  // Everyone can fan out across the companies they're allowed. Auto-select the
+  // only company when a person has just one (nothing to choose).
   useEffect(() => {
-    if (!isDirector && companies.length === 1) setCompanyIds([companies[0].id]);
+    if (companies.length === 1) setCompanyIds([companies[0].id]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDirector, companies.length]);
+  }, [companies.length]);
 
   // On a clean create, swap the form for a "notify them?" step instead of closing.
   // The notify prompt targets the first lead.
@@ -131,7 +136,7 @@ export function DirectorTaskForm({
   function close() {
     setOpen(false);
     setAssigned(null);
-    setCompanyIds(!isDirector && companies.length === 1 ? [companies[0].id] : []);
+    setCompanyIds(companies.length === 1 ? [companies[0].id] : []);
     setResponsibleIds([]);
     setLeadIds([]);
     setPriority("Medium");
@@ -148,11 +153,10 @@ export function DirectorTaskForm({
   // full list rather than an empty picker. A person linked to several companies
   // appears when ANY of their companies is selected.
   const peopleForPicker = useMemo(() => {
-    const selected = isDirector ? companyIds : (singleCompanyId != null ? [singleCompanyId] : []);
-    if (selected.length === 0) return people;
-    const scoped = people.filter((p) => personCompanyIds(p).some((cid) => selected.includes(cid)));
+    if (companyIds.length === 0) return people;
+    const scoped = people.filter((p) => personCompanyIds(p).some((cid) => companyIds.includes(cid)));
     return scoped.length ? scoped : people;
-  }, [isDirector, people, companyIds, singleCompanyId]);
+  }, [people, companyIds]);
 
   // When the selected companies change, drop any already-picked person who no
   // longer belongs to the remaining companies (the lead-cleanup effect below then
@@ -179,7 +183,7 @@ export function DirectorTaskForm({
 
   // The contract: a task can only exist with at least one company AND at least
   // one responsible person (with a lead). Managers have a single company.
-  const companySelected = isDirector ? companyIds.length > 0 : singleCompanyId != null;
+  const companySelected = companyIds.length > 0;
   const canSubmit = companySelected && responsibleIds.length > 0 && leadIds.length > 0;
 
   /** The friendly "what's still missing" line shown when someone taps a greyed
@@ -221,13 +225,8 @@ export function DirectorTaskForm({
       }}
       className="flex flex-col gap-3.5"
     >
-      {/* Fan-out / single-company hidden fields. Directors send companyIds
-          (CORE parses + fans out); managers send a single companyId. */}
-      {isDirector ? (
-        <input type="hidden" name="companyIds" value={companyIds.join(",")} />
-      ) : (
-        <input type="hidden" name="companyId" value={singleCompanyId ?? ""} />
-      )}
+      {/* Every role sends companyIds; the server fans out one task per company. */}
+      <input type="hidden" name="companyIds" value={companyIds.join(",")} />
       <input type="hidden" name="leadIds" value={leadIds.join(",")} />
       <input type="hidden" name="priority" value={priority} />
       {workingIds.map((id) => <input key={id} type="hidden" name="workingIds" value={id} />)}
@@ -240,17 +239,15 @@ export function DirectorTaskForm({
       </div>
 
       <div>
-        <label className={fieldLabel}>{isDirector ? "Companies" : "Company"}</label>
-        {isDirector ? (
+        <label className={fieldLabel}>{companyIds.length > 1 ? "Companies" : "Company"}</label>
+        {companies.length > 1 ? (
+          // One searchable chooser for everyone — pick one OR several of the
+          // companies you're allowed; a task is created per company.
           <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} />
-        ) : companies.length > 1 ? (
-          // A manager in several companies gets the SAME searchable chooser, in
-          // single-pick mode (people prune automatically when it changes).
-          <CompanyMultiSelect single companies={companies} value={companyIds} onChange={setCompanyIds} />
         ) : (
           <p className="rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-sm text-fg ring-1 ring-border">{companies[0]?.name ?? "Your company"}</p>
         )}
-        {isDirector && companyIds.length > 1 && (
+        {companyIds.length > 1 && (
           <p className="mt-1.5 text-[11px] text-accent">Creates {companyIds.length} tasks — one per company</p>
         )}
       </div>
@@ -306,7 +303,7 @@ export function DirectorTaskForm({
           {/* Aurora calendar (matches the edit views). It mirrors its value into a
               hidden input so the existing server action still reads `deadline`. */}
           <input type="hidden" name="deadline" value={deadline} />
-          <DatePopover value={deadline || null} onChange={setDeadline} block />
+          <DatePopover value={deadline || null} onChange={setDeadline} block triggerClassName={FIELD_TRIGGER} />
         </div>
       </div>
 
@@ -361,7 +358,7 @@ export function DirectorTaskForm({
               className={`inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-accent py-3 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-[0.98] disabled:opacity-50 ${!canSubmit ? "opacity-60" : ""}`}
             >
               {pending ? <Loader2 size={16} className="animate-spin" /> : <ClipboardCheck size={16} />}{" "}
-              {isDirector && companyIds.length > 1 ? `Assign ${companyIds.length} tasks` : "Assign task"}
+              {companyIds.length > 1 ? `Assign ${companyIds.length} tasks` : "Assign task"}
             </button>
           )
         }
@@ -384,93 +381,3 @@ export function DirectorTaskForm({
     </>
   );
 }
-
-/* ── A compact, searchable company chooser. Multi-select by default (ticks +
- *    chips); `single` mode picks exactly one and closes (managers). ─────── */
-function CompanyMultiSelect({
-  companies, value, onChange, single = false,
-}: {
-  companies: Company[];
-  value: number[];
-  onChange: (ids: number[]) => void;
-  single?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
-  const byId = useMemo(() => new Map(companies.map((c) => [c.id, c.name])), [companies]);
-  const selected = value.filter((id) => byId.has(id));
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return companies;
-    return companies.filter((c) => c.name.toLowerCase().includes(term));
-  }, [companies, q]);
-
-  function toggle(id: number) {
-    if (single) { onChange([id]); setOpen(false); return; }
-    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className={selectBtn}>
-        <span className="flex min-w-0 items-center gap-2">
-          <Building2 size={15} className="shrink-0 text-fg-muted" />
-          <span className={selected.length ? "text-fg" : "text-fg-muted"}>
-            {selected.length === 0 ? (single ? "Choose a company…" : "Choose one or more…") : selected.length === 1 ? byId.get(selected[0]) : `${selected.length} companies`}
-          </span>
-        </span>
-        <ChevronDown size={15} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {selected.length > 1 && (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {selected.map((id) => (
-            <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent ring-1 ring-accent/25">
-              {byId.get(id)}
-              <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${byId.get(id)}`} className="hover:opacity-70">
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {open && (
-        <div className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg">
-          <label className="relative block border-b border-border/60">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
-          </label>
-          <ul className="max-h-60 overflow-y-auto py-1">
-            {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
-            {filtered.map((c) => {
-              const on = value.includes(c.id);
-              return (
-                <li key={c.id}>
-                  <button type="button" onClick={() => toggle(c.id)} className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-bg-muted/60 ${on ? "text-accent" : "text-fg"}`}>
-                    <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded ring-1 ${on ? "bg-accent text-accent-fg ring-accent" : "ring-border"}`}>
-                      {on && <Check size={11} />}
-                    </span>
-                    {c.name}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-

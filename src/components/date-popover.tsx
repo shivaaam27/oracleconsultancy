@@ -37,7 +37,7 @@ function monthGrid(view: Date): (Date | null)[] {
 }
 
 export function DatePopover({
-  value, label, tone = "text-fg-muted", onChange, compact = false, block = false,
+  value, label, tone = "text-fg-muted", onChange, compact = false, block = false, triggerClassName,
 }: {
   value: string | null;
   label?: string | null;
@@ -45,6 +45,10 @@ export function DatePopover({
   onChange: (v: string) => void;
   compact?: boolean;
   block?: boolean;
+  /** Override the trigger's shell + size classes so the picker can match the
+   *  surrounding form fields (e.g. the full-size Aurora field box). When set it
+   *  replaces the default `fieldShell + sz` — pass everything the button needs. */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const selected = useMemo(() => parse(value), [value]);
@@ -86,7 +90,9 @@ export function DatePopover({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={cn(fieldShell, "inline-flex items-center gap-1.5 transition-colors hover:bg-bg-muted", block && "w-full", sz)}
+        className={triggerClassName
+          ? cn("inline-flex items-center gap-1.5", block && "w-full", triggerClassName)
+          : cn(fieldShell, "inline-flex items-center gap-1.5 transition-colors hover:bg-bg-muted", block && "w-full", sz)}
       >
         <CalendarClock size={compact ? 12 : 13} className={cn("shrink-0", tone)} />
         <span className={cn(block && "min-w-0 flex-1 truncate text-left", label && (tone.includes("danger") || tone.includes("warn")) ? tone : "text-fg")}>{label ?? text}</span>

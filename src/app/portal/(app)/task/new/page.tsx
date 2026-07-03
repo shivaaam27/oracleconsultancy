@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { sb } from "@/db/supabase";
-import { getPortalPerson, directReportIds } from "@/lib/portal-auth";
+import { getPortalPerson } from "@/lib/portal-auth";
+import { getScopedPickerData } from "@/lib/portal-picker";
 import { NewTaskForm } from "./new-task-form";
 
 export const dynamic = "force-dynamic";
@@ -12,38 +12,13 @@ export default async function PortalNewTaskPage() {
   // Managers, HR and directors can create tasks. Staff cannot.
   if (me.portalRole === "staff") redirect("/portal");
   const isDirector = me.portalRole === "director";
-  // HR and directors both pick from anyone/any company; HR still posts through the
-  // ordinary (non-board) action, so it isn't treated as a director here.
-  const broad = isDirector || me.portalRole === "hr";
 
-  let people: Array<{ id: number; name: string; companyId: number | null }>;
-  let companies: Array<{ id: number; name: string }>;
+  // One scoped source for the pickers (same as the Tasks page + board): portfolio
+  // director / HR get everything; a company-scoped director gets their companies;
+  // a manager gets the companies they belong to + the people in them. The composer
+  // narrows people to the selected company on top of this.
+  const { companies, people } = await getScopedPickerData(me);
+  const sortedPeople = [...people].sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
 
-  if (broad) {
-    // Group-wide: anyone active, any company.
-    const [{ data: peopleRows }, { data: compRows }] = await Promise.all([
-      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-      sb.from("companies").select("id,name").order("name"),
-    ]);
-    people = (peopleRows ?? [])
-      .map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }))
-      .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
-    companies = (compRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  } else {
-    // Managers: themselves + their direct reports, within those people's companies.
-    const reportIds = await directReportIds(me.id);
-    const ids = Array.from(new Set([me.id, ...reportIds]));
-    const { data: peopleRows } = await sb.from("people").select("id,name,company_id").in("id", ids);
-    people = (peopleRows ?? [])
-      .map((p) => ({ id: p.id as number, name: p.name as string, companyId: (p.company_id as number | null) ?? null }))
-      .sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
-    const companyIds = Array.from(new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean)));
-    companies = [];
-    if (companyIds.length > 0) {
-      const { data: compRows } = await sb.from("companies").select("id,name").in("id", companyIds).order("name");
-      companies = (compRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-    }
-  }
-
-  return <NewTaskForm me={{ id: me.id, name: me.name }} people={people} companies={companies} isDirector={isDirector} />;
+  return <NewTaskForm me={{ id: me.id, name: me.name }} people={sortedPeople} companies={companies} isDirector={isDirector} />;
 }

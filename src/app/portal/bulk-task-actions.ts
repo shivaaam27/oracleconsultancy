@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { notifyMany, personRecipient } from "@/lib/notifications";
-import { getPortalPerson, managerTeamIds } from "@/lib/portal-auth";
+import { getPortalPerson, companyScope } from "@/lib/portal-auth";
 import { reindexEntity } from "@/lib/index-hooks";
 
 /* Staff-portal BULK task creation — "paste multiple", one task per line.
@@ -87,20 +87,21 @@ export async function portalBulkCreateTasks(
     workings = workingIdsRaw.filter((id) => activeSet.has(id) && !leads.includes(id));
     companyIds = [companyIdsRaw[0]];
   } else {
-    // Manager: themselves + their team, within those people's companies. One company.
-    const allowedPeople = new Set([me.id, ...(await managerTeamIds(me))]);
-    if (!leadIdsRaw.every((id) => allowedPeople.has(id))) {
-      return { ok: false, error: "You can only assign to yourself or your team." };
-    }
-    leads = leadIdsRaw;
-    workings = workingIdsRaw.filter((id) => allowedPeople.has(id) && !leads.includes(id));
-    const companyId = companyIdsRaw[0];
-    const { data: peopleRows } = await sb.from("people").select("company_id").in("id", [...allowedPeople]);
-    const allowedCompanies = new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean));
-    if (!allowedCompanies.has(companyId)) {
-      return { ok: false, error: "You can't create tasks for that company." };
-    }
-    companyIds = [companyId];
+    // Manager: company-scoped. May fan out across ANY of their own companies, to
+    // any active person who belongs to those companies (matches the single-task
+    // path + the scoped pickers). companyScope(manager) = their company set.
+    const scope = (await companyScope(me)) ?? [];
+    const scopeSet = new Set(scope);
+    companyIds = companyIdsRaw.filter((c) => scopeSet.has(c));
+    if (companyIds.length === 0) return { ok: false, error: "You can't create tasks for that company." };
+    const [{ data: pr }, { data: lr }] = await Promise.all([
+      sb.from("people").select("id").eq("active", true).in("company_id", scope).in("id", [...leadIdsRaw, ...workingIdsRaw]),
+      sb.from("person_companies").select("person_id").in("company_id", scope).in("person_id", [...leadIdsRaw, ...workingIdsRaw]),
+    ]);
+    const inScope = new Set<number>([me.id, ...(pr ?? []).map((r) => r.id as number), ...(lr ?? []).map((r) => r.person_id as number)]);
+    leads = leadIdsRaw.filter((id) => inScope.has(id));
+    if (leads.length === 0) return { ok: false, error: "Choose someone in your companies." };
+    workings = workingIdsRaw.filter((id) => inScope.has(id) && !leads.includes(id));
   }
 
   const now = new Date();

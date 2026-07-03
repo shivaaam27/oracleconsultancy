@@ -1,11 +1,10 @@
 import { redirect } from "next/navigation";
 import { ClipboardList } from "lucide-react";
-import { sb } from "@/db/supabase";
 import { Hero } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson, visibleTaskIds, directReportIds, seesAllCompanies, isScopedDirector } from "@/lib/portal-auth";
-import { getPersonCompaniesMap } from "@/lib/people-queries";
+import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
+import { getScopedPickerData } from "@/lib/portal-picker";
 import { buildCommandTasks } from "@/lib/portal-command-tasks";
 import { PortalTasksCommand, type Filter } from "@/components/portal-tasks-command";
 
@@ -22,33 +21,14 @@ async function CommandTasks({
   /** Staff get the SAME design but can't raise tasks (no quick-add / FAB). */
   canCreate: boolean;
 }) {
-  const groupWide = seesAllCompanies(me);
-
-  const [cmd, { data: companiesRaw }, { data: peopleRaw }, personCompanies] = await Promise.all([
+  // One scoped source for the create pickers (same helper as home / new-task /
+  // board) so every surface shows the SAME permission-scoped companies + people:
+  // director/HR → all; company-scoped director → their companies; manager → the
+  // companies they belong to + the people in them.
+  const [cmd, { companies, people }] = await Promise.all([
     buildCommandTasks(ids, me.id, me.name),
-    sb.from("companies").select("id,name").order("name"),
-    sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-    getPersonCompaniesMap(),
+    getScopedPickerData(me),
   ]);
-
-  // Scope the create pickers: group-wide for director/HR; a manager creates only
-  // in their own company, for themselves or their direct reports.
-  let companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  let people = (peopleRaw ?? []).map((p) => {
-    const id = p.id as number;
-    const primary = (p.company_id as number | null) ?? null;
-    return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
-  });
-  if (isScopedDirector(me)) {
-    // Company director: pickers cover their WHOLE company set (not just direct reports).
-    const scope = new Set(me.directorCompanyIds);
-    people = people.filter((p) => p.companyIds.some((c) => scope.has(c)));
-    companies = companies.filter((c) => scope.has(c.id));
-  } else if (!groupWide) {
-    const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
-    people = people.filter((p) => reportSet.has(p.id));
-    if (me.companyId != null) companies = companies.filter((c) => c.id === me.companyId);
-  }
 
   return <PortalTasksCommand tasks={cmd} people={people} companies={companies} role={me.portalRole} viewerId={me.id} canCreate={canCreate} initialFilter={initialFilter} />;
 }

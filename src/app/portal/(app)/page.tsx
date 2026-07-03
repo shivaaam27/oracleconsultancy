@@ -10,6 +10,7 @@ import { PortalTeamLeave, type TeamLeaveRequest } from "@/components/portal-team
 import { PortalTasksCommand } from "@/components/portal-tasks-command";
 import { buildCommandTasks } from "@/lib/portal-command-tasks";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
+import { getScopedPickerData, type PickerPerson, type PickerCompany } from "@/lib/portal-picker";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, managerTeamIds } from "@/lib/portal-auth";
 import { getGivenName, getInitials } from "@/lib/names";
@@ -77,27 +78,26 @@ export default async function PortalHome() {
     visibleTaskIds(me),
   ]);
 
-  // Managers can schedule meetings group-wide — load the picker lists.
-  let schedulePeople: Array<{ id: number; name: string }> = [];
-  let scheduleCompanies: Array<{ id: number; name: string }> = [];
-  if (me.portalRole === "manager") {
-    const [{ data: peopleRaw }, { data: companiesRaw }] = await Promise.all([
-      sb.from("people").select("id,name").eq("active", true).order("name"),
-      sb.from("companies").select("id,name").order("name"),
-    ]);
-    schedulePeople = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
-    scheduleCompanies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  }
-
   // The person's tasks in the shared Aurora command shape (same as the Tasks tab).
   const cmd = await buildCommandTasks(ids, me.id, me.name);
 
-  // People + companies power the inline command view (expand panel names + filters).
-  // Staff & managers get the list inline; HR keep a link to the full Tasks tab.
+  // Create-surface pickers (task quick-add + the manager event form) are scoped to
+  // the viewer's companies through the one shared helper — a manager only sees their
+  // permitted companies + the people in them. Staff can't create tasks/events, so
+  // they keep the FULL people/company lists purely so the inline task view can
+  // resolve every name/company label it shows.
   const inlineTasks = me.portalRole === "staff" || me.portalRole === "manager";
-  let cmdPeople: Array<{ id: number; name: string; companyId: number | null; companyIds: number[] }> = [];
-  let cmdCompanies: Array<{ id: number; name: string }> = [];
-  if (inlineTasks) {
+  let cmdPeople: PickerPerson[] = [];
+  let cmdCompanies: PickerCompany[] = [];
+  let schedulePeople: PickerPerson[] = [];
+  let scheduleCompanies: PickerCompany[] = [];
+  if (me.portalRole === "manager") {
+    const scoped = await getScopedPickerData(me);
+    cmdPeople = scoped.people;
+    cmdCompanies = scoped.companies;
+    schedulePeople = scoped.people;
+    scheduleCompanies = scoped.companies;
+  } else if (inlineTasks) {
     const [{ data: pl }, { data: cl }, pcMap] = await Promise.all([
       sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
       sb.from("companies").select("id,name").order("name"),

@@ -5,11 +5,11 @@ import { Megaphone } from "lucide-react";
 import { sb } from "@/db/supabase";
 import { Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, type PortalPerson } from "@/lib/portal-auth";
 import { getGivenName, getInitials } from "@/lib/names";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { getBrief } from "@/lib/director-brief";
-import { getPersonCompaniesMap } from "@/lib/people-queries";
+import { getScopedPickerData } from "@/lib/portal-picker";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { DirectorBoardClient, type WatchItem, type CompanyHealth } from "@/components/director-board-client";
@@ -43,7 +43,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
       )}
 
       <Suspense fallback={<BoardSkeleton name={getGivenName(me.name)} />}>
-        <Board personName={me.name} directorCompanyIds={me.directorCompanyIds.length ? me.directorCompanyIds : null} />
+        <Board me={me} directorCompanyIds={me.directorCompanyIds.length ? me.directorCompanyIds : null} />
       </Suspense>
 
       {announcements.length > 0 && (
@@ -61,40 +61,21 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   );
 }
 
-async function Board({ personName, directorCompanyIds }: { personName: string; directorCompanyIds: number[] | null }) {
+async function Board({ me, directorCompanyIds }: { me: PortalPerson; directorCompanyIds: number[] | null }) {
+  const personName = me.name;
   // The brief and the composer's picker lists are independent — fetch them
   // CONCURRENTLY rather than in series. The board's load (and its reload when you
   // navigate back from a company) is dominated by these round-trips, so overlapping
   // them is a direct win. Each falls back to empty on a transient error.
   const [brief, pickerData] = await Promise.all([
     boardBrief(directorCompanyIds),
-    Promise.all([
-      // A company director's composer only offers THEIR companies.
-      directorCompanyIds != null
-        ? sb.from("companies").select("id,name").in("id", directorCompanyIds).order("name")
-        : sb.from("companies").select("id,name").order("name"),
-      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-      getPersonCompaniesMap(),
-    ]).catch(() => null),
+    // Composer pickers scoped through the one shared helper: a company-scoped
+    // director gets only their companies + people; a portfolio director gets all.
+    getScopedPickerData(me).catch(() => null),
   ]);
 
-  // Fast lookups for the composer pickers.
-  let companies: Array<{ id: number; name: string }> = [];
-  let people: Array<{ id: number; name: string; companyId: number | null; companyIds: number[] }> = [];
-  if (pickerData) {
-    const [{ data: companiesRaw }, { data: peopleRaw }, personCompanies] = pickerData;
-    companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-    people = (peopleRaw ?? []).map((p) => {
-      const id = p.id as number;
-      const primary = (p.company_id as number | null) ?? null;
-      return { id, name: p.name as string, companyId: primary, companyIds: personCompanies.get(id) ?? (primary != null ? [primary] : []) };
-    });
-    // A company director assigns only within their companies → offer only those people.
-    if (directorCompanyIds != null) {
-      const scope = new Set(directorCompanyIds);
-      people = people.filter((p) => p.companyIds.some((c) => scope.has(c)));
-    }
-  }
+  const companies = pickerData?.companies ?? [];
+  const people = pickerData?.people ?? [];
 
   // Resolve the responsible person for each watch task (for inline reassign + remind).
   // Generous slice so the board's company filter has items per company; the client

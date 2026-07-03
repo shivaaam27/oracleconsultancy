@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, ClipboardCheck, Building2, ChevronDown, Check, Search,
-  Loader2, CheckCircle2, AlertTriangle, X, Star,
+  ArrowLeft, ClipboardCheck, Loader2, CheckCircle2, AlertTriangle, Star,
 } from "lucide-react";
 import { Hero, Panel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { DirectorTaskForm } from "@/components/director-task-form";
 import { PeoplePicker } from "@/components/people-picker";
+import { CompanyMultiSelect } from "@/components/company-multi-select";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { portalBulkCreateTasks, type PortalBulkFailure } from "@/app/portal/bulk-task-actions";
@@ -185,8 +185,6 @@ function BulkTaskPanel({
   const [result, setResult] = useState<{ created: number; failures: PortalBulkFailure[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const singleCompanyId = companyIds[0];
-
   // Keep the lead set valid as responsible people change (mirror the single form).
   useEffect(() => {
     setLeadIds((cur) => {
@@ -196,13 +194,13 @@ function BulkTaskPanel({
     });
   }, [responsibleIds]);
 
-  // Manager/HR people are scoped by the chosen company; directors see everyone.
+  // People are scoped to the SELECTED companies for every role (pick a company →
+  // only its people show); full list before any company is chosen.
   const peopleForPicker = useMemo(() => {
-    if (isDirector) return people;
-    if (singleCompanyId == null) return people;
-    const scoped = people.filter((p) => personCompanyIds(p).includes(singleCompanyId));
+    if (companyIds.length === 0) return people;
+    const scoped = people.filter((p) => personCompanyIds(p).some((cid) => companyIds.includes(cid)));
     return scoped.length ? scoped : people;
-  }, [isDirector, people, singleCompanyId]);
+  }, [people, companyIds]);
 
   const workingIds = useMemo(
     () => responsibleIds.filter((id) => !leadIds.includes(id)),
@@ -257,8 +255,9 @@ function BulkTaskPanel({
     try {
       const res = await portalBulkCreateTasks({
         titles: lines,
-        // Managers/HR keep one company; directors fan out across all picked.
-        companyIds: isDirector ? companyIds : [companyIds[0]],
+        // Directors + managers fan out across all picked companies; scope is
+        // re-verified server-side (HR is narrowed to a single company there).
+        companyIds,
         leadIds,
         workingIds,
         priority,
@@ -353,21 +352,13 @@ function BulkTaskPanel({
       </div>
 
       <div>
-        <label className={fieldLabel}>{isDirector ? "Companies" : "Company"}</label>
-        {isDirector ? (
+        <label className={fieldLabel}>{companyIds.length > 1 ? "Companies" : "Company"}</label>
+        {companies.length > 1 ? (
           <CompanyMultiSelect companies={companies} value={companyIds} onChange={setCompanyIds} />
-        ) : companies.length > 1 ? (
-          <FluidSelect
-            value={singleCompanyId != null ? String(singleCompanyId) : ""}
-            options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
-            placeholder="Choose…"
-            onSelect={(v) => { setCompanyIds(v ? [Number(v)] : []); setResponsibleIds([]); setLeadIds([]); }}
-            buttonClassName={selectBtn}
-          />
         ) : (
           <p className="rounded-xl bg-bg-subtle/60 px-3.5 py-3 text-sm text-fg ring-1 ring-border">{companies[0]?.name ?? "Your company"}</p>
         )}
-        {isDirector && companyIds.length > 1 && lines.length > 0 && (
+        {companyIds.length > 1 && lines.length > 0 && (
           <p className="mt-1.5 text-[11px] text-accent">Creates {companyIds.length * lines.length} tasks — one per company, per line</p>
         )}
       </div>
@@ -447,92 +438,5 @@ function BulkTaskPanel({
         {lines.length > 1 ? `Create ${lines.length} tasks` : "Create task"}
       </button>
     </Panel>
-  );
-}
-
-/* ── A compact, searchable multi-company checklist (chips below). Mirrors the
- *    one in director-task-form.tsx (kept local — that one isn't exported). ──── */
-function CompanyMultiSelect({
-  companies, value, onChange,
-}: {
-  companies: Company[];
-  value: number[];
-  onChange: (ids: number[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
-  const byId = useMemo(() => new Map(companies.map((c) => [c.id, c.name])), [companies]);
-  const selected = value.filter((id) => byId.has(id));
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return companies;
-    return companies.filter((c) => c.name.toLowerCase().includes(term));
-  }, [companies, q]);
-
-  function toggle(id: number) {
-    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className={selectBtn}>
-        <span className="flex min-w-0 items-center gap-2">
-          <Building2 size={15} className="shrink-0 text-fg-muted" />
-          <span className={selected.length ? "text-fg" : "text-fg-muted"}>
-            {selected.length === 0 ? "Choose one or more…" : selected.length === 1 ? byId.get(selected[0]) : `${selected.length} companies`}
-          </span>
-        </span>
-        <ChevronDown size={15} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-
-      {selected.length > 1 && (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {selected.map((id) => (
-            <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent ring-1 ring-accent/25">
-              {byId.get(id)}
-              <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${byId.get(id)}`} className="hover:opacity-70">
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {open && (
-        <div className="absolute z-30 mt-1.5 w-full overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg">
-          <label className="relative block border-b border-border/60">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
-          </label>
-          <ul className="max-h-60 overflow-y-auto py-1">
-            {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
-            {filtered.map((c) => {
-              const on = value.includes(c.id);
-              return (
-                <li key={c.id}>
-                  <button type="button" onClick={() => toggle(c.id)} className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-bg-muted/60 ${on ? "text-accent" : "text-fg"}`}>
-                    <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded ring-1 ${on ? "bg-accent text-accent-fg ring-accent" : "ring-border"}`}>
-                      {on && <Check size={11} />}
-                    </span>
-                    {c.name}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
   );
 }

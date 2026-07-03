@@ -20,15 +20,16 @@ import type { NotifKind } from "@/lib/notifications";
 import { broadcastPulse } from "@/lib/cos-pulse";
 import {
   clearSessionCookie,
+  companyScope,
   findPortalPersonByIdentifier,
   getPortalPerson,
-  isScopedDirector,
   managerTeamIds,
   personCanSeePerson,
   personCanSeeTask,
   seesAllCompanies,
   setSessionCookie,
   verifyPassword,
+  type PortalPerson,
 } from "@/lib/portal-auth";
 import { computeClosedDate, isClosedStatus } from "@/lib/task-status";
 import { canManageTask } from "@/lib/task-permissions";
@@ -809,29 +810,83 @@ async function portalCreateAndSendEvent(formData: FormData, createdBy: string): 
   return { ok: true, id: res.id, sendNote: send.error };
 }
 
+/** Re-check an event's company + attendees against the viewer's company scope,
+ *  never trusting the (already-scoped) client picker. Returns an error string to
+ *  return, or null when it's allowed. A portfolio director / HR (scope null) is
+ *  unrestricted; a manager / company-scoped director may only target their own
+ *  companies and invite people who belong to them. */
+async function checkEventScope(me: PortalPerson, formData: FormData): Promise<string | null> {
+  const scope = await companyScope(me); // null = every company
+  if (scope == null) return null;
+  const scopeSet = new Set(scope);
+
+  // Every targeted company (single companyId OR the multi-company companyIds JSON
+  // array, which also drives one-task-per-company) must sit inside the scope.
+  const companyTargets = new Set<number>();
+  const single = Number((formData.get("companyId") ?? "").toString().trim());
+  if (Number.isFinite(single) && single > 0) companyTargets.add(single);
+  try {
+    const raw = JSON.parse((formData.get("companyIds") ?? "[]").toString());
+    if (Array.isArray(raw)) for (const n of raw.map(Number)) if (Number.isFinite(n) && n > 0) companyTargets.add(n);
+  } catch { /* fall back to single */ }
+  if ([...companyTargets].some((c) => !scopeSet.has(c))) {
+    return "You can only schedule events for your companies.";
+  }
+
+  // Attendee personIds must belong to a company in scope (external, email-only
+  // attendees carry no personId and are allowed).
+  let personIds: number[] = [];
+  try {
+    const raw = JSON.parse((formData.get("attendees") ?? "[]").toString());
+    if (Array.isArray(raw)) personIds = raw.map((a) => Number(a?.personId)).filter((n) => Number.isFinite(n) && n > 0);
+  } catch { /* no attendees / malformed → nothing to check */ }
+  if (personIds.length > 0) {
+    const [{ data: pr }, { data: lr }] = await Promise.all([
+      sb.from("people").select("id").in("company_id", scope).in("id", personIds),
+      sb.from("person_companies").select("person_id").in("company_id", scope).in("person_id", personIds),
+    ]);
+    const inScope = new Set<number>([
+      ...(pr ?? []).map((r) => r.id as number),
+      ...(lr ?? []).map((r) => r.person_id as number),
+    ]);
+    if (personIds.some((id) => !inScope.has(id))) {
+      return "You can only invite people from your companies.";
+    }
+  }
+  return null;
+}
+
 export async function portalDirectorCreateEvent(formData: FormData): Promise<PortalEventResult> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   if (me.portalRole !== "director") return { ok: false, error: "Only directors can do this." };
+  const scopeError = await checkEventScope(me, formData);
+  if (scopeError) return { ok: false, error: scopeError };
   const res = await portalCreateAndSendEvent(formData, `portal-dir:${me.name}`);
   if (res.ok) revalidatePath("/portal/board");
   return res;
 }
 
-/** Managers schedule meetings group-wide (same reach as directors), with the
- *  same auto-send Google Meet behaviour. */
+/** Managers schedule meetings for their own companies, with the same auto-send
+ *  Google Meet behaviour. */
 export async function portalManagerCreateEvent(formData: FormData): Promise<PortalEventResult> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   if (me.portalRole !== "manager") return { ok: false, error: "Only managers can do this." };
+  const scopeError = await checkEventScope(me, formData);
+  if (scopeError) return { ok: false, error: scopeError };
   const res = await portalCreateAndSendEvent(formData, `portal-mgr:${me.name}`);
   if (res.ok) revalidatePath("/portal");
   return res;
 }
 
 /* ----------------------------------------------------------------------
- * Director (executive operator) — create & assign a task in ANY company,
- * to ANY active person. Group-wide; stamped portal-dir:<Name>; audit-logged.
+ * Management task composer — create & assign one task per selected company,
+ * to people in scope. Shared by directors, managers AND HR: scope is decided in
+ * ONE place by `companyScope(me)` (portfolio director / HR → all; company-scoped
+ * director / manager → their companies), so a manager can fan out across their
+ * OWN companies exactly like a director does across the portfolio. Stamped by
+ * role; audit-logged. (Kept the name for existing imports.)
  * ---------------------------------------------------------------------- */
 export async function portalDirectorCreateTask(
   _prev: { error: string } | null,
@@ -839,7 +894,10 @@ export async function portalDirectorCreateTask(
 ): Promise<{ error: string } | null> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "director") return { error: "Only directors can do this." };
+  if (me.portalRole !== "director" && me.portalRole !== "manager" && me.portalRole !== "hr") {
+    return { error: "Only managers, HR and directors can do this." };
+  }
+  const isDir = me.portalRole === "director";
 
   const actionItem = String(formData.get("actionItem") ?? "").trim();
   const priority = String(formData.get("priority") ?? "Medium");
@@ -850,8 +908,8 @@ export async function portalDirectorCreateTask(
   const workingIds = idList(formData, "workingIds").filter((id) => !leadIds.includes(id));
   const instruction = String(formData.get("instruction") ?? "").trim();
   const requiresAttachment = formData.get("requiresAttachment") === "on" || formData.get("requiresAttachment") === "1";
-  // The director composer defaults this ON — only the creator may close the task.
-  const creatorCloseOnly = formData.get("creatorCloseOnly") === "on" || formData.get("creatorCloseOnly") === "1";
+  // "Only I can close it" is a director-composer feature only.
+  const creatorCloseOnly = isDir && (formData.get("creatorCloseOnly") === "on" || formData.get("creatorCloseOnly") === "1");
   if (!actionItem) return { error: "Give the task a title." };
   if (leadIds.length === 0) return { error: "Choose who is responsible." };
 
@@ -871,16 +929,17 @@ export async function portalDirectorCreateTask(
   }
   if (companyIds.length === 0) return { error: "Choose a company." };
 
-  // A COMPANY DIRECTOR is locked to their companies — both the target
-  // company/companies AND the assignees must sit inside them (re-checked here, never
-  // trusting the scoped picker). A portfolio director (scope null) is unrestricted.
-  const scope = isScopedDirector(me) ? me.directorCompanyIds : null;
+  // ONE scope decision for every role: portfolio director / HR → null (any
+  // company); company-scoped director / manager → their companies. Both the target
+  // company/companies AND the assignees must sit inside scope (re-checked here,
+  // never trusting the scoped picker).
+  const scope = await companyScope(me); // null = unrestricted
   if (scope != null && !companyIds.every((c) => scope.includes(c))) {
     return { error: "You can only create tasks for your companies." };
   }
 
-  // Group-wide: the only constraint is that the people are real + active. A scoped
-  // director additionally requires each person to belong to one of their companies.
+  // Unrestricted roles: the only constraint is that the people are real + active.
+  // A scoped role additionally requires each person to belong to one of its companies.
   const { data: activeRows } = await sb.from("people").select("id").eq("active", true).in("id", [...leadIds, ...workingIds]);
   let activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
   if (scope != null) {
@@ -900,7 +959,7 @@ export async function portalDirectorCreateTask(
 
   const now = new Date();
   const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
-  const createdBy = `portal-dir:${me.name}`;
+  const createdBy = `${isDir ? "portal-dir" : me.portalRole === "hr" ? "portal-hr" : "portal-mgr"}:${me.name}`;
 
   // Create one task per selected company.
   for (const companyId of companyIds) {
@@ -948,6 +1007,7 @@ export async function portalDirectorCreateTask(
     void reindexEntity("task", task.id); // new task — index it (best-effort)
   }
 
+  revalidatePath("/portal");
   revalidatePath("/portal/board");
   revalidatePath("/portal/tasks");
   revalidatePath("/");

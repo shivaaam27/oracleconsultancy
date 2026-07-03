@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson, seesAllCompanies, isScopedDirector, companyScope, managerTeamIds } from "@/lib/portal-auth";
+import { getPortalPerson, seesAllCompanies, companyScope } from "@/lib/portal-auth";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { generateDrafts } from "@/lib/outbox/gen";
 import { getGivenName } from "@/lib/names";
@@ -25,18 +25,29 @@ export default async function PortalOutboxPage() {
   const groupWide = seesAllCompanies(me);
   let drafts = await generateDrafts();
   if (!groupWide) {
-    // Manager → their team; company-scoped director → everyone in their company.
-    let allowed: Set<number>;
-    if (isScopedDirector(me)) {
-      const scope = new Set((await companyScope(me)) ?? []);
-      const map = await getPersonCompaniesMap();
-      allowed = new Set(
-        [...map.entries()].filter(([, cids]) => cids.some((c) => scope.has(c))).map(([pid]) => pid)
-      );
-    } else {
-      allowed = new Set(await managerTeamIds(me));
-    }
-    drafts = drafts.filter((d) => d.personId != null && allowed.has(d.personId));
+    // Two-part scoping so a manager / company-scoped director only ever sees work
+    // for the companies they govern:
+    //  1. WHICH PEOPLE appear — their team / everyone in their companies;
+    //  2. WHICH TASKS show per person — ONLY tasks in the viewer's companies.
+    // Without (2) a shared staffer's other-company tasks would leak into the
+    // summary (e.g. an MES manager seeing a person's Terra Green tasks).
+    const scope = await companyScope(me); // null = every company (never here — not group-wide)
+    const scopeSet = scope != null ? new Set(scope) : null;
+
+    // WHICH PEOPLE appear is purely company-based (managers AND scoped directors):
+    // only people who BELONG to a company in scope. This deliberately excludes a
+    // manager's cross-company direct reports — an Oracle/Pamoja manager never sees
+    // a report who works only in Tanam/DSC. (Reporting-based reach is a later call.)
+    const map = await getPersonCompaniesMap();
+    const allowed = new Set(
+      [...map.entries()].filter(([, cids]) => cids.some((c) => scopeSet?.has(c))).map(([pid]) => pid)
+    );
+
+    drafts = drafts
+      .filter((d) => d.personId != null && allowed.has(d.personId))
+      .map((d) => (scopeSet ? { ...d, tasks: d.tasks.filter((t) => scopeSet.has(t.companyId)) } : d))
+      // Someone whose only open tasks are outside the viewer's companies drops off.
+      .filter((d) => d.tasks.length > 0);
   }
 
   const people: OutboxPerson[] = drafts
