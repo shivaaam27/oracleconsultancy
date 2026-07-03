@@ -133,6 +133,22 @@ function MagneticItem({ className, children, ...props }: ComponentPropsWithoutRe
   );
 }
 
+/** Render a full-text "found inside" excerpt, bolding the «…»-marked hit. */
+function HighlightSnippet({ text }: { text: string }) {
+  const parts = text.split(/(«[^»]*»)/g).filter(Boolean);
+  return (
+    <span className="mt-0.5 block truncate text-[11px] text-fg-subtle">
+      <span className="opacity-60">“</span>
+      {parts.map((p, i) =>
+        p.startsWith("«")
+          ? <mark key={i} className="rounded bg-accent/15 px-0.5 text-accent">{p.slice(1, -1)}</mark>
+          : <span key={i}>{p}</span>,
+      )}
+      <span className="opacity-60">”</span>
+    </span>
+  );
+}
+
 function MagneticChip({ onClick, className, children }: { onClick?: () => void; className?: string; children: React.ReactNode }) {
   const m = useMagnetic<HTMLButtonElement>(0.12);
   return (
@@ -790,19 +806,26 @@ export function CommandPaletteProvider({
                               key={`${r.type}-${r.id}`}
                               // Prepend the live query so cmdk's own fuzzy filter
                               // never drops a server-ranked (incl. typo-tolerant) hit.
-                              value={`${query} ${r.type} ${r.title} ${r.subtitle}`}
+                              value={`${query} ${r.type} ${r.title} ${r.subtitle} ${r.snippet ?? ""}`}
                               onSelect={() => go(r.href)}
                               className={cn(
                                 "group/idx px-2 py-2 rounded-lg flex items-center gap-2.5 text-sm cursor-pointer aria-selected:bg-bg-muted",
                                 r.lifecycle === "history" && "opacity-70",
                               )}
                             >
-                              <Icon size={14} className={cn("shrink-0", meta.tint)} />
-                              <span className="flex-1 truncate">{r.title}</span>
+                              <Icon size={14} className={cn("shrink-0 self-start mt-0.5", meta.tint)} />
+                              <span className="flex-1 min-w-0">
+                                <span className="block truncate">{r.title}</span>
+                                {/* Full-text hit inside the document body — the exact
+                                    words, with the match highlighted. */}
+                                {r.snippet && <HighlightSnippet text={r.snippet} />}
+                              </span>
                               {r.badge && (
-                                <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 hidden sm:inline">{r.badge}</span>
+                                <span className="text-[10px] rounded-full bg-bg-muted px-2 py-0.5 text-fg-muted shrink-0 self-start mt-0.5 hidden sm:inline">{r.badge}</span>
                               )}
-                              <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
+                              {!r.snippet && (
+                                <span className="text-xs text-fg-subtle shrink-0 max-w-[150px] truncate hidden md:inline">{r.subtitle}</span>
+                              )}
                               {/* Trace — opens the self-managed TracePanel. Not for
                                   governance (trace doesn't support it). */}
                               {r.type !== "governance" && (

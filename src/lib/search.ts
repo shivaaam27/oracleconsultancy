@@ -45,6 +45,10 @@ export type SearchResult = {
   badge?: string;
   score: number;
   lifecycle?: "active" | "history";
+  /** For a document matched by its BODY text (full-text search): the matched
+   *  excerpt with the hit wrapped in «…» so the UI can show "found inside" with
+   *  the phrase highlighted. Absent for column/metadata matches. */
+  snippet?: string;
 };
 
 const STOP = new Set(["the", "a", "an", "of", "for", "to", "in", "on", "and", "is", "with"]);
@@ -289,14 +293,18 @@ export async function unifiedSearch(
     const pName = new Map((pRes.data ?? []).map((p) => [p.id, p.name]));
     for (const r of ftsRows) {
       const id = r.id as number;
-      const snippet = String(r.snippet ?? "").replace(/\s+/g, " ").trim();
+      // Keep the «…» highlight markers for the UI's "found inside" excerpt; the
+      // subtitle uses a plain (marker-stripped) version.
+      const rawSnippet = String(r.snippet ?? "").replace(/\s+/g, " ").trim();
+      const snippetPlain = rawSnippet.replace(/[«»]/g, "");
       const owner = pName.get(r.person_id as number) || cName.get(r.company_id as number) || null;
       // "Owner · matched excerpt" — owner first so you always know whose file it is.
-      const subtitle = [owner, snippet].filter(Boolean).join(" · ") || (r.doc_type as string) || (r.category as string) || "Document";
+      const subtitle = [owner, snippetPlain].filter(Boolean).join(" · ") || (r.doc_type as string) || (r.category as string) || "Document";
       const rankBoost = Math.min(20, Math.round(((r.rank as number) ?? 0) * 20));
       const existing = out.find((o) => o.type === "document" && o.id === id);
       if (existing) {
         existing.subtitle = subtitle;
+        if (rawSnippet.includes("«")) existing.snippet = rawSnippet;
         if (!existing.badge && r.reference_no) existing.badge = r.reference_no as string;
         existing.score += 6 + rankBoost;
       } else {
@@ -308,6 +316,7 @@ export async function unifiedSearch(
           href,
           badge: (r.reference_no as string) || undefined,
           score: 42 + rankBoost,
+          ...(rawSnippet.includes("«") ? { snippet: rawSnippet } : {}),
         });
       }
     }
