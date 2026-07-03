@@ -10,6 +10,7 @@ import {
   setGoogleEventId,
   toIcsEvent,
   type CalendarAttendee,
+  type CalendarEvent,
 } from "@/lib/calendar";
 import { buildIcs } from "@/lib/ics";
 import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
@@ -470,6 +471,63 @@ export async function draftEventFollowupAction(id: number): Promise<DraftResult>
   return { ok: true, count: rows.length };
 }
 
+/**
+ * When an event invited by EMAIL (not Google) is cancelled/deleted, email the
+ * guests a METHOD:CANCEL .ics so their calendars remove it — for a recurring
+ * series this retracts every occurrence (matched by UID). Google-invited events
+ * (googleEventId set) are skipped: Google sends its own cancellation, so we'd
+ * otherwise double-notify. Only fires when an invite was actually emailed (a prior
+ * calendar-invite Outbox row exists) — never for drafts nobody received.
+ * Best-effort: never throws.
+ */
+async function emailCancellationIfSent(ev: CalendarEvent): Promise<void> {
+  try {
+    if (ev.googleEventId) return; // Google notifies guests itself on cancel
+    const recipients = ev.attendees.filter((a) => a.email).map((a) => a.email!) as string[];
+    if (recipients.length === 0) return;
+    const { data: sent } = await sb
+      .from("outbox")
+      .select("id")
+      .eq("source", `calendar:${ev.id}`)
+      .eq("message_type", "calendar-invite")
+      .limit(1);
+    if (!sent || sent.length === 0) return; // never actually emailed → nothing to retract
+
+    const { emailFrom, emailFromName } = await getAppSettings();
+    // A cancellation .ics MUST share the UID and carry a higher SEQUENCE than the
+    // invite so the guest's calendar supersedes (removes) the original.
+    const icsEvent = { ...toIcsEvent(ev, { name: emailFromName, email: emailFrom }), status: "cancelled" as const, sequence: ev.sequence + 1 };
+    const ics = buildIcs(icsEvent);
+    const when = fmtEat(ev.startAt, ev.allDay);
+    const safeTitle = ev.title.replace(/[&<>]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;"));
+    const res = await sendEmail({
+      to: recipients,
+      subject: `Cancelled: ${ev.title}`,
+      html: `<p>The event <strong>${safeTitle}</strong> scheduled for ${when} has been <strong>cancelled</strong>.</p><p>It will be removed from your calendar automatically. Apologies for any inconvenience.</p>`,
+      text: `The event "${ev.title}" (${when}) has been cancelled and will be removed from your calendar automatically.`,
+      replyTo: emailFrom,
+      calendar: { content: ics, method: "CANCEL", filename: "cancel.ics" },
+    });
+    if (res.ok) {
+      const now = new Date().toISOString();
+      await sb.from("outbox").insert({
+        channel: "EMAIL",
+        recipient_name: ev.attendees.filter((a) => a.email).map((a) => a.name).join(", "),
+        recipient_contact: recipients.join(", "),
+        subject: `Cancelled: ${ev.title}`,
+        body: "Cancellation sent to guests.",
+        message_type: "calendar-cancel",
+        status: "Sent",
+        source: `calendar:${ev.id}`,
+        created_at: now,
+        sent_at: now,
+      });
+    }
+  } catch {
+    /* cancellation email is best-effort — never block the delete/cancel */
+  }
+}
+
 export async function deleteEventAction(id: number): Promise<Result> {
   try {
     // Cancel the Google event FIRST (while we still have its id) so Google emails
@@ -479,6 +537,9 @@ export async function deleteEventAction(id: number): Promise<Result> {
     if (ev?.googleEventId) {
       const r = await cancelGoogleEvent(ev.googleEventId);
       googleCancelled = r.ok;
+    } else if (ev) {
+      // Email-invited (no Google event) → send a cancellation .ics to guests.
+      await emailCancellationIfSent(ev);
     }
     await deleteCalendarEvent(id);
     invalidate();
@@ -501,6 +562,8 @@ export async function cancelEventAction(id: number): Promise<Result> {
     if (ev.googleEventId) {
       const r = await cancelGoogleEvent(ev.googleEventId);
       googleCancelled = r.ok;
+    } else {
+      await emailCancellationIfSent(ev);
     }
     await markCalendarEventCancelled(id);
     invalidate();

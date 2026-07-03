@@ -7,6 +7,7 @@
 import { google, type calendar_v3 } from "googleapis";
 import { getAuthorizedClient } from "@/lib/google";
 import type { CalendarEvent } from "@/lib/calendar";
+import { recurrenceToRrule } from "@/lib/ics";
 
 export type GoogleCreateResult =
   | { ok: true; htmlLink: string | null; meetLink: string | null; eventId: string }
@@ -24,16 +25,28 @@ function buildRequestBody(ev: CalendarEvent, wantMeet: boolean): calendar_v3.Sch
   const end = ev.endAt ? new Date(ev.endAt) : new Date(start.getTime() + (ev.allDay ? 24 : 1) * 60 * 60 * 1000);
   const startField = ev.allDay ? { date: start.toISOString().slice(0, 10) } : { dateTime: start.toISOString(), timeZone: EAT_TZ };
   const endField = ev.allDay ? { date: end.toISOString().slice(0, 10) } : { dateTime: end.toISOString(), timeZone: EAT_TZ };
+
+  // Recurrence → a real Google recurring series (one invite covers every
+  // occurrence; edits/cancellations then propagate to all of them natively).
+  // Without this, a "every Saturday" event only landed one Saturday in Google.
+  const rrule = recurrenceToRrule(ev.recurrence, ev.recurrenceUntil ? new Date(ev.recurrenceUntil) : null);
+
+  // All reminders (Google caps at 5 overrides), not just the first.
+  const reminderOverrides = [...new Set((ev.reminders ?? []).filter((m) => m != null && m >= 0))]
+    .slice(0, 5)
+    .map((minutes) => ({ method: "popup" as const, minutes }));
+
   return {
     summary: ev.title,
     description: [ev.description, ev.meetLink ? `Join: ${ev.meetLink}` : null].filter(Boolean).join("\n\n") || undefined,
     location: ev.location || ev.meetLink || undefined,
     start: startField,
     end: endField,
+    ...(rrule ? { recurrence: [rrule] } : {}),
     attendees: ev.attendees.filter((a) => a.email).map((a) => ({ email: a.email!, displayName: a.name || undefined })),
     reminders:
-      ev.reminderMinutes != null
-        ? { useDefault: false, overrides: [{ method: "popup", minutes: ev.reminderMinutes }] }
+      reminderOverrides.length > 0
+        ? { useDefault: false, overrides: reminderOverrides }
         : { useDefault: true },
     ...(wantMeet
       ? {

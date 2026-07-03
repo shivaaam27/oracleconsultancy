@@ -164,7 +164,7 @@ function fold(line: string): string {
 
 // Map our simple recurrence to an RFC 5545 RRULE line. UNTIL is given as a UTC
 // timestamp at end-of-day so the final occurrence is included.
-function recurrenceToRrule(recurrence?: string | null, until?: Date | null): string | null {
+export function recurrenceToRrule(recurrence?: string | null, until?: Date | null): string | null {
   const r = normaliseRecurrence(recurrence);
   const freq = r === "daily" ? "DAILY" : r === "weekly" ? "WEEKLY" : r === "monthly" ? "MONTHLY" : null;
   if (!freq) return null;
@@ -191,12 +191,16 @@ export function buildIcs(ev: IcsEvent): string {
   if (ev.meetLink) descParts.push(`Join: ${ev.meetLink}`);
   const description = descParts.join("\n\n");
 
+  // A cancelled event uses METHOD:CANCEL so the recipient's calendar REMOVES it
+  // (matched by UID); everything else is a normal REQUEST invitation.
+  const method = (ev.status ?? "confirmed") === "cancelled" ? "CANCEL" : "REQUEST";
+
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//Oracle Consultancy//Calendar//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:REQUEST",
+    `METHOD:${method}`,
     "BEGIN:VEVENT",
     `UID:${esc(ev.uid)}`,
     `DTSTAMP:${dtUtc(now)}`,
