@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -8,6 +8,7 @@ import {
   Target, CalendarClock, ShieldCheck, Video,
 } from "lucide-react";
 import { Panel, SectionLabel, TONE, type Tone } from "@/components/surface-kit";
+import { cn } from "@/lib/cn";
 import { getGivenName } from "@/lib/names";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { SmartCaptureBar } from "@/components/smart-capture-bar";
@@ -66,6 +67,11 @@ type Props = {
   boardLabel?: string;
   /** Capture modes the composer offers — managers get Task-only. */
   composerModes?: ("Task" | "Event" | "Message")[];
+  /** Personal to-dos node — when `todosInColumn` is set, it's placed in the RIGHT
+   *  column under Company health (managers with few companies, so the space isn't
+   *  empty); otherwise it lives as a full-width footer rendered by the page. */
+  todos?: ReactNode;
+  todosInColumn?: boolean;
 };
 
 function riskTone(r: string): Tone {
@@ -124,12 +130,15 @@ export function DirectorBoardClient(p: Props) {
       {/* Then the two working columns: what needs you (the swipe/tap task cards)
           on the left, and the merged portfolio + company health on the right. One
           calm scroll on mobile, two columns on the web. */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr] lg:items-start">
+      <div className={cn("grid grid-cols-1 gap-5 lg:grid-cols-[1.55fr_1fr]", p.todosInColumn ? "lg:items-stretch" : "lg:items-start")}>
         <div className="flex flex-col gap-5">
           <AttentionStack watch={p.watch.slice(0, 12)} />
         </div>
-        <div className="flex flex-col gap-5">
+        <div className="flex min-h-0 flex-col gap-5">
           <HealthPanel score={p.groupScore} riskCount={p.riskCount} onLeave={p.onLeaveToday} items={p.companyHealth} run={mounted} />
+          {p.todosInColumn && p.todos && (
+            <div className="flex min-h-0 flex-1 flex-col">{p.todos}</div>
+          )}
         </div>
       </div>
     </div>
@@ -234,7 +243,11 @@ function HealthTile({ c }: { c: CompanyHealth }) {
       </div>
       <p className="mt-2 truncate text-[12.5px] font-semibold">{c.name}</p>
       <p className={`mt-0.5 truncate text-[10.5px] ${attention ? TONE[tone].text : "text-fg-subtle"}`}>
-        {attention ? `${c.overdue} overdue · ${c.open} open` : `${c.open} open · on track`}
+        {attention
+          ? `${c.overdue} overdue · ${c.open} open`
+          : c.open === 0
+            ? "No open tasks"
+            : `${c.open} open · on track`}
       </p>
     </Link>
   );

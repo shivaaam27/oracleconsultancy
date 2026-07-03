@@ -1,4 +1,4 @@
-import { Suspense, cache } from "react";
+import { Suspense, cache, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { Panel } from "@/components/surface-kit";
@@ -41,6 +41,10 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
   // ONE scope model: null = all companies (portfolio director / HR-less), else the
   // director's / manager's own companies.
   const scope = await companyScope(me);
+  // Managers with FEW companies (<6) have a short Company-health column → shift the
+  // personal to-do list up into that right column so the space isn't left empty.
+  // Managers with many companies keep it as a full-width footer. Directors: none.
+  const inlineTodos = isManager && (scope?.length ?? 99) < 6;
 
   const audienceAttrs = await getPersonAudienceAttrs(me.id);
   const announcements = audienceAttrs ? await feedForPerson(audienceAttrs) : [];
@@ -61,7 +65,13 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
       )}
 
       <Suspense fallback={<BoardSkeleton name={getGivenName(me.name)} />}>
-        <Board me={me} scope={scope} boardLabel={boardLabel} composerModes={composerModes} />
+        <Board
+          me={me}
+          scope={scope}
+          boardLabel={boardLabel}
+          composerModes={composerModes}
+          todos={inlineTodos ? <BoardTodos personId={me.id} fill /> : undefined}
+        />
       </Suspense>
 
       {/* Managers keep their team tools (attendance, leave approvals) here — Home
@@ -72,14 +82,14 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
         </Suspense>
       )}
 
-      {/* Personal to-dos — a full-width footer for MANAGERS only (directors don't
-          need a personal list on their board; staff keep theirs on Home). */}
-      {isManager && <BoardTodos personId={me.id} />}
+      {/* Personal to-dos — full-width footer for MANAGERS with many companies
+          (few-company managers get it in the right column instead; see above). */}
+      {isManager && !inlineTodos && <BoardTodos personId={me.id} />}
     </div>
   );
 }
 
-async function Board({ me, scope, boardLabel, composerModes }: { me: PortalPerson; scope: number[] | null; boardLabel: string; composerModes: ("Task" | "Event" | "Message")[] }) {
+async function Board({ me, scope, boardLabel, composerModes, todos }: { me: PortalPerson; scope: number[] | null; boardLabel: string; composerModes: ("Task" | "Event" | "Message")[]; todos?: ReactNode }) {
   const personName = me.name;
   // The brief and the composer's picker lists are independent — fetch them
   // CONCURRENTLY rather than in series. The board's load (and its reload when you
@@ -249,6 +259,8 @@ async function Board({ me, scope, boardLabel, composerModes }: { me: PortalPerso
         suggestions={suggestions}
         boardLabel={boardLabel}
         composerModes={composerModes}
+        todos={todos}
+        todosInColumn={!!todos}
       />
       <AutoRefresh seconds={60} />
     </Reveal>

@@ -758,8 +758,6 @@ export function TopPill() {
 
         <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
 
-        <NavActionButton />
-
         <button
           onClick={openPalette}
           className="shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12 rounded-full text-fg-muted hover:text-fg hover:bg-bg-muted/60 transition-colors"
@@ -775,6 +773,9 @@ export function TopPill() {
         <div className="shrink-0 inline-flex items-center justify-center h-11 w-11 md:h-12 md:w-12">
           <NotificationBell to="/task" align="right" />
         </div>
+
+        {/* The page-action + sits at the end, next to the theme toggle. */}
+        <NavActionButton />
 
         {/* Theme toggle on the bar (desktop only — the dense mobile bar keeps it in the menu). */}
         <div className="hidden md:flex shrink-0 items-center">

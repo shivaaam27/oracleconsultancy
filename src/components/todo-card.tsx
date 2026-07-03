@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { TodoCardItem } from "@/lib/todo-reminders";
 import { useToast } from "@/components/toast";
 import { CaretInput } from "@/components/ui";
-import { DateTimeField } from "@/components/date-time-field";
+import { DatePopover } from "@/components/date-popover";
+import { dateOf, timeOf, composeDT, FIELD_TRIGGER } from "@/components/date-time-field";
 import { cn } from "@/lib/cn";
 import { ListChecks, Plus, Check, Trash2, Loader2, Bell, Star, CalendarDays, X, Pencil } from "lucide-react";
 
@@ -24,6 +25,32 @@ function toIso(local: string): string | null {
   if (!local) return null;
   const ms = Date.parse(local);
   return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+/** Today as "yyyy-mm-dd" (local) — the default date when a time is picked first. */
+function todayKey(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Reminder date + FLEXIBLE time (native time input = any minute, no 15-min slots,
+ *  no seconds). Value is "yyyy-mm-ddThh:mm"; onChange emits the same. */
+function ReminderFields({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="min-w-0 flex-1">
+        <DatePopover block triggerClassName={FIELD_TRIGGER} value={dateOf(value) || null} onChange={(d) => onChange(composeDT(d, timeOf(value) || "09:00", false))} />
+      </div>
+      <input
+        type="time"
+        value={timeOf(value)}
+        onChange={(e) => onChange(composeDT(dateOf(value) || todayKey(), e.target.value || "09:00", false))}
+        aria-label="Reminder time"
+        className={cn(FIELD_TRIGGER, "sm:w-[7.5rem]")}
+      />
+    </div>
+  );
 }
 
 /** ISO (server) → the picker's local "yyyy-mm-ddThh:mm" (for seeding an edit). */
@@ -71,7 +98,8 @@ export function TodoCard({
   deleteAction,
   updateAction,
   title = "To-Do List",
-}: TodoCardActions & { items: TodoCardItem[]; title?: string }) {
+  fill = false,
+}: TodoCardActions & { items: TodoCardItem[]; title?: string; fill?: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
@@ -168,17 +196,19 @@ export function TodoCard({
   }
 
   return (
-    <div className="bg-bg-elev ring-1 ring-border rounded-2xl elevated p-4 space-y-3">
+    <div className={cn("flex flex-col gap-3 rounded-2xl bg-bg-elev p-4 ring-1 ring-border elevated", fill && "h-full min-h-0")}>
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-accent-soft text-accent shrink-0"><ListChecks size={13} /></span>
         <h3 className="text-sm font-semibold">{title}</h3>
         {visible.length > 0 && <span className="ml-auto text-[11px] text-fg-subtle tabular">{visible.length} open</span>}
       </div>
 
-      {/* Quick add — title, then an optional reminder (Aurora date + time; no seconds). */}
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-1 min-w-[10rem] items-center rounded-xl px-3.5 py-2 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
+      {/* Quick add — the to-do field, a bell that opens the reminder popover, and
+          Add: three controls of equal height. The reminder (date + flexible time)
+          opens as a small popover rather than crowding the row. */}
+      <div className="relative flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-10 min-w-0 flex-1 items-center rounded-xl px-3.5 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
             <CaretInput
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -187,22 +217,47 @@ export function TodoCard({
               className="text-sm"
             />
           </div>
-          {!showWhen && !when && (
-            <button type="button" onClick={() => setShowWhen(true)} className={BTN_GHOST}>
-              <Bell size={13} className="text-accent" /> Add reminder
-            </button>
-          )}
-          <button type="button" onClick={add} disabled={busy} className={BTN_PRIMARY}>
-            {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
+          <button
+            type="button"
+            onClick={() => setShowWhen((v) => !v)}
+            aria-label="Add a reminder"
+            title="Add a reminder"
+            className={cn(
+              "grid h-10 w-10 shrink-0 place-items-center rounded-xl ring-1 transition-colors",
+              when ? "bg-accent-soft text-accent ring-accent/30" : "bg-bg-subtle text-fg-muted ring-border hover:text-fg",
+            )}
+          >
+            <Bell size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={add}
+            disabled={busy}
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-accent px-4 text-sm font-medium text-accent-fg transition-[opacity,transform] hover:opacity-90 active:scale-95 disabled:opacity-50"
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Plus size={15} />} Add
           </button>
         </div>
-        {(showWhen || when) && (
-          <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 p-2 ring-1 ring-border">
-            <Bell size={13} className="ml-1 shrink-0 text-accent" />
-            <div className="min-w-0 flex-1"><DateTimeField name="todo-remind" allDay={false} value={when} onChange={setWhen} /></div>
-            <button type="button" onClick={() => { setWhen(""); setShowWhen(false); }} aria-label="Remove reminder" className="shrink-0 rounded-lg p-1.5 text-fg-subtle transition-colors hover:text-danger">
-              <X size={14} />
-            </button>
+
+        {/* When a reminder is set but the popover is closed, show it as a chip. */}
+        {when && !showWhen && (
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent">
+            <Bell size={11} /> {whenLabel(when, true).text}
+            <button type="button" onClick={() => setWhen("")} aria-label="Clear reminder" className="ml-0.5 text-accent/70 transition-colors hover:text-danger"><X size={11} /></button>
+          </span>
+        )}
+
+        {/* Reminder popover — date + flexible time. Closes via Done / Clear / the
+            bell toggle (no click-outside backdrop, so the calendar popover inside
+            can be used without dismissing this panel). */}
+        {showWhen && (
+          <div className="absolute inset-x-0 top-full z-30 mt-2 rounded-2xl bg-bg-elev p-3 shadow-lg ring-1 ring-border">
+            <p className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-fg-muted"><Bell size={12} className="text-accent" /> Remind me on</p>
+            <ReminderFields value={when} onChange={setWhen} />
+            <div className="mt-2.5 flex items-center gap-2">
+              <button type="button" onClick={() => setShowWhen(false)} className="flex-1 rounded-xl bg-accent py-2 text-sm font-medium text-accent-fg transition-opacity hover:opacity-90">Done</button>
+              {when && <button type="button" onClick={() => { setWhen(""); setShowWhen(false); }} className="rounded-xl bg-bg-subtle px-3 py-2 text-sm text-fg-muted ring-1 ring-border transition-colors hover:text-fg">Clear</button>}
+            </div>
           </div>
         )}
       </div>
@@ -210,7 +265,14 @@ export function TodoCard({
       {visible.length === 0 ? (
         <p className="text-xs text-fg-muted">Nothing on your list. Add one above — set a time and it&apos;ll ping you.</p>
       ) : (
-        <ul className="divide-y divide-border/60">
+        <ul className={cn(
+          "divide-y divide-border/60",
+          // Scroll the list once it grows: fill = match the right-column height
+          // (Needs you); otherwise cap at ~5 rows. Both get the fade + slim bar.
+          fill
+            ? "slim-scroll scroll-fade-y min-h-0 flex-1 overflow-y-auto overscroll-contain px-1"
+            : visible.length > 5 && "slim-scroll scroll-fade-y max-h-[15.5rem] overflow-y-auto overscroll-contain px-1",
+        )}>
           {visible.map((r) => {
             if (editId === r.id) {
               return (
@@ -218,11 +280,11 @@ export function TodoCard({
                   <div className="flex items-center rounded-xl px-3.5 py-2 ring-1 ring-border focus-within:ring-2 focus-within:ring-accent/40">
                     <CaretInput value={editText} onChange={(e) => setEditText(e.target.value)} placeholder="To-do…" className="text-sm" />
                   </div>
-                  <div className="flex items-center gap-2 rounded-xl bg-bg-subtle/40 p-2 ring-1 ring-border">
-                    <Bell size={13} className="ml-1 shrink-0 text-accent" />
-                    <div className="min-w-0 flex-1"><DateTimeField name="todo-edit-remind" allDay={false} value={editWhen} onChange={setEditWhen} /></div>
+                  <div className="rounded-xl bg-bg-subtle/40 p-2 ring-1 ring-border">
+                    <p className="mb-1.5 ml-1 flex items-center gap-1.5 text-[11px] font-medium text-fg-muted"><Bell size={11} className="text-accent" /> Reminder</p>
+                    <ReminderFields value={editWhen} onChange={setEditWhen} />
                     {editWhen && (
-                      <button type="button" onClick={() => setEditWhen("")} aria-label="Clear reminder" className="shrink-0 rounded-lg p-1.5 text-fg-subtle transition-colors hover:text-danger"><X size={14} /></button>
+                      <button type="button" onClick={() => setEditWhen("")} className="mt-1.5 ml-1 inline-flex items-center gap-1 text-[11px] text-fg-subtle transition-colors hover:text-danger"><X size={11} /> Clear reminder</button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">

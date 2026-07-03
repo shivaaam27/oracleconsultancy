@@ -6,10 +6,10 @@ import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo, portalUpdateT
 /* Personal to-dos as a full-width board footer (managers + directors). A quick
  * work/life capture that pings you — kept separate from the portfolio work above
  * it. Staff have the same list on their Home. */
-export async function BoardTodos({ personId }: { personId: number }) {
+export async function BoardTodos({ personId, fill = false }: { personId: number; fill?: boolean }) {
   const items = await listSelfTodos(personId);
   return (
-    <Reveal delay={0.05}>
+    <Reveal delay={0.05} className={fill ? "flex min-h-0 flex-1 flex-col" : undefined}>
       <TodoCard
         items={items}
         createAction={portalCreateTodo}
@@ -17,6 +17,7 @@ export async function BoardTodos({ personId }: { personId: number }) {
         deleteAction={portalDeleteTodo}
         updateAction={portalUpdateTodo}
         title="To-Do List"
+        fill={fill}
       />
     </Reveal>
   );

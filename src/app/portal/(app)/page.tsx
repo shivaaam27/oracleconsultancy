@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CalendarDays, CheckCircle2, ListTodo, Users, MessageSquareText, Video } from "lucide-react";
+import { ListTodo, Users, MessageSquareText, Video } from "lucide-react";
 import { sb } from "@/db/supabase";
-import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
+import { Panel, SectionLabel, TONE } from "@/components/surface-kit";
+import { PortalHomeHero } from "@/components/portal-home-hero";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
 import { PortalTasksCommand } from "@/components/portal-tasks-command";
@@ -11,7 +12,7 @@ import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { type PickerPerson, type PickerCompany } from "@/lib/portal-picker";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds, colleagueCompanyScope } from "@/lib/portal-auth";
-import { getGivenName } from "@/lib/names";
+import { getGivenName, getInitials } from "@/lib/names";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
@@ -119,13 +120,6 @@ export default async function PortalHome() {
   const dueSoon = cmd.filter((t) => t.withinSoon);
   const now = new Date();
 
-  const metrics: Array<{ label: string; value: number; tone: keyof typeof TONE; icon: React.ReactNode }> = [
-    { label: "Open tasks", value: open.length, tone: "accent", icon: <ListTodo size={15} /> },
-    { label: "Due this week", value: dueSoon.length, tone: "warn", icon: <CalendarDays size={15} /> },
-    { label: "Overdue", value: overdue.length, tone: overdue.length ? "danger" : "muted", icon: <CalendarDays size={15} /> },
-    { label: "Completed", value: done.length, tone: "success", icon: <CheckCircle2 size={15} /> },
-  ];
-
   // Ambient attendance — a quietly-alive status line + this week's trail. Reuses
   // the same status the once-a-day check-in pop-up sets; no new data.
   const present = today.status === "Present" || today.status === "Remote";
@@ -151,9 +145,12 @@ export default async function PortalHome() {
       <AnnouncementBanner items={bannerItems} />
       <AutoRefresh seconds={25} />
       <AttendanceCheckin firstName={getGivenName(me.name)} status={today.status} editable={today.editable} />
+      {/* Uniform with the manager/director board hero — aurora shell + greeting +
+          a slim stats pill (was four large tiles that ate the mobile screen). */}
       <Reveal delay={0}>
-        <Hero
-          title={`Hello, ${getGivenName(me.name)}`}
+        <PortalHomeHero
+          firstName={getGivenName(me.name)}
+          initials={getInitials(me.name)}
           subtitle={
             overdue.length > 0
               ? `${overdue.length} task${overdue.length === 1 ? " is" : "s are"} overdue — worth a look first.`
@@ -161,19 +158,11 @@ export default async function PortalHome() {
                 ? `${dueSoon.length} task${dueSoon.length === 1 ? "" : "s"} due in the next 7 days.`
                 : "You're up to date. Nothing due this week."
           }
-        >
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {metrics.map((m) => (
-              <div key={m.label} className={`rounded-2xl p-3 ring-1 ${TONE[m.tone].bg} ${TONE[m.tone].ring}`}>
-                <div className={`flex items-center gap-1.5 text-xs font-medium ${TONE[m.tone].text}`}>
-                  {m.icon}
-                  {m.label}
-                </div>
-                <p className="mt-1 text-2xl font-semibold tabular">{m.value}</p>
-              </div>
-            ))}
-          </div>
-        </Hero>
+          open={open.length}
+          overdue={overdue.length}
+          dueSoon={dueSoon.length}
+          done={done.length}
+        />
       </Reveal>
 
       <Reveal delay={0.03}>

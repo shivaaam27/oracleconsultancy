@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Send, User, type LucideIcon } from "lucide-react";
+import { BarChart3, CalendarClock, ClipboardList, Contact, Home, Inbox, ListTodo, MessageCircle, Plus, Send, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { portalCapabilities } from "@/lib/portal-capabilities";
 import { ThemeToggle } from "./theme-toggle";
@@ -120,7 +120,36 @@ function useDragScroll() {
 type NavTipData = { label: string; cx: number };
 type TipFn = (t: NavTipData | null) => void;
 
-function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce, tourTag, onTip }: { href: string; icon: LucideIcon; label: string; active: boolean; labelled: boolean; reduce: boolean; tourTag?: string; onTip?: TipFn }) {
+/** Accepts the same props we hand a Lucide icon; lets custom SVGs stand in. */
+type NavIcon = React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+
+/** A tiny "layout preview" glyph for the Board tab (managers/directors): the wide
+ *  welcome header, the slim compose bar, then the two working columns (Needs you +
+ *  Company health) — a literal mini-map of the page it opens. */
+function BoardLayoutIcon({ size = 24, className }: { size?: number; strokeWidth?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <rect x="3" y="3" width="18" height="5" rx="1.6" />
+      <rect x="3" y="9.6" width="18" height="2.6" rx="1.1" fillOpacity="0.45" />
+      <rect x="3" y="13.8" width="9.7" height="7.2" rx="1.6" />
+      <rect x="14.1" y="13.8" width="6.9" height="7.2" rx="1.6" fillOpacity="0.45" />
+    </svg>
+  );
+}
+
+/** Layout preview for the staff Home tab: welcome header, the large tasks block,
+ *  then the slim to-do list. */
+function HomeLayoutIcon({ size = 24, className }: { size?: number; strokeWidth?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <rect x="3" y="3" width="18" height="5" rx="1.6" />
+      <rect x="3" y="9.7" width="18" height="8.1" rx="1.6" fillOpacity="0.45" />
+      <rect x="3" y="19.3" width="18" height="2.4" rx="1.1" />
+    </svg>
+  );
+}
+
+function PillTab({ href, icon: Icon, label, active, labelled: showLabel, reduce, tourTag, onTip }: { href: string; icon: NavIcon; label: string; active: boolean; labelled: boolean; reduce: boolean; tourTag?: string; onTip?: TipFn }) {
   const show = (el: HTMLElement) => { const r = el.getBoundingClientRect(); onTip?.({ label, cx: r.left + r.width / 2 }); };
   return (
     <Link
@@ -251,11 +280,11 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
         {/* Tabs scroll horizontally only if they truly can't fit; the controls
             below stay anchored so the bell + theme are always reachable. */}
         <div ref={scrollRef} className="nav-scroll no-scrollbar flex min-w-0 items-center gap-0.5 overflow-x-auto select-none touch-pan-x [@media(pointer:fine)]:cursor-grab [@media(pointer:fine)]:active:cursor-grabbing">
-          {showBoard && <PillTab href="/portal/board" icon={LayoutDashboard} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} onTip={setTip} />}
+          {showBoard && <PillTab href="/portal/board" icon={BoardLayoutIcon} label="Board" active={onBoard} labelled={labelFor(onBoard)} reduce={reduce} onTip={setTip} />}
           {/* Directors + managers are board-first (/portal redirects them to
               /portal/board), so a Home tab is redundant for them — show it for
-              staff + HR only. */}
-          {showHome && <PillTab href="/portal" icon={Home} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} onTip={setTip} tourTag="nav-home" />}
+              staff + HR only. The tab icon mirrors each surface's real layout. */}
+          {showHome && <PillTab href="/portal" icon={HomeLayoutIcon} label="Home" active={onHome} labelled={labelFor(onHome)} reduce={reduce} onTip={setTip} tourTag="nav-home" />}
           {showTasks && <PillTab href="/portal/tasks" icon={ClipboardList} label="Tasks" active={onTasks} labelled={labelFor(onTasks)} reduce={reduce} onTip={setTip} />}
           {/* The contact book / company list — scoped per role server-side
               (group-wide for HR/directors, own-company for managers/staff). */}
@@ -272,9 +301,10 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
           <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} onTip={setTip} />
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} onTip={setTip} tourTag="nav-profile" />
         </div>
-        {/* Tasks + Requests carry their own contextual + FAB (quick add / raise
-            a request), so the pill's create button steps aside there to avoid a
-            duplicate +. */}
+        <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
+        {/* The create + sits AFTER the divider, next to the theme toggle. Tasks +
+            Requests carry their own contextual + FAB, so it steps aside there to
+            avoid a duplicate. */}
         {canCreate && !onTasks && !onRequests && (
           <Link
             href="/portal/task/new"
@@ -285,7 +315,6 @@ export function PortalPill({ canCreate = false, role }: { canCreate?: boolean; r
             <Plus size={19} />
           </Link>
         )}
-        <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
         <div className="shrink-0 flex items-center px-1">
           <ThemeToggle />
         </div>
