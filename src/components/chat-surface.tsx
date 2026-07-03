@@ -20,7 +20,10 @@ import {
   CheckCheck,
   Clock,
   Image as ImageIcon,
+  Copy,
   MessagesSquare,
+  MoreHorizontal,
+  MoreVertical,
   Paperclip,
   Pencil,
   Plus,
@@ -51,6 +54,10 @@ export type ChatActions = {
   postMessage: (fd: FormData) => Promise<{ ok: boolean; error?: string; messageId?: number }>;
   editChatMessage: (id: number, body: string) => Promise<{ ok: boolean }>;
   deleteChatMessage: (id: number) => Promise<{ ok: boolean }>;
+  hideChatMessage: (id: number) => Promise<{ ok: boolean }>;
+  purgeChatMessage: (id: number) => Promise<{ ok: boolean }>;
+  hideThread: (id: number) => Promise<{ ok: boolean }>;
+  deleteThreadForEveryone: (id: number) => Promise<{ ok: boolean }>;
   muteThread: (id: number, muted: boolean) => Promise<{ ok: boolean }>;
   signChatAttachment: (path: string) => Promise<{ url: string | null }>;
 };
@@ -132,6 +139,21 @@ export function ChatSurface(props: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<null | "dm" | "group">(null);
   const [showJump, setShowJump] = useState(false);
+  // Which message is being edited inline (lifted here so the action sheet can start it).
+  const [editingId, setEditingId] = useState<number | null>(null);
+  // Message the action sheet is open for; thread action sheet open flag.
+  const [menuMsg, setMenuMsg] = useState<DisplayMessage | null>(null);
+  // Conversation menu target — set from the header (open thread) OR a list row.
+  const [menuThread, setMenuThread] = useState<ThreadSummary | null>(null);
+  // A pending destructive confirmation (delete for everyone / purge / delete convo).
+  const [confirm, setConfirm] = useState<null | { title: string; body: string; cta: string; run: () => void }>(null);
+  // Transient toast (e.g. "Message removed").
+  const [toast, setToast] = useState<string | null>(null);
+  const flashToast = useCallback((msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2600);
+  }, []);
+  const isOwner = me === "admin";
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
   const prevLenRef = useRef(0);
@@ -269,8 +291,53 @@ export function ChatSurface(props: Props) {
     async (id: number) => {
       await actions.deleteChatMessage(id);
       if (selected != null) reloadThread(selected);
+      notifyRef.current("read"); // nudge peers to refetch (edit/delete has no fast path)
+      flashToast("Message deleted for everyone");
     },
-    [actions, selected, reloadThread],
+    [actions, selected, reloadThread, flashToast],
+  );
+  const onHideMessage = useCallback(
+    async (id: number) => {
+      await actions.hideChatMessage(id);
+      if (selected != null) reloadThread(selected);
+      flashToast("Message removed for you");
+    },
+    [actions, selected, reloadThread, flashToast],
+  );
+  const onPurgeMessage = useCallback(
+    async (id: number) => {
+      await actions.purgeChatMessage(id);
+      if (selected != null) reloadThread(selected);
+      notifyRef.current("read");
+      flashToast("Message permanently deleted");
+    },
+    [actions, selected, reloadThread, flashToast],
+  );
+  const onHideThread = useCallback(
+    async (id: number) => {
+      await actions.hideThread(id);
+      setSelected((s) => (s === id ? null : s));
+      reloadList();
+      flashToast("Conversation removed for you");
+    },
+    [actions, reloadList, flashToast],
+  );
+  const onDeleteThreadEveryone = useCallback(
+    async (id: number) => {
+      await actions.deleteThreadForEveryone(id);
+      setSelected((s) => (s === id ? null : s));
+      reloadList();
+      flashToast("Conversation deleted for everyone");
+    },
+    [actions, reloadList, flashToast],
+  );
+  const setThreadMuted = useCallback(
+    async (id: number, muted: boolean) => {
+      setThreads((ts) => ts.map((t) => (t.id === id ? { ...t, muted } : t)));
+      await actions.muteThread(id, muted);
+      reloadList();
+    },
+    [actions, reloadList],
   );
 
   const send = useCallback(
@@ -400,38 +467,53 @@ export function ChatSurface(props: Props) {
             shown.map((t) => {
               const active = selected === t.id;
               return (
-                <button
+                <div
                   key={t.id}
-                  type="button"
-                  onClick={() => setSelected(t.id)}
-                  className={`flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors ${
+                  className={`group/row relative flex items-center rounded-2xl transition-colors ${
                     active ? "md:bg-accent-soft" : "active:bg-bg-subtle md:hover:bg-bg-subtle"
                   }`}
                 >
-                  <Avatar name={t.title} group={t.kind === "group"} system={t.kind === "system"} size={50} />
-                  <span className="min-w-0 flex-1 border-b border-border/40 pb-2.5">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className={`truncate text-[15px] ${t.unread > 0 ? "font-bold" : "font-semibold"}`}>
-                        {t.title}
-                      </span>
-                      {t.lastMessageAt && (
-                        <span className={`shrink-0 text-[12px] ${t.unread > 0 ? "font-semibold text-accent" : "text-fg-subtle"}`}>
-                          {dayKey(t.lastMessageAt)}
+                  <button
+                    type="button"
+                    onClick={() => setSelected(t.id)}
+                    className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl py-2.5 pl-2.5 pr-1 text-left"
+                  >
+                    <Avatar name={t.title} group={t.kind === "group"} system={t.kind === "system"} size={50} />
+                    <span className="min-w-0 flex-1 border-b border-border/40 pb-2.5">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className={`truncate text-[15px] ${t.unread > 0 ? "font-bold" : "font-semibold"}`}>
+                          {t.title}
                         </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 flex items-center justify-between gap-2">
-                      <span className={`truncate text-[13px] ${t.unread > 0 ? "text-fg" : "text-fg-muted"}`}>
-                        {t.preview ?? "Tap to start chatting"}
+                        {t.lastMessageAt && (
+                          <span className={`shrink-0 text-[12px] ${t.unread > 0 ? "font-semibold text-accent" : "text-fg-subtle"}`}>
+                            {dayKey(t.lastMessageAt)}
+                          </span>
+                        )}
                       </span>
-                      {t.unread > 0 && (
-                        <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-fg">
-                          {t.unread > 99 ? "99+" : t.unread}
+                      <span className="mt-0.5 flex items-center justify-between gap-2">
+                        <span className={`truncate text-[13px] ${t.unread > 0 ? "text-fg" : "text-fg-muted"}`}>
+                          {t.preview ?? "Tap to start chatting"}
                         </span>
-                      )}
+                        {t.unread > 0 && (
+                          <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-accent-fg">
+                            {t.unread > 99 ? "99+" : t.unread}
+                          </span>
+                        )}
+                      </span>
                     </span>
-                  </span>
-                </button>
+                  </button>
+                  {t.kind !== "system" && (
+                    <button
+                      type="button"
+                      onClick={() => setMenuThread(t)}
+                      aria-label="Conversation options"
+                      title="Conversation options"
+                      className="mr-1.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-fg-subtle opacity-60 transition hover:bg-bg-muted hover:text-fg hover:opacity-100 md:opacity-0 md:group-hover/row:opacity-100"
+                    >
+                      <MoreHorizontal size={17} />
+                    </button>
+                  )}
+                </div>
               );
             })
           )}
@@ -483,6 +565,17 @@ export function ChatSurface(props: Props) {
               >
                 {selectedThread?.muted ? <BellOff size={18} className="text-fg-subtle" /> : <Bell size={18} />}
               </button>
+              {detail?.kind !== "system" && (
+                <button
+                  type="button"
+                  onClick={() => selectedThread && setMenuThread(selectedThread)}
+                  title="Conversation options"
+                  aria-label="Conversation options"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
+                >
+                  <MoreVertical size={18} />
+                </button>
+              )}
             </header>
 
             <div
@@ -519,8 +612,13 @@ export function ChatSurface(props: Props) {
                 people={people}
                 taskBase={taskBase}
                 signAttachment={actions.signChatAttachment}
-                onEdit={onEditMessage}
-                onDelete={onDeleteMessage}
+                editingId={editingId}
+                onEdit={(id, body) => {
+                  onEditMessage(id, body);
+                  setEditingId(null);
+                }}
+                onCancelEdit={() => setEditingId(null)}
+                onMenu={(m) => setMenuMsg(m)}
               />
             </div>
 
@@ -575,7 +673,211 @@ export function ChatSurface(props: Props) {
           }}
         />
       )}
+
+      {/* Per-message action sheet (tap the ⋯ on any message). */}
+      {menuMsg && (() => {
+        const m = menuMsg;
+        const mine = m.sender === me;
+        const canModify = !!detail?.canModifyAny || (mine && (detail?.canModifyOwn ?? true));
+        const hasBody = m.body.trim().length > 0;
+        const items: SheetItem[] = [];
+        if (canModify && hasBody) {
+          items.push({ label: "Edit message", icon: Pencil, onClick: () => setEditingId(m.id) });
+        }
+        if (hasBody) {
+          items.push({
+            label: "Copy text",
+            icon: Copy,
+            onClick: () => {
+              navigator.clipboard?.writeText(m.body).then(() => flashToast("Copied"), () => {});
+            },
+          });
+        }
+        items.push({ label: "Delete for me", icon: Trash2, danger: true, onClick: () => onHideMessage(m.id) });
+        if (canModify) {
+          items.push({
+            label: "Delete for everyone",
+            icon: Trash2,
+            danger: true,
+            onClick: () =>
+              setConfirm({
+                title: "Delete for everyone?",
+                body: "This message will be removed for everyone in the conversation.",
+                cta: "Delete",
+                run: () => onDeleteMessage(m.id),
+              }),
+          });
+        }
+        if (isOwner) {
+          items.push({
+            label: "Delete permanently",
+            icon: X,
+            danger: true,
+            onClick: () =>
+              setConfirm({
+                title: "Delete permanently?",
+                body: "This erases the message from the database for good — it cannot be recovered.",
+                cta: "Delete for good",
+                run: () => onPurgeMessage(m.id),
+              }),
+          });
+        }
+        return <ActionSheet title="Message" items={items} onClose={() => setMenuMsg(null)} />;
+      })()}
+
+      {/* Whole-conversation action sheet (⋯ in the header OR on a list row). */}
+      {menuThread && (() => {
+        const th = menuThread;
+        const items: SheetItem[] = [
+          {
+            label: th.muted ? "Unmute conversation" : "Mute conversation",
+            icon: th.muted ? Bell : BellOff,
+            onClick: () => setThreadMuted(th.id, !th.muted),
+          },
+          {
+            label: "Delete for me",
+            icon: Trash2,
+            danger: true,
+            onClick: () => onHideThread(th.id),
+          },
+        ];
+        if (isOwner) {
+          items.push({
+            label: "Delete for everyone",
+            icon: Trash2,
+            danger: true,
+            onClick: () =>
+              setConfirm({
+                title: "Delete this conversation for everyone?",
+                body: "It will disappear from every participant's chat list. Messages are kept in the system but the thread is archived.",
+                cta: "Delete for everyone",
+                run: () => onDeleteThreadEveryone(th.id),
+              }),
+          });
+        }
+        return <ActionSheet title={th.title} items={items} onClose={() => setMenuThread(null)} />;
+      })()}
+
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.title}
+          body={confirm.body}
+          cta={confirm.cta}
+          onConfirm={() => {
+            confirm.run();
+            setConfirm(null);
+            setMenuMsg(null);
+            setMenuThread(null);
+          }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-[70] flex justify-center px-4">
+          <span className="rounded-full bg-fg/90 px-4 py-2 text-[13px] font-medium text-bg shadow-lg backdrop-blur">
+            {toast}
+          </span>
+        </div>
+      )}
     </div>
+  );
+}
+
+/* --------------------------- action sheet + confirm --------------------------- */
+
+type SheetItem = { label: string; icon: typeof Trash2; onClick: () => void; danger?: boolean };
+
+/** Centred glass action sheet (Aurora). Portals to body; closes on backdrop/Esc.
+ *  Running an item closes the sheet first, so a confirm dialog layers cleanly. */
+function ActionSheet({ title, items, onClose }: { title: string; items: SheetItem[]; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <div className="fixed inset-0 z-[65] flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Close" className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative m-3 w-full max-w-sm overflow-hidden rounded-3xl bg-bg-elev/95 shadow-pill ring-1 ring-border backdrop-blur-xl">
+        <p className="truncate px-5 pb-1 pt-4 text-[13px] font-semibold text-fg-subtle">{title}</p>
+        <div className="pb-2">
+          {items.map((it, i) => {
+            const Icon = it.icon;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  onClose();
+                  it.onClick();
+                }}
+                className={`flex w-full items-center gap-3 px-5 py-3 text-left text-[15px] transition-colors hover:bg-bg-subtle active:bg-bg-muted ${
+                  it.danger ? "text-danger" : "text-fg"
+                }`}
+              >
+                <Icon size={18} className="shrink-0" />
+                {it.label}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full border-t border-border/60 py-3 text-[15px] font-semibold text-fg-muted transition-colors hover:bg-bg-subtle"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ConfirmDialog({
+  title,
+  body,
+  cta,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  body: string;
+  cta: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  return createPortal(
+    <div className="fixed inset-0 z-[68] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Cancel" className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm rounded-3xl bg-bg-elev/95 p-5 shadow-pill ring-1 ring-border backdrop-blur-xl">
+        <h3 className="text-[17px] font-bold tracking-tight">{title}</h3>
+        <p className="mt-1.5 text-[14px] leading-relaxed text-fg-muted">{body}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-full px-4 py-2 text-[14px] font-semibold text-fg-muted transition-colors hover:bg-bg-subtle"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-full bg-danger px-4 py-2 text-[14px] font-semibold text-white shadow-sm transition-transform hover:scale-[1.03] active:scale-95"
+          >
+            {cta}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -596,8 +898,10 @@ function MessageList({
   people,
   taskBase,
   signAttachment,
+  editingId,
   onEdit,
-  onDelete,
+  onCancelEdit,
+  onMenu,
 }: {
   messages: DisplayMessage[];
   me: string;
@@ -612,8 +916,10 @@ function MessageList({
   people: MentionCandidate[];
   taskBase: "/task" | "/portal/task";
   signAttachment: (path: string) => Promise<{ url: string | null }>;
+  editingId: number | null;
   onEdit: (id: number, body: string) => void;
-  onDelete: (id: number) => void;
+  onCancelEdit: () => void;
+  onMenu: (m: DisplayMessage) => void;
 }) {
   if (messages.length === 0 && typing.length === 0) {
     return (
@@ -657,7 +963,7 @@ function MessageList({
             <Bubble
               m={m}
               mine={mine}
-              canModify={canModifyAny || (mine && canModifyOwn)}
+              editing={editingId === m.id}
               isGroup={isGroup}
               firstInGroup={firstInGroup}
               lastInGroup={lastInGroup}
@@ -666,7 +972,8 @@ function MessageList({
               taskBase={taskBase}
               signAttachment={signAttachment}
               onEdit={onEdit}
-              onDelete={onDelete}
+              onCancelEdit={onCancelEdit}
+              onMenu={onMenu}
             />
           </div>
         );
@@ -695,7 +1002,7 @@ function TypingBubble() {
 const Bubble = memo(function Bubble({
   m,
   mine,
-  canModify,
+  editing,
   isGroup,
   firstInGroup,
   lastInGroup,
@@ -704,12 +1011,13 @@ const Bubble = memo(function Bubble({
   taskBase,
   signAttachment,
   onEdit,
-  onDelete,
+  onCancelEdit,
+  onMenu,
 }: {
   m: DisplayMessage;
   mine: boolean;
-  /** Whether the viewer may edit/delete THIS message (own message, or moderating). */
-  canModify: boolean;
+  /** This message is being edited inline (controlled by the parent). */
+  editing: boolean;
   isGroup?: boolean;
   firstInGroup: boolean;
   lastInGroup: boolean;
@@ -718,10 +1026,14 @@ const Bubble = memo(function Bubble({
   taskBase: "/task" | "/portal/task";
   signAttachment: (path: string) => Promise<{ url: string | null }>;
   onEdit: (id: number, body: string) => void;
-  onDelete: (id: number) => void;
+  onCancelEdit: () => void;
+  onMenu: (m: DisplayMessage) => void;
 }) {
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(m.body);
+  // Reset the draft to the live body whenever an edit session begins.
+  useEffect(() => {
+    if (editing) setDraft(m.body);
+  }, [editing, m.body]);
 
   if (m.deletedAt) {
     return (
@@ -777,15 +1089,12 @@ const Bubble = memo(function Bubble({
                 <div className="flex gap-1.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      onEdit(m.id, draft);
-                      setEditing(false);
-                    }}
+                    onClick={() => onEdit(m.id, draft)}
                     className="rounded-md bg-white/25 px-2 py-0.5 text-[12px] font-medium"
                   >
                     Save
                   </button>
-                  <button type="button" onClick={() => setEditing(false)} className="px-2 py-0.5 text-[12px] opacity-80">
+                  <button type="button" onClick={onCancelEdit} className="px-2 py-0.5 text-[12px] opacity-80">
                     Cancel
                   </button>
                 </div>
@@ -854,15 +1163,15 @@ const Bubble = memo(function Bubble({
               ) : (
                 <Check size={14} className="text-fg-subtle" />
               ))}
-            {canModify && !editing && !m.pending && (
-              <span className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                <button type="button" onClick={() => setEditing(true)} className="text-fg-subtle hover:text-fg">
-                  <Pencil size={12} />
-                </button>
-                <button type="button" onClick={() => onDelete(m.id)} className="text-fg-subtle hover:text-danger">
-                  <Trash2 size={12} />
-                </button>
-              </span>
+            {!editing && !m.pending && (
+              <button
+                type="button"
+                onClick={() => onMenu(m)}
+                aria-label="Message actions"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full text-fg-subtle opacity-60 transition hover:bg-bg-muted hover:text-fg hover:opacity-100 group-hover:opacity-100"
+              >
+                <MoreHorizontal size={15} />
+              </button>
             )}
           </div>
         )}

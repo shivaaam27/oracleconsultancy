@@ -1,5 +1,34 @@
 # Chat System (`/chat` + `/portal/chat`)
 
+> **Jul 2026 — delete/edit overhaul (Phase 1, built + verified locally, NOT pushed).**
+> The old edit/delete controls were **hover-only + last-of-group-only** (`opacity-0
+> group-hover:opacity-100` in `chat-surface.tsx`) → invisible on touch (all portals)
+> and absent on earlier messages. Replaced with a **tap ⋯ action sheet on every
+> message** + a **⋯ conversation menu in the header**. WhatsApp-style model:
+> - **Message**: Edit · Copy · *Delete for me* (per-viewer hide) · *Delete for
+>   everyone* (soft-delete, moderation-gated) · *Delete permanently* (owner-only hard
+>   purge).
+> - **Conversation**: Mute · *Delete for me* (per-participant hide) · *Delete for
+>   everyone* (owner-only archive).
+> New DB (migration **0107**): `chat_participants.hidden_at` (thread hide-for-me;
+> a newer message un-hides — WhatsApp behaviour) + table `chat_message_hidden`
+> (message_id, participant). Lib: `hideMessageForViewer` / `hardDeleteMessage` /
+> `hideThreadForViewer` / `archiveThreadForEveryone`; `threadMessages(threadId,
+> viewer?)` and `listThreadsFor` now filter hidden. Actions added to BOTH
+> `chat/actions.ts` + `portal/(app)/chat/actions.ts` and both `chat-page-inner.tsx`.
+> UI: `ActionSheet` + `ConfirmDialog` + toast in `chat-surface.tsx`.
+> **⚠️ MIGRATION-JOURNAL GOTCHA (cost an hour):** `npm run db:migrate` uses drizzle's
+> `migrate()` which reads `drizzle/meta/_journal.json` — a hand-written `.sql` in
+> `drizzle/` is SILENTLY SKIPPED unless you add a journal entry (`{idx,version:"7",
+> when,tag}`). The skipped column made `listThreadsFor`'s `select(...hidden_at)`
+> error → PostgREST returns null → **the whole conversation list went empty**.
+> Fix: applied DDL directly + added the 0107 journal entry (SQL uses `IF NOT EXISTS`
+> so deploy re-run is safe). Snapshot NOT regenerated → a future `drizzle-kit
+> generate` may re-detect these; keep the `IF NOT EXISTS` guards.
+> TODO (Phase 2): per-row swipe-to-delete on the thread list; broadcast edit/delete
+> as a stamp (currently a full refetch); undo toast (currently confirm-only);
+> anon-key realtime; chat search via ORI; reactions; audit log for moderation.
+
 > **Jun 2026 addition:** per-person read-only `kind="system"` channels — **Task
 > reminders** (daily 9am cron + push) and **Announcements** (published
 > announcements mirror in, silent). `getOrCreateSystemThread`/`postSystemMessage`

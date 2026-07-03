@@ -765,11 +765,25 @@ export const chatParticipants = pgTable(
     joinedAt: timestamp("joined_at", { mode: "date", withTimezone: true }).notNull(),
     lastReadAt: timestamp("last_read_at", { mode: "date", withTimezone: true }),
     mutedAt: timestamp("muted_at", { mode: "date", withTimezone: true }),
+    // "Delete conversation for me" — hides the thread from this participant's
+    // list. A newer message (last_message_at > hidden_at) brings it back.
+    hiddenAt: timestamp("hidden_at", { mode: "date", withTimezone: true }),
   },
   (t) => [
     primaryKey({ columns: [t.threadId, t.participant] }),
     index("chat_participants_participant_idx").on(t.participant),
   ]
+);
+
+// "Delete message for me" — hide a single message for one participant only.
+export const chatMessageHidden = pgTable(
+  "chat_message_hidden",
+  {
+    messageId: integer("message_id").notNull().references(() => chatMessages.id, { onDelete: "cascade" }),
+    participant: text("participant").notNull(),
+    hiddenAt: timestamp("hidden_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.messageId, t.participant] })]
 );
 
 export const chatMessages = pgTable("chat_messages", {

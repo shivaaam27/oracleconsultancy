@@ -2,7 +2,10 @@ import { getAppSettings } from "@/lib/settings";
 import { ChatSurface } from "@/components/chat-surface";
 import {
   deleteChatMessage,
+  deleteThreadForEveryone,
   editChatMessage,
+  hideChatMessage,
+  hideThread,
   listMyThreads,
   listPeople,
   markThreadRead,
@@ -10,6 +13,7 @@ import {
   newGroup,
   openThread,
   postMessage,
+  purgeChatMessage,
   refreshThread,
   signChatAttachment,
   startDm,
@@ -41,6 +45,10 @@ export async function AdminChat({ initialThreadId }: { initialThreadId: number |
         postMessage,
         editChatMessage,
         deleteChatMessage,
+        hideChatMessage,
+        purgeChatMessage,
+        hideThread,
+        deleteThreadForEveryone,
         muteThread,
         signChatAttachment,
       }}

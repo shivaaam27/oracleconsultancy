@@ -9,10 +9,14 @@ import { parseMentionIds, type MentionCandidate } from "@/lib/mentions";
 import {
   ADMIN,
   type Attachment,
+  archiveThreadForEveryone,
   createGroup,
   editMessage,
   getOrCreateDm,
   getThreadDetail,
+  hardDeleteMessage,
+  hideMessageForViewer,
+  hideThreadForViewer,
   listThreadsFor,
   markRead,
   personParticipant,
@@ -38,7 +42,7 @@ export async function listPeople(): Promise<MentionCandidate[]> {
 
 export async function openThread(threadId: number) {
   if (!(await viewerInThread(threadId, ADMIN))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN, "owner"), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN, "owner"), threadMessages(threadId, ADMIN)]);
   await markRead(threadId, ADMIN);
   return { ok: true as const, detail, messages };
 }
@@ -47,7 +51,7 @@ export async function openThread(threadId: number) {
  *  read-receipt loop). Used by the live channel + polling. */
 export async function refreshThread(threadId: number) {
   if (!(await viewerInThread(threadId, ADMIN))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN, "owner"), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, ADMIN, "owner"), threadMessages(threadId, ADMIN)]);
   return { ok: true as const, detail, messages };
 }
 
@@ -140,6 +144,30 @@ export async function editChatMessage(messageId: number, body: string) {
 
 export async function deleteChatMessage(messageId: number) {
   const ok = await softDeleteMessage(messageId, { participant: ADMIN, role: "owner" });
+  return { ok };
+}
+
+/** "Delete for me" — hide one message for the owner only. */
+export async function hideChatMessage(messageId: number) {
+  return { ok: await hideMessageForViewer(messageId, ADMIN) };
+}
+
+/** Owner-only hard purge — permanently removes a message. */
+export async function purgeChatMessage(messageId: number) {
+  return { ok: await hardDeleteMessage(messageId, { participant: ADMIN, role: "owner" }) };
+}
+
+/** "Delete conversation for me" — hide a whole thread from the owner's list. */
+export async function hideThread(threadId: number) {
+  const ok = await hideThreadForViewer(threadId, ADMIN);
+  if (ok) revalidatePath("/chat");
+  return { ok };
+}
+
+/** "Delete conversation for everyone" — owner archives the whole thread. */
+export async function deleteThreadForEveryone(threadId: number) {
+  const ok = await archiveThreadForEveryone(threadId, { participant: ADMIN, role: "owner" });
+  if (ok) revalidatePath("/chat");
   return { ok };
 }
 

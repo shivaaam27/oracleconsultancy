@@ -750,6 +750,13 @@
       "when": 1783020000000,
       "tag": "0106_ai_jobs_claim_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1783100000000,
+      "tag": "0107_chat_delete_model",
+      "breakpoints": true
     }
   ]
 }

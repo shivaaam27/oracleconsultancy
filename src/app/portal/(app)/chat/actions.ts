@@ -11,10 +11,14 @@ import {
   ADMIN,
   type Attachment,
   type ChatRole,
+  archiveThreadForEveryone,
   createGroup,
   editMessage,
   getOrCreateDm,
   getThreadDetail,
+  hardDeleteMessage,
+  hideMessageForViewer,
+  hideThreadForViewer,
   isSystemThread,
   listThreadsFor,
   markRead,
@@ -70,7 +74,7 @@ export async function openThread(threadId: number) {
   const m = await me();
   if (!m) return { ok: false as const, error: "Signed out" };
   if (!(await viewerInThread(threadId, m.participant))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant, m.role), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant, m.role), threadMessages(threadId, m.participant)]);
   await markRead(threadId, m.participant);
   return { ok: true as const, detail, messages, me: m.participant };
 }
@@ -81,7 +85,7 @@ export async function refreshThread(threadId: number) {
   const m = await me();
   if (!m) return { ok: false as const, error: "Signed out" };
   if (!(await viewerInThread(threadId, m.participant))) return { ok: false as const, error: "Not found" };
-  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant, m.role), threadMessages(threadId)]);
+  const [detail, messages] = await Promise.all([getThreadDetail(threadId, m.participant, m.role), threadMessages(threadId, m.participant)]);
   return { ok: true as const, detail, messages };
 }
 
@@ -205,6 +209,38 @@ export async function deleteChatMessage(messageId: number) {
   const m = await me();
   if (!m) return { ok: false };
   return { ok: await softDeleteMessage(messageId, { participant: m.participant, role: m.role }) };
+}
+
+/** "Delete for me" — hide one message for the signed-in person only. */
+export async function hideChatMessage(messageId: number) {
+  const m = await me();
+  if (!m) return { ok: false };
+  return { ok: await hideMessageForViewer(messageId, m.participant) };
+}
+
+/** Hard purge — owner-only; staff always get `false` (role gate in the lib). */
+export async function purgeChatMessage(messageId: number) {
+  const m = await me();
+  if (!m) return { ok: false };
+  return { ok: await hardDeleteMessage(messageId, { participant: m.participant, role: m.role }) };
+}
+
+/** "Delete conversation for me" — hide a whole thread from this person's list. */
+export async function hideThread(threadId: number) {
+  const m = await me();
+  if (!m) return { ok: false };
+  const ok = await hideThreadForViewer(threadId, m.participant);
+  if (ok) revalidatePath("/portal/chat");
+  return { ok };
+}
+
+/** "Delete conversation for everyone" — owner-only; staff always get `false`. */
+export async function deleteThreadForEveryone(threadId: number) {
+  const m = await me();
+  if (!m) return { ok: false };
+  const ok = await archiveThreadForEveryone(threadId, { participant: m.participant, role: m.role });
+  if (ok) revalidatePath("/portal/chat");
+  return { ok };
 }
 
 export async function muteThread(threadId: number, muted: boolean) {

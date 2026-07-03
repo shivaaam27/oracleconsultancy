@@ -308,7 +308,7 @@ export async function postSystemMessage(input: {
 export async function listThreadsFor(viewer: string): Promise<ThreadSummary[]> {
   const { data: memberships } = await sb
     .from("chat_participants")
-    .select("thread_id,last_read_at,muted_at")
+    .select("thread_id,last_read_at,muted_at,hidden_at")
     .eq("participant", viewer);
   const rows = memberships ?? [];
   if (rows.length === 0) return [];
@@ -338,6 +338,10 @@ export async function listThreadsFor(viewer: string): Promise<ThreadSummary[]> {
   for (const t of threads ?? []) {
     const id = t.id as number;
     const r = readBy.get(id);
+    // "Deleted for me": stay hidden until a newer message arrives (WhatsApp behaviour).
+    const hiddenAt = r?.hidden_at as string | null;
+    const lastMsgAt = (t.last_message_at as string | null) ?? null;
+    if (hiddenAt && (!lastMsgAt || lastMsgAt <= hiddenAt)) continue;
     const lastRead = r?.last_read_at as string | null;
     // Unread = messages newer than lastRead, not sent by the viewer, not deleted.
     let unreadQuery = sb
@@ -424,14 +428,26 @@ export async function getThreadDetail(threadId: number, viewer?: string, viewerR
   };
 }
 
-export async function threadMessages(threadId: number, limit = 200): Promise<ChatMessage[]> {
+export async function threadMessages(threadId: number, viewer?: string, limit = 200): Promise<ChatMessage[]> {
   const { data } = await sb
     .from("chat_messages")
     .select("id,thread_id,sender,body,attachments,task_code,created_at,edited_at,deleted_at")
     .eq("thread_id", threadId)
     .order("created_at", { ascending: true })
     .limit(limit);
-  const rows = data ?? [];
+  let rows = data ?? [];
+  // Drop messages this viewer has "deleted for me".
+  if (viewer && rows.length) {
+    const { data: hid } = await sb
+      .from("chat_message_hidden")
+      .select("message_id")
+      .eq("participant", viewer)
+      .in("message_id", rows.map((r) => r.id as number));
+    if (hid && hid.length) {
+      const hidden = new Set(hid.map((h) => h.message_id as number));
+      rows = rows.filter((r) => !hidden.has(r.id as number));
+    }
+  }
   const names = await nameMap([...new Set(rows.map((r) => r.sender as string))]);
   return rows.map((r) => ({
     id: r.id as number,
@@ -622,6 +638,49 @@ export async function editMessage(messageId: number, viewer: { participant: stri
 export async function softDeleteMessage(messageId: number, viewer: { participant: string; role: ChatRole }): Promise<boolean> {
   if (!(await canModifyMessage(messageId, viewer))) return false;
   await sb.from("chat_messages").update({ deleted_at: new Date().toISOString() }).eq("id", messageId);
+  return true;
+}
+
+/** "Delete for me" — hide a single message for this viewer only, leaving it in
+ *  place for everyone else. Available on any message the viewer can see. */
+export async function hideMessageForViewer(messageId: number, viewer: string): Promise<boolean> {
+  const { data: msg } = await sb.from("chat_messages").select("thread_id").eq("id", messageId).maybeSingle();
+  if (!msg) return false;
+  if (!(await viewerInThread(msg.thread_id as number, viewer))) return false;
+  await sb
+    .from("chat_message_hidden")
+    .upsert({ message_id: messageId, participant: viewer }, { onConflict: "message_id,participant" });
+  return true;
+}
+
+/** Owner-only hard purge — permanently removes a message (row + mentions +
+ *  per-viewer hide rows cascade). For genuinely sensitive content that must not
+ *  linger as a soft-deleted row. */
+export async function hardDeleteMessage(messageId: number, viewer: { participant: string; role: ChatRole }): Promise<boolean> {
+  if (viewer.role !== "owner") return false;
+  await sb.from("chat_messages").delete().eq("id", messageId);
+  return true;
+}
+
+/** "Delete conversation for me" — hides the whole thread from this participant's
+ *  list. A newer message brings it back (WhatsApp behaviour). */
+export async function hideThreadForViewer(threadId: number, viewer: string): Promise<boolean> {
+  if (!(await viewerInThread(threadId, viewer))) return false;
+  await sb
+    .from("chat_participants")
+    .update({ hidden_at: new Date().toISOString() })
+    .eq("thread_id", threadId)
+    .eq("participant", viewer);
+  return true;
+}
+
+/** "Delete conversation for everyone" — archives the whole thread so it leaves
+ *  every participant's list. Owner-only (Command Centre) — staff can only delete
+ *  a shared conversation for themselves, never for others. Never a system channel. */
+export async function archiveThreadForEveryone(threadId: number, viewer: { participant: string; role: ChatRole }): Promise<boolean> {
+  if (viewer.role !== "owner") return false;
+  if (await isSystemThread(threadId)) return false;
+  await sb.from("chat_threads").update({ archived_at: new Date().toISOString() }).eq("id", threadId);
   return true;
 }
 
