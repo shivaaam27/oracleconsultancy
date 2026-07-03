@@ -139,6 +139,14 @@ export async function saveSettings(fd: FormData): Promise<void> {
     notifyDigest: fd.get("notifyDigest") === "on",
     quietHoursStart: ((fd.get("quietHoursStart") as string | null) ?? "").trim(),
     quietHoursEnd: ((fd.get("quietHoursEnd") as string | null) ?? "").trim(),
+    meetingTaskMode: (() => {
+      const v = String(fd.get("meetingTaskMode") ?? "");
+      return v === "always" || v === "off" || v === "company" ? v : undefined;
+    })(),
+    meetingTaskCategory: (fd.get("meetingTaskCategory") as string | null)?.trim() || undefined,
+    autoAdvanceMeetingTasks: fd.get("autoAdvanceMeetingTasks") === "on",
+    meetingTaskGraceMinutes: num(fd, "meetingTaskGraceMinutes"),
+    eventAttendeePings: fd.get("eventAttendeePings") === "on",
   };
 
   // Groq API key: only WRITE when the owner types a new value (the field renders

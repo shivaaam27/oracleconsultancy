@@ -37,7 +37,7 @@ export const dynamic = "force-dynamic";
 const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "risk", "location", "swipe", "navigation"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice"] },
-  { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "tax-legal"] },
+  { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google", "dropbox"] },
   { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["owner", "passkeys", "portal"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["notifications", "quiet-hours", "design", "maintenance"] },
@@ -374,6 +374,44 @@ export default async function SettingsPage({
         <section data-group="automation" className="space-y-4">
           <SettingsCard id="automations" icon={<Wrench size={15} />} title="Automations" desc="How hands-off the system runs. Auto · Suggest · Off." keywords="automation rules auto suggest reactions hands-off">
             <AutomationSettings statuses={automationStatuses} recordsConfidence={recordsConfidence} />
+          </SettingsCard>
+
+          <SettingsCard id="meeting-tasks" icon={<CalendarCheck size={15} />} title="Meetings & scheduling" desc="Turn meetings into tasks and tune how they auto-advance and remind." keywords="meeting task schedule calendar event auto in progress reminder ping recurring">
+            <form action={saveSettings} className="space-y-4">
+              <input type="hidden" name="__keys" value="meetingTaskMode,meetingTaskCategory,autoAdvanceMeetingTasks,meetingTaskGraceMinutes,eventAttendeePings" />
+              <input type="hidden" name="__section" value="automation" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>Create a task from a meeting</FieldLabel>
+                  <Select name="meetingTaskMode" defaultValue={s.meetingTaskMode}>
+                    <option value="company">When a company is set</option>
+                    <option value="always">Always</option>
+                    <option value="off">Never</option>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Task category</FieldLabel>
+                  <Input name="meetingTaskCategory" defaultValue={s.meetingTaskCategory} placeholder="Meetings" />
+                </div>
+              </div>
+              <FormSwitch
+                name="autoAdvanceMeetingTasks"
+                defaultChecked={s.autoAdvanceMeetingTasks}
+                label="Move the task to In Progress when the meeting starts"
+                hint="No deadline is set — the task simply becomes active once the meeting time arrives."
+              />
+              <div className="sm:w-1/2">
+                <FieldLabel>Grace minutes before advancing</FieldLabel>
+                <Input name="meetingTaskGraceMinutes" type="number" min={0} max={120} defaultValue={s.meetingTaskGraceMinutes} />
+              </div>
+              <FormSwitch
+                name="eventAttendeePings"
+                defaultChecked={s.eventAttendeePings}
+                label="Ping attendees before each meeting"
+                hint="A push + a message in their Reminders channel, on top of the calendar's own alarm."
+              />
+              <SaveBar />
+            </form>
           </SettingsCard>
 
           <SettingsCard id="tax-legal" icon={<Scale size={15} />} title="Tax & Legal" desc="Pause the area until you have real data. Resumes fresh." keywords="tax legal pause hide obligations statutory command centre">

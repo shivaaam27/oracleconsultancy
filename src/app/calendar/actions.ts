@@ -13,14 +13,31 @@ import {
 } from "@/lib/calendar";
 import { buildIcs } from "@/lib/ics";
 import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
+import { createTasksForEvent, shouldCreateMeetingTasks } from "@/lib/meeting-tasks";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
 import { cancelGoogleEvent, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
 import { sb } from "@/db/supabase";
 
 type Result =
-  | { ok: true; id?: number; googleSynced?: boolean; googleCancelled?: boolean }
+  | { ok: true; id?: number; googleSynced?: boolean; googleCancelled?: boolean; taskCodes?: string[] }
   | { ok: false; error: string };
+
+/** Parse a JSON array of company ids from the form ("companyIds"), falling back
+ *  to the single "companyId" field. Used for meeting-as-task (one task/company). */
+function parseCompanyIds(fd: FormData, fallback: number | null): number[] {
+  const raw = (fd.get("companyIds") ?? "").toString().trim();
+  if (raw) {
+    try {
+      const v = JSON.parse(raw);
+      if (Array.isArray(v)) {
+        const ids = v.map((n) => Number(n)).filter((n) => Number.isFinite(n));
+        if (ids.length) return [...new Set(ids)];
+      }
+    } catch { /* fall through */ }
+  }
+  return fallback != null ? [fallback] : [];
+}
 
 function str(fd: FormData, key: string): string | null {
   const v = (fd.get(key) ?? "").toString().trim();
@@ -102,12 +119,13 @@ export async function createEventAction(fd: FormData, createdBy?: string): Promi
   const endAt = localToIso(str(fd, "endAt"), allDay);
 
   try {
+    const companyId = numOrNull(fd, "companyId");
     const ev = await createCalendarEvent({
       title,
       description: str(fd, "description"),
       location: str(fd, "location"),
       meetLink: str(fd, "meetLink"),
-      companyId: numOrNull(fd, "companyId"),
+      companyId,
       startAt,
       endAt,
       allDay,
@@ -116,8 +134,27 @@ export async function createEventAction(fd: FormData, createdBy?: string): Promi
       attendees: parseAttendees(str(fd, "attendees")),
       createdBy,
     });
+
+    // Meeting-as-task: spawn one task per company (no deadline) so the meeting can
+    // be prepped + followed through in the task system. Per-event override:
+    // trackAsTask "on"/"off" beats the setting; empty = the setting's default.
+    let taskCodes: string[] | undefined;
+    try {
+      const settings = await getAppSettings();
+      const companyIds = parseCompanyIds(fd, companyId);
+      const track = (fd.get("trackAsTask") ?? "").toString().trim();
+      const want =
+        track === "off" ? false
+        : track === "on" ? companyIds.length > 0
+        : shouldCreateMeetingTasks(settings.meetingTaskMode, companyIds);
+      if (want) {
+        const created = await createTasksForEvent(ev, { companyIds, createdBy });
+        if (created.length) taskCodes = created.map((t) => t.code);
+      }
+    } catch { /* task spawn is best-effort — never block event creation */ }
+
     invalidate();
-    return { ok: true, id: ev.id };
+    return { ok: true, id: ev.id, taskCodes };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not create event." };
   }

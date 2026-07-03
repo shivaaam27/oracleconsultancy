@@ -982,6 +982,9 @@ function EventForm({
   const [endVal, setEndVal] = useState<string>(isoToLocalInput(editing?.endAt ?? null, false));
   // New events default to auto-adding a Google Meet link (existing events keep theirs).
   const [addMeet, setAddMeet] = useState(!editing);
+  // New events: also track the meeting as a task (creates one task per company).
+  const [companyId, setCompanyId] = useState<string>(editing?.companyId ? String(editing.companyId) : "");
+  const [trackTask, setTrackTask] = useState(!editing);
 
   function toggleReminder(v: number) {
     setReminders((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v].sort((a, b) => b - a));
@@ -1022,13 +1025,16 @@ function EventForm({
       if (r.ok) {
         // New event + Meet requested + no link pasted → mint one now (Google),
         // so the link exists on creation rather than only after sending invites.
+        const taskNote = r.taskCodes?.length
+          ? ` · task ${r.taskCodes.length === 1 ? r.taskCodes[0] : `${r.taskCodes.length} created`}`
+          : "";
         if (!editing && addMeet && r.id && !String(fd.get("meetLink") ?? "").trim()) {
           const m = await ensureEventMeetLink(r.id);
-          toast(m.meetLink ? "Event created — Google Meet link added." : "Event created.", { tone: "success" });
+          toast((m.meetLink ? "Event created — Google Meet link added." : "Event created.") + taskNote, { tone: "success" });
         } else if (editing && r.googleSynced) {
           toast("Event updated — guests notified of the change.", { tone: "success", duration: 6000 });
         } else {
-          toast(editing ? "Event updated" : "Event created", { tone: "success" });
+          toast((editing ? "Event updated" : "Event created") + taskNote, { tone: "success" });
         }
         onClose();
       } else {
@@ -1131,7 +1137,7 @@ function EventForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <FieldLabel>Company</FieldLabel>
-            <Select name="companyId" defaultValue={editing?.companyId ?? ""}>
+            <Select name="companyId" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
               <option value="">—</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
@@ -1153,6 +1159,27 @@ function EventForm({
             <Input type="date" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} />
           </div>
         )}
+
+        {/* Meeting-as-task: create a task to prep/follow the meeting (one per company). */}
+        {!editing && (
+          <label className="flex items-start gap-2.5 rounded-xl bg-bg-subtle ring-1 ring-border/70 px-3 py-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={trackTask}
+              onChange={(e) => setTrackTask(e.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 accent-[hsl(var(--accent))]"
+            />
+            <span className="text-sm">
+              <span className="font-medium">Track this meeting as a task</span>
+              <span className="block text-[12px] text-fg-muted">
+                {companyId
+                  ? "Creates a task (no deadline) so you can prep and follow it through; it moves to In Progress when the meeting starts."
+                  : "Pick a company above to create a follow-through task."}
+              </span>
+            </span>
+          </label>
+        )}
+        <input type="hidden" name="trackAsTask" value={trackTask && companyId ? "on" : "off"} />
 
         {/* Reminders */}
         <div>

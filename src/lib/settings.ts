@@ -143,6 +143,21 @@ export type AppSettings = {
    * obligations that fell due while paused. See setCommandCentrePause().
    */
   commandCentrePaused: boolean;
+
+  /* ---- Scheduling & Automation (meeting-as-task) ---- */
+  /** When a calendar event/meeting also becomes a task. "company" = only when a
+   *  company is set (default), "always" = every event, "off" = never. */
+  meetingTaskMode: "company" | "always" | "off";
+  /** Category stamped on tasks auto-created from meetings. */
+  meetingTaskCategory: string;
+  /** Auto-advance a meeting's linked task Not Started → In Progress once the
+   *  meeting start time passes (opportunistic sweep). No deadline is ever set. */
+  autoAdvanceMeetingTasks: boolean;
+  /** Grace period after the start before advancing (in case a meeting begins late). */
+  meetingTaskGraceMinutes: number;
+  /** Ping attendees (push + chat "Reminders" channel) at each event reminder lead
+   *  time, on top of the calendar's own device alarm. */
+  eventAttendeePings: boolean;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -187,6 +202,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   quietHoursEnd: "",
   notifyDigest: false, // off = each notification buzzes individually (today's behaviour)
   commandCentrePaused: false, // false = Tax & Legal live (today's behaviour)
+  meetingTaskMode: "company",
+  meetingTaskCategory: "Meetings",
+  autoAdvanceMeetingTasks: true,
+  meetingTaskGraceMinutes: 0,
+  eventAttendeePings: true,
 };
 
 /** Map of canonical setting field → storage key. */
@@ -222,6 +242,11 @@ const KEY: Record<keyof AppSettings, string> = {
   quietHoursEnd: "v2.quietHoursEnd",
   notifyDigest: "v2.notifyDigest",
   commandCentrePaused: "v2.commandCentrePaused",
+  meetingTaskMode: "v2.meetingTaskMode",
+  meetingTaskCategory: "v2.meetingTaskCategory",
+  autoAdvanceMeetingTasks: "v2.autoAdvanceMeetingTasks",
+  meetingTaskGraceMinutes: "v2.meetingTaskGraceMinutes",
+  eventAttendeePings: "v2.eventAttendeePings",
 };
 
 const STORAGE_KEYS = Object.values(KEY);
@@ -277,6 +302,14 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     quietHoursEnd: map.get(KEY.quietHoursEnd) ?? d.quietHoursEnd,
     notifyDigest: toBool(map.get(KEY.notifyDigest), d.notifyDigest),
     commandCentrePaused: toBool(map.get(KEY.commandCentrePaused), d.commandCentrePaused),
+    meetingTaskMode: ((): "company" | "always" | "off" => {
+      const v = map.get(KEY.meetingTaskMode);
+      return v === "always" || v === "off" || v === "company" ? v : d.meetingTaskMode;
+    })(),
+    meetingTaskCategory: map.get(KEY.meetingTaskCategory) ?? d.meetingTaskCategory,
+    autoAdvanceMeetingTasks: toBool(map.get(KEY.autoAdvanceMeetingTasks), d.autoAdvanceMeetingTasks),
+    meetingTaskGraceMinutes: toNum(map.get(KEY.meetingTaskGraceMinutes), d.meetingTaskGraceMinutes),
+    eventAttendeePings: toBool(map.get(KEY.eventAttendeePings), d.eventAttendeePings),
   };
 });
 

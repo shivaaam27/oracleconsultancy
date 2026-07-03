@@ -622,11 +622,15 @@ export const tasks = pgTable("tasks", {
   blockedOnPersonId: integer("blocked_on_person_id").references(() => people.id),
   blockedReason: text("blocked_reason"),
   blockedSince: timestamp("blocked_since", { mode: "date", withTimezone: true }),
+  // Set when this task was spawned from a calendar event (meeting-as-task). Lets
+  // the drawer show a "from meeting" chip and the sweep advance it at start time.
+  sourceEventId: integer("source_event_id").references((): AnyPgColumn => calendarEvents.id, { onDelete: "set null" }),
 }, (t) => [
   index("tasks_company_idx").on(t.companyId),
   index("tasks_owner_idx").on(t.ownerId),
   index("tasks_status_idx").on(t.status),
   index("tasks_created_by_idx").on(t.createdByPersonId),
+  index("tasks_source_event_idx").on(t.sourceEventId),
 ]);
 
 export const taskAssignees = pgTable(
