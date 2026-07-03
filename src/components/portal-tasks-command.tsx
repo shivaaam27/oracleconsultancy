@@ -632,7 +632,13 @@ function TaskRow({
   // the inline update composer and the quiet actions row. Each pill auto-saves
   // on change (no Save button). Managers can only move status; the rest render
   // read-only for them.
-  function Editor({ withStatus }: { withStatus: boolean }) {
+  // NOTE: this is a render HELPER, called as renderEditor({...}), NOT mounted as
+  // <Editor/>. Mounting a component defined inline would give it a fresh identity
+  // on every TaskRow render, so React would remount its whole subtree on each
+  // keystroke — the update composer would lose focus after one character. Calling
+  // it inlines the JSX into TaskRow, keeping the input mounted + focused. It uses
+  // no hooks of its own (only TaskRow's closure), so a plain call is safe.
+  function renderEditor({ withStatus }: { withStatus: boolean }) {
     return (
       <div className="space-y-4 border-t border-border/50 px-3.5 py-4">
         {/* Company + owner — kept off the collapsed card (clean glance), shown here
@@ -853,7 +859,7 @@ function TaskRow({
               transition={tr}
               className="overflow-hidden"
             >
-              <Editor withStatus={false} />
+              {renderEditor({ withStatus: false })}
             </motion.div>
           )}
         </AnimatePresence>
@@ -922,7 +928,7 @@ function TaskRow({
         <AnimatePresence initial={false}>
           {open && (
             <motion.div key="editor" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={tr} className="overflow-hidden">
-              <Editor withStatus />
+              {renderEditor({ withStatus: true })}
             </motion.div>
           )}
         </AnimatePresence>
