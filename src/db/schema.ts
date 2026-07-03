@@ -1043,6 +1043,15 @@ export const briefNotes = pgTable("brief_notes", {
 // link. Times are stored as timestamptz (UTC); all-day events use `allDay`.
 // `attendees` is a JSON array of { personId?, name, email? } so we know who to
 // send to and how. `source` discriminates manual vs derived (meeting/task).
+// Owner-managed event categories (Board / Site visit / Review / …). A simple
+// named list, exactly like sites/job_titles — the owner adds/renames/deletes
+// them from the calendar. Events reference one via calendar_events.category_id.
+export const eventCategories = pgTable("event_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  active: boolean("active").notNull().default(true),
+});
+
 export const calendarEvents = pgTable("calendar_events", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -1080,6 +1089,8 @@ export const calendarEvents = pgTable("calendar_events", {
   // Google Calendar event id (set once the event is pushed to Google). Lets a
   // later COS edit/cancel patch/delete the same Google event so guests are told.
   googleEventId: text("google_event_id"),
+  // Owner-managed category (Board / Site visit / …). NULL = uncategorised.
+  categoryId: integer("category_id").references(() => eventCategories.id, { onDelete: "set null" }),
   createdBy: text("created_by").notNull().default("web-ui"),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date", withTimezone: true }).notNull(),

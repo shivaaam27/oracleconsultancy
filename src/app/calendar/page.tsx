@@ -3,6 +3,7 @@ import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { listCalendarEvents, toIcsEvent } from "@/lib/calendar";
 import { advanceDueMeetingTasks, postMeetingFollowups } from "@/lib/meeting-tasks";
 import { listOverlayItems } from "@/lib/calendar-overlays";
+import { listEventCategories } from "@/lib/event-categories";
 import { googleCalendarUrl } from "@/lib/ics";
 import { sb } from "@/db/supabase";
 import { CalendarBoard, type CalendarEventView } from "./calendar-board";
@@ -34,12 +35,14 @@ export default async function CalendarPage({
   const overlayFrom = shiftKey(-31);
   const overlayTo = shiftKey(400);
 
-  const [events, overlays, { data: peopleRaw }, { data: companiesRaw }] = await Promise.all([
+  const [events, overlays, categories, { data: peopleRaw }, { data: companiesRaw }] = await Promise.all([
     listCalendarEvents(),
     listOverlayItems(overlayFrom, overlayTo),
+    listEventCategories(),
     sb.from("people").select("id,name,email").eq("active", true).order("name"),
     sb.from("companies").select("id,name,accent_color").order("name"),
   ]);
+  const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
   const people = (peopleRaw ?? []).map((p) => ({
     id: p.id as number,
@@ -60,6 +63,7 @@ export default async function CalendarPage({
     ...ev,
     companyLabel: ev.companyId ? companyName.get(ev.companyId) ?? null : null,
     companyAccent: ev.companyId ? companyAccent.get(ev.companyId) ?? null : null,
+    categoryName: ev.categoryId ? categoryName.get(ev.categoryId) ?? null : null,
     googleUrl: googleCalendarUrl(toIcsEvent(ev)),
     icsPath: `/api/calendar/${ev.publicToken}.ics`,
   }));
@@ -94,7 +98,7 @@ export default async function CalendarPage({
           ))}
         </div>
       </Hero>
-      <CalendarBoard events={views} overlays={overlays} people={people} companies={companies} />
+      <CalendarBoard events={views} overlays={overlays} people={people} companies={companies} categories={categories} />
     </div>
   );
 }

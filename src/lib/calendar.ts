@@ -35,6 +35,7 @@ export type CalendarEvent = {
   sequence: number;
   status: string;
   googleEventId: string | null;
+  categoryId: number | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -86,6 +87,7 @@ function mapRow(r: Row): CalendarEvent {
     sequence: (r.sequence as number) ?? 0,
     status: (r.status as string) ?? "confirmed",
     googleEventId: (r.google_event_id as string) ?? null,
+    categoryId: (r.category_id as number) ?? null,
     createdBy: (r.created_by as string) ?? "web-ui",
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
@@ -109,6 +111,7 @@ export type CalendarEventInput = {
   source?: string;
   meetingId?: number | null;
   taskId?: number | null;
+  categoryId?: number | null;
   createdBy?: string;
 };
 
@@ -195,6 +198,7 @@ export async function createCalendarEvent(input: CalendarEventInput): Promise<Ca
     source: input.source ?? "manual",
     meeting_id: input.meetingId ?? null,
     task_id: input.taskId ?? null,
+    category_id: input.categoryId ?? null,
     uid,
     sequence: 0,
     status: "confirmed",
@@ -231,6 +235,7 @@ export async function updateCalendarEvent(
   }
   if (patch.recurrence !== undefined) payload.recurrence = patch.recurrence && patch.recurrence !== "none" ? patch.recurrence : null;
   if (patch.recurrenceUntil !== undefined) payload.recurrence_until = toIso(patch.recurrenceUntil);
+  if (patch.categoryId !== undefined) payload.category_id = patch.categoryId;
   if (patch.attendees !== undefined)
     payload.attendees = patch.attendees ? JSON.stringify(patch.attendees) : null;
   const { data, error } = await sb

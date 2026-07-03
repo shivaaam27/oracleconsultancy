@@ -18,7 +18,11 @@ import { createTasksForEvent, shouldCreateMeetingTasks } from "@/lib/meeting-tas
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
 import { cancelGoogleEvent, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
+import { resolveEventCategoryId } from "@/lib/event-categories";
 import { sb } from "@/db/supabase";
+import { db } from "@/db";
+import { calendarEvents, eventCategories } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 type Result =
   | { ok: true; id?: number; googleSynced?: boolean; googleCancelled?: boolean; taskCodes?: string[] }
@@ -121,12 +125,14 @@ export async function createEventAction(fd: FormData, createdBy?: string): Promi
 
   try {
     const companyId = numOrNull(fd, "companyId");
+    const categoryId = await resolveEventCategoryId(str(fd, "category"));
     const ev = await createCalendarEvent({
       title,
       description: str(fd, "description"),
       location: str(fd, "location"),
       meetLink: str(fd, "meetLink"),
       companyId,
+      categoryId,
       startAt,
       endAt,
       allDay,
@@ -200,6 +206,7 @@ export async function updateEventAction(fd: FormData): Promise<Result> {
       location: str(fd, "location"),
       meetLink: str(fd, "meetLink"),
       companyId: numOrNull(fd, "companyId"),
+      categoryId: await resolveEventCategoryId(str(fd, "category")),
       startAt,
       endAt,
       allDay,
@@ -571,4 +578,58 @@ export async function cancelEventAction(id: number): Promise<Result> {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not cancel event." };
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Owner-managed EVENT CATEGORIES (Board / Site visit / …). Add / rename
+ * / merge / delete, mirroring the sites/roles reference lists. Events keep
+ * their category via calendar_events.category_id; merge re-points it, delete
+ * sets it null (events become uncategorised, never lost).
+ * ------------------------------------------------------------------ */
+type RefResult = { ok: true } | { ok: false; error: string };
+
+export async function createEventCategory(name: string): Promise<RefResult> {
+  const clean = name.trim();
+  if (!clean) return { ok: false, error: "Enter a category name." };
+  const { data: existing } = await sb.from("event_categories").select("id").ilike("name", clean).maybeSingle();
+  if (existing) return { ok: false, error: "That category already exists." };
+  const { error } = await sb.from("event_categories").insert({ name: clean });
+  if (error) return { ok: false, error: error.message };
+  invalidate();
+  return { ok: true };
+}
+
+export async function renameEventCategory(id: number, name: string): Promise<RefResult> {
+  const clean = name.trim();
+  if (!clean) return { ok: false, error: "Enter a category name." };
+  const { data: clash } = await sb.from("event_categories").select("id").ilike("name", clean).maybeSingle();
+  if (clash && (clash.id as number) !== id) return { ok: false, error: "Another category already uses that name." };
+  const { error } = await sb.from("event_categories").update({ name: clean }).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  invalidate();
+  return { ok: true };
+}
+
+/** Merge one category into another: re-point its events, then delete the source. */
+export async function mergeEventCategories(fromId: number, intoId: number): Promise<RefResult> {
+  if (fromId === intoId) return { ok: false, error: "Pick two different categories." };
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(calendarEvents).set({ categoryId: intoId }).where(eq(calendarEvents.categoryId, fromId));
+      await tx.delete(eventCategories).where(eq(eventCategories.id, fromId));
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not merge the categories." };
+  }
+  invalidate();
+  return { ok: true };
+}
+
+/** Delete a category; its events become uncategorised (category_id → null). */
+export async function deleteEventCategory(id: number): Promise<RefResult> {
+  // The FK is ON DELETE SET NULL, so events are cleared automatically.
+  const { error } = await sb.from("event_categories").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  invalidate();
+  return { ok: true };
 }

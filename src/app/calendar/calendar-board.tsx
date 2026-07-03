@@ -13,13 +13,15 @@ import { AttendeePicker } from "@/components/attendee-picker";
 import { DatePopover } from "@/components/date-popover";
 import { FluidSelect } from "@/components/fluid-select";
 import { CompanyMultiSelect } from "@/components/company-multi-select";
+import { Combobox } from "@/components/combobox";
+import { ReferenceAdmin } from "@/components/reference-admin";
 import { useToast } from "@/components/toast";
 import { useContextActions } from "@/components/context-actions";
 import { cn } from "@/lib/cn";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
 import { expandRecurrence } from "@/lib/ics";
 import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
-import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction, previewEventInviteAction } from "./actions";
+import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction, previewEventInviteAction, createEventCategory, renameEventCategory, mergeEventCategories, deleteEventCategory } from "./actions";
 
 // Persisted calendar view + filter preferences (localStorage). `disabledLayers`
 // stores the OFF layers (so a newly-added layer defaults ON).
@@ -29,6 +31,7 @@ type CalendarPrefs = {
   search: string;
   companyFilter: string;
   sourceFilter: string;
+  categoryFilter: string;
   disabledLayers: OverlayKind[];
   meetingsOnly: boolean;
   collapseRecurring: boolean;
@@ -49,13 +52,22 @@ const OVERLAY_META: Record<OverlayKind, { icon: LucideIcon; tone: string; dot: s
 export type CalendarEventView = CalendarEvent & {
   companyLabel: string | null;
   companyAccent: string | null;
+  categoryName: string | null;
   googleUrl: string;
   icsPath: string;
 };
 
 type Person = { id: number; name: string; email: string | null };
 type Company = { id: number; name: string; accent?: string | null };
+type EventCategory = { id: number; name: string };
 type ViewMode = "month" | "week" | "day" | "agenda";
+
+// Distinct hues for category tags/dots, picked deterministically by id so a
+// category keeps its colour without needing a stored colour column.
+const CATEGORY_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316", "#84cc16"];
+function categoryColor(id: number): string {
+  return CATEGORY_COLORS[Math.abs(id) % CATEGORY_COLORS.length];
+}
 
 const EAT = "Africa/Dar_es_Salaam";
 
@@ -151,13 +163,17 @@ export function CalendarBoard({
   overlays = [],
   people,
   companies,
+  categories,
 }: {
   events: CalendarEventView[];
   overlays?: OverlayItem[];
   people: Person[];
   companies: Company[];
+  categories: EventCategory[];
 }) {
   const [formOpen, setFormOpen] = useState(false);
+  const [manageCatsOpen, setManageCatsOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("all");
   useContextActions("calendar", [{ id: "new-event", label: "New event", icon: <CalendarPlus size={16} />, onClick: openNew, primary: true, tone: "accent" }], []);
   const [editing, setEditing] = useState<CalendarEventView | null>(null);
   const [view, setView] = useState<ViewMode>("month");
@@ -187,6 +203,7 @@ export function CalendarBoard({
         if (typeof p.search === "string") setSearch(p.search);
         if (typeof p.companyFilter === "string") setCompanyFilter(p.companyFilter);
         if (typeof p.sourceFilter === "string") setSourceFilter(p.sourceFilter);
+        if (typeof p.categoryFilter === "string") setCategoryFilter(p.categoryFilter);
         if (Array.isArray(p.disabledLayers)) {
           setEnabledLayers(new Set(OVERLAY_KINDS.filter((k) => !p.disabledLayers!.includes(k))));
         }
@@ -205,13 +222,13 @@ export function CalendarBoard({
     if (!hydrated.current) return;
     try {
       const prefs: CalendarPrefs = {
-        view, search, companyFilter, sourceFilter,
+        view, search, companyFilter, sourceFilter, categoryFilter,
         disabledLayers: OVERLAY_KINDS.filter((k) => !enabledLayers.has(k)),
         meetingsOnly, collapseRecurring,
       };
       window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
     } catch { /* storage full / disabled → ignore */ }
-  }, [view, search, companyFilter, sourceFilter, enabledLayers, meetingsOnly, collapseRecurring]);
+  }, [view, search, companyFilter, sourceFilter, categoryFilter, enabledLayers, meetingsOnly, collapseRecurring]);
 
   function toggleLayer(k: OverlayKind) {
     setEnabledLayers((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -232,14 +249,17 @@ export function CalendarBoard({
     return events.filter((e) => {
       if (companyFilter !== "all" && String(e.companyId ?? "") !== companyFilter) return false;
       if (sourceFilter !== "all" && (e.source || "manual") !== sourceFilter) return false;
+      if (categoryFilter !== "all") {
+        if (categoryFilter === "none" ? e.categoryId != null : String(e.categoryId ?? "") !== categoryFilter) return false;
+      }
       if (q) {
-        const hay = [e.title, e.description, e.location, e.companyLabel, ...e.attendees.map((a) => a.name)]
+        const hay = [e.title, e.description, e.location, e.companyLabel, e.categoryName, ...e.attendees.map((a) => a.name)]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [events, search, companyFilter, sourceFilter]);
+  }, [events, search, companyFilter, sourceFilter, categoryFilter]);
 
   // Expand recurring events into individual occurrences across a wide window so
   // every view can page without refetching. Occurrences keep the base id (edit/
@@ -362,6 +382,16 @@ export function CalendarBoard({
               <option value="meeting">From meeting</option>
               <option value="task">From task</option>
             </Select>
+            <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 text-sm shrink-0">
+              <option value="all">All categories</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {categories.length > 0 && <option value="none">Uncategorised</option>}
+            </Select>
+            <button type="button" onClick={() => setManageCatsOpen(true)}
+              title="Add, rename or remove event categories"
+              className="h-9 px-2.5 inline-flex items-center gap-1 rounded-lg text-xs font-medium text-fg-muted hover:text-fg hover:bg-bg-muted ring-1 ring-border shrink-0">
+              <Pencil size={13} /> Categories
+            </button>
           </div>
         </div>
 
@@ -416,7 +446,25 @@ export function CalendarBoard({
 
       {/* Remounted on each open so its state seeds cleanly from `editing`. */}
       {formOpen && (
-        <EventForm people={people} companies={companies} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
+        <EventForm people={people} companies={companies} categories={categories} editing={editing} allEvents={events} onClose={() => setFormOpen(false)} />
+      )}
+
+      {manageCatsOpen && (
+        <HrmsDialog open onClose={() => setManageCatsOpen(false)} width="sm"
+          title={<span className="inline-flex items-center gap-2"><Pencil size={15} className="text-accent" /> Event categories</span>}
+          sub="Name your meeting types (e.g. Board, Site visit, Review). Used to colour + filter the calendar.">
+          <ReferenceAdmin
+            items={categories.map((c) => ({ id: c.id, name: c.name }))}
+            noun="category"
+            addPlaceholder="Add a category — e.g. Board meeting"
+            onCreate={createEventCategory}
+            onRename={renameEventCategory}
+            onMerge={mergeEventCategories}
+            onDelete={deleteEventCategory}
+            mergeNote="Its events move to the target category."
+            deleteNote="Its events become uncategorised."
+          />
+        </HrmsDialog>
       )}
 
       {filtered.length === 0 && view === "agenda" ? (
@@ -445,6 +493,9 @@ function EventChip({ event, onEdit }: { event: CalendarEventView; onEdit: () => 
       title={event.title}
       className="w-full text-left flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-tight hover:bg-bg-muted transition-colors"
       style={{ borderLeft: `3px solid ${accentOf(event)}` }}>
+      {event.categoryId != null && (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColor(event.categoryId) }} title={event.categoryName ?? undefined} />
+      )}
       {!event.allDay && <span className="tabular text-fg-muted shrink-0">{fmtTime(event.startAt)}</span>}
       {event.recurrence && event.recurrence !== "none" && <Repeat size={9} className="shrink-0 text-fg-subtle" />}
       <span className="truncate">{event.title}</span>
@@ -1079,12 +1130,14 @@ function inputToMs(v: string, allDay: boolean): number | null {
 function EventForm({
   people,
   companies,
+  categories,
   editing,
   allEvents,
   onClose,
 }: {
   people: Person[];
   companies: Company[];
+  categories: EventCategory[];
   editing: CalendarEventView | null;
   allEvents: CalendarEventView[];
   onClose: () => void;
@@ -1271,6 +1324,18 @@ function EventForm({
         </div>
         <input type="hidden" name="companyId" value={companyIds[0] ?? ""} />
         <input type="hidden" name="companyIds" value={JSON.stringify(companyIds)} />
+
+        {/* Category — type a new one to create it on the fly, or pick an existing. */}
+        <div className="sm:w-1/2">
+          <FieldLabel>Category</FieldLabel>
+          <Combobox
+            name="category"
+            options={categories.map((c) => c.name)}
+            defaultValue={editing?.categoryName ?? ""}
+            placeholder="e.g. Board meeting — or pick one"
+            className="w-full rounded-xl bg-bg-subtle ring-1 ring-border px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-accent/40"
+          />
+        </div>
 
         <div className="sm:w-1/2">
           <FieldLabel>Repeats</FieldLabel>
