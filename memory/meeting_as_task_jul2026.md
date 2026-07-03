@@ -40,15 +40,19 @@ deadline, auto-move to In Progress when the meeting starts. Plus richer event fo
   with `__keys`/`__section=automation`. Pattern for adding a setting is in [[chat_system]]-
   adjacent settings docs.
 
-## Phase B — NOT built yet
-- **Opportunistic auto-advance**: a cheap sweep (call it from calendar/tasks/portal
-  loads + morning-run) that flips `source_event_id` tasks Not Started→In Progress once
-  `meetingDate + grace` has passed, when `autoAdvanceMeetingTasks` on; log to audit_log
-  (undoable); dedupe via automation_events.
-- **Attendee pings**: at each event reminder lead time, `postSystemMessage(kind:"reminders")`
-  + `sendToRecipient` to each attendee person (gated by `eventAttendeePings`). Note: the
-  device calendar alarm already fires precisely (via .ics/Google); this is the in-app nudge.
-- **Task drawer "from meeting" chip** (source_event_id → link back to the event).
+## Phase B — auto-advance BUILT + VERIFIED (pushed); daily ping + drawer chip pending
+- **Opportunistic auto-advance** (DONE): `advanceDueMeetingTasks({force?})` in
+  `meeting-tasks.ts` — flips `source_event_id` tasks Not Started→In Progress once the
+  linked event's `start_at + graceMinutes` has passed (gated by `autoAdvanceMeetingTasks`;
+  skips cancelled events; `.eq("status","Not Started")` guard = idempotent). Module-level
+  60s throttle. Logs `system_events` kind "meeting-task-advanced". On flip, pings each
+  assignee via `postSystemMessage(kind:"reminders", push)` when `eventAttendeePings` on.
+  Wired into `calendar/page.tsx` load (throttled) + `morning-run` cron (force). Verified:
+  a past-start task auto-moved to In Progress on /calendar load.
+- **STILL TODO**: a daily "you have these meetings today" ping per attendee in morning-run
+  (precise-minute pings rely on the device calendar alarm); the task drawer "from meeting"
+  chip (source_event_id → link to the event). Also consider calling the sweep from admin/
+  portal home loads for wider coverage (throttle makes it cheap).
 
 ## Phase C — NOT built yet
 - Richer event form: `FluidSelect` **multi-company**, `DatePopover` + time dropdowns

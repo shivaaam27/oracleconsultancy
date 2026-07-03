@@ -2,6 +2,7 @@ import "server-only";
 import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getAppSettings } from "@/lib/settings";
+import { postSystemMessage } from "@/lib/chat";
 import type { CalendarEvent } from "@/lib/calendar";
 
 /* ------------------------------------------------------------------ *
@@ -80,4 +81,95 @@ export async function createTasksForEvent(
       .eq("id", event.id);
   }
   return created;
+}
+
+/* ------------------------------------------------------------------ *
+ * Opportunistic auto-advance: flip a meeting's task Not Started → In
+ * Progress once its start time (+ grace) has passed, and ping the people.
+ * Called cheaply from page loads + the morning cron (Vercel Hobby = 1
+ * cron/day, so we can't rely on a minute-precise cron; the sweep catches up
+ * whenever anyone touches the app). Throttled per server instance so it
+ * doesn't run on every single request. Idempotent — a task only advances once
+ * because it leaves "Not Started".
+ * ------------------------------------------------------------------ */
+
+// Module-level throttle (per warm server instance). Not persisted — a cold start
+// just runs it once more, which is harmless (idempotent).
+let lastSweepAt = 0;
+const SWEEP_THROTTLE_MS = 60_000;
+
+export async function advanceDueMeetingTasks(opts?: { force?: boolean }): Promise<number> {
+  const nowMs = Date.now();
+  if (!opts?.force && nowMs - lastSweepAt < SWEEP_THROTTLE_MS) return 0;
+  lastSweepAt = nowMs;
+
+  const settings = await getAppSettings();
+  if (!settings.autoAdvanceMeetingTasks) return 0;
+  const graceMs = Math.max(0, settings.meetingTaskGraceMinutes) * 60_000;
+
+  // Candidate tasks: still Not Started, spawned from an event.
+  const { data: tasks } = await sb
+    .from("tasks")
+    .select("id,code,action_item,source_event_id")
+    .eq("status", "Not Started")
+    .not("source_event_id", "is", null)
+    .limit(200);
+  if (!tasks || tasks.length === 0) return 0;
+
+  const eventIds = [...new Set(tasks.map((t) => t.source_event_id as number))];
+  const { data: events } = await sb
+    .from("calendar_events")
+    .select("id,start_at,status")
+    .in("id", eventIds);
+  const startById = new Map<number, { start: number; cancelled: boolean }>();
+  for (const e of events ?? []) {
+    startById.set(e.id as number, {
+      start: new Date(e.start_at as string).getTime(),
+      cancelled: (e.status as string) === "cancelled",
+    });
+  }
+
+  let advanced = 0;
+  for (const t of tasks) {
+    const info = startById.get(t.source_event_id as number);
+    if (!info || info.cancelled) continue;
+    if (nowMs < info.start + graceMs) continue; // meeting hasn't started (+grace) yet
+
+    const nowIso = new Date().toISOString();
+    const { error } = await sb
+      .from("tasks")
+      .update({ status: "In Progress", last_updated_at: nowIso })
+      .eq("id", t.id)
+      .eq("status", "Not Started"); // guard against a concurrent move
+    if (error) continue;
+    advanced += 1;
+
+    // Audit trail (best-effort).
+    try {
+      await sb.from("system_events").insert({
+        kind: "meeting-task-advanced",
+        status: "ok",
+        details: JSON.stringify({ taskId: t.id, code: t.code, reason: "meeting started" }),
+        created_at: nowIso,
+      });
+    } catch { /* ignore */ }
+
+    // Ping the assignees: their meeting has started and the task is now live.
+    if (settings.eventAttendeePings) {
+      try {
+        const { data: assignees } = await sb.from("task_assignees").select("person_id").eq("task_id", t.id);
+        for (const a of assignees ?? []) {
+          await postSystemMessage({
+            personId: a.person_id as number,
+            kind: "reminders",
+            title: "Task reminders",
+            body: `🟢 "${t.action_item}" is starting now — the task is open for updates (${t.code}).`,
+            taskCode: t.code as string,
+            push: { title: "Meeting starting", body: `${t.action_item} — tap to update` },
+          });
+        }
+      } catch { /* pings are best-effort */ }
+    }
+  }
+  return advanced;
 }

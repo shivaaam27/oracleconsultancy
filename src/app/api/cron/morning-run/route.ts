@@ -27,6 +27,14 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "automations", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1a½. Advance meeting-tasks whose start has passed (Not Started → In Progress).
+    try {
+      const { advanceDueMeetingTasks } = await import("@/lib/meeting-tasks");
+      await advanceDueMeetingTasks({ force: true });
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "meeting-tasks", message: e instanceof Error ? e.message : String(e) });
+    }
+
     // 1a. Chase the GAPS — propose tasks for missing records the system spotted
     //     (a company with no TIN, a person missing a mandatory document, an
     //     expired critical doc with no renewal). Same rails as the date sweep:
