@@ -1,8 +1,17 @@
 # Deep Audit — Documents, Compliance, ORI & Intelligence (2026-07-02)
 
-**Status: AUDIT COMPLETE, NOT YET IMPLEMENTED.** Read-only 50-agent deep audit
+**UPDATE 2026-07-03: Phases 1–5 + the UI-redesign core are ALL BUILT, VERIFIED
+AND PUSHED to master** (the per-phase "(local, uncommitted)" notes below were
+accurate when written; ignore them — everything shipped). Also shipped after the
+audit: the Gemini provider swap + all AI-reliability fixes + the ⌘K search
+upgrade — see [[ai_provider_gemini]] and [[ori_search_and_ai_reliability]].
+Deferred: the fuller UI redesign (Files-tab split / hide-empty-shelves) with the
+owner watching a live preview. The cloud-agent finding below is now ADDRESSED
+(migration 0106 + audit trail + canAutoSend + dispatcher heartbeat).
+
+**Status (original): AUDIT COMPLETE.** Read-only 50-agent deep audit
 (16 grounded readers + adversarial verify + 2 design agents). This file is the
-durable handoff so the fix pass (Fable 5) can execute without re-auditing.
+durable handoff so the fix pass could execute without re-auditing.
 
 ## Scoreboard
 - 123 findings: 6 critical, 30 high, 43 medium, 44 low.
